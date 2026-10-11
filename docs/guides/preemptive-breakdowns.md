@@ -1,21 +1,27 @@
-# Preemptive Machine Breakdowns (Hybrid Pattern)
+# Preemptive Breakdowns
 
-In manufacturing simulations, machine breakdowns are usually **preemptive**: they occur randomly and interrupt whatever task is currently running.
+A preemptive breakdown stops a machine in the middle of a job. Here the part being machined stays on the lathe while it is repaired, then the rest of its work continues. No other part can start while the lathe is down.
 
-The `@app.task` decorator abstracts the internal `yield env.timeout()` execution block. Therefore, you cannot wrap it in a standard Python `try/except` block to catch a SimPy `simpy.Interrupt`. If you need to simulate breakdowns and model how machines recover, you must write a custom generator and use a background failure loop (the "Chaos Monkey" pattern).
+![worker_task publishes queued and started; every 12 s chaos_monkey interrupts the part on the lathe, which publishes interrupted with the cause, keeps the lathe for 10 s of repair, publishes machine_repaired and machines the rest, then publishes finished; with no breakdown it finishes after 5 s of machining](../assets/diagrams/breakdown-interrupt.png)
+
+`@app.task` waits out the service time inside its own generator, so your code cannot catch a `simpy.Interrupt` there. A breakdown needs a task written as a generator that you start with `context.spawn`, and a process that interrupts it.
 
 ---
 
-## Code Example: Simulating Preemptive Interruption
+## Example
 
-This script defines a custom worker process that can catch a SimPy `Interrupt` mid-operation, report the failure to Kafka/Console, and wait for a repair crew before retrying.
-
-```python
+```python title="docs/snippets/guides/preemptive_breakdowns.py"
 import logging
+
 import simpy
-from dynamic_des import SimulationContext, ConsoleEgress
+
+from dynamic_des import ConsoleEgress, SimulationContext
 
 logging.basicConfig(level=logging.INFO)
+
+MACHINING = 5.0  # seconds of work per part
+REPAIR = 10.0  # seconds the lathe is down after a breakdown
+BREAKDOWN_EVERY = 12.0  # seconds between breakdowns
 
 app = (
     SimulationContext(sim_id="Line_A", factor=1.0)
@@ -24,64 +30,67 @@ app = (
     .add_egress(ConsoleEgress())
 )
 
-# Keep track of active task processes to interrupt
-active_processes = []
+# The process of the part being machined, if any, so a breakdown can interrupt it.
+on_lathe = []
+
 
 def worker_task(context: SimulationContext, task_id: int):
     lathe = context.get_resource("lathe")
-    task_key = f"task-{task_id}"
-    context.env.publish_event(task_key, {"status": "queued"})
+    key = f"task-{task_id}"
+    context.env.publish_event(key, {"status": "queued"})
 
-    # Track this running SimPy process
-    active_processes.append(context.env.active_process)
+    with lathe.request() as req:
+        yield req
+        context.env.publish_event(key, {"status": "started"})
+        remaining = MACHINING
+        while remaining > 0:
+            on_lathe.append(context.env.active_process)
+            began = context.env.now
+            try:
+                yield context.env.timeout(remaining)
+                remaining = 0
+            except simpy.Interrupt as interrupt:
+                remaining -= context.env.now - began
+                context.env.publish_event(
+                    key, {"status": "interrupted", "cause": interrupt.cause}
+                )
+            on_lathe.remove(context.env.active_process)
+            if remaining > 0:
+                # The part stays on the lathe, so no other part can start, and a
+                # lathe under repair cannot break down again.
+                yield context.env.timeout(REPAIR)
+                context.env.publish_event(key, {"status": "machine_repaired"})
+        context.env.publish_event(key, {"status": "finished"})
 
-    try:
-        with lathe.request() as req:
-            yield req
-            context.env.publish_event(task_key, {"status": "started"})
 
-            # Simulated processing time
-            yield context.env.timeout(5.0)
-
-            context.env.publish_event(task_key, {"status": "finished"})
-    except simpy.Interrupt as interrupt:
-        # Catch machine failure!
-        cause = interrupt.cause
-        context.env.publish_event(
-            task_key,
-            {"status": "interrupted", "error": f"Machine breakdown: {cause}"}
-        )
-
-        # Simulates waiting for maintenance/repair
-        yield context.env.timeout(10.0)
-        context.env.publish_event(task_key, {"status": "machine_repaired"})
-    finally:
-        if context.env.active_process in active_processes:
-            active_processes.remove(context.env.active_process)
-
-# 3. Chaos Daemon (Simulates random machine breakdowns)
 def chaos_monkey(context: SimulationContext):
     while True:
-        # Trigger a breakdown every 12 seconds
-        yield context.env.timeout(12.0)
+        yield context.env.timeout(BREAKDOWN_EVERY)
+        if on_lathe:  # an idle lathe has nothing to interrupt
+            on_lathe[0].interrupt("overheating")
 
-        if active_processes:
-            # Interrupt the currently active task
-            target = active_processes[0]
-            target.interrupt("Overheating alarm!")
 
-# 4. Wire everything
 @app.arrival_loop("standard")
 def arrival_loop(context: SimulationContext):
-    task_id = 0
-    # Start the chaos monkey loop
     context.spawn(chaos_monkey(context))
-
+    task_id = 0
     while True:
         yield context.wait_for_arrival("standard")
         context.spawn(worker_task(context, task_id))
         task_id += 1
 
+
 if __name__ == "__main__":
     app.run(until=40.0)
 ```
+
+Save it as `preemptive_breakdowns.py` and run `python preemptive_breakdowns.py`. It runs for 40 seconds in real time (`factor=1.0`) and prints each event.
+
+---
+
+## How It Works
+
+- **`on_lathe`** holds the process of the part being machined, so the breakdown process knows what to interrupt.
+- **`worker_task`** takes the lathe and machines for `MACHINING` seconds. When it is interrupted, it subtracts the time already worked, publishes `interrupted` with the cause, keeps the lathe for `REPAIR` seconds, publishes `machine_repaired` and machines the rest. It publishes `finished` when the work is done.
+- **`chaos_monkey`** interrupts the part on the lathe every `BREAKDOWN_EVERY` seconds. An idle lathe, or one under repair, has nothing to interrupt, so it does not break down. For breakdowns at random times, replace the fixed wait with a random draw such as `random.expovariate(1 / BREAKDOWN_EVERY)`.
+- **`arrival_loop`** starts `chaos_monkey` once, then starts a `worker_task` for each arriving part.

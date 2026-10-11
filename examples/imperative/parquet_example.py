@@ -6,7 +6,8 @@ through the builder, which shows what `SimulationContext` does for you.
 
 `factor=0.0` detaches the clock from real time, so seven days of history are generated
 as fast as the machine allows and written to Parquet. A router keeps lifecycle events
-and drops telemetry. Writes to `data/` unless `USE_S3=true`.
+and drops telemetry. Writes to `data/`, or to S3 with the variables `yaml/parquet.yaml`
+reads: `PARQUET_FILESYSTEM=s3` and `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`.
 """
 
 import logging
@@ -68,29 +69,18 @@ def run():
     # ---------------------------------------------------------
     # 1. DUAL-MODE STORAGE CONFIGURATION
     # ---------------------------------------------------------
-    use_s3 = os.getenv("USE_S3", "false").lower() == "true"
-    # odctl-dev is one of the buckets the odctl `storage` profile creates.
-    base_path = os.getenv("DEST_PATH", "odctl-dev/history" if use_s3 else "data")
-    filesystem = None
-
-    if use_s3:
-        # Lazy import PyArrow so the script doesn't crash if running purely local
-        # without the [parquet] extra installed (though it is needed for ParquetStorageEgress)
-        from pyarrow import fs
-
-        logger.info(f"Configuring S3 Egress. Target Bucket: '{base_path}'")
-        filesystem = fs.S3FileSystem(
-            access_key=os.getenv("S3_ACCESS_KEY", "user"),
-            secret_key=os.getenv("S3_SECRET_KEY", "password"),
-            endpoint_override=os.getenv("S3_ENDPOINT", "127.0.0.1:8333"),
-            scheme="http",
-        )
-        # Ensure S3 Bucket exists
-        filesystem.create_dir(base_path)
-    else:
-        logger.info(f"Configuring Local Egress. Target Folder: '{base_path}'")
-        # Ensure local directory exists
-        os.makedirs(base_path, exist_ok=True)
+    # The same variables as yaml/parquet.yaml. Unset, the run writes to data/ on the local
+    # disk. PARQUET_FILESYSTEM=s3 with the S3_* variables writes to S3-compatible storage,
+    # such as SeaweedFS from `odctl up storage`. The egress builds the filesystem from this
+    # mapping and creates the destination folder on its first write; an empty value is
+    # left out, so the PyArrow default applies.
+    base_path = os.getenv("DEST_PATH", "data")
+    filesystem = {
+        "type": os.getenv("PARQUET_FILESYSTEM", "local"),
+        "endpoint_override": os.getenv("S3_ENDPOINT", ""),
+        "access_key": os.getenv("S3_ACCESS_KEY", ""),
+        "secret_key": os.getenv("S3_SECRET_KEY", ""),
+    }
 
     # ---------------------------------------------------------
     # 2. SIMULATION SETUP

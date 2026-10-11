@@ -273,6 +273,10 @@ jobs:
           # so it renders at any depth.
           git worktree add "$RUNNER_TEMP/gh-pages" gh-pages
           cp "$RUNNER_TEMP/gh-pages/$VERSION/404.html" "$RUNNER_TEMP/gh-pages/404.html"
-          git -C "$RUNNER_TEMP/gh-pages" add 404.html
-          git -C "$RUNNER_TEMP/gh-pages" diff --cached --quiet || git -C "$RUNNER_TEMP/gh-pages" commit -m "Root 404 page from $VERSION"
+          # Assistants look for llms.txt at the root of the site. Its links already
+          # point at latest/, so the copy works from there.
+          cp "$RUNNER_TEMP/gh-pages/$VERSION/llms.txt" "$RUNNER_TEMP/gh-pages/llms.txt"
+          cp "$RUNNER_TEMP/gh-pages/$VERSION/llms-full.txt" "$RUNNER_TEMP/gh-pages/llms-full.txt"
+          git -C "$RUNNER_TEMP/gh-pages" add 404.html llms.txt llms-full.txt
+          git -C "$RUNNER_TEMP/gh-pages" diff --cached --quiet || git -C "$RUNNER_TEMP/gh-pages" commit -m "Root 404 page and llms.txt from $VERSION"
           git -C "$RUNNER_TEMP/gh-pages" push origin gh-pages

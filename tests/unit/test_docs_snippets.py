@@ -30,6 +30,19 @@ def test_snippet_builds_and_runs(path):
     app.run(until=200)
 
 
+BUILD_ONLY = sorted((ROOT / "docs" / "snippets" / "yaml_build").glob("*.yaml"))
+
+
+@pytest.mark.parametrize("path", BUILD_ONLY, ids=[p.name for p in BUILD_ONLY])
+def test_connector_snippet_builds(path):
+    """These name real services, so they are loaded and built but not run.
+
+    Building a connector opens no connection, so no service is needed.
+    """
+    sys.modules.pop("routing_logic", None)
+    SimulationContext.from_yaml(path)
+
+
 def test_hot_rolling_snippet_is_valid_yaml():
     """Composed, not constructed: its !python references live in the OML repository."""
     path = ROOT / "docs" / "snippets" / "hot_rolling" / "hot_rolling.yaml"

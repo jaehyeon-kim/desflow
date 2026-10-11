@@ -1,0 +1,32 @@
+# The First Simulation tutorial, step 3: the factory on Kafka.
+# Needs Kafka: odctl up kafka-lite. Runs until stopped with Ctrl+C.
+simulation:
+  sim_id: Factory_A
+  factor: 1.0
+  random_seed: 42
+
+resources:
+  lathe: {current_cap: 1, max_cap: 5}
+
+services:
+  milling: {dist: normal, mean: 3.0, std: 0.5}
+
+arrivals:
+  parts: {dist: exponential, rate: 0.5, spawn: process_part}
+
+tasks:
+  process_part: {service: milling, resource: lathe, payload: {}, id_field: part_id}
+
+# --8<-- [start:kafka]
+ingress:
+  # Reads {"path_id": ..., "value": ...} messages
+  - type: Kafka
+    config: {topic: sim-config, bootstrap_servers: localhost:9092}
+
+egress:
+  - type: Kafka
+    config:
+      bootstrap_servers: localhost:9092
+      event_topic: sim-events
+      telemetry_topic: sim-telemetry
+# --8<-- [end:kafka]

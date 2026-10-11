@@ -1,8 +1,10 @@
 # Examples
 
-Runnable scripts for every connector, in both API styles, and YAML blueprints for the declarative ones. They live outside the package, so `pip install dynamic-des` does not carry them and the library declares only what it imports.
+Runnable examples, each written three ways: as a YAML blueprint in `yaml/`, with the declarative API in `declarative/` and with the low-level API in `imperative/`. They live outside the package, so `pip install dynamic-des` does not carry them and the library declares only what it imports.
 
-Run one directly:
+Outside a clone, `ddes examples get <name>` downloads an example at the release you have installed, each version into a folder of its own; `ddes examples` lists them.
+
+From a clone, run one directly:
 
 ```bash
 uv run examples/declarative/local_example.py
@@ -23,7 +25,7 @@ pip install "dynamic-des[kafka]"
 python examples/declarative/kafka_example.py
 ```
 
-Extras by example: `kafka` for `*/kafka_example.py` and `kafka_dashboard.py`, `postgres` for `*/postgres_example.py`, `redis` for `*/redis_example.py`, `parquet` for `*/parquet_example.py`, `iceberg` for `*/iceberg_example.py`, both `kafka` and `parquet` for `declarative/backfill_live_example.py`, and none for `*/local_example.py`.
+Extras by example: `kafka` for `*/kafka_example.py` and `kafka_dashboard.py`, `postgres` for `*/postgres_example.py`, `redis` for `*/redis_example.py`, `parquet` for `*/parquet_example.py`, `iceberg` for `*/iceberg_example.py`, both `kafka` and `parquet` for `*/backfill_live_example.py`, `postgres` for `*/postgres_orders_example.py`, and none for `*/local_example.py`.
 
 `kafka_dashboard.py` additionally needs `nicegui`, which is not a dependency of the library because nothing in the package imports it. Run it as `uv run --extra kafka --with nicegui examples/kafka_dashboard.py`, which installs nothing permanently, or `pip install nicegui` first.
 
@@ -35,11 +37,12 @@ Containers come from [odctl](https://github.com/jaehyeon-kim/odctl), installed o
 |---|---|---|
 | `*/local_example.py` | none | |
 | `*/kafka_example.py` | `kafka-lite` | `odctl up kafka-lite` |
-| `declarative/backfill_live_example.py` | `kafka-lite` | `odctl up kafka-lite` |
+| `*/backfill_live_example.py`, `yaml/backfill_live.yaml` | `kafka-lite` | `odctl up kafka-lite` |
+| `*/postgres_orders_example.py`, `yaml/advanced/postgres_orders.yaml` | `postgres` | `odctl up postgres` |
 | `kafka_dashboard.py` | `kafka-lite` | `odctl up kafka-lite` |
 | `*/postgres_example.py` | `postgres` | `odctl up postgres` |
 | `*/redis_example.py` | `valkey` | `odctl up valkey` |
-| `*/parquet_example.py` | none, or `storage` with `USE_S3=true` | `odctl up storage` |
+| `*/parquet_example.py` | none, or `storage` with `PARQUET_FILESYSTEM=s3` | `odctl up storage` |
 | `*/iceberg_example.py` | `catalog` | `odctl up catalog` |
 
 Stop a profile with `odctl down <profile> --volumes`. `odctl list -d` shows every profile and the ports it publishes.
@@ -58,10 +61,10 @@ Most pairs run the same simulation, so reading one against the other shows what 
 
 ## YAML blueprints
 
-`yaml/` holds a YAML twin of every declarative example, run with the `ddes` command:
+`yaml/` holds the YAML version of every example, run with the `ddes` command:
 
 ```bash
 uv run ddes run examples/yaml/local.yaml
 ```
 
-The blueprints in `yaml/` are plain YAML with no Python. `yaml/advanced/postgres_orders.yaml` keeps its order generator in Python, in `postgres_orders_logic.py` beside it, and references it with `!python`. The extras and odctl profiles are the same as for the declarative twin, so `kafka.yaml` needs `--extra kafka` and `odctl up kafka-lite`, and `backfill_live.yaml` needs both `kafka` and `parquet`. `tests/unit/test_yaml_examples.py` builds and runs each blueprint and checks the records it produces.
+The blueprints in `yaml/` are plain YAML with no Python. `yaml/advanced/postgres_orders.yaml` keeps its order generator in Python, in `postgres_orders_logic.py` beside it, and references it with `!python`. The extras and odctl profiles are the same as for the Python versions, so `kafka.yaml` needs `--extra kafka` and `odctl up kafka-lite`, and `backfill_live.yaml` needs both `kafka` and `parquet`. `tests/unit/test_yaml_examples.py` builds and runs each blueprint and checks the records it produces.

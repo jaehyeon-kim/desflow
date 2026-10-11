@@ -4,59 +4,182 @@ A production line that takes parameter updates from a Kafka topic and publishes 
 
 With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simulation runs as a separate service. It reads JSON parameter updates from a topic, and publishes telemetry and typed Pydantic events to other topics.
 
-=== "Declarative"
+=== "YAML"
 
-    This example demonstrates how to integrate `dynamic-des` into a full event-driven architecture using the declarative **Standard API (`SimulationContext`)**.
+    This example builds the simulation of the declarative example in the Declarative tab from a YAML blueprint, with no Python. The connectors, the parameters, the task and the telemetry are all declared in the file.
 
     **Quick Start**
 
-    Download the script, then run it.
+    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
-    ```bash
-    curl -O https://raw.githubusercontent.com/jaehyeon-kim/dynamic-des/main/examples/declarative/kafka_example.py
-    curl -O https://raw.githubusercontent.com/jaehyeon-kim/dynamic-des/main/examples/kafka_dashboard.py
+    === "uv"
+
+        ```bash
+        # 1. Install
+        uv tool install "dynamic-des[kafka]" --with-executables-from "odctl>=1.0,<2"
+
+        # 2. Download the example
+        ddes examples get kafka --api yaml
+        cd kafka/yaml
+
+        # 3. Start its service
+        odctl up kafka-lite
+
+        # 4. Run it (Ctrl + C to stop)
+        ddes run kafka.yaml
+
+        # 5. In a second terminal, in the same folder, watch and steer it at http://localhost:8080
+        uv run --no-project --with "dynamic-des[kafka]" --with nicegui ../kafka_dashboard.py
+
+        # 6. Stop its service when finished
+        odctl down kafka-lite --volumes
+        ```
+
+    === "pip"
+
+        ```bash
+        # 1. Install
+        pip install "dynamic-des[kafka]" "odctl>=1.0,<2" nicegui
+
+        # 2. Download the example
+        ddes examples get kafka --api yaml
+        cd kafka/yaml
+
+        # 3. Start its service
+        odctl up kafka-lite
+
+        # 4. Run it (Ctrl + C to stop)
+        ddes run kafka.yaml
+
+        # 5. In a second terminal, in the same folder, watch and steer it at http://localhost:8080
+        python ../kafka_dashboard.py
+
+        # 6. Stop its service when finished
+        odctl down kafka-lite --volumes
+        ```
+
+    **What It Does**
+
+    The run keeps going until you stop it. When it starts, `KafkaEgress` creates `sim-events` and `sim-telemetry` if they do not exist. The run then publishes task lifecycle events to `sim-events` and lathe metrics to `sim-telemetry`, and applies parameter updates sent to `sim-config`.
+
+    The dashboard in the Quick Start works with this run unchanged, because it reads the same topics and the same four lathe metrics.
+
+    `KAFKA_BOOTSTRAP_SERVERS` overrides the broker address, because the blueprint reads it with `${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}`.
+
+    **Full Source Code**
+
+    The blueprint wires both Kafka connectors and declares the lathe, the service, the arrival and the task. The finished event of each task is the fixed `payload`, and the `telemetry` entry publishes four built-in statistics of the lathe every 2 simulation seconds. The declarative example also publishes `lathe.avg_wait`, a derived metric, which a blueprint computes only with Python.
+
+    Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
+
+    ```yaml title="examples/yaml/kafka.yaml"
+    # Kafka digital twin in YAML.
+    #
+    # The YAML version of examples/declarative/kafka_example.py. KafkaIngress reads
+    # parameter updates from sim-config, and KafkaEgress publishes lifecycle events to
+    # sim-events and lathe metrics to sim-telemetry. KafkaEgress creates its two topics
+    # when the run starts.
+    #
+    # Needs a broker: odctl up kafka-lite. Runs until interrupted with Ctrl + C.
+    # KAFKA_BOOTSTRAP_SERVERS overrides the broker address.
+    # Run it with: ddes run examples/yaml/kafka.yaml
+
+    simulation:
+      sim_id: Line_A
+      factor: 1.0
+      random_seed: 42
+
+    ingress:
+      - type: Kafka
+        config:
+          topic: sim-config
+          bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}
+
+    egress:
+      - type: Kafka
+        config:
+          event_topic: sim-events
+          telemetry_topic: sim-telemetry
+          bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}
+
+    resources:
+      lathe: {current_cap: 1, max_cap: 10}
+
+    services:
+      milling: {dist: normal, mean: 3.0, std: 0.5}
+
+    arrivals:
+      standard: {dist: exponential, rate: 1.0, spawn: process_part}
+
+    tasks:
+      process_part:
+        service: milling
+        resource: lathe
+        payload: {path_id: Line_A.service.milling, status: finished}
+
+    telemetry:
+      # Samples the lathe every 2 simulation seconds.
+      - interval: 2.0
+        publish:
+          lathe.capacity: lathe.capacity
+          lathe.in_use: lathe.in_use
+          lathe.queue_length: lathe.queue_length
+          lathe.utilization: lathe.utilization
     ```
 
-    **With uv**
+=== "Declarative"
 
-    ```bash
-    # 1. Install odctl, which runs the containers
-    uv tool install "odctl>=1.0,<2"
+    This example demonstrates how to integrate `dynamic-des` into a full event-driven architecture using the **declarative API (`SimulationContext`)**.
 
-    # 2. Start the Kafka broker and schema registry
-    odctl up kafka-lite
+    **Quick Start**
 
-    # 3. Run the declarative simulation (Ctrl + C to stop)
-    uv run --no-project --with "dynamic-des[kafka]" kafka_example.py
+    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
-    # 4. In a second terminal, watch and steer the run from the dashboard. It serves
-    #    http://localhost:8080 rather than opening a browser. Ctrl + C to stop.
-    uv run --no-project --with "dynamic-des[kafka]" --with nicegui kafka_dashboard.py
+    === "uv"
 
-    # 5. Clean up the infrastructure when finished
-    odctl down kafka-lite --volumes
-    ```
+        ```bash
+        # 1. Install
+        uv tool install "dynamic-des[kafka]" --with-executables-from "odctl>=1.0,<2"
 
-    **With pip**
+        # 2. Download the example
+        ddes examples get kafka --api declarative
+        cd kafka/declarative
 
-    ```bash
-    # 1. Install the package with the kafka extra, odctl for the containers and
-    #    nicegui for the dashboard
-    pip install "dynamic-des[kafka]" "odctl>=1.0,<2" nicegui
+        # 3. Start its service
+        odctl up kafka-lite
 
-    # 2. Start the Kafka broker and schema registry
-    odctl up kafka-lite
+        # 4. Run it (Ctrl + C to stop)
+        uv run --no-project --with "dynamic-des[kafka]" kafka_example.py
 
-    # 3. Run the declarative simulation (Ctrl + C to stop)
-    python kafka_example.py
+        # 5. In a second terminal, in the same folder, watch and steer it at http://localhost:8080
+        uv run --no-project --with "dynamic-des[kafka]" --with nicegui ../kafka_dashboard.py
 
-    # 4. In a second terminal, watch and steer the run from the dashboard. It serves
-    #    http://localhost:8080 rather than opening a browser. Ctrl + C to stop.
-    python kafka_dashboard.py
+        # 6. Stop its service when finished
+        odctl down kafka-lite --volumes
+        ```
 
-    # 5. Clean up the infrastructure when finished
-    odctl down kafka-lite --volumes
-    ```
+    === "pip"
+
+        ```bash
+        # 1. Install
+        pip install "dynamic-des[kafka]" "odctl>=1.0,<2" nicegui
+
+        # 2. Download the example
+        ddes examples get kafka --api declarative
+        cd kafka/declarative
+
+        # 3. Start its service
+        odctl up kafka-lite
+
+        # 4. Run it (Ctrl + C to stop)
+        python kafka_example.py
+
+        # 5. In a second terminal, in the same folder, watch and steer it at http://localhost:8080
+        python ../kafka_dashboard.py
+
+        # 6. Stop its service when finished
+        odctl down kafka-lite --volumes
+        ```
 
     The run keeps going until you stop it. It logs one line per task as the task claims the lathe, publishes task lifecycle events to `sim-events` and resource metrics to `sim-telemetry`.
 
@@ -211,43 +334,53 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
 
     **Quick Start**
 
-    Download the script, then run it.
+    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
-    ```bash
-    curl -O https://raw.githubusercontent.com/jaehyeon-kim/dynamic-des/main/examples/imperative/kafka_example.py
-    ```
+    === "uv"
 
-    **With uv**
+        ```bash
+        # 1. Install
+        uv tool install "dynamic-des[kafka]" --with-executables-from "odctl>=1.0,<2"
 
-    ```bash
-    # 1. Install odctl, which runs the containers
-    uv tool install "odctl>=1.0,<2"
+        # 2. Download the example
+        ddes examples get kafka --api low-level
+        cd kafka/low-level
 
-    # 2. Start the Kafka broker and schema registry
-    odctl up kafka-lite
+        # 3. Start its service
+        odctl up kafka-lite
 
-    # 3. Run the imperative simulation (Ctrl + C to stop)
-    uv run --no-project --with "dynamic-des[kafka]" kafka_example.py
+        # 4. Run it (Ctrl + C to stop)
+        uv run --no-project --with "dynamic-des[kafka]" kafka_example.py
 
-    # 4. Clean up the infrastructure when finished
-    odctl down kafka-lite --volumes
-    ```
+        # 5. In a second terminal, in the same folder, watch and steer it at http://localhost:8080
+        uv run --no-project --with "dynamic-des[kafka]" --with nicegui ../kafka_dashboard.py
 
-    **With pip**
+        # 6. Stop its service when finished
+        odctl down kafka-lite --volumes
+        ```
 
-    ```bash
-    # 1. Install the package with the kafka extra, and odctl for the containers
-    pip install "dynamic-des[kafka]" "odctl>=1.0,<2"
+    === "pip"
 
-    # 2. Start the Kafka broker and schema registry
-    odctl up kafka-lite
+        ```bash
+        # 1. Install
+        pip install "dynamic-des[kafka]" "odctl>=1.0,<2" nicegui
 
-    # 3. Run the imperative simulation (Ctrl + C to stop)
-    python kafka_example.py
+        # 2. Download the example
+        ddes examples get kafka --api low-level
+        cd kafka/low-level
 
-    # 4. Clean up the infrastructure when finished
-    odctl down kafka-lite --volumes
-    ```
+        # 3. Start its service
+        odctl up kafka-lite
+
+        # 4. Run it (Ctrl + C to stop)
+        python kafka_example.py
+
+        # 5. In a second terminal, in the same folder, watch and steer it at http://localhost:8080
+        python ../kafka_dashboard.py
+
+        # 6. Stop its service when finished
+        odctl down kafka-lite --volumes
+        ```
 
     The run keeps going until you stop it. It logs one line per task as the task claims the lathe, publishes task lifecycle events to `sim-events` and resource metrics to `sim-telemetry`.
 
@@ -425,117 +558,4 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
 
     if __name__ == "__main__":
         run()
-    ```
-
-=== "YAML"
-
-    This example builds the simulation of the declarative example in the Declarative tab from a YAML blueprint, with no Python. The connectors, the parameters, the task and the telemetry are all declared in the file.
-
-    **Quick Start**
-
-    Download the blueprint, then run it.
-
-    ```bash
-    curl -O https://raw.githubusercontent.com/jaehyeon-kim/dynamic-des/main/examples/yaml/kafka.yaml
-    ```
-
-    **With uv**
-
-    ```bash
-    # 1. Install odctl, which runs the containers
-    uv tool install "odctl>=1.0,<2"
-
-    # 2. Start the Kafka broker and schema registry
-    odctl up kafka-lite
-
-    # 3. Run the blueprint (Ctrl + C to stop)
-    uv run --no-project --with "dynamic-des[kafka]" ddes run kafka.yaml
-
-    # 4. Clean up the infrastructure when finished
-    odctl down kafka-lite --volumes
-    ```
-
-    **With pip**
-
-    ```bash
-    # 1. Install the package with the kafka extra, and odctl for the containers
-    pip install "dynamic-des[kafka]" "odctl>=1.0,<2"
-
-    # 2. Start the Kafka broker and schema registry
-    odctl up kafka-lite
-
-    # 3. Run the blueprint (Ctrl + C to stop)
-    ddes run kafka.yaml
-
-    # 4. Clean up the infrastructure when finished
-    odctl down kafka-lite --volumes
-    ```
-
-    **What It Does**
-
-    The run keeps going until you stop it. When it starts, `KafkaEgress` creates `sim-events` and `sim-telemetry` if they do not exist. The run then publishes task lifecycle events to `sim-events` and lathe metrics to `sim-telemetry`, and applies parameter updates sent to `sim-config`.
-
-    The dashboard from the declarative example works with this run unchanged, because it reads the same topics and the same four lathe metrics: `uv run --no-project --with "dynamic-des[kafka]" --with nicegui kafka_dashboard.py`, after downloading [`kafka_dashboard.py`](https://raw.githubusercontent.com/jaehyeon-kim/dynamic-des/main/examples/kafka_dashboard.py).
-
-    `KAFKA_BOOTSTRAP_SERVERS` overrides the broker address, because the blueprint reads it with `${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}`.
-
-    **Full Source Code**
-
-    The blueprint wires both Kafka connectors and declares the lathe, the service, the arrival and the task. The finished event of each task is the fixed `payload`, and the `telemetry` entry publishes four built-in statistics of the lathe every 2 simulation seconds. The declarative example also publishes `lathe.avg_wait`, a derived metric, which a blueprint computes only with Python.
-
-    Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
-
-    ```yaml title="examples/yaml/kafka.yaml"
-    # Kafka digital twin in YAML.
-    #
-    # The YAML version of examples/declarative/kafka_example.py. KafkaIngress reads
-    # parameter updates from sim-config, and KafkaEgress publishes lifecycle events to
-    # sim-events and lathe metrics to sim-telemetry. KafkaEgress creates its two topics
-    # when the run starts.
-    #
-    # Needs a broker: odctl up kafka-lite. Runs until interrupted with Ctrl + C.
-    # KAFKA_BOOTSTRAP_SERVERS overrides the broker address.
-    # Run it with: ddes run examples/yaml/kafka.yaml
-
-    simulation:
-      sim_id: Line_A
-      factor: 1.0
-      random_seed: 42
-
-    ingress:
-      - type: Kafka
-        config:
-          topic: sim-config
-          bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}
-
-    egress:
-      - type: Kafka
-        config:
-          event_topic: sim-events
-          telemetry_topic: sim-telemetry
-          bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}
-
-    resources:
-      lathe: {current_cap: 1, max_cap: 10}
-
-    services:
-      milling: {dist: normal, mean: 3.0, std: 0.5}
-
-    arrivals:
-      standard: {dist: exponential, rate: 1.0, spawn: process_part}
-
-    tasks:
-      process_part:
-        service: milling
-        resource: lathe
-        payload: {path_id: Line_A.service.milling, status: finished}
-
-    telemetry:
-      # Samples the lathe every 2 simulation seconds.
-      - interval: 2.0
-        publish:
-          lathe.capacity: lathe.capacity
-          lathe.in_use: lathe.in_use
-          lathe.queue_length: lathe.queue_length
-          lathe.utilization: lathe.utilization
     ```

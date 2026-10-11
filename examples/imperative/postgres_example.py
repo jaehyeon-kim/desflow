@@ -78,6 +78,7 @@ def run():
     # only the rows whose __table__ matches its own table_name. They used to share
     # one queue and compete for batches, so whichever provider took a batch
     # discarded the other's rows from it.
+    # --8<-- [start:connectors]
     egress_orders = PostgresEgress(DSN, table_name="orders")
     egress_items = PostgresEgress(DSN, table_name="order_items")
 
@@ -88,6 +89,7 @@ def run():
     env.registry.register_sim_parameter(params)
     env.setup_egress([egress_orders, egress_items])
     env.setup_ingress([ingress])
+    # --8<-- [end:connectors]
 
     sampler = Sampler(rng=np.random.default_rng(42))
 
@@ -99,6 +101,7 @@ def run():
         while True:
             yield env.timeout(sampler.sample(arrival_cfg))
 
+            # --8<-- [start:records]
             # 1. Generate Order Parent Record
             order = {
                 "__table__": "orders",
@@ -130,6 +133,7 @@ def run():
 
             order["total_amount"] = round(total, 2)
             env.publish_event(f"order-{order_id}", order)
+            # --8<-- [end:records]
 
             order_id += 1
 

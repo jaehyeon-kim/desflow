@@ -45,6 +45,7 @@ base_path = os.getenv("DEST_PATH", "data/backfill")
 # The go-live instant is now, so everything before it is history and everything after
 # it is the live tail. These sit at module scope because the builder below needs them,
 # and the builder has to stay at module scope for the decorators to attach to it.
+# --8<-- [start:clock]
 GO_LIVE_AT = datetime.now()
 LOGICAL_START_TIME = GO_LIVE_AT - HISTORY
 
@@ -52,6 +53,7 @@ LOGICAL_START_TIME = GO_LIVE_AT - HISTORY
 # two sinks compare strings. That works because every timestamp comes from the same
 # formatter: identical layout, so ordering by text is ordering by time.
 GO_LIVE_ISO = GO_LIVE_AT.isoformat(timespec="milliseconds")
+# --8<-- [end:clock]
 
 
 def is_history(record: dict) -> bool:
@@ -78,6 +80,7 @@ def history_router(data: dict) -> str | None:
 # ==========================================
 # 1. Declarative Infrastructure Builder
 # ==========================================
+# --8<-- [start:builder]
 app = (
     SimulationContext(
         sim_id="Line_A",
@@ -105,6 +108,7 @@ app = (
     .add_service("milling", dist="normal", mean=2.0, std=0.2)
     .add_arrival("standard", dist="exponential", rate=0.5)
 )
+# --8<-- [end:builder]
 
 
 # ==========================================

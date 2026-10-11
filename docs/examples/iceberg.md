@@ -6,31 +6,178 @@ A day of a production line, generated at `factor=0.0` and appended to an Apache 
 
 Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, a manifest list and a new `metadata.json`, so query planning slows down as snapshots accumulate. That is why this example gives the provider a large `batch_size` of its own: a day of events lands in four snapshots.
 
-=== "Declarative"
+=== "YAML"
 
-    This example demonstrates how to run a simulation in **fast-forward mode** using the declarative **Standard API (`SimulationContext`)** and commit the output straight into an Apache Iceberg table using the `IcebergStorageEgress` connector.
+    This example builds the simulation of the declarative example in the Declarative tab from a YAML blueprint, with no Python. A day of factory data is generated at `factor: 0.0`, and each flush of the buffer becomes one Iceberg commit.
 
     **Quick Start**
 
-    The catalog is infrastructure, so unlike the Parquet example this one needs a container. `odctl` comes from `uv tool install "odctl>=1.0,<2"` or `pip install "odctl>=1.0,<2"`. The `catalog` profile brings up the Iceberg REST catalog backed by Postgres, and SeaweedFS for the data files.
+    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
-    ```bash
-    curl -O https://raw.githubusercontent.com/jaehyeon-kim/dynamic-des/main/examples/declarative/iceberg_example.py
+    === "uv"
+
+        ```bash
+        # 1. Install
+        uv tool install "dynamic-des[iceberg]" --with-executables-from "odctl>=1.0,<2"
+
+        # 2. Download the example
+        ddes examples get iceberg --api yaml
+        cd iceberg/yaml
+
+        # 3. Start its service
+        odctl up catalog
+
+        # 4. Run it
+        ddes run iceberg.yaml
+
+        # 5. Stop its service when finished
+        odctl down catalog --volumes
+        ```
+
+    === "pip"
+
+        ```bash
+        # 1. Install
+        pip install "dynamic-des[iceberg]" "odctl>=1.0,<2"
+
+        # 2. Download the example
+        ddes examples get iceberg --api yaml
+        cd iceberg/yaml
+
+        # 3. Start its service
+        odctl up catalog
+
+        # 4. Run it
+        ddes run iceberg.yaml
+
+        # 5. Stop its service when finished
+        odctl down catalog --volumes
+        ```
+
+    **What It Does**
+
+    The run appends a day of lifecycle events to the `simulation.events` table and ends on its own. `batch_size: 200000` on the egress makes each flush one commit, so the day lands in a few snapshots. Without a router, each event is written to `default_table` as one flat row, and telemetry is left out.
+
+    The catalog is contacted on the first write, not when the blueprint is loaded, so a blueprint with a wrong catalog address still loads and fails when the first batch is written.
+
+    `ICEBERG_URI`, `ICEBERG_WAREHOUSE`, `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` and `S3_REGION` override the catalog and credentials.
+
+    **Full Source Code**
+
+    `catalog` is a mapping of PyIceberg catalog properties, passed to PyIceberg's `load_catalog`. `schemas` names a type for each column, so `timestamp` is created as a timestamp rather than inferred as a string, and the ISO time each record carries is converted before the write.
+
+    Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
+
+    ```yaml title="examples/yaml/iceberg.yaml"
+    # Lakehouse data generation in YAML.
+    #
+    # The YAML version of examples/declarative/iceberg_example.py. A day of factory
+    # data is generated at factor 0, and each flush of the buffer becomes one Iceberg
+    # commit. Without a router, each event is written to default_table as one flat row
+    # and telemetry is left out. The catalog is contacted on the first write.
+    #
+    # Needs the odctl catalog profile: odctl up catalog. ICEBERG_URI, ICEBERG_WAREHOUSE,
+    # S3_ENDPOINT, S3_ACCESS_KEY and S3_SECRET_KEY override the catalog and credentials.
+    # Run it with: ddes run examples/yaml/iceberg.yaml
+
+    simulation:
+      sim_id: Line_A
+      factor: 0.0
+      random_seed: 42
+      # A day before now, so the records are stamped as history.
+      logical_start_time: -1d
+
+    egress:
+      - type: Iceberg
+        config:
+          # PyIceberg catalog properties, passed to load_catalog.
+          catalog:
+            name: odctl
+            type: rest
+            uri: ${ICEBERG_URI:-http://localhost:8181}
+            warehouse: ${ICEBERG_WAREHOUSE:-s3://warehouse/}
+            s3.endpoint: ${S3_ENDPOINT:-http://localhost:8333}
+            s3.access-key-id: ${S3_ACCESS_KEY:-user}
+            s3.secret-access-key: ${S3_SECRET_KEY:-password}
+            s3.region: ${S3_REGION:-us-east-1}
+          default_table: simulation.events
+          # Pinned rather than inferred, so timestamp is a timestamp, not a string.
+          schemas:
+            simulation.events:
+              sim_ts: double
+              timestamp: timestamp
+              key: string
+              path_id: string
+              status: string
+        # One commit per flush, sized so a day of events lands in a few snapshots.
+        batch_size: 200000
+
+    resources:
+      lathe: {current_cap: 4, max_cap: 10}
+
+    services:
+      milling: {dist: normal, mean: 2.0, std: 0.2}
+
+    arrivals:
+      standard: {dist: exponential, rate: 2.0, spawn: process_part}
+
+    tasks:
+      process_part:
+        service: milling
+        resource: lathe
+        payload: {path_id: Line_A.service.milling, status: finished}
+
+    run:
+      until: 1 day
     ```
 
-    ```bash
-    # 1. Spin up the Iceberg REST catalog with odctl
-    odctl up catalog
+=== "Declarative"
 
-    # 2. Run the simulation, with uv
-    uv run --no-project --with "dynamic-des[iceberg]" iceberg_example.py
+    This example demonstrates how to run a simulation in **fast-forward mode** using the **declarative API (`SimulationContext`)** and commit the output straight into an Apache Iceberg table using the `IcebergStorageEgress` connector.
 
-    #    ...or with pip, after `pip install "dynamic-des[iceberg]"`
-    python iceberg_example.py
+    **Quick Start**
 
-    # 3. Clean up the infrastructure when finished
-    odctl down catalog --volumes
-    ```
+    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+    === "uv"
+
+        ```bash
+        # 1. Install
+        uv tool install "dynamic-des[iceberg]" --with-executables-from "odctl>=1.0,<2"
+
+        # 2. Download the example
+        ddes examples get iceberg --api declarative
+        cd iceberg/declarative
+
+        # 3. Start its service
+        odctl up catalog
+
+        # 4. Run it
+        uv run --no-project --with "dynamic-des[iceberg]" iceberg_example.py
+
+        # 5. Stop its service when finished
+        odctl down catalog --volumes
+        ```
+
+    === "pip"
+
+        ```bash
+        # 1. Install
+        pip install "dynamic-des[iceberg]" "odctl>=1.0,<2"
+
+        # 2. Download the example
+        ddes examples get iceberg --api declarative
+        cd iceberg/declarative
+
+        # 3. Start its service
+        odctl up catalog
+
+        # 4. Run it
+        python iceberg_example.py
+
+        # 5. Stop its service when finished
+        odctl down catalog --volumes
+        ```
 
     `ICEBERG_URI`, `ICEBERG_WAREHOUSE`, `ICEBERG_NAMESPACE`, `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` and `S3_REGION` override the catalog and credentials.
 
@@ -226,25 +373,47 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
 
     **Quick Start**
 
-    The catalog is infrastructure, so unlike the Parquet example this one needs a container. `odctl` comes from `uv tool install "odctl>=1.0,<2"` or `pip install "odctl>=1.0,<2"`. The `catalog` profile brings up the Iceberg REST catalog backed by Postgres, and SeaweedFS for the data files.
+    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
-    ```bash
-    curl -O https://raw.githubusercontent.com/jaehyeon-kim/dynamic-des/main/examples/imperative/iceberg_example.py
-    ```
+    === "uv"
 
-    ```bash
-    # 1. Spin up the Iceberg REST catalog with odctl
-    odctl up catalog
+        ```bash
+        # 1. Install
+        uv tool install "dynamic-des[iceberg]" --with-executables-from "odctl>=1.0,<2"
 
-    # 2. Run the simulation, with uv
-    uv run --no-project --with "dynamic-des[iceberg]" iceberg_example.py
+        # 2. Download the example
+        ddes examples get iceberg --api low-level
+        cd iceberg/low-level
 
-    #    ...or with pip, after `pip install "dynamic-des[iceberg]"`
-    python iceberg_example.py
+        # 3. Start its service
+        odctl up catalog
 
-    # 3. Clean up the infrastructure when finished
-    odctl down catalog --volumes
-    ```
+        # 4. Run it
+        uv run --no-project --with "dynamic-des[iceberg]" iceberg_example.py
+
+        # 5. Stop its service when finished
+        odctl down catalog --volumes
+        ```
+
+    === "pip"
+
+        ```bash
+        # 1. Install
+        pip install "dynamic-des[iceberg]" "odctl>=1.0,<2"
+
+        # 2. Download the example
+        ddes examples get iceberg --api low-level
+        cd iceberg/low-level
+
+        # 3. Start its service
+        odctl up catalog
+
+        # 4. Run it
+        python iceberg_example.py
+
+        # 5. Stop its service when finished
+        odctl down catalog --volumes
+        ```
 
     `ICEBERG_URI`, `ICEBERG_WAREHOUSE`, `ICEBERG_NAMESPACE`, `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` and `S3_REGION` override the catalog and credentials.
 
@@ -430,125 +599,4 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
 
     if __name__ == "__main__":
         run()
-    ```
-
-=== "YAML"
-
-    This example builds the simulation of the declarative example in the Declarative tab from a YAML blueprint, with no Python. A day of factory data is generated at `factor: 0.0`, and each flush of the buffer becomes one Iceberg commit.
-
-    **Quick Start**
-
-    Download the blueprint, then run it.
-
-    ```bash
-    curl -O https://raw.githubusercontent.com/jaehyeon-kim/dynamic-des/main/examples/yaml/iceberg.yaml
-    ```
-
-    **With uv**
-
-    ```bash
-    # 1. Install odctl, which runs the containers
-    uv tool install "odctl>=1.0,<2"
-
-    # 2. Start the Iceberg REST catalog
-    odctl up catalog
-
-    # 3. Run the blueprint
-    uv run --no-project --with "dynamic-des[iceberg]" ddes run iceberg.yaml
-
-    # 4. Clean up the infrastructure when finished
-    odctl down catalog --volumes
-    ```
-
-    **With pip**
-
-    ```bash
-    # 1. Install the package with the iceberg extra, and odctl for the containers
-    pip install "dynamic-des[iceberg]" "odctl>=1.0,<2"
-
-    # 2. Start the Iceberg REST catalog
-    odctl up catalog
-
-    # 3. Run the blueprint
-    ddes run iceberg.yaml
-
-    # 4. Clean up the infrastructure when finished
-    odctl down catalog --volumes
-    ```
-
-    **What It Does**
-
-    The run appends a day of lifecycle events to the `simulation.events` table and ends on its own. `batch_size: 200000` on the egress makes each flush one commit, so the day lands in a few snapshots. Without a router, each event is written to `default_table` as one flat row, and telemetry is left out.
-
-    The catalog is contacted on the first write, not when the blueprint is loaded, so a blueprint with a wrong catalog address still loads and fails when the first batch is written.
-
-    `ICEBERG_URI`, `ICEBERG_WAREHOUSE`, `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` and `S3_REGION` override the catalog and credentials.
-
-    **Full Source Code**
-
-    `catalog` is a mapping of PyIceberg catalog properties, passed to PyIceberg's `load_catalog`. `schemas` names a type for each column, so `timestamp` is created as a timestamp rather than inferred as a string, and the ISO time each record carries is converted before the write.
-
-    Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
-
-    ```yaml title="examples/yaml/iceberg.yaml"
-    # Lakehouse data generation in YAML.
-    #
-    # The YAML version of examples/declarative/iceberg_example.py. A day of factory
-    # data is generated at factor 0, and each flush of the buffer becomes one Iceberg
-    # commit. Without a router, each event is written to default_table as one flat row
-    # and telemetry is left out. The catalog is contacted on the first write.
-    #
-    # Needs the odctl catalog profile: odctl up catalog. ICEBERG_URI, ICEBERG_WAREHOUSE,
-    # S3_ENDPOINT, S3_ACCESS_KEY and S3_SECRET_KEY override the catalog and credentials.
-    # Run it with: ddes run examples/yaml/iceberg.yaml
-
-    simulation:
-      sim_id: Line_A
-      factor: 0.0
-      random_seed: 42
-      # A day before now, so the records are stamped as history.
-      logical_start_time: -1d
-
-    egress:
-      - type: Iceberg
-        config:
-          # PyIceberg catalog properties, passed to load_catalog.
-          catalog:
-            name: odctl
-            type: rest
-            uri: ${ICEBERG_URI:-http://localhost:8181}
-            warehouse: ${ICEBERG_WAREHOUSE:-s3://warehouse/}
-            s3.endpoint: ${S3_ENDPOINT:-http://localhost:8333}
-            s3.access-key-id: ${S3_ACCESS_KEY:-user}
-            s3.secret-access-key: ${S3_SECRET_KEY:-password}
-            s3.region: ${S3_REGION:-us-east-1}
-          default_table: simulation.events
-          # Pinned rather than inferred, so timestamp is a timestamp, not a string.
-          schemas:
-            simulation.events:
-              sim_ts: double
-              timestamp: timestamp
-              key: string
-              path_id: string
-              status: string
-        # One commit per flush, sized so a day of events lands in a few snapshots.
-        batch_size: 200000
-
-    resources:
-      lathe: {current_cap: 4, max_cap: 10}
-
-    services:
-      milling: {dist: normal, mean: 2.0, std: 0.2}
-
-    arrivals:
-      standard: {dist: exponential, rate: 2.0, spawn: process_part}
-
-    tasks:
-      process_part:
-        service: milling
-        resource: lathe
-        payload: {path_id: Line_A.service.milling, status: finished}
-
-    run:
-      until: 1 day
     ```

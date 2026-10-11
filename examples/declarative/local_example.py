@@ -43,6 +43,7 @@ def process_part(task_id: int):
     return {"event_type": "part_produced", "part_id": task_id, "quality": "A"}
 
 
+# --8<-- [start:arrival-loop]
 @app.arrival_loop("standard")
 def arrival_generator(context):
     """Continuously spawns new parts based on the 'standard' arrival distribution."""
@@ -51,6 +52,7 @@ def arrival_generator(context):
         yield context.wait_for_arrival("standard")
         context.spawn(process_part(task_id))
         task_id += 1
+        # --8<-- [end:arrival-loop]
 
 
 @app.telemetry_loop(interval=2.0)

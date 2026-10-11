@@ -19,12 +19,14 @@ logger = logging.getLogger(__name__)
 # URL carries credentials. A plain Redis without auth takes redis://localhost:6379/0.
 REDIS_URL = "redis://user:password@localhost:6379/0"
 
+# --8<-- [start:app]
 app = (
     SimulationContext(sim_id="Factory", factor=1.0)
     .add_ingress(RedisIngress(REDIS_URL, channel_name="simulation_params"))
     .add_egress(RedisEgress(REDIS_URL, stream_name="events"))
     .add_arrival("part_arrival", dist="exponential", rate=2.0)
 )
+# --8<-- [end:app]
 
 
 @app.arrival_loop("part_arrival")
@@ -33,6 +35,7 @@ def part_generator(context):
     while True:
         yield context.wait_for_arrival("part_arrival")
 
+        # --8<-- [start:records]
         part_event = {
             "__stream__": "part_events",
             "part_id": part_id,
@@ -42,6 +45,7 @@ def part_generator(context):
         }
 
         context.publish("factory_event", part_event)
+        # --8<-- [end:records]
         part_id += 1
 
 

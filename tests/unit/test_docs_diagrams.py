@@ -1,0 +1,57 @@
+"""Every diagram source has its exported image, and every exported image is used.
+
+The sources are draw.io files under docs/assets/diagrams/, exported by
+scripts/diagrams.py to a PNG or a GIF beside them. Files whose name starts with an
+underscore hold the shared shapes and are not exported.
+"""
+
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+DIAGRAMS = ROOT / "docs" / "assets" / "diagrams"
+IMAGE_SUFFIXES = (".png", ".gif")
+# The docs content column is about 700 pixels wide. An image wider than this is shrunk
+# so far that its 14-point labels become too small to read: draw it narrower, usually
+# top to bottom.
+MAX_WIDTH = 1200
+
+
+def _sources():
+    return sorted(p for p in DIAGRAMS.glob("*.drawio") if not p.name.startswith("_"))
+
+
+def _images():
+    return sorted(p for p in DIAGRAMS.iterdir() if p.suffix in IMAGE_SUFFIXES)
+
+
+def test_every_diagram_has_its_image():
+    missing = [
+        p.name
+        for p in _sources()
+        if not any(p.with_suffix(s).exists() for s in IMAGE_SUFFIXES)
+    ]
+    assert not missing, f"Run scripts/diagrams.py to export: {missing}"
+
+
+def test_every_image_has_a_source():
+    orphans = [p.name for p in _images() if not p.with_suffix(".drawio").exists()]
+    assert not orphans, f"These images have no draw.io source: {orphans}"
+
+
+def test_every_image_is_used_on_a_page():
+    pages = "\n".join(p.read_text() for p in (ROOT / "docs").rglob("*.md"))
+    unused = [p.name for p in _images() if f"diagrams/{p.name}" not in pages]
+    assert not unused, f"No page uses these diagrams: {unused}"
+
+
+def test_every_image_is_narrow_enough_to_read():
+    import struct
+
+    def width(path):
+        data = path.read_bytes()[:30]
+        if data[:8] == b"\x89PNG\r\n\x1a\n":
+            return struct.unpack(">I", data[16:20])[0]
+        return struct.unpack("<H", data[6:8])[0]  # GIF logical screen width
+
+    wide = [f"{p.name} ({width(p)} px)" for p in _images() if width(p) > MAX_WIDTH]
+    assert not wide, f"Draw these narrower, at most {MAX_WIDTH} px: {wide}"

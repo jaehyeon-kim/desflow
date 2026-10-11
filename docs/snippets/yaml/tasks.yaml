@@ -1,0 +1,60 @@
+# The tasks and processes of the Tasks and Processes page, as a blueprint.
+# Run it with: ddes run tasks.yaml
+simulation:
+  sim_id: Workshop
+  factor: 0
+  random_seed: 1
+
+egress:
+  - type: Console
+
+resources:
+  drill: {current_cap: 1, max_cap: 3}
+
+services:
+  drilling: {dist: normal, mean: 4.0, std: 1.0}
+
+# --8<-- [start:arrival]
+arrivals:
+  # Each arrival spawns one drill_part, and one order_placed
+  parts: {dist: exponential, rate: 0.2, spawn: drill_part}
+  orders: {dist: exponential, rate: 0.1, spawn: order_placed}
+# --8<-- [end:arrival]
+
+# --8<-- [start:task]
+tasks:
+  drill_part:
+    service: drilling  # how long the work takes
+    resource: drill  # what it holds while it works
+    payload: {status: finished}  # the finished event's value
+    id_field: part_id  # adds the task id to the payload
+  order_placed:
+    # No service and no resource: publishes its payload at once
+    payload: {status: placed}
+    id_field: order_id
+# --8<-- [end:task]
+
+# --8<-- [start:payload-function]
+  # also under tasks: a payload computed by a Python function
+  graded_part:
+    service: drilling
+    resource: drill
+    # Called as grade_part(task_id, context) when the part is finished
+    payload: !python workshop_logic.grade_part
+# --8<-- [end:payload-function]
+
+# --8<-- [start:process]
+processes:
+  # Called as maintenance(context, resource="drill", every=50, duration=5)
+  - function: !python workshop_logic.maintenance
+    kwargs: {resource: drill, every: 50, duration: 5}
+# --8<-- [end:process]
+
+# --8<-- [start:telemetry]
+telemetry:
+  - interval: 10
+    publish: {drill_busy: drill.in_use, drill_waiting: drill.queue_length}
+# --8<-- [end:telemetry]
+
+run:
+  until: 3 min

@@ -63,7 +63,7 @@ class DynamicValue:
 
 class SimulationRegistry:
     """
-    A centralized 'Switchboard' that maps dot-notation paths to dynamic simulation parameters.
+    A central registry that maps dot-notation paths to dynamic simulation parameters.
 
     The Registry acts as the single source of truth for the simulation's state. It allows
     external streams (like Kafka or Redis) to update parameters while the simulation

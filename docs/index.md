@@ -1,6 +1,14 @@
 # Dynamic DES
 
-Dynamic DES runs [SimPy](https://simpy.readthedocs.io/) discrete-event simulations in step with the system clock, or as fast as the machine allows. A running simulation takes parameter changes (arrival rates, service times, capacities) from **Kafka**, **Redis**, **PostgreSQL** or a timed scenario, without stopping. Its task events and telemetry go to the sinks you attach: **Kafka**, **Redis**, **PostgreSQL**, **Parquet** or **JSONL** files on local disk or **S3-compatible storage** such as AWS S3 or SeaweedFS, or an **Apache Iceberg** table through a REST catalog.
+**Realistic event streams from a simulation you can steer while it runs.**
+
+Most test data generators write random rows. Dynamic DES writes the events of a working process: orders queue for staff, machines slow down, and a backlog builds when arrivals outpace capacity. The data has the cause and effect of a real system, because it comes from a [SimPy](https://simpy.readthedocs.io/) discrete-event simulation.
+
+Change an arrival rate or a capacity while the simulation runs, from **Kafka**, **Redis**, **PostgreSQL** or a timed scenario, and the pipeline downstream sees the effect. One run can write a week of history at full speed, then keep streaming in real time.
+
+Events and telemetry go to **Kafka**, **Redis**, **PostgreSQL**, **Parquet** or **JSONL** files (on local disk or S3-compatible storage), or **Apache Iceberg** tables. A model is a YAML file, a Python builder, or SimPy code.
+
+**Used for:** testing streaming pipelines with data that behaves like production, demos and workshops, digital twins that follow live data, and training data for models that predict delays or load.
 
 <div align="center">
   <img src="assets/architecture.png" alt="Dynamic DES architecture" width="900" />
@@ -23,25 +31,3 @@ The control dashboard changes simulation parameters while a run is going, and th
 - **Three ways to write a simulation**: the low-level `DynamicRealtimeEnvironment`, the declarative `SimulationContext` builder, or a YAML blueprint run with `ddes run`.
 - **Serialisation**: JSON through `orjson` by default, Avro through the Confluent or AWS Glue Schema Registry for chosen topics, and Pydantic models published as they are.
 - **Kafka security**: extra keyword arguments go to the Kafka client, so SASL, mTLS, OAuth and AWS IAM clusters work.
-
----
-
-## Documentation Layout
-
-* **[Getting Started](getting-started.md)**: Install, download the examples, and start the containers they need.
-* **Tutorials**, one factory written three ways:
-    * **[Part 1: Low-level API](tutorials/low-level.md)**: Build the factory on `DynamicRealtimeEnvironment`, with SimPy processes started by `env.process`.
-    * **[Part 2: Declarative API](tutorials/declarative.md)**: Build the factory with `SimulationContext`, add randomness and scheduled capacity changes, then connect it to Kafka.
-    * **[Part 3: YAML](tutorials/yaml.md)**: Write the same factory as a blueprint and run it with `ddes run`.
-* **Core Architecture**:
-    * **[Overview](architecture/overview.md)**: The three ways to write a simulation, and the parameters and environment they share.
-    * **Writing a simulation**: [Low-level API](architecture/low-level.md), [Declarative API](architecture/context.md), [YAML Blueprints](architecture/yaml.md).
-    * **Runtime**: [Realtime Environment](architecture/environment.md), [Registry and Live Parameters](architecture/registry.md), [Time](architecture/time.md), [Resources and Containers](architecture/resources.md), [Connectors](architecture/connectors.md), [Records and Telemetry](architecture/records.md), [Batching and Delivery](architecture/batching.md).
-* **Guides**:
-    * **Connectors**: [Complex Routing (Kafka)](guides/complex-routing.md), [Advanced Serialization (Avro and Pydantic)](guides/avro-and-pydantic.md), [Connecting to Secure Kafka](guides/kafka-security.md).
-    * **Features**: [Backfill Then Go Live in One Run](guides/backfill-then-live.md), [Change Parameters While a Simulation Runs](guides/live-parameters.md).
-    * **YAML**: [YAML Blueprints, from First File to Connectors](guides/yaml-blueprints.md).
-* **Advanced**: [Advanced YAML: Custom Logic with `!python`](guides/yaml-advanced.md), [Multi-Resource Handoffs](guides/multi-resource-handoffs.md), [Preemptive Machine Breakdowns](guides/preemptive-breakdowns.md), [Dynamic Topology (Resources Changed Mid-run)](guides/dynamic-topology.md).
-* **Examples**, one page per example, with a tab for each way it is written. Backfill Then Go Live has declarative and YAML tabs, and the advanced orders example is YAML only: [Local](examples/local.md), [Kafka](examples/kafka.md), [Parquet](examples/parquet.md), [Iceberg](examples/iceberg.md), [Postgres](examples/postgres.md), [Redis](examples/redis.md), [Backfill Then Go Live](examples/backfill-live.md), [Orders with Line Items (Advanced YAML)](examples/advanced-postgres-orders.md).
-* **[API Reference](api.md)**: Technical reference for all public classes.
-* **About**: [Roadmap](about/roadmap.md), what is planned next and what 1.0 means.

@@ -10,11 +10,11 @@ The [YAML Blueprints reference](../architecture/yaml.md) lists every section and
 
 Use a blueprint when the configuration is what changes between runs: a new arrival rate, a second machine, a different broker, a capacity experiment. A YAML file is easier to review and to diff than a builder chain, and a run is one command.
 
-Stay in Python when most of the program is logic. A blueprint can also reference Python objects with `!python` for the logic YAML cannot express, as [Advanced YAML: Custom Logic with `!python`](yaml-advanced.md) explains.
+Stay in Python when most of the program is logic. A blueprint can also reference Python objects with `!python` for the logic YAML cannot express, as [Python in a Blueprint](yaml-advanced.md) explains.
 
 ---
 
-## 1. Write a first blueprint
+## Write a first blueprint
 
 The smallest useful blueprint declares a machine, how long it works, how often parts arrive, and what happens to each part:
 
@@ -55,6 +55,10 @@ Run it with the command the package installs:
 ddes run first.yaml
 ```
 
+Every section of a blueprint becomes a builder call:
+
+![simulation becomes SimulationContext, resources add_resource, services add_service, arrivals add_arrival, tasks @app.task, ingress and egress add_ingress and add_egress, scenario timed registry updates, and run run(until)](../assets/diagrams/blueprint-sections.png)
+
 Each section maps to one builder call. `resources` is `add_resource`, `services` is `add_service`, and `arrivals` is `add_arrival`. `spawn: drill_part` starts the `drill_part` task on every arrival, which is the arrival loop a Python script writes by hand. The task requests the drill, waits a sampled drilling time and publishes its `payload`:
 
 ```text
@@ -71,7 +75,7 @@ Error: first.yaml:22: task 'drill_part' uses service 'drill', which is not defin
 
 ---
 
-## 2. Script an experiment
+## Script an experiment
 
 A `scenario` changes registry values at set simulation times. Here a second drill comes online at 30 seconds, parts arrive twice as fast from one minute, and the extra drill is removed at two minutes:
 
@@ -132,7 +136,7 @@ A path names one value in the registry: `<sim_id>.resources.<name>.current_cap`,
 
 ---
 
-## 3. Connect to the outside
+## Connect to the outside
 
 Connectors are listed under `ingress` and `egress`. `type` is a short name, and `config` holds the constructor's arguments. This is the Redis example, which writes to a stream and takes updates from a channel:
 
@@ -187,15 +191,37 @@ Settings that the Python API takes as objects are plain values in `config`:
 
 ---
 
-## 4. Change settings per environment
+## Change settings per environment
 
 `${VAR}` in a value is replaced with the environment variable, and `${VAR:-default}` uses the default when the variable is unset or empty. An unquoted value is read as YAML reads it after the replacement, so `port: ${PG_PORT:-5432}` is the number 5432. `$${` writes a literal `${`. The Kafka example reads its broker this way, as `bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}`, and the [Parquet example](../examples/parquet.md) switches from the local disk to S3 with five variables.
 
 `logical_start_time` and `go_live_at` take `now`, a signed duration from now such as `-1d` or `-10m`, or an ISO datetime. Both are read against one moment, when the file is loaded, so `-10m` and `now` are exactly ten minutes apart. The [backfill-then-live example](../examples/backfill-live.md) uses both, with `when: history` and `when: live`.
 
+```yaml title="docs/snippets/yaml/environment.yaml"
+# Settings that change per environment, read from environment variables.
+# Run it with: SIM_FACTOR=1 ddes run environment.yaml
+simulation:
+  sim_id: ${SIM_ID:-Line_A}
+  # An unquoted value is read after the replacement, so this is the number 0
+  factor: ${SIM_FACTOR:-0}
+  # Read against the moment the file is loaded: a day of history up to now
+  logical_start_time: -1d
+
+egress:
+  - type: Console
+
+resources:
+  # Quoted, because ${...} inside {...} would end the mapping early; the check
+  # turns the text into a number
+  lathe: {current_cap: "${LATHES:-2}", max_cap: 5}
+
+run:
+  until: ${RUN_FOR:-1 hour}
+```
+
 ---
 
-## 5. Limitations
+## Limitations
 
 A blueprint is configuration. These stay in Python:
 

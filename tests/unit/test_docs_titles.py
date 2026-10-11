@@ -1,0 +1,125 @@
+"""Sidebar titles stay short, headings carry no step numbers, and figures are images.
+
+A sidebar title names the subject in 24 characters or fewer; the page's own title can
+be longer and name the classes. Headings are names, and the order of the sections
+shows the steps, so a heading never starts with a number. A figure is a draw.io
+diagram, never box characters in a text block.
+
+The pages written before this rule are listed below and leave the lists as each one is
+rewritten. A listed title or page that no longer breaks the rule fails the test, so
+the lists only shrink.
+"""
+
+import re
+from pathlib import Path
+
+import yaml
+
+ROOT = Path(__file__).resolve().parents[2]
+MAX_TITLE = 24
+
+# Kept on purpose: the example names both halves of its run.
+LONG_TITLES_ALLOWED = {"Parquet History, Kafka Live"}
+
+# Written before the rule; each leaves the list when its page is rewritten.
+LONG_TITLES_NOT_YET_REWRITTEN: set[str] = set()
+NUMBERED_HEADINGS_NOT_YET_REWRITTEN: set[str] = set()
+
+# Text blocks drawn with box characters; each becomes a draw.io diagram when its page
+# is rewritten.
+TEXT_DIAGRAMS_NOT_YET_REWRITTEN: set[str] = set()
+
+FENCE = re.compile(r"^```.*?^```", re.S | re.M)
+BOX_CHARACTERS = re.compile(r"[\u2500-\u257f]")
+NUMBERED = re.compile(r"^#{1,6} \d", re.M)
+
+
+def _nav_titles(items):
+    for item in items:
+        if isinstance(item, dict):
+            title, value = next(iter(item.items()))
+            yield title
+            if isinstance(value, list):
+                yield from _nav_titles(value)
+
+
+def _long_titles():
+    nav = yaml.safe_load((ROOT / "mkdocs.yml").read_text(encoding="utf-8"))["nav"]
+    return {t for t in _nav_titles(nav) if len(t) > MAX_TITLE}
+
+
+def _pages_with_numbered_headings():
+    pages = set()
+    for page in (ROOT / "docs").rglob("*.md"):
+        text = FENCE.sub("", page.read_text(encoding="utf-8"))
+        if NUMBERED.search(text):
+            pages.add(str(page.relative_to(ROOT)))
+    return pages
+
+
+def _pages_with_text_diagrams():
+    return {
+        str(page.relative_to(ROOT))
+        for page in (ROOT / "docs").rglob("*.md")
+        if any(
+            BOX_CHARACTERS.search(b)
+            for b in FENCE.findall(page.read_text(encoding="utf-8"))
+        )
+    }
+
+
+def test_sidebar_titles_are_short():
+    assert (
+        _long_titles() - LONG_TITLES_ALLOWED - LONG_TITLES_NOT_YET_REWRITTEN == set()
+    ), (
+        f"Sidebar titles over {MAX_TITLE} characters. Shorten the nav title and keep "
+        "the full name in the page's own title."
+    )
+
+
+def test_headings_do_not_start_with_a_number():
+    assert (
+        _pages_with_numbered_headings() - NUMBERED_HEADINGS_NOT_YET_REWRITTEN == set()
+    ), "Headings that start with a number. Name the section instead."
+
+
+def test_figures_are_not_drawn_in_text():
+    assert _pages_with_text_diagrams() - TEXT_DIAGRAMS_NOT_YET_REWRITTEN == set(), (
+        "A figure drawn with box characters. Draw it in draw.io under "
+        "docs/assets/diagrams/ and export it with scripts/diagrams.py."
+    )
+
+
+def test_lists_of_old_pages_only_shrink():
+    """A rewritten page must leave the list, or the list would hide a new offender."""
+    assert LONG_TITLES_NOT_YET_REWRITTEN <= _long_titles()
+    assert NUMBERED_HEADINGS_NOT_YET_REWRITTEN <= _pages_with_numbered_headings()
+    assert TEXT_DIAGRAMS_NOT_YET_REWRITTEN <= _pages_with_text_diagrams()
+
+
+def test_no_paragraph_turns_into_a_heading():
+    """A line of --- right under a paragraph makes that paragraph a heading."""
+    found = []
+    for page in (ROOT / "docs").rglob("*.md"):
+        lines = FENCE.sub("", page.read_text(encoding="utf-8")).split("\n")
+        for before, line in zip(lines, lines[1:]):
+            if (
+                re.match(r"^(-{3,}|={3,})\s*$", line)
+                and before.strip()
+                and not before.lstrip().startswith(("|", "#"))
+            ):
+                found.append(f"{page.relative_to(ROOT)}: {before[:60]}")
+    assert found == [], (
+        "Put a blank line between the paragraph and the rule: " + "; ".join(found)
+    )
+
+
+def test_no_heading_or_label_starts_with_the():
+    """The writing rules: a heading, or a bold label opening a list item, never starts with "The"."""
+    found = []
+    for page in (ROOT / "docs").rglob("*.md"):
+        text = FENCE.sub("", page.read_text(encoding="utf-8"))
+        for line in text.split("\n"):
+            if re.match(r"^#{1,6} The ", line) or re.match(r"^\s*[*-] \*\*The ", line):
+                found.append(f"{page.relative_to(ROOT)}: {line[:60]}")
+    assert found == [], "; ".join(found)

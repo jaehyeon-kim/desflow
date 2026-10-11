@@ -1,0 +1,30 @@
+# The batching settings of the Batching and Delivery page, as a blueprint.
+# Run it with: ddes run batching.yaml
+simulation:
+  sim_id: Line_A
+  factor: 0
+  # when: history and when: live split the records at this instant
+  logical_start_time: -1d
+  go_live_at: now
+
+# Defaults for every egress, the arguments of with_batching
+batching:
+  batch_size: 500
+  flush_interval: 1.0
+  max_queued_batches: 2000
+  drain_stall_seconds: 30
+
+egress:
+  # Small and often for this sink; the other uses the defaults
+  - type: Console
+    batch_size: 50
+    flush_interval: 0.5
+  # Only the records stamped before go_live_at
+  - type: Console
+    when: history
+
+resources:
+  lathe: {current_cap: 1, max_cap: 1}
+
+run:
+  until: 60

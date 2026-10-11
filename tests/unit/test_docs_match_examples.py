@@ -8,9 +8,16 @@ path that had been corrected in the script months earlier.
 Snippet includes fixed that by never copying, but the raw markdown then showed a
 `--8<--` marker rather than code to anyone reading the file on GitHub. So the source is
 copied in again, and this test is what stops it drifting a second time.
+
+A block can also show one part of a file: a title such as
+`docs/snippets/factory.py:resource` names a section that the file marks with
+`# --8<-- [start:resource]` and `# --8<-- [end:resource]` comment lines, and the block
+must match the lines between them, without the indent they share. A block that shows
+a whole file leaves out those marker lines.
 """
 
 import re
+import textwrap
 from pathlib import Path
 
 import pytest
@@ -23,6 +30,9 @@ BLOCK = re.compile(
     r'^( *)```(?:python|yaml) title="((?:examples|docs/snippets)/[^"]+)"\n(.*?)\n\1```$',
     re.S | re.M,
 )
+# A named section of a file, between its start and end comment lines.
+SECTION = r"^[ \t]*# --8<-- \[{kind}:{name}\][ \t]*$"
+MARKER = re.compile(r"^[ \t]*(#|--) --8<-- \[(start|end):[\w-]+\][ \t]*$")
 # Every YAML block, labelled or not.
 YAML_BLOCK = re.compile(r"```yaml([^\n]*)\n")
 
@@ -51,18 +61,45 @@ def test_at_least_one_page_shows_a_script():
     assert len(list(_blocks())) >= 10
 
 
+def _source(script, section):
+    """The whole file, or the lines of one named section without its marker lines."""
+    text = script.read_text(encoding="utf-8")
+    if not section:
+        # A whole file is shown without the comment lines that mark its sections
+        return "\n".join(
+            line for line in text.rstrip("\n").split("\n") if not MARKER.match(line)
+        )
+    start = re.search(SECTION.format(kind="start", name=re.escape(section)), text, re.M)
+    end = re.search(SECTION.format(kind="end", name=re.escape(section)), text, re.M)
+    assert start and end, f"{script.relative_to(ROOT)} has no section '{section}'"
+    # A section inside a function is shown without the function's indent
+    return textwrap.dedent(text[start.end() : end.start()]).strip("\n")
+
+
 @pytest.mark.parametrize(
     "page,path,code",
     list(_blocks()),
     ids=[f"{page}:{path}" for page, path, _ in _blocks()],
 )
 def test_documented_source_matches_the_script(page, path, code):
-    script = ROOT / path
-    assert script.is_file(), f"{page} shows {path}, which does not exist"
-    assert code == script.read_text(encoding="utf-8").rstrip("\n"), (
-        f"{page} has drifted from {path}. Copy the script in again rather than "
+    file, _, section = path.partition(":")
+    script = ROOT / file
+    assert script.is_file(), f"{page} shows {file}, which does not exist"
+    assert code == _source(script, section), (
+        f"{page} has drifted from {path}. Copy the code in again rather than "
         f"editing the page."
     )
+
+
+def test_a_section_title_reads_its_section(tmp_path):
+    """The section form must compare against the marked lines, not the whole file."""
+    script = tmp_path / "factory.py"
+    script.write_text(
+        "import x\n# --8<-- [start:part]\na = 1\nb = 2\n# --8<-- [end:part]\nc = 3\n",
+        encoding="utf-8",
+    )
+    assert _source(script, "part") == "a = 1\nb = 2"
+    assert _source(script, "") == "import x\na = 1\nb = 2\nc = 3"  # markers left out
 
 
 def test_every_yaml_block_is_a_file():

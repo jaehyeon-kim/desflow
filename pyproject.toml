@@ -1,7 +1,7 @@
 [project]
 name = "dynamic-des"
 version = "0.16.0"
-description = "Real-time SimPy simulations that take parameter changes while they run and write their events and telemetry to streams, databases, files and Iceberg tables."
+description = "Realistic event streams from a SimPy simulation you can steer while it runs, written to Kafka, Redis, PostgreSQL, Parquet, JSONL and Iceberg."
 readme = "README.md"
 authors = [
     { name = "Jaehyeon Kim", email = "dottami@gmail.com" }
@@ -123,6 +123,9 @@ dev = [
     "pytest-cov>=5.0.0",
     "types-redis>=4.6.0",
     "types-pyyaml>=6.0.12",
+    "mkdocs-llmstxt>=0.5.1 ; python_full_version >= '3.11'",
+    # 1.2.3 adds properdocs, a second documentation tool with its own command.
+    "mkdocs-redirects==1.2.2",
 ]
 
 [tool.pytest.ini_options]

@@ -16,8 +16,8 @@ site/
 .ignore
 .coverage
 
-# Output written by the examples: the history scripts write Parquet here when USE_S3
-# is not set, and backfill_live_example.py writes to data/backfill.
+# Output written by the examples: the Parquet scripts write here unless
+# PARQUET_FILESYSTEM=s3, and the backfill examples write to data/backfill.
 data/
 
 # Worktrees created by Claude Code agents

@@ -29,7 +29,7 @@ class SimulationContext:
         and its background asynchronous I/O threads are completely deferred until
         `.run()` is explicitly invoked. This prevents partial state leaks or
         unintended clock starts.
-    2.  **Centralized Switchboard**: All registered configurations are flattened
+    2.  **One registry**: All registered configurations are flattened
         and managed by the internal `SimulationRegistry`, allowing external
         Kafka Admin commands to mutate these states safely during runtime.
     3.  **Deterministic Stochasticity**: By exposing a central `Sampler` driven
@@ -637,7 +637,7 @@ class SimulationContext:
 
         Phase 1: Instantiates the foundational `DynamicRealtimeEnvironment` and `Sampler`.
         Phase 2: Compiles all builder dictionaries into a monolithic `SimParameter`
-                 object and registers it with the Switchboard Registry.
+                 object and registers it with the registry.
         Phase 3: Connects and boots the asynchronous Kafka/Redis background threads.
         Phase 4: Hydrates physical SimPy limits based on the registry boundaries.
         Phase 5: Spawns all registered `@arrival_loop`, `@telemetry_loop` and

@@ -1,5 +1,5 @@
 site_name: Dynamic DES
-site_description: Real-time SimPy simulations that take parameter changes while they run and write their events and telemetry to streams, databases, files and Iceberg tables.
+site_description: Realistic event streams from a SimPy simulation you can steer while it runs, written to Kafka, Redis, PostgreSQL, Parquet, JSONL and Iceberg.
 # mike appends a folder to site_url when it deploys a version. canonical_version
 # below makes that folder latest/, so every version's pages name the same page
 # under latest/ as canonical and search engines index one copy, not one per release.
@@ -25,11 +25,81 @@ theme:
         icon: material/brightness-4
         name: Switch to light mode
   highlightjs: true
+  features:
+    # Choosing YAML, Builder or Low-level in one set of tabs switches every set on
+    # the site, so a reader follows one way of writing throughout.
+    - content.tabs.link
 
 plugins:
   - search
   - mike:
       canonical_version: latest
+  # Pages that moved: the three tutorials became First Simulation, with a tab for each
+  # way of writing, and the resources page moved to Building Blocks. Old links,
+  # including those in published versions, land on the new pages.
+  - redirects:
+      redirect_maps:
+        tutorials/low-level.md: tutorials/first-simulation.md
+        tutorials/declarative.md: tutorials/first-simulation.md
+        tutorials/yaml.md: tutorials/first-simulation.md
+        architecture/resources.md: building-blocks/resources.md
+  # llms.txt and llms-full.txt for AI assistants (#41): an index of the pages with
+  # their links, and the pages themselves as Markdown. The sections follow the nav,
+  # and test_docs_llmstxt.py fails when a nav page is missing from them.
+  - llmstxt:
+      # mike serves each version under its own folder, so the links in llms.txt
+      # point at latest/, where the current pages are.
+      base_url: https://jaehyeon.me/dynamic-des/latest/
+      full_output: llms-full.txt
+      sections:
+        Getting started:
+          - index.md
+          - getting-started.md
+          - tutorials/first-simulation.md
+        How Simulation Works:
+          - des/how-it-works.md
+          - des/simpy-and-dynamic-des.md
+          - building-blocks/index.md
+          - building-blocks/arrivals-and-services.md
+          - building-blocks/tasks-and-processes.md
+          - building-blocks/resources.md
+          - des/queues-and-capacity.md
+        Core Architecture:
+          - architecture/overview.md
+          - architecture/low-level.md
+          - architecture/context.md
+          - architecture/yaml.md
+          - architecture/environment.md
+          - architecture/registry.md
+          - architecture/time.md
+          - architecture/connectors.md
+          - architecture/records.md
+          - architecture/batching.md
+        Guides:
+          - guides/complex-routing.md
+          - guides/avro-and-pydantic.md
+          - guides/kafka-security.md
+          - guides/backfill-then-live.md
+          - guides/live-parameters.md
+          - guides/yaml-blueprints.md
+          - guides/yaml-advanced.md
+          - guides/multi-resource-handoffs.md
+          - guides/preemptive-breakdowns.md
+          - guides/dynamic-topology.md
+        Examples:
+          - examples/index.md
+          - examples/local.md
+          - examples/kafka.md
+          - examples/parquet.md
+          - examples/iceberg.md
+          - examples/postgres.md
+          - examples/redis.md
+          - examples/backfill-live.md
+          - examples/advanced-postgres-orders.md
+        Reference:
+          - api.md
+        About:
+          - about/roadmap.md
   - mkdocstrings:
       handlers:
         python:
@@ -55,17 +125,29 @@ extra:
     provider: google
     property: G-076N8WCGWZ
 
+# A link to a heading that does not exist fails the strict build, as a link to a
+# missing page already does.
+validation:
+  anchors: warn
+
 # Files the documentation shows and the tests build. They are not pages.
 exclude_docs: |
   snippets/
 
 nav:
   - Home: index.md
-  - Getting Started: getting-started.md
-  - Tutorials:
-      - "Part 1: Low-level API": tutorials/low-level.md
-      - "Part 2: Declarative API": tutorials/declarative.md
-      - "Part 3: YAML": tutorials/yaml.md
+  - Getting Started:
+      - Installation: getting-started.md
+      - First Simulation: tutorials/first-simulation.md
+  - How Simulation Works:
+      - Events and the Clock: des/how-it-works.md
+      - SimPy and Dynamic DES: des/simpy-and-dynamic-des.md
+      - Building Blocks:
+          - Overview: building-blocks/index.md
+          - Arrivals and Services: building-blocks/arrivals-and-services.md
+          - Tasks and Processes: building-blocks/tasks-and-processes.md
+          - Resources: building-blocks/resources.md
+      - Queues and Capacity: des/queues-and-capacity.md
   - Core Architecture:
       - Overview: architecture/overview.md
       - Writing a Simulation:
@@ -73,37 +155,38 @@ nav:
           - Declarative API: architecture/context.md
           - YAML Blueprints: architecture/yaml.md
       - Runtime:
-          - Realtime Environment: architecture/environment.md
-          - Registry and Live Parameters: architecture/registry.md
-          - Time: architecture/time.md
-          - Resources and Containers: architecture/resources.md
+          - Environment: architecture/environment.md
+          - Live Parameters: architecture/registry.md
+          - Time and Pacing: architecture/time.md
           - Connectors: architecture/connectors.md
           - Records and Telemetry: architecture/records.md
           - Batching and Delivery: architecture/batching.md
   - Guides:
       - Connectors:
           - Complex Routing (Kafka): guides/complex-routing.md
-          - Advanced Serialization (Avro and Pydantic): guides/avro-and-pydantic.md
-          - Connecting to Secure Kafka: guides/kafka-security.md
+          - Avro and Pydantic: guides/avro-and-pydantic.md
+          - Secure Kafka: guides/kafka-security.md
       - Features:
-          - Backfill Then Go Live in One Run: guides/backfill-then-live.md
-          - Change Parameters While a Simulation Runs: guides/live-parameters.md
+          - Backfill Then Go Live: guides/backfill-then-live.md
+          - Changing Parameters: guides/live-parameters.md
       - YAML:
-          - YAML Blueprints, from First File to Connectors: guides/yaml-blueprints.md
-  - Advanced:
-      - "Advanced YAML: Custom Logic with !python": guides/yaml-advanced.md
-      - Multi-Resource Handoffs (Hybrid Pattern): guides/multi-resource-handoffs.md
-      - Preemptive Machine Breakdowns (Hybrid Pattern): guides/preemptive-breakdowns.md
-      - Dynamic Topology (Resources Changed Mid-run): guides/dynamic-topology.md
+          - Writing Blueprints: guides/yaml-blueprints.md
+      - Custom Logic:
+          - Python in a Blueprint: guides/yaml-advanced.md
+          - Multi-Resource Handoffs: guides/multi-resource-handoffs.md
+          - Preemptive Breakdowns: guides/preemptive-breakdowns.md
+          - Dynamic Topology: guides/dynamic-topology.md
   - Examples:
+      - Overview: examples/index.md
       - Local Simulation: examples/local.md
       - Kafka Digital Twin: examples/kafka.md
-      - Fast-Forward to Parquet: examples/parquet.md
-      - Fast-Forward to Iceberg: examples/iceberg.md
+      - Fast-Forward to Storage:
+          - Parquet: examples/parquet.md
+          - Iceberg: examples/iceberg.md
       - Relational DB (Postgres): examples/postgres.md
       - In-Memory Store (Redis): examples/redis.md
       - Backfill Then Go Live: examples/backfill-live.md
-      - Orders with Line Items (Advanced YAML): examples/advanced-postgres-orders.md
+      - Generate Related Records: examples/advanced-postgres-orders.md
   - API Reference: api.md
   - About:
       - Roadmap: about/roadmap.md

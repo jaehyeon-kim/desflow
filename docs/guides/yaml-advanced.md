@@ -1,4 +1,4 @@
-# Advanced YAML: Custom Logic with `!python`
+# Python in a Blueprint: `!python`
 
 A blueprint holds configuration as plain YAML, and the [first guide](yaml-blueprints.md) covers that. When a simulation needs logic that YAML cannot express, the file can reference a Python object with `!python module.attribute` in place of a value. This guide covers when to use it, how a reference is found, what each field receives and the security note, and ends with the OML hot rolling twin as a worked case.
 
@@ -21,9 +21,11 @@ A setting that is a value needs no Python. Environment variables, relative times
 
 ---
 
-## 1. How a reference is resolved
+## How a reference is resolved
 
 `!python module.attribute` imports `module` and returns its `attribute`. The reference can name anything: a function, a class, a dictionary or a constant.
+
+![A !python value such as workshop_logic.drill_payload imports the longest prefix that is a module and returns the rest, which the blueprint uses as a payload, process, router, serializer or connector class; a missing module or attribute raises BlueprintError](../assets/diagrams/python-reference.png)
 
 The longest prefix that is a module is imported, and the rest is read as attributes, so `pkg.module.func` and `module.Class.attribute` both work. The folder of the YAML file is added to the front of `sys.path`, unless it is already on it, before anything is resolved, so a module beside the blueprint is found from any working directory. Other modules are found on the normal `sys.path`, which includes installed packages. `${VAR}` is replaced inside a reference too, so `!python ${LOGIC}.ticker` picks the module from the environment.
 
@@ -41,7 +43,7 @@ Every reference is resolved and checked when the file is loaded, so a wrong refe
 
 ---
 
-## 2. Processes, payloads and kwargs
+## Processes, payloads and kwargs
 
 This blueprint keeps the workshop in YAML and moves three pieces of logic into Python: a payload that grades each part, a maintenance process with arguments, and a predicate that keeps telemetry off the terminal:
 
@@ -131,10 +133,14 @@ The run shows both:
 
 A process is written either as a bare reference, `- !python module.func`, which is called as `func(context)`, or as a mapping with `function` and `kwargs`, which is called as `func(context, **kwargs)`. `kwargs` is what lets a blueprint start a process whose signature is not `(context)`. When the signature differs more, write a small adapter: a generator function that takes the context, picks out what the process needs, and hands over with `yield from`.
 
-```python
+```python title="docs/snippets/hot_rolling/hot_rolling_adapter.py:arrivals"
 def arrivals(context, product):
     yield from arrival_process(
-        context.env, product, False, 5, context.sampler,
+        context.env,
+        product,
+        VARIABLE_PASSES,
+        MAX_PASSES,
+        context.sampler,
         context.get_resource(f"mill_{product}"),
     )
 ```
@@ -143,7 +149,7 @@ def arrivals(context, product):
 
 ---
 
-## 3. Routers, serializers and connector classes
+## Routers, serializers and connector classes
 
 A router replaces the default destination of every record. `path_router` on Parquet and JSONL and `table_router` on Iceberg each take a function that receives a record and returns its destination, or None to drop it. `topic_router` on Kafka must always return a topic. To drop records before Kafka, give the sink a `when` predicate. With a router, records are written as the router leaves them, so flattening events and dropping telemetry become the router's job. Kafka also leaves topic creation to the caller, because only the router knows which topics it uses. The hot rolling twin below sends every record to one of four topics with `topic_router: !python routing.custom_topic_router`.
 
@@ -153,15 +159,42 @@ A connector from another package is referenced by class: `type: !python my_packa
 
 ---
 
-## 4. Setup with `run.before`
+## Setup with `run.before`
 
 `run.before` lists functions called with no arguments, once, at the start of `run()`. Connectors already create what they write to when they can: Kafka its event and telemetry topics, Postgres the tables under `tables`, and Parquet and JSONL their folders. `run.before` is for anything else, such as the five topics the hot rolling twin below creates for its router.
 
 Put such setup in a function rather than at the top of the module. The module is imported when the file is loaded, so its top-level code runs even when the file is loaded and never run.
 
+```yaml title="docs/snippets/yaml_build/connectors.yaml:before"
+run:
+  until: 1 hour
+  before:
+    - !python routing_logic.make_output_folder
+```
+
+The module beside the blueprint holds the setup function, and the `path_router` its `Jsonl` sink uses:
+
+```python title="docs/snippets/yaml_build/routing_logic.py"
+"""Python for docs/snippets/yaml_build/connectors.yaml: a router and a setup step."""
+
+import os
+
+
+def daily_path(record: dict):
+    """Writes each event under its day; drops telemetry by returning None."""
+    if record["stream_type"] != "event":
+        return None
+    return f"events/day={record['timestamp'][:10]}/events.jsonl"
+
+
+def make_output_folder() -> None:
+    """Called once by run.before, when the run starts, not when the file is loaded."""
+    os.makedirs("events", exist_ok=True)
+```
+
 ---
 
-## 5. Worked case: lift the OML hot rolling twin
+## Worked case: lift the OML hot rolling twin
 
 The [OML hot rolling digital twin](https://github.com/jaehyeon-kim/oml-digital-twin-hotrolling) is a steel mill written with the low-level API. Its `generator.py` builds a `SimParameter` with three arrivals, three services, three resources, three containers and three variables, wires Kafka in both directions with a topic router, and starts the processes in `sim_logic.py`. Those processes take `(env, sampler, resource, ...)`, not a context, and `sim_logic.py` runs to 262 lines of multi-stage routing, wear and physics.
 
@@ -334,7 +367,7 @@ Built with the same seed at `factor: 0`, this blueprint and `generator.py` produ
 
 ---
 
-## 6. Errors
+## Errors
 
 A reference that cannot be resolved stops the load with its line:
 
@@ -346,7 +379,7 @@ A module that exists but fails on one of its own imports is reported with that e
 
 ---
 
-## 7. Security
+## Security
 
 **Loading a blueprint runs the imports it names.** `!python` imports modules, and importing a module runs its top-level code. A blueprint is therefore as trusted as a Python script: load only files you would run as code, in a local or trusted CI workflow.
 

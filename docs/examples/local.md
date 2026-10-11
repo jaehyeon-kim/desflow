@@ -4,36 +4,144 @@ A production line that prints its events and telemetry to the terminal. It needs
 
 Local connectors need no Docker, Kafka or other external store, so this example is useful for testing and benchmarking.
 
+=== "YAML"
+
+    This example builds the same simulation as the declarative example in the Declarative tab, from a YAML blueprint and nothing else. No Python is written: the arrival loop, the task and the telemetry loop are all declared in the file.
+
+    It writes to `ConsoleEgress` and needs no container, so it is the place to start.
+
+    **Quick Start**
+
+    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+    === "uv"
+
+        ```bash
+        # 1. Install
+        uv tool install dynamic-des
+
+        # 2. Download the example
+        ddes examples get local --api yaml
+        cd local/yaml
+
+        # 3. Run it
+        ddes run local.yaml
+        ```
+
+    === "pip"
+
+        ```bash
+        # 1. Install
+        pip install dynamic-des
+
+        # 2. Download the example
+        ddes examples get local --api yaml
+        cd local/yaml
+
+        # 3. Run it
+        ddes run local.yaml
+        ```
+
+    **What It Does**
+
+    The run prints every record to the terminal and stops after 60 simulation seconds, which at `factor: 1.0` is one real minute. Telemetry lines carry `[TEL]` and events carry `[EVT]`:
+
+    ```text
+    [TEL] {'sim_ts': 0.0, 'timestamp': '...', 'path_id': 'Factory_A.utilization', 'value': 0.0}
+    [EVT] {'sim_ts': 0.328, 'timestamp': '...', 'key': 'task-0', 'value': {'path_id': 'Factory_A.service.milling', 'status': 'queued'}}
+    [EVT] {'sim_ts': 3.754, 'timestamp': '...', 'key': 'task-0', 'value': {'event_type': 'part_produced', 'quality': 'A', 'part_id': 0}}
+    ```
+
+    Each part produces a `queued`, a `started` and a finished event. The finished event is the task's `payload`, with the task id added as `part_id` because of `id_field`. Add `--until 10` to stop after 10 simulation seconds instead.
+
+    **Full Source Code**
+
+    The blueprint declares one resource, one service and one arrival. `spawn` names the task each arrival starts, and the `telemetry` entry publishes two statistics of the lathe every 2 simulation seconds.
+
+    Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
+
+    ```yaml title="examples/yaml/local.yaml"
+    # Local simulation in YAML, with no Python and no containers.
+    #
+    # The twin of examples/declarative/local_example.py. Factory_A writes to
+    # ConsoleEgress, so events and telemetry are printed to the terminal, and the run
+    # ends on its own after 60 simulation seconds.
+    #
+    # Run it with: ddes run examples/yaml/local.yaml
+
+    simulation:
+      sim_id: Factory_A
+      factor: 1.0
+
+    egress:
+      - type: Console
+
+    resources:
+      lathe: {current_cap: 2, max_cap: 5}
+
+    services:
+      milling: {dist: normal, mean: 3.0, std: 0.5}
+
+    arrivals:
+      # Each arrival spawns one process_part task.
+      standard: {dist: exponential, rate: 1.0, spawn: process_part}
+
+    tasks:
+      process_part:
+        service: milling
+        resource: lathe
+        # The value of the task's finished event. id_field adds the task id as part_id.
+        payload: {event_type: part_produced, quality: A}
+        id_field: part_id
+
+    telemetry:
+      # Samples the lathe every 2 simulation seconds.
+      - interval: 2.0
+        publish:
+          utilization: lathe.utilization
+          queue_length: lathe.queue_length
+
+    run:
+      until: 60
+    ```
+
 === "Declarative"
 
-    This example demonstrates how to build a dynamic simulation using the declarative **Standard API (`SimulationContext`)** and **Local Connectors**.
+    This example demonstrates how to build a dynamic simulation using the **declarative API (`SimulationContext`)** and **Local Connectors**.
 
     This example adds `ConsoleEgress` and no ingress, so the lathe keeps the capacity it starts with for the whole run. Its low-level twin, in the Low-level tab, shows how `LocalIngress` schedules parameter changes at set times.
 
     **Quick Start**
 
-    Download the script, then run it. This example needs no container.
+    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
-    ```bash
-    curl -O https://raw.githubusercontent.com/jaehyeon-kim/dynamic-des/main/examples/declarative/local_example.py
-    ```
+    === "uv"
 
-    **With uv**
+        ```bash
+        # 1. Install
+        uv tool install dynamic-des
 
-    ```bash
-    # 1. Run the declarative simulation
-    uv run --no-project --with dynamic-des local_example.py
-    ```
+        # 2. Download the example
+        ddes examples get local --api declarative
+        cd local/declarative
 
-    **With pip**
+        # 3. Run it
+        uv run --no-project --with dynamic-des local_example.py
+        ```
 
-    ```bash
-    # 1. Install the package
-    pip install dynamic-des
+    === "pip"
 
-    # 2. Run the declarative simulation
-    python local_example.py
-    ```
+        ```bash
+        # 1. Install
+        pip install dynamic-des
+
+        # 2. Download the example
+        ddes examples get local --api declarative
+        cd local/declarative
+
+        # 3. Run it
+        python local_example.py
+        ```
 
     **Full Source Code**
 
@@ -126,28 +234,35 @@ Local connectors need no Docker, Kafka or other external store, so this example 
 
     **Quick Start**
 
-    Download the script, then run it. This example needs no container.
+    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
-    ```bash
-    curl -O https://raw.githubusercontent.com/jaehyeon-kim/dynamic-des/main/examples/imperative/local_example.py
-    ```
+    === "uv"
 
-    **With uv**
+        ```bash
+        # 1. Install
+        uv tool install dynamic-des
 
-    ```bash
-    # 1. Run the imperative simulation
-    uv run --no-project --with dynamic-des local_example.py
-    ```
+        # 2. Download the example
+        ddes examples get local --api low-level
+        cd local/low-level
 
-    **With pip**
+        # 3. Run it
+        uv run --no-project --with dynamic-des local_example.py
+        ```
 
-    ```bash
-    # 1. Install the package
-    pip install dynamic-des
+    === "pip"
 
-    # 2. Run the imperative simulation
-    python local_example.py
-    ```
+        ```bash
+        # 1. Install
+        pip install dynamic-des
+
+        # 2. Download the example
+        ddes examples get local --api low-level
+        cd local/low-level
+
+        # 3. Run it
+        python local_example.py
+        ```
 
     **Full Source Code**
 
@@ -275,98 +390,4 @@ Local connectors need no Docker, Kafka or other external store, so this example 
 
     if __name__ == "__main__":
         run()
-    ```
-
-=== "YAML"
-
-    This example builds the same simulation as the declarative example in the Declarative tab, from a YAML blueprint and nothing else. No Python is written: the arrival loop, the task and the telemetry loop are all declared in the file.
-
-    It writes to `ConsoleEgress` and needs no container, so it is the place to start.
-
-    **Quick Start**
-
-    Download the blueprint, then run it.
-
-    ```bash
-    curl -O https://raw.githubusercontent.com/jaehyeon-kim/dynamic-des/main/examples/yaml/local.yaml
-    ```
-
-    **With uv**
-
-    ```bash
-    # 1. Run the blueprint
-    uv run --no-project --with dynamic-des ddes run local.yaml
-    ```
-
-    **With pip**
-
-    ```bash
-    # 1. Install the package
-    pip install dynamic-des
-
-    # 2. Run the blueprint
-    ddes run local.yaml
-    ```
-
-    **What It Does**
-
-    The run prints every record to the terminal and stops after 60 simulation seconds, which at `factor: 1.0` is one real minute. Telemetry lines carry `[TEL]` and events carry `[EVT]`:
-
-    ```text
-    [TEL] {'sim_ts': 0.0, 'timestamp': '...', 'path_id': 'Factory_A.utilization', 'value': 0.0}
-    [EVT] {'sim_ts': 0.328, 'timestamp': '...', 'key': 'task-0', 'value': {'path_id': 'Factory_A.service.milling', 'status': 'queued'}}
-    [EVT] {'sim_ts': 3.754, 'timestamp': '...', 'key': 'task-0', 'value': {'event_type': 'part_produced', 'quality': 'A', 'part_id': 0}}
-    ```
-
-    Each part produces a `queued`, a `started` and a finished event. The finished event is the task's `payload`, with the task id added as `part_id` because of `id_field`. Add `--until 10` to stop after 10 simulation seconds instead.
-
-    **Full Source Code**
-
-    The blueprint declares one resource, one service and one arrival. `spawn` names the task each arrival starts, and the `telemetry` entry publishes two statistics of the lathe every 2 simulation seconds.
-
-    Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
-
-    ```yaml title="examples/yaml/local.yaml"
-    # Local simulation in YAML, with no Python and no containers.
-    #
-    # The twin of examples/declarative/local_example.py. Factory_A writes to
-    # ConsoleEgress, so events and telemetry are printed to the terminal, and the run
-    # ends on its own after 60 simulation seconds.
-    #
-    # Run it with: ddes run examples/yaml/local.yaml
-
-    simulation:
-      sim_id: Factory_A
-      factor: 1.0
-
-    egress:
-      - type: Console
-
-    resources:
-      lathe: {current_cap: 2, max_cap: 5}
-
-    services:
-      milling: {dist: normal, mean: 3.0, std: 0.5}
-
-    arrivals:
-      # Each arrival spawns one process_part task.
-      standard: {dist: exponential, rate: 1.0, spawn: process_part}
-
-    tasks:
-      process_part:
-        service: milling
-        resource: lathe
-        # The value of the task's finished event. id_field adds the task id as part_id.
-        payload: {event_type: part_produced, quality: A}
-        id_field: part_id
-
-    telemetry:
-      # Samples the lathe every 2 simulation seconds.
-      - interval: 2.0
-        publish:
-          utilization: lathe.utilization
-          queue_length: lathe.queue_length
-
-    run:
-      until: 60
     ```

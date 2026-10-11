@@ -1,16 +1,20 @@
 # Change Parameters While a Simulation Runs
 
-Every parameter of a run has a path in the registry, and a new value sent to that path takes effect without restarting the run. This guide shows how to find the path, and how to send a value from each source. [Registry and Live Parameters](../architecture/registry.md) explains what happens to the value once it arrives.
+Every parameter of a run has a path in the registry, and a new value sent to that path takes effect without restarting the run. This guide shows how to find the path, and how to send a value from each source. [Live Parameters](../architecture/registry.md) explains what happens to the value once it arrives.
+
+Changing a parameter takes three steps:
+
+![Find the registry path, send the new value from a scenario, LocalIngress, Kafka, Redis or PostgreSQL, and see it in the telemetry](../assets/diagrams/live-change-steps.png)
 
 ---
 
-## 1. Find the path
+## Find the path
 
 A path is the `sim_id`, the kind of parameter, its name and the field, such as `Line_A.resources.lathe.current_cap` or `Line_A.arrival.standard.rate`. [Registry paths](../architecture/registry.md#registry-paths) lists every form.
 
 A path that does not exist is logged as a warning and ignored, so a misspelt path changes nothing. `compile_parameters()` returns the parameters a `SimulationContext` will register, which shows the names to use:
 
-```python
+```python title="docs/snippets/pages/live_parameters.py:compile"
 print(app.compile_parameters())
 ```
 
@@ -18,7 +22,7 @@ A YAML scenario is checked when the file is loaded, so a misspelt path there sto
 
 ---
 
-## 2. Send the value
+## Send the value
 
 Each source suits a different job.
 
@@ -31,15 +35,26 @@ Each source suits a different job.
 
 ### Kafka
 
-`KafkaIngress` reads JSON messages with `path_id` and `value` from its topic. The [Kafka example](../examples/kafka.md) listens on `sim-config`. `KafkaAdminConnector.send_config` publishes such a message, and the example's dashboard uses it:
+`KafkaIngress` reads JSON messages with `path_id` and `value` from its topic. The [Kafka example](../examples/kafka.md) listens on `sim-config`. `KafkaAdminConnector.send_config` publishes such a message, and the example's dashboard uses it. This function sets the lathe capacity of the running example:
 
-```python
+```python title="docs/snippets/pages/live_parameters_kafka.py"
+"""Sets the lathe capacity of the running Kafka example.
+
+`KafkaAdminConnector.send_config` publishes `{"path_id": ..., "value": ...}` to the
+topic `KafkaIngress` reads, `sim-config` in the example. Call `set_lathe_capacity(3)`
+while the example runs.
+"""
+
 import asyncio
 
 from dynamic_des import KafkaAdminConnector
 
-admin = KafkaAdminConnector(bootstrap_servers="localhost:9092")
-asyncio.run(admin.send_config("sim-config", "Line_A.resources.lathe.current_cap", 3))
+
+def set_lathe_capacity(value: int) -> None:
+    admin = KafkaAdminConnector(bootstrap_servers="localhost:9092")
+    asyncio.run(
+        admin.send_config("sim-config", "Line_A.resources.lathe.current_cap", value)
+    )
 ```
 
 ### Redis
@@ -62,15 +77,15 @@ The row stays in the table, marked as applied, so the table keeps the history of
 
 ### A scenario
 
-A blueprint lists its changes under `scenario`, each with the simulation time it applies at. [Script an experiment](yaml-blueprints.md#2-script-an-experiment) shows a complete file. A scenario and an ingress connector can run together, so a scripted baseline can run while an operator steers over Kafka.
+A blueprint lists its changes under `scenario`, each with the simulation time it applies at. [Script an experiment](yaml-blueprints.md#script-an-experiment) shows a complete file. A scenario and an ingress connector can run together, so a scripted baseline can run while an operator steers over Kafka.
 
 ---
 
-## 3. Watch it land
+## Watch it land
 
 A change is easiest to confirm in the telemetry. Publish the parameter you change, such as the lathe's capacity:
 
-```python
+```python title="docs/snippets/pages/live_parameters.py:telemetry"
 @app.telemetry_loop(interval=2.0)
 def lathe_metrics(context):
     context.publish("lathe.capacity", context.get_resource("lathe").capacity)

@@ -47,6 +47,7 @@ def primer(context, product):
     )
 
 
+# --8<-- [start:arrivals]
 def arrivals(context, product):
     yield from arrival_process(
         context.env,
@@ -56,6 +57,7 @@ def arrivals(context, product):
         context.sampler,
         context.get_resource(f"mill_{product}"),
     )
+    # --8<-- [end:arrivals]
 
 
 def create_topics():

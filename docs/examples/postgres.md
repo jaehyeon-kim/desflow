@@ -4,91 +4,229 @@ A store that writes customer orders to PostgreSQL and takes parameter updates fr
 
 With `PostgresEgress` in place of the console egress, the simulation runs as a separate data generator. It writes related rows, such as parent `orders` and child `order_items`, into PostgreSQL with asynchronous bulk inserts through `asyncpg`.
 
+=== "YAML"
+
+    This example builds a simulation like the declarative example in the Declarative tab from a YAML blueprint, with no Python and one table. Each customer order is written to `orders`, and `PostgresIngress` polls `simulation_params` for updates. The declarative example's orders with random line items are the [advanced Postgres example](advanced-postgres-orders.md), which keeps its generator in Python.
+
+    **Quick Start**
+
+    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+    === "uv"
+
+        ```bash
+        # 1. Install
+        uv tool install "dynamic-des[postgres]" --with-executables-from "odctl>=1.0,<2"
+
+        # 2. Download the example
+        ddes examples get postgres --api yaml
+        cd postgres/yaml
+
+        # 3. Start its service
+        odctl up postgres
+
+        # 4. Run it (Ctrl + C to stop)
+        ddes run postgres.yaml
+
+        # 5. Stop its service when finished
+        odctl down postgres --volumes
+        ```
+
+    === "pip"
+
+        ```bash
+        # 1. Install
+        pip install "dynamic-des[postgres]" "odctl>=1.0,<2"
+
+        # 2. Download the example
+        ddes examples get postgres --api yaml
+        cd postgres/yaml
+
+        # 3. Start its service
+        odctl up postgres
+
+        # 4. Run it (Ctrl + C to stop)
+        ddes run postgres.yaml
+
+        # 5. Stop its service when finished
+        odctl down postgres --volumes
+        ```
+
+    **What It Does**
+
+    When the run starts, `PostgresEgress` creates the `orders` table and `PostgresIngress` creates `simulation_params`, if they do not exist. The run then writes one order per arrival until you stop it. The order id is the task id, so a second run skips the orders the first one wrote, until the table is dropped.
+
+    In a second terminal, raise the arrival rate while it runs:
+
+    ```bash
+    docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params (param_path, param_value) VALUES ('Store.arrival.customer_order.rate', '5.0');"
+    ```
+
+    **Full Source Code**
+
+    `place_order` has no service or resource, so it publishes its fixed `payload` as soon as an arrival spawns it, with the task id added as `order_id`. `tables` gives the columns and the primary key of each table to create. The `timestamp` column is filled from the time the record carries.
+
+    Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
+
+    ```yaml title="examples/yaml/postgres.yaml"
+    # Relational output in YAML.
+    #
+    # The YAML version of examples/declarative/postgres_example.py, with one table.
+    # Each customer_order spawns place_order, a task with no service or resource, which
+    # publishes its payload at once. PostgresEgress creates the orders table at start
+    # and writes one row per order. PostgresIngress creates simulation_params and polls
+    # it for parameter updates.
+    #
+    # Needs a database: odctl up postgres. Runs until interrupted with Ctrl + C.
+    # Run it with: ddes run examples/yaml/postgres.yaml
+
+    simulation:
+      sim_id: Store
+      factor: 1.0
+
+    ingress:
+      - type: Postgres
+        config:
+          connection_dsn: postgresql://user:password@localhost:5432/odctl
+          table_name: simulation_params
+
+    egress:
+      - type: Postgres
+        config:
+          connection_dsn: postgresql://user:password@localhost:5432/odctl
+          tables:
+            orders:
+              columns:
+                order_id: INT
+                customer_id: INT
+                total_amount: REAL
+                status: TEXT
+                timestamp: TIMESTAMP
+              primary_key: order_id
+
+    arrivals:
+      customer_order: {dist: exponential, rate: 1.0, spawn: place_order}
+
+    tasks:
+      place_order:
+        # id_field adds the task id as order_id. timestamp comes from the record.
+        payload: {customer_id: 42, total_amount: 59.97, status: pending}
+        id_field: order_id
+    ```
+
 === "Declarative"
 
-    This example demonstrates how to integrate `dynamic-des` into a relational database architecture using the declarative **Standard API (`SimulationContext`)**.
+    This example demonstrates how to integrate `dynamic-des` into a relational database architecture using the **declarative API (`SimulationContext`)**.
 
-    **1. Multiplexing Multiple Tables**
+    **Multiplexing Multiple Tables**
 
     When generating complex relational data, a single event loop often produces records that belong in completely different SQL tables.
 
     Instead of creating separate queues or complex routing logic, `PostgresEgress` supports **Table Multiplexing**. By attaching multiple instances of `PostgresEgress` to the simulation and tagging your output dictionaries with a special `__table__` key, the framework automatically filters and routes the records to their correct destinations.
 
-    ```python
+    ```python title="examples/declarative/postgres_example.py:app"
     app = (
         SimulationContext(sim_id="Store", factor=1.0)
+        .add_ingress(PostgresIngress(DSN, table_name="simulation_params"))
         .add_egress(PostgresEgress(DSN, table_name="orders"))
         .add_egress(PostgresEgress(DSN, table_name="order_items"))
+        .add_arrival("customer_order", dist="exponential", rate=1.0)
     )
     ```
 
-    **2. Generating Interrelated Data**
+    **Generating Interrelated Data**
 
-    Inside the generator loop, you can yield a single `order`, followed immediately by multiple `order_items` that reference the same parent `order_id`. Notice the `__table__` key embedded in the dictionaries:
+    For each arriving order, the arrival loop publishes 1 to 5 `order_items` rows that reference the order's `order_id`, then the `orders` row with their total. Each dictionary carries a `__table__` key naming its table:
 
-    ```python
-    # Generate Order Parent Record
+    ```python title="examples/declarative/postgres_example.py:records"
+    # 1. Generate Order (Notice the __table__ routing key)
     order = {
         "__table__": "orders",
-        "order_id": 1,
-        "total_amount": 100.0,
+        "order_id": order_id,
+        "customer_id": random.randint(1, 100),
+        "order_date": datetime.utcnow().isoformat(),
+        "total_amount": 0.0,
+        "status": "pending",
     }
+
+    # 2. Generate 1 to 5 Order Items
+    num_items = random.randint(1, 5)
+    total = 0.0
+
+    for _ in range(num_items):
+        price = round(random.uniform(10.0, 50.0), 2)
+        qty = random.randint(1, 3)
+        total += price * qty
+
+        item = {
+            "__table__": "order_items",
+            "order_item_id": item_id,
+            "order_id": order_id,
+            "product_id": random.randint(1, 50),
+            "quantity": qty,
+            "unit_price": price,
+        }
+        context.publish("order_event", item)
+        item_id += 1
+
+    order["total_amount"] = round(total, 2)
     context.publish("order_event", order)
-
-    # Generate Order Item Child Record
-    item = {
-        "__table__": "order_items",
-        "order_item_id": 1,
-        "order_id": 1,      # References parent
-        "unit_price": 50.0
-    }
-    context.publish("order_event", item)
     ```
 
-    **3. Dynamic Parameter Updates (Ingress)**
+    **Dynamic Parameter Updates (Ingress)**
 
-    This example also attaches a `PostgresIngress` listening to a `simulation_params` table. While the simulation is running, you can dynamically update parameters (like speeding up the order arrival rate) simply by executing an `INSERT` statement in your database! The simulation fetches the new configuration within its poll interval, 2 seconds by default.
+    This example also attaches a `PostgresIngress` listening to a `simulation_params` table. While the simulation runs, inserting a row with `param_path` and `param_value` into that table changes the parameter, such as the order arrival rate. The simulation fetches the new configuration within its poll interval, 2 seconds by default.
 
-    **4. Quick Start**
+    **Quick Start**
 
-    Download the script, then run it. The run keeps generating orders until you stop it with Ctrl + C. **To test the dynamic ingress updates**, open a second terminal while the simulation is running and execute the SQL command below.
+    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
-    ```bash
-    curl -O https://raw.githubusercontent.com/jaehyeon-kim/dynamic-des/main/examples/declarative/postgres_example.py
-    ```
+    === "uv"
 
-    **With uv**
+        ```bash
+        # 1. Install
+        uv tool install "dynamic-des[postgres]" --with-executables-from "odctl>=1.0,<2"
 
-    ```bash
-    # 1. Install odctl, which runs the containers
-    uv tool install "odctl>=1.0,<2"
+        # 2. Download the example
+        ddes examples get postgres --api declarative
+        cd postgres/declarative
 
-    # 2. Spin up the Postgres database
-    odctl up postgres
+        # 3. Start its service
+        odctl up postgres
 
-    # 3. Run the declarative simulation
-    uv run --no-project --with "dynamic-des[postgres]" postgres_example.py
-    ```
+        # 4. Run it (Ctrl + C to stop)
+        uv run --no-project --with "dynamic-des[postgres]" postgres_example.py
 
-    **With pip**
+        # 5. Stop its service when finished
+        odctl down postgres --volumes
+        ```
 
-    ```bash
-    # 1. Install the package with the postgres extra, and odctl for the containers
-    pip install "dynamic-des[postgres]" "odctl>=1.0,<2"
+    === "pip"
 
-    # 2. Spin up the Postgres database
-    odctl up postgres
+        ```bash
+        # 1. Install
+        pip install "dynamic-des[postgres]" "odctl>=1.0,<2"
 
-    # 3. Run the declarative simulation
-    python postgres_example.py
-    ```
+        # 2. Download the example
+        ddes examples get postgres --api declarative
+        cd postgres/declarative
+
+        # 3. Start its service
+        odctl up postgres
+
+        # 4. Run it (Ctrl + C to stop)
+        python postgres_example.py
+
+        # 5. Stop its service when finished
+        odctl down postgres --volumes
+        ```
 
     **In a second terminal, execute the dynamic parameter update:**
     ```bash
     # Connect to the database container and inject the parameter (maintains audit history!)
     docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params (param_path, param_value) VALUES ('Store.arrival.customer_order.rate', '5.0');"
     ```
-    *You will immediately see the simulation terminal log that the update was ingested and start generating orders much faster!*
+    Within the poll interval, the run logs `Ingested parameter update: Store.arrival.customer_order.rate = 5.0`, and orders then arrive five times faster.
 
     ```bash
     # Clean up the infrastructure when finished
@@ -234,89 +372,119 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
 === "Low-level"
 
-    This example demonstrates how to integrate `dynamic-des` into a relational database architecture using the low-level **Imperative API**.
+    This example demonstrates how to integrate `dynamic-des` into a relational database architecture using the **low-level API (`DynamicRealtimeEnvironment`)**.
 
-    **1. Multiplexing Multiple Tables**
+    **Multiplexing Multiple Tables**
 
     When generating complex relational data, a single simulation process often produces records that belong in completely different SQL tables.
 
     Instead of creating separate queues or complex routing logic, `PostgresEgress` supports **Table Multiplexing**. By attaching multiple instances of `PostgresEgress` to the `DynamicRealtimeEnvironment` and tagging your output dictionaries with a special `__table__` key, the framework automatically filters and routes the records to their correct destinations.
 
-    ```python
+    ```python title="examples/imperative/postgres_example.py:connectors"
     egress_orders = PostgresEgress(DSN, table_name="orders")
     egress_items = PostgresEgress(DSN, table_name="order_items")
 
+    # Attach ingress for dynamic parameter updates
+    ingress = PostgresIngress(DSN, table_name="simulation_params")
+
     env = DynamicRealtimeEnvironment(factor=1.0)
+    env.registry.register_sim_parameter(params)
     env.setup_egress([egress_orders, egress_items])
+    env.setup_ingress([ingress])
     ```
 
-    **2. Generating Interrelated Data**
+    **Generating Interrelated Data**
 
-    Inside the raw SimPy process generator, you can yield a single `order`, followed immediately by multiple `order_items` that reference the same parent `order_id`. Notice the `__table__` key embedded in the dictionaries:
+    For each arriving order, the SimPy process publishes 1 to 5 `order_items` rows that reference the order's `order_id`, then the `orders` row with their total. Each dictionary carries a `__table__` key naming its table:
 
-    ```python
-    # Generate Order Parent Record
+    ```python title="examples/imperative/postgres_example.py:records"
+    # 1. Generate Order Parent Record
     order = {
         "__table__": "orders",
-        "order_id": 1,
-        "total_amount": 100.0,
+        "order_id": order_id,
+        "customer_id": random.randint(1, 100),
+        "order_date": datetime.utcnow().isoformat(),
+        "total_amount": 0.0,
+        "status": "pending",
     }
-    env.publish_event("order-1", order)
 
-    # Generate Order Item Child Record
-    item = {
-        "__table__": "order_items",
-        "order_item_id": 1,
-        "order_id": 1,      # References parent
-        "unit_price": 50.0
-    }
-    env.publish_event("item-1", item)
+    # 2. Generate Order Item Children Records
+    num_items = random.randint(1, 5)
+    total = 0.0
+    for _ in range(num_items):
+        price = round(random.uniform(10.0, 50.0), 2)
+        qty = random.randint(1, 3)
+        total += price * qty
+
+        item = {
+            "__table__": "order_items",
+            "order_item_id": item_id,
+            "order_id": order_id,
+            "product_id": random.randint(1, 50),
+            "quantity": qty,
+            "unit_price": price,
+        }
+        env.publish_event(f"item-{item_id}", item)
+        item_id += 1
+
+    order["total_amount"] = round(total, 2)
+    env.publish_event(f"order-{order_id}", order)
     ```
 
-    **3. Dynamic Parameter Updates (Ingress)**
+    **Dynamic Parameter Updates (Ingress)**
 
-    This example also attaches a `PostgresIngress` listening to a `simulation_params` table. While the simulation is running, you can dynamically update parameters (like speeding up the order arrival rate) simply by executing an `INSERT` statement in your database! The simulation fetches the new configuration within its poll interval, 2 seconds by default.
+    This example also attaches a `PostgresIngress` listening to a `simulation_params` table. While the simulation runs, inserting a row with `param_path` and `param_value` into that table changes the parameter, such as the order arrival rate. The simulation fetches the new configuration within its poll interval, 2 seconds by default.
 
-    **4. Quick Start**
+    **Quick Start**
 
-    Download the script, then run it. The run keeps generating orders until you stop it with Ctrl + C. **To test the dynamic ingress updates**, open a second terminal while the simulation is running and execute the SQL command below.
+    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
-    ```bash
-    curl -O https://raw.githubusercontent.com/jaehyeon-kim/dynamic-des/main/examples/imperative/postgres_example.py
-    ```
+    === "uv"
 
-    **With uv**
+        ```bash
+        # 1. Install
+        uv tool install "dynamic-des[postgres]" --with-executables-from "odctl>=1.0,<2"
 
-    ```bash
-    # 1. Install odctl, which runs the containers
-    uv tool install "odctl>=1.0,<2"
+        # 2. Download the example
+        ddes examples get postgres --api low-level
+        cd postgres/low-level
 
-    # 2. Spin up the Postgres database
-    odctl up postgres
+        # 3. Start its service
+        odctl up postgres
 
-    # 3. Run the imperative simulation
-    uv run --no-project --with "dynamic-des[postgres]" postgres_example.py
-    ```
+        # 4. Run it (Ctrl + C to stop)
+        uv run --no-project --with "dynamic-des[postgres]" postgres_example.py
 
-    **With pip**
+        # 5. Stop its service when finished
+        odctl down postgres --volumes
+        ```
 
-    ```bash
-    # 1. Install the package with the postgres extra, and odctl for the containers
-    pip install "dynamic-des[postgres]" "odctl>=1.0,<2"
+    === "pip"
 
-    # 2. Spin up the Postgres database
-    odctl up postgres
+        ```bash
+        # 1. Install
+        pip install "dynamic-des[postgres]" "odctl>=1.0,<2"
 
-    # 3. Run the imperative simulation
-    python postgres_example.py
-    ```
+        # 2. Download the example
+        ddes examples get postgres --api low-level
+        cd postgres/low-level
+
+        # 3. Start its service
+        odctl up postgres
+
+        # 4. Run it (Ctrl + C to stop)
+        python postgres_example.py
+
+        # 5. Stop its service when finished
+        odctl down postgres --volumes
+        ```
 
     **In a second terminal, execute the dynamic parameter update:**
     ```bash
     # Connect to the database container and inject the parameter (maintains audit history!)
     docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params (param_path, param_value) VALUES ('Store.arrival.customer_order.rate', '5.0');"
     ```
-    *You will immediately see the simulation terminal log that the update was ingested and start generating orders much faster!*
+    Within the poll interval, the run logs `Ingested parameter update: Store.arrival.customer_order.rate = 5.0`, and orders then arrive five times faster.
 
     ```bash
     # Clean up the infrastructure when finished
@@ -484,110 +652,4 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
     if __name__ == "__main__":
         logging.basicConfig(level=logging.INFO)
         run()
-    ```
-
-=== "YAML"
-
-    This example builds a simulation like the declarative example in the Declarative tab from a YAML blueprint, with no Python and one table. Each customer order is written to `orders`, and `PostgresIngress` polls `simulation_params` for updates. The declarative example's orders with random line items are the [advanced Postgres example](advanced-postgres-orders.md), which keeps its generator in Python.
-
-    **Quick Start**
-
-    Download the blueprint, then run it.
-
-    ```bash
-    curl -O https://raw.githubusercontent.com/jaehyeon-kim/dynamic-des/main/examples/yaml/postgres.yaml
-    ```
-
-    **With uv**
-
-    ```bash
-    # 1. Install odctl, which runs the containers
-    uv tool install "odctl>=1.0,<2"
-
-    # 2. Start the Postgres database
-    odctl up postgres
-
-    # 3. Run the blueprint (Ctrl + C to stop)
-    uv run --no-project --with "dynamic-des[postgres]" ddes run postgres.yaml
-
-    # 4. Clean up the infrastructure when finished
-    odctl down postgres --volumes
-    ```
-
-    **With pip**
-
-    ```bash
-    # 1. Install the package with the postgres extra, and odctl for the containers
-    pip install "dynamic-des[postgres]" "odctl>=1.0,<2"
-
-    # 2. Start the Postgres database
-    odctl up postgres
-
-    # 3. Run the blueprint (Ctrl + C to stop)
-    ddes run postgres.yaml
-
-    # 4. Clean up the infrastructure when finished
-    odctl down postgres --volumes
-    ```
-
-    **What It Does**
-
-    When the run starts, `PostgresEgress` creates the `orders` table and `PostgresIngress` creates `simulation_params`, if they do not exist. The run then writes one order per arrival until you stop it. The order id is the task id, so a second run skips the orders the first one wrote, until the table is dropped.
-
-    In a second terminal, raise the arrival rate while it runs:
-
-    ```bash
-    docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params (param_path, param_value) VALUES ('Store.arrival.customer_order.rate', '5.0');"
-    ```
-
-    **Full Source Code**
-
-    `place_order` has no service or resource, so it publishes its fixed `payload` as soon as an arrival spawns it, with the task id added as `order_id`. `tables` gives the columns and the primary key of each table to create. The `timestamp` column is filled from the time the record carries.
-
-    Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
-
-    ```yaml title="examples/yaml/postgres.yaml"
-    # Relational output in YAML.
-    #
-    # The YAML version of examples/declarative/postgres_example.py, with one table.
-    # Each customer_order spawns place_order, a task with no service or resource, which
-    # publishes its payload at once. PostgresEgress creates the orders table at start
-    # and writes one row per order. PostgresIngress creates simulation_params and polls
-    # it for parameter updates.
-    #
-    # Needs a database: odctl up postgres. Runs until interrupted with Ctrl + C.
-    # Run it with: ddes run examples/yaml/postgres.yaml
-
-    simulation:
-      sim_id: Store
-      factor: 1.0
-
-    ingress:
-      - type: Postgres
-        config:
-          connection_dsn: postgresql://user:password@localhost:5432/odctl
-          table_name: simulation_params
-
-    egress:
-      - type: Postgres
-        config:
-          connection_dsn: postgresql://user:password@localhost:5432/odctl
-          tables:
-            orders:
-              columns:
-                order_id: INT
-                customer_id: INT
-                total_amount: REAL
-                status: TEXT
-                timestamp: TIMESTAMP
-              primary_key: order_id
-
-    arrivals:
-      customer_order: {dist: exponential, rate: 1.0, spawn: place_order}
-
-    tasks:
-      place_order:
-        # id_field adds the task id as order_id. timestamp comes from the record.
-        payload: {customer_id: 42, total_amount: 59.97, status: pending}
-        id_field: order_id
     ```

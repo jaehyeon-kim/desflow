@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 # Connection string matching the odctl `postgres` profile
 DSN = "postgresql://user:password@localhost:5432/odctl"
 
+# --8<-- [start:app]
 app = (
     SimulationContext(sim_id="Store", factor=1.0)
     .add_ingress(PostgresIngress(DSN, table_name="simulation_params"))
@@ -29,6 +30,7 @@ app = (
     .add_egress(PostgresEgress(DSN, table_name="order_items"))
     .add_arrival("customer_order", dist="exponential", rate=1.0)
 )
+# --8<-- [end:app]
 
 
 @app.arrival_loop("customer_order")
@@ -38,6 +40,7 @@ def order_generator(context):
     while True:
         yield context.wait_for_arrival("customer_order")
 
+        # --8<-- [start:records]
         # 1. Generate Order (Notice the __table__ routing key)
         order = {
             "__table__": "orders",
@@ -70,6 +73,7 @@ def order_generator(context):
 
         order["total_amount"] = round(total, 2)
         context.publish("order_event", order)
+        # --8<-- [end:records]
 
         order_id += 1
 

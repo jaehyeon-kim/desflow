@@ -1,71 +1,24 @@
 # YAML Blueprints
 
-A YAML blueprint is a third way to define a simulation, beside the `SimulationContext` builder and the low-level `DynamicRealtimeEnvironment`. The file holds the configuration: parameters, connectors, batching, simple tasks, telemetry and a scenario of timed changes. Logic that YAML cannot express is Python, which a blueprint references with `!python`, as [Advanced YAML: Custom Logic with `!python`](../guides/yaml-advanced.md) explains.
+A YAML blueprint is a third way to define a simulation, beside the `SimulationContext` builder and the low-level `DynamicRealtimeEnvironment`. The file holds the configuration: parameters, connectors, batching, simple tasks, telemetry and a scenario of timed changes. Logic that YAML cannot express is Python, which a blueprint references with `!python`, as [Python in a Blueprint](../guides/yaml-advanced.md) explains.
 
 A blueprint is built through the same public builder methods a Python script calls, such as `add_resource`, `add_egress`, `task` and `arrival_loop`. There is no second build path, so a blueprint and a script that make the same calls produce the same simulation. The tests build and run each [YAML example](../examples/local.md) and check the records it produces.
 
-For a walk from a first blueprint to live connectors, see [YAML Blueprints, from First File to Connectors](../guides/yaml-blueprints.md). This page is the reference.
+[First Simulation](../tutorials/first-simulation.md) writes a first factory this way, in its YAML tabs, and [YAML Blueprints, from First File to Connectors](../guides/yaml-blueprints.md) goes on to live connectors. This page is the reference.
 
 ---
 
-## Example
-
-A blueprint declares the same configuration as the builder chain in a YAML file, and `ddes run` builds and runs it. Simple tasks, arrival loops and resource telemetry are declared in the file. Processes, payload functions and routers are Python, referenced with `!python`. The [local example](../examples/local.md) needs no Python at all.
-
-```yaml title="examples/yaml/local.yaml"
-# Local simulation in YAML, with no Python and no containers.
-#
-# The twin of examples/declarative/local_example.py. Factory_A writes to
-# ConsoleEgress, so events and telemetry are printed to the terminal, and the run
-# ends on its own after 60 simulation seconds.
-#
-# Run it with: ddes run examples/yaml/local.yaml
-
-simulation:
-  sim_id: Factory_A
-  factor: 1.0
-
-egress:
-  - type: Console
-
-resources:
-  lathe: {current_cap: 2, max_cap: 5}
-
-services:
-  milling: {dist: normal, mean: 3.0, std: 0.5}
-
-arrivals:
-  # Each arrival spawns one process_part task.
-  standard: {dist: exponential, rate: 1.0, spawn: process_part}
-
-tasks:
-  process_part:
-    service: milling
-    resource: lathe
-    # The value of the task's finished event. id_field adds the task id as part_id.
-    payload: {event_type: part_produced, quality: A}
-    id_field: part_id
-
-telemetry:
-  # Samples the lathe every 2 simulation seconds.
-  - interval: 2.0
-    publish:
-      utilization: lathe.utilization
-      queue_length: lathe.queue_length
-
-run:
-  until: 60
-```
-
----
 
 ## Running a Blueprint
 
-From a shell, with the `ddes` command that the package installs:
+From a shell, with the `ddes` command that the package installs. Your own blueprint runs the same way; these lines use the local example:
 
 ```bash
-ddes run blueprint.yaml               # runs until run.until, or forever
-ddes run blueprint.yaml --until 10min # overrides run.until
+ddes examples get local --api yaml    # downloads local/yaml/local.yaml
+cd local/yaml
+ddes run local.yaml                   # runs until run.until, 60 s in this file
+ddes run local.yaml --until 10min     # overrides run.until
+ddes examples                         # lists the other examples
 ddes --version
 ```
 
@@ -73,10 +26,10 @@ ddes --version
 
 From Python:
 
-```python
+```python title="docs/snippets/pages/yaml_loading.py:from-yaml"
 from dynamic_des import SimulationContext
 
-app = SimulationContext.from_yaml("blueprint.yaml")
+app = SimulationContext.from_yaml("local.yaml")
 app.run()  # calls run.before, then runs until run.until
 ```
 
@@ -123,13 +76,14 @@ A task is the `@app.task` decorator in YAML. Each run of the task emits `queued`
 
 `spawn` on an arrival names the task that each arrival starts. It is the loop a declarative example writes by hand:
 
-```python
+```python title="examples/declarative/local_example.py:arrival-loop"
 @app.arrival_loop("standard")
 def arrival_generator(context):
+    """Continuously spawns new parts based on the 'standard' arrival distribution."""
     task_id = 0
     while True:
         yield context.wait_for_arrival("standard")
-        context.spawn(process_part(task_id, context))
+        context.spawn(process_part(task_id))
         task_id += 1
 ```
 
@@ -147,6 +101,19 @@ A telemetry entry runs every `interval` simulation seconds. `publish` maps a met
 | `utilization` | `in_use / capacity * 100`, or 0 when the capacity is 0. It can exceed 100 while busy units finish above a lowered capacity |
 
 Each metric is published as `<sim_id>.<metric name>`. For anything else, `function` takes a Python function instead of `publish`, as the [advanced guide](../guides/yaml-advanced.md) describes.
+
+```yaml title="docs/snippets/yaml/telemetry.yaml:telemetry"
+telemetry:
+  # Every 5 simulation seconds, as Line_A.lathe_busy and Line_A.lathe_waiting
+  - interval: 5
+    publish:
+      lathe_busy: lathe.in_use
+      lathe_waiting: lathe.queue_length
+  # Every 60 seconds, the share of the lathe in use, in percent
+  - interval: 60
+    publish:
+      lathe_utilization: lathe.utilization
+```
 
 ### Connectors
 
@@ -183,15 +150,105 @@ An ISO time string bound for a timestamp or date column of Iceberg or Postgres i
 
 `when` on an egress entry is `history`, which sends the records stamped before `simulation.go_live_at`, or `live`, which sends the records stamped at or after it. Both need `go_live_at`.
 
+```yaml title="docs/snippets/yaml_build/connectors.yaml:ingress"
+ingress:
+  - type: Local
+    config:
+      schedule:
+        - [10.0, Line_A.resources.lathe.current_cap, 3]
+  - type: Kafka
+    config:
+      topic: sim-config
+      bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}
+```
+
+```yaml title="docs/snippets/yaml_build/connectors.yaml:egress"
+egress:
+  - type: Kafka
+    config:
+      bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}
+      event_topic: sim-events
+      telemetry_topic: sim-telemetry
+    batch_size: 50
+    flush_interval: 0.5
+  - type: Parquet
+    config:
+      default_path: warehouse/events.parquet
+      # A mapping becomes PyArrow's S3FileSystem; type: local is the local disk
+      filesystem:
+        type: s3
+        endpoint_override: 127.0.0.1:8333
+        scheme: http
+        access_key: user
+        secret_key: password
+    batch_size: 200000
+  - type: Jsonl
+    config:
+      path_router: !python routing_logic.daily_path
+  - type: Postgres
+    config:
+      connection_dsn: postgresql://user:password@localhost:5432/odctl
+      table_name: orders
+      upsert_keys: [order_id]
+  - type: Redis
+    config:
+      url: redis://user:password@localhost:6379/0
+      stream_name: events
+```
+
 ### Scenario
 
 A scenario sets registry paths to new values at given simulation times. Each step is a mapping such as `{at: 30, path: Workshop.resources.drill.current_cap, value: 2}`.
 
-`at` is seconds from the start of the run, or a duration string. The steps are applied in time order by a SimPy process that waits on the simulation clock, so a scenario repeats exactly on every run and works at `factor: 0`. Every `path` is checked when the file is loaded, against a registry built from the blueprint with the same code the run uses, and the `value` must convert to the type the path holds. [Scenarios versus `LocalIngress`](registry.md#scenarios-versus-localingress) compares the two. The [guide](../guides/yaml-blueprints.md#2-script-an-experiment) has a complete file.
+`at` is seconds from the start of the run, or a duration string. The steps are applied in time order by a SimPy process that waits on the simulation clock, so a scenario repeats exactly on every run and works at `factor: 0`. Every `path` is checked when the file is loaded, against a registry built from the blueprint with the same code the run uses, and the `value` must convert to the type the path holds. [Scenarios versus `LocalIngress`](registry.md#scenarios-versus-localingress) compares the two. The [guide](../guides/yaml-blueprints.md#script-an-experiment) has a complete file.
 
 A resource follows a capacity change within the same simulation instant, but after the step that made it. A telemetry sample taken at exactly that instant can therefore still show the old capacity.
 
 ---
+
+```yaml title="docs/snippets/yaml/scenario.yaml"
+# The first blueprint with a scripted experiment: a second drill comes online at
+# 30 s, parts arrive twice as fast from 1 min, and the extra drill is removed at
+# 2 min. Every change lands at exactly that simulation time, on every run.
+simulation:
+  sim_id: Workshop
+  factor: 0
+  random_seed: 1
+
+egress:
+  - type: Console
+
+resources:
+  drill: {current_cap: 1, max_cap: 3}
+
+services:
+  drilling: {dist: normal, mean: 4.0, std: 1.0}
+
+arrivals:
+  parts: {dist: exponential, rate: 0.2, spawn: drill_part}
+
+tasks:
+  drill_part:
+    service: drilling
+    resource: drill
+    payload: {status: finished}
+    id_field: part_id
+
+telemetry:
+  # Shows each change as it lands.
+  - interval: 10
+    publish:
+      drill.capacity: drill.capacity
+      drill.queue_length: drill.queue_length
+
+scenario:
+  - {at: 30, path: Workshop.resources.drill.current_cap, value: 2}
+  - {at: 1 min, path: Workshop.arrival.parts.rate, value: 0.4}
+  - {at: 2 min, path: Workshop.resources.drill.current_cap, value: 1}
+
+run:
+  until: 3 min
+```
 
 ## Limitations
 
@@ -206,6 +263,10 @@ A blueprint covers configuration. Anything that is logic stays in Python.
 ---
 
 ## Errors
+
+A file is read in five steps. A step that fails stops the load with a `BlueprintError` naming the file and the line, before anything runs:
+
+![from_yaml and ddes run read the file, check every field, check the names, build the context and check the scenario, in that order, and return a SimulationContext; any step that fails raises BlueprintError with the file and line](../assets/diagrams/blueprint-loading.png)
 
 Every error names the file and the line, and `ddes run` prints it after `Error:`. Validation errors are all reported at once:
 
@@ -225,4 +286,4 @@ Error: err.yaml:6: 'Line_A.resources.press.current_cap' is not a registry path. 
 
 ## Security
 
-A blueprint with no Python references is read entirely by `yaml.SafeLoader`, and loading it imports only the connector modules its `type` entries name. A file that references Python runs the imports it names, so it is as trusted as a Python script. The [advanced guide](../guides/yaml-advanced.md#7-security) explains.
+A blueprint with no Python references is read entirely by `yaml.SafeLoader`, and loading it imports only the connector modules its `type` entries name. A file that references Python runs the imports it names, so it is as trusted as a Python script. The [advanced guide](../guides/yaml-advanced.md#security) explains.

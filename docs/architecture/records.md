@@ -2,6 +2,10 @@
 
 Everything a simulation publishes is a record: a telemetry record for a metric, or an event record for something that happened to a task. The records have the shape of the `TelemetryPayload` and `EventPayload` models, and they are the same whichever way the simulation was written.
 
+Both shapes share `stream_type`, `sim_ts` and `timestamp`. Telemetry names its metric in `path_id`, and an event names its entity in `key`:
+
+![A telemetry record has stream_type, sim_ts, timestamp, path_id and value; an event record has stream_type, sim_ts, timestamp, key and value](../assets/diagrams/record-shapes.png)
+
 ---
 
 ## Record Shape
@@ -12,7 +16,7 @@ Every egress provider, router and `when` predicate receives records of two shape
 {"stream_type": "telemetry", "sim_ts": 12.0, "timestamp": "2026-01-01T00:00:12.000", "path_id": "Line_A.lathe.in_use", "value": 2}
 ```
 
-Events, from `@app.task` or `publish_event`, are used for discrete task lifecycle events (e.g., a part arriving, entering a queue, or finishing processing):
+Events, from `@app.task` or `publish_event`, are used for discrete task lifecycle events (such as a part arriving, entering a queue, or finishing processing):
 
 ```json
 {"stream_type": "event", "sim_ts": 12.5, "timestamp": "2026-01-01T00:00:12.500", "key": "task-7", "value": {"path_id": "Line_A.service.milling", "status": "started"}}
@@ -26,13 +30,32 @@ Events, from `@app.task` or `publish_event`, are used for discrete task lifecycl
 
 * `sim_ts` is rounded to three decimal places and is always a float, so simulation time 0 is published as `0.0`.
 * `key` and `path_id` are strings. `bytes` and `bytearray` are decoded to strings; any other type, such as an `int`, raises a Pydantic `ValidationError` at the call.
-* `value` is converted to plain JSON values before any egress sees it. A Pydantic V2 model becomes a dictionary, a datetime becomes an ISO string, and a NaN or an infinity becomes `None`.
+* `value` is converted to plain JSON values before any egress sees it. A Pydantic V2 model becomes a dictionary, a datetime becomes an ISO string, and a NaN or an infinity becomes `None`, in a model at any depth as in a plain dictionary.
+
+```python title="docs/snippets/pages/records.py:values"
+class Reading(BaseModel):
+    sensor: str
+    celsius: float
+    taken_at: datetime
+
+
+def readings(context: SimulationContext):
+    while True:
+        yield context.env.timeout(30.0)
+        reading = Reading(sensor="spindle", celsius=float("nan"), taken_at=datetime.now())
+        # The model becomes a dict, taken_at an ISO string, and NaN becomes None
+        context.env.publish_event("sensor-spindle", reading)
+```
 
 ---
 
 ## Task Events
 
 `@app.task`, and a YAML task, publish three events for each task, all with the key `task-<task id>`:
+
+A task's three events follow its life through the resource:
+
+![A task publishes queued when it joins the resource queue, started when it gets a unit, and finished after its service time, all with the key task and its id](../assets/diagrams/task-events.png)
 
 | Event | `value` |
 |---|---|
@@ -53,7 +76,21 @@ The finished event has no `status` or `path_id` unless the task returns them. A 
 | `env.publish_telemetry(path_id, value)` | `path_id`, as given |
 | the lag monitor | `system.simulation.lag_seconds` |
 
-`setup_egress` starts the lag monitor, which publishes once every simulation second by default. [Time](time.md#what-factor0-changes) explains its value. A sink that should receive only events needs a router or a `when` predicate that drops it.
+`setup_egress` starts the lag monitor, which publishes once every simulation second by default. [Time and Pacing](time.md#what-factor0-changes) explains its value. A sink that should receive only events needs a router or a `when` predicate that drops it.
+
+```python title="docs/snippets/pages/records.py:telemetry"
+@app.telemetry_loop(interval=10.0)
+def report(context: SimulationContext):
+    # path_id is Line_A.lathe.in_use: the sim_id is added in front
+    context.publish("lathe.in_use", context.get_resource("lathe").in_use)
+```
+
+```python title="docs/snippets/pages/records.py:low-level"
+env = DynamicRealtimeEnvironment(factor=0.0)
+env.setup_egress([ConsoleEgress()])
+env.publish_telemetry("plant.power_kw", 412.5)  # path_id exactly as given
+env.publish_event("order-17", {"status": "shipped"})  # key and value as given
+```
 
 ---
 

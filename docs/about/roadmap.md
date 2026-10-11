@@ -8,7 +8,6 @@ This page lists the work planned for Dynamic DES. It changes as plans change, an
 
 ### Simulation model
 
-- **Checked parameters:** a wrong value is refused when a model loads or when it changes during a run, instead of being silently replaced or crashing the run.
 - **More distributions,** including one built from values taken from real data.
 - **Routing between tasks:** a finished task leads to the next one, chosen by a condition or by probability, so a model can be a multi-step flow.
 - **Entity state:** an order, a session or a part keeps its attributes as it moves from task to task, and every event of one entity carries its key.
@@ -36,10 +35,9 @@ A published server image and a profile for [odctl](https://github.com/jaehyeon-k
 
 ### Docs
 
-- **Concepts:** the simulation building blocks, the queueing behind them, and the distributions.
-- **Tutorials:** from an idea to a stable model with `ddes explain`, and running on the server.
+- **Checking a model:** from an idea to a stable model with `ddes explain`, and running it on the server.
+- **Building blocks to come:** a page for each new block as it ships, such as routing between tasks and built-in statistics.
 - **Reference:** the YAML format, the command line and the record format in one place.
-- **`llms.txt`:** an index of these docs for AI assistants.
 
 ## What 1.0 means
 

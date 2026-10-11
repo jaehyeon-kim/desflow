@@ -56,34 +56,18 @@ def create_history_router(base_path: str):
 # ==========================================
 # 1. DUAL-MODE STORAGE CONFIGURATION
 # ==========================================
-# Reading environment variables and constructing the S3 client are safe at import.
-# Creating the destination is not, so it lives in ensure_destination() and runs from
-# run(). Importing this module for discovery, by a test collector or a docs build,
-# must not create a directory or reach out to S3.
-use_s3 = os.getenv("USE_S3", "false").lower() == "true"
-# odctl-dev is one of the buckets the odctl `storage` profile creates.
-base_path = os.getenv("DEST_PATH", "odctl-dev/history" if use_s3 else "data")
-filesystem = None
-
-if use_s3:
-    from pyarrow import fs
-
-    filesystem = fs.S3FileSystem(
-        access_key=os.getenv("S3_ACCESS_KEY", "user"),
-        secret_key=os.getenv("S3_SECRET_KEY", "password"),
-        endpoint_override=os.getenv("S3_ENDPOINT", "127.0.0.1:8333"),
-        scheme="http",
-    )
-
-
-def ensure_destination() -> None:
-    """Create the target directory or bucket path, once the caller has asked to run."""
-    if use_s3 and filesystem is not None:
-        logger.info(f"Configuring S3 Egress. Target Bucket: '{base_path}'")
-        filesystem.create_dir(base_path)
-    else:
-        logger.info(f"Configuring Local Egress. Target Folder: '{base_path}'")
-        os.makedirs(base_path, exist_ok=True)
+# The same variables as yaml/parquet.yaml. Unset, the run writes to data/ on the local
+# disk. PARQUET_FILESYSTEM=s3 with the S3_* variables writes to S3-compatible storage,
+# such as SeaweedFS from `odctl up storage`. The egress builds the filesystem from this
+# mapping and creates the destination folder on its first write; an empty value is
+# left out, so the PyArrow default applies.
+base_path = os.getenv("DEST_PATH", "data")
+filesystem = {
+    "type": os.getenv("PARQUET_FILESYSTEM", "local"),
+    "endpoint_override": os.getenv("S3_ENDPOINT", ""),
+    "access_key": os.getenv("S3_ACCESS_KEY", ""),
+    "secret_key": os.getenv("S3_SECRET_KEY", ""),
+}
 
 
 router = create_history_router(base_path)
@@ -153,7 +137,6 @@ def telemetry_generator(context):
 # ==========================================
 def run():
     """Generates 1 week of factory data instantly."""
-    ensure_destination()
 
     logger.info(
         "Generating historical data mimicking start from "
