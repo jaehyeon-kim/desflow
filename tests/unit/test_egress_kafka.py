@@ -413,9 +413,17 @@ async def test_kafka_egress_custom_topic_router(MockProducer, run_until):
     assert "stream_type" not in decoded_payload_1
 
 
-async def _run_briefly(egress):
+async def _run_until_started(egress, producer):
+    """Runs the egress until its producer starts, which follows the topic creation.
+
+    The topics are created in a thread, so a fixed wait can end before the call on a
+    slow runner. Waiting on the producer's start, with a time limit, removes that race.
+    """
     task = asyncio.create_task(egress.run(queue.Queue()))
-    await asyncio.sleep(0.05)
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + 5.0
+    while not producer.start.called and loop.time() < deadline:
+        await asyncio.sleep(0.01)
     task.cancel()
     await asyncio.gather(task, return_exceptions=True)
 
@@ -434,7 +442,7 @@ async def test_topics_are_created_at_start(MockProducer, mock_admin):
         linger_ms=5,
     )
 
-    await _run_briefly(egress)
+    await _run_until_started(egress, MockProducer.return_value)
 
     # Only settings the admin client knows are passed; linger_ms is producer-only.
     mock_admin.assert_called_once_with(
@@ -456,7 +464,7 @@ async def test_one_topic_for_both_streams_is_created_once(MockProducer, mock_adm
         bootstrap_servers="b:9092", event_topic="all", telemetry_topic="all"
     )
 
-    await _run_briefly(egress)
+    await _run_until_started(egress, MockProducer.return_value)
 
     mock_admin.return_value.create_topics.assert_called_once_with(
         topics_config=[{"name": "all"}]
@@ -470,7 +478,7 @@ async def test_a_router_leaves_topics_to_the_caller(MockProducer, mock_admin):
     MockProducer.return_value = AsyncMock()
     egress = KafkaEgress(bootstrap_servers="b:9092", topic_router=lambda d: "x")
 
-    await _run_briefly(egress)
+    await _run_until_started(egress, MockProducer.return_value)
 
     mock_admin.assert_not_called()
 
@@ -486,7 +494,7 @@ async def test_a_failed_topic_creation_does_not_stop_the_producer(
     mock_admin.return_value.create_topics.side_effect = RuntimeError("no broker")
     egress = KafkaEgress(bootstrap_servers="b:9092")
 
-    await _run_briefly(egress)
+    await _run_until_started(egress, MockProducer.return_value)
 
     producer.start.assert_called_once()
 
