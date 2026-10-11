@@ -11,7 +11,7 @@ from dynamic_des.core.context import SimulationContext
 from dynamic_des.utils import time_to_seconds
 
 app = typer.Typer(
-    help="Run dynamic-des simulations defined in YAML blueprint files.",
+    help="Run dynamic-des simulations defined in YAML blueprint files, and download the examples.",
     no_args_is_help=True,
     add_completion=False,
 )
@@ -39,7 +39,7 @@ def main(
         ),
     ] = False,
 ) -> None:
-    """Run dynamic-des simulations defined in YAML blueprint files."""
+    """Run dynamic-des simulations defined in YAML blueprint files, and download the examples."""
 
 
 def _parse_until(value: Optional[str]) -> Optional[float]:
@@ -95,3 +95,82 @@ def run(
         context.run(until=stop_at)
     except KeyboardInterrupt:
         logger.info("Simulation stopped by user.")
+
+
+examples_app = typer.Typer(
+    help="List the examples, or download one at the version you have installed.",
+    invoke_without_command=True,
+)
+app.add_typer(examples_app, name="examples")
+
+
+@examples_app.callback()
+def examples_list(ctx: typer.Context) -> None:
+    """List the examples, with what each shows and what it needs."""
+    if ctx.invoked_subcommand is not None:
+        return
+    from dynamic_des.blueprint.examples import EXAMPLES
+
+    for example in EXAMPLES.values():
+        needs = f"odctl up {example.profile}" if example.profile else "no service"
+        typer.echo(f"{example.name:<16} {example.shows} ({needs})")
+    typer.echo("\nDownload one with: ddes examples get <name>")
+
+
+@examples_app.command("get")
+def examples_get(
+    name: Annotated[
+        str, typer.Argument(help="The example, as `ddes examples` lists it.")
+    ],
+    api: Annotated[
+        Optional[str],
+        typer.Option(help="Only this version: yaml, declarative or low-level."),
+    ] = None,
+    dest: Annotated[Path, typer.Option(help="The folder to download into.")] = Path(
+        "."
+    ),
+    ref: Annotated[
+        Optional[str],
+        typer.Option(
+            help="A git tag or branch. Defaults to the installed release's tag."
+        ),
+    ] = None,
+    force: Annotated[
+        bool, typer.Option(help="Replace files that are already there.")
+    ] = False,
+) -> None:
+    """Download an example into <dest>/<name>/<api>/, at the installed release."""
+    from dynamic_des import __version__
+    from dynamic_des.blueprint.examples import (
+        APIS,
+        EXAMPLES,
+        download,
+        release_ref,
+        run_hint,
+    )
+
+    example = EXAMPLES.get(name)
+    if example is None:
+        raise typer.BadParameter(
+            f"no example called '{name}'; choose one of {', '.join(EXAMPLES)}"
+        )
+    if api is not None and api not in APIS:
+        raise typer.BadParameter(f"--api must be one of {', '.join(APIS)}")
+    apis = [api] if api else list(APIS)
+    ref = ref or release_ref(__version__)
+    try:
+        written = download(example, apis, dest, ref, force=force)
+    except (FileExistsError, RuntimeError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(1) from None
+    for path in written:
+        typer.echo(f"wrote {path}")
+    typer.echo("")
+    if example.extras:
+        typer.echo(f'Install: pip install "dynamic-des[{example.extras}]"')
+    if example.profile:
+        typer.echo(f"Start its service: odctl up {example.profile}")
+    for each in apis:
+        typer.echo(f"Run the {each} version: {run_hint(example, each)}")
+    for note in example.notes:
+        typer.echo(note)
