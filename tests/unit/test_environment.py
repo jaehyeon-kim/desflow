@@ -1004,3 +1004,24 @@ def test_go_live_does_not_duplicate_periodic_flush(provider_count):
     # is affected exactly as many are, so both counts are checked.
     assert started == list(range(provider_count))
     env.teardown_egress()
+
+
+def test_nan_becomes_none_inside_a_pydantic_model():
+    """A model keeps NaN in its own dump, so the record value is cleaned as well."""
+    from pydantic import BaseModel
+
+    from dynamic_des.core.environment import _jsonable
+
+    class Reading(BaseModel):
+        celsius: float
+        peak: float
+
+    nan, inf = float("nan"), float("inf")
+    assert _jsonable(Reading(celsius=nan, peak=inf)) == {"celsius": None, "peak": None}
+    assert _jsonable({"r": Reading(celsius=nan, peak=1.0)}) == {
+        "r": {"celsius": None, "peak": 1.0}
+    }
+    assert _jsonable([Reading(celsius=2.0, peak=nan)]) == [
+        {"celsius": 2.0, "peak": None}
+    ]
+    assert _jsonable({"x": nan, "y": 1}) == {"x": None, "y": 1}

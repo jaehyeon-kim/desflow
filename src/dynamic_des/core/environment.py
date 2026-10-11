@@ -32,8 +32,30 @@ def _jsonable(value: Any) -> Any:
     every field of a model that declares a serialization alias. `inf_nan_mode`
     defaults to "constants" here and to "null" in the dump, which let a NaN or an
     infinity through as a float instead of None.
+
+    `inf_nan_mode` reaches only plain values. A Pydantic model, at any depth, writes its
+    own fields with its own settings and keeps a NaN as a float (pydantic 2.12), so a
+    value that holds anything but plain values is cleaned once more. A flat mapping of
+    plain values, the usual payload, skips that pass.
     """
-    return to_jsonable_python(value, by_alias=False, inf_nan_mode="null")
+    result = to_jsonable_python(value, by_alias=False, inf_nan_mode="null")
+    if isinstance(value, dict) and all(isinstance(v, _PLAIN) for v in value.values()):
+        return result
+    return _finite(result)
+
+
+_PLAIN = (str, int, float, bool, type(None))
+
+
+def _finite(value: Any) -> Any:
+    """Replaces every NaN or infinity in a JSON-ready value with None."""
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {k: _finite(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_finite(v) for v in value]
+    return value
 
 
 # Pacing a run takes after `go_live_at`. It is fixed rather than configurable because
