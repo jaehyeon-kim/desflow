@@ -352,11 +352,13 @@ class KafkaEgress(BaseEgress):
         while True:
             try:
                 producer = AIOKafkaProducer(**self.producer_config)
-                await producer.start()
-                logger.info("Kafka Egress producer connected successfully.")
-                backoff = 1.0  # Reset backoff on successful connection
-
                 try:
+                    # Started inside the try, so a failed start also closes the
+                    # producer: aiokafka leaves it open otherwise.
+                    await producer.start()
+                    logger.info("Kafka Egress producer connected successfully.")
+                    backoff = 1.0  # Reset backoff on successful connection
+
                     while True:
                         try:
                             # 'batch' is a list of dictionaries from the EgressMixIn

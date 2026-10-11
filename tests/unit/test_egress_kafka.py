@@ -489,3 +489,17 @@ async def test_a_failed_topic_creation_does_not_stop_the_producer(
     await _run_briefly(egress)
 
     producer.start.assert_called_once()
+
+
+@pytest.mark.asyncio
+@patch("dynamic_des.connectors.egress.kafka.AIOKafkaProducer")
+async def test_a_failed_start_closes_the_producer(MockProducer, run_until):
+    """aiokafka leaves a producer open when start() fails; the egress closes it."""
+    failed = AsyncMock()
+    failed.start.side_effect = ConnectionError("no broker")
+    MockProducer.return_value = failed
+
+    egress = KafkaEgress(bootstrap_servers="localhost:9092")
+    await run_until(egress.run(queue.Queue()), lambda: failed.stop.await_count == 1)
+
+    failed.stop.assert_awaited_once()

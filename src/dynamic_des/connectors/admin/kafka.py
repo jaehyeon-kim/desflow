@@ -98,8 +98,8 @@ class KafkaAdminConnector:
         producer = AIOKafkaProducer(
             bootstrap_servers=self.bootstrap_servers, **self.kwargs
         )
-        await producer.start()
         try:
+            await producer.start()  # inside the try, so a failed start closes it
             payload = json.dumps({"path_id": path_id, "value": value}).encode("utf-8")
             await producer.send_and_wait(topic, payload)
         finally:
@@ -122,8 +122,8 @@ class KafkaAdminConnector:
             auto_offset_reset=auto_offset_reset,
             **self.kwargs,
         )
-        await consumer.start()
         try:
+            await consumer.start()  # inside the try, so a failed start closes it
             async for msg in consumer:
                 data = json.loads(msg.value.decode("utf-8"))
                 self._process_message(data)

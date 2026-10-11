@@ -229,11 +229,13 @@ class KafkaIngress(BaseIngress):
                 consumer = AIOKafkaConsumer(
                     self.topic, bootstrap_servers=self.bootstrap_servers, **self.kwargs
                 )
-                await consumer.start()
-                logger.info(f"Connected to Kafka Ingress topic: {self.topic}")
-                backoff = 1.0
-
                 try:
+                    # Started inside the try, so a failed start also closes the
+                    # consumer: aiokafka leaves it open otherwise.
+                    await consumer.start()
+                    logger.info(f"Connected to Kafka Ingress topic: {self.topic}")
+                    backoff = 1.0
+
                     async for msg in consumer:
                         try:
                             # Apply configured Deserializer strategy
