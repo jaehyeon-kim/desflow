@@ -44,62 +44,14 @@ plugins:
         tutorials/yaml.md: tutorials/first-simulation.md
         architecture/resources.md: building-blocks/resources.md
   # llms.txt and llms-full.txt for AI assistants (#41): an index of the pages with
-  # their links, and the pages themselves as Markdown. The sections follow the nav,
-  # and test_docs_llmstxt.py fails when a nav page is missing from them.
+  # their links, and the pages themselves as Markdown. hooks/llmstxt_sections.py
+  # builds the sections from the nav.
   - llmstxt:
       # mike serves each version under its own folder, so the links in llms.txt
       # point at latest/, where the current pages are.
       base_url: https://jaehyeon.me/dynamic-des/latest/
       full_output: llms-full.txt
-      sections:
-        Getting started:
-          - index.md
-          - getting-started.md
-          - tutorials/first-simulation.md
-        How Simulation Works:
-          - des/how-it-works.md
-          - des/simpy-and-dynamic-des.md
-          - building-blocks/index.md
-          - building-blocks/arrivals-and-services.md
-          - building-blocks/tasks-and-processes.md
-          - building-blocks/resources.md
-          - des/queues-and-capacity.md
-        Core Architecture:
-          - architecture/overview.md
-          - architecture/low-level.md
-          - architecture/context.md
-          - architecture/yaml.md
-          - architecture/environment.md
-          - architecture/registry.md
-          - architecture/time.md
-          - architecture/connectors.md
-          - architecture/records.md
-          - architecture/batching.md
-        Guides:
-          - guides/complex-routing.md
-          - guides/avro-and-pydantic.md
-          - guides/kafka-security.md
-          - guides/backfill-then-live.md
-          - guides/live-parameters.md
-          - guides/yaml-blueprints.md
-          - guides/yaml-advanced.md
-          - guides/multi-resource-handoffs.md
-          - guides/preemptive-breakdowns.md
-          - guides/dynamic-topology.md
-        Examples:
-          - examples/index.md
-          - examples/local.md
-          - examples/kafka.md
-          - examples/parquet.md
-          - examples/iceberg.md
-          - examples/postgres.md
-          - examples/redis.md
-          - examples/backfill-live.md
-          - examples/advanced-postgres-orders.md
-        Reference:
-          - api.md
-        About:
-          - about/roadmap.md
+      sections: {} # required by the plugin; filled from the nav by the hook
   - mkdocstrings:
       handlers:
         python:
@@ -133,6 +85,9 @@ validation:
 # Files the documentation shows and the tests build. They are not pages.
 exclude_docs: |
   snippets/
+
+hooks:
+  - hooks/llmstxt_sections.py
 
 nav:
   - Home: index.md
