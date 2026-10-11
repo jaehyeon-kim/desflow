@@ -262,10 +262,10 @@ jobs:
           echo "Extracted version: $VERSION"
 
           # Deploy the extracted version and tag it as 'latest'
-          uv run mike deploy --push --update-aliases $VERSION latest
+          uv run mike deploy --update-aliases $VERSION latest
 
           # Set 'latest' as the default landing page when navigating to the root URL
-          uv run mike set-default --push latest
+          uv run mike set-default latest
 
           # GitHub Pages answers every missing path under the site with the 404.html
           # at the root of gh-pages, but mike writes one into each version folder
@@ -279,4 +279,6 @@ jobs:
           cp "$RUNNER_TEMP/gh-pages/$VERSION/llms-full.txt" "$RUNNER_TEMP/gh-pages/llms-full.txt"
           git -C "$RUNNER_TEMP/gh-pages" add 404.html llms.txt llms-full.txt
           git -C "$RUNNER_TEMP/gh-pages" diff --cached --quiet || git -C "$RUNNER_TEMP/gh-pages" commit -m "Root 404 page and llms.txt from $VERSION"
+          # mike commits to the local gh-pages branch (after updating it from the remote),
+          # so everything above goes out in one push and starts one Pages build.
           git -C "$RUNNER_TEMP/gh-pages" push origin gh-pages
