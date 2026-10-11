@@ -1,9 +1,15 @@
+import copy
 import logging
 from typing import Any, Callable, Dict, Optional
 
 from simpy import Environment, Store
 
-from dynamic_des.models.params import SimParameter
+from dynamic_des.models.params import (
+    CapacityConfig,
+    DistributionConfig,
+    SimParameter,
+    check_distribution,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +120,11 @@ class SimulationRegistry:
         external systems send improperly typed data (e.g., sending the string "5"
         instead of the integer 5).
 
+        A distribution parameter outside its range (for example a negative std) is
+        refused with an error log line, as a value of the wrong type is, and the old
+        value is kept. A `current_cap` outside `[0, max_cap]` is clamped to that range
+        with a warning log line.
+
         Args:
             path (str): The dot-notation path to update.
             new_value (Any): The new value to apply.
@@ -139,19 +150,39 @@ class SimulationRegistry:
                         )
                         return  # Exit early to prevent crashing the simulation
 
+            parent_path, attr = path.rsplit(".", 1) if "." in path else (path, "")
+            parent_obj = self._configs.get(parent_path)
+
+            # Check a distribution parameter with the same rules as at load
+            if isinstance(parent_obj, DistributionConfig):
+                candidate = copy.copy(parent_obj)
+                setattr(candidate, attr, validated_value)
+                try:
+                    check_distribution(candidate)
+                except ValueError as exc:
+                    logger.error(f"Invalid value for '{path}': {exc}. Update ignored.")
+                    return
+
+            # Keep current_cap within [0, max_cap], the range the resource uses
+            if isinstance(parent_obj, CapacityConfig) and attr == "current_cap":
+                max_cap = self._values[f"{parent_path}.max_cap"].value
+                clamped = type(validated_value)(min(max(validated_value, 0), max_cap))
+                if clamped != validated_value:
+                    logger.warning(
+                        f"current_cap {validated_value} for '{path}' is outside "
+                        f"[0, max_cap {max_cap}]. Stored as {clamped}."
+                    )
+                    validated_value = clamped
+
             # Update the DynamicValue (triggers SimPy events)
             self._values[path].update(validated_value)
 
             # Synchronize the attribute on the original config object
-            if "." in path:
-                parent_path, attr = path.rsplit(".", 1)
-                if parent_path in self._configs:
-                    parent_obj = self._configs[parent_path]
-                    # Check if the parent is a dictionary (like `variables`)
-                    if isinstance(parent_obj, dict):
-                        parent_obj[attr] = validated_value
-                    else:
-                        setattr(parent_obj, attr, validated_value)
+            # Check if the parent is a dictionary (like `variables`)
+            if isinstance(parent_obj, dict):
+                parent_obj[attr] = validated_value
+            elif parent_obj is not None:
+                setattr(parent_obj, attr, validated_value)
         else:
             logger.warning(f"Attempted to update non-existent path: {path}")
 
@@ -208,6 +239,10 @@ class SimulationRegistry:
             self._values[f"{path_prefix}.rate"] = DynamicValue(
                 self.env, f"{path_prefix}.rate", dist_config.rate
             )
+        elif dist_config.dist == "constant":
+            self._values[f"{path_prefix}.value"] = DynamicValue(
+                self.env, f"{path_prefix}.value", dist_config.value
+            )
         else:
             self._values[f"{path_prefix}.mean"] = DynamicValue(
                 self.env, f"{path_prefix}.mean", dist_config.mean
@@ -215,6 +250,10 @@ class SimulationRegistry:
             self._values[f"{path_prefix}.std"] = DynamicValue(
                 self.env, f"{path_prefix}.std", dist_config.std
             )
+            if dist_config.dist == "truncated_normal":
+                self._values[f"{path_prefix}.low"] = DynamicValue(
+                    self.env, f"{path_prefix}.low", dist_config.low
+                )
 
     def _register_cap(
         self, path_prefix: str, cap_config: Any, cast: Optional[Callable] = None

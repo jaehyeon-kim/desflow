@@ -10,7 +10,7 @@ Every run has one `SimulationRegistry`, at `env.registry`. It maps dot-notation 
 
 | Builder call | Paths |
 |---|---|
-| `add_arrival(name, ...)`, `add_service(name, ...)` | `<sim_id>.arrival.<name>.rate` and `<sim_id>.service.<name>.rate` for an exponential distribution, otherwise `.mean` and `.std` |
+| `add_arrival(name, ...)`, `add_service(name, ...)` | `<sim_id>.arrival.<name>.rate` and `<sim_id>.service.<name>.rate` for an exponential distribution, `.value` for a constant, otherwise `.mean` and `.std`, and `.low` for a truncated normal |
 | `add_resource(name, ...)`, `add_container(name, ...)` | `<sim_id>.resources.<name>.current_cap` and `.max_cap`, `<sim_id>.containers.<name>.current_cap` and `.max_cap` |
 | `add_variable(name, value)` | `<sim_id>.variables.<name>` |
 
@@ -26,6 +26,8 @@ Stores, registered through `SimParameter(stores=...)` on the low-level API, take
 
 * A path that does not exist is logged as a warning, and the update is ignored.
 * A value of a different type is converted to the type the path holds, so the string `"5"` sent to an integer path becomes `5`. The conversion is Python's own, so `2.5` sent to an integer path becomes `2`. A value that cannot be converted is logged as an error, and the update is ignored.
+* A distribution parameter outside its range, such as a negative `std` or a rate of 0, is logged as an error, and the update is ignored. The rules are the ones checked at load, listed under [`dist`](yaml.md#sections).
+* A `current_cap` below 0 or above the path's `max_cap` is stored as 0 or `max_cap`, with a warning.
 * A value equal to the current one changes nothing.
 * Otherwise the value is replaced, and the configuration object the path belongs to is updated too, such as the `rate` of a `DistributionConfig` or an entry of the variables.
 

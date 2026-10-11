@@ -105,7 +105,7 @@ Every section is optional except `simulation`. Unknown keys are rejected, so a m
 | `scenario` | `add_process` | A list of `{at, path, value}` |
 | `run` | `run()` | `until`, greater than 0, and `before`, a list of Python functions |
 
-`dist` is `exponential`, `normal` or `lognormal`. An exponential distribution reads `rate`, and the other two read `mean` and `std`. A field left out takes the builder's default, so a blueprint registers exactly what the equivalent Python call registers.
+`dist` is `exponential`, `normal`, `lognormal`, `truncated_normal` or `constant`. An exponential distribution reads `rate`, which must be above 0. `normal`, `lognormal` and `truncated_normal` read `mean` and `std`: `std` must be 0 or more, and 0 gives the mean every time; a lognormal `mean` must be above 0. A `truncated_normal` also reads `low`, 0 by default, and draws again whenever a draw falls below it. A `constant` reads `value`, 0 or more, and always gives it. An invalid value stops the load with its line. A time drawn below 0.00001 seconds is raised to 0.00001, so a `normal` whose `std` is large next to its `mean` runs slower than its `mean` says: with `mean: 1` and `std: 1`, 16% of draws are raised and the mean is 1.08. Use `truncated_normal` for such a time. A field left out takes the builder's default, so a blueprint registers exactly what the equivalent Python call registers.
 
 `logical_start_time` and `go_live_at` take `now`, a signed duration from now such as `-1d` or `-10m`, or an ISO datetime such as `2026-01-01T00:00:00`. Both are read against one moment, when the file is loaded, so `-10m` and `now` are exactly ten minutes apart. `now` and the relative forms have no time zone. `go_live_at` and `logical_start_time` must both have a time zone or both have none, and a file with no `logical_start_time` starts without one. `run.until` takes seconds or a duration string such as `11m`.
 
@@ -142,9 +142,9 @@ A telemetry entry runs every `interval` simulation seconds. `publish` maps a met
 | Stat | Value |
 |---|---|
 | `capacity` | The resource's current capacity |
-| `in_use` | Tokens held |
+| `in_use` | Units held by tasks, including units above a lowered capacity |
 | `queue_length` | Requests waiting |
-| `utilization` | `in_use / capacity * 100`, or 0 when the capacity is 0 |
+| `utilization` | `in_use / capacity * 100`, or 0 when the capacity is 0. It can exceed 100 while busy units finish above a lowered capacity |
 
 Each metric is published as `<sim_id>.<metric name>`. For anything else, `function` takes a Python function instead of `publish`, as the [advanced guide](../guides/yaml-advanced.md) describes.
 
@@ -211,7 +211,7 @@ Every error names the file and the line, and `ddes run` prints it after `Error:`
 
 ```text
 Error: err.yaml:3: simulation.speed: Extra inputs are not permitted
-err.yaml:9: arrivals.standard.dist: Input should be 'exponential', 'normal' or 'lognormal'
+err.yaml:9: arrivals.standard.dist: Input should be 'exponential', 'normal', 'lognormal', 'truncated_normal' or 'constant'
 ```
 
 Cross-references are checked after validation: a task's `service` and `resource`, an arrival's `spawn`, each telemetry `publish` entry, and each scenario `path` and `value`.

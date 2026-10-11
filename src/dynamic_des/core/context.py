@@ -319,10 +319,14 @@ class SimulationContext:
     def add_service(
         self,
         name: str,
-        dist: Literal["exponential", "normal", "lognormal"],
+        dist: Literal[
+            "exponential", "normal", "lognormal", "truncated_normal", "constant"
+        ],
         mean: float = 0.0,
         std: float = 0.0,
         rate: float = 0.0,
+        low: Optional[float] = None,
+        value: Optional[float] = None,
     ) -> "SimulationContext":
         """
         Registers a statistical distribution defining a process service duration.
@@ -333,22 +337,28 @@ class SimulationContext:
             mean: The mean (mu) for normal/lognormal distributions.
             std: The standard deviation (sigma) for normal/lognormal distributions.
             rate: The rate (lambda) for exponential distributions.
+            low: The lowest value of a truncated normal (0 when not given).
+            value: The time a constant distribution always gives.
 
         Returns:
             SimulationContext: The current instance for method chaining.
         """
         self._services_config[name] = DistributionConfig(
-            dist=dist, mean=mean, std=std, rate=rate
+            dist=dist, mean=mean, std=std, rate=rate, low=low, value=value
         )
         return self
 
     def add_arrival(
         self,
         name: str,
-        dist: Literal["exponential", "normal", "lognormal"],
+        dist: Literal[
+            "exponential", "normal", "lognormal", "truncated_normal", "constant"
+        ],
         rate: float = 0.0,
         mean: float = 0.0,
         std: float = 0.0,
+        low: Optional[float] = None,
+        value: Optional[float] = None,
     ) -> "SimulationContext":
         """
         Registers a statistical distribution defining the inter-arrival times of entities.
@@ -359,12 +369,14 @@ class SimulationContext:
             rate: The rate (lambda) for exponential distributions.
             mean: The mean (mu) for normal/lognormal distributions.
             std: The standard deviation (sigma) for normal/lognormal distributions.
+            low: The lowest value of a truncated normal (0 when not given).
+            value: The time a constant distribution always gives.
 
         Returns:
             SimulationContext: The current instance for method chaining.
         """
         self._arrivals_config[name] = DistributionConfig(
-            dist=dist, rate=rate, mean=mean, std=std
+            dist=dist, rate=rate, mean=mean, std=std, low=low, value=value
         )
         return self
 

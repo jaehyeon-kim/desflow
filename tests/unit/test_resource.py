@@ -170,3 +170,194 @@ def test_max_cap_decrease_lowers_capacity(env, registry, sample_params):
 
     assert res.capacity == 1
     assert res.pool.level == 1
+
+
+def _set_cap(registry, value):
+    registry.update("Line_A.resources.lathe.current_cap", value)
+
+
+def test_shrink_while_busy_does_not_start_queued_task(env, registry, sample_params):
+    """A release after a shrink is discarded, so a queued task does not start early."""
+    registry.register_sim_parameter(sample_params)
+    res = DynamicResource(env, "Line_A", "lathe")  # Capacity 2
+    started = {}
+
+    def worker(name, duration):
+        with res.request() as req:
+            yield req
+            started[name] = env.now
+            yield env.timeout(duration)
+
+    env.process(worker("A", 10))
+    env.process(worker("B", 20))
+    env.run(until=1)
+    env.process(worker("C", 5))  # Queued behind A and B
+    env.run(until=2)
+
+    _set_cap(registry, 1)
+    env.run(until=30)
+
+    # A's release at 10 brings the busy count down to the new capacity of 1,
+    # so C must wait for B's release at 20.
+    assert started["C"] == 20, f"C started at {started['C']}, expected 20"
+
+
+def test_shrink_to_zero_after_queue_drains_blocks_new_request(
+    env, registry, sample_params
+):
+    """No task starts while capacity is 0, after the queue has emptied (defect 8)."""
+    registry.register_sim_parameter(sample_params)
+    _set_cap(registry, 1)
+    flush_events(env)
+    res = DynamicResource(env, "Line_A", "lathe")
+    started = {}
+
+    def worker(name, duration):
+        with res.request() as req:
+            yield req
+            started[name] = env.now
+            yield env.timeout(duration)
+
+    # A and B arrive together; C arrives while the dispatcher waits for A's token
+    env.process(worker("A", 10))
+    env.process(worker("B", 10))
+    env.run(until=1)
+    env.process(worker("C", 10))
+    env.run(until=40)  # All three have finished and the resource is idle
+
+    _set_cap(registry, 0)
+    env.run(until=50)
+    env.process(worker("D", 10))
+    env.run(until=100)
+    assert "D" not in started, f"D started at {started.get('D')} while capacity was 0"
+
+    _set_cap(registry, 1)
+    env.run(until=101)
+    assert started["D"] == 100
+
+
+def test_request_and_shrink_to_zero_at_same_instant(env, registry, sample_params):
+    """A request made at the same instant as a shrink to 0 does not start."""
+    registry.register_sim_parameter(sample_params)
+    _set_cap(registry, 1)
+    flush_events(env)
+    res = DynamicResource(env, "Line_A", "lathe")
+    started = []
+
+    def worker():
+        yield env.timeout(5)
+        # In the same step: the shrink is signalled, then the request is made. The
+        # dispatcher takes the idle token before the watcher applies the shrink,
+        # so the shrink arrives while that token is being handed over.
+        _set_cap(registry, 0)
+        req = res.request()
+        yield req
+        started.append(env.now)
+        res.release()
+
+    env.process(worker())
+    env.run(until=20)
+    assert started == [], f"task started at {started} while capacity was 0"
+    assert res.in_use == 0
+
+
+def test_grow_after_shrink_cancels_pending_shrink(env, registry, sample_params):
+    """Growing back before busy units release restores the old capacity exactly."""
+    registry.register_sim_parameter(sample_params)
+    res = DynamicResource(env, "Line_A", "lathe")  # Capacity 2
+    started = {}
+
+    def worker(name, duration):
+        with res.request() as req:
+            yield req
+            started[name] = env.now
+            yield env.timeout(duration)
+
+    env.process(worker("A", 10))
+    env.process(worker("B", 20))
+    env.run(until=1)
+    env.process(worker("C", 5))
+    env.run(until=2)
+
+    _set_cap(registry, 1)
+    env.run(until=3)
+    _set_cap(registry, 2)
+    env.run(until=30)
+
+    # Capacity is 2 again, so C takes A's slot at 10
+    assert started["C"] == 10
+    env.run(until=40)
+    assert res.pool.level == 2
+    assert res.in_use == 0
+
+
+def test_in_use_counts_busy_units_above_lowered_capacity(env, registry, sample_params):
+    """in_use reports every busy unit while busy units exceed a lowered capacity."""
+    registry.register_sim_parameter(sample_params)
+    res = DynamicResource(env, "Line_A", "lathe")  # Capacity 2
+
+    def worker(duration):
+        with res.request() as req:
+            yield req
+            yield env.timeout(duration)
+
+    env.process(worker(10))
+    env.process(worker(20))
+    env.run(until=1)
+    assert res.in_use == 2
+
+    _set_cap(registry, 1)
+    env.run(until=2)
+    assert res.capacity == 1
+    assert res.in_use == 2, f"in_use is {res.in_use} with 2 busy units"
+
+    env.run(until=15)
+    assert res.in_use == 1
+    env.run(until=25)
+    assert res.in_use == 0
+    assert res.pool.level == 1
+
+
+def test_max_cap_decrease_lowers_pool_capacity(env, registry, sample_params):
+    """Lowering max_cap lowers the token pool capacity with it (defect 9)."""
+    registry.register_sim_parameter(sample_params)
+    res = DynamicResource(env, "Line_A", "lathe")  # current 2, max 5
+
+    registry.update("Line_A.resources.lathe.max_cap", 1)
+    env.run(until=env.now + 0.1)
+    assert res.pool.capacity == 1, f"pool capacity is {res.pool.capacity}"
+
+    registry.update("Line_A.resources.lathe.max_cap", 4)
+    registry.update("Line_A.resources.lathe.current_cap", 3)
+    env.run(until=env.now + 0.1)
+    assert res.pool.capacity == 4
+    assert res.capacity == 3
+    assert res.pool.level == 3
+
+
+def test_max_cap_decrease_while_busy_keeps_running_tasks(env, registry, sample_params):
+    """Lowering max_cap below the busy count lets running tasks finish and release."""
+    registry.register_sim_parameter(sample_params)
+    res = DynamicResource(env, "Line_A", "lathe")  # current 2, max 5
+    finished = []
+
+    def worker(name):
+        with res.request() as req:
+            yield req
+            yield env.timeout(10)
+        finished.append(name)
+
+    env.process(worker("A"))
+    env.process(worker("B"))
+    env.run(until=1)
+
+    registry.update("Line_A.resources.lathe.max_cap", 1)
+    env.run(until=2)
+    assert res.capacity == 1
+    assert res.in_use == 2
+
+    env.run(until=20)
+    assert sorted(finished) == ["A", "B"]
+    assert res.pool.level == 1
+    assert res.pool.capacity == 1
+    assert res.in_use == 0

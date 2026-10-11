@@ -403,3 +403,23 @@ def test_a_task_without_service_or_resource_emits_its_payload_at_once():
 def test_a_task_needs_both_service_and_resource_or_neither(kwargs):
     with pytest.raises(ValueError, match="give both service_id and resource_id"):
         SimulationContext("TestSim").task(**kwargs)
+
+
+def test_live_rate_update_keeps_its_fraction():
+    """add_arrival(rate=2) then a live update to 0.5 reads back 0.5, not int(0.5) = 0."""
+    app = SimulationContext("TestSim", factor=0.0).add_arrival(
+        "a", dist="exponential", rate=2
+    )
+    app.run(until=1)
+
+    app.env.registry.update("TestSim.arrival.a.rate", 0.5)
+
+    assert app.env.registry.get("TestSim.arrival.a.rate").value == 0.5
+
+
+def test_add_service_refuses_an_invalid_parameter():
+    """A bad builder value fails when it is added, not during the run."""
+    with pytest.raises(ValueError, match="std"):
+        SimulationContext("TestSim").add_service("milling", "normal", mean=1.0, std=-1)
+    with pytest.raises(ValueError, match="rate"):
+        SimulationContext("TestSim").add_arrival("standard", "exponential")

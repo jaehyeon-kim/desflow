@@ -1,6 +1,8 @@
+import logging
+
 import pytest
 
-from dynamic_des.models.params import SimParameter
+from dynamic_des.models.params import DistributionConfig, SimParameter
 
 
 def test_registry_registration_paths(registry, sample_params):
@@ -55,11 +57,11 @@ def test_registry_config_sync(registry, sample_params):
 
     # Update through registry
     registry.update("Line_A.service.milling.mean", 99.0)
-    registry.update("Line_A.resources.lathe.current_cap", 10)
+    registry.update("Line_A.resources.lathe.current_cap", 4)
 
     # The config objects themselves should be updated via reference
     assert milling_cfg.mean == 99.0
-    assert lathe_cfg.current_cap == 10
+    assert lathe_cfg.current_cap == 4
 
 
 def test_registry_distribution_update_and_event(registry, sample_params):
@@ -147,3 +149,118 @@ def test_registry_variables_registration_and_sync(registry):
 
     # Validate underlying dictionary was synced correctly (testing the `isinstance(dict)` block)
     assert var_dict["speed_limit"] == 2.5
+
+
+def test_registry_rate_update_keeps_its_fraction(registry):
+    """A rate given as a whole number is not truncated by a fractional update."""
+    params = SimParameter(
+        sim_id="Line_C",
+        arrival={"a": DistributionConfig(dist="exponential", rate=2)},
+    )
+    registry.register_sim_parameter(params)
+
+    registry.update("Line_C.arrival.a.rate", 0.5)
+
+    assert registry.get("Line_C.arrival.a.rate").value == 0.5
+    assert registry.get_config("Line_C.arrival.a").rate == 0.5
+
+
+@pytest.mark.parametrize(
+    "path,value,old",
+    [
+        ("Line_A.service.setup.std", -1.0, 0.5),
+        ("Line_A.arrival.standard.rate", 0.0, 0.1),
+        ("Line_A.arrival.standard.rate", -2.0, 0.1),
+        ("Line_D.service.cast.mean", 0.0, 3.0),
+        ("Line_D.service.cast.std", -0.5, 1.0),
+    ],
+)
+def test_registry_refuses_an_invalid_distribution_update(
+    registry, sample_params, caplog, path, value, old
+):
+    """An invalid parameter is refused with an error log line and the old value kept."""
+    registry.register_sim_parameter(sample_params)
+    registry.register_sim_parameter(
+        SimParameter(
+            sim_id="Line_D",
+            service={"cast": DistributionConfig(dist="lognormal", mean=3.0, std=1.0)},
+        )
+    )
+    parent_path, attr = path.rsplit(".", 1)
+    dyn_val = registry.get(path)
+
+    with caplog.at_level(logging.ERROR, logger="dynamic_des.core.registry"):
+        registry.update(path, value)
+
+    assert dyn_val.value == old
+    assert getattr(registry.get_config(parent_path), attr) == old
+    assert len(dyn_val._signal.items) == 0
+    assert path in caplog.text
+    assert "Update ignored" in caplog.text
+
+
+def test_registry_accepts_a_zero_std(registry, sample_params):
+    """A std of 0 is valid: the distribution becomes a constant."""
+    registry.register_sim_parameter(sample_params)
+    registry.update("Line_A.service.setup.std", 0)
+
+    assert registry.get("Line_A.service.setup.std").value == 0.0
+
+
+def test_registry_clamps_current_cap_to_max_cap(registry, sample_params, caplog):
+    """A current_cap above max_cap is stored as max_cap, which is what the resource uses."""
+    registry.register_sim_parameter(sample_params)
+
+    with caplog.at_level(logging.WARNING, logger="dynamic_des.core.registry"):
+        registry.update("Line_A.resources.lathe.current_cap", 7)
+
+    assert registry.get("Line_A.resources.lathe.current_cap").value == 5
+    assert registry.get_config("Line_A.resources.lathe").current_cap == 5
+    assert "7" in caplog.text and "5" in caplog.text
+
+
+def test_registry_clamps_negative_current_cap_to_zero(registry, sample_params, caplog):
+    """A negative current_cap is stored as 0."""
+    registry.register_sim_parameter(sample_params)
+
+    with caplog.at_level(logging.WARNING, logger="dynamic_des.core.registry"):
+        registry.update("Line_A.containers.tank1.current_cap", -3.5)
+
+    assert registry.get("Line_A.containers.tank1.current_cap").value == 0.0
+    assert "-3.5" in caplog.text
+
+
+def test_registry_keeps_a_container_fraction_within_max_cap(registry, sample_params):
+    """A container keeps a fractional capacity that is within max_cap."""
+    registry.register_sim_parameter(sample_params)
+    registry.update("Line_A.containers.tank1.current_cap", 42.5)
+
+    assert registry.get("Line_A.containers.tank1.current_cap").value == 42.5
+
+
+def test_truncated_normal_low_is_a_live_path(registry):
+    registry.register_sim_parameter(
+        SimParameter(
+            sim_id="Line_A",
+            service={
+                "milling": DistributionConfig(
+                    dist="truncated_normal", mean=3.0, std=1.0, low=0.5
+                )
+            },
+        )
+    )
+    registry.update("Line_A.service.milling.low", 1.5)
+    assert registry.get_config("Line_A.service.milling").low == 1.5
+
+
+def test_constant_value_is_a_live_path(registry):
+    registry.register_sim_parameter(
+        SimParameter(
+            sim_id="Line_A",
+            service={"setup": DistributionConfig(dist="constant", value=3.0)},
+        )
+    )
+    registry.update("Line_A.service.setup.value", 4.0)
+    assert registry.get_config("Line_A.service.setup").value == 4.0
+    registry.update("Line_A.service.setup.value", -1.0)
+    assert registry.get_config("Line_A.service.setup").value == 4.0

@@ -109,11 +109,26 @@ class Simulation(_Model):
 class Arrival(_Model):
     """An `arrivals` entry: a distribution, and optionally the task it spawns."""
 
-    dist: Literal["exponential", "normal", "lognormal"]
+    dist: Literal["exponential", "normal", "lognormal", "truncated_normal", "constant"]
     rate: Optional[float] = None
     mean: Optional[float] = None
     std: Optional[float] = None
+    low: Optional[float] = None
+    value: Optional[float] = None
     spawn: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _distribution_in_range(self) -> "Arrival":
+        # The same rules as a service, so a bad parameter is reported with its line
+        DistributionConfig(
+            dist=self.dist,
+            rate=self.rate,
+            mean=self.mean,
+            std=self.std,
+            low=self.low,
+            value=self.value,
+        )
+        return self
 
 
 class Task(_Model):

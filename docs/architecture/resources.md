@@ -11,8 +11,9 @@ Standard SimPy objects are static. Dynamic DES wraps SimPy objects so their capa
 ### Shrinking Safety Guarantee
 When capacity increases, tokens are immediately added to the pool. When capacity shrinks (e.g., from 5 to 2 due to an unexpected machine breakdown):
 * If 4 machines are currently processing tasks, **Dynamic DES will not terminate active processes**.
-* The resource enters a temporary "over-capacity" state where it waits for tasks to finish.
-* As tasks complete and release their tokens, `DynamicResource` intercepts and discards them until the capacity level naturally drops to the targeted limit (2).
+* Idle tokens leave the pool at once. The units still busy above the new capacity are owed: while tokens are owed, each released token is discarded instead of returning to the pool.
+* No waiting task starts until the busy units are within the new capacity (2). `in_use` counts the busy units, so it can be above `capacity` until they finish.
+* A capacity raised again before the owed tokens arrive first cancels them, then adds any remaining difference to the pool.
 
 ---
 

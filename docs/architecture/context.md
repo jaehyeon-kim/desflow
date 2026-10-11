@@ -74,8 +74,9 @@ The fluent builder API allows chaining configurations:
 * `SimulationContext(..., go_live_at)`: Logical instant, a datetime on the same clock as `logical_start_time`, at which `factor` gives way to real-time pacing. One run can therefore backfill unpaced and then tail live. See [Backfill Then Go Live in One Run](../guides/backfill-then-live.md).
 
 ### Statistical Profiles
-* `.add_arrival(name, dist, rate, mean, std)`: Configures an inter-arrival time distribution.
-* `.add_service(name, dist, mean, std, rate)`: Configures a task processing duration distribution.
+* `.add_arrival(name, dist, rate, mean, std, low, value)`: Configures an inter-arrival time distribution.
+* `.add_service(name, dist, mean, std, rate, low, value)`: Configures a task processing duration distribution.
+* Each `dist` reads only its own parameters, and an invalid value raises `ValueError` here, so a mistake fails before the run. [YAML Blueprints](yaml.md#sections) lists the distributions and their rules.
 
 ### Decorators
 * `@app.task(service_id, resource_id)`: Wraps a function into a task that emits `queued`, waits for the resource, emits `started`, waits a time sampled from the service, and emits the finished event. The finished event's value is exactly the dictionary the function returns, so return `status` or `path_id` yourself if consumers need them.

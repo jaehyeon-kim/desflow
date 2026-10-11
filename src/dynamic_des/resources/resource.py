@@ -70,6 +70,12 @@ class DynamicResource(BaseDynamicResource):
 
         self.queue = PriorityStore(env)
         self.pool = Container(env, init=self._capacity, capacity=max_cap)
+        # Units held by tasks, counted when granted and when released
+        self._busy = 0
+        # Tokens that busy units still owe after a shrink. Each release while this
+        # is above 0 is discarded, so no queued task starts until the busy count
+        # is within the new capacity.
+        self._owed = 0
 
         self._request_event = self.env.event()
         self.env.process(self._dispatcher())
@@ -86,60 +92,84 @@ class DynamicResource(BaseDynamicResource):
 
     @property
     def in_use(self) -> int:
-        """Currently occupied slots (Total Capacity - Idle Tokens)."""
-        return self._capacity - self.pool.level
+        """Units currently held by tasks, including units above a lowered capacity."""
+        return self._busy
 
     def request(self, priority: int = 1):
         """Returns a context-manager enabled request."""
         return DynamicResourceRequest(self, priority)
 
     def release(self):
-        """Return a token to the pool."""
+        """Return a token to the pool, or discard it while a shrink is still owed."""
+        self._busy -= 1
+        return self._return_token()
+
+    def _return_token(self) -> Event:
+        if self._owed > 0:
+            self._owed -= 1
+            discarded = self.env.event()
+            discarded.succeed()
+            return discarded
         return self.pool.put(1)
 
     def _dispatcher(self):
         """Bridges PriorityStore and Container without pre-fetching tokens."""
         while True:
-            # If no one is waiting, sleep until a request is made
-            if not self.queue.items:
+            # If no one is waiting, sleep until a request is made. The wake-up event
+            # can be left over from a request already served, so check the queue again.
+            while not self.queue.items:
                 yield self._request_event
                 self._request_event = self.env.event()
 
             # Wait for a physical token to be available
             yield self.pool.get(1)
 
-            # Pull the highest-priority request currently in the queue
-            ticket = yield self.queue.get()
+            # A shrink made while this token was being handed over owes it, so discard it
+            if self._owed > 0:
+                self._owed -= 1
+                continue
+
+            # Pull the highest-priority request currently in the queue. The queue is
+            # not empty, so the get succeeds at once; reading it without a yield
+            # leaves no step in which a shrink could arrive before the grant.
+            ticket = self.queue.get().value
 
             # If the user cancelled their request (e.g., timed out while waiting),
             # return the token to the pool and move to the next person.
             if getattr(ticket.item, "cancelled", False):
-                self.pool.put(1)
+                self._return_token()
                 continue
 
             # Signal the user process
             if not ticket.item.triggered:
+                self._busy += 1
                 ticket.item.succeed()
 
     def _handle_capacity_change(self, new_target: float):
         # Safely bind the new target to physical limits [0, max_cap]
         max_cap = int(self._max_cap_val.value)
         if max_cap > self.pool.capacity:
-            # The token pool must hold up to max_cap tokens
+            # Raise the pool's limit first so the tokens added below fit
             self.pool._capacity = max_cap
         new_target = max(0, min(int(new_target), max_cap))
 
         diff = new_target - self._capacity
+        self._capacity = new_target
         if diff > 0:
-            self._capacity += diff
-            self.env.process(self._grow_pool(diff))
+            # A grow first cancels tokens still owed by an earlier shrink
+            cancelled = min(diff, self._owed)
+            self._owed -= cancelled
+            if diff > cancelled:
+                self.pool.put(diff - cancelled)
         elif diff < 0:
-            amount = abs(diff)
-            self._capacity -= amount
-            self.env.process(self._shrink_pool(amount))
+            # Idle tokens leave the pool at once. Busy units owe the rest, and their
+            # releases are discarded, so running tasks are never stopped.
+            amount = -diff
+            idle = min(amount, self.pool.level)
+            if idle:
+                self.pool.get(idle)
+            self._owed += amount - idle
 
-    def _grow_pool(self, amount: int):
-        yield self.pool.put(amount)
-
-    def _shrink_pool(self, amount: int):
-        yield self.pool.get(amount)
+        # Lower the pool's limit when max_cap falls. This is safe because the pool
+        # now holds at most new_target tokens, and owed releases never reach it.
+        self.pool._capacity = max_cap
