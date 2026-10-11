@@ -13,7 +13,7 @@
 
 ## How Simulation Works
 
-- [Events and the Clock](https://jaehyeon.me/dynamic-des/latest/des/how-it-works/index.md)
+- [What Is DES?](https://jaehyeon.me/dynamic-des/latest/des/how-it-works/index.md)
 - [SimPy and Dynamic DES](https://jaehyeon.me/dynamic-des/latest/des/simpy-and-dynamic-des/index.md)
 - [Overview](https://jaehyeon.me/dynamic-des/latest/building-blocks/index.md)
 - [Arrivals and Services](https://jaehyeon.me/dynamic-des/latest/building-blocks/arrivals-and-services/index.md)

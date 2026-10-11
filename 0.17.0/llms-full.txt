@@ -757,7 +757,7 @@ if __name__ == "__main__":
 Next, [Ways to Write a Simulation](https://jaehyeon.me/dynamic-des/latest/architecture/overview/index.md) compares the three APIs, and the [examples](https://jaehyeon.me/dynamic-des/latest/examples/local/index.md) show each connector.
 # How Simulation Works
 
-# Events and the Clock
+# What Is Discrete-Event Simulation?
 
 If you have never used simulation, start here. No maths is needed: a simulation is a way of playing out "what would happen if" on a computer, one step at a time, instead of guessing from averages.
 
@@ -818,7 +818,7 @@ Each [building block](https://jaehyeon.me/dynamic-des/latest/building-blocks/ind
 
 # Building Blocks
 
-A model is made of a few kinds of parts. An **entity** is the thing that flows through it: a part, an order, a visitor. It enters through an arrival, does the work its task describes, and holds a resource while it works. [Events and the Clock](https://jaehyeon.me/dynamic-des/latest/des/how-it-works/index.md) explains the simulation they run in.
+A model is made of a few kinds of parts. An **entity** is the thing that flows through it: a part, an order, a visitor. It enters through an arrival, does the work its task describes, and holds a resource while it works. [What Is DES?](https://jaehyeon.me/dynamic-des/latest/des/how-it-works/index.md) explains the simulation they run in.
 
 | Block            | What it models                                                      | YAML         | Builder                            | Low-level                                     | Page                                                                                                           |
 | ---------------- | ------------------------------------------------------------------- | ------------ | ---------------------------------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |

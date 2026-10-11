@@ -1,4 +1,4 @@
-# Events and the Clock
+# What Is Discrete-Event Simulation?
 
 If you have never used simulation, start here. No maths is needed: a simulation is a way of playing out "what would happen if" on a computer, one step at a time, instead of guessing from averages.
 

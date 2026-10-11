@@ -1,6 +1,6 @@
 # Building Blocks
 
-A model is made of a few kinds of parts. An **entity** is the thing that flows through it: a part, an order, a visitor. It enters through an arrival, does the work its task describes, and holds a resource while it works. [Events and the Clock](https://jaehyeon.me/dynamic-des/latest/des/how-it-works/index.md) explains the simulation they run in.
+A model is made of a few kinds of parts. An **entity** is the thing that flows through it: a part, an order, a visitor. It enters through an arrival, does the work its task describes, and holds a resource while it works. [What Is DES?](https://jaehyeon.me/dynamic-des/latest/des/how-it-works/index.md) explains the simulation they run in.
 
 | Block            | What it models                                                      | YAML         | Builder                            | Low-level                                     | Page                                                                                                           |
 | ---------------- | ------------------------------------------------------------------- | ------------ | ---------------------------------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
