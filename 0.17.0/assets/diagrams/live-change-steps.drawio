@@ -1,0 +1,15 @@
+<mxfile>
+  <diagram name="live-change-steps" id="live-change-steps">
+    <mxGraphModel grid="0" page="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="c1" value="find the path&lt;br&gt;&lt;font style=&#x27;font-size:12px&#x27;&gt;Line_A.resources.lathe.current_cap&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=3;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="560" height="60" as="geometry"/></mxCell>
+        <mxCell id="c2" value="send the value&lt;br&gt;&lt;font style=&#x27;font-size:12px&#x27;&gt;from a scenario, LocalIngress, Kafka, Redis or PostgreSQL&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="0" y="110" width="560" height="60" as="geometry"/></mxCell>
+        <mxCell id="c3" value="see it in the telemetry&lt;br&gt;&lt;font style=&#x27;font-size:12px&#x27;&gt;[TEL] {..., &#x27;path_id&#x27;: &#x27;Line_A.lathe.capacity&#x27;, &#x27;value&#x27;: 3}&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="0" y="220" width="560" height="60" as="geometry"/></mxCell>
+        <mxCell id="c4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;sketch=1;html=1;strokeWidth=3;endArrow=block;strokeColor=#82b366;fontFamily=Comic Sans MS;fontSize=13;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="c1" target="c2"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="c5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;sketch=1;html=1;strokeWidth=3;endArrow=block;strokeColor=#9673a6;fontFamily=Comic Sans MS;fontSize=13;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="c2" target="c3"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -1,0 +1,69 @@
+# Dynamic DES
+
+> Realistic event streams from a SimPy simulation you can steer while it runs, written to Kafka, Redis, PostgreSQL, Parquet, JSONL and Iceberg.
+
+## Home
+
+- [Home](https://jaehyeon.me/dynamic-des/latest/index.md)
+
+## Getting Started
+
+- [Installation](https://jaehyeon.me/dynamic-des/latest/getting-started/index.md)
+- [First Simulation](https://jaehyeon.me/dynamic-des/latest/tutorials/first-simulation/index.md)
+
+## How Simulation Works
+
+- [Events and the Clock](https://jaehyeon.me/dynamic-des/latest/des/how-it-works/index.md)
+- [SimPy and Dynamic DES](https://jaehyeon.me/dynamic-des/latest/des/simpy-and-dynamic-des/index.md)
+- [Overview](https://jaehyeon.me/dynamic-des/latest/building-blocks/index.md)
+- [Arrivals and Services](https://jaehyeon.me/dynamic-des/latest/building-blocks/arrivals-and-services/index.md)
+- [Tasks and Processes](https://jaehyeon.me/dynamic-des/latest/building-blocks/tasks-and-processes/index.md)
+- [Resources](https://jaehyeon.me/dynamic-des/latest/building-blocks/resources/index.md)
+- [Queues and Capacity](https://jaehyeon.me/dynamic-des/latest/des/queues-and-capacity/index.md)
+
+## Core Architecture
+
+- [Overview](https://jaehyeon.me/dynamic-des/latest/architecture/overview/index.md)
+- [Low-level API](https://jaehyeon.me/dynamic-des/latest/architecture/low-level/index.md)
+- [Declarative API](https://jaehyeon.me/dynamic-des/latest/architecture/context/index.md)
+- [YAML Blueprints](https://jaehyeon.me/dynamic-des/latest/architecture/yaml/index.md)
+- [Environment](https://jaehyeon.me/dynamic-des/latest/architecture/environment/index.md)
+- [Live Parameters](https://jaehyeon.me/dynamic-des/latest/architecture/registry/index.md)
+- [Time and Pacing](https://jaehyeon.me/dynamic-des/latest/architecture/time/index.md)
+- [Connectors](https://jaehyeon.me/dynamic-des/latest/architecture/connectors/index.md)
+- [Records and Telemetry](https://jaehyeon.me/dynamic-des/latest/architecture/records/index.md)
+- [Batching and Delivery](https://jaehyeon.me/dynamic-des/latest/architecture/batching/index.md)
+
+## Guides
+
+- [Complex Routing (Kafka)](https://jaehyeon.me/dynamic-des/latest/guides/complex-routing/index.md)
+- [Avro and Pydantic](https://jaehyeon.me/dynamic-des/latest/guides/avro-and-pydantic/index.md)
+- [Secure Kafka](https://jaehyeon.me/dynamic-des/latest/guides/kafka-security/index.md)
+- [Backfill Then Go Live](https://jaehyeon.me/dynamic-des/latest/guides/backfill-then-live/index.md)
+- [Changing Parameters](https://jaehyeon.me/dynamic-des/latest/guides/live-parameters/index.md)
+- [Writing Blueprints](https://jaehyeon.me/dynamic-des/latest/guides/yaml-blueprints/index.md)
+- [Python in a Blueprint](https://jaehyeon.me/dynamic-des/latest/guides/yaml-advanced/index.md)
+- [Multi-Resource Handoffs](https://jaehyeon.me/dynamic-des/latest/guides/multi-resource-handoffs/index.md)
+- [Preemptive Breakdowns](https://jaehyeon.me/dynamic-des/latest/guides/preemptive-breakdowns/index.md)
+- [Dynamic Topology](https://jaehyeon.me/dynamic-des/latest/guides/dynamic-topology/index.md)
+
+## Examples
+
+- [Overview](https://jaehyeon.me/dynamic-des/latest/examples/index.md)
+- [Local Simulation](https://jaehyeon.me/dynamic-des/latest/examples/local/index.md)
+- [Kafka Digital Twin](https://jaehyeon.me/dynamic-des/latest/examples/kafka/index.md)
+- [Parquet](https://jaehyeon.me/dynamic-des/latest/examples/parquet/index.md)
+- [Iceberg](https://jaehyeon.me/dynamic-des/latest/examples/iceberg/index.md)
+- [Relational DB (Postgres)](https://jaehyeon.me/dynamic-des/latest/examples/postgres/index.md)
+- [In-Memory Store (Redis)](https://jaehyeon.me/dynamic-des/latest/examples/redis/index.md)
+- [Backfill Then Go Live](https://jaehyeon.me/dynamic-des/latest/examples/backfill-live/index.md)
+- [Generate Related Records](https://jaehyeon.me/dynamic-des/latest/examples/advanced-postgres-orders/index.md)
+
+## API Reference
+
+- [API Reference](https://jaehyeon.me/dynamic-des/latest/api/index.md)
+
+## About
+
+- [Roadmap](https://jaehyeon.me/dynamic-des/latest/about/roadmap/index.md)
+
