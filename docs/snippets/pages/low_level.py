@@ -65,6 +65,8 @@ def part(env, part_id):
         yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
     yield finished.put({"part_id": part_id})
     env.publish_event(key, {"status": "finished", "part_id": part_id})
+
+
 # --8<-- [end:part]
 
 
@@ -76,6 +78,8 @@ def arrivals(env):
         yield env.timeout(sampler.sample(gap))  # each draw reads the current rate
         env.process(part(env, part_id))
         part_id += 1
+
+
 # --8<-- [end:arrivals]
 
 
@@ -85,6 +89,8 @@ def telemetry(env):
         env.publish_telemetry("Line_A.lathe.in_use", lathe.in_use)
         env.publish_telemetry("Line_A.coolant.level", coolant.level)
         yield env.timeout(10.0)
+
+
 # --8<-- [end:telemetry]
 
 
@@ -99,6 +105,8 @@ def refill_and_rush(env):
         if env.now >= 300 and env.registry.get("Line_A.arrival.parts.rate").value < 1.0:
             env.registry.update("Line_A.arrival.parts.rate", 1.0)
             env.registry.update("Line_A.resources.lathe.current_cap", 2)
+
+
 # --8<-- [end:control]
 
 
@@ -115,5 +123,8 @@ if __name__ == "__main__":
     finally:
         env.teardown()  # flushes the buffers and stops the threads
     # --8<-- [end:run]
-    assert lathe.capacity == 2 and env.registry.get("Line_A.arrival.parts.rate").value == 1.0
+    assert (
+        lathe.capacity == 2
+        and env.registry.get("Line_A.arrival.parts.rate").value == 1.0
+    )
     assert len(finished.items) > 0

@@ -27,7 +27,9 @@ app = SimulationContext(sim_id="Line_A")
 
 # --8<-- [start:local-ingress]
 # 10 wall-clock seconds after the start, set machine lathe capacity to 3
-app.add_ingress(LocalIngress(schedule=[(10.0, "Line_A.resources.lathe.current_cap", 3)]))
+app.add_ingress(
+    LocalIngress(schedule=[(10.0, "Line_A.resources.lathe.current_cap", 3)])
+)
 # --8<-- [end:local-ingress]
 
 # --8<-- [start:kafka-ingress]
@@ -38,7 +40,9 @@ app.add_ingress(KafkaIngress(topic="sim-config", bootstrap_servers="localhost:90
 # --8<-- [start:redis-ingress]
 # Reads {"param_path": ..., "param_value": ...} messages from a Pub/Sub channel
 app.add_ingress(
-    RedisIngress("redis://user:password@localhost:6379/0", channel_name="simulation_params")
+    RedisIngress(
+        "redis://user:password@localhost:6379/0", channel_name="simulation_params"
+    )
 )
 # --8<-- [end:redis-ingress]
 
@@ -78,12 +82,16 @@ seaweedfs = fs.S3FileSystem(
     endpoint_override="127.0.0.1:8333",
     scheme="http",
 )
-app.add_egress(JsonlStorageEgress(default_path="warehouse/events", filesystem=seaweedfs))
+app.add_egress(
+    JsonlStorageEgress(default_path="warehouse/events", filesystem=seaweedfs)
+)
 # --8<-- [end:storage-egress]
 
 # --8<-- [start:redis-egress]
 # XADD to the events stream, unless a record's value names another in __stream__
-app.add_egress(RedisEgress("redis://user:password@localhost:6379/0", stream_name="events"))
+app.add_egress(
+    RedisEgress("redis://user:password@localhost:6379/0", stream_name="events")
+)
 # --8<-- [end:redis-egress]
 
 # --8<-- [start:postgres-egress]

@@ -68,7 +68,8 @@ The chart shows 200,000 draws from each, in half-second bins:
 === "Low-level"
 
     ```python title="docs/snippets/pages/arrivals_services.py:low-level-normal"
-    milling = DistributionConfig(dist="normal", mean=3.0, std=0.5)  # 3 s, give or take 0.5 s
+    # 3 s, give or take 0.5 s
+    milling = DistributionConfig(dist="normal", mean=3.0, std=0.5)
     ```
 
 A normal draw can be negative. Every time is raised to at least 0.00001 seconds, so when `std` is large next to `mean` many draws land on that floor and the average time goes up: with `mean: 1` and `std: 1`, 15.8% of draws are raised and the mean becomes 1.08, as the yellow bar in the chart shows. Use `truncated_normal` for such a time.
@@ -108,13 +109,15 @@ A draw below `low` is thrown away and drawn again, so no draws pile up at the li
 === "Declarative"
 
     ```python title="docs/snippets/pages/arrivals_services.py:builder-lognormal"
-    app.add_service("repair", dist="lognormal", mean=4.0, std=3.0)  # now and then much longer
+    # Now and then much longer
+    app.add_service("repair", dist="lognormal", mean=4.0, std=3.0)
     ```
 
 === "Low-level"
 
     ```python title="docs/snippets/pages/arrivals_services.py:low-level-lognormal"
-    repair = DistributionConfig(dist="lognormal", mean=4.0, std=3.0)  # now and then much longer
+    # Now and then much longer
+    repair = DistributionConfig(dist="lognormal", mean=4.0, std=3.0)
     ```
 
 ### Constant
@@ -157,7 +160,8 @@ Every draw goes through a `Sampler`, which holds the random generator. A task dr
 === "Declarative"
 
     ```python title="docs/snippets/pages/arrivals_services.py:builder-seed"
-    app = SimulationContext(sim_id="Line_A", factor=0.0, random_seed=42)  # same draws every run
+    # Same draws every run
+    app = SimulationContext(sim_id="Line_A", factor=0.0, random_seed=42)
     ```
 
 === "Low-level"

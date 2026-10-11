@@ -22,7 +22,9 @@ from dynamic_des import (
     SimParameter,
 )
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
+)
 
 DSN = "postgresql://user:password@localhost:5432/odctl"
 

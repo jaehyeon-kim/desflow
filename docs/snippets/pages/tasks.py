@@ -35,6 +35,8 @@ def drill_part(part_id: int):
 @app.task()  # no service and no resource: publishes at once
 def order_placed(order_id: int):
     return {"status": "placed", "order_id": order_id}
+
+
 # --8<-- [end:builder-task]
 
 
@@ -46,6 +48,8 @@ def parts(context: SimulationContext):
         yield context.wait_for_arrival("parts")  # draws the next gap, then waits
         context.spawn(drill_part(part_id))  # starts the task; the loop goes on
         part_id += 1
+
+
 # --8<-- [end:builder-arrival]
 
 
@@ -59,7 +63,9 @@ def orders(context: SimulationContext):
 
 
 # --8<-- [start:builder-process]
-def maintenance(context: SimulationContext, resource: str, every: float, duration: float):
+def maintenance(
+    context: SimulationContext, resource: str, every: float, duration: float
+):
     """Takes the machine out of service for `duration` seconds every `every` seconds."""
     path = f"{context.sim_id}.resources.{resource}.current_cap"
     registry = context.env.registry
@@ -81,6 +87,8 @@ def drill_stats(context: SimulationContext):
     drill = context.get_resource("drill")
     context.publish("drill_busy", drill.in_use)  # as Workshop.drill_busy
     context.publish("drill_waiting", len(drill.queue.items))  # requests waiting
+
+
 # --8<-- [end:builder-telemetry]
 
 
@@ -94,6 +102,8 @@ def drill_part_process(env, sampler, drill, part_id):
         env.publish_event(key, {"path_id": path_id, "status": "started"})
         yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
         env.publish_event(key, {"status": "finished", "part_id": part_id})
+
+
 # --8<-- [end:low-level-task]
 
 
@@ -107,6 +117,8 @@ def maintenance_process(env, resource: str, every: float, duration: float):
         env.registry.update(path, 0)
         yield env.timeout(duration)
         env.registry.update(path, normal)
+
+
 # --8<-- [end:low-level-process]
 
 
@@ -119,6 +131,8 @@ def parts_process(env, sampler, drill):
         yield env.timeout(sampler.sample(gap))
         env.process(drill_part_process(env, sampler, drill, part_id))
         part_id += 1
+
+
 # --8<-- [end:low-level-arrival]
 
 
@@ -129,6 +143,8 @@ def drill_stats_process(env, drill):
         env.publish_telemetry("Workshop.drill_busy", drill.in_use)
         env.publish_telemetry("Workshop.drill_waiting", len(drill.queue.items))
         yield env.timeout(10.0)
+
+
 # --8<-- [end:low-level-telemetry]
 
 

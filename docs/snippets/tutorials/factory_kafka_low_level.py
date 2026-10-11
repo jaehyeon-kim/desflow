@@ -14,7 +14,9 @@ def run():
     env = DynamicRealtimeEnvironment(factor=1.0)
     env.registry.register_sim_parameter(PARAMS)
     # --8<-- [start:kafka]
-    env.setup_ingress([KafkaIngress(topic="sim-config", bootstrap_servers="localhost:9092")])
+    env.setup_ingress(
+        [KafkaIngress(topic="sim-config", bootstrap_servers="localhost:9092")]
+    )
     env.setup_egress(
         [
             KafkaEgress(

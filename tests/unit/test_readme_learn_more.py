@@ -15,6 +15,10 @@ def test_learn_more_names_every_sidebar_section():
     nav = yaml.safe_load((ROOT / "mkdocs.yml").read_text(encoding="utf-8"))["nav"]
     sections = [next(iter(item)) for item in nav if isinstance(item, dict)]
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    learn_more = readme[readme.index("## Learn More") : readme.index("## Related reading")]
+    learn_more = readme[
+        readme.index("## Learn More") : readme.index("## Related reading")
+    ]
     missing = [s for s in sections if s != "Home" and f"- **{s}**" not in learn_more]
-    assert missing == [], f"Add these sidebar sections to Learn More in README.md: {missing}"
+    assert missing == [], (
+        f"Add these sidebar sections to Learn More in README.md: {missing}"
+    )

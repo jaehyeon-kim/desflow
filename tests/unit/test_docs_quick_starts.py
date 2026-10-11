@@ -56,7 +56,9 @@ def quick_start(example: Example, api: str, tabs: bool = True) -> str:
     # One command installs both: --with-executables-from also puts odctl on the path.
     uv_install = [f"uv tool install {_package(example)}"]
     if example.profile:
-        uv_install = [f"uv tool install {_package(example)} --with-executables-from {ODCTL}"]
+        uv_install = [
+            f"uv tool install {_package(example)} --with-executables-from {ODCTL}"
+        ]
     pip_packages = _package(example)
     if example.profile:
         pip_packages += f" {ODCTL}"
@@ -64,8 +66,17 @@ def quick_start(example: Example, api: str, tabs: bool = True) -> str:
         pip_packages += f" {example.watch_needs}"
 
     def steps(uv: bool):
-        lines = ["# 1. Install", *(uv_install if uv else [f"pip install {pip_packages}"])]
-        rest = [["Download the example", f"ddes examples get {example.name} --api {api}", f"cd {folder}"]]
+        lines = [
+            "# 1. Install",
+            *(uv_install if uv else [f"pip install {pip_packages}"]),
+        ]
+        rest = [
+            [
+                "Download the example",
+                f"ddes examples get {example.name} --api {api}",
+                f"cd {folder}",
+            ]
+        ]
         if example.profile:
             rest.append(["Start its service", f"odctl up {example.profile}"])
         rest.append([run_title, _run(example, api, uv)])
@@ -75,9 +86,19 @@ def quick_start(example: Example, api: str, tabs: bool = True) -> str:
                 if uv
                 else f"python ../{example.watch}"
             )
-            rest.append(["In a second terminal, in the same folder, watch and steer it at http://localhost:8080", watch])
+            rest.append(
+                [
+                    "In a second terminal, in the same folder, watch and steer it at http://localhost:8080",
+                    watch,
+                ]
+            )
         if example.profile:
-            rest.append(["Stop its service when finished", f"odctl down {example.profile} --volumes"])
+            rest.append(
+                [
+                    "Stop its service when finished",
+                    f"odctl down {example.profile} --volumes",
+                ]
+            )
         for number, (title, *commands) in enumerate(rest, start=2):
             lines += ["", f"# {number}. {title}", *commands]
         return lines
@@ -91,10 +112,18 @@ def quick_start(example: Example, api: str, tabs: bool = True) -> str:
         "folder of its own. Pick uv or pip:\n\n"
     )
     if not tabs:  # the README: GitHub shows no tabs
-        return intro + "**With uv**\n\n" + block(steps(True)) + "\n\n**With pip**\n\n" + block(steps(False))
+        return (
+            intro
+            + "**With uv**\n\n"
+            + block(steps(True))
+            + "\n\n**With pip**\n\n"
+            + block(steps(False))
+        )
 
     def tab(title, lines):
-        return f'=== "{title}"\n\n' + "\n".join(("    " + l) if l else "" for l in block(lines).split("\n"))
+        return f'=== "{title}"\n\n' + "\n".join(
+            ("    " + row) if row else "" for row in block(lines).split("\n")
+        )
 
     return intro + tab("uv", steps(True)) + "\n\n" + tab("pip", steps(False))
 
@@ -103,14 +132,18 @@ def _tab(text: str, title: str) -> str:
     """The body of one tab, without its indent."""
     m = re.search(rf'^=== "{title}"\n(.*?)(?=^=== "|^---$|\Z)', text, re.S | re.M)
     assert m, f"no {title} tab"
-    return "\n".join(l[4:] if l.startswith("    ") else l for l in m.group(1).split("\n"))
+    return "\n".join(
+        row[4:] if row.startswith("    ") else row for row in m.group(1).split("\n")
+    )
 
 
 @pytest.mark.parametrize("name", list(PAGES))
 def test_example_page_quick_starts_follow_the_template(name):
     text = (ROOT / PAGES[name]).read_text(encoding="utf-8")
     for api, title in TABS.items():
-        assert quick_start(EXAMPLES[name], api) in _tab(text, title), f"{name}: {title} tab"
+        assert quick_start(EXAMPLES[name], api) in _tab(text, title), (
+            f"{name}: {title} tab"
+        )
 
 
 def test_getting_started_uses_the_template():
@@ -126,5 +159,7 @@ def test_every_example_has_a_page():
 def test_readme_uses_the_template():
     """The README shows the YAML version of the local example, without tabs."""
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    expected = quick_start(EXAMPLES["local"], "yaml", tabs=False).replace("**Quick Start**\n\n", "", 1)
+    expected = quick_start(EXAMPLES["local"], "yaml", tabs=False).replace(
+        "**Quick Start**\n\n", "", 1
+    )
     assert expected in readme

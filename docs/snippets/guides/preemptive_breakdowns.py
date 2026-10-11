@@ -49,6 +49,8 @@ def worker_task(context: SimulationContext, task_id: int):
                 yield context.env.timeout(REPAIR)
                 context.env.publish_event(key, {"status": "machine_repaired"})
         context.env.publish_event(key, {"status": "finished"})
+
+
 # --8<-- [end:worker]
 
 
@@ -58,6 +60,8 @@ def chaos_monkey(context: SimulationContext):
         yield context.env.timeout(BREAKDOWN_EVERY)
         if on_lathe:  # an idle lathe has nothing to interrupt
             on_lathe[0].interrupt("overheating")
+
+
 # --8<-- [end:breakdowns]
 
 

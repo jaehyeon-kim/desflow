@@ -18,7 +18,9 @@ Ingress connectors listen to external sources and dynamically apply modification
 Applies scheduled overrides after set delays in wall-clock seconds from the start of the run. It waits with `asyncio.sleep`, so the delays do not follow simulation time: at `factor=0` the run can finish before the first change, and at any other factor the simulation time of each change varies a little from run to run. For changes at exact simulation times, use a [YAML scenario](registry.md#scenarios-versus-localingress).
 ```python title="docs/snippets/pages/connectors.py:local-ingress"
 # 10 wall-clock seconds after the start, set machine lathe capacity to 3
-app.add_ingress(LocalIngress(schedule=[(10.0, "Line_A.resources.lathe.current_cap", 3)]))
+app.add_ingress(
+    LocalIngress(schedule=[(10.0, "Line_A.resources.lathe.current_cap", 3)])
+)
 ```
 
 ### Kafka Ingress (`KafkaIngress`)
@@ -35,7 +37,9 @@ Subscribes to a Redis Pub/Sub channel. Each message is a JSON object with `param
 ```python title="docs/snippets/pages/connectors.py:redis-ingress"
 # Reads {"param_path": ..., "param_value": ...} messages from a Pub/Sub channel
 app.add_ingress(
-    RedisIngress("redis://user:password@localhost:6379/0", channel_name="simulation_params")
+    RedisIngress(
+        "redis://user:password@localhost:6379/0", channel_name="simulation_params"
+    )
 )
 ```
 
@@ -93,7 +97,9 @@ seaweedfs = fs.S3FileSystem(
     endpoint_override="127.0.0.1:8333",
     scheme="http",
 )
-app.add_egress(JsonlStorageEgress(default_path="warehouse/events", filesystem=seaweedfs))
+app.add_egress(
+    JsonlStorageEgress(default_path="warehouse/events", filesystem=seaweedfs)
+)
 ```
 
 ### Redis Egress (`RedisEgress`)
@@ -101,7 +107,9 @@ Appends each record to a Redis Stream with `XADD`, as one `payload` field holdin
 
 ```python title="docs/snippets/pages/connectors.py:redis-egress"
 # XADD to the events stream, unless a record's value names another in __stream__
-app.add_egress(RedisEgress("redis://user:password@localhost:6379/0", stream_name="events"))
+app.add_egress(
+    RedisEgress("redis://user:password@localhost:6379/0", stream_name="events")
+)
 ```
 
 ### PostgreSQL Egress (`PostgresEgress`)

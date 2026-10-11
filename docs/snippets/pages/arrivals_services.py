@@ -9,7 +9,8 @@ import numpy as np
 from dynamic_des import DistributionConfig, Sampler, SimulationContext
 
 # --8<-- [start:builder-seed]
-app = SimulationContext(sim_id="Line_A", factor=0.0, random_seed=42)  # same draws every run
+# Same draws every run
+app = SimulationContext(sim_id="Line_A", factor=0.0, random_seed=42)
 # --8<-- [end:builder-seed]
 app.add_resource("lathe", current_cap=2, max_cap=5)
 
@@ -22,7 +23,8 @@ app.add_service("milling", dist="normal", mean=3.0, std=0.5)  # 3 s, give or tak
 # --8<-- [end:builder-normal]
 
 # --8<-- [start:builder-lognormal]
-app.add_service("repair", dist="lognormal", mean=4.0, std=3.0)  # now and then much longer
+# Now and then much longer
+app.add_service("repair", dist="lognormal", mean=4.0, std=3.0)
 # --8<-- [end:builder-lognormal]
 
 # --8<-- [start:builder-truncated-normal]
@@ -57,11 +59,13 @@ gap = DistributionConfig(dist="exponential", rate=0.5)  # a part every 2 s on av
 # --8<-- [end:low-level-exponential]
 
 # --8<-- [start:low-level-normal]
-milling = DistributionConfig(dist="normal", mean=3.0, std=0.5)  # 3 s, give or take 0.5 s
+# 3 s, give or take 0.5 s
+milling = DistributionConfig(dist="normal", mean=3.0, std=0.5)
 # --8<-- [end:low-level-normal]
 
 # --8<-- [start:low-level-lognormal]
-repair = DistributionConfig(dist="lognormal", mean=4.0, std=3.0)  # now and then much longer
+# Now and then much longer
+repair = DistributionConfig(dist="lognormal", mean=4.0, std=3.0)
 # --8<-- [end:low-level-lognormal]
 
 # --8<-- [start:low-level-truncated-normal]

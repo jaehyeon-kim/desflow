@@ -8,11 +8,14 @@ import logging
 
 from dynamic_des import ConsoleEgress, SimulationContext
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
+)
 
 # --8<-- [start:factory]
 app = (
-    SimulationContext(sim_id="Factory_A", factor=1.0)  # 1 simulated second = 1 real second
+    # 1 simulated second = 1 real second
+    SimulationContext(sim_id="Factory_A", factor=1.0)
     .add_resource("lathe", current_cap=1, max_cap=1)
     # With no std, a normal distribution returns its mean every time
     .add_service("machining", dist="normal", mean=1.5)
@@ -37,6 +40,8 @@ def parts_generator(context: SimulationContext):
         yield context.wait_for_arrival("parts")
         context.spawn(process_part(part_id))
         part_id += 1
+
+
 # --8<-- [end:part]
 
 

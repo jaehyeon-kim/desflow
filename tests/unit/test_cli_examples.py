@@ -27,7 +27,9 @@ def _local_fetch(url):
 
 def test_every_listed_file_exists():
     for example in examples.EXAMPLES.values():
-        for path in [p for paths in example.files.values() for p in paths] + example.shared:
+        for path in [
+            p for paths in example.files.values() for p in paths
+        ] + example.shared:
             assert (EXAMPLES_DIR / path).is_file(), f"{example.name}: {path}"
 
 
@@ -68,14 +70,18 @@ def test_list_names_every_example():
 
 def test_get_writes_each_version_in_its_folder(tmp_path):
     with mock.patch.object(examples, "_fetch", side_effect=_local_fetch):
-        result = runner.invoke(app, ["examples", "get", "related-records", "--dest", str(tmp_path)])
+        result = runner.invoke(
+            app, ["examples", "get", "related-records", "--dest", str(tmp_path)]
+        )
     assert result.exit_code == 0, result.output
     yaml_dir = tmp_path / "related-records" / "yaml"
     assert (yaml_dir / "postgres_orders.yaml").read_bytes() == (
         EXAMPLES_DIR / "yaml/advanced/postgres_orders.yaml"
     ).read_bytes()
     assert (yaml_dir / "postgres_orders_logic.py").is_file()
-    assert (tmp_path / "related-records/declarative/postgres_orders_example.py").is_file()
+    assert (
+        tmp_path / "related-records/declarative/postgres_orders_example.py"
+    ).is_file()
     assert (tmp_path / "related-records/low-level/postgres_orders_example.py").is_file()
     assert "odctl up postgres" in result.output
 
@@ -83,18 +89,25 @@ def test_get_writes_each_version_in_its_folder(tmp_path):
 def test_get_one_version_and_shared_files(tmp_path):
     with mock.patch.object(examples, "_fetch", side_effect=_local_fetch):
         result = runner.invoke(
-            app, ["examples", "get", "kafka", "--api", "low-level", "--dest", str(tmp_path)]
+            app,
+            ["examples", "get", "kafka", "--api", "low-level", "--dest", str(tmp_path)],
         )
     assert result.exit_code == 0, result.output
-    written = sorted(str(p.relative_to(tmp_path)) for p in tmp_path.rglob("*") if p.is_file())
+    written = sorted(
+        str(p.relative_to(tmp_path)) for p in tmp_path.rglob("*") if p.is_file()
+    )
     assert written == ["kafka/kafka_dashboard.py", "kafka/low-level/kafka_example.py"]
 
 
 def test_get_refuses_to_overwrite_without_force(tmp_path):
     with mock.patch.object(examples, "_fetch", side_effect=_local_fetch):
         runner.invoke(app, ["examples", "get", "local", "--dest", str(tmp_path)])
-        again = runner.invoke(app, ["examples", "get", "local", "--dest", str(tmp_path)])
-        forced = runner.invoke(app, ["examples", "get", "local", "--dest", str(tmp_path), "--force"])
+        again = runner.invoke(
+            app, ["examples", "get", "local", "--dest", str(tmp_path)]
+        )
+        forced = runner.invoke(
+            app, ["examples", "get", "local", "--dest", str(tmp_path), "--force"]
+        )
     assert again.exit_code == 1 and "--force" in again.output
     assert forced.exit_code == 0
 
@@ -102,7 +115,9 @@ def test_get_refuses_to_overwrite_without_force(tmp_path):
 def test_a_missing_file_writes_nothing(tmp_path):
     error = urllib.error.HTTPError("u", 404, "Not Found", None, None)
     with mock.patch.object(examples, "_fetch", side_effect=error):
-        result = runner.invoke(app, ["examples", "get", "local", "--dest", str(tmp_path)])
+        result = runner.invoke(
+            app, ["examples", "get", "local", "--dest", str(tmp_path)]
+        )
     assert result.exit_code == 1 and "--ref main" in result.output
     assert not any(tmp_path.rglob("*.py"))
 

@@ -16,7 +16,7 @@ def _commands(text):
     section = text[text.index("nstall") : text.index("| Extra |")]
     lines = []
     for block in re.findall(r"```bash\n(.*?)\n *```", section, re.S):
-        lines += [l.strip() for l in block.split("\n") if l.strip()]
+        lines += [line.strip() for line in block.split("\n") if line.strip()]
     extras = re.search(r"The connectors are optional extras[^\n]*", section).group(0)
     return lines, extras
 

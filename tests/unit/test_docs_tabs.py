@@ -38,4 +38,6 @@ def test_every_tab_set_is_complete_and_in_order():
         for tabs in _tab_sets(page.read_text(encoding="utf-8")):
             if tabs != EXPECTED and tabs not in OTHER_SETS:
                 wrong.append(f"{page.relative_to(ROOT)}: {tabs}")
-    assert wrong == [], "Tab sets must be " + ", ".join(EXPECTED) + ": " + "; ".join(wrong)
+    assert wrong == [], (
+        "Tab sets must be " + ", ".join(EXPECTED) + ": " + "; ".join(wrong)
+    )

@@ -31,7 +31,10 @@ def part(env, part_id, priority=1):
         yield request  # waits until a unit is free
         yield env.timeout(10.0)  # holds the unit for 10 s
     # leaving the with block releases the unit
+
+
 # --8<-- [end:resource]
+
 
 # --8<-- [start:shrink]
 def breakdown(env):
@@ -42,6 +45,8 @@ def breakdown(env):
     env.registry.update("Line_A.resources.lathe.current_cap", 2)
     yield env.timeout(0.1)  # the resource applies the change in its own process
     print(f"capacity {lathe.capacity}, in use {lathe.in_use}")  # capacity 2, in use 4
+
+
 # --8<-- [end:shrink]
 
 # --8<-- [start:container]
@@ -52,6 +57,8 @@ def cool(env):
     yield coolant.get(5.0)  # takes 5 litres, waiting if fewer are left
     yield coolant.put(5.0)  # puts them back, waiting if the tank is full
     print(f"coolant level {coolant.level}")
+
+
 # --8<-- [end:container]
 
 # --8<-- [start:store]
@@ -62,6 +69,8 @@ def pack(env, part_id):
     yield goods.put({"part_id": part_id})  # waits while the store is full
     item = yield goods.get()  # waits while the store is empty
     print(f"shipped {item['part_id']}")
+
+
 # --8<-- [end:store]
 
 for i in range(4):  # four parts, all running when the breakdown comes

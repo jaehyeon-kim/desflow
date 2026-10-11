@@ -19,6 +19,8 @@ app.add_resource("lathe", current_cap=1, max_cap=1)
 def report(context: SimulationContext):
     # path_id is Line_A.lathe.in_use: the sim_id is added in front
     context.publish("lathe.in_use", context.get_resource("lathe").in_use)
+
+
 # --8<-- [end:telemetry]
 
 
@@ -32,9 +34,13 @@ class Reading(BaseModel):
 def readings(context: SimulationContext):
     while True:
         yield context.env.timeout(30.0)
-        reading = Reading(sensor="spindle", celsius=float("nan"), taken_at=datetime.now())
+        reading = Reading(
+            sensor="spindle", celsius=float("nan"), taken_at=datetime.now()
+        )
         # The model becomes a dict, taken_at an ISO string, and NaN becomes None
         context.env.publish_event("sensor-spindle", reading)
+
+
 # --8<-- [end:values]
 
 

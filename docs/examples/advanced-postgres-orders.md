@@ -230,7 +230,9 @@ Related records are rows that belong together across tables. Here every customer
 
     from dynamic_des import PostgresEgress, PostgresIngress, SimulationContext
 
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
+    )
 
     DSN = "postgresql://user:password@localhost:5432/odctl"
 
@@ -388,7 +390,9 @@ Related records are rows that belong together across tables. Here every customer
         SimParameter,
     )
 
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
+    )
 
     DSN = "postgresql://user:password@localhost:5432/odctl"
 

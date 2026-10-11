@@ -65,10 +65,13 @@ def _source(script, section):
     """The whole file, or the lines of one named section without its marker lines."""
     text = script.read_text(encoding="utf-8")
     if not section:
-        # A whole file is shown without the comment lines that mark its sections
-        return "\n".join(
+        # A whole file is shown without the comment lines that mark its sections. The
+        # formatter keeps blank lines around a marker between two functions, so the
+        # gap left by a removed marker is closed to the two blank lines PEP 8 uses.
+        code = "\n".join(
             line for line in text.rstrip("\n").split("\n") if not MARKER.match(line)
         )
+        return re.sub(r"\n{4,}", "\n\n\n", code)
     start = re.search(SECTION.format(kind="start", name=re.escape(section)), text, re.M)
     end = re.search(SECTION.format(kind="end", name=re.escape(section)), text, re.M)
     assert start and end, f"{script.relative_to(ROOT)} has no section '{section}'"

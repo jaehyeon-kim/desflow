@@ -42,7 +42,9 @@ class Reading(BaseModel):
 def readings(context: SimulationContext):
     while True:
         yield context.env.timeout(30.0)
-        reading = Reading(sensor="spindle", celsius=float("nan"), taken_at=datetime.now())
+        reading = Reading(
+            sensor="spindle", celsius=float("nan"), taken_at=datetime.now()
+        )
         # The model becomes a dict, taken_at an ISO string, and NaN becomes None
         context.env.publish_event("sensor-spindle", reading)
 ```

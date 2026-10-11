@@ -50,6 +50,8 @@ def parts(context: SimulationContext):
 def report(context: SimulationContext):
     # Publishes Line_A.lathe.in_use every 5 simulation seconds
     context.publish("lathe.in_use", context.get_resource("lathe").in_use)
+
+
 # --8<-- [end:decorators]
 
 

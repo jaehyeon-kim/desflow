@@ -282,6 +282,9 @@ if __name__ == "__main__":
         env.run(until=time_to_seconds("10 min"))  # until is in simulation seconds
     finally:
         env.teardown()  # flushes the buffers and stops the threads
-    assert lathe.capacity == 2 and env.registry.get("Line_A.arrival.parts.rate").value == 1.0
+    assert (
+        lathe.capacity == 2
+        and env.registry.get("Line_A.arrival.parts.rate").value == 1.0
+    )
     assert len(finished.items) > 0
 ```

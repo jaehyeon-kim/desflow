@@ -11,7 +11,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
 
-RAW_URL = "https://raw.githubusercontent.com/jaehyeon-kim/dynamic-des/{ref}/examples/{path}"
+RAW_URL = (
+    "https://raw.githubusercontent.com/jaehyeon-kim/dynamic-des/{ref}/examples/{path}"
+)
 APIS = ("yaml", "declarative", "low-level")
 _FOLDERS = {"yaml": "yaml", "declarative": "declarative", "low-level": "imperative"}
 
@@ -185,7 +187,5 @@ def run_hint(example: Example, api: str) -> str:
     """How to run one API's version once it is downloaded."""
     folder = f"{example.name}/{api}"
     main_file = Path(example.files[api][0]).name
-    command = (
-        f"ddes run {main_file}" if api == "yaml" else f"python {main_file}"
-    )
+    command = f"ddes run {main_file}" if api == "yaml" else f"python {main_file}"
     return f"cd {folder} && {command}"

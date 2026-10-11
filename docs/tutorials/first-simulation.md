@@ -45,7 +45,8 @@ A simulation has a `sim_id`, here `Factory_A`, and its parameters: a resource ca
 
     ```python title="docs/snippets/tutorials/first_factory.py:factory"
     app = (
-        SimulationContext(sim_id="Factory_A", factor=1.0)  # 1 simulated second = 1 real second
+        # 1 simulated second = 1 real second
+        SimulationContext(sim_id="Factory_A", factor=1.0)
         .add_resource("lathe", current_cap=1, max_cap=1)
         # With no std, a normal distribution returns its mean every time
         .add_service("machining", dist="normal", mean=1.5)
@@ -256,7 +257,8 @@ Real machining times vary. `milling` takes 3 seconds on average, give or take 0.
 
     ```python title="docs/snippets/tutorials/factory_changes.py:random"
     app = (
-        SimulationContext(sim_id="Factory_A", factor=1.0, random_seed=42)  # same draws every run
+        # Same draws every run
+        SimulationContext(sim_id="Factory_A", factor=1.0, random_seed=42)
         .add_resource("lathe", current_cap=1, max_cap=5)  # room for up to 5 lathes
         # Milling takes 3 seconds on average, give or take 0.5
         .add_service("milling", dist="normal", mean=3.0, std=0.5)
@@ -362,7 +364,9 @@ Replace the console sink with Kafka, and add a Kafka ingress so the run takes pa
 === "Low-level"
 
     ```python title="docs/snippets/tutorials/factory_kafka_low_level.py:kafka"
-    env.setup_ingress([KafkaIngress(topic="sim-config", bootstrap_servers="localhost:9092")])
+    env.setup_ingress(
+        [KafkaIngress(topic="sim-config", bootstrap_servers="localhost:9092")]
+    )
     env.setup_egress(
         [
             KafkaEgress(
@@ -437,10 +441,13 @@ The complete first factory, which the documentation tests run:
 
     from dynamic_des import ConsoleEgress, SimulationContext
 
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
+    )
 
     app = (
-        SimulationContext(sim_id="Factory_A", factor=1.0)  # 1 simulated second = 1 real second
+        # 1 simulated second = 1 real second
+        SimulationContext(sim_id="Factory_A", factor=1.0)
         .add_resource("lathe", current_cap=1, max_cap=1)
         # With no std, a normal distribution returns its mean every time
         .add_service("machining", dist="normal", mean=1.5)
@@ -528,8 +535,6 @@ The complete first factory, which the documentation tests run:
             yield env.timeout(sampler.sample(arrival))
             env.process(process_part(env, sampler, lathe, part_id))
             part_id += 1
-
-
 
 
     SINKS = [ConsoleEgress()]  # passed to env.setup_egress in run below

@@ -133,7 +133,9 @@ A process is a generator that runs alongside the tasks. It can wait (`yield env.
 === "Declarative"
 
     ```python title="docs/snippets/pages/tasks.py:builder-process"
-    def maintenance(context: SimulationContext, resource: str, every: float, duration: float):
+    def maintenance(
+        context: SimulationContext, resource: str, every: float, duration: float
+    ):
         """Takes the machine out of service for `duration` seconds every `every` seconds."""
         path = f"{context.sim_id}.resources.{resource}.current_cap"
         registry = context.env.registry

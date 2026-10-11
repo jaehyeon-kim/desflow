@@ -14,7 +14,9 @@ from dynamic_des import (
     SimParameter,
 )
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
+)
 
 # --8<-- [start:random]
 PARAMS = SimParameter(
@@ -55,6 +57,8 @@ def capacity_plan(env):
     env.registry.update(path, 3)
     yield env.timeout(10.0)
     env.registry.update(path, 2)
+
+
 # --8<-- [end:changes]
 
 

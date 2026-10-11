@@ -4,11 +4,14 @@ import logging
 
 from dynamic_des import ConsoleEgress, SimulationContext
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
+)
 
 # --8<-- [start:random]
 app = (
-    SimulationContext(sim_id="Factory_A", factor=1.0, random_seed=42)  # same draws every run
+    # Same draws every run
+    SimulationContext(sim_id="Factory_A", factor=1.0, random_seed=42)
     .add_resource("lathe", current_cap=1, max_cap=5)  # room for up to 5 lathes
     # Milling takes 3 seconds on average, give or take 0.5
     .add_service("milling", dist="normal", mean=3.0, std=0.5)

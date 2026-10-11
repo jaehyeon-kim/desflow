@@ -38,7 +38,9 @@ def mean_wait(rate, service, lathes=1, until=200_000, seed=1):
         with lathe.request() as request:
             yield request
             waits.append(env.now - queued)  # time spent in the queue
-            yield env.timeout(sampler.sample(env.registry.get_config("F.service.machining")))
+            yield env.timeout(
+                sampler.sample(env.registry.get_config("F.service.machining"))
+            )
 
     def arrivals():
         gap = env.registry.get_config("F.arrival.parts")
@@ -52,6 +54,8 @@ def mean_wait(rate, service, lathes=1, until=200_000, seed=1):
     finally:
         env.teardown()
     return float(np.mean(waits))
+
+
 # --8<-- [end:measure]
 
 

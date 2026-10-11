@@ -14,7 +14,12 @@ from pathlib import Path
 
 import pytest
 
-from dynamic_des import DynamicRealtimeEnvironment, DynamicResource, Sampler, SimulationContext
+from dynamic_des import (
+    DynamicRealtimeEnvironment,
+    DynamicResource,
+    Sampler,
+    SimulationContext,
+)
 from dynamic_des.connectors.egress.base import BaseEgress
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -80,7 +85,9 @@ def test_orders_low_level_matches_builder(until):
     env = DynamicRealtimeEnvironment(factor=0.0)
     env.registry.register_sim_parameter(low.PARAMS)
     sampler = Sampler(rng=np.random.default_rng(42))
-    got = _events(_run_env(env, [low.order_generator(env, sampler, max_items=5)], until))
+    got = _events(
+        _run_env(env, [low.order_generator(env, sampler, max_items=5)], until)
+    )
     assert got and got == expected
 
 
@@ -91,7 +98,9 @@ def test_orders_yaml_matches_builder():
     sys.path.insert(0, str(EXAMPLES / "yaml" / "advanced"))
     try:
         sys.modules.pop("postgres_orders_logic", None)
-        yaml_app = SimulationContext.from_yaml(EXAMPLES / "yaml" / "advanced" / "postgres_orders.yaml")
+        yaml_app = SimulationContext.from_yaml(
+            EXAMPLES / "yaml" / "advanced" / "postgres_orders.yaml"
+        )
     finally:
         sys.path.remove(str(EXAMPLES / "yaml" / "advanced"))
     assert _events(_run_builder(yaml_app, 120)) == expected
@@ -110,7 +119,14 @@ def test_backfill_low_level_matches_builder():
     lathe = DynamicResource(env, "Line_A", "lathe")
     sampler = Sampler(rng=np.random.default_rng(42))
     got = _events(
-        _run_env(env, [low.arrival_generator(env, sampler, lathe), low.telemetry_generator(env, lathe)], 300)
+        _run_env(
+            env,
+            [
+                low.arrival_generator(env, sampler, lathe),
+                low.telemetry_generator(env, lathe),
+            ],
+            300,
+        )
     )
     assert got and got == expected
 
