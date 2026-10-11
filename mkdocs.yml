@@ -95,7 +95,7 @@ nav:
       - Installation: getting-started.md
       - First Simulation: tutorials/first-simulation.md
   - How Simulation Works:
-      - Events and the Clock: des/how-it-works.md
+      - What Is DES?: des/how-it-works.md
       - SimPy and Dynamic DES: des/simpy-and-dynamic-des.md
       - Building Blocks:
           - Overview: building-blocks/index.md

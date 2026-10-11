@@ -1,6 +1,6 @@
 # Building Blocks
 
-A model is made of a few kinds of parts. An **entity** is the thing that flows through it: a part, an order, a visitor. It enters through an arrival, does the work its task describes, and holds a resource while it works. [Events and the Clock](../des/how-it-works.md) explains the simulation they run in.
+A model is made of a few kinds of parts. An **entity** is the thing that flows through it: a part, an order, a visitor. It enters through an arrival, does the work its task describes, and holds a resource while it works. [What Is DES?](../des/how-it-works.md) explains the simulation they run in.
 
 ![An arrival spawns a task for each entity; the task draws its service time and requests a resource; containers and stores hold quantities and items; processes run anything else; the registry holds every value live; and everything publishes records](../assets/diagrams/building-blocks.png)
 
