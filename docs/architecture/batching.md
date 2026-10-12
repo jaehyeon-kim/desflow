@@ -82,7 +82,7 @@ Teardown flushes every buffer, then waits for the queues to drain. It keeps wait
 
 ## Same Settings in Each API
 
-| Setting | Declarative | YAML | Low-level `env.setup_egress` |
+| Setting | Builder | YAML | Low-level `env.setup_egress` |
 |---|---|---|---|
 | Defaults for every egress | `with_batching(...)` | `batching:` section | `batch_size`, `flush_interval`, `max_queued_batches`, `drain_stall_seconds` |
 | Per egress size and interval | `add_egress(p, batch_size=, flush_interval=)` | `batch_size`, `flush_interval` on the egress entry | `batch_sizes`, `flush_intervals`, one entry per provider |

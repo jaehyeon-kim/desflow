@@ -364,7 +364,7 @@ def _payload(
 
 
 def _spawn_loop(arrival: str, task: Callable) -> Callable:
-    """The arrival loop a declarative example writes by hand."""
+    """The arrival loop a builder example writes by hand."""
 
     def loop(context: SimulationContext):
         task_id = 0

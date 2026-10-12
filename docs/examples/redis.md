@@ -1,10 +1,10 @@
 # In-Memory Store (Redis)
 
-A factory that writes part records to a Redis Stream and takes parameter updates from a Redis Pub/Sub channel. Each tab shows the example written one way: with the declarative API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](../architecture/overview.md) compares the three.
+A factory that writes part records to a Redis Stream and takes parameter updates from a Redis Pub/Sub channel. Each tab shows the example written one way: with the builder API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](../architecture/overview.md) compares the three.
 
 === "YAML"
 
-    This example builds the simulation of the declarative example in the Declarative tab from a YAML blueprint, with no Python. `RedisEgress` writes part records to the `part_events` stream, which each record's `__stream__` key names, and `RedisIngress` subscribes to the `simulation_params` channel.
+    This example builds the simulation of the builder example in the Builder tab from a YAML blueprint, with no Python. `RedisEgress` writes part records to the `part_events` stream, which each record's `__stream__` key names, and `RedisIngress` subscribes to the `simulation_params` channel.
 
     **Quick Start**
 
@@ -62,14 +62,14 @@ A factory that writes part records to a Redis Stream and takes parameter updates
 
     **Full Source Code**
 
-    `record_part` has no service or resource, so it publishes its fixed `payload` as soon as an arrival spawns it, with the task id added as `part_id`. The declarative example draws a random part type for every arrival. A mapping payload is a constant, so every part here has type `A`.
+    `record_part` has no service or resource, so it publishes its fixed `payload` as soon as an arrival spawns it, with the task id added as `part_id`. The builder example draws a random part type for every arrival. A mapping payload is a constant, so every part here has type `A`.
 
     Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
     ```yaml title="examples/yaml/redis.yaml"
     # Redis Streams output with live parameter updates, in YAML.
     #
-    # The YAML version of examples/declarative/redis_example.py. Each part_arrival
+    # The YAML version of examples/builder/redis_example.py. Each part_arrival
     # spawns record_part, a task with no service or resource, which publishes its
     # payload at once. RedisEgress writes it to the part_events stream that the
     # __stream__ key names, while RedisIngress subscribes to the simulation_params
@@ -106,9 +106,9 @@ A factory that writes part records to a Redis Stream and takes parameter updates
         id_field: part_id
     ```
 
-=== "Declarative"
+=== "Builder"
 
-    This example demonstrates how to integrate `dynamic-des` with Redis using the **declarative API (`SimulationContext`)**.
+    This example demonstrates how to integrate `dynamic-des` with Redis using the **builder API (`SimulationContext`)**.
 
     With `RedisIngress` and `RedisEgress`, the simulation reads parameter updates through Pub/Sub and writes events and telemetry to Redis Streams.
 
@@ -116,7 +116,7 @@ A factory that writes part records to a Redis Stream and takes parameter updates
 
     `RedisEgress` writes each record to a Redis Stream with `XADD`. Its default stream is the one named in the constructor, `events` in this example, and a `__stream__` key in a record picks another.
 
-    ```python title="examples/declarative/redis_example.py:app"
+    ```python title="examples/builder/redis_example.py:app"
     app = (
         SimulationContext(sim_id="Factory", factor=1.0)
         .add_ingress(RedisIngress(REDIS_URL, channel_name="simulation_params"))
@@ -127,7 +127,7 @@ A factory that writes part records to a Redis Stream and takes parameter updates
 
     The arrival loop publishes one record per arriving part:
 
-    ```python title="examples/declarative/redis_example.py:records"
+    ```python title="examples/builder/redis_example.py:records"
     part_event = {
         "__stream__": "part_events",
         "part_id": part_id,
@@ -156,8 +156,8 @@ A factory that writes part records to a Redis Stream and takes parameter updates
         uv tool install "dynamic-des[redis]" --with-executables-from "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get redis --api declarative
-        cd redis/declarative
+        ddes examples get redis --api builder
+        cd redis/builder
 
         # 3. Start its service
         odctl up valkey
@@ -176,8 +176,8 @@ A factory that writes part records to a Redis Stream and takes parameter updates
         pip install "dynamic-des[redis]" "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get redis --api declarative
-        cd redis/declarative
+        ddes examples get redis --api builder
+        cd redis/builder
 
         # 3. Start its service
         odctl up valkey
@@ -205,8 +205,8 @@ A factory that writes part records to a Redis Stream and takes parameter updates
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
-    ```python title="examples/declarative/redis_example.py"
-    """Redis Streams output with live parameter updates, declarative API.
+    ```python title="examples/builder/redis_example.py"
+    """Redis Streams output with live parameter updates, builder API.
 
     `Factory` writes part records to the `part_events` Redis Stream through `RedisEgress`,
     named by each record's `__stream__` key, while `RedisIngress` subscribes to the `simulation_params` channel, so publishing a message to
@@ -254,7 +254,7 @@ A factory that writes part records to a Redis Stream and takes parameter updates
 
 
     def run():
-        logger.info("Starting Declarative Redis Demo. Press Ctrl+C to stop...")
+        logger.info("Starting Builder Redis Demo. Press Ctrl+C to stop...")
         logger.info(
             "Test Ingress by running: docker exec -it valkey valkey-cli --user user "
             "--pass password PUBLISH simulation_params "
@@ -337,10 +337,10 @@ A factory that writes part records to a Redis Stream and takes parameter updates
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
-    ```python title="examples/imperative/redis_example.py"
-    """Redis Streams output with live parameter updates, imperative API.
+    ```python title="examples/low-level/redis_example.py"
+    """Redis Streams output with live parameter updates, low-level API.
 
-    The low-level twin of `declarative/redis_example.py`, wiring the environment and
+    The low-level twin of `builder/redis_example.py`, wiring the environment and
     connectors by hand. `RedisEgress` writes part records to the `part_events` stream,
     named by each record's `__stream__` key, and `RedisIngress` subscribes to the
     `simulation_params` channel.
@@ -409,7 +409,7 @@ A factory that writes part records to a Redis Stream and takes parameter updates
 
         env.process(part_process(env))
 
-        logger.info("Starting Imperative Redis Demo. Press Ctrl+C to stop...")
+        logger.info("Starting Low-level Redis Demo. Press Ctrl+C to stop...")
         logger.info(
             "Test Ingress by running: docker exec -it valkey valkey-cli --user user "
             "--pass password PUBLISH simulation_params "

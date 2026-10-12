@@ -79,9 +79,7 @@ def test_get_writes_each_version_in_its_folder(tmp_path):
         EXAMPLES_DIR / "yaml/advanced/postgres_orders.yaml"
     ).read_bytes()
     assert (yaml_dir / "postgres_orders_logic.py").is_file()
-    assert (
-        tmp_path / "related-records/declarative/postgres_orders_example.py"
-    ).is_file()
+    assert (tmp_path / "related-records/builder/postgres_orders_example.py").is_file()
     assert (tmp_path / "related-records/low-level/postgres_orders_example.py").is_file()
     assert "odctl up postgres" in result.output
 

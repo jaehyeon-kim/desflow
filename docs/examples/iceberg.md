@@ -1,6 +1,6 @@
 # Fast-Forward to Iceberg
 
-A day of a production line, generated at `factor=0.0` and appended to an Apache Iceberg table through an Iceberg REST catalog. Each tab shows the example written one way: with the declarative API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](../architecture/overview.md) compares the three.
+A day of a production line, generated at `factor=0.0` and appended to an Apache Iceberg table through an Iceberg REST catalog. Each tab shows the example written one way: with the builder API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](../architecture/overview.md) compares the three.
 
 `ParquetStorageEgress` writes files and leaves registering them as a table to you. `IcebergStorageEgress` appends into an Iceberg table instead, so one run ends with a table another engine can query.
 
@@ -8,7 +8,7 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
 
 === "YAML"
 
-    This example builds the simulation of the declarative example in the Declarative tab from a YAML blueprint, with no Python. A day of factory data is generated at `factor: 0.0`, and each flush of the buffer becomes one Iceberg commit.
+    This example builds the simulation of the builder example in the Builder tab from a YAML blueprint, with no Python. A day of factory data is generated at `factor: 0.0`, and each flush of the buffer becomes one Iceberg commit.
 
     **Quick Start**
 
@@ -71,7 +71,7 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
     ```yaml title="examples/yaml/iceberg.yaml"
     # Lakehouse data generation in YAML.
     #
-    # The YAML version of examples/declarative/iceberg_example.py. A day of factory
+    # The YAML version of examples/builder/iceberg_example.py. A day of factory
     # data is generated at factor 0, and each flush of the buffer becomes one Iceberg
     # commit. Without a router, each event is written to default_table as one flat row
     # and telemetry is left out. The catalog is contacted on the first write.
@@ -131,9 +131,9 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
       until: 1 day
     ```
 
-=== "Declarative"
+=== "Builder"
 
-    This example demonstrates how to run a simulation in **fast-forward mode** using the **declarative API (`SimulationContext`)** and commit the output straight into an Apache Iceberg table using the `IcebergStorageEgress` connector.
+    This example demonstrates how to run a simulation in **fast-forward mode** using the **builder API (`SimulationContext`)** and commit the output straight into an Apache Iceberg table using the `IcebergStorageEgress` connector.
 
     **Quick Start**
 
@@ -146,8 +146,8 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
         uv tool install "dynamic-des[iceberg]" --with-executables-from "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get iceberg --api declarative
-        cd iceberg/declarative
+        ddes examples get iceberg --api builder
+        cd iceberg/builder
 
         # 3. Start its service
         odctl up catalog
@@ -166,8 +166,8 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
         pip install "dynamic-des[iceberg]" "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get iceberg --api declarative
-        cd iceberg/declarative
+        ddes examples get iceberg --api builder
+        cd iceberg/builder
 
         # 3. Start its service
         odctl up catalog
@@ -189,11 +189,11 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
-    ```python title="examples/declarative/iceberg_example.py"
+    ```python title="examples/builder/iceberg_example.py"
     """
     Lakehouse Data Generation Example.
 
-    The Iceberg twin of `declarative/parquet_example.py`. The same fast-forward engine,
+    The Iceberg twin of `builder/parquet_example.py`. The same fast-forward engine,
     but each flush of the buffer becomes one Iceberg commit rather than one Parquet file,
     so the run ends with a table another engine can query instead of a folder someone
     still has to register.
@@ -297,7 +297,7 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
     LOGICAL_START_TIME = datetime.now() - timedelta(days=1)
 
     # ==========================================
-    # 2. Declarative Infrastructure Builder
+    # 2. Infrastructure Builder
     # ==========================================
     app = (
         SimulationContext(
@@ -369,7 +369,7 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
 
 === "Low-level"
 
-    This example demonstrates how to run a simulation in **fast-forward mode** using the low-level **Imperative API (`DynamicRealtimeEnvironment`)** and commit the output straight into an Apache Iceberg table using the `IcebergStorageEgress` connector.
+    This example demonstrates how to run a simulation in **fast-forward mode** using the low-level **Low-level API (`DynamicRealtimeEnvironment`)** and commit the output straight into an Apache Iceberg table using the `IcebergStorageEgress` connector.
 
     **Quick Start**
 
@@ -425,10 +425,10 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
-    ```python title="examples/imperative/iceberg_example.py"
-    """Lakehouse data generation, imperative API.
+    ```python title="examples/low-level/iceberg_example.py"
+    """Lakehouse data generation, low-level API.
 
-    The low-level twin of `declarative/iceberg_example.py`. It wires
+    The low-level twin of `builder/iceberg_example.py`. It wires
     `DynamicRealtimeEnvironment`, the registry and the connectors by hand rather than
     through the builder, which shows what `SimulationContext` does for you.
 

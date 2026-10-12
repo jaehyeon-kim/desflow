@@ -1,6 +1,6 @@
-"""Redis Streams output with live parameter updates, imperative API.
+"""Redis Streams output with live parameter updates, low-level API.
 
-The low-level twin of `declarative/redis_example.py`, wiring the environment and
+The low-level twin of `builder/redis_example.py`, wiring the environment and
 connectors by hand. `RedisEgress` writes part records to the `part_events` stream,
 named by each record's `__stream__` key, and `RedisIngress` subscribes to the
 `simulation_params` channel.
@@ -69,7 +69,7 @@ def run():
 
     env.process(part_process(env))
 
-    logger.info("Starting Imperative Redis Demo. Press Ctrl+C to stop...")
+    logger.info("Starting Low-level Redis Demo. Press Ctrl+C to stop...")
     logger.info(
         "Test Ingress by running: docker exec -it valkey valkey-cli --user user "
         "--pass password PUBLISH simulation_params "

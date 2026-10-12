@@ -1,6 +1,6 @@
 # Relational output in YAML.
 #
-# The YAML version of examples/declarative/postgres_example.py, with one table.
+# The YAML version of examples/builder/postgres_example.py, with one table.
 # Each customer_order spawns place_order, a task with no service or resource, which
 # publishes its payload at once. PostgresEgress creates the orders table at start
 # and writes one row per order. PostgresIngress creates simulation_params and polls

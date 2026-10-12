@@ -143,7 +143,7 @@ Connectors are listed under `ingress` and `egress`. `type` is a short name, and 
 ```yaml title="examples/yaml/redis.yaml"
 # Redis Streams output with live parameter updates, in YAML.
 #
-# The YAML version of examples/declarative/redis_example.py. Each part_arrival
+# The YAML version of examples/builder/redis_example.py. Each part_arrival
 # spawns record_part, a task with no service or resource, which publishes its
 # payload at once. RedisEgress writes it to the part_events stream that the
 # __stream__ key names, while RedisIngress subscribes to the simulation_params
@@ -180,7 +180,7 @@ tasks:
     id_field: part_id
 ```
 
-The other options of `add_egress` sit beside `config`: `when` routes records, and `batch_size` and `flush_interval` give one sink its own cadence. `when: history` sends the records stamped before `simulation.go_live_at`, and `when: live` sends the rest. `batching` sets the defaults, as `with_batching` does. The [YAML examples](../examples/local.md) cover every connector the declarative examples use: Console, Kafka, Parquet, Iceberg, Postgres and Redis, and the backfill-then-live run that sends history to Parquet and the live tail to Kafka.
+The other options of `add_egress` sit beside `config`: `when` routes records, and `batch_size` and `flush_interval` give one sink its own cadence. `when: history` sends the records stamped before `simulation.go_live_at`, and `when: live` sends the rest. `batching` sets the defaults, as `with_batching` does. The [YAML examples](../examples/local.md) cover every connector the builder examples use: Console, Kafka, Parquet, Iceberg, Postgres and Redis, and the backfill-then-live run that sends history to Parquet and the live tail to Kafka.
 
 Settings that the Python API takes as objects are plain values in `config`:
 

@@ -39,7 +39,7 @@ The connectors are optional extras, for example `uv add "dynamic-des[kafka,parqu
 
 ## Run an Example
 
-The local example is a production line that prints its events and telemetry to the terminal. It runs in real time and ends on its own: after 60 seconds in the YAML and declarative versions, 30 in the low-level one. Pick the way you write, then follow uv or pip:
+The local example is a production line that prints its events and telemetry to the terminal. It runs in real time and ends on its own: after 60 seconds in the YAML and builder versions, 30 in the low-level one. Pick the way you write, then follow uv or pip:
 
 === "YAML"
 
@@ -75,7 +75,7 @@ The local example is a production line that prints its events and telemetry to t
         ddes run local.yaml
         ```
 
-=== "Declarative"
+=== "Builder"
 
     **Quick Start**
 
@@ -88,8 +88,8 @@ The local example is a production line that prints its events and telemetry to t
         uv tool install dynamic-des
 
         # 2. Download the example
-        ddes examples get local --api declarative
-        cd local/declarative
+        ddes examples get local --api builder
+        cd local/builder
 
         # 3. Run it
         uv run --no-project --with dynamic-des local_example.py
@@ -102,8 +102,8 @@ The local example is a production line that prints its events and telemetry to t
         pip install dynamic-des
 
         # 2. Download the example
-        ddes examples get local --api declarative
-        cd local/declarative
+        ddes examples get local --api builder
+        cd local/builder
 
         # 3. Run it
         python local_example.py
@@ -176,7 +176,7 @@ Each example needs at most one odctl profile, started before you run it and torn
 | parquet with `PARQUET_FILESYSTEM=s3` | `odctl up storage` | `odctl down storage --volumes` |
 | iceberg | `odctl up catalog` | `odctl down catalog --volumes` |
 
-The YAML blueprints in `examples/yaml/` need the same profile as their declarative twin.
+The YAML blueprints in `examples/yaml/` need the same profile as their builder twin.
 
 Kafka and Redis are the two whose profile names are not what you would guess, because odctl ships a one-broker Kafka as `kafka-lite` and uses Valkey rather than Redis.
 

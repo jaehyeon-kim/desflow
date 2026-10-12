@@ -1,13 +1,13 @@
 # Examples
 
-Runnable examples, each written three ways: as a YAML blueprint in `yaml/`, with the declarative API in `declarative/` and with the low-level API in `imperative/`. They live outside the package, so `pip install dynamic-des` does not carry them and the library declares only what it imports.
+Runnable examples, each written three ways: as a YAML blueprint in `yaml/`, with the builder API in `builder/` and with the low-level API in `low-level/`. They live outside the package, so `pip install dynamic-des` does not carry them and the library declares only what it imports.
 
 Outside a clone, `ddes examples get <name>` downloads an example at the release you have installed, each version into a folder of its own; `ddes examples` lists them.
 
 From a clone, run one directly:
 
 ```bash
-uv run examples/declarative/local_example.py
+uv run examples/builder/local_example.py
 ```
 
 ## What to install
@@ -15,14 +15,14 @@ uv run examples/declarative/local_example.py
 From a clone, with uv, `--extra` installs what a script needs for that run:
 
 ```bash
-uv run --extra kafka examples/declarative/kafka_example.py
+uv run --extra kafka examples/builder/kafka_example.py
 ```
 
 With pip, install first and run with `python`:
 
 ```bash
 pip install "dynamic-des[kafka]"
-python examples/declarative/kafka_example.py
+python examples/builder/kafka_example.py
 ```
 
 Extras by example: `kafka` for `*/kafka_example.py` and `kafka_dashboard.py`, `postgres` for `*/postgres_example.py`, `redis` for `*/redis_example.py`, `parquet` for `*/parquet_example.py`, `iceberg` for `*/iceberg_example.py`, both `kafka` and `parquet` for `*/backfill_live_example.py`, `postgres` for `*/postgres_orders_example.py`, and none for `*/local_example.py`.
@@ -51,13 +51,13 @@ Kafka and Redis are the two whose profile names are not what you would guess, be
 
 ## Three ways, same simulation
 
-`declarative/` uses `SimulationContext`, the builder, where infrastructure is declared by chaining and the simulation logic hangs off decorators.
+`builder/` uses `SimulationContext`, the builder, where infrastructure is declared by chaining and the simulation logic hangs off decorators.
 
-`imperative/` uses `DynamicRealtimeEnvironment` directly, wiring the registry, resources and connectors by hand. It is the lower-level API the builder is written on.
+`low-level/` uses `DynamicRealtimeEnvironment` directly, wiring the registry, resources and connectors by hand. It is the lower-level API the builder is written on.
 
 `yaml/` holds the same simulations as YAML blueprints, described in the next section.
 
-Most pairs run the same simulation, so reading one against the other shows what the builder does for you. The local pair is the exception and the two differ on purpose: `declarative/local_example.py` runs `Factory_A` for 60 seconds with no ingress, while `imperative/local_example.py` runs `Line_A` for 30 seconds and uses `LocalIngress` to schedule two capacity changes.
+Most pairs run the same simulation, so reading one against the other shows what the builder does for you. The local pair is the exception and the two differ on purpose: `builder/local_example.py` runs `Factory_A` for 60 seconds with no ingress, while `low-level/local_example.py` runs `Line_A` for 30 seconds and uses `LocalIngress` to schedule two capacity changes.
 
 ## YAML blueprints
 

@@ -27,7 +27,7 @@ The payload, the finished event's value, is computed after `started` and before 
         id_field: order_id
     ```
 
-=== "Declarative"
+=== "Builder"
 
     ```python title="docs/snippets/pages/tasks.py:builder-task"
     @app.task(service_id="drilling", resource_id="drill")
@@ -82,7 +82,7 @@ An arrival stream starts one task per arrival. The loop draws a gap from the arr
       orders: {dist: exponential, rate: 0.1, spawn: order_placed}
     ```
 
-=== "Declarative"
+=== "Builder"
 
     ```python title="docs/snippets/pages/tasks.py:builder-arrival"
     @app.arrival_loop("parts")
@@ -130,7 +130,7 @@ A process is a generator that runs alongside the tasks. It can wait (`yield env.
         kwargs: {resource: drill, every: 50, duration: 5}
     ```
 
-=== "Declarative"
+=== "Builder"
 
     ```python title="docs/snippets/pages/tasks.py:builder-process"
     def maintenance(
@@ -180,7 +180,7 @@ Telemetry reports a value at a fixed interval of simulation time. YAML publishes
         publish: {drill_busy: drill.in_use, drill_waiting: drill.queue_length}
     ```
 
-=== "Declarative"
+=== "Builder"
 
     ```python title="docs/snippets/pages/tasks.py:builder-telemetry"
     @app.telemetry_loop(interval=10.0)

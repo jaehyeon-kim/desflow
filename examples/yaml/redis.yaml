@@ -1,6 +1,6 @@
 # Redis Streams output with live parameter updates, in YAML.
 #
-# The YAML version of examples/declarative/redis_example.py. Each part_arrival
+# The YAML version of examples/builder/redis_example.py. Each part_arrival
 # spawns record_part, a task with no service or resource, which publishes its
 # payload at once. RedisEgress writes it to the part_events stream that the
 # __stream__ key names, while RedisIngress subscribes to the simulation_params

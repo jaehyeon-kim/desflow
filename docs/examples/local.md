@@ -1,12 +1,12 @@
 # Local Simulation
 
-A production line that prints its events and telemetry to the terminal. It needs no container, so it is the place to start. Each tab shows the example written one way: with the declarative API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](../architecture/overview.md) compares the three.
+A production line that prints its events and telemetry to the terminal. It needs no container, so it is the place to start. Each tab shows the example written one way: with the builder API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](../architecture/overview.md) compares the three.
 
 Local connectors need no Docker, Kafka or other external store, so this example is useful for testing and benchmarking.
 
 === "YAML"
 
-    This example builds the same simulation as the declarative example in the Declarative tab, from a YAML blueprint and nothing else. No Python is written: the arrival loop, the task and the telemetry loop are all declared in the file.
+    This example builds the same simulation as the builder example in the Builder tab, from a YAML blueprint and nothing else. No Python is written: the arrival loop, the task and the telemetry loop are all declared in the file.
 
     It writes to `ConsoleEgress` and needs no container, so it is the place to start.
 
@@ -63,7 +63,7 @@ Local connectors need no Docker, Kafka or other external store, so this example 
     ```yaml title="examples/yaml/local.yaml"
     # Local simulation in YAML, with no Python and no containers.
     #
-    # The twin of examples/declarative/local_example.py. Factory_A writes to
+    # The twin of examples/builder/local_example.py. Factory_A writes to
     # ConsoleEgress, so events and telemetry are printed to the terminal, and the run
     # ends on its own after 60 simulation seconds.
     #
@@ -105,9 +105,9 @@ Local connectors need no Docker, Kafka or other external store, so this example 
       until: 60
     ```
 
-=== "Declarative"
+=== "Builder"
 
-    This example demonstrates how to build a dynamic simulation using the **declarative API (`SimulationContext`)** and **Local Connectors**.
+    This example demonstrates how to build a dynamic simulation using the **builder API (`SimulationContext`)** and **Local Connectors**.
 
     This example adds `ConsoleEgress` and no ingress, so the lathe keeps the capacity it starts with for the whole run. Its low-level twin, in the Low-level tab, shows how `LocalIngress` schedules parameter changes at set times.
 
@@ -122,8 +122,8 @@ Local connectors need no Docker, Kafka or other external store, so this example 
         uv tool install dynamic-des
 
         # 2. Download the example
-        ddes examples get local --api declarative
-        cd local/declarative
+        ddes examples get local --api builder
+        cd local/builder
 
         # 3. Run it
         uv run --no-project --with dynamic-des local_example.py
@@ -136,8 +136,8 @@ Local connectors need no Docker, Kafka or other external store, so this example 
         pip install dynamic-des
 
         # 2. Download the example
-        ddes examples get local --api declarative
-        cd local/declarative
+        ddes examples get local --api builder
+        cd local/builder
 
         # 3. Run it
         python local_example.py
@@ -149,8 +149,8 @@ Local connectors need no Docker, Kafka or other external store, so this example 
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
-    ```python title="examples/declarative/local_example.py"
-    """Local simulation, declarative API, no containers.
+    ```python title="examples/builder/local_example.py"
+    """Local simulation, builder API, no containers.
 
     The smallest complete example. `Factory_A` is built with `SimulationContext` and writes
     to `ConsoleEgress`, so events and telemetry are printed to the terminal and nothing
@@ -175,7 +175,7 @@ Local connectors need no Docker, Kafka or other external store, so this example 
     logger = logging.getLogger(__name__)
 
     # ==========================================
-    # 1. Declarative Infrastructure Builder
+    # 1. Infrastructure Builder
     # ==========================================
     app = (
         SimulationContext(sim_id="Factory_A", factor=1.0)
@@ -220,7 +220,7 @@ Local connectors need no Docker, Kafka or other external store, so this example 
     # ==========================================
     def run():
         """Starts the local simulation for a fixed duration."""
-        logger.info("Starting Declarative Local Example. Running for 60 seconds...")
+        logger.info("Starting Builder Local Example. Running for 60 seconds...")
         app.run(until=60)
 
 
@@ -230,7 +230,7 @@ Local connectors need no Docker, Kafka or other external store, so this example 
 
 === "Low-level"
 
-    This example demonstrates how to build a dynamic simulation using the low-level **Imperative API** and **Local Connectors**.
+    This example demonstrates how to build a dynamic simulation using the low-level **Low-level API** and **Local Connectors**.
 
     **Quick Start**
 
@@ -270,11 +270,11 @@ Local connectors need no Docker, Kafka or other external store, so this example 
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
-    ```python title="examples/imperative/local_example.py"
-    """Local simulation with scheduled parameter changes, imperative API.
+    ```python title="examples/low-level/local_example.py"
+    """Local simulation with scheduled parameter changes, low-level API.
 
-    The low-level twin of `declarative/local_example.py`, built on
-    `DynamicRealtimeEnvironment` directly. It adds what the declarative version does not
+    The low-level twin of `builder/local_example.py`, built on
+    `DynamicRealtimeEnvironment` directly. It adds what the builder version does not
     have: `LocalIngress` schedules two capacity changes, so the lathe goes from 1 to 3 at
     t=10s and down to 2 at t=20s, and the telemetry shows the effect.
 

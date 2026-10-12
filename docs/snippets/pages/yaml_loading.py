@@ -1,4 +1,4 @@
-"""Loading a blueprint from Python, as the YAML Blueprints and Declarative API pages show it.
+"""Loading a blueprint from Python, as the YAML Blueprints and Builder API pages show it.
 
 tests/unit runs this file. `local.yaml` is the local example, which `ddes examples get
 local` downloads into the current folder. The example paces its run at factor 1.0 for

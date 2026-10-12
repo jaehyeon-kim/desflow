@@ -36,11 +36,11 @@ They are independent. `go_live_at` changes pacing only; it never routes a record
 
 ## Worked example
 
-[`examples/declarative/backfill_live_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/declarative/backfill_live_example.py) backdates the clock by ten minutes, writes those ten minutes to Parquet in well under a second, then publishes to Kafka in real time for sixty seconds. `HISTORY_MINUTES` and `LIVE_SECONDS` set the two halves; a day of history (about 130,000 records) still generates in about two seconds.
+[`examples/builder/backfill_live_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/builder/backfill_live_example.py) backdates the clock by ten minutes, writes those ten minutes to Parquet in well under a second, then publishes to Kafka in real time for sixty seconds. `HISTORY_MINUTES` and `LIVE_SECONDS` set the two halves; a day of history (about 130,000 records) still generates in about two seconds.
 
 Three settings make the run:
 
-```python title="examples/declarative/backfill_live_example.py:builder"
+```python title="examples/builder/backfill_live_example.py:builder"
 app = (
     SimulationContext(
         sim_id="Line_A",
@@ -74,7 +74,7 @@ Two details in that script are easy to get wrong.
 
 **Predicates compare strings, not datetimes.** A record carries its logical time as an ISO string, so `record["timestamp"] >= GO_LIVE_AT` raises a `TypeError`. Format the instant once with `isoformat(timespec="milliseconds")` and compare against that. Every timestamp is produced by the same formatter, so ordering by text is ordering by time.
 
-```python title="examples/declarative/backfill_live_example.py:clock"
+```python title="examples/builder/backfill_live_example.py:clock"
 GO_LIVE_AT = datetime.now()
 LOGICAL_START_TIME = GO_LIVE_AT - HISTORY
 

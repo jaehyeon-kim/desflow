@@ -1,6 +1,6 @@
 # Backfill then go live in one run, in YAML.
 #
-# The YAML version of examples/declarative/backfill_live_example.py. Until
+# The YAML version of examples/builder/backfill_live_example.py. Until
 # go_live_at the clock is detached from the wall clock, so ten minutes of backdated
 # history are written to Parquet as fast as the machine allows. From go_live_at the
 # run is paced at one simulated second per real second, and the same events go to

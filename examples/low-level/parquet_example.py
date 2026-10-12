@@ -1,6 +1,6 @@
-"""Historical data generation, imperative API.
+"""Historical data generation, low-level API.
 
-The low-level twin of `declarative/parquet_example.py`. It wires
+The low-level twin of `builder/parquet_example.py`. It wires
 `DynamicRealtimeEnvironment`, the registry and the connectors by hand rather than
 through the builder, which shows what `SimulationContext` does for you.
 

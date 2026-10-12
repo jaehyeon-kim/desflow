@@ -74,9 +74,9 @@ A task is the `@app.task` decorator in YAML. Each run of the task emits `queued`
 - `id_field` adds the task id to a mapping payload under that key. It is the only part of a mapping payload that changes from one task to the next.
 - A task with neither `service` nor `resource` takes no time and holds no resource. It emits its payload as soon as it is spawned, with no `queued` or `started` event.
 
-`spawn` on an arrival names the task that each arrival starts. It is the loop a declarative example writes by hand:
+`spawn` on an arrival names the task that each arrival starts. It is the loop a builder example writes by hand:
 
-```python title="examples/declarative/local_example.py:arrival-loop"
+```python title="examples/builder/local_example.py:arrival-loop"
 @app.arrival_loop("standard")
 def arrival_generator(context):
     """Continuously spawns new parts based on the 'standard' arrival distribution."""

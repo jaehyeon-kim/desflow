@@ -1,7 +1,7 @@
-"""Local simulation with scheduled parameter changes, imperative API.
+"""Local simulation with scheduled parameter changes, low-level API.
 
-The low-level twin of `declarative/local_example.py`, built on
-`DynamicRealtimeEnvironment` directly. It adds what the declarative version does not
+The low-level twin of `builder/local_example.py`, built on
+`DynamicRealtimeEnvironment` directly. It adds what the builder version does not
 have: `LocalIngress` schedules two capacity changes, so the lathe goes from 1 to 3 at
 t=10s and down to 2 at t=20s, and the telemetry shows the effect.
 

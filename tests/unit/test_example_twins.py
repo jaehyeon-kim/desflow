@@ -79,8 +79,8 @@ def test_orders_low_level_matches_builder(until):
     pytest.importorskip("asyncpg")
     import numpy as np
 
-    builder = _load(EXAMPLES / "declarative" / "postgres_orders_example.py")
-    low = _load(EXAMPLES / "imperative" / "postgres_orders_example.py")
+    builder = _load(EXAMPLES / "builder" / "postgres_orders_example.py")
+    low = _load(EXAMPLES / "low-level" / "postgres_orders_example.py")
     expected = _events(_run_builder(builder.app, until))
     env = DynamicRealtimeEnvironment(factor=0.0)
     env.registry.register_sim_parameter(low.PARAMS)
@@ -93,7 +93,7 @@ def test_orders_low_level_matches_builder(until):
 
 def test_orders_yaml_matches_builder():
     pytest.importorskip("asyncpg")
-    builder = _load(EXAMPLES / "declarative" / "postgres_orders_example.py")
+    builder = _load(EXAMPLES / "builder" / "postgres_orders_example.py")
     expected = _events(_run_builder(builder.app, 120))
     sys.path.insert(0, str(EXAMPLES / "yaml" / "advanced"))
     try:
@@ -110,8 +110,8 @@ def test_backfill_low_level_matches_builder():
     pytest.importorskip("aiokafka")
     import numpy as np
 
-    builder = _load(EXAMPLES / "declarative" / "backfill_live_example.py")
-    low = _load(EXAMPLES / "imperative" / "backfill_live_example.py")
+    builder = _load(EXAMPLES / "builder" / "backfill_live_example.py")
+    low = _load(EXAMPLES / "low-level" / "backfill_live_example.py")
     builder.app.go_live_at = None  # both stay unpaced for the comparison
     expected = _events(_run_builder(builder.app, 300))
     env = DynamicRealtimeEnvironment(factor=0.0)
@@ -133,7 +133,7 @@ def test_backfill_low_level_matches_builder():
 
 def test_backfill_yaml_matches_builder():
     pytest.importorskip("aiokafka")
-    builder = _load(EXAMPLES / "declarative" / "backfill_live_example.py")
+    builder = _load(EXAMPLES / "builder" / "backfill_live_example.py")
     expected = _events(_run_builder(builder.app, 300))
     yaml_app = SimulationContext.from_yaml(EXAMPLES / "yaml" / "backfill_live.yaml")
     assert _events(_run_builder(yaml_app, 300)) == expected

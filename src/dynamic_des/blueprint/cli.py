@@ -124,7 +124,7 @@ def examples_get(
     ],
     api: Annotated[
         Optional[str],
-        typer.Option(help="Only this version: yaml, declarative or low-level."),
+        typer.Option(help="Only this version: yaml, builder or low-level."),
     ] = None,
     dest: Annotated[Path, typer.Option(help="The folder to download into.")] = Path(
         "."

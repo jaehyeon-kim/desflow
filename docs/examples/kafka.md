@@ -1,12 +1,12 @@
 # Kafka Digital Twin
 
-A production line that takes parameter updates from a Kafka topic and publishes its events and telemetry to Kafka topics. Each tab shows the example written one way: with the declarative API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](../architecture/overview.md) compares the three.
+A production line that takes parameter updates from a Kafka topic and publishes its events and telemetry to Kafka topics. Each tab shows the example written one way: with the builder API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](../architecture/overview.md) compares the three.
 
 With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simulation runs as a separate service. It reads JSON parameter updates from a topic, and publishes telemetry and typed Pydantic events to other topics.
 
 === "YAML"
 
-    This example builds the simulation of the declarative example in the Declarative tab from a YAML blueprint, with no Python. The connectors, the parameters, the task and the telemetry are all declared in the file.
+    This example builds the simulation of the builder example in the Builder tab from a YAML blueprint, with no Python. The connectors, the parameters, the task and the telemetry are all declared in the file.
 
     **Quick Start**
 
@@ -68,14 +68,14 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
 
     **Full Source Code**
 
-    The blueprint wires both Kafka connectors and declares the lathe, the service, the arrival and the task. The finished event of each task is the fixed `payload`, and the `telemetry` entry publishes four built-in statistics of the lathe every 2 simulation seconds. The declarative example also publishes `lathe.avg_wait`, a derived metric, which a blueprint computes only with Python.
+    The blueprint wires both Kafka connectors and declares the lathe, the service, the arrival and the task. The finished event of each task is the fixed `payload`, and the `telemetry` entry publishes four built-in statistics of the lathe every 2 simulation seconds. The builder example also publishes `lathe.avg_wait`, a derived metric, which a blueprint computes only with Python.
 
     Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
     ```yaml title="examples/yaml/kafka.yaml"
     # Kafka digital twin in YAML.
     #
-    # The YAML version of examples/declarative/kafka_example.py. KafkaIngress reads
+    # The YAML version of examples/builder/kafka_example.py. KafkaIngress reads
     # parameter updates from sim-config, and KafkaEgress publishes lifecycle events to
     # sim-events and lathe metrics to sim-telemetry. KafkaEgress creates its two topics
     # when the run starts.
@@ -127,9 +127,9 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
           lathe.utilization: lathe.utilization
     ```
 
-=== "Declarative"
+=== "Builder"
 
-    This example demonstrates how to integrate `dynamic-des` into a full event-driven architecture using the **declarative API (`SimulationContext`)**.
+    This example demonstrates how to integrate `dynamic-des` into a full event-driven architecture using the **builder API (`SimulationContext`)**.
 
     **Quick Start**
 
@@ -142,8 +142,8 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
         uv tool install "dynamic-des[kafka]" --with-executables-from "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get kafka --api declarative
-        cd kafka/declarative
+        ddes examples get kafka --api builder
+        cd kafka/builder
 
         # 3. Start its service
         odctl up kafka-lite
@@ -165,8 +165,8 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
         pip install "dynamic-des[kafka]" "odctl>=1.0,<2" nicegui
 
         # 2. Download the example
-        ddes examples get kafka --api declarative
-        cd kafka/declarative
+        ddes examples get kafka --api builder
+        cd kafka/builder
 
         # 3. Start its service
         odctl up kafka-lite
@@ -189,8 +189,8 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
-    ```python title="examples/declarative/kafka_example.py"
-    """Kafka Digital Twin, declarative API.
+    ```python title="examples/builder/kafka_example.py"
+    """Kafka Digital Twin, builder API.
 
     Builds `Line_A` with `SimulationContext` and connects it to Kafka in both directions.
     `KafkaIngress` reads parameter updates from `sim-config`, so the running simulation can
@@ -236,7 +236,7 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
     BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 
     # ==========================================
-    # 2. Declarative Infrastructure Builder
+    # 2. Infrastructure Builder
     # ==========================================
     app = (
         SimulationContext(sim_id="Line_A", factor=1.0, random_seed=42)
@@ -286,7 +286,7 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
         """Low-volume system health stream."""
         res = context.get_resource("lathe")
 
-        # Exact parity with the imperative telemetry outputs
+        # Exact parity with the low-level telemetry outputs
         context.publish("lathe.capacity", res.capacity)
         context.publish("lathe.in_use", res.in_use)
         context.publish("lathe.queue_length", len(res.queue.items))
@@ -330,7 +330,7 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
 
 === "Low-level"
 
-    This example demonstrates how to integrate `dynamic-des` into a full event-driven architecture using the low-level **Imperative API**.
+    This example demonstrates how to integrate `dynamic-des` into a full event-driven architecture using the low-level **Low-level API**.
 
     **Quick Start**
 
@@ -390,11 +390,11 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
-    ```python title="examples/imperative/kafka_example.py"
-    """Kafka Digital Twin, imperative API.
+    ```python title="examples/low-level/kafka_example.py"
+    """Kafka Digital Twin, low-level API.
 
-    The low-level twin of `declarative/kafka_example.py`, wiring the environment, registry
-    and connectors by hand. Like the declarative version, it creates its topics first with
+    The low-level twin of `builder/kafka_example.py`, wiring the environment, registry
+    and connectors by hand. Like the builder version, it creates its topics first with
     `KafkaAdminConnector`.
 
     Needs a broker: `odctl up kafka-lite`. Runs until interrupted with Ctrl + C.

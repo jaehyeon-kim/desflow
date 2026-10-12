@@ -25,7 +25,7 @@ PAGES = {
     "backfill-live": "docs/examples/backfill-live.md",
     "related-records": "docs/examples/advanced-postgres-orders.md",
 }
-TABS = {"yaml": "YAML", "declarative": "Declarative", "low-level": "Low-level"}
+TABS = {"yaml": "YAML", "builder": "Builder", "low-level": "Low-level"}
 ODCTL = '"odctl>=1.0,<2"'
 
 

@@ -1,4 +1,4 @@
-"""Relational output with table multiplexing, declarative API.
+"""Relational output with table multiplexing, builder API.
 
 `Store` writes interrelated commerce data to PostgreSQL. Two `PostgresEgress` instances
 are attached, one per table, and each keeps only the records whose `__table__` key
@@ -116,7 +116,7 @@ async def init_db():
 
 
 def run():
-    logger.info("Starting Declarative Postgres Demo. Press Ctrl+C to stop...")
+    logger.info("Starting Builder Postgres Demo. Press Ctrl+C to stop...")
     logger.info(
         "Test Ingress by running: INSERT INTO simulation_params (param_path, param_value) VALUES ('Store.arrival.customer_order.rate', '5.0');"
     )

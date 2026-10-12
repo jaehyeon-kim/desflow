@@ -1,4 +1,4 @@
-# Declarative API
+# Builder API
 
 The `SimulationContext` acts as the entry point and configuration builder for standard Dynamic DES simulations. It implements the **Builder Pattern** to construct the simulation environment and register resources, statistical samplers, and ingress/egress connectors. [First Simulation](../tutorials/first-simulation.md) builds a first factory this way, in its Builder tabs; this page lists every builder call, with an example of each.
 
