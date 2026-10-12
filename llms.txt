@@ -25,7 +25,7 @@
 
 - [Overview](https://jaehyeon.me/dynamic-des/latest/architecture/overview/index.md)
 - [Low-level API](https://jaehyeon.me/dynamic-des/latest/architecture/low-level/index.md)
-- [Declarative API](https://jaehyeon.me/dynamic-des/latest/architecture/context/index.md)
+- [Builder API](https://jaehyeon.me/dynamic-des/latest/architecture/context/index.md)
 - [YAML Blueprints](https://jaehyeon.me/dynamic-des/latest/architecture/yaml/index.md)
 - [Environment](https://jaehyeon.me/dynamic-des/latest/architecture/environment/index.md)
 - [Live Parameters](https://jaehyeon.me/dynamic-des/latest/architecture/registry/index.md)

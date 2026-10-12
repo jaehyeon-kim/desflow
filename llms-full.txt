@@ -26,7 +26,7 @@ ______________________________________________________________________
 - **Live parameters**: arrival rates, service times and capacities change mid-run through registry paths such as `Line_A.arrival.standard.rate`. A resource grows at once, and shrinks only as busy units are released, so no work in progress is lost.
 - **Several sinks per run**: each sink added with `add_egress` has its own `when` filter, `batch_size` and `flush_interval`, so one run can feed a stream and a data lake together.
 - **Backfill then go live**: one run generates backdated history at full speed, then switches to real time at `go_live_at`.
-- **Three ways to write a simulation**: the low-level `DynamicRealtimeEnvironment`, the declarative `SimulationContext` builder, or a YAML blueprint run with `ddes run`.
+- **Three ways to write a simulation**: the low-level `DynamicRealtimeEnvironment`, the `SimulationContext` builder, or a YAML blueprint run with `ddes run`.
 - **Serialisation**: JSON through `orjson` by default, Avro through the Confluent or AWS Glue Schema Registry for chosen topics, and Pydantic models published as they are.
 - **Kafka security**: extra keyword arguments go to the Kafka client, so SASL, mTLS, OAuth and AWS IAM clusters work.
 # Getting Started
@@ -68,7 +68,7 @@ ______________________________________________________________________
 
 ## Run an Example
 
-The local example is a production line that prints its events and telemetry to the terminal. It runs in real time and ends on its own: after 60 seconds in the YAML and declarative versions, 30 in the low-level one. Pick the way you write, then follow uv or pip:
+The local example is a production line that prints its events and telemetry to the terminal. It runs in real time and ends on its own: after 60 seconds in the YAML and builder versions, 30 in the low-level one. Pick the way you write, then follow uv or pip:
 
 **Quick Start**
 
@@ -107,8 +107,8 @@ ddes run local.yaml
 uv tool install dynamic-des
 
 # 2. Download the example
-ddes examples get local --api declarative
-cd local/declarative
+ddes examples get local --api builder
+cd local/builder
 
 # 3. Run it
 uv run --no-project --with dynamic-des local_example.py
@@ -119,8 +119,8 @@ uv run --no-project --with dynamic-des local_example.py
 pip install dynamic-des
 
 # 2. Download the example
-ddes examples get local --api declarative
-cd local/declarative
+ddes examples get local --api builder
+cd local/builder
 
 # 3. Run it
 python local_example.py
@@ -185,7 +185,7 @@ Each example needs at most one odctl profile, started before you run it and torn
 | parquet with `PARQUET_FILESYSTEM=s3` | `odctl up storage`    | `odctl down storage --volumes`    |
 | iceberg                              | `odctl up catalog`    | `odctl down catalog --volumes`    |
 
-The YAML blueprints in `examples/yaml/` need the same profile as their declarative twin.
+The YAML blueprints in `examples/yaml/` need the same profile as their builder twin.
 
 Kafka and Redis are the two whose profile names are not what you would guess, because odctl ships a one-broker Kafka as `kafka-lite` and uses Valkey rather than Redis.
 
@@ -1550,25 +1550,25 @@ ______________________________________________________________________
 
 # Ways to Write a Simulation
 
-Dynamic DES provides three ways to build your event-driven simulations, allowing you to choose between ease of use and raw control. A YAML blueprint holds only configuration, the declarative API adds Python logic through a builder, and the low-level API gives raw control.
+Dynamic DES provides three ways to build your event-driven simulations, allowing you to choose between ease of use and raw control. A YAML blueprint holds only configuration, the builder API adds Python logic through a builder, and the low-level API gives raw control.
 
 ______________________________________________________________________
 
 ## Three Ways
 
-| Feature              | YAML Blueprint                                                                                            | Declarative API                                                                         | Low-level API                                                   |
+| Feature              | YAML Blueprint                                                                                            | Builder API                                                                             | Low-level API                                                   |
 | -------------------- | --------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
 | **Entry Point**      | `ddes run` or `SimulationContext.from_yaml`                                                               | `SimulationContext`                                                                     | `DynamicRealtimeEnvironment`                                    |
 | **Philosophy**       | Declare the simulation in a file. Python is referenced with `!python` only for logic YAML cannot express. | Define *what* the system looks like and use decorators for task lifecycles.             | Define *how* every event and resource operates step-by-step.    |
 | **Boilerplate**      | None. Logic YAML cannot express is Python referenced with `!python`.                                      | Low (Automatic event emission, resource requesting, and sampling).                      | High (Manual queueing, starting, timing out, and releasing).    |
 | **Typical Use Case** | Varying parameters, connectors and timed experiments between runs without editing code.                   | Building standard digital twins, historical data generation, and forecasting pipelines. | Edge-case scenarios requiring dynamic topology changes mid-run. |
 
-The three are layers, not alternatives. A blueprint is built through the declarative API's builder methods, and the builder runs on the low-level API, so a blueprint can reference Python written for the builder, and a builder process can use the environment directly.
+The three are layers, not alternatives. A blueprint is built through the builder API's builder methods, and the builder runs on the low-level API, so a blueprint can reference Python written for the builder, and a builder process can use the environment directly.
 
 ### Which to choose
 
 - **YAML Blueprint** when the configuration is what changes between runs: rates, capacities, connectors, batching or a scripted experiment. The file is easy to review and diff, and it has a built-in scenario of timed changes on the simulation clock. Logic that YAML cannot express goes in a Python module beside the file.
-- **Declarative API** when the logic is most of the program and you want it in one Python file, or when you build the configuration in code, for example from a loop.
+- **Builder API** when the logic is most of the program and you want it in one Python file, or when you build the configuration in code, for example from a loop.
 - **Low-level API** when you need what the builder does not do, such as resources created mid-run or full control of every event.
 
 ______________________________________________________________________
@@ -1578,7 +1578,7 @@ ______________________________________________________________________
 All three end in the same two objects: a `SimParameter` holding the parameters, and a `DynamicRealtimeEnvironment` that runs them.
 
 - **Low-level API**: the script builds the `SimParameter` and registers it with `env.registry.register_sim_parameter`.
-- **Declarative API**: each builder method adds to the parameters, and `compile_parameters()` returns them as a `SimParameter`. `run()` creates the environment, registers that `SimParameter`, and then starts the processes.
+- **Builder API**: each builder method adds to the parameters, and `compile_parameters()` returns them as a `SimParameter`. `run()` creates the environment, registers that `SimParameter`, and then starts the processes.
 - **YAML blueprint**: `SimulationContext.from_yaml` makes the builder calls a script would make, so the result is an ordinary `SimulationContext`.
 
 Everything after that point is shared. The registry paths, the records each run publishes, the batching and the connectors are the same whichever way the simulation was written. The pages under Runtime describe them once for all three.
@@ -1586,12 +1586,12 @@ Everything after that point is shared. The registry paths, the records each run 
 Each way has its own page:
 
 - [Low-level API](https://jaehyeon.me/dynamic-des/latest/architecture/low-level/index.md): the environment, the registry and SimPy processes, written by hand.
-- [Declarative API](https://jaehyeon.me/dynamic-des/latest/architecture/context/index.md): the `SimulationContext` builder and its decorators.
+- [Builder API](https://jaehyeon.me/dynamic-des/latest/architecture/context/index.md): the `SimulationContext` builder and its decorators.
 - [YAML Blueprints](https://jaehyeon.me/dynamic-des/latest/architecture/yaml/index.md): every section of a blueprint file.
 
 # Low-level API
 
-The low-level API is `DynamicRealtimeEnvironment` used directly, with SimPy processes you write yourself. A script registers the parameters, attaches the connectors, creates the resources and starts its processes with `env.process`. The [declarative API](https://jaehyeon.me/dynamic-des/latest/architecture/context/index.md) does each of these steps inside `run()`, so this page is also a description of what the builder does for you. [First Simulation](https://jaehyeon.me/dynamic-des/latest/tutorials/first-simulation/index.md) builds a first factory this way, in its Low-level tabs.
+The low-level API is `DynamicRealtimeEnvironment` used directly, with SimPy processes you write yourself. A script registers the parameters, attaches the connectors, creates the resources and starts its processes with `env.process`. The [builder API](https://jaehyeon.me/dynamic-des/latest/architecture/context/index.md) does each of these steps inside `run()`, so this page is also a description of what the builder does for you. [First Simulation](https://jaehyeon.me/dynamic-des/latest/tutorials/first-simulation/index.md) builds a first factory this way, in its Low-level tabs.
 
 Use the low-level API when you need what the builder does not do:
 
@@ -1902,7 +1902,7 @@ if __name__ == "__main__":
     assert len(finished.items) > 0
 ```
 
-# Declarative API
+# Builder API
 
 The `SimulationContext` acts as the entry point and configuration builder for standard Dynamic DES simulations. It implements the **Builder Pattern** to construct the simulation environment and register resources, statistical samplers, and ingress/egress connectors. [First Simulation](https://jaehyeon.me/dynamic-des/latest/tutorials/first-simulation/index.md) builds a first factory this way, in its Builder tabs; this page lists every builder call, with an example of each.
 
@@ -2130,9 +2130,9 @@ A task is the `@app.task` decorator in YAML. Each run of the task emits `queued`
 - `id_field` adds the task id to a mapping payload under that key. It is the only part of a mapping payload that changes from one task to the next.
 - A task with neither `service` nor `resource` takes no time and holds no resource. It emits its payload as soon as it is spawned, with no `queued` or `started` event.
 
-`spawn` on an arrival names the task that each arrival starts. It is the loop a declarative example writes by hand:
+`spawn` on an arrival names the task that each arrival starts. It is the loop a builder example writes by hand:
 
-examples/declarative/local_example.py:arrival-loop
+examples/builder/local_example.py:arrival-loop
 
 ```python
 @app.arrival_loop("standard")
@@ -3048,7 +3048,7 @@ ______________________________________________________________________
 
 ## Same Settings in Each API
 
-| Setting                      | Declarative                                   | YAML                                                                  | Low-level `env.setup_egress`                                                |
+| Setting                      | Builder                                       | YAML                                                                  | Low-level `env.setup_egress`                                                |
 | ---------------------------- | --------------------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | Defaults for every egress    | `with_batching(...)`                          | `batching:` section                                                   | `batch_size`, `flush_interval`, `max_queued_batches`, `drain_stall_seconds` |
 | Per egress size and interval | `add_egress(p, batch_size=, flush_interval=)` | `batch_size`, `flush_interval` on the egress entry                    | `batch_sizes`, `flush_intervals`, one entry per provider                    |
@@ -3441,11 +3441,11 @@ ______________________________________________________________________
 
 ## Worked example
 
-[`examples/declarative/backfill_live_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/declarative/backfill_live_example.py) backdates the clock by ten minutes, writes those ten minutes to Parquet in well under a second, then publishes to Kafka in real time for sixty seconds. `HISTORY_MINUTES` and `LIVE_SECONDS` set the two halves; a day of history (about 130,000 records) still generates in about two seconds.
+[`examples/builder/backfill_live_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/builder/backfill_live_example.py) backdates the clock by ten minutes, writes those ten minutes to Parquet in well under a second, then publishes to Kafka in real time for sixty seconds. `HISTORY_MINUTES` and `LIVE_SECONDS` set the two halves; a day of history (about 130,000 records) still generates in about two seconds.
 
 Three settings make the run:
 
-examples/declarative/backfill_live_example.py:builder
+examples/builder/backfill_live_example.py:builder
 
 ```python
 app = (
@@ -3481,7 +3481,7 @@ Two details in that script are easy to get wrong.
 
 **Predicates compare strings, not datetimes.** A record carries its logical time as an ISO string, so `record["timestamp"] >= GO_LIVE_AT` raises a `TypeError`. Format the instant once with `isoformat(timespec="milliseconds")` and compare against that. Every timestamp is produced by the same formatter, so ordering by text is ordering by time.
 
-examples/declarative/backfill_live_example.py:clock
+examples/builder/backfill_live_example.py:clock
 
 ```python
 GO_LIVE_AT = datetime.now()
@@ -3784,7 +3784,7 @@ examples/yaml/redis.yaml
 ```yaml
 # Redis Streams output with live parameter updates, in YAML.
 #
-# The YAML version of examples/declarative/redis_example.py. Each part_arrival
+# The YAML version of examples/builder/redis_example.py. Each part_arrival
 # spawns record_part, a task with no service or resource, which publishes its
 # payload at once. RedisEgress writes it to the part_events stream that the
 # __stream__ key names, while RedisIngress subscribes to the simulation_params
@@ -3821,7 +3821,7 @@ tasks:
     id_field: part_id
 ```
 
-The other options of `add_egress` sit beside `config`: `when` routes records, and `batch_size` and `flush_interval` give one sink its own cadence. `when: history` sends the records stamped before `simulation.go_live_at`, and `when: live` sends the rest. `batching` sets the defaults, as `with_batching` does. The [YAML examples](https://jaehyeon.me/dynamic-des/latest/examples/local/index.md) cover every connector the declarative examples use: Console, Kafka, Parquet, Iceberg, Postgres and Redis, and the backfill-then-live run that sends history to Parquet and the live tail to Kafka.
+The other options of `add_egress` sit beside `config`: `when` routes records, and `batch_size` and `flush_interval` give one sink its own cadence. `when: history` sends the records stamped before `simulation.go_live_at`, and `when: live` sends the rest. `batching` sets the defaults, as `with_batching` does. The [YAML examples](https://jaehyeon.me/dynamic-des/latest/examples/local/index.md) cover every connector the builder examples use: Console, Kafka, Parquet, Iceberg, Postgres and Redis, and the backfill-then-live run that sends history to Parquet and the live tail to Kafka.
 
 Settings that the Python API takes as objects are plain values in `config`:
 
@@ -4554,28 +4554,28 @@ The molder's capacity is live like any other. A scenario, a connector or a proce
 
 # Examples
 
-Each example is written three ways: as a YAML blueprint, with the declarative API and with the low-level API. Its page shows the versions in tabs.
+Each example is written three ways: as a YAML blueprint, with the builder API and with the low-level API. Its page shows the versions in tabs.
 
-| Example                                                                                                       | What it shows                                                        | YAML                                                                                                                        | Declarative                                                                                                                           | Low-level                                                                                                                            |
-| ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| [Local Simulation](https://jaehyeon.me/dynamic-des/latest/examples/local/index.md)                            | prints events and telemetry, with no container                       | [`local.yaml`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/yaml/local.yaml)                              | [`local_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/declarative/local_example.py)                     | [`local_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/imperative/local_example.py)                     |
-| [Kafka Digital Twin](https://jaehyeon.me/dynamic-des/latest/examples/kafka/index.md)                          | takes updates from Kafka and publishes events and telemetry to Kafka | [`kafka.yaml`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/yaml/kafka.yaml)                              | [`kafka_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/declarative/kafka_example.py)                     | [`kafka_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/imperative/kafka_example.py)                     |
-| [Fast-Forward to Parquet](https://jaehyeon.me/dynamic-des/latest/examples/parquet/index.md)                   | a week generated at `factor=0.0`, written to Parquet                 | [`parquet.yaml`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/yaml/parquet.yaml)                          | [`parquet_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/declarative/parquet_example.py)                 | [`parquet_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/imperative/parquet_example.py)                 |
-| [Fast-Forward to Iceberg](https://jaehyeon.me/dynamic-des/latest/examples/iceberg/index.md)                   | a day generated at `factor=0.0`, appended to an Iceberg table        | [`iceberg.yaml`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/yaml/iceberg.yaml)                          | [`iceberg_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/declarative/iceberg_example.py)                 | [`iceberg_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/imperative/iceberg_example.py)                 |
-| [Relational DB (Postgres)](https://jaehyeon.me/dynamic-des/latest/examples/postgres/index.md)                 | writes orders to PostgreSQL and takes updates from a table           | [`postgres.yaml`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/yaml/postgres.yaml)                        | [`postgres_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/declarative/postgres_example.py)               | [`postgres_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/imperative/postgres_example.py)               |
-| [In-Memory Store (Redis)](https://jaehyeon.me/dynamic-des/latest/examples/redis/index.md)                     | writes to a Redis Stream and takes updates from Pub/Sub              | [`redis.yaml`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/yaml/redis.yaml)                              | [`redis_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/declarative/redis_example.py)                     | [`redis_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/imperative/redis_example.py)                     |
-| [Backfill Then Go Live](https://jaehyeon.me/dynamic-des/latest/examples/backfill-live/index.md)               | backdated history to Parquet, then live to Kafka                     | [`backfill_live.yaml`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/yaml/backfill_live.yaml)              | [`backfill_live_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/declarative/backfill_live_example.py)     | [`backfill_live_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/imperative/backfill_live_example.py)     |
-| [Generate Related Records](https://jaehyeon.me/dynamic-des/latest/examples/advanced-postgres-orders/index.md) | orders and their line items, in two PostgreSQL tables                | [`postgres_orders.yaml`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/yaml/advanced/postgres_orders.yaml) | [`postgres_orders_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/declarative/postgres_orders_example.py) | [`postgres_orders_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/imperative/postgres_orders_example.py) |
+| Example                                                                                                       | What it shows                                                        | YAML                                                                                                                        | Builder                                                                                                                           | Low-level                                                                                                                           |
+| ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| [Local Simulation](https://jaehyeon.me/dynamic-des/latest/examples/local/index.md)                            | prints events and telemetry, with no container                       | [`local.yaml`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/yaml/local.yaml)                              | [`local_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/builder/local_example.py)                     | [`local_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/low-level/local_example.py)                     |
+| [Kafka Digital Twin](https://jaehyeon.me/dynamic-des/latest/examples/kafka/index.md)                          | takes updates from Kafka and publishes events and telemetry to Kafka | [`kafka.yaml`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/yaml/kafka.yaml)                              | [`kafka_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/builder/kafka_example.py)                     | [`kafka_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/low-level/kafka_example.py)                     |
+| [Fast-Forward to Parquet](https://jaehyeon.me/dynamic-des/latest/examples/parquet/index.md)                   | a week generated at `factor=0.0`, written to Parquet                 | [`parquet.yaml`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/yaml/parquet.yaml)                          | [`parquet_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/builder/parquet_example.py)                 | [`parquet_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/low-level/parquet_example.py)                 |
+| [Fast-Forward to Iceberg](https://jaehyeon.me/dynamic-des/latest/examples/iceberg/index.md)                   | a day generated at `factor=0.0`, appended to an Iceberg table        | [`iceberg.yaml`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/yaml/iceberg.yaml)                          | [`iceberg_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/builder/iceberg_example.py)                 | [`iceberg_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/low-level/iceberg_example.py)                 |
+| [Relational DB (Postgres)](https://jaehyeon.me/dynamic-des/latest/examples/postgres/index.md)                 | writes orders to PostgreSQL and takes updates from a table           | [`postgres.yaml`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/yaml/postgres.yaml)                        | [`postgres_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/builder/postgres_example.py)               | [`postgres_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/low-level/postgres_example.py)               |
+| [In-Memory Store (Redis)](https://jaehyeon.me/dynamic-des/latest/examples/redis/index.md)                     | writes to a Redis Stream and takes updates from Pub/Sub              | [`redis.yaml`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/yaml/redis.yaml)                              | [`redis_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/builder/redis_example.py)                     | [`redis_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/low-level/redis_example.py)                     |
+| [Backfill Then Go Live](https://jaehyeon.me/dynamic-des/latest/examples/backfill-live/index.md)               | backdated history to Parquet, then live to Kafka                     | [`backfill_live.yaml`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/yaml/backfill_live.yaml)              | [`backfill_live_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/builder/backfill_live_example.py)     | [`backfill_live_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/low-level/backfill_live_example.py)     |
+| [Generate Related Records](https://jaehyeon.me/dynamic-des/latest/examples/advanced-postgres-orders/index.md) | orders and their line items, in two PostgreSQL tables                | [`postgres_orders.yaml`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/yaml/advanced/postgres_orders.yaml) | [`postgres_orders_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/builder/postgres_orders_example.py) | [`postgres_orders_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/low-level/postgres_orders_example.py) |
 
 Each example page says how to download and run it, and which odctl profile from [Getting Started](https://jaehyeon.me/dynamic-des/latest/getting-started/#services-for-the-examples) it needs.
 
 # Local Simulation
 
-A production line that prints its events and telemetry to the terminal. It needs no container, so it is the place to start. Each tab shows the example written one way: with the declarative API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](https://jaehyeon.me/dynamic-des/latest/architecture/overview/index.md) compares the three.
+A production line that prints its events and telemetry to the terminal. It needs no container, so it is the place to start. Each tab shows the example written one way: with the builder API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](https://jaehyeon.me/dynamic-des/latest/architecture/overview/index.md) compares the three.
 
 Local connectors need no Docker, Kafka or other external store, so this example is useful for testing and benchmarking.
 
-This example builds the same simulation as the declarative example in the Declarative tab, from a YAML blueprint and nothing else. No Python is written: the arrival loop, the task and the telemetry loop are all declared in the file.
+This example builds the same simulation as the builder example in the Builder tab, from a YAML blueprint and nothing else. No Python is written: the arrival loop, the task and the telemetry loop are all declared in the file.
 
 It writes to `ConsoleEgress` and needs no container, so it is the place to start.
 
@@ -4630,7 +4630,7 @@ examples/yaml/local.yaml
 ```yaml
 # Local simulation in YAML, with no Python and no containers.
 #
-# The twin of examples/declarative/local_example.py. Factory_A writes to
+# The twin of examples/builder/local_example.py. Factory_A writes to
 # ConsoleEgress, so events and telemetry are printed to the terminal, and the run
 # ends on its own after 60 simulation seconds.
 #
@@ -4672,7 +4672,7 @@ run:
   until: 60
 ```
 
-This example demonstrates how to build a dynamic simulation using the **declarative API (`SimulationContext`)** and **Local Connectors**.
+This example demonstrates how to build a dynamic simulation using the **builder API (`SimulationContext`)** and **Local Connectors**.
 
 This example adds `ConsoleEgress` and no ingress, so the lathe keeps the capacity it starts with for the whole run. Its low-level twin, in the Low-level tab, shows how `LocalIngress` schedules parameter changes at set times.
 
@@ -4685,8 +4685,8 @@ This example adds `ConsoleEgress` and no ingress, so the lathe keeps the capacit
 uv tool install dynamic-des
 
 # 2. Download the example
-ddes examples get local --api declarative
-cd local/declarative
+ddes examples get local --api builder
+cd local/builder
 
 # 3. Run it
 uv run --no-project --with dynamic-des local_example.py
@@ -4697,8 +4697,8 @@ uv run --no-project --with dynamic-des local_example.py
 pip install dynamic-des
 
 # 2. Download the example
-ddes examples get local --api declarative
-cd local/declarative
+ddes examples get local --api builder
+cd local/builder
 
 # 3. Run it
 python local_example.py
@@ -4710,10 +4710,10 @@ This script initializes a production line, runs it for 60 simulation seconds, an
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
-examples/declarative/local_example.py
+examples/builder/local_example.py
 
 ```python
-"""Local simulation, declarative API, no containers.
+"""Local simulation, builder API, no containers.
 
 The smallest complete example. `Factory_A` is built with `SimulationContext` and writes
 to `ConsoleEgress`, so events and telemetry are printed to the terminal and nothing
@@ -4738,7 +4738,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ==========================================
-# 1. Declarative Infrastructure Builder
+# 1. Infrastructure Builder
 # ==========================================
 app = (
     SimulationContext(sim_id="Factory_A", factor=1.0)
@@ -4783,7 +4783,7 @@ def telemetry_generator(context):
 # ==========================================
 def run():
     """Starts the local simulation for a fixed duration."""
-    logger.info("Starting Declarative Local Example. Running for 60 seconds...")
+    logger.info("Starting Builder Local Example. Running for 60 seconds...")
     app.run(until=60)
 
 
@@ -4791,7 +4791,7 @@ if __name__ == "__main__":
     run()
 ```
 
-This example demonstrates how to build a dynamic simulation using the low-level **Imperative API** and **Local Connectors**.
+This example demonstrates how to build a dynamic simulation using the low-level **Low-level API** and **Local Connectors**.
 
 **Quick Start**
 
@@ -4827,13 +4827,13 @@ This script initializes a production line and runs it for 30 simulation seconds.
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
-examples/imperative/local_example.py
+examples/low-level/local_example.py
 
 ```python
-"""Local simulation with scheduled parameter changes, imperative API.
+"""Local simulation with scheduled parameter changes, low-level API.
 
-The low-level twin of `declarative/local_example.py`, built on
-`DynamicRealtimeEnvironment` directly. It adds what the declarative version does not
+The low-level twin of `builder/local_example.py`, built on
+`DynamicRealtimeEnvironment` directly. It adds what the builder version does not
 have: `LocalIngress` schedules two capacity changes, so the lathe goes from 1 to 3 at
 t=10s and down to 2 at t=20s, and the telemetry shows the effect.
 
@@ -4953,11 +4953,11 @@ if __name__ == "__main__":
 
 # Kafka Digital Twin
 
-A production line that takes parameter updates from a Kafka topic and publishes its events and telemetry to Kafka topics. Each tab shows the example written one way: with the declarative API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](https://jaehyeon.me/dynamic-des/latest/architecture/overview/index.md) compares the three.
+A production line that takes parameter updates from a Kafka topic and publishes its events and telemetry to Kafka topics. Each tab shows the example written one way: with the builder API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](https://jaehyeon.me/dynamic-des/latest/architecture/overview/index.md) compares the three.
 
 With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simulation runs as a separate service. It reads JSON parameter updates from a topic, and publishes telemetry and typed Pydantic events to other topics.
 
-This example builds the simulation of the declarative example in the Declarative tab from a YAML blueprint, with no Python. The connectors, the parameters, the task and the telemetry are all declared in the file.
+This example builds the simulation of the builder example in the Builder tab from a YAML blueprint, with no Python. The connectors, the parameters, the task and the telemetry are all declared in the file.
 
 **Quick Start**
 
@@ -5015,7 +5015,7 @@ The dashboard in the Quick Start works with this run unchanged, because it reads
 
 **Full Source Code**
 
-The blueprint wires both Kafka connectors and declares the lathe, the service, the arrival and the task. The finished event of each task is the fixed `payload`, and the `telemetry` entry publishes four built-in statistics of the lathe every 2 simulation seconds. The declarative example also publishes `lathe.avg_wait`, a derived metric, which a blueprint computes only with Python.
+The blueprint wires both Kafka connectors and declares the lathe, the service, the arrival and the task. The finished event of each task is the fixed `payload`, and the `telemetry` entry publishes four built-in statistics of the lathe every 2 simulation seconds. The builder example also publishes `lathe.avg_wait`, a derived metric, which a blueprint computes only with Python.
 
 Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
@@ -5024,7 +5024,7 @@ examples/yaml/kafka.yaml
 ```yaml
 # Kafka digital twin in YAML.
 #
-# The YAML version of examples/declarative/kafka_example.py. KafkaIngress reads
+# The YAML version of examples/builder/kafka_example.py. KafkaIngress reads
 # parameter updates from sim-config, and KafkaEgress publishes lifecycle events to
 # sim-events and lathe metrics to sim-telemetry. KafkaEgress creates its two topics
 # when the run starts.
@@ -5076,7 +5076,7 @@ telemetry:
       lathe.utilization: lathe.utilization
 ```
 
-This example demonstrates how to integrate `dynamic-des` into a full event-driven architecture using the **declarative API (`SimulationContext`)**.
+This example demonstrates how to integrate `dynamic-des` into a full event-driven architecture using the **builder API (`SimulationContext`)**.
 
 **Quick Start**
 
@@ -5087,8 +5087,8 @@ This example demonstrates how to integrate `dynamic-des` into a full event-drive
 uv tool install "dynamic-des[kafka]" --with-executables-from "odctl>=1.0,<2"
 
 # 2. Download the example
-ddes examples get kafka --api declarative
-cd kafka/declarative
+ddes examples get kafka --api builder
+cd kafka/builder
 
 # 3. Start its service
 odctl up kafka-lite
@@ -5108,8 +5108,8 @@ odctl down kafka-lite --volumes
 pip install "dynamic-des[kafka]" "odctl>=1.0,<2" nicegui
 
 # 2. Download the example
-ddes examples get kafka --api declarative
-cd kafka/declarative
+ddes examples get kafka --api builder
+cd kafka/builder
 
 # 3. Start its service
 odctl up kafka-lite
@@ -5132,10 +5132,10 @@ This script connects the simulation to Kafka topics and utilizes Pydantic models
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
-examples/declarative/kafka_example.py
+examples/builder/kafka_example.py
 
 ```python
-"""Kafka Digital Twin, declarative API.
+"""Kafka Digital Twin, builder API.
 
 Builds `Line_A` with `SimulationContext` and connects it to Kafka in both directions.
 `KafkaIngress` reads parameter updates from `sim-config`, so the running simulation can
@@ -5181,7 +5181,7 @@ class TaskEvent(BaseModel):
 BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 
 # ==========================================
-# 2. Declarative Infrastructure Builder
+# 2. Infrastructure Builder
 # ==========================================
 app = (
     SimulationContext(sim_id="Line_A", factor=1.0, random_seed=42)
@@ -5231,7 +5231,7 @@ def telemetry_monitor(context):
     """Low-volume system health stream."""
     res = context.get_resource("lathe")
 
-    # Exact parity with the imperative telemetry outputs
+    # Exact parity with the low-level telemetry outputs
     context.publish("lathe.capacity", res.capacity)
     context.publish("lathe.in_use", res.in_use)
     context.publish("lathe.queue_length", len(res.queue.items))
@@ -5273,7 +5273,7 @@ if __name__ == "__main__":
     run()
 ```
 
-This example demonstrates how to integrate `dynamic-des` into a full event-driven architecture using the low-level **Imperative API**.
+This example demonstrates how to integrate `dynamic-des` into a full event-driven architecture using the low-level **Low-level API**.
 
 **Quick Start**
 
@@ -5329,13 +5329,13 @@ This script connects the simulation to Kafka topics and utilizes Pydantic models
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
-examples/imperative/kafka_example.py
+examples/low-level/kafka_example.py
 
 ```python
-"""Kafka Digital Twin, imperative API.
+"""Kafka Digital Twin, low-level API.
 
-The low-level twin of `declarative/kafka_example.py`, wiring the environment, registry
-and connectors by hand. Like the declarative version, it creates its topics first with
+The low-level twin of `builder/kafka_example.py`, wiring the environment, registry
+and connectors by hand. Like the builder version, it creates its topics first with
 `KafkaAdminConnector`.
 
 Needs a broker: `odctl up kafka-lite`. Runs until interrupted with Ctrl + C.
@@ -5503,11 +5503,11 @@ if __name__ == "__main__":
 
 # Fast-Forward to Parquet
 
-A week of a production line, generated at `factor=0.0` and written to Parquet files on the local disk or in S3-compatible storage. Each tab shows the example written one way: with the declarative API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](https://jaehyeon.me/dynamic-des/latest/architecture/overview/index.md) compares the three.
+A week of a production line, generated at `factor=0.0` and written to Parquet files on the local disk or in S3-compatible storage. Each tab shows the example written one way: with the builder API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](https://jaehyeon.me/dynamic-des/latest/architecture/overview/index.md) compares the three.
 
 Dynamic DES is built for real-time digital twins, but the same model can also run faster than real time. With the time factor at 0 and a chosen start time, a run generates a large amount of historical data in seconds, or predicts future states.
 
-This example builds the simulation of the declarative example in the Declarative tab from a YAML blueprint, with no Python. With `factor: 0.0` the clock is detached from the wall clock, so a week of factory data is written to Parquet as fast as the machine allows.
+This example builds the simulation of the builder example in the Builder tab from a YAML blueprint, with no Python. With `factor: 0.0` the clock is detached from the wall clock, so a week of factory data is written to Parquet as fast as the machine allows.
 
 **Quick Start**
 
@@ -5562,7 +5562,7 @@ examples/yaml/parquet.yaml
 ```yaml
 # Historical data generation in YAML.
 #
-# The YAML version of examples/declarative/parquet_example.py. With factor 0 the
+# The YAML version of examples/builder/parquet_example.py. With factor 0 the
 # clock is detached from the wall clock, so a week of factory data is written to
 # Parquet as fast as the machine allows. Without a router, each event is written as
 # one flat row and telemetry is left out. The folder is created on the first write.
@@ -5613,7 +5613,7 @@ run:
   until: 1 week
 ```
 
-This example demonstrates how to run a simulation in **fast-forward mode** using the **declarative API (`SimulationContext`)** and write compressed columnar data (Parquet) directly to local storage or an AWS S3 data lake using the `ParquetStorageEgress` connector.
+This example demonstrates how to run a simulation in **fast-forward mode** using the **builder API (`SimulationContext`)** and write compressed columnar data (Parquet) directly to local storage or an AWS S3 data lake using the `ParquetStorageEgress` connector.
 
 **Quick Start**
 
@@ -5624,8 +5624,8 @@ This example demonstrates how to run a simulation in **fast-forward mode** using
 uv tool install "dynamic-des[parquet]"
 
 # 2. Download the example
-ddes examples get parquet --api declarative
-cd parquet/declarative
+ddes examples get parquet --api builder
+cd parquet/builder
 
 # 3. Run it
 uv run --no-project --with "dynamic-des[parquet]" parquet_example.py
@@ -5636,8 +5636,8 @@ uv run --no-project --with "dynamic-des[parquet]" parquet_example.py
 pip install "dynamic-des[parquet]"
 
 # 2. Download the example
-ddes examples get parquet --api declarative
-cd parquet/declarative
+ddes examples get parquet --api builder
+cd parquet/builder
 
 # 3. Run it
 python parquet_example.py
@@ -5659,7 +5659,7 @@ This script simulates a manufacturing line over a 7-day period. It demonstrates 
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
-examples/declarative/parquet_example.py
+examples/builder/parquet_example.py
 
 ```python
 """
@@ -5738,12 +5738,12 @@ router = create_history_router(base_path)
 
 # The week of backdating this example exists to demonstrate. It sits at module scope
 # because the builder below needs it, and the builder has to stay at module scope for
-# the decorators further down to attach to it. The imperative twin computes the same
+# the decorators further down to attach to it. The low-level twin computes the same
 # value inside run(), where it has no such constraint.
 LOGICAL_START_TIME = datetime.now() - timedelta(days=7)
 
 # ==========================================
-# 2. Declarative Infrastructure Builder
+# 2. Infrastructure Builder
 # ==========================================
 app = (
     SimulationContext(
@@ -5818,7 +5818,7 @@ if __name__ == "__main__":
     run()
 ```
 
-This example demonstrates how to run a simulation in **fast-forward mode** using the low-level **Imperative API** and write compressed columnar data (Parquet) directly to local storage or an AWS S3 data lake using the `ParquetStorageEgress` connector.
+This example demonstrates how to run a simulation in **fast-forward mode** using the low-level **Low-level API** and write compressed columnar data (Parquet) directly to local storage or an AWS S3 data lake using the `ParquetStorageEgress` connector.
 
 **Quick Start**
 
@@ -5864,12 +5864,12 @@ This script simulates a manufacturing line over a 7-day period. It demonstrates 
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
-examples/imperative/parquet_example.py
+examples/low-level/parquet_example.py
 
 ```python
-"""Historical data generation, imperative API.
+"""Historical data generation, low-level API.
 
-The low-level twin of `declarative/parquet_example.py`. It wires
+The low-level twin of `builder/parquet_example.py`. It wires
 `DynamicRealtimeEnvironment`, the registry and the connectors by hand rather than
 through the builder, which shows what `SimulationContext` does for you.
 
@@ -6036,13 +6036,13 @@ if __name__ == "__main__":
 
 # Fast-Forward to Iceberg
 
-A day of a production line, generated at `factor=0.0` and appended to an Apache Iceberg table through an Iceberg REST catalog. Each tab shows the example written one way: with the declarative API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](https://jaehyeon.me/dynamic-des/latest/architecture/overview/index.md) compares the three.
+A day of a production line, generated at `factor=0.0` and appended to an Apache Iceberg table through an Iceberg REST catalog. Each tab shows the example written one way: with the builder API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](https://jaehyeon.me/dynamic-des/latest/architecture/overview/index.md) compares the three.
 
 `ParquetStorageEgress` writes files and leaves registering them as a table to you. `IcebergStorageEgress` appends into an Iceberg table instead, so one run ends with a table another engine can query.
 
 Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, a manifest list and a new `metadata.json`, so query planning slows down as snapshots accumulate. That is why this example gives the provider a large `batch_size` of its own: a day of events lands in four snapshots.
 
-This example builds the simulation of the declarative example in the Declarative tab from a YAML blueprint, with no Python. A day of factory data is generated at `factor: 0.0`, and each flush of the buffer becomes one Iceberg commit.
+This example builds the simulation of the builder example in the Builder tab from a YAML blueprint, with no Python. A day of factory data is generated at `factor: 0.0`, and each flush of the buffer becomes one Iceberg commit.
 
 **Quick Start**
 
@@ -6103,7 +6103,7 @@ examples/yaml/iceberg.yaml
 ```yaml
 # Lakehouse data generation in YAML.
 #
-# The YAML version of examples/declarative/iceberg_example.py. A day of factory
+# The YAML version of examples/builder/iceberg_example.py. A day of factory
 # data is generated at factor 0, and each flush of the buffer becomes one Iceberg
 # commit. Without a router, each event is written to default_table as one flat row
 # and telemetry is left out. The catalog is contacted on the first write.
@@ -6163,7 +6163,7 @@ run:
   until: 1 day
 ```
 
-This example demonstrates how to run a simulation in **fast-forward mode** using the **declarative API (`SimulationContext`)** and commit the output straight into an Apache Iceberg table using the `IcebergStorageEgress` connector.
+This example demonstrates how to run a simulation in **fast-forward mode** using the **builder API (`SimulationContext`)** and commit the output straight into an Apache Iceberg table using the `IcebergStorageEgress` connector.
 
 **Quick Start**
 
@@ -6174,8 +6174,8 @@ This example demonstrates how to run a simulation in **fast-forward mode** using
 uv tool install "dynamic-des[iceberg]" --with-executables-from "odctl>=1.0,<2"
 
 # 2. Download the example
-ddes examples get iceberg --api declarative
-cd iceberg/declarative
+ddes examples get iceberg --api builder
+cd iceberg/builder
 
 # 3. Start its service
 odctl up catalog
@@ -6192,8 +6192,8 @@ odctl down catalog --volumes
 pip install "dynamic-des[iceberg]" "odctl>=1.0,<2"
 
 # 2. Download the example
-ddes examples get iceberg --api declarative
-cd iceberg/declarative
+ddes examples get iceberg --api builder
+cd iceberg/builder
 
 # 3. Start its service
 odctl up catalog
@@ -6215,13 +6215,13 @@ This script simulates a manufacturing line over a 1-day period. It routes lifecy
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
-examples/declarative/iceberg_example.py
+examples/builder/iceberg_example.py
 
 ```python
 """
 Lakehouse Data Generation Example.
 
-The Iceberg twin of `declarative/parquet_example.py`. The same fast-forward engine,
+The Iceberg twin of `builder/parquet_example.py`. The same fast-forward engine,
 but each flush of the buffer becomes one Iceberg commit rather than one Parquet file,
 so the run ends with a table another engine can query instead of a folder someone
 still has to register.
@@ -6325,7 +6325,7 @@ router = create_table_router(EVENTS_TABLE)
 LOGICAL_START_TIME = datetime.now() - timedelta(days=1)
 
 # ==========================================
-# 2. Declarative Infrastructure Builder
+# 2. Infrastructure Builder
 # ==========================================
 app = (
     SimulationContext(
@@ -6395,7 +6395,7 @@ if __name__ == "__main__":
     run()
 ```
 
-This example demonstrates how to run a simulation in **fast-forward mode** using the low-level **Imperative API (`DynamicRealtimeEnvironment`)** and commit the output straight into an Apache Iceberg table using the `IcebergStorageEgress` connector.
+This example demonstrates how to run a simulation in **fast-forward mode** using the low-level **Low-level API (`DynamicRealtimeEnvironment`)** and commit the output straight into an Apache Iceberg table using the `IcebergStorageEgress` connector.
 
 **Quick Start**
 
@@ -6447,12 +6447,12 @@ This script simulates a manufacturing line over a 1-day period. It routes lifecy
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
-examples/imperative/iceberg_example.py
+examples/low-level/iceberg_example.py
 
 ```python
-"""Lakehouse data generation, imperative API.
+"""Lakehouse data generation, low-level API.
 
-The low-level twin of `declarative/iceberg_example.py`. It wires
+The low-level twin of `builder/iceberg_example.py`. It wires
 `DynamicRealtimeEnvironment`, the registry and the connectors by hand rather than
 through the builder, which shows what `SimulationContext` does for you.
 
@@ -6627,11 +6627,11 @@ if __name__ == "__main__":
 
 # Relational DB (Postgres)
 
-A store that writes customer orders to PostgreSQL and takes parameter updates from a PostgreSQL table. Each tab shows the example written one way: with the declarative API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](https://jaehyeon.me/dynamic-des/latest/architecture/overview/index.md) compares the three.
+A store that writes customer orders to PostgreSQL and takes parameter updates from a PostgreSQL table. Each tab shows the example written one way: with the builder API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](https://jaehyeon.me/dynamic-des/latest/architecture/overview/index.md) compares the three.
 
 With `PostgresEgress` in place of the console egress, the simulation runs as a separate data generator. It writes related rows, such as parent `orders` and child `order_items`, into PostgreSQL with asynchronous bulk inserts through `asyncpg`.
 
-This example builds a simulation like the declarative example in the Declarative tab from a YAML blueprint, with no Python and one table. Each customer order is written to `orders`, and `PostgresIngress` polls `simulation_params` for updates. The declarative example's orders with random line items are the [advanced Postgres example](https://jaehyeon.me/dynamic-des/latest/examples/advanced-postgres-orders/index.md), which keeps its generator in Python.
+This example builds a simulation like the builder example in the Builder tab from a YAML blueprint, with no Python and one table. Each customer order is written to `orders`, and `PostgresIngress` polls `simulation_params` for updates. The builder example's orders with random line items are the [advanced Postgres example](https://jaehyeon.me/dynamic-des/latest/examples/advanced-postgres-orders/index.md), which keeps its generator in Python.
 
 **Quick Start**
 
@@ -6694,7 +6694,7 @@ examples/yaml/postgres.yaml
 ```yaml
 # Relational output in YAML.
 #
-# The YAML version of examples/declarative/postgres_example.py, with one table.
+# The YAML version of examples/builder/postgres_example.py, with one table.
 # Each customer_order spawns place_order, a task with no service or resource, which
 # publishes its payload at once. PostgresEgress creates the orders table at start
 # and writes one row per order. PostgresIngress creates simulation_params and polls
@@ -6737,7 +6737,7 @@ tasks:
     id_field: order_id
 ```
 
-This example demonstrates how to integrate `dynamic-des` into a relational database architecture using the **declarative API (`SimulationContext`)**.
+This example demonstrates how to integrate `dynamic-des` into a relational database architecture using the **builder API (`SimulationContext`)**.
 
 **Multiplexing Multiple Tables**
 
@@ -6745,7 +6745,7 @@ When generating complex relational data, a single event loop often produces reco
 
 Instead of creating separate queues or complex routing logic, `PostgresEgress` supports **Table Multiplexing**. By attaching multiple instances of `PostgresEgress` to the simulation and tagging your output dictionaries with a special `__table__` key, the framework automatically filters and routes the records to their correct destinations.
 
-examples/declarative/postgres_example.py:app
+examples/builder/postgres_example.py:app
 
 ```python
 app = (
@@ -6761,7 +6761,7 @@ app = (
 
 For each arriving order, the arrival loop publishes 1 to 5 `order_items` rows that reference the order's `order_id`, then the `orders` row with their total. Each dictionary carries a `__table__` key naming its table:
 
-examples/declarative/postgres_example.py:records
+examples/builder/postgres_example.py:records
 
 ```python
 # 1. Generate Order (Notice the __table__ routing key)
@@ -6811,8 +6811,8 @@ This example also attaches a `PostgresIngress` listening to a `simulation_params
 uv tool install "dynamic-des[postgres]" --with-executables-from "odctl>=1.0,<2"
 
 # 2. Download the example
-ddes examples get postgres --api declarative
-cd postgres/declarative
+ddes examples get postgres --api builder
+cd postgres/builder
 
 # 3. Start its service
 odctl up postgres
@@ -6829,8 +6829,8 @@ odctl down postgres --volumes
 pip install "dynamic-des[postgres]" "odctl>=1.0,<2"
 
 # 2. Download the example
-ddes examples get postgres --api declarative
-cd postgres/declarative
+ddes examples get postgres --api builder
+cd postgres/builder
 
 # 3. Start its service
 odctl up postgres
@@ -6862,10 +6862,10 @@ This script connects the simulation to PostgreSQL, automatically initializes the
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
-examples/declarative/postgres_example.py
+examples/builder/postgres_example.py
 
 ```python
-"""Relational output with table multiplexing, declarative API.
+"""Relational output with table multiplexing, builder API.
 
 `Store` writes interrelated commerce data to PostgreSQL. Two `PostgresEgress` instances
 are attached, one per table, and each keeps only the records whose `__table__` key
@@ -6979,7 +6979,7 @@ async def init_db():
 
 
 def run():
-    logger.info("Starting Declarative Postgres Demo. Press Ctrl+C to stop...")
+    logger.info("Starting Builder Postgres Demo. Press Ctrl+C to stop...")
     logger.info(
         "Test Ingress by running: INSERT INTO simulation_params (param_path, param_value) VALUES ('Store.arrival.customer_order.rate', '5.0');"
     )
@@ -7003,7 +7003,7 @@ When generating complex relational data, a single simulation process often produ
 
 Instead of creating separate queues or complex routing logic, `PostgresEgress` supports **Table Multiplexing**. By attaching multiple instances of `PostgresEgress` to the `DynamicRealtimeEnvironment` and tagging your output dictionaries with a special `__table__` key, the framework automatically filters and routes the records to their correct destinations.
 
-examples/imperative/postgres_example.py:connectors
+examples/low-level/postgres_example.py:connectors
 
 ```python
 egress_orders = PostgresEgress(DSN, table_name="orders")
@@ -7022,7 +7022,7 @@ env.setup_ingress([ingress])
 
 For each arriving order, the SimPy process publishes 1 to 5 `order_items` rows that reference the order's `order_id`, then the `orders` row with their total. Each dictionary carries a `__table__` key naming its table:
 
-examples/imperative/postgres_example.py:records
+examples/low-level/postgres_example.py:records
 
 ```python
 # 1. Generate Order Parent Record
@@ -7122,12 +7122,12 @@ This script connects the simulation to PostgreSQL, automatically initializes the
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
-examples/imperative/postgres_example.py
+examples/low-level/postgres_example.py
 
 ```python
-"""Relational output with table multiplexing, imperative API.
+"""Relational output with table multiplexing, low-level API.
 
-The low-level twin of `declarative/postgres_example.py`. Two `PostgresEgress` instances
+The low-level twin of `builder/postgres_example.py`. Two `PostgresEgress` instances
 are attached, one per table, and each keeps only the records whose `__table__` key
 matches its own `table_name`.
 
@@ -7262,7 +7262,7 @@ def run():
 
     env.process(order_process(env))
 
-    logger.info("Starting Imperative Postgres Demo. Press Ctrl+C to stop...")
+    logger.info("Starting Low-level Postgres Demo. Press Ctrl+C to stop...")
     logger.info(
         "Test Ingress by running: INSERT INTO simulation_params (param_path, param_value) VALUES ('Store.arrival.customer_order.rate', '5.0');"
     )
@@ -7283,9 +7283,9 @@ if __name__ == "__main__":
 
 # In-Memory Store (Redis)
 
-A factory that writes part records to a Redis Stream and takes parameter updates from a Redis Pub/Sub channel. Each tab shows the example written one way: with the declarative API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](https://jaehyeon.me/dynamic-des/latest/architecture/overview/index.md) compares the three.
+A factory that writes part records to a Redis Stream and takes parameter updates from a Redis Pub/Sub channel. Each tab shows the example written one way: with the builder API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](https://jaehyeon.me/dynamic-des/latest/architecture/overview/index.md) compares the three.
 
-This example builds the simulation of the declarative example in the Declarative tab from a YAML blueprint, with no Python. `RedisEgress` writes part records to the `part_events` stream, which each record's `__stream__` key names, and `RedisIngress` subscribes to the `simulation_params` channel.
+This example builds the simulation of the builder example in the Builder tab from a YAML blueprint, with no Python. `RedisEgress` writes part records to the `part_events` stream, which each record's `__stream__` key names, and `RedisIngress` subscribes to the `simulation_params` channel.
 
 **Quick Start**
 
@@ -7339,7 +7339,7 @@ docker exec -it valkey valkey-cli --user user --pass password PUBLISH simulation
 
 **Full Source Code**
 
-`record_part` has no service or resource, so it publishes its fixed `payload` as soon as an arrival spawns it, with the task id added as `part_id`. The declarative example draws a random part type for every arrival. A mapping payload is a constant, so every part here has type `A`.
+`record_part` has no service or resource, so it publishes its fixed `payload` as soon as an arrival spawns it, with the task id added as `part_id`. The builder example draws a random part type for every arrival. A mapping payload is a constant, so every part here has type `A`.
 
 Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
@@ -7348,7 +7348,7 @@ examples/yaml/redis.yaml
 ```yaml
 # Redis Streams output with live parameter updates, in YAML.
 #
-# The YAML version of examples/declarative/redis_example.py. Each part_arrival
+# The YAML version of examples/builder/redis_example.py. Each part_arrival
 # spawns record_part, a task with no service or resource, which publishes its
 # payload at once. RedisEgress writes it to the part_events stream that the
 # __stream__ key names, while RedisIngress subscribes to the simulation_params
@@ -7385,7 +7385,7 @@ tasks:
     id_field: part_id
 ```
 
-This example demonstrates how to integrate `dynamic-des` with Redis using the **declarative API (`SimulationContext`)**.
+This example demonstrates how to integrate `dynamic-des` with Redis using the **builder API (`SimulationContext`)**.
 
 With `RedisIngress` and `RedisEgress`, the simulation reads parameter updates through Pub/Sub and writes events and telemetry to Redis Streams.
 
@@ -7393,7 +7393,7 @@ With `RedisIngress` and `RedisEgress`, the simulation reads parameter updates th
 
 `RedisEgress` writes each record to a Redis Stream with `XADD`. Its default stream is the one named in the constructor, `events` in this example, and a `__stream__` key in a record picks another.
 
-examples/declarative/redis_example.py:app
+examples/builder/redis_example.py:app
 
 ```python
 app = (
@@ -7406,7 +7406,7 @@ app = (
 
 The arrival loop publishes one record per arriving part:
 
-examples/declarative/redis_example.py:records
+examples/builder/redis_example.py:records
 
 ```python
 part_event = {
@@ -7435,8 +7435,8 @@ The `RedisIngress` in the builder above listens to the Pub/Sub channel `simulati
 uv tool install "dynamic-des[redis]" --with-executables-from "odctl>=1.0,<2"
 
 # 2. Download the example
-ddes examples get redis --api declarative
-cd redis/declarative
+ddes examples get redis --api builder
+cd redis/builder
 
 # 3. Start its service
 odctl up valkey
@@ -7453,8 +7453,8 @@ odctl down valkey --volumes
 pip install "dynamic-des[redis]" "odctl>=1.0,<2"
 
 # 2. Download the example
-ddes examples get redis --api declarative
-cd redis/declarative
+ddes examples get redis --api builder
+cd redis/builder
 
 # 3. Start its service
 odctl up valkey
@@ -7484,10 +7484,10 @@ odctl down valkey --volumes
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
-examples/declarative/redis_example.py
+examples/builder/redis_example.py
 
 ```python
-"""Redis Streams output with live parameter updates, declarative API.
+"""Redis Streams output with live parameter updates, builder API.
 
 `Factory` writes part records to the `part_events` Redis Stream through `RedisEgress`,
 named by each record's `__stream__` key, while `RedisIngress` subscribes to the `simulation_params` channel, so publishing a message to
@@ -7535,7 +7535,7 @@ def part_generator(context):
 
 
 def run():
-    logger.info("Starting Declarative Redis Demo. Press Ctrl+C to stop...")
+    logger.info("Starting Builder Redis Demo. Press Ctrl+C to stop...")
     logger.info(
         "Test Ingress by running: docker exec -it valkey valkey-cli --user user "
         "--pass password PUBLISH simulation_params "
@@ -7614,12 +7614,12 @@ odctl down valkey --volumes
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
-examples/imperative/redis_example.py
+examples/low-level/redis_example.py
 
 ```python
-"""Redis Streams output with live parameter updates, imperative API.
+"""Redis Streams output with live parameter updates, low-level API.
 
-The low-level twin of `declarative/redis_example.py`, wiring the environment and
+The low-level twin of `builder/redis_example.py`, wiring the environment and
 connectors by hand. `RedisEgress` writes part records to the `part_events` stream,
 named by each record's `__stream__` key, and `RedisIngress` subscribes to the
 `simulation_params` channel.
@@ -7688,7 +7688,7 @@ def run():
 
     env.process(part_process(env))
 
-    logger.info("Starting Imperative Redis Demo. Press Ctrl+C to stop...")
+    logger.info("Starting Low-level Redis Demo. Press Ctrl+C to stop...")
     logger.info(
         "Test Ingress by running: docker exec -it valkey valkey-cli --user user "
         "--pass password PUBLISH simulation_params "
@@ -7712,7 +7712,7 @@ if __name__ == "__main__":
 
 One run writes ten minutes of backdated history to Parquet, then publishes to Kafka in real time. [Backfill Then Go Live in One Run](https://jaehyeon.me/dynamic-des/latest/guides/backfill-then-live/index.md) explains how the two instants work. Each tab shows the example written one way, and the three publish the same records.
 
-This example builds the simulation of the Declarative tab from a YAML blueprint, with no Python. Until `go_live_at` the run is unpaced and writes backdated history to Parquet. From `go_live_at` it is paced in real time and publishes to Kafka.
+This example builds the simulation of the Builder tab from a YAML blueprint, with no Python. Until `go_live_at` the run is unpaced and writes backdated history to Parquet. From `go_live_at` it is paced in real time and publishes to Kafka.
 
 **Quick Start**
 
@@ -7769,7 +7769,7 @@ examples/yaml/backfill_live.yaml
 ```yaml
 # Backfill then go live in one run, in YAML.
 #
-# The YAML version of examples/declarative/backfill_live_example.py. Until
+# The YAML version of examples/builder/backfill_live_example.py. Until
 # go_live_at the clock is detached from the wall clock, so ten minutes of backdated
 # history are written to Parquet as fast as the machine allows. From go_live_at the
 # run is paced at one simulated second per real second, and the same events go to
@@ -7833,7 +7833,7 @@ run:
   until: 11m
 ```
 
-[`examples/declarative/backfill_live_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/declarative/backfill_live_example.py) backdates the clock by ten minutes, writes those ten minutes to Parquet in well under a second, then publishes to Kafka in real time for sixty seconds. `HISTORY_MINUTES` and `LIVE_SECONDS` set the two halves.
+[`examples/builder/backfill_live_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/builder/backfill_live_example.py) backdates the clock by ten minutes, writes those ten minutes to Parquet in well under a second, then publishes to Kafka in real time for sixty seconds. `HISTORY_MINUTES` and `LIVE_SECONDS` set the two halves.
 
 **Quick Start**
 
@@ -7844,8 +7844,8 @@ run:
 uv tool install "dynamic-des[kafka,parquet]" --with-executables-from "odctl>=1.0,<2"
 
 # 2. Download the example
-ddes examples get backfill-live --api declarative
-cd backfill-live/declarative
+ddes examples get backfill-live --api builder
+cd backfill-live/builder
 
 # 3. Start its service
 odctl up kafka-lite
@@ -7862,8 +7862,8 @@ odctl down kafka-lite --volumes
 pip install "dynamic-des[kafka,parquet]" "odctl>=1.0,<2"
 
 # 2. Download the example
-ddes examples get backfill-live --api declarative
-cd backfill-live/declarative
+ddes examples get backfill-live --api builder
+cd backfill-live/builder
 
 # 3. Start its service
 odctl up kafka-lite
@@ -7881,7 +7881,7 @@ History finishes within the same second the run starts, then nothing is logged a
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
-examples/declarative/backfill_live_example.py
+examples/builder/backfill_live_example.py
 
 ```python
 """
@@ -7962,7 +7962,7 @@ def history_router(data: dict) -> str | None:
 
 
 # ==========================================
-# 1. Declarative Infrastructure Builder
+# 1. Infrastructure Builder
 # ==========================================
 app = (
     SimulationContext(
@@ -8056,7 +8056,7 @@ if __name__ == "__main__":
     run()
 ```
 
-[`examples/imperative/backfill_live_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/imperative/backfill_live_example.py) wires the same run by hand on `DynamicRealtimeEnvironment`: it backdates the clock by ten minutes, writes those ten minutes to Parquet in well under a second, then publishes to Kafka in real time for sixty seconds. `HISTORY_MINUTES` and `LIVE_SECONDS` set the two halves.
+[`examples/low-level/backfill_live_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/low-level/backfill_live_example.py) wires the same run by hand on `DynamicRealtimeEnvironment`: it backdates the clock by ten minutes, writes those ten minutes to Parquet in well under a second, then publishes to Kafka in real time for sixty seconds. `HISTORY_MINUTES` and `LIVE_SECONDS` set the two halves.
 
 **Quick Start**
 
@@ -8104,13 +8104,13 @@ History finishes within the same second the run starts, then nothing is logged a
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
-examples/imperative/backfill_live_example.py
+examples/low-level/backfill_live_example.py
 
 ```python
 """
-Backfill-then-live Example, imperative API.
+Backfill-then-live Example, low-level API.
 
-The low-level twin of `declarative/backfill_live_example.py`. One run produces both
+The low-level twin of `builder/backfill_live_example.py`. One run produces both
 halves of a tiered dataset. Until `go_live_at` the clock is detached from the wall
 clock, so ten minutes of backdated history are written to Parquet as fast as the
 machine allows. From `go_live_at` the same run is paced at one simulated second per
@@ -8439,8 +8439,8 @@ def order_generator(context, arrival: str, max_items: int):
 uv tool install "dynamic-des[postgres]" --with-executables-from "odctl>=1.0,<2"
 
 # 2. Download the example
-ddes examples get related-records --api declarative
-cd related-records/declarative
+ddes examples get related-records --api builder
+cd related-records/builder
 
 # 3. Start its service
 odctl up postgres
@@ -8457,8 +8457,8 @@ odctl down postgres --volumes
 pip install "dynamic-des[postgres]" "odctl>=1.0,<2"
 
 # 2. Download the example
-ddes examples get related-records --api declarative
-cd related-records/declarative
+ddes examples get related-records --api builder
+cd related-records/builder
 
 # 3. Start its service
 odctl up postgres
@@ -8474,11 +8474,11 @@ odctl down postgres --volumes
 
 The generator is added with `add_process`, so it is called as `order_generator(context, arrival="customer_order", max_items=5)`. It draws from `context.sampler.rng`, the generator seeded by `random_seed`, so a seeded run repeats the same orders.
 
-examples/declarative/postgres_orders_example.py
+examples/builder/postgres_orders_example.py
 
 ```python
 """
-Orders with line items, declarative API.
+Orders with line items, builder API.
 
 The builder twin of `yaml/advanced/postgres_orders.yaml`. Each customer_order arrival
 builds an order with 1 to 5 items, random prices and quantities, and a total computed
@@ -8622,13 +8622,13 @@ odctl down postgres --volumes
 
 The generator is a SimPy process started with `env.process`. It draws the gaps and the order contents from one `Sampler` seeded with 42, in the same order as the other two, so it publishes the same orders.
 
-examples/imperative/postgres_orders_example.py
+examples/low-level/postgres_orders_example.py
 
 ```python
 """
-Orders with line items, imperative API.
+Orders with line items, low-level API.
 
-The low-level twin of `declarative/postgres_orders_example.py` and
+The low-level twin of `builder/postgres_orders_example.py` and
 `yaml/advanced/postgres_orders.yaml`. It wires `DynamicRealtimeEnvironment`, the
 registry and the connectors by hand. With the same seed it publishes the same orders
 as the other two.
