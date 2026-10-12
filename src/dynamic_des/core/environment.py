@@ -289,8 +289,10 @@ class EgressMixIn:
     def _lag_monitor(self):
         """Internal: Monitors how far the simulation time has drifted from the real-world clock."""
         while True:
-            # Calculate real seconds elapsed since simulation start
-            real_elapsed = (datetime.now() - self.start_datetime).total_seconds()  # type: ignore[attr-defined]
+            # Real seconds since the start. now() takes the start time's zone, so a
+            # start time with a zone does not raise TypeError against a naive now().
+            start = self.start_datetime  # type: ignore[attr-defined]
+            real_elapsed = (datetime.now(start.tzinfo) - start).total_seconds()
             lag = max(0.0, real_elapsed - self.now)  # type: ignore[attr-defined]
 
             # Publish this system health metric automatically
