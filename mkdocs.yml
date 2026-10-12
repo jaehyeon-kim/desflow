@@ -43,6 +43,37 @@ plugins:
         tutorials/declarative.md: tutorials/first-simulation.md
         tutorials/yaml.md: tutorials/first-simulation.md
         architecture/resources.md: building-blocks/resources.md
+        # Pages removed before 0.17.0. Older versions name latest/<page> as their
+        # canonical address, so each needs a page there.
+        architecture/paradigms.md: architecture/overview.md
+        concepts.md: des/how-it-works.md
+        examples/declarative/history.md: examples/backfill-live.md
+        examples/declarative/iceberg.md: examples/iceberg.md
+        examples/declarative/kafka.md: examples/kafka.md
+        examples/declarative/local.md: examples/local.md
+        examples/declarative/parquet.md: examples/parquet.md
+        examples/declarative/postgres.md: examples/postgres.md
+        examples/declarative/redis.md: examples/redis.md
+        examples/history.md: examples/backfill-live.md
+        examples/imperative/history.md: examples/backfill-live.md
+        examples/imperative/iceberg.md: examples/iceberg.md
+        examples/imperative/kafka.md: examples/kafka.md
+        examples/imperative/local.md: examples/local.md
+        examples/imperative/parquet.md: examples/parquet.md
+        examples/imperative/postgres.md: examples/postgres.md
+        examples/imperative/redis.md: examples/redis.md
+        examples/yaml/advanced-postgres-orders.md: examples/advanced-postgres-orders.md
+        examples/yaml/backfill-live.md: examples/backfill-live.md
+        examples/yaml/iceberg.md: examples/iceberg.md
+        examples/yaml/kafka.md: examples/kafka.md
+        examples/yaml/local.md: examples/local.md
+        examples/yaml/parquet.md: examples/parquet.md
+        examples/yaml/postgres.md: examples/postgres.md
+        examples/yaml/redis.md: examples/redis.md
+        guides/data-lake-ingestion.md: architecture/connectors.md
+        tutorials/01-first-factory.md: tutorials/first-simulation.md
+        tutorials/02-distributions-resources.md: tutorials/first-simulation.md
+        tutorials/03-connecting-kafka.md: examples/kafka.md
   # llms.txt and llms-full.txt for AI assistants (#41): an index of the pages with
   # their links, and the pages themselves as Markdown. hooks/llmstxt_sections.py
   # builds the sections from the nav.
