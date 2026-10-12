@@ -11,7 +11,7 @@ Real-time SimPy simulations whose parameters change while they run, writing even
 | `src/dynamic_des/resources/` | `DynamicResource`, `DynamicContainer`, `DynamicStore`, with capacities driven by the registry |
 | `src/dynamic_des/connectors/` | `ingress/` (parameter changes in), `egress/` (records out), `admin/` |
 | `src/dynamic_des/blueprint/` | YAML blueprints: `models.py` (Pydantic models), `loader.py` (`!python`), `build.py`, `cli.py` (`ddes`), `examples.py` (what `ddes examples` lists and downloads; a new example file must be added there, or `test_cli_examples.py` fails) |
-| `examples/` | `imperative/` (low-level API), `declarative/` (builder), `yaml/` (blueprints) |
+| `examples/` | `low-level/` (low-level API), `builder/` (builder), `yaml/` (blueprints) |
 | `docs/` | MkDocs Material site, versioned with mike, deployed from `main` |
 | `tests/unit/`, `tests/integration/` | unit tests; integration tests against containers started with odctl |
 | `benchmarks/` | `throughput.py` (see issue #24) |
@@ -30,7 +30,7 @@ A plain `uv run` without `--all-extras` removes the extras from the venv, and th
 
 ## Rules
 
-- **Three APIs.** A feature works in the low-level API, the builder and YAML wherever it can, with an example in each of `examples/imperative/`, `examples/declarative/` and `examples/yaml/`.
+- **Three APIs.** A feature works in the low-level API, the builder and YAML wherever it can, with an example in each of `examples/low-level/`, `examples/builder/` and `examples/yaml/`.
 - **Docs with every feature.** A feature PR carries its docs pages, examples and nav entries. A feature without docs does not merge.
 - **Docs code blocks are copies of files.** A Python or YAML block labelled `title="examples/..."` or `title="docs/snippets/..."` must match that file exactly; `tests/unit/test_docs_match_examples.py` checks it. A block that shows one part of a file is labelled `path:section`, and the file marks that part with `# --8<-- [start:section]` and `# --8<-- [end:section]` lines. Change the file, then copy it into the page again. Every YAML block must be labelled with a file. Pages use copies, not `--8<--` includes, so the Markdown reads correctly on GitHub.
 - **Docs code runs.** Every Python block in the docs is a labelled copy of a file that a test runs; `tests/unit/test_docs_code_is_run.py` fails on an unlabelled block, on a script in `docs/snippets/guides/` without a test in `test_docs_guides.py`, and on a snippet folder no test runs. A new guide puts its script in `docs/snippets/guides/` and adds a test that checks what its page says the script does.

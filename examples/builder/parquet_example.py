@@ -74,12 +74,12 @@ router = create_history_router(base_path)
 
 # The week of backdating this example exists to demonstrate. It sits at module scope
 # because the builder below needs it, and the builder has to stay at module scope for
-# the decorators further down to attach to it. The imperative twin computes the same
+# the decorators further down to attach to it. The low-level twin computes the same
 # value inside run(), where it has no such constraint.
 LOGICAL_START_TIME = datetime.now() - timedelta(days=7)
 
 # ==========================================
-# 2. Declarative Infrastructure Builder
+# 2. Infrastructure Builder
 # ==========================================
 app = (
     SimulationContext(

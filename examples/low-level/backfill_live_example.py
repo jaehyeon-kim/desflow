@@ -1,7 +1,7 @@
 """
-Backfill-then-live Example, imperative API.
+Backfill-then-live Example, low-level API.
 
-The low-level twin of `declarative/backfill_live_example.py`. One run produces both
+The low-level twin of `builder/backfill_live_example.py`. One run produces both
 halves of a tiered dataset. Until `go_live_at` the clock is detached from the wall
 clock, so ten minutes of backdated history are written to Parquet as fast as the
 machine allows. From `go_live_at` the same run is paced at one simulated second per

@@ -28,6 +28,6 @@ The control dashboard changes simulation parameters while a run is going, and th
 - **Live parameters**: arrival rates, service times and capacities change mid-run through registry paths such as `Line_A.arrival.standard.rate`. A resource grows at once, and shrinks only as busy units are released, so no work in progress is lost.
 - **Several sinks per run**: each sink added with `add_egress` has its own `when` filter, `batch_size` and `flush_interval`, so one run can feed a stream and a data lake together.
 - **Backfill then go live**: one run generates backdated history at full speed, then switches to real time at `go_live_at`.
-- **Three ways to write a simulation**: the low-level `DynamicRealtimeEnvironment`, the declarative `SimulationContext` builder, or a YAML blueprint run with `ddes run`.
+- **Three ways to write a simulation**: the low-level `DynamicRealtimeEnvironment`, the `SimulationContext` builder, or a YAML blueprint run with `ddes run`.
 - **Serialisation**: JSON through `orjson` by default, Avro through the Confluent or AWS Glue Schema Registry for chosen topics, and Pydantic models published as they are.
 - **Kafka security**: extra keyword arguments go to the Kafka client, so SASL, mTLS, OAuth and AWS IAM clusters work.

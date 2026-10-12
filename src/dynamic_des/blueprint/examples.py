@@ -14,8 +14,8 @@ from typing import Dict, List, Optional
 RAW_URL = (
     "https://raw.githubusercontent.com/jaehyeon-kim/dynamic-des/{ref}/examples/{path}"
 )
-APIS = ("yaml", "declarative", "low-level")
-_FOLDERS = {"yaml": "yaml", "declarative": "declarative", "low-level": "imperative"}
+APIS = ("yaml", "builder", "low-level")
+_FOLDERS = {"yaml": "yaml", "builder": "builder", "low-level": "low-level"}
 
 
 @dataclass(frozen=True)
@@ -38,8 +38,8 @@ class Example:
 def _three(yaml: str, python: str, *yaml_helpers: str) -> Dict[str, List[str]]:
     return {
         "yaml": [f"yaml/{yaml}", *(f"yaml/{h}" for h in yaml_helpers)],
-        "declarative": [f"declarative/{python}"],
-        "low-level": [f"imperative/{python}"],
+        "builder": [f"builder/{python}"],
+        "low-level": [f"low-level/{python}"],
     }
 
 
@@ -118,8 +118,8 @@ EXAMPLES: Dict[str, Example] = {
                     "yaml/advanced/postgres_orders.yaml",
                     "yaml/advanced/postgres_orders_logic.py",
                 ],
-                "declarative": ["declarative/postgres_orders_example.py"],
-                "low-level": ["imperative/postgres_orders_example.py"],
+                "builder": ["builder/postgres_orders_example.py"],
+                "low-level": ["low-level/postgres_orders_example.py"],
             },
             profile="postgres",
             extras="postgres",

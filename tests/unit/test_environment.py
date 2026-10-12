@@ -1025,3 +1025,23 @@ def test_nan_becomes_none_inside_a_pydantic_model():
         {"celsius": 2.0, "peak": None}
     ]
     assert _jsonable({"x": nan, "y": 1}) == {"x": None, "y": 1}
+
+
+def test_lag_monitor_runs_with_a_start_time_in_a_time_zone():
+    """The lag monitor subtracted a naive now() from the start time, so a run with
+    a logical_start_time that has a time zone raised TypeError once it had a sink."""
+    tracker = RecordingEgress()
+    env = DynamicRealtimeEnvironment(
+        factor=0,
+        strict=False,
+        logical_start_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    env.setup_egress(providers=[tracker], batch_size=1, lag_monitor_interval=1.0)
+    env.run(until=3)
+    env.teardown()
+
+    lags = [
+        r for r in tracker.records if r["path_id"] == "system.simulation.lag_seconds"
+    ]
+    assert len(lags) == 3
+    assert all(r["timestamp"].endswith("+00:00") for r in lags)

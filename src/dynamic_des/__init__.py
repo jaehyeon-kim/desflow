@@ -3,7 +3,7 @@ Dynamic DES: Real-time SimPy control plane for event-driven digital twins.
 
 Bridges operations research (SimPy discrete-event simulation) with modern data engineering
 (Kafka, Redis, Parquet, S3). Features the `SimulationContext` builder pattern to support
-declarative digital twin configuration, dynamic registry updates, and asynchronous I/O egress.
+digital twin configuration, dynamic registry updates, and asynchronous I/O egress.
 
 Standard Usage Example:
     from dynamic_des import SimulationContext, ConsoleEgress

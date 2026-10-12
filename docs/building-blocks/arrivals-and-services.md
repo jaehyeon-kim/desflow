@@ -36,7 +36,7 @@ The chart shows 200,000 draws from each, in half-second bins:
     parts: {dist: exponential, rate: 0.5, spawn: mill}
     ```
 
-=== "Declarative"
+=== "Builder"
 
     ```python title="docs/snippets/pages/arrivals_services.py:builder-exponential"
     app.add_arrival("parts", dist="exponential", rate=0.5)  # a part every 2 s on average
@@ -59,7 +59,7 @@ The chart shows 200,000 draws from each, in half-second bins:
     milling: {dist: normal, mean: 3.0, std: 0.5}
     ```
 
-=== "Declarative"
+=== "Builder"
 
     ```python title="docs/snippets/pages/arrivals_services.py:builder-normal"
     app.add_service("milling", dist="normal", mean=3.0, std=0.5)  # 3 s, give or take 0.5 s
@@ -83,7 +83,7 @@ A normal draw can be negative. Every time is raised to at least 0.00001 seconds,
     drilling: {dist: truncated_normal, mean: 1.0, std: 1.0, low: 0.2}
     ```
 
-=== "Declarative"
+=== "Builder"
 
     ```python title="docs/snippets/pages/arrivals_services.py:builder-truncated-normal"
     app.add_service("drilling", dist="truncated_normal", mean=1.0, std=1.0, low=0.2)
@@ -106,7 +106,7 @@ A draw below `low` is thrown away and drawn again, so no draws pile up at the li
     repair: {dist: lognormal, mean: 4.0, std: 3.0}
     ```
 
-=== "Declarative"
+=== "Builder"
 
     ```python title="docs/snippets/pages/arrivals_services.py:builder-lognormal"
     # Now and then much longer
@@ -129,7 +129,7 @@ A draw below `low` is thrown away and drawn again, so no draws pile up at the li
     inspection: {dist: constant, value: 0.5}
     ```
 
-=== "Declarative"
+=== "Builder"
 
     ```python title="docs/snippets/pages/arrivals_services.py:builder-constant"
     app.add_service("inspection", dist="constant", value=0.5)  # always 0.5 s, no draw
@@ -157,7 +157,7 @@ Every draw goes through a `Sampler`, which holds the random generator. A task dr
     random_seed: 42  # the same draws on every run
     ```
 
-=== "Declarative"
+=== "Builder"
 
     ```python title="docs/snippets/pages/arrivals_services.py:builder-seed"
     # Same draws every run

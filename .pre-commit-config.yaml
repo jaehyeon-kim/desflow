@@ -31,7 +31,7 @@ repos:
         additional_dependencies: [types-orjson, "redis>=5.0.1", types-PyYAML]
         args: [--ignore-missing-imports]
         # The examples are scripts run by path, not an importable package, so they
-        # carry no __init__.py. mypy then sees examples/declarative/parquet_example.py
-        # and examples/imperative/parquet_example.py as two modules with the same
+        # carry no __init__.py. mypy then sees examples/builder/parquet_example.py
+        # and examples/low-level/parquet_example.py as two modules with the same
         # name and refuses to check anything. Type checking is for the library.
         exclude: ^examples/

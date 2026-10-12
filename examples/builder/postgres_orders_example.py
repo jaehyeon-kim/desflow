@@ -1,5 +1,5 @@
 """
-Orders with line items, declarative API.
+Orders with line items, builder API.
 
 The builder twin of `yaml/advanced/postgres_orders.yaml`. Each customer_order arrival
 builds an order with 1 to 5 items, random prices and quantities, and a total computed

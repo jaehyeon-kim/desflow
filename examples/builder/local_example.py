@@ -1,4 +1,4 @@
-"""Local simulation, declarative API, no containers.
+"""Local simulation, builder API, no containers.
 
 The smallest complete example. `Factory_A` is built with `SimulationContext` and writes
 to `ConsoleEgress`, so events and telemetry are printed to the terminal and nothing
@@ -23,7 +23,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ==========================================
-# 1. Declarative Infrastructure Builder
+# 1. Infrastructure Builder
 # ==========================================
 app = (
     SimulationContext(sim_id="Factory_A", factor=1.0)
@@ -70,7 +70,7 @@ def telemetry_generator(context):
 # ==========================================
 def run():
     """Starts the local simulation for a fixed duration."""
-    logger.info("Starting Declarative Local Example. Running for 60 seconds...")
+    logger.info("Starting Builder Local Example. Running for 60 seconds...")
     app.run(until=60)
 
 

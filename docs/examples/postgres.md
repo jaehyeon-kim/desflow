@@ -1,12 +1,12 @@
 # Relational DB (Postgres)
 
-A store that writes customer orders to PostgreSQL and takes parameter updates from a PostgreSQL table. Each tab shows the example written one way: with the declarative API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](../architecture/overview.md) compares the three.
+A store that writes customer orders to PostgreSQL and takes parameter updates from a PostgreSQL table. Each tab shows the example written one way: with the builder API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](../architecture/overview.md) compares the three.
 
 With `PostgresEgress` in place of the console egress, the simulation runs as a separate data generator. It writes related rows, such as parent `orders` and child `order_items`, into PostgreSQL with asynchronous bulk inserts through `asyncpg`.
 
 === "YAML"
 
-    This example builds a simulation like the declarative example in the Declarative tab from a YAML blueprint, with no Python and one table. Each customer order is written to `orders`, and `PostgresIngress` polls `simulation_params` for updates. The declarative example's orders with random line items are the [advanced Postgres example](advanced-postgres-orders.md), which keeps its generator in Python.
+    This example builds a simulation like the builder example in the Builder tab from a YAML blueprint, with no Python and one table. Each customer order is written to `orders`, and `PostgresIngress` polls `simulation_params` for updates. The builder example's orders with random line items are the [advanced Postgres example](advanced-postgres-orders.md), which keeps its generator in Python.
 
     **Quick Start**
 
@@ -71,7 +71,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
     ```yaml title="examples/yaml/postgres.yaml"
     # Relational output in YAML.
     #
-    # The YAML version of examples/declarative/postgres_example.py, with one table.
+    # The YAML version of examples/builder/postgres_example.py, with one table.
     # Each customer_order spawns place_order, a task with no service or resource, which
     # publishes its payload at once. PostgresEgress creates the orders table at start
     # and writes one row per order. PostgresIngress creates simulation_params and polls
@@ -114,9 +114,9 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
         id_field: order_id
     ```
 
-=== "Declarative"
+=== "Builder"
 
-    This example demonstrates how to integrate `dynamic-des` into a relational database architecture using the **declarative API (`SimulationContext`)**.
+    This example demonstrates how to integrate `dynamic-des` into a relational database architecture using the **builder API (`SimulationContext`)**.
 
     **Multiplexing Multiple Tables**
 
@@ -124,7 +124,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
     Instead of creating separate queues or complex routing logic, `PostgresEgress` supports **Table Multiplexing**. By attaching multiple instances of `PostgresEgress` to the simulation and tagging your output dictionaries with a special `__table__` key, the framework automatically filters and routes the records to their correct destinations.
 
-    ```python title="examples/declarative/postgres_example.py:app"
+    ```python title="examples/builder/postgres_example.py:app"
     app = (
         SimulationContext(sim_id="Store", factor=1.0)
         .add_ingress(PostgresIngress(DSN, table_name="simulation_params"))
@@ -138,7 +138,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
     For each arriving order, the arrival loop publishes 1 to 5 `order_items` rows that reference the order's `order_id`, then the `orders` row with their total. Each dictionary carries a `__table__` key naming its table:
 
-    ```python title="examples/declarative/postgres_example.py:records"
+    ```python title="examples/builder/postgres_example.py:records"
     # 1. Generate Order (Notice the __table__ routing key)
     order = {
         "__table__": "orders",
@@ -188,8 +188,8 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
         uv tool install "dynamic-des[postgres]" --with-executables-from "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get postgres --api declarative
-        cd postgres/declarative
+        ddes examples get postgres --api builder
+        cd postgres/builder
 
         # 3. Start its service
         odctl up postgres
@@ -208,8 +208,8 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
         pip install "dynamic-des[postgres]" "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get postgres --api declarative
-        cd postgres/declarative
+        ddes examples get postgres --api builder
+        cd postgres/builder
 
         # 3. Start its service
         odctl up postgres
@@ -239,8 +239,8 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
-    ```python title="examples/declarative/postgres_example.py"
-    """Relational output with table multiplexing, declarative API.
+    ```python title="examples/builder/postgres_example.py"
+    """Relational output with table multiplexing, builder API.
 
     `Store` writes interrelated commerce data to PostgreSQL. Two `PostgresEgress` instances
     are attached, one per table, and each keeps only the records whose `__table__` key
@@ -354,7 +354,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
 
     def run():
-        logger.info("Starting Declarative Postgres Demo. Press Ctrl+C to stop...")
+        logger.info("Starting Builder Postgres Demo. Press Ctrl+C to stop...")
         logger.info(
             "Test Ingress by running: INSERT INTO simulation_params (param_path, param_value) VALUES ('Store.arrival.customer_order.rate', '5.0');"
         )
@@ -380,7 +380,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
     Instead of creating separate queues or complex routing logic, `PostgresEgress` supports **Table Multiplexing**. By attaching multiple instances of `PostgresEgress` to the `DynamicRealtimeEnvironment` and tagging your output dictionaries with a special `__table__` key, the framework automatically filters and routes the records to their correct destinations.
 
-    ```python title="examples/imperative/postgres_example.py:connectors"
+    ```python title="examples/low-level/postgres_example.py:connectors"
     egress_orders = PostgresEgress(DSN, table_name="orders")
     egress_items = PostgresEgress(DSN, table_name="order_items")
 
@@ -397,7 +397,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
     For each arriving order, the SimPy process publishes 1 to 5 `order_items` rows that reference the order's `order_id`, then the `orders` row with their total. Each dictionary carries a `__table__` key naming its table:
 
-    ```python title="examples/imperative/postgres_example.py:records"
+    ```python title="examples/low-level/postgres_example.py:records"
     # 1. Generate Order Parent Record
     order = {
         "__table__": "orders",
@@ -497,10 +497,10 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
-    ```python title="examples/imperative/postgres_example.py"
-    """Relational output with table multiplexing, imperative API.
+    ```python title="examples/low-level/postgres_example.py"
+    """Relational output with table multiplexing, low-level API.
 
-    The low-level twin of `declarative/postgres_example.py`. Two `PostgresEgress` instances
+    The low-level twin of `builder/postgres_example.py`. Two `PostgresEgress` instances
     are attached, one per table, and each keeps only the records whose `__table__` key
     matches its own `table_name`.
 
@@ -635,7 +635,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
         env.process(order_process(env))
 
-        logger.info("Starting Imperative Postgres Demo. Press Ctrl+C to stop...")
+        logger.info("Starting Low-level Postgres Demo. Press Ctrl+C to stop...")
         logger.info(
             "Test Ingress by running: INSERT INTO simulation_params (param_path, param_value) VALUES ('Store.arrival.customer_order.rate', '5.0');"
         )

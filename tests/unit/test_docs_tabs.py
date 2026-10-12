@@ -1,4 +1,4 @@
-"""Every set of code tabs has YAML, Declarative and Low-level, in that order.
+"""Every set of code tabs has YAML, Builder and Low-level, in that order.
 
 `content.tabs.link` switches every set on the site when a reader picks a tab, so a set
 with another name, another order or a missing tab breaks that, and a reader who follows
@@ -9,7 +9,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-EXPECTED = ["YAML", "Declarative", "Low-level"]
+EXPECTED = ["YAML", "Builder", "Low-level"]
 # Tab sets that are not about the way a simulation is written.
 OTHER_SETS = [["uv", "pip"]]
 

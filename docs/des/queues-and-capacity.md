@@ -108,7 +108,7 @@ Publish the queue and the busy units of each resource, and read them where the r
         publish: {drill_busy: drill.in_use, drill_waiting: drill.queue_length}
     ```
 
-=== "Declarative"
+=== "Builder"
 
     ```python title="docs/snippets/pages/tasks.py:builder-telemetry"
     @app.telemetry_loop(interval=10.0)

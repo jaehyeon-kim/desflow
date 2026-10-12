@@ -138,7 +138,7 @@ nav:
       - Overview: architecture/overview.md
       - Writing a Simulation:
           - Low-level API: architecture/low-level.md
-          - Declarative API: architecture/context.md
+          - Builder API: architecture/context.md
           - YAML Blueprints: architecture/yaml.md
       - Runtime:
           - Environment: architecture/environment.md

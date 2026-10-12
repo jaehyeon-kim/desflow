@@ -1,6 +1,6 @@
-"""Relational output with table multiplexing, imperative API.
+"""Relational output with table multiplexing, low-level API.
 
-The low-level twin of `declarative/postgres_example.py`. Two `PostgresEgress` instances
+The low-level twin of `builder/postgres_example.py`. Two `PostgresEgress` instances
 are attached, one per table, and each keeps only the records whose `__table__` key
 matches its own `table_name`.
 
@@ -139,7 +139,7 @@ def run():
 
     env.process(order_process(env))
 
-    logger.info("Starting Imperative Postgres Demo. Press Ctrl+C to stop...")
+    logger.info("Starting Low-level Postgres Demo. Press Ctrl+C to stop...")
     logger.info(
         "Test Ingress by running: INSERT INTO simulation_params (param_path, param_value) VALUES ('Store.arrival.customer_order.rate', '5.0');"
     )

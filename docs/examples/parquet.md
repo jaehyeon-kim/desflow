@@ -1,12 +1,12 @@
 # Fast-Forward to Parquet
 
-A week of a production line, generated at `factor=0.0` and written to Parquet files on the local disk or in S3-compatible storage. Each tab shows the example written one way: with the declarative API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](../architecture/overview.md) compares the three.
+A week of a production line, generated at `factor=0.0` and written to Parquet files on the local disk or in S3-compatible storage. Each tab shows the example written one way: with the builder API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](../architecture/overview.md) compares the three.
 
 Dynamic DES is built for real-time digital twins, but the same model can also run faster than real time. With the time factor at 0 and a chosen start time, a run generates a large amount of historical data in seconds, or predicts future states.
 
 === "YAML"
 
-    This example builds the simulation of the declarative example in the Declarative tab from a YAML blueprint, with no Python. With `factor: 0.0` the clock is detached from the wall clock, so a week of factory data is written to Parquet as fast as the machine allows.
+    This example builds the simulation of the builder example in the Builder tab from a YAML blueprint, with no Python. With `factor: 0.0` the clock is detached from the wall clock, so a week of factory data is written to Parquet as fast as the machine allows.
 
     **Quick Start**
 
@@ -63,7 +63,7 @@ Dynamic DES is built for real-time digital twins, but the same model can also ru
     ```yaml title="examples/yaml/parquet.yaml"
     # Historical data generation in YAML.
     #
-    # The YAML version of examples/declarative/parquet_example.py. With factor 0 the
+    # The YAML version of examples/builder/parquet_example.py. With factor 0 the
     # clock is detached from the wall clock, so a week of factory data is written to
     # Parquet as fast as the machine allows. Without a router, each event is written as
     # one flat row and telemetry is left out. The folder is created on the first write.
@@ -114,9 +114,9 @@ Dynamic DES is built for real-time digital twins, but the same model can also ru
       until: 1 week
     ```
 
-=== "Declarative"
+=== "Builder"
 
-    This example demonstrates how to run a simulation in **fast-forward mode** using the **declarative API (`SimulationContext`)** and write compressed columnar data (Parquet) directly to local storage or an AWS S3 data lake using the `ParquetStorageEgress` connector.
+    This example demonstrates how to run a simulation in **fast-forward mode** using the **builder API (`SimulationContext`)** and write compressed columnar data (Parquet) directly to local storage or an AWS S3 data lake using the `ParquetStorageEgress` connector.
 
     **Quick Start**
 
@@ -129,8 +129,8 @@ Dynamic DES is built for real-time digital twins, but the same model can also ru
         uv tool install "dynamic-des[parquet]"
 
         # 2. Download the example
-        ddes examples get parquet --api declarative
-        cd parquet/declarative
+        ddes examples get parquet --api builder
+        cd parquet/builder
 
         # 3. Run it
         uv run --no-project --with "dynamic-des[parquet]" parquet_example.py
@@ -143,8 +143,8 @@ Dynamic DES is built for real-time digital twins, but the same model can also ru
         pip install "dynamic-des[parquet]"
 
         # 2. Download the example
-        ddes examples get parquet --api declarative
-        cd parquet/declarative
+        ddes examples get parquet --api builder
+        cd parquet/builder
 
         # 3. Run it
         python parquet_example.py
@@ -166,7 +166,7 @@ Dynamic DES is built for real-time digital twins, but the same model can also ru
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
-    ```python title="examples/declarative/parquet_example.py"
+    ```python title="examples/builder/parquet_example.py"
     """
     Historical Data Generation Example.
 
@@ -243,12 +243,12 @@ Dynamic DES is built for real-time digital twins, but the same model can also ru
 
     # The week of backdating this example exists to demonstrate. It sits at module scope
     # because the builder below needs it, and the builder has to stay at module scope for
-    # the decorators further down to attach to it. The imperative twin computes the same
+    # the decorators further down to attach to it. The low-level twin computes the same
     # value inside run(), where it has no such constraint.
     LOGICAL_START_TIME = datetime.now() - timedelta(days=7)
 
     # ==========================================
-    # 2. Declarative Infrastructure Builder
+    # 2. Infrastructure Builder
     # ==========================================
     app = (
         SimulationContext(
@@ -325,7 +325,7 @@ Dynamic DES is built for real-time digital twins, but the same model can also ru
 
 === "Low-level"
 
-    This example demonstrates how to run a simulation in **fast-forward mode** using the low-level **Imperative API** and write compressed columnar data (Parquet) directly to local storage or an AWS S3 data lake using the `ParquetStorageEgress` connector.
+    This example demonstrates how to run a simulation in **fast-forward mode** using the low-level **Low-level API** and write compressed columnar data (Parquet) directly to local storage or an AWS S3 data lake using the `ParquetStorageEgress` connector.
 
     **Quick Start**
 
@@ -375,10 +375,10 @@ Dynamic DES is built for real-time digital twins, but the same model can also ru
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
-    ```python title="examples/imperative/parquet_example.py"
-    """Historical data generation, imperative API.
+    ```python title="examples/low-level/parquet_example.py"
+    """Historical data generation, low-level API.
 
-    The low-level twin of `declarative/parquet_example.py`. It wires
+    The low-level twin of `builder/parquet_example.py`. It wires
     `DynamicRealtimeEnvironment`, the registry and the connectors by hand rather than
     through the builder, which shows what `SimulationContext` does for you.
 

@@ -1,4 +1,4 @@
-"""Kafka Digital Twin, declarative API.
+"""Kafka Digital Twin, builder API.
 
 Builds `Line_A` with `SimulationContext` and connects it to Kafka in both directions.
 `KafkaIngress` reads parameter updates from `sim-config`, so the running simulation can
@@ -44,7 +44,7 @@ class TaskEvent(BaseModel):
 BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 
 # ==========================================
-# 2. Declarative Infrastructure Builder
+# 2. Infrastructure Builder
 # ==========================================
 app = (
     SimulationContext(sim_id="Line_A", factor=1.0, random_seed=42)
@@ -94,7 +94,7 @@ def telemetry_monitor(context):
     """Low-volume system health stream."""
     res = context.get_resource("lathe")
 
-    # Exact parity with the imperative telemetry outputs
+    # Exact parity with the low-level telemetry outputs
     context.publish("lathe.capacity", res.capacity)
     context.publish("lathe.in_use", res.in_use)
     context.publish("lathe.queue_length", len(res.queue.items))

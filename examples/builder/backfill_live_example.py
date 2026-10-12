@@ -78,7 +78,7 @@ def history_router(data: dict) -> str | None:
 
 
 # ==========================================
-# 1. Declarative Infrastructure Builder
+# 1. Infrastructure Builder
 # ==========================================
 # --8<-- [start:builder]
 app = (

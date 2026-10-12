@@ -41,7 +41,7 @@ A simulation has a `sim_id`, here `Factory_A`, and its parameters: a resource ca
       parts: {dist: exponential, rate: 0.5, spawn: process_part}
     ```
 
-=== "Declarative"
+=== "Builder"
 
     ```python title="docs/snippets/tutorials/first_factory.py:factory"
     app = (
@@ -86,7 +86,7 @@ A part asks for the lathe, waits until it gets it, is machined for a time drawn 
         id_field: part_id
     ```
 
-=== "Declarative"
+=== "Builder"
 
     ```python title="docs/snippets/tutorials/first_factory.py:part"
     @app.task(service_id="machining", resource_id="lathe")
@@ -147,7 +147,7 @@ A sink, called an egress, receives every record the simulation publishes. `Conso
       - type: Console
     ```
 
-=== "Declarative"
+=== "Builder"
 
     ```python title="docs/snippets/tutorials/first_factory.py:records"
     app.add_egress(ConsoleEgress())
@@ -170,7 +170,7 @@ A sink, called an egress, receives every record the simulation publishes. `Conso
       until: 10
     ```
 
-=== "Declarative"
+=== "Builder"
 
     ```python title="docs/snippets/tutorials/first_factory.py:run"
     if __name__ == "__main__":
@@ -208,7 +208,7 @@ Start it from a terminal:
     ddes run first_factory.yaml
     ```
 
-=== "Declarative"
+=== "Builder"
 
     ```bash
     python first_factory.py
@@ -253,7 +253,7 @@ Real machining times vary. `milling` takes 3 seconds on average, give or take 0.
       milling: {dist: normal, mean: 3.0, std: 0.5}
     ```
 
-=== "Declarative"
+=== "Builder"
 
     ```python title="docs/snippets/tutorials/factory_changes.py:random"
     app = (
@@ -290,7 +290,7 @@ Now change the capacity while the factory runs: three lathes from 10 seconds, tw
       - {at: 20, path: Factory_A.resources.lathe.current_cap, value: 2}
     ```
 
-=== "Declarative"
+=== "Builder"
 
     ```python title="docs/snippets/tutorials/factory_changes.py:changes"
     def capacity_plan(context: SimulationContext):
@@ -348,7 +348,7 @@ Replace the console sink with Kafka, and add a Kafka ingress so the run takes pa
           telemetry_topic: sim-telemetry
     ```
 
-=== "Declarative"
+=== "Builder"
 
     ```python title="docs/snippets/tutorials/factory_kafka.py:kafka"
     app.add_ingress(KafkaIngress(topic="sim-config", bootstrap_servers="localhost:9092"))
@@ -428,7 +428,7 @@ The complete first factory, which the documentation tests run:
       until: 10
     ```
 
-=== "Declarative"
+=== "Builder"
 
     ```python title="docs/snippets/tutorials/first_factory.py"
     """The First Simulation tutorial: the factory, with the SimulationContext builder.

@@ -4,7 +4,7 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
 
 === "YAML"
 
-    This example builds the simulation of the Declarative tab from a YAML blueprint, with no Python. Until `go_live_at` the run is unpaced and writes backdated history to Parquet. From `go_live_at` it is paced in real time and publishes to Kafka.
+    This example builds the simulation of the Builder tab from a YAML blueprint, with no Python. Until `go_live_at` the run is unpaced and writes backdated history to Parquet. From `go_live_at` it is paced in real time and publishes to Kafka.
 
     **Quick Start**
 
@@ -63,7 +63,7 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
     ```yaml title="examples/yaml/backfill_live.yaml"
     # Backfill then go live in one run, in YAML.
     #
-    # The YAML version of examples/declarative/backfill_live_example.py. Until
+    # The YAML version of examples/builder/backfill_live_example.py. Until
     # go_live_at the clock is detached from the wall clock, so ten minutes of backdated
     # history are written to Parquet as fast as the machine allows. From go_live_at the
     # run is paced at one simulated second per real second, and the same events go to
@@ -127,9 +127,9 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
       until: 11m
     ```
 
-=== "Declarative"
+=== "Builder"
 
-    [`examples/declarative/backfill_live_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/declarative/backfill_live_example.py) backdates the clock by ten minutes, writes those ten minutes to Parquet in well under a second, then publishes to Kafka in real time for sixty seconds. `HISTORY_MINUTES` and `LIVE_SECONDS` set the two halves.
+    [`examples/builder/backfill_live_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/builder/backfill_live_example.py) backdates the clock by ten minutes, writes those ten minutes to Parquet in well under a second, then publishes to Kafka in real time for sixty seconds. `HISTORY_MINUTES` and `LIVE_SECONDS` set the two halves.
 
     **Quick Start**
 
@@ -142,8 +142,8 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
         uv tool install "dynamic-des[kafka,parquet]" --with-executables-from "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get backfill-live --api declarative
-        cd backfill-live/declarative
+        ddes examples get backfill-live --api builder
+        cd backfill-live/builder
 
         # 3. Start its service
         odctl up kafka-lite
@@ -162,8 +162,8 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
         pip install "dynamic-des[kafka,parquet]" "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get backfill-live --api declarative
-        cd backfill-live/declarative
+        ddes examples get backfill-live --api builder
+        cd backfill-live/builder
 
         # 3. Start its service
         odctl up kafka-lite
@@ -181,7 +181,7 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
-    ```python title="examples/declarative/backfill_live_example.py"
+    ```python title="examples/builder/backfill_live_example.py"
     """
     Backfill-then-live Example.
 
@@ -260,7 +260,7 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
 
 
     # ==========================================
-    # 1. Declarative Infrastructure Builder
+    # 1. Infrastructure Builder
     # ==========================================
     app = (
         SimulationContext(
@@ -356,7 +356,7 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
 
 === "Low-level"
 
-    [`examples/imperative/backfill_live_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/imperative/backfill_live_example.py) wires the same run by hand on `DynamicRealtimeEnvironment`: it backdates the clock by ten minutes, writes those ten minutes to Parquet in well under a second, then publishes to Kafka in real time for sixty seconds. `HISTORY_MINUTES` and `LIVE_SECONDS` set the two halves.
+    [`examples/low-level/backfill_live_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/low-level/backfill_live_example.py) wires the same run by hand on `DynamicRealtimeEnvironment`: it backdates the clock by ten minutes, writes those ten minutes to Parquet in well under a second, then publishes to Kafka in real time for sixty seconds. `HISTORY_MINUTES` and `LIVE_SECONDS` set the two halves.
 
     **Quick Start**
 
@@ -408,11 +408,11 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
-    ```python title="examples/imperative/backfill_live_example.py"
+    ```python title="examples/low-level/backfill_live_example.py"
     """
-    Backfill-then-live Example, imperative API.
+    Backfill-then-live Example, low-level API.
 
-    The low-level twin of `declarative/backfill_live_example.py`. One run produces both
+    The low-level twin of `builder/backfill_live_example.py`. One run produces both
     halves of a tiered dataset. Until `go_live_at` the clock is detached from the wall
     clock, so ten minutes of backdated history are written to Parquet as fast as the
     machine allows. From `go_live_at` the same run is paced at one simulated second per

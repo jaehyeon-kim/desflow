@@ -1,6 +1,6 @@
 # Low-level API
 
-The low-level API is `DynamicRealtimeEnvironment` used directly, with SimPy processes you write yourself. A script registers the parameters, attaches the connectors, creates the resources and starts its processes with `env.process`. The [declarative API](context.md) does each of these steps inside `run()`, so this page is also a description of what the builder does for you. [First Simulation](../tutorials/first-simulation.md) builds a first factory this way, in its Low-level tabs.
+The low-level API is `DynamicRealtimeEnvironment` used directly, with SimPy processes you write yourself. A script registers the parameters, attaches the connectors, creates the resources and starts its processes with `env.process`. The [builder API](context.md) does each of these steps inside `run()`, so this page is also a description of what the builder does for you. [First Simulation](../tutorials/first-simulation.md) builds a first factory this way, in its Low-level tabs.
 
 Use the low-level API when you need what the builder does not do:
 

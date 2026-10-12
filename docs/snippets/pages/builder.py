@@ -1,4 +1,4 @@
-"""The builder calls of the Declarative API page, one section per group of methods.
+"""The builder calls of the Builder API page, one section per group of methods.
 
 The file is a complete simulation: tests/unit runs it unpaced for 30 simulation
 seconds, so every call shown on the page is checked.

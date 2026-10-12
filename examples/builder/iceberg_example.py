@@ -1,7 +1,7 @@
 """
 Lakehouse Data Generation Example.
 
-The Iceberg twin of `declarative/parquet_example.py`. The same fast-forward engine,
+The Iceberg twin of `builder/parquet_example.py`. The same fast-forward engine,
 but each flush of the buffer becomes one Iceberg commit rather than one Parquet file,
 so the run ends with a table another engine can query instead of a folder someone
 still has to register.
@@ -105,7 +105,7 @@ router = create_table_router(EVENTS_TABLE)
 LOGICAL_START_TIME = datetime.now() - timedelta(days=1)
 
 # ==========================================
-# 2. Declarative Infrastructure Builder
+# 2. Infrastructure Builder
 # ==========================================
 app = (
     SimulationContext(

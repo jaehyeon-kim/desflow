@@ -1,4 +1,4 @@
-"""Redis Streams output with live parameter updates, declarative API.
+"""Redis Streams output with live parameter updates, builder API.
 
 `Factory` writes part records to the `part_events` Redis Stream through `RedisEgress`,
 named by each record's `__stream__` key, while `RedisIngress` subscribes to the `simulation_params` channel, so publishing a message to
@@ -50,7 +50,7 @@ def part_generator(context):
 
 
 def run():
-    logger.info("Starting Declarative Redis Demo. Press Ctrl+C to stop...")
+    logger.info("Starting Builder Redis Demo. Press Ctrl+C to stop...")
     logger.info(
         "Test Ingress by running: docker exec -it valkey valkey-cli --user user "
         "--pass password PUBLISH simulation_params "

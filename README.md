@@ -32,7 +32,7 @@ The control dashboard changes simulation parameters while a run is going, and th
 - **Live parameters**: arrival rates, service times and capacities change mid-run through registry paths such as `Line_A.arrival.standard.rate`. A resource grows at once, and shrinks only as busy units are released, so no work in progress is lost.
 - **Several sinks per run**: each sink added with `add_egress` has its own `when` filter, `batch_size` and `flush_interval`, so one run can feed a stream and a data lake together.
 - **Backfill then go live**: one run generates backdated history at full speed, then switches to real time at `go_live_at`.
-- **Three ways to write a simulation**: the low-level `DynamicRealtimeEnvironment`, the declarative `SimulationContext` builder, or a YAML blueprint run with `ddes run`.
+- **Three ways to write a simulation**: the low-level `DynamicRealtimeEnvironment`, the `SimulationContext` builder, or a YAML blueprint run with `ddes run`.
 - **Serialisation**: JSON through `orjson` by default, Avro through the Confluent or AWS Glue Schema Registry for chosen topics, and Pydantic models published as they are.
 - **Kafka security**: extra keyword arguments go to the Kafka client, so SASL, mTLS, OAuth and AWS IAM clusters work.
 
@@ -71,7 +71,7 @@ The connectors are optional extras, for example `uv add "dynamic-des[kafka,parqu
 
 ## Run an Example
 
-Every example is written three ways: as a YAML blueprint, with the declarative API and with the low-level API. The local example needs no container. Here is its YAML version:
+Every example is written three ways: as a YAML blueprint, with the builder API and with the low-level API. The local example needs no container. Here is its YAML version:
 
 `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
@@ -103,11 +103,11 @@ cd local/yaml
 ddes run local.yaml
 ```
 
-For the declarative or low-level version, use `--api declarative` or `--api low-level`; the [Installation page](https://jaehyeon.me/dynamic-des/latest/getting-started/) shows all three in tabs. `ddes examples` lists the other examples, and each [example page](https://jaehyeon.me/dynamic-des/latest/examples/) gives the same steps, including the [odctl](https://github.com/jaehyeon-kim/odctl) service it needs.
+For the builder or low-level version, use `--api builder` or `--api low-level`; the [Installation page](https://jaehyeon.me/dynamic-des/latest/getting-started/) shows all three in tabs. `ddes examples` lists the other examples, and each [example page](https://jaehyeon.me/dynamic-des/latest/examples/) gives the same steps, including the [odctl](https://github.com/jaehyeon-kim/odctl) service it needs.
 
 ## Three Ways to Write a Simulation
 
-A simulation can be a YAML blueprint, a script using the declarative API (`SimulationContext`), or a script using the low-level API (`DynamicRealtimeEnvironment` and SimPy processes). All three build the same parameters and run on the same environment, so the registry paths, the records and the connectors are the same whichever way you choose.
+A simulation can be a YAML blueprint, a script using the builder API (`SimulationContext`), or a script using the low-level API (`DynamicRealtimeEnvironment` and SimPy processes). All three build the same parameters and run on the same environment, so the registry paths, the records and the connectors are the same whichever way you choose.
 
 This blueprint is a small factory: one lathe, a part about every 2 seconds and 1.5 seconds of machining, with every record printed to the terminal:
 
@@ -144,7 +144,7 @@ run:
   until: 10
 ```
 
-[First Simulation](https://jaehyeon.me/dynamic-des/latest/tutorials/first-simulation/) builds this factory step by step, with the YAML, declarative and low-level code side by side at each step, and the [comparison of the three ways](https://jaehyeon.me/dynamic-des/latest/architecture/overview/) explains which to choose.
+[First Simulation](https://jaehyeon.me/dynamic-des/latest/tutorials/first-simulation/) builds this factory step by step, with the YAML, builder and low-level code side by side at each step, and the [comparison of the three ways](https://jaehyeon.me/dynamic-des/latest/architecture/overview/) explains which to choose.
 
 ## Roadmap
 
@@ -157,11 +157,11 @@ The [roadmap page](https://jaehyeon.me/dynamic-des/latest/about/roadmap/) has th
 
 The documentation is at [jaehyeon.me/dynamic-des](https://jaehyeon.me/dynamic-des/).
 
-- **Getting Started**: [installation](https://jaehyeon.me/dynamic-des/latest/getting-started/), and [First Simulation](https://jaehyeon.me/dynamic-des/latest/tutorials/first-simulation/), which builds one factory step by step with a tab for YAML, the declarative API and the low-level API at each step.
+- **Getting Started**: [installation](https://jaehyeon.me/dynamic-des/latest/getting-started/), and [First Simulation](https://jaehyeon.me/dynamic-des/latest/tutorials/first-simulation/), which builds one factory step by step with a tab for YAML, the builder API and the low-level API at each step.
 - **How Simulation Works**: [what discrete-event simulation is](https://jaehyeon.me/dynamic-des/latest/des/how-it-works/), [what SimPy does and what Dynamic DES adds](https://jaehyeon.me/dynamic-des/latest/des/simpy-and-dynamic-des/), the [building blocks](https://jaehyeon.me/dynamic-des/latest/building-blocks/) of a model (arrivals and services, tasks and processes, resources), and [queues and capacity](https://jaehyeon.me/dynamic-des/latest/des/queues-and-capacity/).
-- **Core Architecture**: the [three ways to write a simulation](https://jaehyeon.me/dynamic-des/latest/architecture/overview/), each in detail ([low-level](https://jaehyeon.me/dynamic-des/latest/architecture/low-level/), [declarative](https://jaehyeon.me/dynamic-des/latest/architecture/context/), [YAML](https://jaehyeon.me/dynamic-des/latest/architecture/yaml/)), and the runtime: the [environment](https://jaehyeon.me/dynamic-des/latest/architecture/environment/), [live parameters](https://jaehyeon.me/dynamic-des/latest/architecture/registry/), [time and pacing](https://jaehyeon.me/dynamic-des/latest/architecture/time/), [connectors](https://jaehyeon.me/dynamic-des/latest/architecture/connectors/), [records and telemetry](https://jaehyeon.me/dynamic-des/latest/architecture/records/), and [batching and delivery](https://jaehyeon.me/dynamic-des/latest/architecture/batching/).
+- **Core Architecture**: the [three ways to write a simulation](https://jaehyeon.me/dynamic-des/latest/architecture/overview/), each in detail ([low-level](https://jaehyeon.me/dynamic-des/latest/architecture/low-level/), [builder](https://jaehyeon.me/dynamic-des/latest/architecture/context/), [YAML](https://jaehyeon.me/dynamic-des/latest/architecture/yaml/)), and the runtime: the [environment](https://jaehyeon.me/dynamic-des/latest/architecture/environment/), [live parameters](https://jaehyeon.me/dynamic-des/latest/architecture/registry/), [time and pacing](https://jaehyeon.me/dynamic-des/latest/architecture/time/), [connectors](https://jaehyeon.me/dynamic-des/latest/architecture/connectors/), [records and telemetry](https://jaehyeon.me/dynamic-des/latest/architecture/records/), and [batching and delivery](https://jaehyeon.me/dynamic-des/latest/architecture/batching/).
 - **Guides**: [record routing](https://jaehyeon.me/dynamic-des/latest/guides/complex-routing/), [Avro and Pydantic](https://jaehyeon.me/dynamic-des/latest/guides/avro-and-pydantic/), [secure Kafka](https://jaehyeon.me/dynamic-des/latest/guides/kafka-security/), [backfill then go live](https://jaehyeon.me/dynamic-des/latest/guides/backfill-then-live/), [changing parameters](https://jaehyeon.me/dynamic-des/latest/guides/live-parameters/), [writing blueprints](https://jaehyeon.me/dynamic-des/latest/guides/yaml-blueprints/), and the custom logic guides: [Python in a blueprint](https://jaehyeon.me/dynamic-des/latest/guides/yaml-advanced/), [multi-resource handoffs](https://jaehyeon.me/dynamic-des/latest/guides/multi-resource-handoffs/), [preemptive breakdowns](https://jaehyeon.me/dynamic-des/latest/guides/preemptive-breakdowns/) and [dynamic topology](https://jaehyeon.me/dynamic-des/latest/guides/dynamic-topology/).
-- **Examples**: one page per example, with the YAML, declarative and low-level versions side by side, starting with the [overview](https://jaehyeon.me/dynamic-des/latest/examples/).
+- **Examples**: one page per example, with the YAML, builder and low-level versions side by side, starting with the [overview](https://jaehyeon.me/dynamic-des/latest/examples/).
 - **API Reference**: [every public class](https://jaehyeon.me/dynamic-des/latest/api/).
 - **About**: the [roadmap](https://jaehyeon.me/dynamic-des/latest/about/roadmap/).
 

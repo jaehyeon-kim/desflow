@@ -163,7 +163,7 @@ Related records are rows that belong together across tables. Here every customer
             order_id += 1
     ```
 
-=== "Declarative"
+=== "Builder"
 
     **Quick Start**
 
@@ -176,8 +176,8 @@ Related records are rows that belong together across tables. Here every customer
         uv tool install "dynamic-des[postgres]" --with-executables-from "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get related-records --api declarative
-        cd related-records/declarative
+        ddes examples get related-records --api builder
+        cd related-records/builder
 
         # 3. Start its service
         odctl up postgres
@@ -196,8 +196,8 @@ Related records are rows that belong together across tables. Here every customer
         pip install "dynamic-des[postgres]" "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get related-records --api declarative
-        cd related-records/declarative
+        ddes examples get related-records --api builder
+        cd related-records/builder
 
         # 3. Start its service
         odctl up postgres
@@ -213,9 +213,9 @@ Related records are rows that belong together across tables. Here every customer
 
     The generator is added with `add_process`, so it is called as `order_generator(context, arrival="customer_order", max_items=5)`. It draws from `context.sampler.rng`, the generator seeded by `random_seed`, so a seeded run repeats the same orders.
 
-    ```python title="examples/declarative/postgres_orders_example.py"
+    ```python title="examples/builder/postgres_orders_example.py"
     """
-    Orders with line items, declarative API.
+    Orders with line items, builder API.
 
     The builder twin of `yaml/advanced/postgres_orders.yaml`. Each customer_order arrival
     builds an order with 1 to 5 items, random prices and quantities, and a total computed
@@ -365,11 +365,11 @@ Related records are rows that belong together across tables. Here every customer
 
     The generator is a SimPy process started with `env.process`. It draws the gaps and the order contents from one `Sampler` seeded with 42, in the same order as the other two, so it publishes the same orders.
 
-    ```python title="examples/imperative/postgres_orders_example.py"
+    ```python title="examples/low-level/postgres_orders_example.py"
     """
-    Orders with line items, imperative API.
+    Orders with line items, low-level API.
 
-    The low-level twin of `declarative/postgres_orders_example.py` and
+    The low-level twin of `builder/postgres_orders_example.py` and
     `yaml/advanced/postgres_orders.yaml`. It wires `DynamicRealtimeEnvironment`, the
     registry and the connectors by hand. With the same seed it publishes the same orders
     as the other two.
