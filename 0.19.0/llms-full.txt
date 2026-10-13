@@ -13597,7 +13597,7 @@ This page lists the work planned for Dynamic DES. It changes as plans change, an
 
 ### Simulation model
 
-- **More distributions,** including one built from values taken from real data.
+- **More distributions,** including one built from values taken from real data, each drawing from its own random sequence, so adding an arrival leaves the other draws unchanged and two versions of a model can be compared fairly.
 - **Routing between tasks:** a finished task leads to the next one, chosen by a condition or by probability, so a model can be a multi-step flow.
 - **Entity state:** an order, a session or a parcel keeps its attributes as it moves from task to task, and every event of one entity carries its key.
 - **Delays without a resource,** for steps that only take time.
@@ -13642,7 +13642,7 @@ From 1.0, the YAML blueprint format, the `ddes` command, the public Python API (
 - **Transport on maps:** vehicles that move between locations on real roads and publish their positions.
 - **Data-driven inputs:** arrivals replayed from a file or a database, or taken live from a Kafka topic.
 - **Decisions from outside:** a dispatcher or an agent answers for one order or session, and a run can repeat exactly from a log of those answers.
-- **Trustworthy results:** replications with confidence intervals, a warm-up period, and separate random streams so two versions of a model can be compared fairly.
+- **Trustworthy results:** replications with confidence intervals, and a warm-up period.
 
 ### Analysis
 
