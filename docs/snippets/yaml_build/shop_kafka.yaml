@@ -1,21 +1,21 @@
-# The First Simulation tutorial, step 3: the factory on Kafka.
+# The First Simulation tutorial, step 3: the shop on Kafka.
 # Needs Kafka: odctl up kafka-lite. Runs until stopped with Ctrl+C.
 simulation:
-  sim_id: Factory_A
+  sim_id: Shop
   factor: 1.0
   random_seed: 42
 
 resources:
-  lathe: {current_cap: 1, max_cap: 5}
+  packers: {current_cap: 1, max_cap: 5}
 
 services:
-  milling: {dist: normal, mean: 3.0, std: 0.5}
+  packing: {dist: normal, mean: 3.0, std: 0.5}
 
 arrivals:
-  parts: {dist: exponential, rate: 0.5, spawn: process_part}
+  orders: {dist: exponential, rate: 0.5, spawn: pack_order}
 
 tasks:
-  process_part: {service: milling, resource: lathe, payload: {}, id_field: part_id}
+  pack_order: {service: packing, resource: packers, payload: {}, id_field: order_id}
 
 # --8<-- [start:kafka]
 ingress:

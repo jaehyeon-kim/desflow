@@ -12,14 +12,14 @@ from dynamic_des.connectors.ingress.local import LocalIngress
 async def test_local_ingress():
     """Verify LocalIngress accurately schedules and queues updates."""
     ingress_queue = queue.Queue()
-    schedule = [(0.01, "Line_A.lathe.capacity", 5), (0.02, "Line_A.lathe.capacity", 10)]
+    schedule = [(0.01, "Shop.packers.capacity", 5), (0.02, "Shop.packers.capacity", 10)]
     ingress = LocalIngress(schedule)
 
     await ingress.run(ingress_queue)
 
     assert ingress_queue.qsize() == 2
-    assert ingress_queue.get_nowait() == ("Line_A.lathe.capacity", 5)
-    assert ingress_queue.get_nowait() == ("Line_A.lathe.capacity", 10)
+    assert ingress_queue.get_nowait() == ("Shop.packers.capacity", 5)
+    assert ingress_queue.get_nowait() == ("Shop.packers.capacity", 10)
 
 
 @pytest.mark.asyncio

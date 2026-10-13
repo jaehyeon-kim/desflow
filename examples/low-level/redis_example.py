@@ -1,7 +1,7 @@
 """Redis Streams output with live parameter updates, low-level API.
 
-The low-level twin of `builder/redis_example.py`, wiring the environment and
-connectors by hand. `RedisEgress` writes part records to the `part_events` stream,
+The low-level twin of `builder/redis_example.py`: an online shop that records each
+order as it is placed. `RedisEgress` writes the records to the `order_events` stream,
 named by each record's `__stream__` key, and `RedisIngress` subscribes to the
 `simulation_params` channel.
 
@@ -9,8 +9,6 @@ Needs Valkey: `odctl up valkey`. Runs until interrupted with Ctrl + C.
 """
 
 import logging
-import random
-from datetime import datetime
 
 import numpy as np
 
@@ -29,51 +27,42 @@ logger = logging.getLogger("redis_example")
 # URL carries credentials. A plain Redis without auth takes redis://localhost:6379/0.
 REDIS_URL = "redis://user:password@localhost:6379/0"
 
+PARAMS = SimParameter(
+    sim_id="Shop",
+    arrival={"orders": DistributionConfig(dist="exponential", rate=2.0)},
+)
+
+
+def order_generator(env, sampler):
+    """Publishes one record per order, as the builder's task with no service does."""
+    gap = env.registry.get_config("Shop.arrival.orders")
+    task_id = 0
+    while True:
+        yield env.timeout(sampler.sample(gap))
+        order_event = {
+            "__stream__": "order_events",
+            "order_id": task_id,
+            "channel": "web",
+            "status": "placed",
+        }
+        env.publish_event(f"task-{task_id}", order_event)
+        task_id += 1
+
 
 def run():
-    params = SimParameter(
-        sim_id="Factory",
-        arrival={"part_arrival": DistributionConfig(dist="exponential", rate=2.0)},
-    )
-
-    # Attach egress instance
-    egress = RedisEgress(REDIS_URL, stream_name="events")
-
-    # Attach ingress for dynamic parameter updates
-    ingress = RedisIngress(REDIS_URL, channel_name="simulation_params")
-
     env = DynamicRealtimeEnvironment(factor=1.0)
-    env.registry.register_sim_parameter(params)
-    env.setup_egress([egress])
-    env.setup_ingress([ingress])
+    env.registry.register_sim_parameter(PARAMS)
+    env.setup_egress([RedisEgress(REDIS_URL, stream_name="events")])
+    env.setup_ingress([RedisIngress(REDIS_URL, channel_name="simulation_params")])
 
     sampler = Sampler(rng=np.random.default_rng(42))
-
-    def part_process(env: DynamicRealtimeEnvironment):
-        arrival_cfg = env.registry.get_config("Factory.arrival.part_arrival")
-        part_id = 1
-
-        while True:
-            yield env.timeout(sampler.sample(arrival_cfg))
-
-            part_event = {
-                "__stream__": "part_events",
-                "part_id": part_id,
-                "type": random.choice(["A", "B", "C"]),
-                "timestamp": datetime.utcnow().isoformat(),
-                "status": "arrived",
-            }
-            env.publish_event(f"part-{part_id}", part_event)
-
-            part_id += 1
-
-    env.process(part_process(env))
+    env.process(order_generator(env, sampler))
 
     logger.info("Starting Low-level Redis Demo. Press Ctrl+C to stop...")
     logger.info(
         "Test Ingress by running: docker exec -it valkey valkey-cli --user user "
         "--pass password PUBLISH simulation_params "
-        '\'{"param_path": "Factory.arrival.part_arrival.rate", "param_value": 10.0}\''
+        '\'{"param_path": "Shop.arrival.orders.rate", "param_value": 10.0}\''
     )
 
     try:

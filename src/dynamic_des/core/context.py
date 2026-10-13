@@ -417,9 +417,9 @@ class SimulationContext:
 
         Example:
             ```python
-            @app.task(service_id="milling", resource_id="lathe")
-            def process_part(task_id: int):
-                return {"status": "success", "part_id": task_id}
+            @app.task(service_id="packing", resource_id="packers")
+            def pack_order(task_id: int):
+                return {"status": "success", "order_id": task_id}
             ```
         """
 

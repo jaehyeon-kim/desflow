@@ -2,7 +2,7 @@
 
 tests/unit runs this file. `local.yaml` is the local example, which `ddes examples get
 local` downloads into the current folder. The example paces its run at factor 1.0 for
-60 s, so this file runs an unpaced copy of it from the current folder.
+30 s, so this file runs an unpaced copy of it from the current folder.
 """
 
 from pathlib import Path
@@ -25,4 +25,4 @@ if __name__ == "__main__":
     assert "factor: 1.0" in text
     Path("local.yaml").write_text(text.replace("factor: 1.0", "factor: 0.0"))
     app = load_and_run()
-    assert app.env.now == 60
+    assert app.env.now == 30

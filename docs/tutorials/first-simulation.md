@@ -1,10 +1,10 @@
 # First Simulation
 
-This tutorial builds one small factory: a lathe, parts arriving about every 2 seconds, and 1.5 seconds of machining per part. It then adds random machining times and capacity changes, and connects the factory to Kafka.
+This tutorial builds an online shop that packs orders: one packer, orders arriving about every 2 seconds, and 1.5 seconds of packing per order. It then adds random packing times and capacity changes, and connects the shop to Kafka.
 
 Each step shows the code three ways, in tabs: a **YAML** blueprint, the **Builder** (`SimulationContext`) and the **Low-level** API (`DynamicRealtimeEnvironment` and SimPy processes). Pick the tab of the way you write; every tab on the page switches with it. The three build the same simulation, so the records are the same. [Ways to Write a Simulation](../architecture/overview.md) explains how they relate.
 
-![Parts arrive about every 2 seconds, wait in the lathe queue, take the lathe for 1.5 seconds of machining, and their records go to the console; the arrival loop and the task read their values from the registry](../assets/diagrams/first-factory.png)
+![Orders arrive about every 2 seconds, wait in the packer queue, take the packer for 1.5 seconds of packing, and their records go to the console; the arrival loop and the task read their values from the registry](../assets/diagrams/first-shop.png)
 
 ---
 
@@ -18,121 +18,121 @@ pip install dynamic-des
 
 ---
 
-## Describe the Factory
+## Describe the Shop
 
-A simulation has a `sim_id`, here `Factory_A`, and its parameters: a resource called `lathe` with one unit, a service called `machining` that sets how long a part takes, and an arrival stream called `parts` that sets how often a part arrives.
+A simulation has a `sim_id`, here `Shop`, and its parameters: a resource called `packers` with one unit, a service called `packing` that sets how long an order takes, and an arrival stream called `orders` that sets how often an order arrives.
 
 === "YAML"
 
-    ```yaml title="docs/snippets/yaml/first_factory.yaml:factory"
+    ```yaml title="docs/snippets/yaml/first_shop.yaml:shop"
     simulation:
-      sim_id: Factory_A
+      sim_id: Shop
       factor: 1.0  # 1 simulated second takes 1 real second
 
     resources:
-      lathe: {current_cap: 1, max_cap: 1}
+      packers: {current_cap: 1, max_cap: 1}
 
     services:
       # With no std, a normal distribution returns its mean every time
-      machining: {dist: normal, mean: 1.5}
+      packing: {dist: normal, mean: 1.5}
 
     arrivals:
-      # One part every 2 seconds on average; each arrival spawns process_part
-      parts: {dist: exponential, rate: 0.5, spawn: process_part}
+      # One order every 2 seconds on average; each arrival spawns pack_order
+      orders: {dist: exponential, rate: 0.5, spawn: pack_order}
     ```
 
 === "Builder"
 
-    ```python title="docs/snippets/tutorials/first_factory.py:factory"
+    ```python title="docs/snippets/tutorials/first_shop.py:shop"
     app = (
         # 1 simulated second = 1 real second
-        SimulationContext(sim_id="Factory_A", factor=1.0)
-        .add_resource("lathe", current_cap=1, max_cap=1)
+        SimulationContext(sim_id="Shop", factor=1.0)
+        .add_resource("packers", current_cap=1, max_cap=1)
         # With no std, a normal distribution returns its mean every time
-        .add_service("machining", dist="normal", mean=1.5)
-        # One part every 2 seconds on average
-        .add_arrival("parts", dist="exponential", rate=0.5)
+        .add_service("packing", dist="normal", mean=1.5)
+        # One order every 2 seconds on average
+        .add_arrival("orders", dist="exponential", rate=0.5)
     )
     ```
 
 === "Low-level"
 
-    ```python title="docs/snippets/tutorials/first_factory_low_level.py:factory"
+    ```python title="docs/snippets/tutorials/first_shop_low_level.py:shop"
     PARAMS = SimParameter(
-        sim_id="Factory_A",
-        arrival={"parts": DistributionConfig(dist="exponential", rate=0.5)},
-        service={"machining": DistributionConfig(dist="normal", mean=1.5)},
-        resources={"lathe": CapacityConfig(current_cap=1, max_cap=1)},
+        sim_id="Shop",
+        arrival={"orders": DistributionConfig(dist="exponential", rate=0.5)},
+        service={"packing": DistributionConfig(dist="normal", mean=1.5)},
+        resources={"packers": CapacityConfig(current_cap=1, max_cap=1)},
     )
     ```
 
-Each value gets a path in the registry, such as `Factory_A.arrival.parts.rate` or `Factory_A.resources.lathe.current_cap`. A connector or a scenario changes a value through its path while the run continues; [Live Parameters](../architecture/registry.md) explains how.
+Each value gets a path in the registry, such as `Shop.arrival.orders.rate` or `Shop.resources.packers.current_cap`. A connector or a scenario changes a value through its path while the run continues; [Live Parameters](../architecture/registry.md) explains how.
 
 ---
 
-## Say What a Part Does
+## Say What an Order Does
 
-A part asks for the lathe, waits until it gets it, is machined for a time drawn from `machining`, and releases the lathe. It publishes a `queued` event when it asks, `started` when it gets the lathe, and a finished event at the end.
+An order asks for a packer, waits until it gets one, is packed for a time drawn from `packing`, and releases the packer. It publishes a `queued` event when it asks, `started` when it gets the packer, and a finished event at the end.
 
 === "YAML"
 
-    ```yaml title="docs/snippets/yaml/first_factory.yaml:part"
+    ```yaml title="docs/snippets/yaml/first_shop.yaml:order"
     tasks:
-      process_part:
-        service: machining
-        resource: lathe
-        # The finished event's value; id_field adds the task id as part_id
+      pack_order:
+        service: packing
+        resource: packers
+        # The finished event's value; id_field adds the task id as order_id
         payload: {}
-        id_field: part_id
+        id_field: order_id
     ```
 
 === "Builder"
 
-    ```python title="docs/snippets/tutorials/first_factory.py:part"
-    @app.task(service_id="machining", resource_id="lathe")
-    def process_part(part_id: int):
-        # Requests the lathe, waits the machining time, releases the lathe.
+    ```python title="docs/snippets/tutorials/first_shop.py:order"
+    @app.task(service_id="packing", resource_id="packers")
+    def pack_order(order_id: int):
+        # Requests a packer, waits the packing time, releases the packer.
         # The returned dictionary is the finished event's value.
-        return {"part_id": part_id}
+        return {"order_id": order_id}
 
 
-    @app.arrival_loop("parts")
-    def parts_generator(context: SimulationContext):
-        part_id = 0
+    @app.arrival_loop("orders")
+    def order_generator(context: SimulationContext):
+        order_id = 0
         while True:
-            yield context.wait_for_arrival("parts")
-            context.spawn(process_part(part_id))
-            part_id += 1
+            yield context.wait_for_arrival("orders")
+            context.spawn(pack_order(order_id))
+            order_id += 1
     ```
 
 === "Low-level"
 
-    ```python title="docs/snippets/tutorials/first_factory_low_level.py:part"
-    def process_part(env, sampler, lathe, part_id):
-        """One part: wait for the lathe, machine it, release it."""
-        key = f"task-{part_id}"
-        path_id = "Factory_A.service.machining"
+    ```python title="docs/snippets/tutorials/first_shop_low_level.py:order"
+    def pack_order(env, sampler, packers, order_id):
+        """One order: wait for a packer, pack it, release the packer."""
+        key = f"task-{order_id}"
+        path_id = "Shop.service.packing"
         env.publish_event(key, {"path_id": path_id, "status": "queued"})
 
-        with lathe.request() as request:
+        with packers.request() as request:
             yield request
             env.publish_event(key, {"path_id": path_id, "status": "started"})
             service = env.registry.get_config(path_id)
             yield env.timeout(sampler.sample(service))
-            env.publish_event(key, {"part_id": part_id})
+            env.publish_event(key, {"order_id": order_id})
 
 
-    def parts_generator(env, sampler, lathe):
-        """Starts one process_part for every arrival."""
-        arrival = env.registry.get_config("Factory_A.arrival.parts")
-        part_id = 0
+    def order_generator(env, sampler, packers):
+        """Starts one pack_order for every arrival."""
+        arrival = env.registry.get_config("Shop.arrival.orders")
+        order_id = 0
         while True:
             yield env.timeout(sampler.sample(arrival))
-            env.process(process_part(env, sampler, lathe, part_id))
-            part_id += 1
+            env.process(pack_order(env, sampler, packers, order_id))
+            order_id += 1
     ```
 
-The YAML task and the builder's `@app.task` publish the three events and handle the lathe for you; the low-level process does each step itself. The arrival loop starts one part for every arrival: `spawn` in YAML, `@app.arrival_loop` in the builder, and `parts_generator` in the low-level API.
+The YAML task and the builder's `@app.task` publish the three events and handle the packer for you; the low-level process does each step itself. The arrival loop starts one order for every arrival: `spawn` in YAML, `@app.arrival_loop` in the builder, and `order_generator` in the low-level API.
 
 ---
 
@@ -142,20 +142,20 @@ A sink, called an egress, receives every record the simulation publishes. `Conso
 
 === "YAML"
 
-    ```yaml title="docs/snippets/yaml/first_factory.yaml:records"
+    ```yaml title="docs/snippets/yaml/first_shop.yaml:records"
     egress:
       - type: Console
     ```
 
 === "Builder"
 
-    ```python title="docs/snippets/tutorials/first_factory.py:records"
+    ```python title="docs/snippets/tutorials/first_shop.py:records"
     app.add_egress(ConsoleEgress())
     ```
 
 === "Low-level"
 
-    ```python title="docs/snippets/tutorials/first_factory_low_level.py:records"
+    ```python title="docs/snippets/tutorials/first_shop_low_level.py:records"
     SINKS = [ConsoleEgress()]  # passed to env.setup_egress in run below
     ```
 
@@ -165,30 +165,30 @@ A sink, called an egress, receives every record the simulation publishes. `Conso
 
 === "YAML"
 
-    ```yaml title="docs/snippets/yaml/first_factory.yaml:run"
+    ```yaml title="docs/snippets/yaml/first_shop.yaml:run"
     run:
       until: 10
     ```
 
 === "Builder"
 
-    ```python title="docs/snippets/tutorials/first_factory.py:run"
+    ```python title="docs/snippets/tutorials/first_shop.py:run"
     if __name__ == "__main__":
         app.run(until=10.0)
     ```
 
 === "Low-level"
 
-    ```python title="docs/snippets/tutorials/first_factory_low_level.py:run"
+    ```python title="docs/snippets/tutorials/first_shop_low_level.py:run"
     def run(until=10.0, factor=1.0):
         env = DynamicRealtimeEnvironment(factor=factor)
         env.registry.register_sim_parameter(PARAMS)
         env.setup_egress(SINKS)
 
-        lathe = DynamicResource(env, "Factory_A", "lathe")
+        packers = DynamicResource(env, "Shop", "packers")
         sampler = Sampler(rng=np.random.default_rng())
 
-        env.process(parts_generator(env, sampler, lathe))
+        env.process(order_generator(env, sampler, packers))
         try:
             env.run(until=until)
         finally:
@@ -205,28 +205,28 @@ Start it from a terminal:
 === "YAML"
 
     ```bash
-    ddes run first_factory.yaml
+    ddes run first_shop.yaml
     ```
 
 === "Builder"
 
     ```bash
-    python first_factory.py
+    python first_shop.py
     ```
 
 === "Low-level"
 
     ```bash
-    python first_factory_low_level.py
+    python first_shop_low_level.py
     ```
 
 At `factor=1.0` one simulated second takes one real second, so the run takes 10 seconds. `[EVT]` lines are events and `[TEL]` lines are telemetry:
 
 ```text
 [TEL] {'sim_ts': 0.0, 'timestamp': '...', 'path_id': 'system.simulation.lag_seconds', 'value': 0.0}
-[EVT] {'sim_ts': 0.171, 'timestamp': '...', 'key': 'task-0', 'value': {'path_id': 'Factory_A.service.machining', 'status': 'queued'}}
-[EVT] {'sim_ts': 0.171, 'timestamp': '...', 'key': 'task-0', 'value': {'path_id': 'Factory_A.service.machining', 'status': 'started'}}
-[EVT] {'sim_ts': 1.671, 'timestamp': '...', 'key': 'task-0', 'value': {'part_id': 0}}
+[EVT] {'sim_ts': 0.171, 'timestamp': '...', 'key': 'task-0', 'value': {'path_id': 'Shop.service.packing', 'status': 'queued'}}
+[EVT] {'sim_ts': 0.171, 'timestamp': '...', 'key': 'task-0', 'value': {'path_id': 'Shop.service.packing', 'status': 'started'}}
+[EVT] {'sim_ts': 1.671, 'timestamp': '...', 'key': 'task-0', 'value': {'order_id': 0}}
 ```
 
 The only telemetry is `system.simulation.lag_seconds`, which every run with an egress publishes once per simulation second: how far the simulation is behind the wall clock. The arrival times are random, so each run shows different values.
@@ -235,67 +235,67 @@ The only telemetry is `system.simulation.lag_seconds`, which every run with an e
 
 ## Add Randomness and Capacity Changes
 
-Real machining times vary. `milling` takes 3 seconds on average, give or take 0.5, and a seed makes the draws the same on every run. The lathe gets room for up to 5 units:
+Real packing times vary. `packing` now takes 3 seconds on average, give or take 0.5, and a seed makes the draws the same on every run. The packers get room for up to 5 units:
 
 === "YAML"
 
-    ```yaml title="docs/snippets/yaml/factory_changes.yaml:random"
+    ```yaml title="docs/snippets/yaml/shop_changes.yaml:random"
     simulation:
-      sim_id: Factory_A
+      sim_id: Shop
       factor: 1.0
       random_seed: 42  # the same draws on every run
 
     resources:
-      lathe: {current_cap: 1, max_cap: 5}  # room for up to 5 lathes
+      packers: {current_cap: 1, max_cap: 5}  # room for up to 5 packers
 
     services:
-      # Milling takes 3 seconds on average, give or take 0.5
-      milling: {dist: normal, mean: 3.0, std: 0.5}
+      # Packing takes 3 seconds on average, give or take 0.5
+      packing: {dist: normal, mean: 3.0, std: 0.5}
     ```
 
 === "Builder"
 
-    ```python title="docs/snippets/tutorials/factory_changes.py:random"
+    ```python title="docs/snippets/tutorials/shop_changes.py:random"
     app = (
         # Same draws every run
-        SimulationContext(sim_id="Factory_A", factor=1.0, random_seed=42)
-        .add_resource("lathe", current_cap=1, max_cap=5)  # room for up to 5 lathes
-        # Milling takes 3 seconds on average, give or take 0.5
-        .add_service("milling", dist="normal", mean=3.0, std=0.5)
-        .add_arrival("parts", dist="exponential", rate=0.5)
+        SimulationContext(sim_id="Shop", factor=1.0, random_seed=42)
+        .add_resource("packers", current_cap=1, max_cap=5)  # room for up to 5 packers
+        # Packing takes 3 seconds on average, give or take 0.5
+        .add_service("packing", dist="normal", mean=3.0, std=0.5)
+        .add_arrival("orders", dist="exponential", rate=0.5)
         .add_egress(ConsoleEgress())
     )
     ```
 
 === "Low-level"
 
-    ```python title="docs/snippets/tutorials/factory_changes_low_level.py:random"
+    ```python title="docs/snippets/tutorials/shop_changes_low_level.py:random"
     PARAMS = SimParameter(
-        sim_id="Factory_A",
-        arrival={"parts": DistributionConfig(dist="exponential", rate=0.5)},
-        # Milling takes 3 seconds on average, give or take 0.5
-        service={"milling": DistributionConfig(dist="normal", mean=3.0, std=0.5)},
-        resources={"lathe": CapacityConfig(current_cap=1, max_cap=5)},  # up to 5 lathes
+        sim_id="Shop",
+        arrival={"orders": DistributionConfig(dist="exponential", rate=0.5)},
+        # Packing takes 3 seconds on average, give or take 0.5
+        service={"packing": DistributionConfig(dist="normal", mean=3.0, std=0.5)},
+        resources={"packers": CapacityConfig(current_cap=1, max_cap=5)},  # up to 5 packers
     )
     SEED = 42  # Sampler(rng=np.random.default_rng(SEED)) in run: same draws every run
     ```
 
-Now change the capacity while the factory runs: three lathes from 10 seconds, two from 20. The YAML `scenario` and the process in the other two tabs both act on the simulation clock, so the changes land at exactly those times on every run, at any `factor`:
+Now change the capacity while the shop runs: three packers from 10 seconds, two from 20. The YAML `scenario` and the process in the other two tabs both act on the simulation clock, so the changes land at exactly those times on every run, at any `factor`:
 
 === "YAML"
 
-    ```yaml title="docs/snippets/yaml/factory_changes.yaml:changes"
+    ```yaml title="docs/snippets/yaml/shop_changes.yaml:changes"
     scenario:
-      - {at: 10, path: Factory_A.resources.lathe.current_cap, value: 3}
-      - {at: 20, path: Factory_A.resources.lathe.current_cap, value: 2}
+      - {at: 10, path: Shop.resources.packers.current_cap, value: 3}
+      - {at: 20, path: Shop.resources.packers.current_cap, value: 2}
     ```
 
 === "Builder"
 
-    ```python title="docs/snippets/tutorials/factory_changes.py:changes"
+    ```python title="docs/snippets/tutorials/shop_changes.py:changes"
     def capacity_plan(context: SimulationContext):
-        """Three lathes from t=10, two from t=20, on the simulation clock."""
-        path = "Factory_A.resources.lathe.current_cap"
+        """Three packers from t=10, two from t=20, on the simulation clock."""
+        path = "Shop.resources.packers.current_cap"
         yield context.env.timeout(10.0)
         context.env.registry.update(path, 3)
         yield context.env.timeout(10.0)
@@ -307,17 +307,17 @@ Now change the capacity while the factory runs: three lathes from 10 seconds, tw
 
 === "Low-level"
 
-    ```python title="docs/snippets/tutorials/factory_changes_low_level.py:changes"
+    ```python title="docs/snippets/tutorials/shop_changes_low_level.py:changes"
     def capacity_plan(env):
-        """Three lathes from t=10, two from t=20, on the simulation clock."""
-        path = "Factory_A.resources.lathe.current_cap"
+        """Three packers from t=10, two from t=20, on the simulation clock."""
+        path = "Shop.resources.packers.current_cap"
         yield env.timeout(10.0)
         env.registry.update(path, 3)
         yield env.timeout(10.0)
         env.registry.update(path, 2)
     ```
 
-In the first 10 seconds parts arrive faster than one lathe finishes them, so the queue grows. At 10 seconds three lathes drain it. At 20 seconds the capacity drops to two; parts already on a third lathe finish, and no new part starts until two or fewer are busy, as [Resources](../building-blocks/resources.md) shows.
+In the first 10 seconds orders arrive faster than one packer finishes them, so the queue grows. At 10 seconds three packers drain it. At 20 seconds the capacity drops to two; an order already with a third packer finishes, and no new order starts until two or fewer packers are busy, as [Resources](../building-blocks/resources.md) shows.
 
 ---
 
@@ -330,11 +330,11 @@ pip install "dynamic-des[kafka]"
 odctl up kafka-lite
 ```
 
-Replace the console sink with Kafka, and add a Kafka ingress so the run takes parameter changes from the `sim-config` topic. The rest of the step 2 factory stays as it is:
+Replace the console sink with Kafka, and add a Kafka ingress so the run takes parameter changes from the `sim-config` topic. The rest of the step 2 shop stays as it is:
 
 === "YAML"
 
-    ```yaml title="docs/snippets/yaml_build/factory_kafka.yaml:kafka"
+    ```yaml title="docs/snippets/yaml_build/shop_kafka.yaml:kafka"
     ingress:
       # Reads {"path_id": ..., "value": ...} messages
       - type: Kafka
@@ -350,7 +350,7 @@ Replace the console sink with Kafka, and add a Kafka ingress so the run takes pa
 
 === "Builder"
 
-    ```python title="docs/snippets/tutorials/factory_kafka.py:kafka"
+    ```python title="docs/snippets/tutorials/shop_kafka.py:kafka"
     app.add_ingress(KafkaIngress(topic="sim-config", bootstrap_servers="localhost:9092"))
     app.add_egress(
         KafkaEgress(
@@ -363,7 +363,7 @@ Replace the console sink with Kafka, and add a Kafka ingress so the run takes pa
 
 === "Low-level"
 
-    ```python title="docs/snippets/tutorials/factory_kafka_low_level.py:kafka"
+    ```python title="docs/snippets/tutorials/shop_kafka_low_level.py:kafka"
     env.setup_ingress(
         [KafkaIngress(topic="sim-config", bootstrap_servers="localhost:9092")]
     )
@@ -381,45 +381,45 @@ Replace the console sink with Kafka, and add a Kafka ingress so the run takes pa
 Run it, and while it runs, send a capacity change from another terminal. The broker's own tools are inside its container:
 
 ```bash
-echo '{"path_id": "Factory_A.resources.lathe.current_cap", "value": 3}' | docker exec -i kafka \
+echo '{"path_id": "Shop.resources.packers.current_cap", "value": 3}' | docker exec -i kafka \
   /opt/kafka/bin/kafka-console-producer.sh --bootstrap-server broker-1:19092 --topic sim-config
 ```
 
-The ingress applies the change to the registry, and the lathe grows to three units without stopping the run. Stop the run with Ctrl+C, and the broker with `odctl down kafka-lite --volumes`.
+The ingress applies the change to the registry, and the packers grow to three units without stopping the run. Stop the run with Ctrl+C, and the broker with `odctl down kafka-lite --volumes`.
 
 ---
 
 ## Full Files
 
-The complete first factory, which the documentation tests run:
+The complete first shop, which the documentation tests run:
 
 === "YAML"
 
-    ```yaml title="docs/snippets/yaml/first_factory.yaml"
-    # The First Simulation tutorial: the factory as a blueprint.
-    # Run it with: ddes run first_factory.yaml
+    ```yaml title="docs/snippets/yaml/first_shop.yaml"
+    # The First Simulation tutorial: the shop as a blueprint.
+    # Run it with: ddes run first_shop.yaml
     simulation:
-      sim_id: Factory_A
+      sim_id: Shop
       factor: 1.0  # 1 simulated second takes 1 real second
 
     resources:
-      lathe: {current_cap: 1, max_cap: 1}
+      packers: {current_cap: 1, max_cap: 1}
 
     services:
       # With no std, a normal distribution returns its mean every time
-      machining: {dist: normal, mean: 1.5}
+      packing: {dist: normal, mean: 1.5}
 
     arrivals:
-      # One part every 2 seconds on average; each arrival spawns process_part
-      parts: {dist: exponential, rate: 0.5, spawn: process_part}
+      # One order every 2 seconds on average; each arrival spawns pack_order
+      orders: {dist: exponential, rate: 0.5, spawn: pack_order}
 
     tasks:
-      process_part:
-        service: machining
-        resource: lathe
-        # The finished event's value; id_field adds the task id as part_id
+      pack_order:
+        service: packing
+        resource: packers
+        # The finished event's value; id_field adds the task id as order_id
         payload: {}
-        id_field: part_id
+        id_field: order_id
 
     egress:
       - type: Console
@@ -430,11 +430,11 @@ The complete first factory, which the documentation tests run:
 
 === "Builder"
 
-    ```python title="docs/snippets/tutorials/first_factory.py"
-    """The First Simulation tutorial: the factory, with the SimulationContext builder.
+    ```python title="docs/snippets/tutorials/first_shop.py"
+    """The First Simulation tutorial: the shop, with the SimulationContext builder.
 
-    One lathe, parts arriving about every 2 seconds, and 1.5 seconds of machining per
-    part. Every record is printed to the terminal.
+    One packer, orders arriving about every 2 seconds, and 1.5 seconds of packing per
+    order. Every record is printed to the terminal.
     """
 
     import logging
@@ -447,29 +447,29 @@ The complete first factory, which the documentation tests run:
 
     app = (
         # 1 simulated second = 1 real second
-        SimulationContext(sim_id="Factory_A", factor=1.0)
-        .add_resource("lathe", current_cap=1, max_cap=1)
+        SimulationContext(sim_id="Shop", factor=1.0)
+        .add_resource("packers", current_cap=1, max_cap=1)
         # With no std, a normal distribution returns its mean every time
-        .add_service("machining", dist="normal", mean=1.5)
-        # One part every 2 seconds on average
-        .add_arrival("parts", dist="exponential", rate=0.5)
+        .add_service("packing", dist="normal", mean=1.5)
+        # One order every 2 seconds on average
+        .add_arrival("orders", dist="exponential", rate=0.5)
     )
 
 
-    @app.task(service_id="machining", resource_id="lathe")
-    def process_part(part_id: int):
-        # Requests the lathe, waits the machining time, releases the lathe.
+    @app.task(service_id="packing", resource_id="packers")
+    def pack_order(order_id: int):
+        # Requests a packer, waits the packing time, releases the packer.
         # The returned dictionary is the finished event's value.
-        return {"part_id": part_id}
+        return {"order_id": order_id}
 
 
-    @app.arrival_loop("parts")
-    def parts_generator(context: SimulationContext):
-        part_id = 0
+    @app.arrival_loop("orders")
+    def order_generator(context: SimulationContext):
+        order_id = 0
         while True:
-            yield context.wait_for_arrival("parts")
-            context.spawn(process_part(part_id))
-            part_id += 1
+            yield context.wait_for_arrival("orders")
+            context.spawn(pack_order(order_id))
+            order_id += 1
 
 
     app.add_egress(ConsoleEgress())
@@ -480,11 +480,11 @@ The complete first factory, which the documentation tests run:
 
 === "Low-level"
 
-    ```python title="docs/snippets/tutorials/first_factory_low_level.py"
-    """The First Simulation tutorial: the factory, on the low-level API.
+    ```python title="docs/snippets/tutorials/first_shop_low_level.py"
+    """The First Simulation tutorial: the shop, on the low-level API.
 
-    One lathe, parts arriving about every 2 seconds, and 1.5 seconds of machining per
-    part. Every record is printed to the terminal.
+    One packer, orders arriving about every 2 seconds, and 1.5 seconds of packing per
+    order. Every record is printed to the terminal.
     """
 
     import logging
@@ -506,35 +506,35 @@ The complete first factory, which the documentation tests run:
     )
 
     PARAMS = SimParameter(
-        sim_id="Factory_A",
-        arrival={"parts": DistributionConfig(dist="exponential", rate=0.5)},
-        service={"machining": DistributionConfig(dist="normal", mean=1.5)},
-        resources={"lathe": CapacityConfig(current_cap=1, max_cap=1)},
+        sim_id="Shop",
+        arrival={"orders": DistributionConfig(dist="exponential", rate=0.5)},
+        service={"packing": DistributionConfig(dist="normal", mean=1.5)},
+        resources={"packers": CapacityConfig(current_cap=1, max_cap=1)},
     )
 
 
-    def process_part(env, sampler, lathe, part_id):
-        """One part: wait for the lathe, machine it, release it."""
-        key = f"task-{part_id}"
-        path_id = "Factory_A.service.machining"
+    def pack_order(env, sampler, packers, order_id):
+        """One order: wait for a packer, pack it, release the packer."""
+        key = f"task-{order_id}"
+        path_id = "Shop.service.packing"
         env.publish_event(key, {"path_id": path_id, "status": "queued"})
 
-        with lathe.request() as request:
+        with packers.request() as request:
             yield request
             env.publish_event(key, {"path_id": path_id, "status": "started"})
             service = env.registry.get_config(path_id)
             yield env.timeout(sampler.sample(service))
-            env.publish_event(key, {"part_id": part_id})
+            env.publish_event(key, {"order_id": order_id})
 
 
-    def parts_generator(env, sampler, lathe):
-        """Starts one process_part for every arrival."""
-        arrival = env.registry.get_config("Factory_A.arrival.parts")
-        part_id = 0
+    def order_generator(env, sampler, packers):
+        """Starts one pack_order for every arrival."""
+        arrival = env.registry.get_config("Shop.arrival.orders")
+        order_id = 0
         while True:
             yield env.timeout(sampler.sample(arrival))
-            env.process(process_part(env, sampler, lathe, part_id))
-            part_id += 1
+            env.process(pack_order(env, sampler, packers, order_id))
+            order_id += 1
 
 
     SINKS = [ConsoleEgress()]  # passed to env.setup_egress in run below
@@ -545,10 +545,10 @@ The complete first factory, which the documentation tests run:
         env.registry.register_sim_parameter(PARAMS)
         env.setup_egress(SINKS)
 
-        lathe = DynamicResource(env, "Factory_A", "lathe")
+        packers = DynamicResource(env, "Shop", "packers")
         sampler = Sampler(rng=np.random.default_rng())
 
-        env.process(parts_generator(env, sampler, lathe))
+        env.process(order_generator(env, sampler, packers))
         try:
             env.run(until=until)
         finally:

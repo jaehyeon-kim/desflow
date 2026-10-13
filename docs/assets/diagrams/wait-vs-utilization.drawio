@@ -4,7 +4,7 @@
       <root>
         <mxCell id="0"/>
         <mxCell id="1" parent="0"/>
-        <mxCell id="c1" value="mean wait in the queue, one lathe, mean service 1.5 s" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="740" height="30" as="geometry"/></mxCell>
+        <mxCell id="c1" value="mean wait in the queue, one packer, mean service 1.5 s" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="740" height="30" as="geometry"/></mxCell>
         <mxCell id="c2" value="" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;rounded=0;" vertex="1" parent="1"><mxGeometry x="60" y="308" width="50" height="12" as="geometry"/></mxCell>
         <mxCell id="c3" value="" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;rounded=0;" vertex="1" parent="1"><mxGeometry x="115" y="314" width="50" height="6" as="geometry"/></mxCell>
         <mxCell id="c4" value="1.5" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fontSize=12;" vertex="1" parent="1"><mxGeometry x="55" y="284" width="60" height="22" as="geometry"/></mxCell>

@@ -109,7 +109,7 @@ LOGICAL_START_TIME = datetime.now() - timedelta(days=1)
 # ==========================================
 app = (
     SimulationContext(
-        sim_id="Line_A",
+        sim_id="Shop",
         factor=0.0,
         random_seed=42,
         logical_start_time=LOGICAL_START_TIME,
@@ -123,30 +123,30 @@ app = (
         # One commit per flush. Sized so a day of events lands in a few snapshots.
         batch_size=200_000,
     )
-    .add_resource("lathe", current_cap=4, max_cap=10)
-    .add_service("milling", dist="normal", mean=2.0, std=0.2)
-    .add_arrival("standard", dist="exponential", rate=2.0)
+    .add_resource("packers", current_cap=4, max_cap=10)
+    .add_service("packing", dist="normal", mean=2.0, std=0.2)
+    .add_arrival("orders", dist="exponential", rate=2.0)
 )
 
 
 # ==========================================
 # 3. Simulation Logic
 # ==========================================
-@app.task(service_id="milling", resource_id="lathe")
-def process_part(task_id: int, context):
+@app.task(service_id="packing", resource_id="packers")
+def pack_order(task_id: int, context):
     """
     Returns the exact flat dictionary expected by the table router
     to represent the 'finished' state of the lifecycle.
     """
-    return {"path_id": "Line_A.service.milling", "status": "finished"}
+    return {"path_id": "Shop.service.packing", "status": "finished"}
 
 
-@app.arrival_loop("standard")
+@app.arrival_loop("orders")
 def arrival_generator(context):
     task_id = 0
     while True:
-        yield context.wait_for_arrival("standard")
-        context.spawn(process_part(task_id, context))
+        yield context.wait_for_arrival("orders")
+        context.spawn(pack_order(task_id, context))
         task_id += 1
 
 
@@ -154,7 +154,7 @@ def arrival_generator(context):
 # 4. Execution
 # ==========================================
 def run():
-    """Generates 1 day of factory data instantly, into an Iceberg table."""
+    """Generates 1 day of shop orders instantly, into an Iceberg table."""
     logger.info(
         "Generating historical data mimicking start from "
         f"{LOGICAL_START_TIME.strftime('%Y-%m-%d %H:%M:%S')}"

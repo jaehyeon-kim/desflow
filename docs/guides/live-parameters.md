@@ -10,7 +10,7 @@ Changing a parameter takes three steps:
 
 ## Find the path
 
-A path is the `sim_id`, the kind of parameter, its name and the field, such as `Line_A.resources.lathe.current_cap` or `Line_A.arrival.standard.rate`. [Registry paths](../architecture/registry.md#registry-paths) lists every form.
+A path is the `sim_id`, the kind of parameter, its name and the field, such as `Shop.resources.packers.current_cap` or `Shop.arrival.orders.rate`. [Registry paths](../architecture/registry.md#registry-paths) lists every form.
 
 A path that does not exist is logged as a warning and ignored, so a misspelt path changes nothing. `compile_parameters()` returns the parameters a `SimulationContext` will register, which shows the names to use:
 
@@ -35,13 +35,13 @@ Each source suits a different job.
 
 ### Kafka
 
-`KafkaIngress` reads JSON messages with `path_id` and `value` from its topic. The [Kafka example](../examples/kafka.md) listens on `sim-config`. `KafkaAdminConnector.send_config` publishes such a message, and the example's dashboard uses it. This function sets the lathe capacity of the running example:
+`KafkaIngress` reads JSON messages with `path_id` and `value` from its topic. The [Kafka example](../examples/kafka.md) listens on `sim-config`. `KafkaAdminConnector.send_config` publishes such a message, and the example's dashboard uses it. This function sets the packers capacity of the running example:
 
 ```python title="docs/snippets/pages/live_parameters_kafka.py"
-"""Sets the lathe capacity of the running Kafka example.
+"""Sets the packers capacity of the running Kafka example.
 
 `KafkaAdminConnector.send_config` publishes `{"path_id": ..., "value": ...}` to the
-topic `KafkaIngress` reads, `sim-config` in the example. Call `set_lathe_capacity(3)`
+topic `KafkaIngress` reads, `sim-config` in the example. Call `set_packer_capacity(3)`
 while the example runs.
 """
 
@@ -50,10 +50,10 @@ import asyncio
 from dynamic_des import KafkaAdminConnector
 
 
-def set_lathe_capacity(value: int) -> None:
+def set_packer_capacity(value: int) -> None:
     admin = KafkaAdminConnector(bootstrap_servers="localhost:9092")
     asyncio.run(
-        admin.send_config("sim-config", "Line_A.resources.lathe.current_cap", value)
+        admin.send_config("sim-config", "Shop.resources.packers.current_cap", value)
     )
 ```
 
@@ -62,7 +62,7 @@ def set_lathe_capacity(value: int) -> None:
 `RedisIngress` reads JSON messages with `param_path` and `param_value` from a Pub/Sub channel. With the [Redis example](../examples/redis.md) running:
 
 ```bash
-docker exec -it valkey valkey-cli --user user --pass password PUBLISH simulation_params '{"param_path": "Factory.arrival.part_arrival.rate", "param_value": 10.0}'
+docker exec -it valkey valkey-cli --user user --pass password PUBLISH simulation_params '{"param_path": "Shop.arrival.orders.rate", "param_value": 10.0}'
 ```
 
 ### PostgreSQL
@@ -70,7 +70,7 @@ docker exec -it valkey valkey-cli --user user --pass password PUBLISH simulation
 `PostgresIngress` polls a table, `simulation_params` by default, and applies each row not yet applied. With the [Postgres example](../examples/postgres.md) running:
 
 ```bash
-docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params (param_path, param_value) VALUES ('Store.arrival.customer_order.rate', '5.0');"
+docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params (param_path, param_value) VALUES ('Shop.arrival.orders.rate', '5.0');"
 ```
 
 The row stays in the table, marked as applied, so the table keeps the history of every change. A restarted run applies the latest value of each path first.
@@ -83,12 +83,12 @@ A blueprint lists its changes under `scenario`, each with the simulation time it
 
 ## Watch it land
 
-A change is easiest to confirm in the telemetry. Publish the parameter you change, such as the lathe's capacity:
+A change is easiest to confirm in the telemetry. Publish the parameter you change, such as the packers' capacity:
 
 ```python title="docs/snippets/pages/live_parameters.py:telemetry"
 @app.telemetry_loop(interval=2.0)
-def lathe_metrics(context):
-    context.publish("lathe.capacity", context.get_resource("lathe").capacity)
+def packer_metrics(context):
+    context.publish("packers.capacity", context.get_resource("packers").capacity)
 ```
 
-In a blueprint, the same entry is `{interval: 2.0, publish: {lathe.capacity: lathe.capacity}}`. A change to an arrival rate shows as a change in how many events arrive in each interval rather than as a value of its own.
+In a blueprint, the same entry is `{interval: 2.0, publish: {packers.capacity: packers.capacity}}`. A change to an arrival rate shows as a change in how many events arrive in each interval rather than as a value of its own.

@@ -39,7 +39,7 @@ The connectors are optional extras, for example `uv add "dynamic-des[kafka,parqu
 
 ## Run an Example
 
-The local example is a production line that prints its events and telemetry to the terminal. It runs in real time and ends on its own: after 60 seconds in the YAML and builder versions, 30 in the low-level one. Pick the way you write, then follow uv or pip:
+The local example is an online shop that packs orders and prints its events and telemetry to the terminal. It runs in real time and ends on its own after 30 seconds, in all three versions. Pick the way you write, then follow uv or pip:
 
 === "YAML"
 
@@ -188,5 +188,5 @@ The Postgres database is `odctl`. The object store bucket is `odctl-dev`. Valkey
 
 ## Next Steps
 
-- [First Simulation](tutorials/first-simulation.md) builds a factory step by step, then adds random times, capacity changes and Kafka.
+- [First Simulation](tutorials/first-simulation.md) builds an online shop step by step, then adds random times, capacity changes and Kafka.
 - The [examples](examples/index.md) show each connector, written three ways, with the profile each one needs.

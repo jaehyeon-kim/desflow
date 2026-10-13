@@ -12,11 +12,11 @@ logging.basicConfig(level=logging.INFO)
 
 WORK = 3.0  # seconds each job takes
 NEW_JOBS_EVERY = 4.0  # seconds between rounds of new jobs
-ADD_MOLDER_AT = 12.0  # simulation time at which the molder is added
+ADD_WRAPPERS_AT = 12.0  # simulation time at which the gift wrappers are added
 
 PARAMS = SimParameter(
-    sim_id="Line_A",
-    resources={"lathe": CapacityConfig(current_cap=1, max_cap=5)},
+    sim_id="Shop",
+    resources={"packers": CapacityConfig(current_cap=1, max_cap=5)},
 )
 
 
@@ -36,19 +36,22 @@ def supervisor(env, resources):
     while True:
         yield env.timeout(NEW_JOBS_EVERY)
 
-        if env.now >= ADD_MOLDER_AT and "molder" not in resources:
-            # Give the molder its registry paths, then create the resource that
-            # reads its capacity from them.
+        if env.now >= ADD_WRAPPERS_AT and "wrappers" not in resources:
+            # Give the gift wrappers their registry paths, then create the resource
+            # that reads its capacity from them.
             env.registry.register_sim_parameter(
                 SimParameter(
-                    sim_id="Line_A",
-                    resources={"molder": CapacityConfig(current_cap=2, max_cap=5)},
+                    sim_id="Shop",
+                    resources={"wrappers": CapacityConfig(current_cap=2, max_cap=5)},
                 )
             )
-            resources["molder"] = DynamicResource(env, "Line_A", "molder")
+            resources["wrappers"] = DynamicResource(env, "Shop", "wrappers")
             env.publish_event(
                 "supervisor",
-                {"status": "molder_added", "capacity": resources["molder"].capacity},
+                {
+                    "status": "wrappers_added",
+                    "capacity": resources["wrappers"].capacity,
+                },
             )
 
         # One new job for every resource that exists now.
@@ -62,7 +65,7 @@ def run(until=20.0, factor=1.0):
     env.registry.register_sim_parameter(PARAMS)
     env.setup_egress([ConsoleEgress()])
 
-    resources = {"lathe": DynamicResource(env, "Line_A", "lathe")}
+    resources = {"packers": DynamicResource(env, "Shop", "packers")}
     env.process(supervisor(env, resources))
     try:
         env.run(until=until)

@@ -60,7 +60,7 @@ def test_publish_telemetry():
     # Set batch_size=1 so it flushes to the queue immediately
     env.setup_egress(providers=[tracker], batch_size=1)
 
-    env.publish_telemetry("Line_A.lathe.utilization", 85.5)
+    env.publish_telemetry("Shop.packers.utilization", 85.5)
 
     # Teardown guarantees the queue is fully drained into our tracker
     env.teardown()
@@ -70,7 +70,7 @@ def test_publish_telemetry():
     payload = tracker.received_batches[0][0]
 
     assert payload["stream_type"] == "telemetry"
-    assert payload["path_id"] == "Line_A.lathe.utilization"
+    assert payload["path_id"] == "Shop.packers.utilization"
     assert payload["value"] == 85.5
     assert "sim_ts" in payload
     assert "timestamp" in payload
@@ -646,13 +646,13 @@ def test_publish_telemetry_matches_telemetry_payload_model(case_id, value):
     env = _buffered_env()
     try:
         expected = TelemetryPayload(
-            path_id="Line_A.lathe.utilization",
+            path_id="Shop.packers.utilization",
             value=value,
             sim_ts=round(env.now, 3),
             timestamp=env._get_iso_timestamp(env.start_datetime, env.now),
         ).model_dump(mode="json")
 
-        env.publish_telemetry("Line_A.lathe.utilization", value)
+        env.publish_telemetry("Shop.packers.utilization", value)
 
         _assert_same_payload(env._event_buffer[-1], expected, case_id)
     finally:

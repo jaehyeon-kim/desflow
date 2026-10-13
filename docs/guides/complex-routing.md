@@ -10,7 +10,7 @@ With a router, `KafkaEgress` does not create topics at start, because only the r
 
 A topic router is a Python function that receives one record, as a dictionary with its `stream_type`, `key` or `path_id`, and `value`, and returns the topic name as a string. `KafkaEgress` sends every record it receives, so the router must always return a topic. To drop records, give the provider a `when` predicate on `add_egress`, which filters them before they reach the router.
 
-![custom_kafka_router sends telemetry to factory-telemetry, events with status machine_failed or level ERROR to system-alarms, and any other event to factory-events](../assets/diagrams/record-router.png)
+![custom_kafka_router sends telemetry to shop-telemetry, events with status packing_failed or level ERROR to system-alarms, and any other event to shop-events](../assets/diagrams/record-router.png)
 
 This router sends telemetry, alarms and other events to three topics:
 
@@ -18,16 +18,16 @@ This router sends telemetry, alarms and other events to three topics:
 def custom_kafka_router(data: Dict[str, Any]) -> str:
     """Picks a topic for each record by its kind and its value."""
     if data.get("stream_type") == "telemetry":
-        return "factory-telemetry"
+        return "shop-telemetry"
 
     value = data.get("value")
     if isinstance(value, dict) and (
-        value.get("status") == "machine_failed" or value.get("level") == "ERROR"
+        value.get("status") == "packing_failed" or value.get("level") == "ERROR"
     ):
         return "system-alarms"
 
     # Every other event, including a payload that is not a dict.
-    return "factory-events"
+    return "shop-events"
 ```
 
 ---
@@ -38,8 +38,8 @@ Pass the router as `topic_router` to `KafkaEgress`:
 
 ```python title="docs/snippets/pages/complex_routing.py:egress"
 app = (
-    SimulationContext(sim_id="Factory_A", factor=1.0)
-    .add_resource("lathe", current_cap=1, max_cap=1)
+    SimulationContext(sim_id="Shop", factor=1.0)
+    .add_resource("packers", current_cap=1, max_cap=1)
     .add_egress(
         KafkaEgress(
             bootstrap_servers="localhost:9092",

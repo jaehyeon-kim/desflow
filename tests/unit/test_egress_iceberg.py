@@ -286,7 +286,7 @@ def test_without_router_events_are_flat_and_telemetry_is_left_out():
     event = {
         "stream_type": "event",
         "key": "task-1",
-        "value": {"path_id": "Line_A.service.milling", "status": "finished"},
+        "value": {"path_id": "Shop.service.packing", "status": "finished"},
     }
 
     egress._write_batch(
@@ -298,7 +298,7 @@ def test_without_router_events_are_flat_and_telemetry_is_left_out():
         {
             "stream_type": "event",
             "key": "task-1",
-            "path_id": "Line_A.service.milling",
+            "path_id": "Shop.service.packing",
             "status": "finished",
         }
     ]

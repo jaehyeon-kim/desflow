@@ -1,8 +1,8 @@
 # Preemptive Breakdowns
 
-A preemptive breakdown stops a machine in the middle of a job. Here the part being machined stays on the lathe while it is repaired, then the rest of its work continues. No other part can start while the lathe is down.
+A preemptive breakdown stops a machine in the middle of a job. Here a label printer jams while it prints an order's shipping label. The order stays on the printer while it is repaired, then the rest of its work continues. No other order can start while the printer is down.
 
-![worker_task publishes queued and started; every 12 s chaos_monkey interrupts the part on the lathe, which publishes interrupted with the cause, keeps the lathe for 10 s of repair, publishes machine_repaired and machines the rest, then publishes finished; with no breakdown it finishes after 5 s of machining](../assets/diagrams/breakdown-interrupt.png)
+![worker_task publishes queued and started; every 12 s chaos_monkey interrupts the order on the printer, which publishes interrupted with the cause, keeps the printer for 10 s of repair, publishes printer_repaired and labels the rest, then publishes finished; with no jam it finishes after 5 s of labelling](../assets/diagrams/breakdown-interrupt.png)
 
 `@app.task` waits out the service time inside its own generator, so your code cannot catch a `simpy.Interrupt` there. A breakdown needs a task written as a generator that you start with `context.spawn`, and a process that interrupts it.
 
@@ -19,32 +19,32 @@ from dynamic_des import ConsoleEgress, SimulationContext
 
 logging.basicConfig(level=logging.INFO)
 
-MACHINING = 5.0  # seconds of work per part
-REPAIR = 10.0  # seconds the lathe is down after a breakdown
-BREAKDOWN_EVERY = 12.0  # seconds between breakdowns
+LABELLING = 5.0  # seconds to print and attach the shipping label of one order
+REPAIR = 10.0  # seconds the printer is down after a jam
+JAM_EVERY = 12.0  # seconds between jams
 
 app = (
-    SimulationContext(sim_id="Line_A", factor=1.0)
-    .add_resource("lathe", current_cap=1, max_cap=1)
-    .add_arrival("standard", dist="exponential", rate=0.2)
+    SimulationContext(sim_id="Shop", factor=1.0)
+    .add_resource("printer", current_cap=1, max_cap=1)
+    .add_arrival("orders", dist="exponential", rate=0.2)
     .add_egress(ConsoleEgress())
 )
 
-# The process of the part being machined, if any, so a breakdown can interrupt it.
-on_lathe = []
+# The process of the order being labelled, if any, so a jam can interrupt it.
+on_printer = []
 
 
 def worker_task(context: SimulationContext, task_id: int):
-    lathe = context.get_resource("lathe")
+    printer = context.get_resource("printer")
     key = f"task-{task_id}"
     context.env.publish_event(key, {"status": "queued"})
 
-    with lathe.request() as req:
+    with printer.request() as req:
         yield req
         context.env.publish_event(key, {"status": "started"})
-        remaining = MACHINING
+        remaining = LABELLING
         while remaining > 0:
-            on_lathe.append(context.env.active_process)
+            on_printer.append(context.env.active_process)
             began = context.env.now
             try:
                 yield context.env.timeout(remaining)
@@ -54,28 +54,28 @@ def worker_task(context: SimulationContext, task_id: int):
                 context.env.publish_event(
                     key, {"status": "interrupted", "cause": interrupt.cause}
                 )
-            on_lathe.remove(context.env.active_process)
+            on_printer.remove(context.env.active_process)
             if remaining > 0:
-                # The part stays on the lathe, so no other part can start, and a
-                # lathe under repair cannot break down again.
+                # The order stays on the printer, so no other order can start, and a
+                # printer under repair cannot jam again.
                 yield context.env.timeout(REPAIR)
-                context.env.publish_event(key, {"status": "machine_repaired"})
+                context.env.publish_event(key, {"status": "printer_repaired"})
         context.env.publish_event(key, {"status": "finished"})
 
 
 def chaos_monkey(context: SimulationContext):
     while True:
-        yield context.env.timeout(BREAKDOWN_EVERY)
-        if on_lathe:  # an idle lathe has nothing to interrupt
-            on_lathe[0].interrupt("overheating")
+        yield context.env.timeout(JAM_EVERY)
+        if on_printer:  # an idle printer has nothing to interrupt
+            on_printer[0].interrupt("paper_jam")
 
 
-@app.arrival_loop("standard")
+@app.arrival_loop("orders")
 def arrival_loop(context: SimulationContext):
     context.spawn(chaos_monkey(context))
     task_id = 0
     while True:
-        yield context.wait_for_arrival("standard")
+        yield context.wait_for_arrival("orders")
         context.spawn(worker_task(context, task_id))
         task_id += 1
 
@@ -90,7 +90,7 @@ Save it as `preemptive_breakdowns.py` and run `python preemptive_breakdowns.py`.
 
 ## How It Works
 
-- **`on_lathe`** holds the process of the part being machined, so the breakdown process knows what to interrupt.
-- **`worker_task`** takes the lathe and machines for `MACHINING` seconds. When it is interrupted, it subtracts the time already worked, publishes `interrupted` with the cause, keeps the lathe for `REPAIR` seconds, publishes `machine_repaired` and machines the rest. It publishes `finished` when the work is done.
-- **`chaos_monkey`** interrupts the part on the lathe every `BREAKDOWN_EVERY` seconds. An idle lathe, or one under repair, has nothing to interrupt, so it does not break down. For breakdowns at random times, replace the fixed wait with a random draw such as `random.expovariate(1 / BREAKDOWN_EVERY)`.
-- **`arrival_loop`** starts `chaos_monkey` once, then starts a `worker_task` for each arriving part.
+- **`on_printer`** holds the process of the order being labelled, so the breakdown process knows what to interrupt.
+- **`worker_task`** takes the printer and labels for `LABELLING` seconds. When it is interrupted, it subtracts the time already worked, publishes `interrupted` with the cause, keeps the printer for `REPAIR` seconds, publishes `printer_repaired` and labels the rest. It publishes `finished` when the work is done.
+- **`chaos_monkey`** interrupts the order on the printer every `JAM_EVERY` seconds. An idle printer, or one under repair, has nothing to interrupt, so it does not jam. For jams at random times, replace the fixed wait with a random draw such as `random.expovariate(1 / JAM_EVERY)`.
+- **`arrival_loop`** starts `chaos_monkey` once, then starts a `worker_task` for each arriving order.

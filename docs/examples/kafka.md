@@ -1,6 +1,6 @@
 # Kafka Digital Twin
 
-A production line that takes parameter updates from a Kafka topic and publishes its events and telemetry to Kafka topics. Each tab shows the example written one way: with the builder API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](../architecture/overview.md) compares the three.
+An online shop that packs orders, takes parameter updates from a Kafka topic and publishes its events and telemetry to Kafka topics. Each tab shows the example written one way: with the builder API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](../architecture/overview.md) compares the three.
 
 With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simulation runs as a separate service. It reads JSON parameter updates from a topic, and publishes telemetry and typed Pydantic events to other topics.
 
@@ -60,32 +60,32 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
 
     **What It Does**
 
-    The run keeps going until you stop it. When it starts, `KafkaEgress` creates `sim-events` and `sim-telemetry` if they do not exist. The run then publishes task lifecycle events to `sim-events` and lathe metrics to `sim-telemetry`, and applies parameter updates sent to `sim-config`.
+    The run keeps going until you stop it. When it starts, `KafkaEgress` creates `sim-events` and `sim-telemetry` if they do not exist. The run then publishes task lifecycle events to `sim-events` and packer metrics to `sim-telemetry`, and applies parameter updates sent to `sim-config`.
 
-    The dashboard in the Quick Start works with this run unchanged, because it reads the same topics and the same four lathe metrics.
+    The dashboard in the Quick Start works with this run unchanged, because it reads the same topics and the same four packer metrics.
 
     `KAFKA_BOOTSTRAP_SERVERS` overrides the broker address, because the blueprint reads it with `${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}`.
 
     **Full Source Code**
 
-    The blueprint wires both Kafka connectors and declares the lathe, the service, the arrival and the task. The finished event of each task is the fixed `payload`, and the `telemetry` entry publishes four built-in statistics of the lathe every 2 simulation seconds. The builder example also publishes `lathe.avg_wait`, a derived metric, which a blueprint computes only with Python.
+    The blueprint wires both Kafka connectors and declares the packers, the packing service, the order arrival and the task. The finished event of each task is the fixed `payload`, and the `telemetry` entry publishes four built-in statistics of the packers every 2 simulation seconds, the same four the builder and low-level versions publish.
 
     Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
     ```yaml title="examples/yaml/kafka.yaml"
     # Kafka digital twin in YAML.
     #
-    # The YAML version of examples/builder/kafka_example.py. KafkaIngress reads
-    # parameter updates from sim-config, and KafkaEgress publishes lifecycle events to
-    # sim-events and lathe metrics to sim-telemetry. KafkaEgress creates its two topics
-    # when the run starts.
+    # The YAML version of examples/builder/kafka_example.py, an online shop packing
+    # orders. KafkaIngress reads parameter updates from sim-config, and KafkaEgress
+    # publishes lifecycle events to sim-events and packer metrics to sim-telemetry.
+    # KafkaEgress creates its two topics when the run starts.
     #
     # Needs a broker: odctl up kafka-lite. Runs until interrupted with Ctrl + C.
     # KAFKA_BOOTSTRAP_SERVERS overrides the broker address.
     # Run it with: ddes run examples/yaml/kafka.yaml
 
     simulation:
-      sim_id: Line_A
+      sim_id: Shop
       factor: 1.0
       random_seed: 42
 
@@ -103,28 +103,28 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
           bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}
 
     resources:
-      lathe: {current_cap: 1, max_cap: 10}
+      packers: {current_cap: 1, max_cap: 10}
 
     services:
-      milling: {dist: normal, mean: 3.0, std: 0.5}
+      packing: {dist: normal, mean: 3.0, std: 0.5}
 
     arrivals:
-      standard: {dist: exponential, rate: 1.0, spawn: process_part}
+      orders: {dist: exponential, rate: 1.0, spawn: pack_order}
 
     tasks:
-      process_part:
-        service: milling
-        resource: lathe
-        payload: {path_id: Line_A.service.milling, status: finished}
+      pack_order:
+        service: packing
+        resource: packers
+        payload: {path_id: Shop.service.packing, status: finished}
 
     telemetry:
-      # Samples the lathe every 2 simulation seconds.
+      # Samples the packers every 2 simulation seconds.
       - interval: 2.0
         publish:
-          lathe.capacity: lathe.capacity
-          lathe.in_use: lathe.in_use
-          lathe.queue_length: lathe.queue_length
-          lathe.utilization: lathe.utilization
+          packers.capacity: packers.capacity
+          packers.in_use: packers.in_use
+          packers.queue_length: packers.queue_length
+          packers.utilization: packers.utilization
     ```
 
 === "Builder"
@@ -181,7 +181,7 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
         odctl down kafka-lite --volumes
         ```
 
-    The run keeps going until you stop it. It logs one line per task as the task claims the lathe, publishes task lifecycle events to `sim-events` and resource metrics to `sim-telemetry`.
+    The run keeps going until you stop it. It logs one line per order as a packer starts on it, publishes task lifecycle events to `sim-events` and resource metrics to `sim-telemetry`.
 
     **Full Source Code**
 
@@ -192,11 +192,11 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
     ```python title="examples/builder/kafka_example.py"
     """Kafka Digital Twin, builder API.
 
-    Builds `Line_A` with `SimulationContext` and connects it to Kafka in both directions.
-    `KafkaIngress` reads parameter updates from `sim-config`, so the running simulation can
-    be steered without restarting it. `KafkaEgress` publishes lifecycle events to
-    `sim-events` and metrics to `sim-telemetry`, with Pydantic models giving the events a
-    declared shape.
+    Builds `Shop`, an online shop packing orders, with `SimulationContext` and connects it
+    to Kafka in both directions. `KafkaIngress` reads parameter updates from `sim-config`,
+    so the running simulation can be steered without restarting it. `KafkaEgress`
+    publishes lifecycle events to `sim-events` and metrics to `sim-telemetry`, with
+    Pydantic models giving the events a declared shape.
 
     Needs a broker: `odctl up kafka-lite`. Runs until interrupted with Ctrl + C.
     """
@@ -239,7 +239,7 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
     # 2. Infrastructure Builder
     # ==========================================
     app = (
-        SimulationContext(sim_id="Line_A", factor=1.0, random_seed=42)
+        SimulationContext(sim_id="Shop", factor=1.0, random_seed=42)
         .add_ingress(KafkaIngress(topic="sim-config", bootstrap_servers=BOOTSTRAP_SERVERS))
         .add_egress(
             KafkaEgress(
@@ -248,17 +248,17 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
                 bootstrap_servers=BOOTSTRAP_SERVERS,
             )
         )
-        .add_resource("lathe", current_cap=1, max_cap=10)
-        .add_service("milling", dist="normal", mean=3.0, std=0.5)
-        .add_arrival("standard", dist="exponential", rate=1.0)
+        .add_resource("packers", current_cap=1, max_cap=10)
+        .add_service("packing", dist="normal", mean=3.0, std=0.5)
+        .add_arrival("orders", dist="exponential", rate=1.0)
     )
 
 
     # ==========================================
     # 3. Simulation Logic
     # ==========================================
-    @app.task(service_id="milling", resource_id="lathe")
-    def process_part(task_id: int, context):
+    @app.task(service_id="packing", resource_id="packers")
+    def pack_order(task_id: int, context):
         """
         The @task decorator automatically locks the resource and emits the
         'queued' and 'started' events. We just execute our custom logic
@@ -267,35 +267,32 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
         logger.info(f"Task {task_id} started at sim time: {context._env.now:.2f}s")
 
         # Return the strongly-typed Pydantic model for the 'finished' state
-        return TaskEvent(path_id="Line_A.service.milling", status="finished").model_dump(
+        return TaskEvent(path_id="Shop.service.packing", status="finished").model_dump(
             mode="json"
         )
 
 
-    @app.arrival_loop("standard")
+    @app.arrival_loop("orders")
     def arrival_generator(context):
         task_id = 0
         while True:
-            yield context.wait_for_arrival("standard")
-            context.spawn(process_part(task_id, context))
+            yield context.wait_for_arrival("orders")
+            context.spawn(pack_order(task_id, context))
             task_id += 1
 
 
     @app.telemetry_loop(interval=2.0)
     def telemetry_monitor(context):
         """Low-volume system health stream."""
-        res = context.get_resource("lathe")
+        res = context.get_resource("packers")
 
-        # Exact parity with the low-level telemetry outputs
-        context.publish("lathe.capacity", res.capacity)
-        context.publish("lathe.in_use", res.in_use)
-        context.publish("lathe.queue_length", len(res.queue.items))
+        # The same metrics as the low-level and YAML versions
+        context.publish("packers.capacity", res.capacity)
+        context.publish("packers.in_use", res.in_use)
+        context.publish("packers.queue_length", len(res.queue.items))
 
         util = (res.in_use / res.capacity) * 100 if res.capacity > 0 else 0
-        context.publish("lathe.utilization", util)
-
-        avg_wait = len(res.queue.items) * 3.0
-        context.publish("lathe.avg_wait", avg_wait)
+        context.publish("packers.utilization", util)
 
 
     # ==========================================
@@ -382,7 +379,7 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
         odctl down kafka-lite --volumes
         ```
 
-    The run keeps going until you stop it. It logs one line per task as the task claims the lathe, publishes task lifecycle events to `sim-events` and resource metrics to `sim-telemetry`.
+    The run keeps going until you stop it. It logs one line per order as a packer starts on it, publishes task lifecycle events to `sim-events` and resource metrics to `sim-telemetry`.
 
     **Full Source Code**
 
@@ -393,9 +390,9 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
     ```python title="examples/low-level/kafka_example.py"
     """Kafka Digital Twin, low-level API.
 
-    The low-level twin of `builder/kafka_example.py`, wiring the environment, registry
-    and connectors by hand. Like the builder version, it creates its topics first with
-    `KafkaAdminConnector`.
+    The low-level twin of `builder/kafka_example.py`, an online shop packing orders, with
+    the environment, registry and connectors wired by hand. Like the builder version, it
+    creates its topics first with `KafkaAdminConnector`.
 
     Needs a broker: `odctl up kafka-lite`. Runs until interrupted with Ctrl + C.
     """
@@ -424,6 +421,8 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
     )
     logger = logging.getLogger("kafka_example")
 
+    BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+
 
     # ==========================================
     # 1. Define Strongly-Typed Event Payloads
@@ -439,9 +438,63 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
         status: str
 
 
+    # ==========================================
+    # 2. Initial System State
+    # ==========================================
+    PARAMS = SimParameter(
+        sim_id="Shop",
+        arrival={"orders": DistributionConfig(dist="exponential", rate=1.0)},  # 1 a second
+        service={"packing": DistributionConfig(dist="normal", mean=3.0, std=0.5)},
+        resources={"packers": CapacityConfig(current_cap=1, max_cap=10)},
+    )
+
+
+    # ==========================================
+    # 3. Simulation Logic
+    # ==========================================
+    def pack_order(env, sampler, packers, task_id):
+        """Publishes a Pydantic model instead of a dict for each lifecycle event."""
+        key, path_id = f"task-{task_id}", "Shop.service.packing"
+        env.publish_event(key, TaskEvent(path_id=path_id, status="queued"))
+
+        with packers.request() as req:
+            yield req
+
+            logger.info(f"Task {task_id} started at sim time: {env.now:.2f}s")
+            env.publish_event(key, TaskEvent(path_id=path_id, status="started"))
+
+            # Use the latest service config from the registry
+            yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
+
+            env.publish_event(key, TaskEvent(path_id=path_id, status="finished"))
+
+
+    def arrival_generator(env, sampler, packers):
+        gap = env.registry.get_config("Shop.arrival.orders")
+        task_id = 0
+        while True:
+            yield env.timeout(sampler.sample(gap))
+            env.process(pack_order(env, sampler, packers, task_id))
+            task_id += 1
+
+
+    def telemetry_generator(env, packers):
+        """Low-volume system health stream, pushed to the 'sim-telemetry' topic."""
+        while True:
+            env.publish_telemetry("Shop.packers.capacity", packers.capacity)
+            env.publish_telemetry("Shop.packers.in_use", packers.in_use)
+            env.publish_telemetry("Shop.packers.queue_length", len(packers.queue.items))
+
+            util = (packers.in_use / packers.capacity) * 100 if packers.capacity > 0 else 0
+            env.publish_telemetry("Shop.packers.utilization", util)
+
+            yield env.timeout(2.0)
+
+
+    # ==========================================
+    # 4. Execution
+    # ==========================================
     def run():
-        # 2. Create Kafka topics
-        BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
         TOPICS_CONFIG = [
             {"name": "sim-config", "partitions": 1},
             {"name": "sim-telemetry", "partitions": 1},
@@ -455,17 +508,6 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
         admin_connector.create_topics(topics_config=TOPICS_CONFIG)
         time.sleep(2)
 
-        # 3. Define initial system state
-        line_a_params = SimParameter(
-            sim_id="Line_A",
-            arrival={
-                "standard": DistributionConfig(dist="exponential", rate=1.0)
-            },  # 1 every 1s
-            service={"milling": DistributionConfig(dist="normal", mean=3.0, std=0.5)},
-            resources={"lathe": CapacityConfig(current_cap=1, max_cap=10)},
-        )
-
-        # 4. Setup Environment with Kafka Connectors
         # (Optional: Pass **kwargs like `security_protocol="SASL_SSL"` for enterprise clusters)
         ingress = KafkaIngress(topic="sim-config", bootstrap_servers=BOOTSTRAP_SERVERS)
 
@@ -484,64 +526,15 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
         )
 
         env = DynamicRealtimeEnvironment(factor=1.0)
-        env.registry.register_sim_parameter(line_a_params)
+        env.registry.register_sim_parameter(PARAMS)
         env.setup_ingress([ingress])
         env.setup_egress([egress])
 
-        # 5. Initialize Resources and Sampler
-        res = DynamicResource(env, "Line_A", "lathe")
+        packers = DynamicResource(env, "Shop", "packers")
         sampler = Sampler(rng=np.random.default_rng(42))
 
-        # 6. Define Simulation Logic
-        def arrival_process(env: DynamicRealtimeEnvironment, res: DynamicResource):
-            arrival_cfg = env.registry.get_config("Line_A.arrival.standard")
-            service_path = "Line_A.service.milling"
-            task_id = 0
-
-            while True:
-                yield env.timeout(sampler.sample(arrival_cfg))
-                env.process(work_task(env, task_id, res, service_path))
-                task_id += 1
-
-        def work_task(
-            env: DynamicRealtimeEnvironment,
-            task_id: int,
-            res: DynamicResource,
-            path_id: str,
-        ):
-            task_key = f"task-{task_id}"
-
-            # Publish Pydantic model instead of raw dictionary
-            env.publish_event(task_key, TaskEvent(path_id=path_id, status="queued"))
-
-            with res.request() as req:
-                yield req
-
-                logger.info(f"Task {task_id} started at sim time: {env.now:.2f}s")
-                env.publish_event(task_key, TaskEvent(path_id=path_id, status="started"))
-
-                # Use latest service config from registry
-                service_cfg = env.registry.get_config(path_id)
-                yield env.timeout(sampler.sample(service_cfg))
-
-                env.publish_event(task_key, TaskEvent(path_id=path_id, status="finished"))
-
-        def telemetry_monitor(env: DynamicRealtimeEnvironment, res: DynamicResource):
-            """Low-volume system health stream."""
-            while True:
-                # Pushed to 'sim-telemetry' topic
-                env.publish_telemetry("Line_A.lathe.capacity", res.capacity)
-                env.publish_telemetry("Line_A.lathe.in_use", res.in_use)
-                env.publish_telemetry("Line_A.lathe.queue_length", len(res.queue.items))
-
-                util = (res.in_use / res.capacity) * 100 if res.capacity > 0 else 0
-                env.publish_telemetry("Line_A.lathe.utilization", util)
-
-                yield env.timeout(2.0)
-
-        # 7. Run
-        env.process(arrival_process(env, res))
-        env.process(telemetry_monitor(env, res))
+        env.process(arrival_generator(env, sampler, packers))
+        env.process(telemetry_generator(env, packers))
 
         print("Simulation started.")
         print("  - Listen to 'sim-telemetry' for system vitals.")

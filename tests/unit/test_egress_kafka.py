@@ -113,7 +113,7 @@ async def test_kafka_egress_pluggable_serializers(MockProducer, run_until):
     mock_egress_queue = queue.Queue()
     # We send two messages: one mapped to custom serializer, one falling back to JSON
     data_custom = {"stream_type": "event", "key": "123", "value": "avro_data"}
-    data_json = {"stream_type": "telemetry", "path_id": "Line_A", "value": 5}
+    data_json = {"stream_type": "telemetry", "path_id": "Shop", "value": 5}
 
     mock_egress_queue.put([data_custom, data_json])
 
@@ -141,7 +141,7 @@ async def test_kafka_egress_pluggable_serializers(MockProducer, run_until):
     # 2. Verify fallback JSON serializer handled the telemetry topic
     call_2 = mock_producer_instance.send.call_args_list[1]
     assert call_2.args[0] == "sim-telemetry"
-    assert b"Line_A" in call_2.kwargs["value"]  # It should be raw JSON bytes
+    assert b"Shop" in call_2.kwargs["value"]  # It should be raw JSON bytes
 
 
 @pytest.mark.asyncio
@@ -158,7 +158,7 @@ async def test_kafka_egress_default_telemetry_routing(MockProducer, run_until):
     mock_egress_queue = queue.Queue()
     data = {
         "stream_type": "telemetry",
-        "path_id": "Line_A.lathe.queue_length",
+        "path_id": "Shop.packers.queue_length",
         "value": 10,
     }
     mock_egress_queue.put([data])
@@ -184,11 +184,11 @@ async def test_kafka_egress_default_telemetry_routing(MockProducer, run_until):
     sent_payload_bytes = call_args.kwargs["value"]
 
     assert target_topic == telemetry_topic
-    assert sent_key == b"Line_A.lathe.queue_length"
+    assert sent_key == b"Shop.packers.queue_length"
 
     decoded_payload = orjson.loads(sent_payload_bytes)
     assert "stream_type" not in decoded_payload
-    assert decoded_payload["path_id"] == "Line_A.lathe.queue_length"
+    assert decoded_payload["path_id"] == "Shop.packers.queue_length"
     assert decoded_payload["value"] == 10
 
 
@@ -244,7 +244,7 @@ async def test_kafka_egress_omits_stream_type_by_default(MockProducer, run_until
     MockProducer.return_value = mock_producer_instance
 
     mock_egress_queue = queue.Queue()
-    data = {"stream_type": "telemetry", "path_id": "Line_A", "value": 10}
+    data = {"stream_type": "telemetry", "path_id": "Shop", "value": 10}
     mock_egress_queue.put([data])
 
     egress = KafkaEgress(bootstrap_servers="localhost:9092")
@@ -269,7 +269,7 @@ async def test_kafka_egress_include_stream_type(MockProducer, run_until):
     MockProducer.return_value = mock_producer_instance
 
     mock_egress_queue = queue.Queue()
-    telemetry = {"stream_type": "telemetry", "path_id": "Line_A", "value": 10}
+    telemetry = {"stream_type": "telemetry", "path_id": "Shop", "value": 10}
     event = {"stream_type": "event", "key": "task-1", "value": {"status": "ok"}}
     mock_egress_queue.put([telemetry, event])
 
@@ -292,7 +292,7 @@ async def test_kafka_egress_include_stream_type(MockProducer, run_until):
     decoded_telemetry = orjson.loads(call_1.kwargs["value"])
     assert decoded_telemetry["stream_type"] == "telemetry"
     assert call_1.args[0] == "metrics"
-    assert call_1.kwargs["key"] == b"Line_A"
+    assert call_1.kwargs["key"] == b"Shop"
 
     decoded_event = orjson.loads(call_2.kwargs["value"])
     assert decoded_event["stream_type"] == "event"

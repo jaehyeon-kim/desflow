@@ -1,12 +1,12 @@
 # Fast-Forward to Parquet
 
-A week of a production line, generated at `factor=0.0` and written to Parquet files on the local disk or in S3-compatible storage. Each tab shows the example written one way: with the builder API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](../architecture/overview.md) compares the three.
+A week of an online shop's orders, generated at `factor=0.0` and written to Parquet files on the local disk or in S3-compatible storage. Each tab shows the example written one way: with the builder API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](../architecture/overview.md) compares the three.
 
 Dynamic DES is built for real-time digital twins, but the same model can also run faster than real time. With the time factor at 0 and a chosen start time, a run generates a large amount of historical data in seconds, or predicts future states.
 
 === "YAML"
 
-    This example builds the simulation of the builder example in the Builder tab from a YAML blueprint, with no Python. With `factor: 0.0` the clock is detached from the wall clock, so a week of factory data is written to Parquet as fast as the machine allows.
+    This example builds the simulation of the builder example in the Builder tab from a YAML blueprint, with no Python. With `factor: 0.0` the clock is detached from the wall clock, so a week of shop orders is written to Parquet as fast as the machine allows.
 
     **Quick Start**
 
@@ -64,7 +64,7 @@ Dynamic DES is built for real-time digital twins, but the same model can also ru
     # Historical data generation in YAML.
     #
     # The YAML version of examples/builder/parquet_example.py. With factor 0 the
-    # clock is detached from the wall clock, so a week of factory data is written to
+    # clock is detached from the wall clock, so a week of shop orders is written to
     # Parquet as fast as the machine allows. Without a router, each event is written as
     # one flat row and telemetry is left out. The folder is created on the first write.
     #
@@ -74,7 +74,7 @@ Dynamic DES is built for real-time digital twins, but the same model can also ru
     # Run it with: ddes run examples/yaml/parquet.yaml
 
     simulation:
-      sim_id: Line_A
+      sim_id: Shop
       factor: 0.0
       random_seed: 42
       # A week before now, so the records are stamped as history.
@@ -96,19 +96,19 @@ Dynamic DES is built for real-time digital twins, but the same model can also ru
       flush_interval: 86400
 
     resources:
-      lathe: {current_cap: 4, max_cap: 10}
+      packers: {current_cap: 4, max_cap: 10}
 
     services:
-      milling: {dist: normal, mean: 2.0, std: 0.2}
+      packing: {dist: normal, mean: 2.0, std: 0.2}
 
     arrivals:
-      standard: {dist: exponential, rate: 2.0, spawn: process_part}
+      orders: {dist: exponential, rate: 2.0, spawn: pack_order}
 
     tasks:
-      process_part:
-        service: milling
-        resource: lathe
-        payload: {path_id: Line_A.service.milling, status: finished}
+      pack_order:
+        service: packing
+        resource: packers
+        payload: {path_id: Shop.service.packing, status: finished}
 
     run:
       until: 1 week
@@ -162,7 +162,7 @@ Dynamic DES is built for real-time digital twins, but the same model can also ru
 
     **Full Source Code**
 
-    This script simulates a manufacturing line over a 7-day period. It demonstrates how to route lifecycle events to one Parquet dataset, drop real-time metrics, and write them out instantly.
+    This script simulates the shop over a 7-day period. It demonstrates how to route lifecycle events to one Parquet dataset, flattened into rows, and write them out instantly.
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
@@ -172,8 +172,8 @@ Dynamic DES is built for real-time digital twins, but the same model can also ru
 
     Demonstrates using SimulationContext as a fast-forward data engine.
     By setting `factor=0.0`, the SimPy clock detaches from wall-clock time,
-    executing the exact same factory logic instantly to generate massive
-    historical datasets for Machine Learning models via Parquet/S3.
+    executing the same shop logic instantly to generate a week of
+    historical orders for machine learning models, written to Parquet on disk or S3.
     """
 
     import logging
@@ -252,7 +252,7 @@ Dynamic DES is built for real-time digital twins, but the same model can also ru
     # ==========================================
     app = (
         SimulationContext(
-            sim_id="Line_A",
+            sim_id="Shop",
             factor=0.0,
             random_seed=42,
             # Without this the example logs that it is backdating a week and then timestamps
@@ -261,51 +261,38 @@ Dynamic DES is built for real-time digital twins, but the same model can also ru
         )
         .add_egress(ParquetStorageEgress(path_router=router, filesystem=filesystem))
         .with_batching(batch_size=5000, flush_interval=86400)
-        .add_resource("lathe", current_cap=4, max_cap=10)
-        .add_service("milling", dist="normal", mean=2.0, std=0.2)
-        .add_arrival("standard", dist="exponential", rate=2.0)
+        .add_resource("packers", current_cap=4, max_cap=10)
+        .add_service("packing", dist="normal", mean=2.0, std=0.2)
+        .add_arrival("orders", dist="exponential", rate=2.0)
     )
 
 
     # ==========================================
     # 3. Simulation Logic
     # ==========================================
-    @app.task(service_id="milling", resource_id="lathe")
-    def process_part(task_id: int, context):
+    @app.task(service_id="packing", resource_id="packers")
+    def pack_order(task_id: int, context):
         """
         Returns the exact flat dictionary expected by the parquet router
         to represent the 'finished' state of the lifecycle.
         """
-        return {"path_id": "Line_A.service.milling", "status": "finished"}
+        return {"path_id": "Shop.service.packing", "status": "finished"}
 
 
-    @app.arrival_loop("standard")
+    @app.arrival_loop("orders")
     def arrival_generator(context):
         task_id = 0
         while True:
-            yield context.wait_for_arrival("standard")
-            context.spawn(process_part(task_id, context))
+            yield context.wait_for_arrival("orders")
+            context.spawn(pack_order(task_id, context))
             task_id += 1
-
-
-    @app.telemetry_loop(interval=60.0)
-    def telemetry_generator(context):
-        """Samples the hidden state of the resources every 60 simulation seconds."""
-        res = context.get_resource("lathe")
-
-        context.publish("lathe.capacity", res.capacity)
-        context.publish("lathe.in_use", res.in_use)
-        context.publish("lathe.queue_length", len(res.queue.items))
-
-        util = (res.in_use / res.capacity) * 100 if res.capacity > 0 else 0
-        context.publish("lathe.utilization", util)
 
 
     # ==========================================
     # 4. Execution
     # ==========================================
     def run():
-        """Generates 1 week of factory data instantly."""
+        """Generates 1 week of shop orders instantly."""
 
         logger.info(
             "Generating historical data mimicking start from "
@@ -371,7 +358,7 @@ Dynamic DES is built for real-time digital twins, but the same model can also ru
 
     **Full Source Code**
 
-    This script simulates a manufacturing line over a 7-day period. It demonstrates how to route lifecycle events to one Parquet dataset, drop real-time metrics, and write them out.
+    This script simulates the shop over a 7-day period. It demonstrates how to route lifecycle events to one Parquet dataset, flattened into rows, and write them out.
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
@@ -382,10 +369,11 @@ Dynamic DES is built for real-time digital twins, but the same model can also ru
     `DynamicRealtimeEnvironment`, the registry and the connectors by hand rather than
     through the builder, which shows what `SimulationContext` does for you.
 
-    `factor=0.0` detaches the clock from real time, so seven days of history are generated
-    as fast as the machine allows and written to Parquet. A router keeps lifecycle events
-    and drops telemetry. Writes to `data/`, or to S3 with the variables `yaml/parquet.yaml`
-    reads: `PARQUET_FILESYSTEM=s3` and `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`.
+    `factor=0.0` detaches the clock from real time, so seven days of shop orders are
+    generated as fast as the machine allows and written to Parquet. A router keeps the
+    lifecycle events and flattens them into rows. Writes to `data/`, or to S3 with the
+    variables `yaml/parquet.yaml` reads: `PARQUET_FILESYSTEM=s3` and `S3_ENDPOINT`,
+    `S3_ACCESS_KEY`, `S3_SECRET_KEY`.
     """
 
     import logging
@@ -443,6 +431,35 @@ Dynamic DES is built for real-time digital twins, but the same model can also ru
         return history_router
 
 
+    # The shop starts with 4 packers and has room for 10.
+    PARAMS = SimParameter(
+        sim_id="Shop",
+        arrival={"orders": DistributionConfig(dist="exponential", rate=2.0)},
+        service={"packing": DistributionConfig(dist="normal", mean=2.0, std=0.2)},
+        resources={"packers": CapacityConfig(current_cap=4, max_cap=10)},
+    )
+
+
+    def pack_order(env, sampler, packers, task_id):
+        """What @app.task does: queued, started, the service time, then finished."""
+        key, path_id = f"task-{task_id}", "Shop.service.packing"
+        env.publish_event(key, {"path_id": path_id, "status": "queued"})
+        with packers.request() as req:
+            yield req
+            env.publish_event(key, {"path_id": path_id, "status": "started"})
+            yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
+            env.publish_event(key, {"path_id": path_id, "status": "finished"})
+
+
+    def arrival_generator(env, sampler, packers):
+        gap = env.registry.get_config("Shop.arrival.orders")
+        task_id = 0
+        while True:
+            yield env.timeout(sampler.sample(gap))
+            env.process(pack_order(env, sampler, packers, task_id))
+            task_id += 1
+
+
     def run():
         # ---------------------------------------------------------
         # 1. DUAL-MODE STORAGE CONFIGURATION
@@ -463,16 +480,9 @@ Dynamic DES is built for real-time digital twins, but the same model can also ru
         # ---------------------------------------------------------
         # 2. SIMULATION SETUP
         # ---------------------------------------------------------
-        line_a_params = SimParameter(
-            sim_id="Line_A",
-            arrival={"standard": DistributionConfig(dist="exponential", rate=2.0)},
-            service={"milling": DistributionConfig(dist="normal", mean=2.0, std=0.2)},
-            resources={"lathe": CapacityConfig(current_cap=4, max_cap=10)},
-        )
-
         start_time = datetime.now() - timedelta(days=7)
         env = DynamicRealtimeEnvironment(factor=0.0, logical_start_time=start_time)
-        env.registry.register_sim_parameter(line_a_params)
+        env.registry.register_sim_parameter(PARAMS)
 
         # Initialize Egress with the dynamic router and conditional filesystem
         router = create_history_router(base_path)
@@ -481,48 +491,10 @@ Dynamic DES is built for real-time digital twins, but the same model can also ru
         # batch_size=5000 for compression, flush_interval=86400 (1 day in sim time)
         env.setup_egress([egress], batch_size=5000, flush_interval=86400)
 
-        res = DynamicResource(env, "Line_A", "lathe")
+        packers = DynamicResource(env, "Shop", "packers")
         sampler = Sampler(rng=np.random.default_rng(42))
 
-        def arrival_process(env: DynamicRealtimeEnvironment, res: DynamicResource):
-            arrival_cfg = env.registry.get_config("Line_A.arrival.standard")
-            service_path = "Line_A.service.milling"
-            task_id = 0
-
-            while True:
-                yield env.timeout(sampler.sample(arrival_cfg))
-                env.process(work_task(env, task_id, res, service_path))
-                task_id += 1
-
-        def work_task(
-            env: DynamicRealtimeEnvironment,
-            task_id: int,
-            res: DynamicResource,
-            path_id: str,
-        ):
-            task_key = f"task-{task_id}"
-            env.publish_event(task_key, {"path_id": path_id, "status": "queued"})
-
-            with res.request() as req:
-                yield req
-                current_service_cfg = env.registry.get_config(path_id)
-                env.publish_event(task_key, {"path_id": path_id, "status": "started"})
-                yield env.timeout(sampler.sample(current_service_cfg))
-                env.publish_event(task_key, {"path_id": path_id, "status": "finished"})
-
-        def telemetry_monitor(env: DynamicRealtimeEnvironment, res: DynamicResource):
-            while True:
-                env.publish_telemetry("Line_A.lathe.capacity", res.capacity)
-                env.publish_telemetry("Line_A.lathe.in_use", res.in_use)
-                env.publish_telemetry("Line_A.lathe.queue_length", len(res.queue.items))
-
-                util = (res.in_use / res.capacity) * 100 if res.capacity > 0 else 0
-                env.publish_telemetry("Line_A.lathe.utilization", util)
-
-                yield env.timeout(60.0)
-
-        env.process(arrival_process(env, res))
-        env.process(telemetry_monitor(env, res))
+        env.process(arrival_generator(env, sampler, packers))
 
         run_duration_str = "1 week"
         run_duration_sec = time_to_seconds(run_duration_str)

@@ -17,14 +17,14 @@ Ingress connectors listen to external sources and dynamically apply modification
 ### Local Ingress (`LocalIngress`)
 Applies scheduled overrides after set delays in wall-clock seconds from the start of the run. It waits with `asyncio.sleep`, so the delays do not follow simulation time: at `factor=0` the run can finish before the first change, and at any other factor the simulation time of each change varies a little from run to run. For changes at exact simulation times, use a [YAML scenario](registry.md#scenarios-versus-localingress).
 ```python title="docs/snippets/pages/connectors.py:local-ingress"
-# 10 wall-clock seconds after the start, set machine lathe capacity to 3
+# 10 wall-clock seconds after the start, set the packers capacity to 3
 app.add_ingress(
-    LocalIngress(schedule=[(10.0, "Line_A.resources.lathe.current_cap", 3)])
+    LocalIngress(schedule=[(10.0, "Shop.resources.packers.current_cap", 3)])
 )
 ```
 
 ### Kafka Ingress (`KafkaIngress`)
-Spawns a consumer in the background thread that listens to a Kafka control topic. External admin tools can write a command payload to the topic (such as updating the speed of a conveyor belt), and the connector automatically applies the change to the Registry in real time. Each message is a JSON object with `path_id` and `value`, such as `{"path_id": "Line_A.resources.lathe.current_cap", "value": 3}`.
+Spawns a consumer in the background thread that listens to a Kafka control topic. External admin tools can write a command payload to the topic (such as changing the number of packers), and the connector automatically applies the change to the Registry in real time. Each message is a JSON object with `path_id` and `value`, such as `{"path_id": "Shop.resources.packers.current_cap", "value": 3}`.
 
 ```python title="docs/snippets/pages/connectors.py:kafka-ingress"
 # Reads {"path_id": ..., "value": ...} messages from the sim-config topic
@@ -32,7 +32,7 @@ app.add_ingress(KafkaIngress(topic="sim-config", bootstrap_servers="localhost:90
 ```
 
 ### Redis Ingress (`RedisIngress`)
-Subscribes to a Redis Pub/Sub channel. Each message is a JSON object with `param_path` and `param_value`, such as `{"param_path": "Factory.arrival.part_arrival.rate", "param_value": 10.0}`.
+Subscribes to a Redis Pub/Sub channel. Each message is a JSON object with `param_path` and `param_value`, such as `{"param_path": "Shop.arrival.orders.rate", "param_value": 10.0}`.
 
 ```python title="docs/snippets/pages/connectors.py:redis-ingress"
 # Reads {"param_path": ..., "param_value": ...} messages from a Pub/Sub channel

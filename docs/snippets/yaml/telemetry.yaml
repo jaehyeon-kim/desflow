@@ -1,35 +1,35 @@
 # Telemetry entries of the YAML Blueprints page.
 # Run it with: ddes run telemetry.yaml
 simulation:
-  sim_id: Line_A
+  sim_id: Shop
   factor: 0
 
 egress:
   - type: Console
 
 resources:
-  lathe: {current_cap: 2, max_cap: 5}
+  packers: {current_cap: 2, max_cap: 5}
 
 services:
-  milling: {dist: normal, mean: 3.0, std: 0.5}
+  packing: {dist: normal, mean: 3.0, std: 0.5}
 
 arrivals:
-  parts: {dist: exponential, rate: 0.5, spawn: mill}
+  orders: {dist: exponential, rate: 0.5, spawn: pack}
 
 tasks:
-  mill: {service: milling, resource: lathe, payload: {}}
+  pack: {service: packing, resource: packers, payload: {}}
 
 # --8<-- [start:telemetry]
 telemetry:
-  # Every 5 simulation seconds, as Line_A.lathe_busy and Line_A.lathe_waiting
+  # Every 5 simulation seconds, as Shop.packers_busy and Shop.packers_waiting
   - interval: 5
     publish:
-      lathe_busy: lathe.in_use
-      lathe_waiting: lathe.queue_length
-  # Every 60 seconds, the share of the lathe in use, in percent
+      packers_busy: packers.in_use
+      packers_waiting: packers.queue_length
+  # Every 60 seconds, the share of the packers in use, in percent
   - interval: 60
     publish:
-      lathe_utilization: lathe.utilization
+      packers_utilization: packers.utilization
 # --8<-- [end:telemetry]
 
 run:

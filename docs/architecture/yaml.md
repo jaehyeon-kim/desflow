@@ -4,7 +4,7 @@ A YAML blueprint is a third way to define a simulation, beside the `SimulationCo
 
 A blueprint is built through the same public builder methods a Python script calls, such as `add_resource`, `add_egress`, `task` and `arrival_loop`. There is no second build path, so a blueprint and a script that make the same calls produce the same simulation. The tests build and run each [YAML example](../examples/local.md) and check the records it produces.
 
-[First Simulation](../tutorials/first-simulation.md) writes a first factory this way, in its YAML tabs, and [YAML Blueprints, from First File to Connectors](../guides/yaml-blueprints.md) goes on to live connectors. This page is the reference.
+[First Simulation](../tutorials/first-simulation.md) writes a first shop this way, in its YAML tabs, and [YAML Blueprints, from First File to Connectors](../guides/yaml-blueprints.md) goes on to live connectors. This page is the reference.
 
 ---
 
@@ -77,13 +77,13 @@ A task is the `@app.task` decorator in YAML. Each run of the task emits `queued`
 `spawn` on an arrival names the task that each arrival starts. It is the loop a builder example writes by hand:
 
 ```python title="examples/builder/local_example.py:arrival-loop"
-@app.arrival_loop("standard")
+@app.arrival_loop("orders")
 def arrival_generator(context):
-    """Continuously spawns new parts based on the 'standard' arrival distribution."""
+    """Spawns a pack_order task for every order the 'orders' distribution draws."""
     task_id = 0
     while True:
-        yield context.wait_for_arrival("standard")
-        context.spawn(process_part(task_id))
+        yield context.wait_for_arrival("orders")
+        context.spawn(pack_order(task_id, context))
         task_id += 1
 ```
 
@@ -104,15 +104,15 @@ Each metric is published as `<sim_id>.<metric name>`. For anything else, `functi
 
 ```yaml title="docs/snippets/yaml/telemetry.yaml:telemetry"
 telemetry:
-  # Every 5 simulation seconds, as Line_A.lathe_busy and Line_A.lathe_waiting
+  # Every 5 simulation seconds, as Shop.packers_busy and Shop.packers_waiting
   - interval: 5
     publish:
-      lathe_busy: lathe.in_use
-      lathe_waiting: lathe.queue_length
-  # Every 60 seconds, the share of the lathe in use, in percent
+      packers_busy: packers.in_use
+      packers_waiting: packers.queue_length
+  # Every 60 seconds, the share of the packers in use, in percent
   - interval: 60
     publish:
-      lathe_utilization: lathe.utilization
+      packers_utilization: packers.utilization
 ```
 
 ### Connectors
@@ -155,7 +155,7 @@ ingress:
   - type: Local
     config:
       schedule:
-        - [10.0, Line_A.resources.lathe.current_cap, 3]
+        - [10.0, Shop.resources.packers.current_cap, 3]
   - type: Kafka
     config:
       topic: sim-config
@@ -198,7 +198,7 @@ egress:
 
 ### Scenario
 
-A scenario sets registry paths to new values at given simulation times. Each step is a mapping such as `{at: 30, path: Workshop.resources.drill.current_cap, value: 2}`.
+A scenario sets registry paths to new values at given simulation times. Each step is a mapping such as `{at: 30, path: Shop.resources.packers.current_cap, value: 2}`.
 
 `at` is seconds from the start of the run, or a duration string. The steps are applied in time order by a SimPy process that waits on the simulation clock, so a scenario repeats exactly on every run and works at `factor: 0`. Every `path` is checked when the file is loaded, against a registry built from the blueprint with the same code the run uses, and the `value` must convert to the type the path holds. [Scenarios versus `LocalIngress`](registry.md#scenarios-versus-localingress) compares the two. The [guide](../guides/yaml-blueprints.md#script-an-experiment) has a complete file.
 
@@ -207,11 +207,11 @@ A resource follows a capacity change within the same simulation instant, but aft
 ---
 
 ```yaml title="docs/snippets/yaml/scenario.yaml"
-# The first blueprint with a scripted experiment: a second drill comes online at
-# 30 s, parts arrive twice as fast from 1 min, and the extra drill is removed at
+# The first blueprint with a scripted experiment: a second packer starts at 30 s,
+# orders arrive twice as fast from 1 min, and the extra packer leaves at
 # 2 min. Every change lands at exactly that simulation time, on every run.
 simulation:
-  sim_id: Workshop
+  sim_id: Shop
   factor: 0
   random_seed: 1
 
@@ -219,32 +219,32 @@ egress:
   - type: Console
 
 resources:
-  drill: {current_cap: 1, max_cap: 3}
+  packers: {current_cap: 1, max_cap: 3}
 
 services:
-  drilling: {dist: normal, mean: 4.0, std: 1.0}
+  packing: {dist: normal, mean: 4.0, std: 1.0}
 
 arrivals:
-  parts: {dist: exponential, rate: 0.2, spawn: drill_part}
+  orders: {dist: exponential, rate: 0.2, spawn: pack_order}
 
 tasks:
-  drill_part:
-    service: drilling
-    resource: drill
+  pack_order:
+    service: packing
+    resource: packers
     payload: {status: finished}
-    id_field: part_id
+    id_field: order_id
 
 telemetry:
   # Shows each change as it lands.
   - interval: 10
     publish:
-      drill.capacity: drill.capacity
-      drill.queue_length: drill.queue_length
+      packers.capacity: packers.capacity
+      packers.queue_length: packers.queue_length
 
 scenario:
-  - {at: 30, path: Workshop.resources.drill.current_cap, value: 2}
-  - {at: 1 min, path: Workshop.arrival.parts.rate, value: 0.4}
-  - {at: 2 min, path: Workshop.resources.drill.current_cap, value: 1}
+  - {at: 30, path: Shop.resources.packers.current_cap, value: 2}
+  - {at: 1 min, path: Shop.arrival.orders.rate, value: 0.4}
+  - {at: 2 min, path: Shop.resources.packers.current_cap, value: 1}
 
 run:
   until: 3 min
@@ -272,14 +272,14 @@ Every error names the file and the line, and `ddes run` prints it after `Error:`
 
 ```text
 Error: err.yaml:3: simulation.speed: Extra inputs are not permitted
-err.yaml:9: arrivals.standard.dist: Input should be 'exponential', 'normal', 'lognormal', 'truncated_normal' or 'constant'
+err.yaml:9: arrivals.orders.dist: Input should be 'exponential', 'normal', 'lognormal', 'truncated_normal' or 'constant'
 ```
 
 Cross-references are checked after validation: a task's `service` and `resource`, an arrival's `spawn`, each telemetry `publish` entry, and each scenario `path` and `value`.
 
 ```text
-Error: err.yaml:11: task 'part' uses service 'drilling', which is not defined under services
-Error: err.yaml:6: 'Line_A.resources.press.current_cap' is not a registry path. Paths look like Line_A.resources.<name>.current_cap or Line_A.arrival.<name>.rate
+Error: err.yaml:11: task 'pack_order' uses service 'labelling', which is not defined under services
+Error: err.yaml:6: 'Shop.resources.wrappers.current_cap' is not a registry path. Paths look like Shop.resources.<name>.current_cap or Shop.arrival.<name>.rate
 ```
 
 ---

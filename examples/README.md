@@ -1,6 +1,6 @@
 # Examples
 
-Runnable examples, each written three ways: as a YAML blueprint in `yaml/`, with the builder API in `builder/` and with the low-level API in `low-level/`. They live outside the package, so `pip install dynamic-des` does not carry them and the library declares only what it imports.
+Runnable examples of one online shop, each written three ways: as a YAML blueprint in `yaml/`, with the builder API in `builder/` and with the low-level API in `low-level/`. They live outside the package, so `pip install dynamic-des` does not carry them and the library declares only what it imports.
 
 Outside a clone, `ddes examples get <name>` downloads an example at the release you have installed, each version into a folder of its own; `ddes examples` lists them.
 
@@ -57,7 +57,7 @@ Kafka and Redis are the two whose profile names are not what you would guess, be
 
 `yaml/` holds the same simulations as YAML blueprints, described in the next section.
 
-Most pairs run the same simulation, so reading one against the other shows what the builder does for you. The local pair is the exception and the two differ on purpose: `builder/local_example.py` runs `Factory_A` for 60 seconds with no ingress, while `low-level/local_example.py` runs `Line_A` for 30 seconds and uses `LocalIngress` to schedule two capacity changes.
+The three versions of each example run the same simulation and publish the same records, so reading one against another shows what the builder and the blueprint do for you. `tests/unit/test_example_twins.py` runs all three and compares their events and telemetry.
 
 ## YAML blueprints
 

@@ -10,7 +10,7 @@ This page lists the work planned for Dynamic DES. It changes as plans change, an
 
 - **More distributions,** including one built from values taken from real data.
 - **Routing between tasks:** a finished task leads to the next one, chosen by a condition or by probability, so a model can be a multi-step flow.
-- **Entity state:** an order, a session or a part keeps its attributes as it moves from task to task, and every event of one entity carries its key.
+- **Entity state:** an order, a session or a parcel keeps its attributes as it moves from task to task, and every event of one entity carries its key.
 - **Delays without a resource,** for steps that only take time.
 - **Stores and containers** used by tasks, with a choice of queue order and task priority.
 - **Built-in statistics:** wait and service times, throughput, utilisation and queue length, published as telemetry.

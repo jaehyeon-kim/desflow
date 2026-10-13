@@ -1,42 +1,51 @@
 # Local simulation in YAML, with no Python and no containers.
 #
-# The twin of examples/builder/local_example.py. Factory_A writes to
-# ConsoleEgress, so events and telemetry are printed to the terminal, and the run
-# ends on its own after 60 simulation seconds.
+# The twin of examples/builder/local_example.py. An online shop packs orders, and
+# Shop writes to ConsoleEgress, so events and telemetry are printed to the
+# terminal. A scenario adds packers at 10 seconds and removes one at 20 seconds, and
+# the run ends on its own after 30 simulation seconds.
 #
 # Run it with: ddes run examples/yaml/local.yaml
 
 simulation:
-  sim_id: Factory_A
+  sim_id: Shop
   factor: 1.0
+  random_seed: 42
 
 egress:
   - type: Console
 
 resources:
-  lathe: {current_cap: 2, max_cap: 5}
+  packers: {current_cap: 1, max_cap: 5}
 
 services:
-  milling: {dist: normal, mean: 3.0, std: 0.5}
+  packing: {dist: normal, mean: 3.0, std: 0.5}
 
 arrivals:
-  # Each arrival spawns one process_part task.
-  standard: {dist: exponential, rate: 1.0, spawn: process_part}
+  # Each order spawns one pack_order task.
+  orders: {dist: exponential, rate: 1.0, spawn: pack_order}
 
 tasks:
-  process_part:
-    service: milling
-    resource: lathe
-    # The value of the task's finished event. id_field adds the task id as part_id.
-    payload: {event_type: part_produced, quality: A}
-    id_field: part_id
+  pack_order:
+    service: packing
+    resource: packers
+    # The value of the task's finished event. id_field adds the task id as order_id.
+    payload: {event_type: order_packed, shipping: standard}
+    id_field: order_id
 
 telemetry:
-  # Samples the lathe every 2 simulation seconds.
+  # Samples the packers every 2 simulation seconds.
   - interval: 2.0
     publish:
-      utilization: lathe.utilization
-      queue_length: lathe.queue_length
+      packers.capacity: packers.capacity
+      packers.in_use: packers.in_use
+      packers.queue_length: packers.queue_length
+      packers.utilization: packers.utilization
+
+scenario:
+  # Three packers from 10 seconds, then two from 20 seconds.
+  - {at: 10, path: Shop.resources.packers.current_cap, value: 3}
+  - {at: 20, path: Shop.resources.packers.current_cap, value: 2}
 
 run:
-  until: 60
+  until: 30

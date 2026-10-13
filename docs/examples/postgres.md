@@ -1,12 +1,12 @@
 # Relational DB (Postgres)
 
-A store that writes customer orders to PostgreSQL and takes parameter updates from a PostgreSQL table. Each tab shows the example written one way: with the builder API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](../architecture/overview.md) compares the three.
+An online shop that writes its orders to PostgreSQL and takes parameter updates from a PostgreSQL table. Each tab shows the example written one way: with the builder API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](../architecture/overview.md) compares the three.
 
-With `PostgresEgress` in place of the console egress, the simulation runs as a separate data generator. It writes related rows, such as parent `orders` and child `order_items`, into PostgreSQL with asynchronous bulk inserts through `asyncpg`.
+With `PostgresEgress` in place of the console egress, the simulation runs as a separate data generator. It writes rows into PostgreSQL with asynchronous bulk inserts through `asyncpg`.
 
 === "YAML"
 
-    This example builds a simulation like the builder example in the Builder tab from a YAML blueprint, with no Python and one table. Each customer order is written to `orders`, and `PostgresIngress` polls `simulation_params` for updates. The builder example's orders with random line items are the [advanced Postgres example](advanced-postgres-orders.md), which keeps its generator in Python.
+    This example builds the simulation of the builder example in the Builder tab from a YAML blueprint, with no Python. Each order is written to `orders`, and `PostgresIngress` polls `simulation_params` for updates. Orders with random line items in a second table are the [advanced Postgres example](advanced-postgres-orders.md), which keeps its generator in Python.
 
     **Quick Start**
 
@@ -59,7 +59,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
     In a second terminal, raise the arrival rate while it runs:
 
     ```bash
-    docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params (param_path, param_value) VALUES ('Store.arrival.customer_order.rate', '5.0');"
+    docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params (param_path, param_value) VALUES ('Shop.arrival.orders.rate', '5.0');"
     ```
 
     **Full Source Code**
@@ -71,18 +71,19 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
     ```yaml title="examples/yaml/postgres.yaml"
     # Relational output in YAML.
     #
-    # The YAML version of examples/builder/postgres_example.py, with one table.
-    # Each customer_order spawns place_order, a task with no service or resource, which
-    # publishes its payload at once. PostgresEgress creates the orders table at start
-    # and writes one row per order. PostgresIngress creates simulation_params and polls
-    # it for parameter updates.
+    # The YAML version of examples/builder/postgres_example.py: an online shop that
+    # writes its orders to one table. Each order spawns place_order, a task with no
+    # service or resource, which publishes its payload at once. PostgresEgress creates
+    # the orders table at start and writes one row per order. PostgresIngress creates
+    # simulation_params and polls it for parameter updates.
     #
     # Needs a database: odctl up postgres. Runs until interrupted with Ctrl + C.
     # Run it with: ddes run examples/yaml/postgres.yaml
 
     simulation:
-      sim_id: Store
+      sim_id: Shop
       factor: 1.0
+      random_seed: 42
 
     ingress:
       - type: Postgres
@@ -105,7 +106,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
               primary_key: order_id
 
     arrivals:
-      customer_order: {dist: exponential, rate: 1.0, spawn: place_order}
+      orders: {dist: exponential, rate: 1.0, spawn: place_order}
 
     tasks:
       place_order:
@@ -118,59 +119,42 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
     This example demonstrates how to integrate `dynamic-des` into a relational database architecture using the **builder API (`SimulationContext`)**.
 
-    **Multiplexing Multiple Tables**
+    **Writing Rows**
 
-    When generating complex relational data, a single event loop often produces records that belong in completely different SQL tables.
-
-    Instead of creating separate queues or complex routing logic, `PostgresEgress` supports **Table Multiplexing**. By attaching multiple instances of `PostgresEgress` to the simulation and tagging your output dictionaries with a special `__table__` key, the framework automatically filters and routes the records to their correct destinations.
+    `PostgresEgress` creates each table in `tables` when it does not exist, and writes each record as one row. Record fields the table has no column for, such as `sim_ts`, are left out.
 
     ```python title="examples/builder/postgres_example.py:app"
     app = (
-        SimulationContext(sim_id="Store", factor=1.0)
+        SimulationContext(sim_id="Shop", factor=1.0, random_seed=42)
         .add_ingress(PostgresIngress(DSN, table_name="simulation_params"))
-        .add_egress(PostgresEgress(DSN, table_name="orders"))
-        .add_egress(PostgresEgress(DSN, table_name="order_items"))
-        .add_arrival("customer_order", dist="exponential", rate=1.0)
+        .add_egress(PostgresEgress(DSN, tables={"orders": ORDERS}))
+        .add_arrival("orders", dist="exponential", rate=1.0)
     )
     ```
 
-    **Generating Interrelated Data**
+    **Generating Orders**
 
-    For each arriving order, the arrival loop publishes 1 to 5 `order_items` rows that reference the order's `order_id`, then the `orders` row with their total. Each dictionary carries a `__table__` key naming its table:
+    `place_order` has no service or resource, so it publishes its payload as soon as the arrival loop spawns it. The task id is the order id:
 
     ```python title="examples/builder/postgres_example.py:records"
-    # 1. Generate Order (Notice the __table__ routing key)
-    order = {
-        "__table__": "orders",
-        "order_id": order_id,
-        "customer_id": random.randint(1, 100),
-        "order_date": datetime.utcnow().isoformat(),
-        "total_amount": 0.0,
-        "status": "pending",
-    }
-
-    # 2. Generate 1 to 5 Order Items
-    num_items = random.randint(1, 5)
-    total = 0.0
-
-    for _ in range(num_items):
-        price = round(random.uniform(10.0, 50.0), 2)
-        qty = random.randint(1, 3)
-        total += price * qty
-
-        item = {
-            "__table__": "order_items",
-            "order_item_id": item_id,
-            "order_id": order_id,
-            "product_id": random.randint(1, 50),
-            "quantity": qty,
-            "unit_price": price,
+    @app.task()
+    def place_order(task_id: int, context):
+        """A task with no service or resource: its payload is published at once."""
+        return {
+            "order_id": task_id,
+            "customer_id": 42,
+            "total_amount": 59.97,
+            "status": "pending",
         }
-        context.publish("order_event", item)
-        item_id += 1
 
-    order["total_amount"] = round(total, 2)
-    context.publish("order_event", order)
+
+    @app.arrival_loop("orders")
+    def order_generator(context):
+        task_id = 0
+        while True:
+            yield context.wait_for_arrival("orders")
+            context.spawn(place_order(task_id, context))
+            task_id += 1
     ```
 
     **Dynamic Parameter Updates (Ingress)**
@@ -224,9 +208,9 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
     **In a second terminal, execute the dynamic parameter update:**
     ```bash
     # Connect to the database container and inject the parameter (maintains audit history!)
-    docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params (param_path, param_value) VALUES ('Store.arrival.customer_order.rate', '5.0');"
+    docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params (param_path, param_value) VALUES ('Shop.arrival.orders.rate', '5.0');"
     ```
-    Within the poll interval, the run logs `Ingested parameter update: Store.arrival.customer_order.rate = 5.0`, and orders then arrive five times faster.
+    Within the poll interval, the run logs `Ingested parameter update: Shop.arrival.orders.rate = 5.0`, and orders then arrive five times faster.
 
     ```bash
     # Clean up the infrastructure when finished
@@ -235,27 +219,22 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
     **Full Source Code**
 
-    This script connects the simulation to PostgreSQL, automatically initializes the database schema, and generates continuous streams of interrelated commerce data.
+    This script connects the simulation to PostgreSQL, creates the `orders` table and writes a continuous stream of orders.
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
     ```python title="examples/builder/postgres_example.py"
-    """Relational output with table multiplexing, builder API.
+    """Relational output, builder API.
 
-    `Store` writes interrelated commerce data to PostgreSQL. Two `PostgresEgress` instances
-    are attached, one per table, and each keeps only the records whose `__table__` key
-    matches its own `table_name`, so one event stream fills `orders` and `order_items`
-    correctly. `PostgresIngress` polls `simulation_params` for parameter updates.
+    `Shop`, an online shop, writes its orders to the PostgreSQL table `orders`.
+    `PostgresEgress` creates the table at start and writes one row per order, and
+    `PostgresIngress` creates `simulation_params` and polls it for parameter updates, so
+    inserting a row there changes the arrival rate of a running simulation.
 
     Needs a database: `odctl up postgres`. Runs until interrupted with Ctrl + C.
     """
 
-    import asyncio
     import logging
-    import random
-    from datetime import datetime
-
-    import asyncpg
 
     from dynamic_des import PostgresEgress, PostgresIngress, SimulationContext
 
@@ -264,101 +243,53 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
     # Connection string matching the odctl `postgres` profile
     DSN = "postgresql://user:password@localhost:5432/odctl"
 
+    # The table PostgresEgress creates when it does not exist. timestamp comes from the
+    # record, and the egress converts its ISO string for the TIMESTAMP column.
+    ORDERS = {
+        "columns": {
+            "order_id": "INT",
+            "customer_id": "INT",
+            "total_amount": "REAL",
+            "status": "TEXT",
+            "timestamp": "TIMESTAMP",
+        },
+        "primary_key": "order_id",
+    }
+
     app = (
-        SimulationContext(sim_id="Store", factor=1.0)
+        SimulationContext(sim_id="Shop", factor=1.0, random_seed=42)
         .add_ingress(PostgresIngress(DSN, table_name="simulation_params"))
-        .add_egress(PostgresEgress(DSN, table_name="orders"))
-        .add_egress(PostgresEgress(DSN, table_name="order_items"))
-        .add_arrival("customer_order", dist="exponential", rate=1.0)
+        .add_egress(PostgresEgress(DSN, tables={"orders": ORDERS}))
+        .add_arrival("orders", dist="exponential", rate=1.0)
     )
 
 
-    @app.arrival_loop("customer_order")
+    @app.task()
+    def place_order(task_id: int, context):
+        """A task with no service or resource: its payload is published at once."""
+        return {
+            "order_id": task_id,
+            "customer_id": 42,
+            "total_amount": 59.97,
+            "status": "pending",
+        }
+
+
+    @app.arrival_loop("orders")
     def order_generator(context):
-        order_id = 1
-        item_id = 1
+        task_id = 0
         while True:
-            yield context.wait_for_arrival("customer_order")
-
-            # 1. Generate Order (Notice the __table__ routing key)
-            order = {
-                "__table__": "orders",
-                "order_id": order_id,
-                "customer_id": random.randint(1, 100),
-                "order_date": datetime.utcnow().isoformat(),
-                "total_amount": 0.0,
-                "status": "pending",
-            }
-
-            # 2. Generate 1 to 5 Order Items
-            num_items = random.randint(1, 5)
-            total = 0.0
-
-            for _ in range(num_items):
-                price = round(random.uniform(10.0, 50.0), 2)
-                qty = random.randint(1, 3)
-                total += price * qty
-
-                item = {
-                    "__table__": "order_items",
-                    "order_item_id": item_id,
-                    "order_id": order_id,
-                    "product_id": random.randint(1, 50),
-                    "quantity": qty,
-                    "unit_price": price,
-                }
-                context.publish("order_event", item)
-                item_id += 1
-
-            order["total_amount"] = round(total, 2)
-            context.publish("order_event", order)
-
-            order_id += 1
-
-
-    async def init_db():
-        """Initializes the database schema before starting the simulation."""
-        conn = await asyncpg.connect(DSN)
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS orders (
-                order_id INT PRIMARY KEY,
-                customer_id INT,
-                order_date TEXT,
-                total_amount REAL,
-                status TEXT
-            );
-            CREATE TABLE IF NOT EXISTS order_items (
-                order_item_id INT PRIMARY KEY,
-                order_id INT,
-                product_id INT,
-                quantity INT,
-                unit_price REAL
-            );
-            CREATE TABLE IF NOT EXISTS simulation_params (
-                id SERIAL PRIMARY KEY,
-                param_path TEXT,
-                param_value TEXT,
-                is_applied BOOLEAN DEFAULT FALSE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
-        # Pre-seed the initial simulation parameters into the table as the baseline history only if empty
-        count = await conn.fetchval("SELECT COUNT(*) FROM simulation_params")
-        if count == 0:
-            await conn.execute("""
-                INSERT INTO simulation_params (param_path, param_value, is_applied)
-                VALUES ('Store.arrival.customer_order.rate', '1.0', TRUE);
-            """)
-        await conn.close()
-        logger.info("Database schema initialized and pre-seeded.")
+            yield context.wait_for_arrival("orders")
+            context.spawn(place_order(task_id, context))
+            task_id += 1
 
 
     def run():
         logger.info("Starting Builder Postgres Demo. Press Ctrl+C to stop...")
         logger.info(
-            "Test Ingress by running: INSERT INTO simulation_params (param_path, param_value) VALUES ('Store.arrival.customer_order.rate', '5.0');"
+            "Test Ingress by running: INSERT INTO simulation_params (param_path, "
+            "param_value) VALUES ('Shop.arrival.orders.rate', '5.0');"
         )
-        asyncio.run(init_db())
         try:
             app.run()
         except KeyboardInterrupt:
@@ -374,61 +305,29 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
     This example demonstrates how to integrate `dynamic-des` into a relational database architecture using the **low-level API (`DynamicRealtimeEnvironment`)**.
 
-    **Multiplexing Multiple Tables**
+    **Writing Rows**
 
-    When generating complex relational data, a single simulation process often produces records that belong in completely different SQL tables.
-
-    Instead of creating separate queues or complex routing logic, `PostgresEgress` supports **Table Multiplexing**. By attaching multiple instances of `PostgresEgress` to the `DynamicRealtimeEnvironment` and tagging your output dictionaries with a special `__table__` key, the framework automatically filters and routes the records to their correct destinations.
+    `PostgresEgress` creates each table in `tables` when it does not exist, and writes each record as one row. `PostgresIngress` creates the `simulation_params` table it polls:
 
     ```python title="examples/low-level/postgres_example.py:connectors"
-    egress_orders = PostgresEgress(DSN, table_name="orders")
-    egress_items = PostgresEgress(DSN, table_name="order_items")
-
-    # Attach ingress for dynamic parameter updates
-    ingress = PostgresIngress(DSN, table_name="simulation_params")
-
-    env = DynamicRealtimeEnvironment(factor=1.0)
-    env.registry.register_sim_parameter(params)
-    env.setup_egress([egress_orders, egress_items])
-    env.setup_ingress([ingress])
+    # PostgresEgress creates the orders table, and PostgresIngress creates the
+    # simulation_params table it polls for parameter updates.
+    env.setup_egress([PostgresEgress(DSN, tables={"orders": ORDERS})])
+    env.setup_ingress([PostgresIngress(DSN, table_name="simulation_params")])
     ```
 
-    **Generating Interrelated Data**
+    **Generating Orders**
 
-    For each arriving order, the SimPy process publishes 1 to 5 `order_items` rows that reference the order's `order_id`, then the `orders` row with their total. Each dictionary carries a `__table__` key naming its table:
+    For each arriving order, the SimPy process publishes one record under the key the builder's task would use. The task id is the order id:
 
     ```python title="examples/low-level/postgres_example.py:records"
-    # 1. Generate Order Parent Record
     order = {
-        "__table__": "orders",
-        "order_id": order_id,
-        "customer_id": random.randint(1, 100),
-        "order_date": datetime.utcnow().isoformat(),
-        "total_amount": 0.0,
+        "order_id": task_id,
+        "customer_id": 42,
+        "total_amount": 59.97,
         "status": "pending",
     }
-
-    # 2. Generate Order Item Children Records
-    num_items = random.randint(1, 5)
-    total = 0.0
-    for _ in range(num_items):
-        price = round(random.uniform(10.0, 50.0), 2)
-        qty = random.randint(1, 3)
-        total += price * qty
-
-        item = {
-            "__table__": "order_items",
-            "order_item_id": item_id,
-            "order_id": order_id,
-            "product_id": random.randint(1, 50),
-            "quantity": qty,
-            "unit_price": price,
-        }
-        env.publish_event(f"item-{item_id}", item)
-        item_id += 1
-
-    order["total_amount"] = round(total, 2)
-    env.publish_event(f"order-{order_id}", order)
+    env.publish_event(f"task-{task_id}", order)
     ```
 
     **Dynamic Parameter Updates (Ingress)**
@@ -482,9 +381,9 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
     **In a second terminal, execute the dynamic parameter update:**
     ```bash
     # Connect to the database container and inject the parameter (maintains audit history!)
-    docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params (param_path, param_value) VALUES ('Store.arrival.customer_order.rate', '5.0');"
+    docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params (param_path, param_value) VALUES ('Shop.arrival.orders.rate', '5.0');"
     ```
-    Within the poll interval, the run logs `Ingested parameter update: Store.arrival.customer_order.rate = 5.0`, and orders then arrive five times faster.
+    Within the poll interval, the run logs `Ingested parameter update: Shop.arrival.orders.rate = 5.0`, and orders then arrive five times faster.
 
     ```bash
     # Clean up the infrastructure when finished
@@ -493,26 +392,22 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
     **Full Source Code**
 
-    This script connects the simulation to PostgreSQL, automatically initializes the database schema, and generates continuous streams of interrelated commerce data.
+    This script connects the simulation to PostgreSQL, creates the `orders` table and writes a continuous stream of orders.
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
     ```python title="examples/low-level/postgres_example.py"
-    """Relational output with table multiplexing, low-level API.
+    """Relational output, low-level API.
 
-    The low-level twin of `builder/postgres_example.py`. Two `PostgresEgress` instances
-    are attached, one per table, and each keeps only the records whose `__table__` key
-    matches its own `table_name`.
+    The low-level twin of `builder/postgres_example.py`: an online shop that writes its
+    orders to the PostgreSQL table `orders`. `PostgresEgress` creates the table at start,
+    and `PostgresIngress` creates `simulation_params` and polls it for parameter updates.
 
     Needs a database: `odctl up postgres`. Runs until interrupted with Ctrl + C.
     """
 
-    import asyncio
     import logging
-    import random
-    from datetime import datetime
 
-    import asyncpg
     import numpy as np
 
     from dynamic_des import (
@@ -529,117 +424,59 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
     # Connection string matching the odctl `postgres` profile
     DSN = "postgresql://user:password@localhost:5432/odctl"
 
+    # The table PostgresEgress creates when it does not exist. timestamp comes from the
+    # record, and the egress converts its ISO string for the TIMESTAMP column.
+    ORDERS = {
+        "columns": {
+            "order_id": "INT",
+            "customer_id": "INT",
+            "total_amount": "REAL",
+            "status": "TEXT",
+            "timestamp": "TIMESTAMP",
+        },
+        "primary_key": "order_id",
+    }
 
-    async def init_db():
-        """Initializes the database schema before starting the simulation."""
-        conn = await asyncpg.connect(DSN)
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS orders (
-                order_id INT PRIMARY KEY,
-                customer_id INT,
-                order_date TEXT,
-                total_amount REAL,
-                status TEXT
-            );
-            CREATE TABLE IF NOT EXISTS order_items (
-                order_item_id INT PRIMARY KEY,
-                order_id INT,
-                product_id INT,
-                quantity INT,
-                unit_price REAL
-            );
-            CREATE TABLE IF NOT EXISTS simulation_params (
-                id SERIAL PRIMARY KEY,
-                param_path TEXT,
-                param_value TEXT,
-                is_applied BOOLEAN DEFAULT FALSE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        """)
+    PARAMS = SimParameter(
+        sim_id="Shop",
+        arrival={"orders": DistributionConfig(dist="exponential", rate=1.0)},
+    )
 
-        # Pre-seed the initial simulation parameters into the table as the baseline history only if empty
-        count = await conn.fetchval("SELECT COUNT(*) FROM simulation_params")
-        if count == 0:
-            await conn.execute("""
-                INSERT INTO simulation_params (param_path, param_value, is_applied)
-                VALUES ('Store.arrival.customer_order.rate', '1.0', TRUE);
-            """)
-        await conn.close()
-        logger.info("Database schema initialized and pre-seeded.")
+
+    def order_generator(env, sampler):
+        """Publishes one order per arrival, as the builder's task with no service does."""
+        gap = env.registry.get_config("Shop.arrival.orders")
+        task_id = 0
+        while True:
+            yield env.timeout(sampler.sample(gap))
+
+            order = {
+                "order_id": task_id,
+                "customer_id": 42,
+                "total_amount": 59.97,
+                "status": "pending",
+            }
+            env.publish_event(f"task-{task_id}", order)
+            task_id += 1
 
 
     def run():
-        params = SimParameter(
-            sim_id="Store",
-            arrival={"customer_order": DistributionConfig(dist="exponential", rate=1.0)},
-        )
-
-        # Two egress instances, one per table. Each receives every record and keeps
-        # only the rows whose __table__ matches its own table_name. They used to share
-        # one queue and compete for batches, so whichever provider took a batch
-        # discarded the other's rows from it.
-        egress_orders = PostgresEgress(DSN, table_name="orders")
-        egress_items = PostgresEgress(DSN, table_name="order_items")
-
-        # Attach ingress for dynamic parameter updates
-        ingress = PostgresIngress(DSN, table_name="simulation_params")
-
         env = DynamicRealtimeEnvironment(factor=1.0)
-        env.registry.register_sim_parameter(params)
-        env.setup_egress([egress_orders, egress_items])
-        env.setup_ingress([ingress])
+        env.registry.register_sim_parameter(PARAMS)
+
+        # PostgresEgress creates the orders table, and PostgresIngress creates the
+        # simulation_params table it polls for parameter updates.
+        env.setup_egress([PostgresEgress(DSN, tables={"orders": ORDERS})])
+        env.setup_ingress([PostgresIngress(DSN, table_name="simulation_params")])
 
         sampler = Sampler(rng=np.random.default_rng(42))
-
-        def order_process(env: DynamicRealtimeEnvironment):
-            arrival_cfg = env.registry.get_config("Store.arrival.customer_order")
-            order_id = 1
-            item_id = 1
-
-            while True:
-                yield env.timeout(sampler.sample(arrival_cfg))
-
-                # 1. Generate Order Parent Record
-                order = {
-                    "__table__": "orders",
-                    "order_id": order_id,
-                    "customer_id": random.randint(1, 100),
-                    "order_date": datetime.utcnow().isoformat(),
-                    "total_amount": 0.0,
-                    "status": "pending",
-                }
-
-                # 2. Generate Order Item Children Records
-                num_items = random.randint(1, 5)
-                total = 0.0
-                for _ in range(num_items):
-                    price = round(random.uniform(10.0, 50.0), 2)
-                    qty = random.randint(1, 3)
-                    total += price * qty
-
-                    item = {
-                        "__table__": "order_items",
-                        "order_item_id": item_id,
-                        "order_id": order_id,
-                        "product_id": random.randint(1, 50),
-                        "quantity": qty,
-                        "unit_price": price,
-                    }
-                    env.publish_event(f"item-{item_id}", item)
-                    item_id += 1
-
-                order["total_amount"] = round(total, 2)
-                env.publish_event(f"order-{order_id}", order)
-
-                order_id += 1
-
-        env.process(order_process(env))
+        env.process(order_generator(env, sampler))
 
         logger.info("Starting Low-level Postgres Demo. Press Ctrl+C to stop...")
         logger.info(
-            "Test Ingress by running: INSERT INTO simulation_params (param_path, param_value) VALUES ('Store.arrival.customer_order.rate', '5.0');"
+            "Test Ingress by running: INSERT INTO simulation_params (param_path, "
+            "param_value) VALUES ('Shop.arrival.orders.rate', '5.0');"
         )
-        asyncio.run(init_db())
 
         try:
             env.run()

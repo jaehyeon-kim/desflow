@@ -2,7 +2,7 @@
 Backfill-then-live Example.
 
 One run produces both halves of a tiered dataset. Until `go_live_at` the clock is
-detached from the wall clock, so ten minutes of backdated history are written to
+detached from the wall clock, so ten minutes of backdated shop orders are written to
 Parquet as fast as the machine allows. From `go_live_at` the same run is paced at one
 simulated second per real second, and the same events are published to Kafka as they
 happen. Doing this in two processes would mean repeating the seed and the start
@@ -83,7 +83,7 @@ def history_router(data: dict) -> str | None:
 # --8<-- [start:builder]
 app = (
     SimulationContext(
-        sim_id="Line_A",
+        sim_id="Shop",
         # Unpaced to begin with, so the history costs no real time.
         factor=0.0,
         random_seed=42,
@@ -104,9 +104,9 @@ app = (
     # started only when factor is non-zero as the egress is set up, and this run starts
     # at 0.0. It starts at go-live, so the live tail also flushes every 10 seconds.
     .with_batching(batch_size=2000, flush_interval=10.0)
-    .add_resource("lathe", current_cap=4, max_cap=10)
-    .add_service("milling", dist="normal", mean=2.0, std=0.2)
-    .add_arrival("standard", dist="exponential", rate=0.5)
+    .add_resource("packers", current_cap=4, max_cap=10)
+    .add_service("packing", dist="normal", mean=2.0, std=0.2)
+    .add_arrival("orders", dist="exponential", rate=0.5)
 )
 # --8<-- [end:builder]
 
@@ -114,28 +114,28 @@ app = (
 # ==========================================
 # 2. Simulation Logic
 # ==========================================
-@app.task(service_id="milling", resource_id="lathe")
-def process_part(task_id: int, context):
+@app.task(service_id="packing", resource_id="packers")
+def pack_order(task_id: int, context):
     """Returns the flat payload that both sinks receive for a finished task."""
-    return {"path_id": "Line_A.service.milling", "status": "finished"}
+    return {"path_id": "Shop.service.packing", "status": "finished"}
 
 
-@app.arrival_loop("standard")
+@app.arrival_loop("orders")
 def arrival_generator(context):
     task_id = 0
     while True:
-        yield context.wait_for_arrival("standard")
-        context.spawn(process_part(task_id, context))
+        yield context.wait_for_arrival("orders")
+        context.spawn(pack_order(task_id, context))
         task_id += 1
 
 
 @app.telemetry_loop(interval=30.0)
 def telemetry_generator(context):
     """Samples resource use every 30 simulation seconds."""
-    res = context.get_resource("lathe")
+    res = context.get_resource("packers")
 
-    context.publish("lathe.in_use", res.in_use)
-    context.publish("lathe.queue_length", len(res.queue.items))
+    context.publish("packers.in_use", res.in_use)
+    context.publish("packers.queue_length", len(res.queue.items))
 
 
 # ==========================================

@@ -36,7 +36,7 @@ def _events(caplog):
     return events
 
 
-def test_breakdowns_stop_the_lathe_until_repaired(caplog):
+def test_jams_stop_the_printer_until_repaired(caplog):
     module = _load("preemptive_breakdowns")
     module.app.factor = 0.0
     with caplog.at_level(logging.INFO, logger="dynamic_des"):
@@ -44,24 +44,24 @@ def test_breakdowns_stop_the_lathe_until_repaired(caplog):
     events = _events(caplog)
     statuses = [value["status"] for _, value in events]
     assert "interrupted" in statuses
-    assert "machine_repaired" in statuses
+    assert "printer_repaired" in statuses
     assert "finished" in statuses
 
-    # Between a breakdown and its repair, no other part starts on the lathe, and the
-    # interrupted part finishes after the repair.
+    # Between a jam and its repair, no other order starts on the printer, and the
+    # interrupted order finishes after the repair.
     down = None
     for key, value in events:
         if value["status"] == "interrupted":
             down = key
-            assert value["cause"] == "overheating"
-        elif value["status"] == "machine_repaired":
+            assert value["cause"] == "paper_jam"
+        elif value["status"] == "printer_repaired":
             assert key == down
             down = None
         elif value["status"] == "started":
             assert down is None
 
 
-def test_handoff_holds_the_crane_until_the_mill_is_free(caplog):
+def test_handoff_holds_the_picker_until_the_bench_is_free(caplog):
     module = _load("multi_resource_handoffs")
     module.app.factor = 0.0
     with caplog.at_level(logging.INFO, logger="dynamic_des"):
@@ -69,38 +69,38 @@ def test_handoff_holds_the_crane_until_the_mill_is_free(caplog):
     events = _events(caplog)
     assert any(value["status"] == "finished" for _, value in events)
 
-    # Each part goes queued, crane_loaded, mill_entered, finished, in that order.
+    # Each order goes queued, picked, at_bench, finished, in that order.
     seen = {}
     for key, value in events:
         seen.setdefault(key, []).append(value["status"])
-    order = ["queued", "crane_loaded", "mill_entered", "finished"]
+    order = ["queued", "picked", "at_bench", "finished"]
     for statuses in seen.values():
         assert statuses == order[: len(statuses)]
 
-    # One part at a time holds the crane (from crane_loaded to mill_entered) and the
-    # mill (from mill_entered to finished).
-    on_crane, in_mill = None, None
+    # One order at a time holds the picker (from picked to at_bench) and the bench
+    # (from at_bench to finished).
+    with_picker, on_bench = None, None
     for key, value in events:
-        if value["status"] == "crane_loaded":
-            assert on_crane is None
-            on_crane = key
-        elif value["status"] == "mill_entered":
-            assert on_crane == key and in_mill is None
-            on_crane, in_mill = None, key
+        if value["status"] == "picked":
+            assert with_picker is None
+            with_picker = key
+        elif value["status"] == "at_bench":
+            assert with_picker == key and on_bench is None
+            with_picker, on_bench = None, key
         elif value["status"] == "finished":
-            assert in_mill == key
-            in_mill = None
+            assert on_bench == key
+            on_bench = None
 
 
-def test_supervisor_adds_the_molder_mid_run(caplog):
+def test_supervisor_adds_the_wrappers_mid_run(caplog):
     module = _load("dynamic_topology")
     with caplog.at_level(logging.INFO, logger="dynamic_des"):
         resources = module.run(until=20, factor=0.0)
-    assert set(resources) == {"lathe", "molder"}
-    assert resources["molder"].capacity == 2
+    assert set(resources) == {"packers", "wrappers"}
+    assert resources["wrappers"].capacity == 2
 
     events = _events(caplog)
     added = [value for key, value in events if key == "supervisor"]
-    assert added == [{"status": "molder_added", "capacity": 2}]
+    assert added == [{"status": "wrappers_added", "capacity": 2}]
     started = [value["resource"] for _, value in events if value["status"] == "started"]
-    assert "lathe" in started and "molder" in started
+    assert "packers" in started and "wrappers" in started

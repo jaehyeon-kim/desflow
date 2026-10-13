@@ -1,6 +1,6 @@
 # Fast-Forward to Iceberg
 
-A day of a production line, generated at `factor=0.0` and appended to an Apache Iceberg table through an Iceberg REST catalog. Each tab shows the example written one way: with the builder API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](../architecture/overview.md) compares the three.
+A day of an online shop's orders, generated at `factor=0.0` and appended to an Apache Iceberg table through an Iceberg REST catalog. Each tab shows the example written one way: with the builder API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](../architecture/overview.md) compares the three.
 
 `ParquetStorageEgress` writes files and leaves registering them as a table to you. `IcebergStorageEgress` appends into an Iceberg table instead, so one run ends with a table another engine can query.
 
@@ -8,7 +8,7 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
 
 === "YAML"
 
-    This example builds the simulation of the builder example in the Builder tab from a YAML blueprint, with no Python. A day of factory data is generated at `factor: 0.0`, and each flush of the buffer becomes one Iceberg commit.
+    This example builds the simulation of the builder example in the Builder tab from a YAML blueprint, with no Python. A day of shop orders is generated at `factor: 0.0`, and each flush of the buffer becomes one Iceberg commit.
 
     **Quick Start**
 
@@ -71,8 +71,8 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
     ```yaml title="examples/yaml/iceberg.yaml"
     # Lakehouse data generation in YAML.
     #
-    # The YAML version of examples/builder/iceberg_example.py. A day of factory
-    # data is generated at factor 0, and each flush of the buffer becomes one Iceberg
+    # The YAML version of examples/builder/iceberg_example.py. A day of shop
+    # orders is generated at factor 0, and each flush of the buffer becomes one Iceberg
     # commit. Without a router, each event is written to default_table as one flat row
     # and telemetry is left out. The catalog is contacted on the first write.
     #
@@ -81,7 +81,7 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
     # Run it with: ddes run examples/yaml/iceberg.yaml
 
     simulation:
-      sim_id: Line_A
+      sim_id: Shop
       factor: 0.0
       random_seed: 42
       # A day before now, so the records are stamped as history.
@@ -113,19 +113,19 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
         batch_size: 200000
 
     resources:
-      lathe: {current_cap: 4, max_cap: 10}
+      packers: {current_cap: 4, max_cap: 10}
 
     services:
-      milling: {dist: normal, mean: 2.0, std: 0.2}
+      packing: {dist: normal, mean: 2.0, std: 0.2}
 
     arrivals:
-      standard: {dist: exponential, rate: 2.0, spawn: process_part}
+      orders: {dist: exponential, rate: 2.0, spawn: pack_order}
 
     tasks:
-      process_part:
-        service: milling
-        resource: lathe
-        payload: {path_id: Line_A.service.milling, status: finished}
+      pack_order:
+        service: packing
+        resource: packers
+        payload: {path_id: Shop.service.packing, status: finished}
 
     run:
       until: 1 day
@@ -185,7 +185,7 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
 
     **Full Source Code**
 
-    This script simulates a manufacturing line over a 1-day period. It routes lifecycle events into one Iceberg table, drops telemetry, and pins the schema so the event time is a real timestamp rather than the string inference would give.
+    This script simulates the shop over a 1-day period. It routes lifecycle events into one Iceberg table and pins the schema so the event time is a real timestamp rather than the string inference would give.
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
@@ -301,7 +301,7 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
     # ==========================================
     app = (
         SimulationContext(
-            sim_id="Line_A",
+            sim_id="Shop",
             factor=0.0,
             random_seed=42,
             logical_start_time=LOGICAL_START_TIME,
@@ -315,30 +315,30 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
             # One commit per flush. Sized so a day of events lands in a few snapshots.
             batch_size=200_000,
         )
-        .add_resource("lathe", current_cap=4, max_cap=10)
-        .add_service("milling", dist="normal", mean=2.0, std=0.2)
-        .add_arrival("standard", dist="exponential", rate=2.0)
+        .add_resource("packers", current_cap=4, max_cap=10)
+        .add_service("packing", dist="normal", mean=2.0, std=0.2)
+        .add_arrival("orders", dist="exponential", rate=2.0)
     )
 
 
     # ==========================================
     # 3. Simulation Logic
     # ==========================================
-    @app.task(service_id="milling", resource_id="lathe")
-    def process_part(task_id: int, context):
+    @app.task(service_id="packing", resource_id="packers")
+    def pack_order(task_id: int, context):
         """
         Returns the exact flat dictionary expected by the table router
         to represent the 'finished' state of the lifecycle.
         """
-        return {"path_id": "Line_A.service.milling", "status": "finished"}
+        return {"path_id": "Shop.service.packing", "status": "finished"}
 
 
-    @app.arrival_loop("standard")
+    @app.arrival_loop("orders")
     def arrival_generator(context):
         task_id = 0
         while True:
-            yield context.wait_for_arrival("standard")
-            context.spawn(process_part(task_id, context))
+            yield context.wait_for_arrival("orders")
+            context.spawn(pack_order(task_id, context))
             task_id += 1
 
 
@@ -346,7 +346,7 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
     # 4. Execution
     # ==========================================
     def run():
-        """Generates 1 day of factory data instantly, into an Iceberg table."""
+        """Generates 1 day of shop orders instantly, into an Iceberg table."""
         logger.info(
             "Generating historical data mimicking start from "
             f"{LOGICAL_START_TIME.strftime('%Y-%m-%d %H:%M:%S')}"
@@ -421,7 +421,7 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
 
     **Full Source Code**
 
-    This script simulates a manufacturing line over a 1-day period. It routes lifecycle events into one Iceberg table, drops telemetry, and pins the schema so the event time is a real timestamp rather than the string inference would give.
+    This script simulates the shop over a 1-day period. It routes lifecycle events into one Iceberg table and pins the schema so the event time is a real timestamp rather than the string inference would give.
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
@@ -432,8 +432,8 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
     `DynamicRealtimeEnvironment`, the registry and the connectors by hand rather than
     through the builder, which shows what `SimulationContext` does for you.
 
-    `factor=0.0` detaches the clock from real time, so a day of history is generated as
-    fast as the machine allows and committed into an Iceberg table. Each flush of the
+    `factor=0.0` detaches the clock from real time, so a day of shop orders is generated
+    as fast as the machine allows and committed into an Iceberg table. Each flush of the
     buffer is one commit, so `batch_sizes` is what keeps the snapshot count down.
 
     Requires the odctl `catalog` profile: `odctl up catalog`.
@@ -522,20 +522,42 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
         return table_router
 
 
+    # The shop starts with 4 packers and has room for 10.
+    PARAMS = SimParameter(
+        sim_id="Shop",
+        arrival={"orders": DistributionConfig(dist="exponential", rate=2.0)},
+        service={"packing": DistributionConfig(dist="normal", mean=2.0, std=0.2)},
+        resources={"packers": CapacityConfig(current_cap=4, max_cap=10)},
+    )
+
+
+    def pack_order(env, sampler, packers, task_id):
+        """What @app.task does: queued, started, the service time, then finished."""
+        key, path_id = f"task-{task_id}", "Shop.service.packing"
+        env.publish_event(key, {"path_id": path_id, "status": "queued"})
+        with packers.request() as req:
+            yield req
+            env.publish_event(key, {"path_id": path_id, "status": "started"})
+            yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
+            env.publish_event(key, {"path_id": path_id, "status": "finished"})
+
+
+    def arrival_generator(env, sampler, packers):
+        gap = env.registry.get_config("Shop.arrival.orders")
+        task_id = 0
+        while True:
+            yield env.timeout(sampler.sample(gap))
+            env.process(pack_order(env, sampler, packers, task_id))
+            task_id += 1
+
+
     def run():
         # ---------------------------------------------------------
         # 1. SIMULATION SETUP
         # ---------------------------------------------------------
-        line_a_params = SimParameter(
-            sim_id="Line_A",
-            arrival={"standard": DistributionConfig(dist="exponential", rate=2.0)},
-            service={"milling": DistributionConfig(dist="normal", mean=2.0, std=0.2)},
-            resources={"lathe": CapacityConfig(current_cap=4, max_cap=10)},
-        )
-
         start_time = datetime.now() - timedelta(days=1)
         env = DynamicRealtimeEnvironment(factor=0.0, logical_start_time=start_time)
-        env.registry.register_sim_parameter(line_a_params)
+        env.registry.register_sim_parameter(PARAMS)
 
         egress = IcebergStorageEgress(
             catalog=build_catalog(),
@@ -546,36 +568,10 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
         # One commit per flush, so a day of events lands in a handful of snapshots.
         env.setup_egress([egress], batch_sizes=[200_000], flush_interval=86400)
 
-        res = DynamicResource(env, "Line_A", "lathe")
+        packers = DynamicResource(env, "Shop", "packers")
         sampler = Sampler(rng=np.random.default_rng(42))
 
-        def arrival_process(env: DynamicRealtimeEnvironment, res: DynamicResource):
-            arrival_cfg = env.registry.get_config("Line_A.arrival.standard")
-            service_path = "Line_A.service.milling"
-            task_id = 0
-
-            while True:
-                yield env.timeout(sampler.sample(arrival_cfg))
-                env.process(work_task(env, task_id, res, service_path))
-                task_id += 1
-
-        def work_task(
-            env: DynamicRealtimeEnvironment,
-            task_id: int,
-            res: DynamicResource,
-            path_id: str,
-        ):
-            task_key = f"task-{task_id}"
-            env.publish_event(task_key, {"path_id": path_id, "status": "queued"})
-
-            with res.request() as req:
-                yield req
-                current_service_cfg = env.registry.get_config(path_id)
-                env.publish_event(task_key, {"path_id": path_id, "status": "started"})
-                yield env.timeout(sampler.sample(current_service_cfg))
-                env.publish_event(task_key, {"path_id": path_id, "status": "finished"})
-
-        env.process(arrival_process(env, res))
+        env.process(arrival_generator(env, sampler, packers))
 
         run_duration_str = "1 day"
         run_duration_sec = time_to_seconds(run_duration_str)

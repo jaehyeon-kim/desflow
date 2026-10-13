@@ -1,8 +1,8 @@
 """Kafka Digital Twin, low-level API.
 
-The low-level twin of `builder/kafka_example.py`, wiring the environment, registry
-and connectors by hand. Like the builder version, it creates its topics first with
-`KafkaAdminConnector`.
+The low-level twin of `builder/kafka_example.py`, an online shop packing orders, with
+the environment, registry and connectors wired by hand. Like the builder version, it
+creates its topics first with `KafkaAdminConnector`.
 
 Needs a broker: `odctl up kafka-lite`. Runs until interrupted with Ctrl + C.
 """
@@ -31,6 +31,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("kafka_example")
 
+BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+
 
 # ==========================================
 # 1. Define Strongly-Typed Event Payloads
@@ -46,9 +48,63 @@ class TaskEvent(BaseModel):
     status: str
 
 
+# ==========================================
+# 2. Initial System State
+# ==========================================
+PARAMS = SimParameter(
+    sim_id="Shop",
+    arrival={"orders": DistributionConfig(dist="exponential", rate=1.0)},  # 1 a second
+    service={"packing": DistributionConfig(dist="normal", mean=3.0, std=0.5)},
+    resources={"packers": CapacityConfig(current_cap=1, max_cap=10)},
+)
+
+
+# ==========================================
+# 3. Simulation Logic
+# ==========================================
+def pack_order(env, sampler, packers, task_id):
+    """Publishes a Pydantic model instead of a dict for each lifecycle event."""
+    key, path_id = f"task-{task_id}", "Shop.service.packing"
+    env.publish_event(key, TaskEvent(path_id=path_id, status="queued"))
+
+    with packers.request() as req:
+        yield req
+
+        logger.info(f"Task {task_id} started at sim time: {env.now:.2f}s")
+        env.publish_event(key, TaskEvent(path_id=path_id, status="started"))
+
+        # Use the latest service config from the registry
+        yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
+
+        env.publish_event(key, TaskEvent(path_id=path_id, status="finished"))
+
+
+def arrival_generator(env, sampler, packers):
+    gap = env.registry.get_config("Shop.arrival.orders")
+    task_id = 0
+    while True:
+        yield env.timeout(sampler.sample(gap))
+        env.process(pack_order(env, sampler, packers, task_id))
+        task_id += 1
+
+
+def telemetry_generator(env, packers):
+    """Low-volume system health stream, pushed to the 'sim-telemetry' topic."""
+    while True:
+        env.publish_telemetry("Shop.packers.capacity", packers.capacity)
+        env.publish_telemetry("Shop.packers.in_use", packers.in_use)
+        env.publish_telemetry("Shop.packers.queue_length", len(packers.queue.items))
+
+        util = (packers.in_use / packers.capacity) * 100 if packers.capacity > 0 else 0
+        env.publish_telemetry("Shop.packers.utilization", util)
+
+        yield env.timeout(2.0)
+
+
+# ==========================================
+# 4. Execution
+# ==========================================
 def run():
-    # 2. Create Kafka topics
-    BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
     TOPICS_CONFIG = [
         {"name": "sim-config", "partitions": 1},
         {"name": "sim-telemetry", "partitions": 1},
@@ -62,17 +118,6 @@ def run():
     admin_connector.create_topics(topics_config=TOPICS_CONFIG)
     time.sleep(2)
 
-    # 3. Define initial system state
-    line_a_params = SimParameter(
-        sim_id="Line_A",
-        arrival={
-            "standard": DistributionConfig(dist="exponential", rate=1.0)
-        },  # 1 every 1s
-        service={"milling": DistributionConfig(dist="normal", mean=3.0, std=0.5)},
-        resources={"lathe": CapacityConfig(current_cap=1, max_cap=10)},
-    )
-
-    # 4. Setup Environment with Kafka Connectors
     # (Optional: Pass **kwargs like `security_protocol="SASL_SSL"` for enterprise clusters)
     ingress = KafkaIngress(topic="sim-config", bootstrap_servers=BOOTSTRAP_SERVERS)
 
@@ -91,64 +136,15 @@ def run():
     )
 
     env = DynamicRealtimeEnvironment(factor=1.0)
-    env.registry.register_sim_parameter(line_a_params)
+    env.registry.register_sim_parameter(PARAMS)
     env.setup_ingress([ingress])
     env.setup_egress([egress])
 
-    # 5. Initialize Resources and Sampler
-    res = DynamicResource(env, "Line_A", "lathe")
+    packers = DynamicResource(env, "Shop", "packers")
     sampler = Sampler(rng=np.random.default_rng(42))
 
-    # 6. Define Simulation Logic
-    def arrival_process(env: DynamicRealtimeEnvironment, res: DynamicResource):
-        arrival_cfg = env.registry.get_config("Line_A.arrival.standard")
-        service_path = "Line_A.service.milling"
-        task_id = 0
-
-        while True:
-            yield env.timeout(sampler.sample(arrival_cfg))
-            env.process(work_task(env, task_id, res, service_path))
-            task_id += 1
-
-    def work_task(
-        env: DynamicRealtimeEnvironment,
-        task_id: int,
-        res: DynamicResource,
-        path_id: str,
-    ):
-        task_key = f"task-{task_id}"
-
-        # Publish Pydantic model instead of raw dictionary
-        env.publish_event(task_key, TaskEvent(path_id=path_id, status="queued"))
-
-        with res.request() as req:
-            yield req
-
-            logger.info(f"Task {task_id} started at sim time: {env.now:.2f}s")
-            env.publish_event(task_key, TaskEvent(path_id=path_id, status="started"))
-
-            # Use latest service config from registry
-            service_cfg = env.registry.get_config(path_id)
-            yield env.timeout(sampler.sample(service_cfg))
-
-            env.publish_event(task_key, TaskEvent(path_id=path_id, status="finished"))
-
-    def telemetry_monitor(env: DynamicRealtimeEnvironment, res: DynamicResource):
-        """Low-volume system health stream."""
-        while True:
-            # Pushed to 'sim-telemetry' topic
-            env.publish_telemetry("Line_A.lathe.capacity", res.capacity)
-            env.publish_telemetry("Line_A.lathe.in_use", res.in_use)
-            env.publish_telemetry("Line_A.lathe.queue_length", len(res.queue.items))
-
-            util = (res.in_use / res.capacity) * 100 if res.capacity > 0 else 0
-            env.publish_telemetry("Line_A.lathe.utilization", util)
-
-            yield env.timeout(2.0)
-
-    # 7. Run
-    env.process(arrival_process(env, res))
-    env.process(telemetry_monitor(env, res))
+    env.process(arrival_generator(env, sampler, packers))
+    env.process(telemetry_generator(env, packers))
 
     print("Simulation started.")
     print("  - Listen to 'sim-telemetry' for system vitals.")

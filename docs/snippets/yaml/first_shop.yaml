@@ -1,0 +1,38 @@
+# The First Simulation tutorial: the shop as a blueprint.
+# Run it with: ddes run first_shop.yaml
+# --8<-- [start:shop]
+simulation:
+  sim_id: Shop
+  factor: 1.0  # 1 simulated second takes 1 real second
+
+resources:
+  packers: {current_cap: 1, max_cap: 1}
+
+services:
+  # With no std, a normal distribution returns its mean every time
+  packing: {dist: normal, mean: 1.5}
+
+arrivals:
+  # One order every 2 seconds on average; each arrival spawns pack_order
+  orders: {dist: exponential, rate: 0.5, spawn: pack_order}
+# --8<-- [end:shop]
+
+# --8<-- [start:order]
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    # The finished event's value; id_field adds the task id as order_id
+    payload: {}
+    id_field: order_id
+# --8<-- [end:order]
+
+# --8<-- [start:records]
+egress:
+  - type: Console
+# --8<-- [end:records]
+
+# --8<-- [start:run]
+run:
+  until: 10
+# --8<-- [end:run]

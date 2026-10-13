@@ -12,21 +12,21 @@ from dynamic_des.connectors.egress.base import BaseEgress
 
 MINIMAL = """\
 simulation:
-  sim_id: Line_A
+  sim_id: Shop
   factor: 0
   random_seed: 7
 resources:
-  lathe: {current_cap: 2, max_cap: 5}
+  packers: {current_cap: 2, max_cap: 5}
 services:
-  milling: {dist: normal, mean: 3.0, std: 0.5}
+  packing: {dist: normal, mean: 3.0, std: 0.5}
 arrivals:
   standard: {dist: exponential, rate: 1.0, spawn: part}
 tasks:
   part:
-    service: milling
-    resource: lathe
+    service: packing
+    resource: packers
     payload: {status: finished}
-    id_field: part_id
+    id_field: order_id
 run:
   until: 30
 """
@@ -58,10 +58,10 @@ class _Capture(BaseEgress):
 def test_blueprint_builds_through_the_builder(tmp_path):
     app = SimulationContext.from_yaml(write(tmp_path, MINIMAL))
 
-    assert (app.sim_id, app.factor, app.random_seed) == ("Line_A", 0, 7)
-    assert app._resources_config["lathe"].current_cap == 2
-    milling = app._services_config["milling"]
-    assert (milling.dist, milling.mean, milling.std, milling.rate) == (
+    assert (app.sim_id, app.factor, app.random_seed) == ("Shop", 0, 7)
+    assert app._resources_config["packers"].current_cap == 2
+    packing = app._services_config["packing"]
+    assert (packing.dist, packing.mean, packing.std, packing.rate) == (
         "normal",
         3.0,
         0.5,
@@ -78,9 +78,9 @@ def test_tasks_spawned_from_an_arrival_publish_the_payload(tmp_path):
     app.run()
 
     events = [r["value"] for r in capture.records if r["stream_type"] == "event"]
-    finished = [value for value in events if "part_id" in value]
+    finished = [value for value in events if "order_id" in value]
     assert finished
-    assert finished[0] == {"status": "finished", "part_id": finished[0]["part_id"]}
+    assert finished[0] == {"status": "finished", "order_id": finished[0]["order_id"]}
     assert max(r["sim_ts"] for r in capture.records) <= 30.0
 
 
@@ -88,7 +88,7 @@ def test_telemetry_publishes_resource_statistics(tmp_path):
     text = MINIMAL + textwrap.dedent("""\
         telemetry:
           - interval: 5
-            publish: {lathe.capacity: lathe.capacity, busy: lathe.utilization}
+            publish: {packers.capacity: packers.capacity, busy: packers.utilization}
         """)
     app = SimulationContext.from_yaml(write(tmp_path, text))
     capture = _Capture()
@@ -98,9 +98,9 @@ def test_telemetry_publishes_resource_statistics(tmp_path):
     metrics = [
         (r["sim_ts"], r["path_id"], r["value"])
         for r in capture.records
-        if r["stream_type"] == "telemetry" and r["path_id"].startswith("Line_A")
+        if r["stream_type"] == "telemetry" and r["path_id"].startswith("Shop")
     ]
-    assert metrics[:2] == [(0.0, "Line_A.lathe.capacity", 2), (0.0, "Line_A.busy", 0)]
+    assert metrics[:2] == [(0.0, "Shop.packers.capacity", 2), (0.0, "Shop.busy", 0)]
 
 
 def test_until_accepts_a_duration(tmp_path):
@@ -117,8 +117,8 @@ def test_until_accepts_a_duration(tmp_path):
         ("mean: 3.0, std: 0.5", "mean: 3.0, std: 0.5, shape: 2", 8, "shape"),
         ("dist: exponential", "dist: poisson", 10, "arrivals.standard.dist"),
         (
-            "  lathe: {current_cap: 2, max_cap: 5}",
-            "  lathe: {current_cap: 2}",
+            "  packers: {current_cap: 2, max_cap: 5}",
+            "  packers: {current_cap: 2}",
             6,
             "max_cap",
         ),
@@ -138,8 +138,8 @@ def test_schema_errors_name_the_line(tmp_path, old, new, line, fragment):
 @pytest.mark.parametrize(
     "old,new,line,fragment",
     [
-        ("    service: milling", "    service: drilling", 13, "service 'drilling'"),
-        ("    resource: lathe", "    resource: press", 14, "resource 'press'"),
+        ("    service: packing", "    service: drilling", 13, "service 'drilling'"),
+        ("    resource: packers", "    resource: press", 14, "resource 'press'"),
         ("spawn: part", "spawn: widget", 10, "task 'widget'"),
         ("current_cap: 2,", "current_cap: 2.5,", 6, "whole number"),
     ],
@@ -155,9 +155,9 @@ def test_cross_reference_errors_name_the_line(tmp_path, old, new, line, fragment
 
 
 def test_telemetry_reference_must_name_a_resource_and_stat(tmp_path):
-    text = MINIMAL + "telemetry:\n  - interval: 1\n    publish: {x: lathe.speed}\n"
+    text = MINIMAL + "telemetry:\n  - interval: 1\n    publish: {x: packers.speed}\n"
     path = write(tmp_path, text)
-    with pytest.raises(BlueprintError, match=rf"{path}:21: 'lathe.speed'"):
+    with pytest.raises(BlueprintError, match=rf"{path}:21: 'packers.speed'"):
         SimulationContext.from_yaml(path)
 
 
@@ -176,7 +176,7 @@ def test_bad_connector_config_names_the_line(tmp_path):
 
 
 def test_yaml_syntax_error_names_the_line(tmp_path):
-    path = write(tmp_path, "simulation:\n  sim_id: [Line_A\n")
+    path = write(tmp_path, "simulation:\n  sim_id: [Shop\n")
     with pytest.raises(BlueprintError, match=rf"{path}:\d+:"):
         SimulationContext.from_yaml(path)
 
@@ -280,7 +280,7 @@ def logic(tmp_path, request):
 
 def test_python_payload_is_called_with_the_task_id_and_context(tmp_path, logic):
     text = MINIMAL.replace(
-        "    payload: {status: finished}\n    id_field: part_id\n",
+        "    payload: {status: finished}\n    id_field: order_id\n",
         f"    payload: !python {logic}.payload\n",
     )
     app = SimulationContext.from_yaml(write(tmp_path, text))
@@ -311,8 +311,8 @@ def test_processes_take_kwargs(tmp_path, logic):
         for r in capture.records
         if r["stream_type"] == "telemetry" and not r["path_id"].startswith("system")
     ]
-    assert ("Line_A.tick", 2.0) in ticks and ("Line_A.tick", 8.0) in ticks
-    assert ("Line_A.slow", 4.0) in ticks and ("Line_A.slow", 8.0) in ticks
+    assert ("Shop.tick", 2.0) in ticks and ("Shop.tick", 8.0) in ticks
+    assert ("Shop.slow", 4.0) in ticks and ("Shop.slow", 8.0) in ticks
 
 
 def test_telemetry_takes_a_python_function(tmp_path, logic):
@@ -325,7 +325,7 @@ def test_telemetry_takes_a_python_function(tmp_path, logic):
     capture = _Capture()
     app.add_egress(capture)
     app.run(until=10)
-    assert any(r.get("path_id") == "Line_A.sampled" for r in capture.records)
+    assert any(r.get("path_id") == "Shop.sampled" for r in capture.records)
 
 
 def test_egress_type_and_when_take_python_objects(tmp_path, logic):
@@ -444,10 +444,10 @@ def test_plain_safe_load_is_unaffected():
 # ---------------------------------------------------------------------------
 SCENARIO = """\
 scenario:
-  - {at: 20, path: Line_A.resources.lathe.current_cap, value: 1}
-  - {at: 10, path: Line_A.resources.lathe.current_cap, value: 4}
-  - {at: 15 s, path: Line_A.arrival.standard.rate, value: 3}
-  - {at: 0, path: Line_A.variables.mode, value: warm}
+  - {at: 20, path: Shop.resources.packers.current_cap, value: 1}
+  - {at: 10, path: Shop.resources.packers.current_cap, value: 4}
+  - {at: 15 s, path: Shop.arrival.standard.rate, value: 3}
+  - {at: 0, path: Shop.variables.mode, value: warm}
 """
 
 
@@ -459,7 +459,7 @@ def test_scenario_applies_on_simulation_time_at_factor_0(tmp_path):
         + textwrap.dedent("""\
         telemetry:
           - interval: 1
-            publish: {cap: lathe.capacity}
+            publish: {cap: packers.capacity}
         """)
     )
     app = SimulationContext.from_yaml(write(tmp_path, text))
@@ -470,20 +470,20 @@ def test_scenario_applies_on_simulation_time_at_factor_0(tmp_path):
     capacity = {
         r["sim_ts"]: r["value"]
         for r in capture.records
-        if r.get("path_id") == "Line_A.cap"
+        if r.get("path_id") == "Shop.cap"
     }
     assert capacity[9.0] == 2
     assert capacity[11.0] == 4
     assert capacity[21.0] == 1
 
     registry = app.env.registry
-    assert registry.get("Line_A.arrival.standard.rate").value == 3.0
-    assert registry.get("Line_A.variables.mode").value == "warm"
+    assert registry.get("Shop.arrival.standard.rate").value == 3.0
+    assert registry.get("Shop.variables.mode").value == "warm"
 
 
 def test_scenario_repeats_exactly(tmp_path):
     text = MINIMAL + SCENARIO.replace(
-        "  - {at: 0, path: Line_A.variables.mode, value: warm}\n", ""
+        "  - {at: 0, path: Shop.variables.mode, value: warm}\n", ""
     )
 
     def run_once():
@@ -504,16 +504,16 @@ def test_scenario_repeats_exactly(tmp_path):
     "step,fragment",
     [
         (
-            "{at: 5, path: Line_A.resources.press.current_cap, value: 1}",
+            "{at: 5, path: Shop.resources.press.current_cap, value: 1}",
             "not a registry",
         ),
-        ("{at: 5, path: Line_A.arrival.standard.mean, value: 1}", "not a registry"),
+        ("{at: 5, path: Shop.arrival.standard.mean, value: 1}", "not a registry"),
         (
-            "{at: 5, path: Line_B.resources.lathe.current_cap, value: 1}",
+            "{at: 5, path: Warehouse.resources.packers.current_cap, value: 1}",
             "not a registry",
         ),
         (
-            "{at: 5, path: Line_A.resources.lathe.current_cap, value: many}",
+            "{at: 5, path: Shop.resources.packers.current_cap, value: many}",
             "holds a int",
         ),
     ],
@@ -531,7 +531,7 @@ def test_scenario_paths_are_checked_before_the_run(tmp_path, step, fragment):
 def test_scenario_at_must_be_a_time(tmp_path):
     path = write(
         tmp_path,
-        MINIMAL + "scenario:\n  - {at: later, path: Line_A.variables.x, value: 1}\n",
+        MINIMAL + "scenario:\n  - {at: later, path: Shop.variables.x, value: 1}\n",
     )
     with pytest.raises(BlueprintError, match=rf"{path}:20: scenario.0.at"):
         SimulationContext.from_yaml(path)
@@ -542,10 +542,10 @@ def test_compile_parameters_matches_what_run_registers(tmp_path):
     params = app.compile_parameters()
     app.run(until=1)
 
-    assert params.sim_id == "Line_A"
+    assert params.sim_id == "Shop"
     assert (
-        app.env.registry.get_config("Line_A.resources.lathe")
-        is (params.resources["lathe"])
+        app.env.registry.get_config("Shop.resources.packers")
+        is (params.resources["packers"])
     )
 
 
@@ -569,7 +569,7 @@ run:
 
 
 def test_environment_variables_are_substituted(tmp_path, monkeypatch):
-    monkeypatch.setenv("SIM_ID", "Line_B")
+    monkeypatch.setenv("SIM_ID", "Warehouse")
     monkeypatch.setenv("DB_HOST", "db.internal")
     monkeypatch.delenv("FACTOR", raising=False)
     monkeypatch.delenv("DB_PORT", raising=False)
@@ -577,7 +577,7 @@ def test_environment_variables_are_substituted(tmp_path, monkeypatch):
     monkeypatch.delenv("NOT_A_VARIABLE", raising=False)
     app = SimulationContext.from_yaml(write(tmp_path, ENV_BLUEPRINT))
 
-    assert (app.sim_id, app.factor, app._default_until) == ("Line_B", 0, 60.0)
+    assert (app.sim_id, app.factor, app._default_until) == ("Warehouse", 0, 60.0)
     variables = app._variables_config
     assert variables["host"] == "db.internal"
     assert variables["url"] == "postgres://db.internal:5432/sim"
@@ -588,7 +588,7 @@ def test_environment_variables_are_substituted(tmp_path, monkeypatch):
 
 
 def test_an_empty_variable_takes_the_default(tmp_path, monkeypatch):
-    monkeypatch.setenv("SIM_ID", "Line_B")
+    monkeypatch.setenv("SIM_ID", "Warehouse")
     monkeypatch.setenv("DB_PORT", "")
     app = SimulationContext.from_yaml(write(tmp_path, ENV_BLUEPRINT))
     assert app._variables_config["port"] == 5432
@@ -687,7 +687,7 @@ egress:
     when: live
 telemetry:
   - interval: 1
-    publish: {busy: lathe.in_use}
+    publish: {busy: packers.in_use}
 """
 
 
@@ -738,7 +738,7 @@ def test_an_unknown_when_names_the_line(tmp_path):
 # Tasks with no service and no resource
 # ---------------------------------------------------------------------------
 def test_a_task_without_service_or_resource_emits_at_once(tmp_path):
-    text = MINIMAL.replace("    service: milling\n    resource: lathe\n", "")
+    text = MINIMAL.replace("    service: packing\n    resource: packers\n", "")
     app = SimulationContext.from_yaml(write(tmp_path, text))
     capture = _Capture()
     app.add_egress(capture)
@@ -747,11 +747,11 @@ def test_a_task_without_service_or_resource_emits_at_once(tmp_path):
     events = [r for r in capture.records if r["stream_type"] == "event"]
     assert events
     # Only the payload: no queued or started event, and no time in service.
-    assert all(set(r["value"]) == {"status", "part_id"} for r in events)
-    assert [r["value"]["part_id"] for r in events] == list(range(len(events)))
+    assert all(set(r["value"]) == {"status", "order_id"} for r in events)
+    assert [r["value"]["order_id"] for r in events] == list(range(len(events)))
 
 
-@pytest.mark.parametrize("drop", ["    service: milling\n", "    resource: lathe\n"])
+@pytest.mark.parametrize("drop", ["    service: packing\n", "    resource: packers\n"])
 def test_a_task_needs_service_and_resource_together(tmp_path, drop):
     path = write(tmp_path, MINIMAL.replace(drop, ""))
     with pytest.raises(
@@ -765,10 +765,10 @@ def test_telemetry_publishes_capacity_and_in_use(tmp_path):
         telemetry:
           - interval: 1
             publish:
-              cap: lathe.capacity
-              busy: lathe.in_use
-              util: lathe.utilization
-              queue: lathe.queue_length
+              cap: packers.capacity
+              busy: packers.in_use
+              util: packers.utilization
+              queue: packers.queue_length
         """)
     app = SimulationContext.from_yaml(write(tmp_path, text))
     capture = _Capture()
@@ -777,8 +777,10 @@ def test_telemetry_publishes_capacity_and_in_use(tmp_path):
 
     samples = {}
     for r in capture.records:
-        if r["stream_type"] == "telemetry" and r["path_id"].startswith("Line_A."):
-            samples.setdefault(r["sim_ts"], {})[r["path_id"][7:]] = r["value"]
+        if r["stream_type"] == "telemetry" and r["path_id"].startswith("Shop."):
+            samples.setdefault(r["sim_ts"], {})[r["path_id"].removeprefix("Shop.")] = r[
+                "value"
+            ]
     assert len(samples) == 20
     assert all(s["cap"] == 2 for s in samples.values())
     assert all(s["busy"] / s["cap"] * 100 == s["util"] for s in samples.values())
@@ -793,20 +795,20 @@ def test_container_capacity_keeps_fractions(tmp_path):
         containers:
           tank: {current_cap: 50.5, max_cap: 100}
         scenario:
-          - {at: 5, path: Line_A.containers.tank.current_cap, value: 62.5}
+          - {at: 5, path: Shop.containers.tank.current_cap, value: 62.5}
         """)
     app = SimulationContext.from_yaml(write(tmp_path, text))
     app.run(until=10)
 
-    assert app.env.registry.get("Line_A.containers.tank.current_cap").value == 62.5
-    assert app.env.registry.get("Line_A.containers.tank.max_cap").value == 100
+    assert app.env.registry.get("Shop.containers.tank.current_cap").value == 62.5
+    assert app.env.registry.get("Shop.containers.tank.max_cap").value == 100
 
 
 @pytest.mark.parametrize(
     "extra,line,fragment",
     [
         (
-            "telemetry:\n  - interval: 0\n    publish: {cap: lathe.capacity}\n",
+            "telemetry:\n  - interval: 0\n    publish: {cap: packers.capacity}\n",
             20,
             "interval",
         ),

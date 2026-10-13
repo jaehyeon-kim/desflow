@@ -1,6 +1,6 @@
 # Backfill Then Go Live in One Run
 
-A tiered demo usually needs two datasets: a backdated history sitting in a lake, and a live stream arriving now. They have to be the same factory, with the same machines, the same distributions and the same task ids, or the join between them is meaningless.
+A tiered demo usually needs two datasets: a backdated history sitting in a lake, and a live stream arriving now. They have to be the same shop, with the same packers, the same distributions and the same task ids, or the join between them is meaningless.
 
 Producing them takes two settings that contradict each other. History wants `factor=0.0`, so a week of events is generated as fast as the machine allows. A live tail wants `factor=1.0`, so events arrive one simulated second per real second.
 
@@ -11,7 +11,7 @@ Producing them takes two settings that contradict each other. History wants `fac
 Before `go_live_at`, the only way to get both was to start two processes with the same `random_seed` and the same `logical_start_time`, one fast-forwarding into Parquet and one pacing into Kafka. That costs:
 
 * A second full execution of the same simulation, so the history is generated twice.
-* Seed and start instant duplicated in two places, which have to be edited together. Change one and the two halves silently stop being the same factory.
+* Seed and start instant duplicated in two places, which have to be edited together. Change one and the two halves silently stop being the same shop.
 * No guarantee about the seam. Each process decides on its own where its half ends, so the join can overlap or leave a gap.
 
 `go_live_at` replaces both processes with one. The run generates history unpaced up to that logical instant, then switches to real-time pacing and keeps going. There is one seed, one start instant and one seam.
@@ -43,7 +43,7 @@ Three settings make the run:
 ```python title="examples/builder/backfill_live_example.py:builder"
 app = (
     SimulationContext(
-        sim_id="Line_A",
+        sim_id="Shop",
         # Unpaced to begin with, so the history costs no real time.
         factor=0.0,
         random_seed=42,
@@ -64,9 +64,9 @@ app = (
     # started only when factor is non-zero as the egress is set up, and this run starts
     # at 0.0. It starts at go-live, so the live tail also flushes every 10 seconds.
     .with_batching(batch_size=2000, flush_interval=10.0)
-    .add_resource("lathe", current_cap=4, max_cap=10)
-    .add_service("milling", dist="normal", mean=2.0, std=0.2)
-    .add_arrival("standard", dist="exponential", rate=0.5)
+    .add_resource("packers", current_cap=4, max_cap=10)
+    .add_service("packing", dist="normal", mean=2.0, std=0.2)
+    .add_arrival("orders", dist="exponential", rate=0.5)
 )
 ```
 

@@ -1,7 +1,7 @@
 """
 Orders with line items, builder API.
 
-The builder twin of `yaml/advanced/postgres_orders.yaml`. Each customer_order arrival
+The builder twin of `yaml/advanced/postgres_orders.yaml`. Each order arrival
 builds an order with 1 to 5 items, random prices and quantities, and a total computed
 from them. Two PostgresEgress instances are attached, one per table, and each keeps
 only the records whose `__table__` key names its table. Each creates its table at
@@ -87,12 +87,12 @@ def order_generator(context: SimulationContext, arrival: str, max_items: int):
 
 
 app = (
-    SimulationContext(sim_id="Store", factor=1.0, random_seed=42)
+    SimulationContext(sim_id="Shop", factor=1.0, random_seed=42)
     .add_ingress(PostgresIngress(DSN, table_name="simulation_params"))
     .add_egress(PostgresEgress(DSN, tables={"orders": ORDERS}))
     .add_egress(PostgresEgress(DSN, tables={"order_items": ORDER_ITEMS}))
-    .add_arrival("customer_order", dist="exponential", rate=1.0)
-    .add_process(order_generator, arrival="customer_order", max_items=5)
+    .add_arrival("orders", dist="exponential", rate=1.0)
+    .add_process(order_generator, arrival="orders", max_items=5)
 )
 
 if __name__ == "__main__":

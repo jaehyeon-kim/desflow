@@ -9,24 +9,24 @@ Standard Usage Example:
     from dynamic_des import SimulationContext, ConsoleEgress
 
     app = (
-        SimulationContext(sim_id="Factory_A", factor=1.0)
-        .add_resource("machine", current_cap=1, max_cap=1)
-        .add_arrival("parts", dist="exponential", rate=2.0)
-        .add_service("machining", dist="normal", mean=1.0)
+        SimulationContext(sim_id="Shop", factor=1.0)
+        .add_resource("packers", current_cap=1, max_cap=1)
+        .add_arrival("orders", dist="exponential", rate=2.0)
+        .add_service("packing", dist="normal", mean=1.0)
         .add_egress(ConsoleEgress())
     )
 
-    @app.arrival_loop("parts")
-    def parts_generator(context):
-        part_id = 0
+    @app.arrival_loop("orders")
+    def order_generator(context):
+        order_id = 0
         while True:
-            yield context.wait_for_arrival("parts")
-            context.spawn(process_part(part_id))
-            part_id += 1
+            yield context.wait_for_arrival("orders")
+            context.spawn(pack_order(order_id))
+            order_id += 1
 
-    @app.task(service_id="machining", resource_id="machine")
-    def process_part(part_id):
-        return {"part_id": part_id}
+    @app.task(service_id="packing", resource_id="packers")
+    def pack_order(order_id):
+        return {"order_id": order_id}
 
     app.run(until=10.0)
 

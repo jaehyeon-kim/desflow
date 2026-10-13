@@ -1,7 +1,7 @@
 # Connectors in a blueprint, as the YAML Blueprints page shows them. The services
 # are the odctl profiles the examples use; tests/unit only loads this file.
 simulation:
-  sim_id: Line_A
+  sim_id: Shop
   factor: 1
 
 # --8<-- [start:ingress]
@@ -9,7 +9,7 @@ ingress:
   - type: Local
     config:
       schedule:
-        - [10.0, Line_A.resources.lathe.current_cap, 3]
+        - [10.0, Shop.resources.packers.current_cap, 3]
   - type: Kafka
     config:
       topic: sim-config
@@ -51,7 +51,7 @@ egress:
 # --8<-- [end:egress]
 
 resources:
-  lathe: {current_cap: 1, max_cap: 5}
+  packers: {current_cap: 1, max_cap: 5}
 
 # --8<-- [start:before]
 run:

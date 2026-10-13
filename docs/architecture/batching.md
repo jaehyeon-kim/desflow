@@ -108,7 +108,7 @@ The same settings in a blueprint:
 # The batching settings of the Batching and Delivery page, as a blueprint.
 # Run it with: ddes run batching.yaml
 simulation:
-  sim_id: Line_A
+  sim_id: Shop
   factor: 0
   # when: history and when: live split the records at this instant
   logical_start_time: -1d
@@ -131,7 +131,7 @@ egress:
     when: history
 
 resources:
-  lathe: {current_cap: 1, max_cap: 1}
+  packers: {current_cap: 1, max_cap: 1}
 
 run:
   until: 60

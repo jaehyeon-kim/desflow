@@ -1,4 +1,4 @@
-"""The First Simulation tutorial, step 3: the step 2 factory on Kafka, low-level version.
+"""The First Simulation tutorial, step 3: the step 2 shop on Kafka, low-level version.
 
 Needs Kafka: odctl up kafka-lite. Runs until stopped with Ctrl+C.
 """
@@ -7,7 +7,7 @@ import numpy as np
 
 from dynamic_des import DynamicRealtimeEnvironment, DynamicResource, Sampler
 from dynamic_des import KafkaEgress, KafkaIngress
-from factory_changes_low_level import PARAMS, SEED, capacity_plan, parts_generator
+from shop_changes_low_level import PARAMS, SEED, capacity_plan, order_generator
 
 
 def run():
@@ -27,8 +27,8 @@ def run():
         ]
     )
     # --8<-- [end:kafka]
-    lathe = DynamicResource(env, "Factory_A", "lathe")
-    env.process(parts_generator(env, Sampler(rng=np.random.default_rng(SEED)), lathe))
+    packers = DynamicResource(env, "Shop", "packers")
+    env.process(order_generator(env, Sampler(rng=np.random.default_rng(SEED)), packers))
     env.process(capacity_plan(env))
     try:
         env.run()

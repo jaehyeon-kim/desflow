@@ -3,7 +3,7 @@ Backfill-then-live Example, low-level API.
 
 The low-level twin of `builder/backfill_live_example.py`. One run produces both
 halves of a tiered dataset. Until `go_live_at` the clock is detached from the wall
-clock, so ten minutes of backdated history are written to Parquet as fast as the
+clock, so ten minutes of backdated shop orders are written to Parquet as fast as the
 machine allows. From `go_live_at` the same run is paced at one simulated second per
 real second, and the same events are published to Kafka as they happen.
 """
@@ -47,10 +47,10 @@ LOGICAL_START_TIME = GO_LIVE_AT - HISTORY
 GO_LIVE_ISO = GO_LIVE_AT.isoformat(timespec="milliseconds")
 
 PARAMS = SimParameter(
-    sim_id="Line_A",
-    arrival={"standard": DistributionConfig(dist="exponential", rate=0.5)},
-    service={"milling": DistributionConfig(dist="normal", mean=2.0, std=0.2)},
-    resources={"lathe": CapacityConfig(current_cap=4, max_cap=10)},
+    sim_id="Shop",
+    arrival={"orders": DistributionConfig(dist="exponential", rate=0.5)},
+    service={"packing": DistributionConfig(dist="normal", mean=2.0, std=0.2)},
+    resources={"packers": CapacityConfig(current_cap=4, max_cap=10)},
 )
 
 
@@ -73,31 +73,31 @@ def history_router(data: dict) -> str | None:
     return f"{base_path}/events.parquet"
 
 
-def process_part(env, sampler, lathe, task_id):
+def pack_order(env, sampler, packers, task_id):
     """What @app.task does: queued, started, the service time, then finished."""
-    key, path_id = f"task-{task_id}", "Line_A.service.milling"
+    key, path_id = f"task-{task_id}", "Shop.service.packing"
     env.publish_event(key, {"path_id": path_id, "status": "queued"})
-    with lathe.request() as request:
+    with packers.request() as request:
         yield request
         env.publish_event(key, {"path_id": path_id, "status": "started"})
         yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
         env.publish_event(key, {"path_id": path_id, "status": "finished"})
 
 
-def arrival_generator(env, sampler, lathe):
-    gap = env.registry.get_config("Line_A.arrival.standard")
+def arrival_generator(env, sampler, packers):
+    gap = env.registry.get_config("Shop.arrival.orders")
     task_id = 0
     while True:
         yield env.timeout(sampler.sample(gap))
-        env.process(process_part(env, sampler, lathe, task_id))
+        env.process(pack_order(env, sampler, packers, task_id))
         task_id += 1
 
 
-def telemetry_generator(env, lathe):
+def telemetry_generator(env, packers):
     """Samples resource use every 30 simulation seconds."""
     while True:
-        env.publish_telemetry("Line_A.lathe.in_use", lathe.in_use)
-        env.publish_telemetry("Line_A.lathe.queue_length", len(lathe.queue.items))
+        env.publish_telemetry("Shop.packers.in_use", packers.in_use)
+        env.publish_telemetry("Shop.packers.queue_length", len(packers.queue.items))
         yield env.timeout(30.0)
 
 
@@ -135,10 +135,10 @@ def run():
         flush_interval=10.0,
         predicates=[is_history, is_live],  # matched to the providers by position
     )
-    lathe = DynamicResource(env, "Line_A", "lathe")
+    packers = DynamicResource(env, "Shop", "packers")
     sampler = Sampler(rng=np.random.default_rng(42))
-    env.process(arrival_generator(env, sampler, lathe))
-    env.process(telemetry_generator(env, lathe))
+    env.process(arrival_generator(env, sampler, packers))
+    env.process(telemetry_generator(env, packers))
 
     logger.info(
         "Backfilling from %s to %s into '%s/', then tailing live to Kafka for %.0fs.",

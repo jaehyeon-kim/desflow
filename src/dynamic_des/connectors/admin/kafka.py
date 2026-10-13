@@ -92,7 +92,7 @@ class KafkaAdminConnector:
 
         Args:
             topic: The Kafka topic the simulation is listening to for config.
-            path_id: The registry dot-notation path (e.g., 'Line_A.lathe.max_cap').
+            path_id: The registry dot-notation path (e.g., 'Shop.resources.packers.max_cap').
             value: The new value to be applied to the path.
         """
         producer = AIOKafkaProducer(

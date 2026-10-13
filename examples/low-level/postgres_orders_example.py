@@ -29,8 +29,8 @@ logging.basicConfig(
 DSN = "postgresql://user:password@localhost:5432/odctl"
 
 PARAMS = SimParameter(
-    sim_id="Store",
-    arrival={"customer_order": DistributionConfig(dist="exponential", rate=1.0)},
+    sim_id="Shop",
+    arrival={"orders": DistributionConfig(dist="exponential", rate=1.0)},
 )
 
 ORDERS = {
@@ -62,7 +62,7 @@ def order_generator(env, sampler: Sampler, max_items: int):
     order as the builder version, so the two publish the same records.
     """
     rng = sampler.rng
-    arrival = env.registry.get_config("Store.arrival.customer_order")
+    arrival = env.registry.get_config("Shop.arrival.orders")
     order_id = 1
     item_id = 1
     while True:

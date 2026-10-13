@@ -7,19 +7,19 @@ from dynamic_des.models.params import DistributionConfig, SimParameter
 def test_sim_parameter_structure(sample_params):
     """Verify that sample_params matches the expected hierarchical structure."""
     assert isinstance(sample_params, SimParameter)
-    assert sample_params.sim_id == "Line_A"
+    assert sample_params.sim_id == "Shop"
 
     # Check Arrivals
     assert "standard" in sample_params.arrival
     assert sample_params.arrival["standard"].rate == 1 / 10.0
 
     # Check Services
-    assert "milling" in sample_params.service
-    assert sample_params.service["milling"].mean == 5.0
+    assert "packing" in sample_params.service
+    assert sample_params.service["packing"].mean == 5.0
 
     # Check Resources
-    assert "lathe" in sample_params.resources
-    assert sample_params.resources["lathe"].current_cap == 2
+    assert "packers" in sample_params.resources
+    assert sample_params.resources["packers"].current_cap == 2
 
 
 def test_manual_numpy_sampling(sample_params):
@@ -33,7 +33,7 @@ def test_manual_numpy_sampling(sample_params):
     assert wait_time > 0
 
     # Sample from service (normal)
-    service_config = sample_params.service["milling"]
+    service_config = sample_params.service["packing"]
     # User-side logic: loc=mean, scale=std
     work_time = rng.normal(loc=service_config.mean, scale=service_config.std)
     # Manual safety clip

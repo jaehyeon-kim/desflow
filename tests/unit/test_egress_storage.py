@@ -144,13 +144,13 @@ EVENT = {
     "sim_ts": 1.0,
     "timestamp": "2026-01-01T00:00:01.000",
     "key": "task-1",
-    "value": {"path_id": "Line_A.service.milling", "status": "finished"},
+    "value": {"path_id": "Shop.service.packing", "status": "finished"},
 }
 TELEMETRY = {
     "stream_type": "telemetry",
     "sim_ts": 1.0,
     "timestamp": "2026-01-01T00:00:01.000",
-    "path_id": "Line_A.lathe.utilization",
+    "path_id": "Shop.packers.utilization",
     "value": 0.5,
 }
 
@@ -170,12 +170,12 @@ def test_parquet_without_router_writes_flat_events_only(tmp_path: Path):
             "sim_ts": 1.0,
             "timestamp": "2026-01-01T00:00:01.000",
             "key": "task-1",
-            "path_id": "Line_A.service.milling",
+            "path_id": "Shop.service.packing",
             "status": "finished",
         }
     ]
     # Other sinks receive the same record, so it must not change.
-    assert EVENT["value"] == {"path_id": "Line_A.service.milling", "status": "finished"}
+    assert EVENT["value"] == {"path_id": "Shop.service.packing", "status": "finished"}
 
 
 def test_jsonl_without_router_writes_flat_events_only(tmp_path: Path):

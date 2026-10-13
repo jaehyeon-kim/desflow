@@ -1,7 +1,7 @@
 # Settings that change per environment, read from environment variables.
 # Run it with: SIM_FACTOR=1 ddes run environment.yaml
 simulation:
-  sim_id: ${SIM_ID:-Line_A}
+  sim_id: ${SIM_ID:-Shop}
   # An unquoted value is read after the replacement, so this is the number 0
   factor: ${SIM_FACTOR:-0}
   # Read against the moment the file is loaded: a day of history up to now
@@ -13,7 +13,7 @@ egress:
 resources:
   # Quoted, because ${...} inside {...} would end the mapping early; the check
   # turns the text into a number
-  lathe: {current_cap: "${LATHES:-2}", max_cap: 5}
+  packers: {current_cap: "${PACKERS:-2}", max_cap: 5}
 
 run:
   until: ${RUN_FOR:-1 hour}

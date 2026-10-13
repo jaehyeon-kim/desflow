@@ -4,8 +4,8 @@ The low-level twin of `builder/iceberg_example.py`. It wires
 `DynamicRealtimeEnvironment`, the registry and the connectors by hand rather than
 through the builder, which shows what `SimulationContext` does for you.
 
-`factor=0.0` detaches the clock from real time, so a day of history is generated as
-fast as the machine allows and committed into an Iceberg table. Each flush of the
+`factor=0.0` detaches the clock from real time, so a day of shop orders is generated
+as fast as the machine allows and committed into an Iceberg table. Each flush of the
 buffer is one commit, so `batch_sizes` is what keeps the snapshot count down.
 
 Requires the odctl `catalog` profile: `odctl up catalog`.
@@ -94,20 +94,42 @@ def create_table_router(events_table: str):
     return table_router
 
 
+# The shop starts with 4 packers and has room for 10.
+PARAMS = SimParameter(
+    sim_id="Shop",
+    arrival={"orders": DistributionConfig(dist="exponential", rate=2.0)},
+    service={"packing": DistributionConfig(dist="normal", mean=2.0, std=0.2)},
+    resources={"packers": CapacityConfig(current_cap=4, max_cap=10)},
+)
+
+
+def pack_order(env, sampler, packers, task_id):
+    """What @app.task does: queued, started, the service time, then finished."""
+    key, path_id = f"task-{task_id}", "Shop.service.packing"
+    env.publish_event(key, {"path_id": path_id, "status": "queued"})
+    with packers.request() as req:
+        yield req
+        env.publish_event(key, {"path_id": path_id, "status": "started"})
+        yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
+        env.publish_event(key, {"path_id": path_id, "status": "finished"})
+
+
+def arrival_generator(env, sampler, packers):
+    gap = env.registry.get_config("Shop.arrival.orders")
+    task_id = 0
+    while True:
+        yield env.timeout(sampler.sample(gap))
+        env.process(pack_order(env, sampler, packers, task_id))
+        task_id += 1
+
+
 def run():
     # ---------------------------------------------------------
     # 1. SIMULATION SETUP
     # ---------------------------------------------------------
-    line_a_params = SimParameter(
-        sim_id="Line_A",
-        arrival={"standard": DistributionConfig(dist="exponential", rate=2.0)},
-        service={"milling": DistributionConfig(dist="normal", mean=2.0, std=0.2)},
-        resources={"lathe": CapacityConfig(current_cap=4, max_cap=10)},
-    )
-
     start_time = datetime.now() - timedelta(days=1)
     env = DynamicRealtimeEnvironment(factor=0.0, logical_start_time=start_time)
-    env.registry.register_sim_parameter(line_a_params)
+    env.registry.register_sim_parameter(PARAMS)
 
     egress = IcebergStorageEgress(
         catalog=build_catalog(),
@@ -118,36 +140,10 @@ def run():
     # One commit per flush, so a day of events lands in a handful of snapshots.
     env.setup_egress([egress], batch_sizes=[200_000], flush_interval=86400)
 
-    res = DynamicResource(env, "Line_A", "lathe")
+    packers = DynamicResource(env, "Shop", "packers")
     sampler = Sampler(rng=np.random.default_rng(42))
 
-    def arrival_process(env: DynamicRealtimeEnvironment, res: DynamicResource):
-        arrival_cfg = env.registry.get_config("Line_A.arrival.standard")
-        service_path = "Line_A.service.milling"
-        task_id = 0
-
-        while True:
-            yield env.timeout(sampler.sample(arrival_cfg))
-            env.process(work_task(env, task_id, res, service_path))
-            task_id += 1
-
-    def work_task(
-        env: DynamicRealtimeEnvironment,
-        task_id: int,
-        res: DynamicResource,
-        path_id: str,
-    ):
-        task_key = f"task-{task_id}"
-        env.publish_event(task_key, {"path_id": path_id, "status": "queued"})
-
-        with res.request() as req:
-            yield req
-            current_service_cfg = env.registry.get_config(path_id)
-            env.publish_event(task_key, {"path_id": path_id, "status": "started"})
-            yield env.timeout(sampler.sample(current_service_cfg))
-            env.publish_event(task_key, {"path_id": path_id, "status": "finished"})
-
-    env.process(arrival_process(env, res))
+    env.process(arrival_generator(env, sampler, packers))
 
     run_duration_str = "1 day"
     run_duration_sec = time_to_seconds(run_duration_str)

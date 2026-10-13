@@ -43,19 +43,19 @@ def registry(env):
 
 @pytest.fixture
 def sample_params():
-    """Provides a standard 'Line_A' SimParameter set for testing."""
+    """Provides a standard 'Shop' SimParameter set for testing."""
     return SimParameter(
-        sim_id="Line_A",
+        sim_id="Shop",
         arrival={
             "standard": DistributionConfig(dist="exponential", rate=1 / 10.0),
             "priority": DistributionConfig(dist="exponential", rate=1 / 50.0),
         },
         service={
             "setup": DistributionConfig(dist="normal", mean=2.0, std=0.5),
-            "milling": DistributionConfig(dist="normal", mean=5.0, std=1.2),
+            "packing": DistributionConfig(dist="normal", mean=5.0, std=1.2),
         },
         resources={
-            "lathe": CapacityConfig(current_cap=2, max_cap=5),
+            "packers": CapacityConfig(current_cap=2, max_cap=5),
             "operator": CapacityConfig(current_cap=1, max_cap=3),
         },
         containers={

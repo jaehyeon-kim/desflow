@@ -1,10 +1,10 @@
 # In-Memory Store (Redis)
 
-A factory that writes part records to a Redis Stream and takes parameter updates from a Redis Pub/Sub channel. Each tab shows the example written one way: with the builder API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](../architecture/overview.md) compares the three.
+An online shop that writes each order to a Redis Stream as it is placed, and takes parameter updates from a Redis Pub/Sub channel. Each tab shows the example written one way: with the builder API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](../architecture/overview.md) compares the three.
 
 === "YAML"
 
-    This example builds the simulation of the builder example in the Builder tab from a YAML blueprint, with no Python. `RedisEgress` writes part records to the `part_events` stream, which each record's `__stream__` key names, and `RedisIngress` subscribes to the `simulation_params` channel.
+    This example builds the simulation of the builder example in the Builder tab from a YAML blueprint, with no Python. `RedisEgress` writes order records to the `order_events` stream, which each record's `__stream__` key names, and `RedisIngress` subscribes to the `simulation_params` channel.
 
     **Quick Start**
 
@@ -52,35 +52,36 @@ A factory that writes part records to a Redis Stream and takes parameter updates
 
     **What It Does**
 
-    The run writes part events to the `part_events` stream, and the lag telemetry to `events`, until you stop it. In a second terminal, raise the arrival rate while it runs:
+    The run writes order records to the `order_events` stream, and the lag telemetry to `events`, until you stop it. In a second terminal, raise the arrival rate while it runs:
 
     ```bash
-    docker exec -it valkey valkey-cli --user user --pass password PUBLISH simulation_params '{"param_path": "Factory.arrival.part_arrival.rate", "param_value": 10.0}'
+    docker exec -it valkey valkey-cli --user user --pass password PUBLISH simulation_params '{"param_path": "Shop.arrival.orders.rate", "param_value": 10.0}'
     ```
 
-    `RedisIngress` does not log the message it receives, so the sign that the update landed is that `XLEN part_events` climbs about five times faster.
+    `RedisIngress` does not log the message it receives, so the sign that the update landed is that `XLEN order_events` climbs about five times faster.
 
     **Full Source Code**
 
-    `record_part` has no service or resource, so it publishes its fixed `payload` as soon as an arrival spawns it, with the task id added as `part_id`. The builder example draws a random part type for every arrival. A mapping payload is a constant, so every part here has type `A`.
+    `record_order` has no service or resource, so it publishes its fixed `payload` as soon as an arrival spawns it, with the task id added as `order_id`. A mapping payload is a constant, so every order here comes from the `web` channel; the builder and low-level versions publish the same records.
 
     Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
     ```yaml title="examples/yaml/redis.yaml"
     # Redis Streams output with live parameter updates, in YAML.
     #
-    # The YAML version of examples/builder/redis_example.py. Each part_arrival
-    # spawns record_part, a task with no service or resource, which publishes its
-    # payload at once. RedisEgress writes it to the part_events stream that the
-    # __stream__ key names, while RedisIngress subscribes to the simulation_params
-    # channel.
+    # The YAML version of examples/builder/redis_example.py: an online shop that records
+    # each order as it is placed. Each order spawns record_order, a task with no service
+    # or resource, which publishes its payload at once. RedisEgress writes it to the
+    # order_events stream that the __stream__ key names, while RedisIngress subscribes to
+    # the simulation_params channel.
     #
     # Needs Valkey: odctl up valkey. Runs until interrupted with Ctrl + C.
     # Run it with: ddes run examples/yaml/redis.yaml
 
     simulation:
-      sim_id: Factory
+      sim_id: Shop
       factor: 1.0
+      random_seed: 42
 
     ingress:
       - type: Redis
@@ -97,13 +98,13 @@ A factory that writes part records to a Redis Stream and takes parameter updates
           stream_name: events
 
     arrivals:
-      part_arrival: {dist: exponential, rate: 2.0, spawn: record_part}
+      orders: {dist: exponential, rate: 2.0, spawn: record_order}
 
     tasks:
-      record_part:
-        # id_field adds the task id as part_id.
-        payload: {__stream__: part_events, type: A, status: arrived}
-        id_field: part_id
+      record_order:
+        # id_field adds the task id as order_id.
+        payload: {__stream__: order_events, channel: web, status: placed}
+        id_field: order_id
     ```
 
 === "Builder"
@@ -118,32 +119,41 @@ A factory that writes part records to a Redis Stream and takes parameter updates
 
     ```python title="examples/builder/redis_example.py:app"
     app = (
-        SimulationContext(sim_id="Factory", factor=1.0)
+        SimulationContext(sim_id="Shop", factor=1.0, random_seed=42)
         .add_ingress(RedisIngress(REDIS_URL, channel_name="simulation_params"))
         .add_egress(RedisEgress(REDIS_URL, stream_name="events"))
-        .add_arrival("part_arrival", dist="exponential", rate=2.0)
+        .add_arrival("orders", dist="exponential", rate=2.0)
     )
     ```
 
-    The arrival loop publishes one record per arriving part:
+    `record_order` has no service or resource, so its record is published as soon as the arrival loop spawns it, one per order:
 
     ```python title="examples/builder/redis_example.py:records"
-    part_event = {
-        "__stream__": "part_events",
-        "part_id": part_id,
-        "type": random.choice(["A", "B", "C"]),
-        "timestamp": datetime.utcnow().isoformat(),
-        "status": "arrived",
-    }
+    @app.task()
+    def record_order(task_id: int, context):
+        """A task with no service or resource: its payload is published at once."""
+        return {
+            "__stream__": "order_events",
+            "order_id": task_id,
+            "channel": "web",
+            "status": "placed",
+        }
 
-    context.publish("factory_event", part_event)
+
+    @app.arrival_loop("orders")
+    def order_generator(context):
+        task_id = 0
+        while True:
+            yield context.wait_for_arrival("orders")
+            context.spawn(record_order(task_id, context))
+            task_id += 1
     ```
 
-    Each entry holds one field, `payload`, containing the JSON of the published record. `RedisEgress` reads `__stream__` from inside `value`, which is where both `context.publish` and `publish_event` put the dictionary you pass them, so part records go to `part_events` and everything else to the `events` stream named in the constructor. The key itself is removed before writing, so it does not appear in the stored payload.
+    Each entry holds one field, `payload`, containing the JSON of the published record. `RedisEgress` reads `__stream__` from inside `value`, which is where both `context.publish` and `publish_event` put the dictionary you pass them, so order records go to `order_events` and everything else to the `events` stream named in the constructor. The key itself is removed before writing, so it does not appear in the stored payload.
 
     **Dynamic Parameter Updates (Ingress)**
 
-    The `RedisIngress` in the builder above listens to the Pub/Sub channel `simulation_params`. While the simulation runs, publishing a JSON message with `param_path` and `param_value` to that channel changes the parameter, such as `{"param_path": "Factory.arrival.part_arrival.rate", "param_value": 10.0}` to raise the arrival rate. The example logs a `valkey-cli` command that sends it.
+    The `RedisIngress` in the builder above listens to the Pub/Sub channel `simulation_params`. While the simulation runs, publishing a JSON message with `param_path` and `param_value` to that channel changes the parameter, such as `{"param_path": "Shop.arrival.orders.rate", "param_value": 10.0}` to raise the arrival rate. The example logs a `valkey-cli` command that sends it.
 
     **Quick Start**
 
@@ -192,9 +202,9 @@ A factory that writes part records to a Redis Stream and takes parameter updates
     **In a second terminal, execute the dynamic parameter update:**
     ```bash
     # Connect to the Valkey container and publish the parameter update
-    docker exec -it valkey valkey-cli --user user --pass password PUBLISH simulation_params '{"param_path": "Factory.arrival.part_arrival.rate", "param_value": 10.0}'
+    docker exec -it valkey valkey-cli --user user --pass password PUBLISH simulation_params '{"param_path": "Shop.arrival.orders.rate", "param_value": 10.0}'
     ```
-    `RedisIngress` does not log the message it receives, so the sign that the update landed is the throughput. The arrival rate goes from 2.0 to 10.0 per second, and `XLEN part_events` climbs about five times faster than before.
+    `RedisIngress` does not log the message it receives, so the sign that the update landed is the throughput. The arrival rate goes from 2.0 to 10.0 per second, and `XLEN order_events` climbs about five times faster than before.
 
     ```bash
     # Clean up the infrastructure when finished
@@ -208,16 +218,15 @@ A factory that writes part records to a Redis Stream and takes parameter updates
     ```python title="examples/builder/redis_example.py"
     """Redis Streams output with live parameter updates, builder API.
 
-    `Factory` writes part records to the `part_events` Redis Stream through `RedisEgress`,
-    named by each record's `__stream__` key, while `RedisIngress` subscribes to the `simulation_params` channel, so publishing a message to
-    that channel changes the arrival rate of a running simulation.
+    `Shop`, an online shop, records each order as it is placed. `RedisEgress` writes the
+    records to the `order_events` Redis Stream, named by each record's `__stream__` key,
+    while `RedisIngress` subscribes to the `simulation_params` channel, so publishing a
+    message to that channel changes the arrival rate of a running simulation.
 
     Needs Valkey: `odctl up valkey`. Runs until interrupted with Ctrl + C.
     """
 
     import logging
-    import random
-    from datetime import datetime
 
     from dynamic_des import RedisEgress, RedisIngress, SimulationContext
 
@@ -228,29 +237,31 @@ A factory that writes part records to a Redis Stream and takes parameter updates
     REDIS_URL = "redis://user:password@localhost:6379/0"
 
     app = (
-        SimulationContext(sim_id="Factory", factor=1.0)
+        SimulationContext(sim_id="Shop", factor=1.0, random_seed=42)
         .add_ingress(RedisIngress(REDIS_URL, channel_name="simulation_params"))
         .add_egress(RedisEgress(REDIS_URL, stream_name="events"))
-        .add_arrival("part_arrival", dist="exponential", rate=2.0)
+        .add_arrival("orders", dist="exponential", rate=2.0)
     )
 
 
-    @app.arrival_loop("part_arrival")
-    def part_generator(context):
-        part_id = 1
+    @app.task()
+    def record_order(task_id: int, context):
+        """A task with no service or resource: its payload is published at once."""
+        return {
+            "__stream__": "order_events",
+            "order_id": task_id,
+            "channel": "web",
+            "status": "placed",
+        }
+
+
+    @app.arrival_loop("orders")
+    def order_generator(context):
+        task_id = 0
         while True:
-            yield context.wait_for_arrival("part_arrival")
-
-            part_event = {
-                "__stream__": "part_events",
-                "part_id": part_id,
-                "type": random.choice(["A", "B", "C"]),
-                "timestamp": datetime.utcnow().isoformat(),
-                "status": "arrived",
-            }
-
-            context.publish("factory_event", part_event)
-            part_id += 1
+            yield context.wait_for_arrival("orders")
+            context.spawn(record_order(task_id, context))
+            task_id += 1
 
 
     def run():
@@ -258,7 +269,7 @@ A factory that writes part records to a Redis Stream and takes parameter updates
         logger.info(
             "Test Ingress by running: docker exec -it valkey valkey-cli --user user "
             "--pass password PUBLISH simulation_params "
-            '\'{"param_path": "Factory.arrival.part_arrival.rate", "param_value": 10.0}\''
+            '\'{"param_path": "Shop.arrival.orders.rate", "param_value": 10.0}\''
         )
         try:
             app.run()
@@ -324,9 +335,9 @@ A factory that writes part records to a Redis Stream and takes parameter updates
     **In a second terminal, execute the dynamic parameter update:**
     ```bash
     # Connect to the Valkey container and publish the parameter update
-    docker exec -it valkey valkey-cli --user user --pass password PUBLISH simulation_params '{"param_path": "Factory.arrival.part_arrival.rate", "param_value": 10.0}'
+    docker exec -it valkey valkey-cli --user user --pass password PUBLISH simulation_params '{"param_path": "Shop.arrival.orders.rate", "param_value": 10.0}'
     ```
-    `RedisIngress` does not log the message it receives, so the sign that the update landed is the throughput. The arrival rate goes from 2.0 to 10.0 per second, and `XLEN part_events` climbs about five times faster than before.
+    `RedisIngress` does not log the message it receives, so the sign that the update landed is the throughput. The arrival rate goes from 2.0 to 10.0 per second, and `XLEN order_events` climbs about five times faster than before.
 
     ```bash
     # Clean up the infrastructure when finished
@@ -340,8 +351,8 @@ A factory that writes part records to a Redis Stream and takes parameter updates
     ```python title="examples/low-level/redis_example.py"
     """Redis Streams output with live parameter updates, low-level API.
 
-    The low-level twin of `builder/redis_example.py`, wiring the environment and
-    connectors by hand. `RedisEgress` writes part records to the `part_events` stream,
+    The low-level twin of `builder/redis_example.py`: an online shop that records each
+    order as it is placed. `RedisEgress` writes the records to the `order_events` stream,
     named by each record's `__stream__` key, and `RedisIngress` subscribes to the
     `simulation_params` channel.
 
@@ -349,8 +360,6 @@ A factory that writes part records to a Redis Stream and takes parameter updates
     """
 
     import logging
-    import random
-    from datetime import datetime
 
     import numpy as np
 
@@ -369,51 +378,42 @@ A factory that writes part records to a Redis Stream and takes parameter updates
     # URL carries credentials. A plain Redis without auth takes redis://localhost:6379/0.
     REDIS_URL = "redis://user:password@localhost:6379/0"
 
+    PARAMS = SimParameter(
+        sim_id="Shop",
+        arrival={"orders": DistributionConfig(dist="exponential", rate=2.0)},
+    )
+
+
+    def order_generator(env, sampler):
+        """Publishes one record per order, as the builder's task with no service does."""
+        gap = env.registry.get_config("Shop.arrival.orders")
+        task_id = 0
+        while True:
+            yield env.timeout(sampler.sample(gap))
+            order_event = {
+                "__stream__": "order_events",
+                "order_id": task_id,
+                "channel": "web",
+                "status": "placed",
+            }
+            env.publish_event(f"task-{task_id}", order_event)
+            task_id += 1
+
 
     def run():
-        params = SimParameter(
-            sim_id="Factory",
-            arrival={"part_arrival": DistributionConfig(dist="exponential", rate=2.0)},
-        )
-
-        # Attach egress instance
-        egress = RedisEgress(REDIS_URL, stream_name="events")
-
-        # Attach ingress for dynamic parameter updates
-        ingress = RedisIngress(REDIS_URL, channel_name="simulation_params")
-
         env = DynamicRealtimeEnvironment(factor=1.0)
-        env.registry.register_sim_parameter(params)
-        env.setup_egress([egress])
-        env.setup_ingress([ingress])
+        env.registry.register_sim_parameter(PARAMS)
+        env.setup_egress([RedisEgress(REDIS_URL, stream_name="events")])
+        env.setup_ingress([RedisIngress(REDIS_URL, channel_name="simulation_params")])
 
         sampler = Sampler(rng=np.random.default_rng(42))
-
-        def part_process(env: DynamicRealtimeEnvironment):
-            arrival_cfg = env.registry.get_config("Factory.arrival.part_arrival")
-            part_id = 1
-
-            while True:
-                yield env.timeout(sampler.sample(arrival_cfg))
-
-                part_event = {
-                    "__stream__": "part_events",
-                    "part_id": part_id,
-                    "type": random.choice(["A", "B", "C"]),
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "status": "arrived",
-                }
-                env.publish_event(f"part-{part_id}", part_event)
-
-                part_id += 1
-
-        env.process(part_process(env))
+        env.process(order_generator(env, sampler))
 
         logger.info("Starting Low-level Redis Demo. Press Ctrl+C to stop...")
         logger.info(
             "Test Ingress by running: docker exec -it valkey valkey-cli --user user "
             "--pass password PUBLISH simulation_params "
-            '\'{"param_path": "Factory.arrival.part_arrival.rate", "param_value": 10.0}\''
+            '\'{"param_path": "Shop.arrival.orders.rate", "param_value": 10.0}\''
         )
 
         try:
