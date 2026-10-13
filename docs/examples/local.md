@@ -1,6 +1,6 @@
 # Local Simulation
 
-A production line that prints its events and telemetry to the terminal. It needs no container, so it is the place to start. Each tab shows the example written one way: with the builder API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](../architecture/overview.md) compares the three.
+An online shop that packs orders and prints its events and telemetry to the terminal. It needs no container, so it is the place to start. Each tab shows the example written one way: with the builder API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](../architecture/overview.md) compares the three.
 
 Local connectors need no Docker, Kafka or other external store, so this example is useful for testing and benchmarking.
 
@@ -44,72 +44,82 @@ Local connectors need no Docker, Kafka or other external store, so this example 
 
     **What It Does**
 
-    The run prints every record to the terminal and stops after 60 simulation seconds, which at `factor: 1.0` is one real minute. Telemetry lines carry `[TEL]` and events carry `[EVT]`:
+    The run prints every record to the terminal and stops after 30 simulation seconds, which at `factor: 1.0` is 30 real seconds. Telemetry lines carry `[TEL]` and events carry `[EVT]`:
 
     ```text
-    [TEL] {'sim_ts': 0.0, 'timestamp': '...', 'path_id': 'Factory_A.utilization', 'value': 0.0}
-    [EVT] {'sim_ts': 0.328, 'timestamp': '...', 'key': 'task-0', 'value': {'path_id': 'Factory_A.service.milling', 'status': 'queued'}}
-    [EVT] {'sim_ts': 3.754, 'timestamp': '...', 'key': 'task-0', 'value': {'event_type': 'part_produced', 'quality': 'A', 'part_id': 0}}
+    [TEL] {'sim_ts': 0.0, 'timestamp': '...', 'path_id': 'Shop.packers.capacity', 'value': 1}
+    [EVT] {'sim_ts': 2.404, 'timestamp': '...', 'key': 'task-0', 'value': {'path_id': 'Shop.service.packing', 'status': 'queued'}}
+    [EVT] {'sim_ts': 5.779, 'timestamp': '...', 'key': 'task-0', 'value': {'event_type': 'order_packed', 'shipping': 'standard', 'order_id': 0}}
+    [TEL] {'sim_ts': 12.0, 'timestamp': '...', 'path_id': 'Shop.packers.capacity', 'value': 3}
     ```
 
-    Each part produces a `queued`, a `started` and a finished event. The finished event is the task's `payload`, with the task id added as `part_id` because of `id_field`. Add `--until 10` to stop after 10 simulation seconds instead.
+    Each order produces a `queued`, a `started` and a finished event. The finished event is the task's `payload`, with the task id added as `order_id` because of `id_field`. The capacity telemetry shows the scenario: one packer, three from 10 seconds, then two from 20 seconds. Add `--until 10` to stop after 10 simulation seconds instead.
 
     **Full Source Code**
 
-    The blueprint declares one resource, one service and one arrival. `spawn` names the task each arrival starts, and the `telemetry` entry publishes two statistics of the lathe every 2 simulation seconds.
+    The blueprint declares one resource, one service and one arrival. `spawn` names the task each arrival starts, the `telemetry` entry publishes four statistics of the packers every 2 simulation seconds, and the `scenario` changes the number of packers at 10 and 20 seconds.
 
     Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
     ```yaml title="examples/yaml/local.yaml"
     # Local simulation in YAML, with no Python and no containers.
     #
-    # The twin of examples/builder/local_example.py. Factory_A writes to
-    # ConsoleEgress, so events and telemetry are printed to the terminal, and the run
-    # ends on its own after 60 simulation seconds.
+    # The twin of examples/builder/local_example.py. An online shop packs orders, and
+    # Shop writes to ConsoleEgress, so events and telemetry are printed to the
+    # terminal. A scenario adds packers at 10 seconds and removes one at 20 seconds, and
+    # the run ends on its own after 30 simulation seconds.
     #
     # Run it with: ddes run examples/yaml/local.yaml
 
     simulation:
-      sim_id: Factory_A
+      sim_id: Shop
       factor: 1.0
+      random_seed: 42
 
     egress:
       - type: Console
 
     resources:
-      lathe: {current_cap: 2, max_cap: 5}
+      packers: {current_cap: 1, max_cap: 5}
 
     services:
-      milling: {dist: normal, mean: 3.0, std: 0.5}
+      packing: {dist: normal, mean: 3.0, std: 0.5}
 
     arrivals:
-      # Each arrival spawns one process_part task.
-      standard: {dist: exponential, rate: 1.0, spawn: process_part}
+      # Each order spawns one pack_order task.
+      orders: {dist: exponential, rate: 1.0, spawn: pack_order}
 
     tasks:
-      process_part:
-        service: milling
-        resource: lathe
-        # The value of the task's finished event. id_field adds the task id as part_id.
-        payload: {event_type: part_produced, quality: A}
-        id_field: part_id
+      pack_order:
+        service: packing
+        resource: packers
+        # The value of the task's finished event. id_field adds the task id as order_id.
+        payload: {event_type: order_packed, shipping: standard}
+        id_field: order_id
 
     telemetry:
-      # Samples the lathe every 2 simulation seconds.
+      # Samples the packers every 2 simulation seconds.
       - interval: 2.0
         publish:
-          utilization: lathe.utilization
-          queue_length: lathe.queue_length
+          packers.capacity: packers.capacity
+          packers.in_use: packers.in_use
+          packers.queue_length: packers.queue_length
+          packers.utilization: packers.utilization
+
+    scenario:
+      # Three packers from 10 seconds, then two from 20 seconds.
+      - {at: 10, path: Shop.resources.packers.current_cap, value: 3}
+      - {at: 20, path: Shop.resources.packers.current_cap, value: 2}
 
     run:
-      until: 60
+      until: 30
     ```
 
 === "Builder"
 
     This example demonstrates how to build a dynamic simulation using the **builder API (`SimulationContext`)** and **Local Connectors**.
 
-    This example adds `ConsoleEgress` and no ingress, so the lathe keeps the capacity it starts with for the whole run. Its low-level twin, in the Low-level tab, shows how `LocalIngress` schedules parameter changes at set times.
+    This example adds `ConsoleEgress` and no ingress. `add_process` starts `capacity_changes`, which waits on the simulation clock and changes the number of packers at 10 and 20 seconds, as the YAML `scenario` does.
 
     **Quick Start**
 
@@ -145,19 +155,20 @@ Local connectors need no Docker, Kafka or other external store, so this example 
 
     **Full Source Code**
 
-    This script initializes a production line, runs it for 60 simulation seconds, and streams events and telemetry directly to your terminal.
+    This script builds the shop, runs it for 30 simulation seconds, and streams events and telemetry directly to your terminal.
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
     ```python title="examples/builder/local_example.py"
     """Local simulation, builder API, no containers.
 
-    The smallest complete example. `Factory_A` is built with `SimulationContext` and writes
-    to `ConsoleEgress`, so events and telemetry are printed to the terminal and nothing
-    external is involved.
+    The smallest complete example. An online shop packs orders: `Shop` is built with
+    `SimulationContext` and writes to `ConsoleEgress`, so events and telemetry are printed
+    to the terminal and nothing external is involved. A scenario adds packers at 10
+    seconds and removes one at 20 seconds, and the telemetry shows the effect.
 
     Start here. It needs no broker, no database and no object store, and it ends on its own
-    after 60 simulation seconds.
+    after 30 simulation seconds.
     """
 
     import logging
@@ -178,41 +189,55 @@ Local connectors need no Docker, Kafka or other external store, so this example 
     # 1. Infrastructure Builder
     # ==========================================
     app = (
-        SimulationContext(sim_id="Factory_A", factor=1.0)
+        SimulationContext(sim_id="Shop", factor=1.0, random_seed=42)
         .add_egress(ConsoleEgress())
-        .add_resource("lathe", current_cap=2, max_cap=5)
-        .add_service("milling", dist="normal", mean=3.0, std=0.5)
-        .add_arrival("standard", dist="exponential", rate=1.0)
+        .add_resource("packers", current_cap=1, max_cap=5)
+        .add_service("packing", dist="normal", mean=3.0, std=0.5)
+        .add_arrival("orders", dist="exponential", rate=1.0)
     )
 
 
     # ==========================================
     # 2. Simulation Logic (Decorators)
     # ==========================================
-    @app.task(service_id="milling", resource_id="lathe")
-    def process_part(task_id: int):
-        """Executes the milling service and returns the custom payload."""
-        return {"event_type": "part_produced", "part_id": task_id, "quality": "A"}
+    @app.task(service_id="packing", resource_id="packers")
+    def pack_order(task_id: int, context):
+        """Packs one order and returns the payload of its finished event."""
+        return {"event_type": "order_packed", "shipping": "standard", "order_id": task_id}
 
 
-    @app.arrival_loop("standard")
+    @app.arrival_loop("orders")
     def arrival_generator(context):
-        """Continuously spawns new parts based on the 'standard' arrival distribution."""
+        """Spawns a pack_order task for every order the 'orders' distribution draws."""
         task_id = 0
         while True:
-            yield context.wait_for_arrival("standard")
-            context.spawn(process_part(task_id))
+            yield context.wait_for_arrival("orders")
+            context.spawn(pack_order(task_id, context))
             task_id += 1
 
 
     @app.telemetry_loop(interval=2.0)
     def telemetry_generator(context):
-        """Samples the hidden state of the resources every 2 simulation seconds."""
-        res = context.get_resource("lathe")
+        """Samples the packers every 2 simulation seconds."""
+        res = context.get_resource("packers")
         util = (res.in_use / res.capacity) * 100 if res.capacity > 0 else 0
 
-        context.publish("utilization", util)
-        context.publish("queue_length", len(res.queue.items))
+        context.publish("packers.capacity", res.capacity)
+        context.publish("packers.in_use", res.in_use)
+        context.publish("packers.queue_length", len(res.queue.items))
+        context.publish("packers.utilization", util)
+
+
+    def capacity_changes(context):
+        """Three packers from 10 seconds, then two from 20 seconds, on simulation time."""
+        path = "Shop.resources.packers.current_cap"
+        yield context.env.timeout(10)
+        context.env.registry.update(path, 3)
+        yield context.env.timeout(10)
+        context.env.registry.update(path, 2)
+
+
+    app.add_process(capacity_changes)
 
 
     # ==========================================
@@ -220,8 +245,8 @@ Local connectors need no Docker, Kafka or other external store, so this example 
     # ==========================================
     def run():
         """Starts the local simulation for a fixed duration."""
-        logger.info("Starting Builder Local Example. Running for 60 seconds...")
-        app.run(until=60)
+        logger.info("Starting Builder Local Example. Running for 30 seconds...")
+        app.run(until=30)
 
 
     if __name__ == "__main__":
@@ -266,17 +291,17 @@ Local connectors need no Docker, Kafka or other external store, so this example 
 
     **Full Source Code**
 
-    This script initializes a production line and runs it for 30 simulation seconds. `LocalIngress` schedules two capacity changes: the lathe goes from 1 to 3 at t=10s, then down to 2 at t=20s. Events and telemetry stream directly to your terminal, driven by raw SimPy generators.
+    This script builds the shop and runs it for 30 simulation seconds. The `capacity_changes` process changes the number of packers from 1 to 3 at 10 seconds, then down to 2 at 20 seconds. Events and telemetry stream directly to your terminal, driven by plain SimPy generators.
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
     ```python title="examples/low-level/local_example.py"
-    """Local simulation with scheduled parameter changes, low-level API.
+    """Local simulation, low-level API, no containers.
 
-    The low-level twin of `builder/local_example.py`, built on
-    `DynamicRealtimeEnvironment` directly. It adds what the builder version does not
-    have: `LocalIngress` schedules two capacity changes, so the lathe goes from 1 to 3 at
-    t=10s and down to 2 at t=20s, and the telemetry shows the effect.
+    The low-level twin of `builder/local_example.py`, built on `DynamicRealtimeEnvironment`
+    directly. An online shop packs orders and writes to `ConsoleEgress`. A scenario
+    process adds packers at 10 seconds and removes one at 20 seconds, and the telemetry
+    shows the effect.
 
     Needs no containers. Ends on its own after 30 simulation seconds.
     """
@@ -291,7 +316,6 @@ Local connectors need no Docker, Kafka or other external store, so this example 
         DistributionConfig,
         DynamicRealtimeEnvironment,
         DynamicResource,
-        LocalIngress,
         Sampler,
         SimParameter,
     )
@@ -301,87 +325,75 @@ Local connectors need no Docker, Kafka or other external store, so this example 
     )
     logger = logging.getLogger("local_example")
 
+    # The shop starts with 1 packer and has room for 5.
+    PARAMS = SimParameter(
+        sim_id="Shop",
+        arrival={"orders": DistributionConfig(dist="exponential", rate=1.0)},
+        service={"packing": DistributionConfig(dist="normal", mean=3.0, std=0.5)},
+        resources={"packers": CapacityConfig(current_cap=1, max_cap=5)},
+    )
+
+
+    def pack_order(env, sampler, packers, task_id):
+        """Models the task lifecycle: queued, started, then finished with its payload."""
+        key, path_id = f"task-{task_id}", "Shop.service.packing"
+        env.publish_event(key, {"path_id": path_id, "status": "queued"})
+
+        with packers.request() as req:
+            yield req
+            env.publish_event(key, {"path_id": path_id, "status": "started"})
+            # Late binding: the service time is read when the work starts
+            yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
+            env.publish_event(
+                key,
+                {"event_type": "order_packed", "shipping": "standard", "order_id": task_id},
+            )
+
+
+    def arrival_generator(env, sampler, packers):
+        """Spawns a pack_order task for every order the arrival distribution draws."""
+        # A reference: the config follows the registry when the rate changes
+        gap = env.registry.get_config("Shop.arrival.orders")
+        task_id = 0
+        while True:
+            yield env.timeout(sampler.sample(gap))
+            env.process(pack_order(env, sampler, packers, task_id))
+            task_id += 1
+
+
+    def telemetry_generator(env, packers):
+        """Samples the packers every 2 simulation seconds."""
+        while True:
+            util = (packers.in_use / packers.capacity) * 100 if packers.capacity > 0 else 0
+            env.publish_telemetry("Shop.packers.capacity", packers.capacity)
+            env.publish_telemetry("Shop.packers.in_use", packers.in_use)
+            env.publish_telemetry("Shop.packers.queue_length", len(packers.queue.items))
+            env.publish_telemetry("Shop.packers.utilization", util)
+            yield env.timeout(2.0)
+
+
+    def capacity_changes(env):
+        """Three packers from 10 seconds, then two from 20 seconds, on simulation time."""
+        path = "Shop.resources.packers.current_cap"
+        yield env.timeout(10)
+        env.registry.update(path, 3)
+        yield env.timeout(10)
+        env.registry.update(path, 2)
+
 
     def run():
-        # 1. Define the system schema
-        # Line_A starts with 1 lathe, but has a physical ceiling of 5.
-        line_a_params = SimParameter(
-            sim_id="Line_A",
-            arrival={"standard": DistributionConfig(dist="exponential", rate=1.0)},
-            service={"milling": DistributionConfig(dist="normal", mean=3.0, std=0.5)},
-            resources={"lathe": CapacityConfig(current_cap=1, max_cap=5)},
-        )
-
-        # 2. Setup Environment with Local Connectors
-        # Schedule capacity updates: jump to 3 at t=10s, then drop to 2 at t=20s
-        ingress = LocalIngress(
-            schedule=[
-                (10.0, "Line_A.resources.lathe.current_cap", 3),
-                (20.0, "Line_A.resources.lathe.current_cap", 2),
-            ]
-        )
-        egress = ConsoleEgress()
-
         env = DynamicRealtimeEnvironment(factor=1.0)
-        env.registry.register_sim_parameter(line_a_params)
-        env.setup_ingress([ingress])
-        env.setup_egress([egress])
+        env.registry.register_sim_parameter(PARAMS)
+        env.setup_egress([ConsoleEgress()])
 
-        # 3. Initialize Resources and Sampler
-        res = DynamicResource(env, "Line_A", "lathe")
+        packers = DynamicResource(env, "Shop", "packers")
         sampler = Sampler(rng=np.random.default_rng(42))
 
-        # 4. Define Simulation Logic
-        def arrival_process(env: DynamicRealtimeEnvironment, res: DynamicResource):
-            """Generates tasks based on the dynamic arrival rate."""
-            arrival_cfg = env.registry.get_config("Line_A.arrival.standard")
-            service_path = "Line_A.service.milling"
-            task_id = 0
+        env.process(arrival_generator(env, sampler, packers))
+        env.process(telemetry_generator(env, packers))
+        env.process(capacity_changes(env))
 
-            while True:
-                # Reference-based: arrival_cfg updates automatically via Registry
-                yield env.timeout(sampler.sample(arrival_cfg))
-                env.process(work_task(env, task_id, res, service_path))
-                task_id += 1
-
-        def work_task(
-            env: DynamicRealtimeEnvironment,
-            task_id: int,
-            res: DynamicResource,
-            path_id: str,
-        ):
-            """Models task lifecycle: queued -> started -> finished."""
-            task_key = f"task-{task_id}"
-            env.publish_event(task_key, {"path_id": path_id, "status": "queued"})
-
-            with res.request() as req:
-                yield req
-                # Late Binding: Fetch latest config only when work actually starts
-                current_service_cfg = env.registry.get_config(path_id)
-
-                env.publish_event(task_key, {"path_id": path_id, "status": "started"})
-
-                yield env.timeout(sampler.sample(current_service_cfg))
-                env.publish_event(task_key, {"path_id": path_id, "status": "finished"})
-
-        def telemetry_monitor(env: DynamicRealtimeEnvironment, res: DynamicResource):
-            """Streams system health metrics every 2 seconds."""
-            while True:
-                env.publish_telemetry("Line_A.resources.lathe.capacity", res.capacity)
-                env.publish_telemetry("Line_A.resources.lathe.in_use", res.in_use)
-                env.publish_telemetry(
-                    "Line_A.resources.lathe.queue_length", len(res.queue.items)
-                )
-
-                util = (res.in_use / res.capacity) * 100 if res.capacity > 0 else 0
-                env.publish_telemetry("Line_A.resources.lathe.utilization", util)
-                yield env.timeout(2.0)
-
-        # 5. Run the Simulation
-        env.process(arrival_process(env, res))
-        env.process(telemetry_monitor(env, res))
-
-        logging.info("Simulation started. Watch capacity change at t=10.0s and 20.0s...")
+        logger.info("Simulation started. Watch the capacity change at 10 s and 20 s...")
         try:
             env.run(until=30)
         finally:

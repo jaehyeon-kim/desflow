@@ -25,7 +25,7 @@ class TaskEvent(BaseModel):
 
 def work_task(env: DynamicRealtimeEnvironment, task_id: int):
     # The model is passed as it is; publish_event turns it into a dict.
-    event = TaskEvent(path_id="Line_A.lathe", status="queued")
+    event = TaskEvent(path_id="Shop.packers", status="queued")
     env.publish_event(f"task-{task_id}", event)
     yield env.timeout(0)
 ```

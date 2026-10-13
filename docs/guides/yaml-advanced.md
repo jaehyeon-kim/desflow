@@ -25,7 +25,7 @@ A setting that is a value needs no Python. Environment variables, relative times
 
 `!python module.attribute` imports `module` and returns its `attribute`. The reference can name anything: a function, a class, a dictionary or a constant.
 
-![A !python value such as workshop_logic.drill_payload imports the longest prefix that is a module and returns the rest, which the blueprint uses as a payload, process, router, serializer or connector class; a missing module or attribute raises BlueprintError](../assets/diagrams/python-reference.png)
+![A !python value such as shop_logic.choose_delivery imports the longest prefix that is a module and returns the rest, which the blueprint uses as a payload, process, router, serializer or connector class; a missing module or attribute raises BlueprintError](../assets/diagrams/python-reference.png)
 
 The longest prefix that is a module is imported, and the rest is read as attributes, so `pkg.module.func` and `module.Class.attribute` both work. The folder of the YAML file is added to the front of `sys.path`, unless it is already on it, before anything is resolved, so a module beside the blueprint is found from any working directory. Other modules are found on the normal `sys.path`, which includes installed packages. `${VAR}` is replaced inside a reference too, so `!python ${LOGIC}.ticker` picks the module from the environment.
 
@@ -45,71 +45,71 @@ Every reference is resolved and checked when the file is loaded, so a wrong refe
 
 ## Processes, payloads and kwargs
 
-This blueprint keeps the workshop in YAML and moves three pieces of logic into Python: a payload that grades each part, a maintenance process with arguments, and a predicate that keeps telemetry off the terminal:
+This blueprint keeps the shop in YAML and moves three pieces of logic into Python: a payload that picks each order's delivery, a breaks process with arguments, and a predicate that keeps telemetry off the terminal:
 
 ```yaml title="docs/snippets/yaml/hybrid.yaml"
-# The workshop with its logic in Python. YAML keeps the blueprint and the
-# experiment; workshop_logic.py beside this file holds what YAML cannot express.
+# The shop with its logic in Python. YAML keeps the blueprint and the
+# experiment; shop_logic.py beside this file holds what YAML cannot express.
 simulation:
-  sim_id: Workshop
+  sim_id: Shop
   factor: 0
   random_seed: 1
 
 egress:
   - type: Console
     # Only events reach the terminal; telemetry is dropped.
-    when: !python workshop_logic.events_only
+    when: !python shop_logic.events_only
 
 resources:
-  drill: {current_cap: 1, max_cap: 3}
+  packers: {current_cap: 1, max_cap: 3}
 
 services:
-  drilling: {dist: normal, mean: 4.0, std: 1.0}
+  packing: {dist: normal, mean: 4.0, std: 1.0}
 
 arrivals:
-  parts: {dist: exponential, rate: 0.2, spawn: drill_part}
+  orders: {dist: exponential, rate: 0.2, spawn: pack_order}
 
 tasks:
-  drill_part:
-    service: drilling
-    resource: drill
-    # Called as grade_part(task_id, context) for every finished part.
-    payload: !python workshop_logic.grade_part
+  pack_order:
+    service: packing
+    resource: packers
+    # Called as choose_delivery(task_id, context) for every packed order.
+    payload: !python shop_logic.choose_delivery
 
 processes:
-  # Called as maintenance(context, resource="drill", every=50, duration=5).
-  - function: !python workshop_logic.maintenance
-    kwargs: {resource: drill, every: 50, duration: 5}
+  # Called as breaks(context, resource="packers", every=50, duration=5).
+  - function: !python shop_logic.breaks
+    kwargs: {resource: packers, every: 50, duration: 5}
 
 scenario:
-  - {at: 1 min, path: Workshop.arrival.parts.rate, value: 0.4}
+  - {at: 1 min, path: Shop.arrival.orders.rate, value: 0.4}
 
 run:
   until: 3 min
 ```
 
-```python title="docs/snippets/yaml/workshop_logic.py"
+```python title="docs/snippets/yaml/shop_logic.py"
 """Python for hybrid.yaml: a payload, a process with arguments and a predicate."""
 
 
-def grade_part(task_id: int, context):
-    """Grades each part from the shared random generator, so a seed repeats it."""
-    grade = "A" if context.sampler.rng.random() < 0.9 else "B"
-    return {"status": "finished", "part_id": task_id, "grade": grade}
+def choose_delivery(task_id: int, context):
+    """Picks each order's delivery from the shared generator, so a seed repeats it."""
+    delivery = "standard" if context.sampler.rng.random() < 0.9 else "express"
+    return {"status": "finished", "order_id": task_id, "delivery": delivery}
 
 
-def maintenance(context, resource: str, every: float, duration: float):
-    """Waits `every` seconds, then takes the machine out of service for `duration`."""
+def breaks(context, resource: str, every: float, duration: float):
+    """Waits `every` seconds, then takes every packer off for a break of `duration`."""
     path = f"{context.sim_id}.resources.{resource}.current_cap"
     registry = context.env.registry
     while True:
         yield context.env.timeout(every)
         normal = registry.get(path).value
         registry.update(path, 0)
-        context.env.publish_event(f"{resource}-maintenance", {"status": "down"})
+        context.env.publish_event(f"{resource}-break", {"status": "down"})
         yield context.env.timeout(duration)
         registry.update(path, normal)
-        context.env.publish_event(f"{resource}-maintenance", {"status": "up"})
+        context.env.publish_event(f"{resource}-break", {"status": "up"})
 
 
 def events_only(record: dict) -> bool:
@@ -119,16 +119,16 @@ def events_only(record: dict) -> bool:
 
 What each reference receives:
 
-- `payload` is called as `grade_part(task_id, context)` for every finished part. It draws from `context.sampler`, the generator seeded by `random_seed`, so the grades repeat with the seed.
-- `processes` entries are called as `function(context, **kwargs)` when the run starts. `kwargs` is how one function serves several machines.
+- `payload` is called as `choose_delivery(task_id, context)` for every packed order. It draws from `context.sampler`, the generator seeded by `random_seed`, so the deliveries repeat with the seed.
+- `processes` entries are called as `function(context, **kwargs)` when the run starts. `kwargs` is how one function serves several resources.
 - `when` is called with every record and returns True to send it to that sink.
 
 The run shows both:
 
 ```text
-[EVT] {'sim_ts': 10.271, 'timestamp': '...', 'key': 'task-0', 'value': {'status': 'finished', 'part_id': 0, 'grade': 'B'}}
-[EVT] {'sim_ts': 50.0, 'timestamp': '...', 'key': 'drill-maintenance', 'value': {'status': 'down'}}
-[EVT] {'sim_ts': 55.0, 'timestamp': '...', 'key': 'drill-maintenance', 'value': {'status': 'up'}}
+[EVT] {'sim_ts': 10.271, 'timestamp': '...', 'key': 'task-0', 'value': {'status': 'finished', 'order_id': 0, 'delivery': 'express'}}
+[EVT] {'sim_ts': 50.0, 'timestamp': '...', 'key': 'packers-break', 'value': {'status': 'down'}}
+[EVT] {'sim_ts': 55.0, 'timestamp': '...', 'key': 'packers-break', 'value': {'status': 'up'}}
 ```
 
 A process is written either as a bare reference, `- !python module.func`, which is called as `func(context)`, or as a mapping with `function` and `kwargs`, which is called as `func(context, **kwargs)`. `kwargs` is what lets a blueprint start a process whose signature is not `(context)`. When the signature differs more, write a small adapter: a generator function that takes the context, picks out what the process needs, and hands over with `yield from`.
@@ -372,7 +372,7 @@ Built with the same seed at `factor: 0`, this blueprint and `generator.py` produ
 A reference that cannot be resolved stops the load with its line:
 
 ```text
-Error: err.yaml:6: !python workshop_logic.missing: 'workshop_logic' has no attribute 'missing'
+Error: err.yaml:6: !python shop_logic.missing: 'shop_logic' has no attribute 'missing'
 ```
 
 A module that exists but fails on one of its own imports is reported with that error, rather than as a missing module.

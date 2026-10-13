@@ -11,17 +11,17 @@ def test_builder_state_management():
     """Validates that the fluent API correctly aggregates all configuration states."""
     app = (
         SimulationContext("TestSim", factor=0.0)
-        .add_resource("lathe", current_cap=1, max_cap=5)
+        .add_resource("packers", current_cap=1, max_cap=5)
         .add_container("wear_structural", current_cap=0.0, max_cap=100.0)  # NEW
         .add_variable("velocity", {"type": "abrupt", "value": 5.0})  # NEW
-        .add_service("milling", dist="normal", mean=5.0, std=1.0)
+        .add_service("packing", dist="normal", mean=5.0, std=1.0)
         .add_arrival("standard", dist="exponential", rate=2.0)
         .with_batching(batch_size=100, flush_interval=0.5)
     )
 
     # Check discrete resources
-    assert "lathe" in app._resources_config
-    assert app._resources_config["lathe"].max_cap == 5
+    assert "packers" in app._resources_config
+    assert app._resources_config["packers"].max_cap == 5
 
     # Check continuous containers (NEW)
     assert "wear_structural" in app._containers_config
@@ -32,8 +32,8 @@ def test_builder_state_management():
     assert app._variables_config["velocity"]["value"] == 5.0
 
     # Check statistical distributions
-    assert "milling" in app._services_config
-    assert app._services_config["milling"].mean == 5.0
+    assert "packing" in app._services_config
+    assert app._services_config["packing"].mean == 5.0
     assert "standard" in app._arrivals_config
     assert app._arrivals_config["standard"].rate == 2.0
 
@@ -47,7 +47,7 @@ def test_runtime_errors_before_build():
     app = SimulationContext("TestSim")
 
     with pytest.raises(RuntimeError, match="not instantiated until context is run"):
-        app.get_resource("lathe")
+        app.get_resource("packers")
 
     with pytest.raises(
         RuntimeError, match="Cannot spawn processes before context is run"
@@ -105,7 +105,7 @@ def test_simulation_execution_wiring(MockEnv):
         SimulationContext("TestSim", factor=0.0)
         .add_ingress(mock_ingress)
         .add_egress(mock_egress)
-        .add_resource("lathe", 1, 1)
+        .add_resource("packers", 1, 1)
         .add_container("wear", 0.0, 100.0)
     )
 
@@ -184,9 +184,9 @@ def test_lightweight_integration():
     """
     app = (
         SimulationContext("IntegrationSim", factor=0.0)
-        .add_resource("lathe", 1, 5)
+        .add_resource("packers", 1, 5)
         .add_variable("base_temp", 1200.0)
-        .add_service("milling", "exponential", rate=10.0)
+        .add_service("packing", "exponential", rate=10.0)
         .add_arrival("standard", "exponential", rate=5.0)
     )
 
@@ -196,7 +196,7 @@ def test_lightweight_integration():
         "sampler_accessed": False,
     }
 
-    @app.task(service_id="milling", resource_id="lathe")
+    @app.task(service_id="packing", resource_id="packers")
     def process_part(task_id):
         execution_state["tasks_completed"] += 1
         return {"status": "ok"}
@@ -420,6 +420,6 @@ def test_live_rate_update_keeps_its_fraction():
 def test_add_service_refuses_an_invalid_parameter():
     """A bad builder value fails when it is added, not during the run."""
     with pytest.raises(ValueError, match="std"):
-        SimulationContext("TestSim").add_service("milling", "normal", mean=1.0, std=-1)
+        SimulationContext("TestSim").add_service("packing", "normal", mean=1.0, std=-1)
     with pytest.raises(ValueError, match="rate"):
         SimulationContext("TestSim").add_arrival("standard", "exponential")

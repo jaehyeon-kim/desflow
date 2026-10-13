@@ -1,10 +1,10 @@
 """Kafka Digital Twin, builder API.
 
-Builds `Line_A` with `SimulationContext` and connects it to Kafka in both directions.
-`KafkaIngress` reads parameter updates from `sim-config`, so the running simulation can
-be steered without restarting it. `KafkaEgress` publishes lifecycle events to
-`sim-events` and metrics to `sim-telemetry`, with Pydantic models giving the events a
-declared shape.
+Builds `Shop`, an online shop packing orders, with `SimulationContext` and connects it
+to Kafka in both directions. `KafkaIngress` reads parameter updates from `sim-config`,
+so the running simulation can be steered without restarting it. `KafkaEgress`
+publishes lifecycle events to `sim-events` and metrics to `sim-telemetry`, with
+Pydantic models giving the events a declared shape.
 
 Needs a broker: `odctl up kafka-lite`. Runs until interrupted with Ctrl + C.
 """
@@ -47,7 +47,7 @@ BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 # 2. Infrastructure Builder
 # ==========================================
 app = (
-    SimulationContext(sim_id="Line_A", factor=1.0, random_seed=42)
+    SimulationContext(sim_id="Shop", factor=1.0, random_seed=42)
     .add_ingress(KafkaIngress(topic="sim-config", bootstrap_servers=BOOTSTRAP_SERVERS))
     .add_egress(
         KafkaEgress(
@@ -56,17 +56,17 @@ app = (
             bootstrap_servers=BOOTSTRAP_SERVERS,
         )
     )
-    .add_resource("lathe", current_cap=1, max_cap=10)
-    .add_service("milling", dist="normal", mean=3.0, std=0.5)
-    .add_arrival("standard", dist="exponential", rate=1.0)
+    .add_resource("packers", current_cap=1, max_cap=10)
+    .add_service("packing", dist="normal", mean=3.0, std=0.5)
+    .add_arrival("orders", dist="exponential", rate=1.0)
 )
 
 
 # ==========================================
 # 3. Simulation Logic
 # ==========================================
-@app.task(service_id="milling", resource_id="lathe")
-def process_part(task_id: int, context):
+@app.task(service_id="packing", resource_id="packers")
+def pack_order(task_id: int, context):
     """
     The @task decorator automatically locks the resource and emits the
     'queued' and 'started' events. We just execute our custom logic
@@ -75,35 +75,32 @@ def process_part(task_id: int, context):
     logger.info(f"Task {task_id} started at sim time: {context._env.now:.2f}s")
 
     # Return the strongly-typed Pydantic model for the 'finished' state
-    return TaskEvent(path_id="Line_A.service.milling", status="finished").model_dump(
+    return TaskEvent(path_id="Shop.service.packing", status="finished").model_dump(
         mode="json"
     )
 
 
-@app.arrival_loop("standard")
+@app.arrival_loop("orders")
 def arrival_generator(context):
     task_id = 0
     while True:
-        yield context.wait_for_arrival("standard")
-        context.spawn(process_part(task_id, context))
+        yield context.wait_for_arrival("orders")
+        context.spawn(pack_order(task_id, context))
         task_id += 1
 
 
 @app.telemetry_loop(interval=2.0)
 def telemetry_monitor(context):
     """Low-volume system health stream."""
-    res = context.get_resource("lathe")
+    res = context.get_resource("packers")
 
-    # Exact parity with the low-level telemetry outputs
-    context.publish("lathe.capacity", res.capacity)
-    context.publish("lathe.in_use", res.in_use)
-    context.publish("lathe.queue_length", len(res.queue.items))
+    # The same metrics as the low-level and YAML versions
+    context.publish("packers.capacity", res.capacity)
+    context.publish("packers.in_use", res.in_use)
+    context.publish("packers.queue_length", len(res.queue.items))
 
     util = (res.in_use / res.capacity) * 100 if res.capacity > 0 else 0
-    context.publish("lathe.utilization", util)
-
-    avg_wait = len(res.queue.items) * 3.0
-    context.publish("lathe.avg_wait", avg_wait)
+    context.publish("packers.utilization", util)
 
 
 # ==========================================

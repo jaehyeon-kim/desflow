@@ -65,15 +65,15 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
     #
     # The YAML version of examples/builder/backfill_live_example.py. Until
     # go_live_at the clock is detached from the wall clock, so ten minutes of backdated
-    # history are written to Parquet as fast as the machine allows. From go_live_at the
-    # run is paced at one simulated second per real second, and the same events go to
-    # Kafka for one minute.
+    # shop orders are written to Parquet as fast as the machine allows. From go_live_at
+    # the run is paced at one simulated second per real second, and the same events go
+    # to Kafka for one minute.
     #
     # Needs a broker: odctl up kafka-lite.
     # Run it with: ddes run examples/yaml/backfill_live.yaml
 
     simulation:
-      sim_id: Line_A
+      sim_id: Shop
       # Unpaced to begin with, so the history costs no real time.
       factor: 0.0
       random_seed: 42
@@ -102,25 +102,25 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
       flush_interval: 10.0
 
     resources:
-      lathe: {current_cap: 4, max_cap: 10}
+      packers: {current_cap: 4, max_cap: 10}
 
     services:
-      milling: {dist: normal, mean: 2.0, std: 0.2}
+      packing: {dist: normal, mean: 2.0, std: 0.2}
 
     arrivals:
-      standard: {dist: exponential, rate: 0.5, spawn: process_part}
+      orders: {dist: exponential, rate: 0.5, spawn: pack_order}
 
     tasks:
-      process_part:
-        service: milling
-        resource: lathe
-        payload: {path_id: Line_A.service.milling, status: finished}
+      pack_order:
+        service: packing
+        resource: packers
+        payload: {path_id: Shop.service.packing, status: finished}
 
     telemetry:
       - interval: 30.0
         publish:
-          lathe.in_use: lathe.in_use
-          lathe.queue_length: lathe.queue_length
+          packers.in_use: packers.in_use
+          packers.queue_length: packers.queue_length
 
     run:
       # Ten minutes of history, then one minute of live tail.
@@ -186,7 +186,7 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
     Backfill-then-live Example.
 
     One run produces both halves of a tiered dataset. Until `go_live_at` the clock is
-    detached from the wall clock, so ten minutes of backdated history are written to
+    detached from the wall clock, so ten minutes of backdated shop orders are written to
     Parquet as fast as the machine allows. From `go_live_at` the same run is paced at one
     simulated second per real second, and the same events are published to Kafka as they
     happen. Doing this in two processes would mean repeating the seed and the start
@@ -264,7 +264,7 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
     # ==========================================
     app = (
         SimulationContext(
-            sim_id="Line_A",
+            sim_id="Shop",
             # Unpaced to begin with, so the history costs no real time.
             factor=0.0,
             random_seed=42,
@@ -285,37 +285,37 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
         # started only when factor is non-zero as the egress is set up, and this run starts
         # at 0.0. It starts at go-live, so the live tail also flushes every 10 seconds.
         .with_batching(batch_size=2000, flush_interval=10.0)
-        .add_resource("lathe", current_cap=4, max_cap=10)
-        .add_service("milling", dist="normal", mean=2.0, std=0.2)
-        .add_arrival("standard", dist="exponential", rate=0.5)
+        .add_resource("packers", current_cap=4, max_cap=10)
+        .add_service("packing", dist="normal", mean=2.0, std=0.2)
+        .add_arrival("orders", dist="exponential", rate=0.5)
     )
 
 
     # ==========================================
     # 2. Simulation Logic
     # ==========================================
-    @app.task(service_id="milling", resource_id="lathe")
-    def process_part(task_id: int, context):
+    @app.task(service_id="packing", resource_id="packers")
+    def pack_order(task_id: int, context):
         """Returns the flat payload that both sinks receive for a finished task."""
-        return {"path_id": "Line_A.service.milling", "status": "finished"}
+        return {"path_id": "Shop.service.packing", "status": "finished"}
 
 
-    @app.arrival_loop("standard")
+    @app.arrival_loop("orders")
     def arrival_generator(context):
         task_id = 0
         while True:
-            yield context.wait_for_arrival("standard")
-            context.spawn(process_part(task_id, context))
+            yield context.wait_for_arrival("orders")
+            context.spawn(pack_order(task_id, context))
             task_id += 1
 
 
     @app.telemetry_loop(interval=30.0)
     def telemetry_generator(context):
         """Samples resource use every 30 simulation seconds."""
-        res = context.get_resource("lathe")
+        res = context.get_resource("packers")
 
-        context.publish("lathe.in_use", res.in_use)
-        context.publish("lathe.queue_length", len(res.queue.items))
+        context.publish("packers.in_use", res.in_use)
+        context.publish("packers.queue_length", len(res.queue.items))
 
 
     # ==========================================
@@ -414,7 +414,7 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
 
     The low-level twin of `builder/backfill_live_example.py`. One run produces both
     halves of a tiered dataset. Until `go_live_at` the clock is detached from the wall
-    clock, so ten minutes of backdated history are written to Parquet as fast as the
+    clock, so ten minutes of backdated shop orders are written to Parquet as fast as the
     machine allows. From `go_live_at` the same run is paced at one simulated second per
     real second, and the same events are published to Kafka as they happen.
     """
@@ -458,10 +458,10 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
     GO_LIVE_ISO = GO_LIVE_AT.isoformat(timespec="milliseconds")
 
     PARAMS = SimParameter(
-        sim_id="Line_A",
-        arrival={"standard": DistributionConfig(dist="exponential", rate=0.5)},
-        service={"milling": DistributionConfig(dist="normal", mean=2.0, std=0.2)},
-        resources={"lathe": CapacityConfig(current_cap=4, max_cap=10)},
+        sim_id="Shop",
+        arrival={"orders": DistributionConfig(dist="exponential", rate=0.5)},
+        service={"packing": DistributionConfig(dist="normal", mean=2.0, std=0.2)},
+        resources={"packers": CapacityConfig(current_cap=4, max_cap=10)},
     )
 
 
@@ -484,31 +484,31 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
         return f"{base_path}/events.parquet"
 
 
-    def process_part(env, sampler, lathe, task_id):
+    def pack_order(env, sampler, packers, task_id):
         """What @app.task does: queued, started, the service time, then finished."""
-        key, path_id = f"task-{task_id}", "Line_A.service.milling"
+        key, path_id = f"task-{task_id}", "Shop.service.packing"
         env.publish_event(key, {"path_id": path_id, "status": "queued"})
-        with lathe.request() as request:
+        with packers.request() as request:
             yield request
             env.publish_event(key, {"path_id": path_id, "status": "started"})
             yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
             env.publish_event(key, {"path_id": path_id, "status": "finished"})
 
 
-    def arrival_generator(env, sampler, lathe):
-        gap = env.registry.get_config("Line_A.arrival.standard")
+    def arrival_generator(env, sampler, packers):
+        gap = env.registry.get_config("Shop.arrival.orders")
         task_id = 0
         while True:
             yield env.timeout(sampler.sample(gap))
-            env.process(process_part(env, sampler, lathe, task_id))
+            env.process(pack_order(env, sampler, packers, task_id))
             task_id += 1
 
 
-    def telemetry_generator(env, lathe):
+    def telemetry_generator(env, packers):
         """Samples resource use every 30 simulation seconds."""
         while True:
-            env.publish_telemetry("Line_A.lathe.in_use", lathe.in_use)
-            env.publish_telemetry("Line_A.lathe.queue_length", len(lathe.queue.items))
+            env.publish_telemetry("Shop.packers.in_use", packers.in_use)
+            env.publish_telemetry("Shop.packers.queue_length", len(packers.queue.items))
             yield env.timeout(30.0)
 
 
@@ -546,10 +546,10 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
             flush_interval=10.0,
             predicates=[is_history, is_live],  # matched to the providers by position
         )
-        lathe = DynamicResource(env, "Line_A", "lathe")
+        packers = DynamicResource(env, "Shop", "packers")
         sampler = Sampler(rng=np.random.default_rng(42))
-        env.process(arrival_generator(env, sampler, lathe))
-        env.process(telemetry_generator(env, lathe))
+        env.process(arrival_generator(env, sampler, packers))
+        env.process(telemetry_generator(env, packers))
 
         logger.info(
             "Backfilling from %s to %s into '%s/', then tailing live to Kafka for %.0fs.",

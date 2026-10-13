@@ -1,7 +1,7 @@
 # The distributions of the Arrivals and Services page, in one blueprint.
 # Run it with: ddes run arrivals_services.yaml
 simulation:
-  sim_id: Line_A
+  sim_id: Shop
   factor: 0
   # --8<-- [start:seed]
   random_seed: 42  # the same draws on every run
@@ -11,19 +11,19 @@ egress:
   - type: Console
 
 resources:
-  lathe: {current_cap: 2, max_cap: 5}
+  packers: {current_cap: 2, max_cap: 5}
   inspector: {current_cap: 1, max_cap: 1}
 
 arrivals:
   # --8<-- [start:exponential]
-  # under arrivals: a part every 2 seconds on average
-  parts: {dist: exponential, rate: 0.5, spawn: mill}
+  # under arrivals: an order every 2 seconds on average
+  orders: {dist: exponential, rate: 0.5, spawn: pack}
   # --8<-- [end:exponential]
 
 services:
   # --8<-- [start:normal]
   # under services: 3 s on average, give or take 0.5 s
-  milling: {dist: normal, mean: 3.0, std: 0.5}
+  packing: {dist: normal, mean: 3.0, std: 0.5}
   # --8<-- [end:normal]
   # --8<-- [start:lognormal]
   # under services: 4 s on average, now and then much longer
@@ -31,7 +31,7 @@ services:
   # --8<-- [end:lognormal]
   # --8<-- [start:truncated-normal]
   # under services: 1 s on average, spread 1 s, never below 0.2 s
-  drilling: {dist: truncated_normal, mean: 1.0, std: 1.0, low: 0.2}
+  labelling: {dist: truncated_normal, mean: 1.0, std: 1.0, low: 0.2}
   # --8<-- [end:truncated-normal]
   # --8<-- [start:constant]
   # under services: always 0.5 s, with no random draw
@@ -39,7 +39,7 @@ services:
   # --8<-- [end:constant]
 
 tasks:
-  mill: {service: milling, resource: lathe, payload: {}, id_field: part_id}
+  pack: {service: packing, resource: packers, payload: {}, id_field: order_id}
 
 run:
   until: 1 min

@@ -50,14 +50,14 @@ Related records are rows that belong together across tables. Here every customer
 
     **Full Source Code**
 
-    The generator is listed under `processes` with `kwargs`, so it is called as `order_generator(context, arrival="customer_order", max_items=5)`. It draws from `context.sampler.rng`, the generator seeded by `random_seed`, so a seeded run repeats the same orders.
+    The generator is listed under `processes` with `kwargs`, so it is called as `order_generator(context, arrival="orders", max_items=5)`. It draws from `context.sampler.rng`, the generator seeded by `random_seed`, so a seeded run repeats the same orders.
 
     Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
     ```yaml title="examples/yaml/advanced/postgres_orders.yaml"
     # Orders with random line items, in YAML with one Python function.
     #
-    # Each customer_order arrival builds an order with 1 to 5 items, random prices and
+    # Each order arrival builds an order with 1 to 5 items, random prices and
     # quantities, and a total computed from them. A mapping payload is a constant, so
     # the generator is Python in postgres_orders_logic.py beside this file, referenced
     # with !python. Everything else is plain YAML.
@@ -69,7 +69,7 @@ Related records are rows that belong together across tables. Here every customer
     # Run it with: ddes run examples/yaml/advanced/postgres_orders.yaml
 
     simulation:
-      sim_id: Store
+      sim_id: Shop
       factor: 1.0
       random_seed: 42
 
@@ -107,12 +107,12 @@ Related records are rows that belong together across tables. Here every customer
 
     arrivals:
       # No spawn: the process below waits on this arrival itself.
-      customer_order: {dist: exponential, rate: 1.0}
+      orders: {dist: exponential, rate: 1.0}
 
     processes:
-      # Called as order_generator(context, arrival="customer_order", max_items=5).
+      # Called as order_generator(context, arrival="orders", max_items=5).
       - function: !python postgres_orders_logic.order_generator
-        kwargs: {arrival: customer_order, max_items: 5}
+        kwargs: {arrival: orders, max_items: 5}
     ```
 
     ```python title="examples/yaml/advanced/postgres_orders_logic.py"
@@ -211,13 +211,13 @@ Related records are rows that belong together across tables. Here every customer
 
     **Full Source Code**
 
-    The generator is added with `add_process`, so it is called as `order_generator(context, arrival="customer_order", max_items=5)`. It draws from `context.sampler.rng`, the generator seeded by `random_seed`, so a seeded run repeats the same orders.
+    The generator is added with `add_process`, so it is called as `order_generator(context, arrival="orders", max_items=5)`. It draws from `context.sampler.rng`, the generator seeded by `random_seed`, so a seeded run repeats the same orders.
 
     ```python title="examples/builder/postgres_orders_example.py"
     """
     Orders with line items, builder API.
 
-    The builder twin of `yaml/advanced/postgres_orders.yaml`. Each customer_order arrival
+    The builder twin of `yaml/advanced/postgres_orders.yaml`. Each order arrival
     builds an order with 1 to 5 items, random prices and quantities, and a total computed
     from them. Two PostgresEgress instances are attached, one per table, and each keeps
     only the records whose `__table__` key names its table. Each creates its table at
@@ -303,12 +303,12 @@ Related records are rows that belong together across tables. Here every customer
 
 
     app = (
-        SimulationContext(sim_id="Store", factor=1.0, random_seed=42)
+        SimulationContext(sim_id="Shop", factor=1.0, random_seed=42)
         .add_ingress(PostgresIngress(DSN, table_name="simulation_params"))
         .add_egress(PostgresEgress(DSN, tables={"orders": ORDERS}))
         .add_egress(PostgresEgress(DSN, tables={"order_items": ORDER_ITEMS}))
-        .add_arrival("customer_order", dist="exponential", rate=1.0)
-        .add_process(order_generator, arrival="customer_order", max_items=5)
+        .add_arrival("orders", dist="exponential", rate=1.0)
+        .add_process(order_generator, arrival="orders", max_items=5)
     )
 
     if __name__ == "__main__":
@@ -397,8 +397,8 @@ Related records are rows that belong together across tables. Here every customer
     DSN = "postgresql://user:password@localhost:5432/odctl"
 
     PARAMS = SimParameter(
-        sim_id="Store",
-        arrival={"customer_order": DistributionConfig(dist="exponential", rate=1.0)},
+        sim_id="Shop",
+        arrival={"orders": DistributionConfig(dist="exponential", rate=1.0)},
     )
 
     ORDERS = {
@@ -430,7 +430,7 @@ Related records are rows that belong together across tables. Here every customer
         order as the builder version, so the two publish the same records.
         """
         rng = sampler.rng
-        arrival = env.registry.get_config("Store.arrival.customer_order")
+        arrival = env.registry.get_config("Shop.arrival.orders")
         order_id = 1
         item_id = 1
         while True:
@@ -498,5 +498,5 @@ When the run starts, each `PostgresEgress` creates its table, `orders` or `order
 In a second terminal, raise the arrival rate while it runs:
 
 ```bash
-docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params (param_path, param_value) VALUES ('Store.arrival.customer_order.rate', '5.0');"
+docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params (param_path, param_value) VALUES ('Shop.arrival.orders.rate', '5.0');"
 ```

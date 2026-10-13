@@ -11,13 +11,13 @@ from dynamic_des import ConsoleEgress, DynamicRealtimeEnvironment, SimulationCon
 stream, lake, audit = ConsoleEgress(), ConsoleEgress(), ConsoleEgress()
 hot_from = datetime.now().isoformat(timespec="milliseconds")
 
-app = SimulationContext(sim_id="Line_A", factor=0.0)
+app = SimulationContext(sim_id="Shop", factor=0.0)
 
 # --8<-- [start:every-sink]
 app.add_egress(stream).add_egress(lake)  # both receive every record
 # --8<-- [end:every-sink]
 
-app = SimulationContext(sim_id="Line_A", factor=0.0)
+app = SimulationContext(sim_id="Shop", factor=0.0)
 
 # --8<-- [start:when]
 app.add_egress(stream, when=lambda r: r["timestamp"] >= hot_from)  # hot tail
@@ -34,7 +34,7 @@ app.with_batching(
 )
 # --8<-- [end:defaults]
 
-app = SimulationContext(sim_id="Line_A", factor=0.0)
+app = SimulationContext(sim_id="Shop", factor=0.0)
 
 # --8<-- [start:per-sink]
 app.with_batching(batch_size=500, flush_interval=1.0)  # the default for every sink
@@ -59,5 +59,5 @@ if __name__ == "__main__":
         env.run(until=3)
     finally:
         env.teardown()
-    app.add_resource("lathe", current_cap=1, max_cap=1)
+    app.add_resource("packers", current_cap=1, max_cap=1)
     app.run(until=3)

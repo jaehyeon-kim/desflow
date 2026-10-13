@@ -23,12 +23,12 @@ from dynamic_des import (
     SimulationContext,
 )
 
-app = SimulationContext(sim_id="Line_A")
+app = SimulationContext(sim_id="Shop")
 
 # --8<-- [start:local-ingress]
-# 10 wall-clock seconds after the start, set machine lathe capacity to 3
+# 10 wall-clock seconds after the start, set the packers capacity to 3
 app.add_ingress(
-    LocalIngress(schedule=[(10.0, "Line_A.resources.lathe.current_cap", 3)])
+    LocalIngress(schedule=[(10.0, "Shop.resources.packers.current_cap", 3)])
 )
 # --8<-- [end:local-ingress]
 

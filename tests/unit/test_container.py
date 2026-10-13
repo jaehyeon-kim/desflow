@@ -11,7 +11,7 @@ def test_container_initialization(env, registry, sample_params):
     """Verify container initializes with correct registry values and starting level."""
     registry.register_sim_parameter(sample_params)
 
-    cont = DynamicContainer(env, "Line_A", "tank1", init=10.0)
+    cont = DynamicContainer(env, "Shop", "tank1", init=10.0)
 
     assert cont.capacity == 50.0
     assert cont.level == 10.0
@@ -20,7 +20,7 @@ def test_container_initialization(env, registry, sample_params):
 def test_basic_put_get(env, registry, sample_params):
     """Verify standard put and get cycle."""
     registry.register_sim_parameter(sample_params)
-    cont = DynamicContainer(env, "Line_A", "tank1", init=10.0)
+    cont = DynamicContainer(env, "Shop", "tank1", init=10.0)
 
     def process_flow():
         yield cont.put(20.0)  # Level becomes 30
@@ -38,7 +38,7 @@ def test_basic_put_get(env, registry, sample_params):
 def test_dynamic_capacity_increase(env, registry, sample_params):
     """Verify that increasing capacity unblocks pending put requests."""
     registry.register_sim_parameter(sample_params)
-    cont = DynamicContainer(env, "Line_A", "tank1", init=40.0)
+    cont = DynamicContainer(env, "Shop", "tank1", init=40.0)
 
     def producer():
         # Tank only has 10 space left. Putting 30 will block.
@@ -51,7 +51,7 @@ def test_dynamic_capacity_increase(env, registry, sample_params):
     assert cont.level == 40.0
 
     # Expand capacity to 100 via control plane update.
-    registry.update("Line_A.containers.tank1.current_cap", 100.0)
+    registry.update("Shop.containers.tank1.current_cap", 100.0)
     env.run(until=env.now + 0.1)
 
     # The pending 30 should instantly flow in.
@@ -62,14 +62,14 @@ def test_dynamic_capacity_increase(env, registry, sample_params):
 def test_capacity_shrinkage_paradox(env, registry, sample_params):
     """Verify that shrinking capacity safely blocks future puts without destroying matter."""
     registry.register_sim_parameter(sample_params)
-    cont = DynamicContainer(env, "Line_A", "tank1", init=50.0)
+    cont = DynamicContainer(env, "Shop", "tank1", init=50.0)
 
     def process_flow():
         # We try to put 10 more in.
         yield cont.put(10.0)
 
     # Shrink capacity from 50 down to 30.
-    registry.update("Line_A.containers.tank1.current_cap", 30.0)
+    registry.update("Shop.containers.tank1.current_cap", 30.0)
     flush_events(env)
 
     # Tank is overflowing mathematically, but material is preserved
@@ -97,9 +97,9 @@ def test_capacity_shrinkage_paradox(env, registry, sample_params):
 def test_fractional_capacity_change_is_kept(env, registry, sample_params):
     """Verify a fractional current_cap update is not rounded down."""
     registry.register_sim_parameter(sample_params)
-    cont = DynamicContainer(env, "Line_A", "tank1", init=10.0)
+    cont = DynamicContainer(env, "Shop", "tank1", init=10.0)
 
-    registry.update("Line_A.containers.tank1.current_cap", 62.5)
+    registry.update("Shop.containers.tank1.current_cap", 62.5)
     env.run(until=env.now + 0.1)
 
     assert cont.capacity == 62.5
@@ -108,9 +108,9 @@ def test_fractional_capacity_change_is_kept(env, registry, sample_params):
 def test_max_cap_decrease_lowers_capacity(env, registry, sample_params):
     """Verify lowering max_cap below current_cap shrinks the capacity at once."""
     registry.register_sim_parameter(sample_params)
-    cont = DynamicContainer(env, "Line_A", "tank1", init=10.0)
+    cont = DynamicContainer(env, "Shop", "tank1", init=10.0)
 
-    registry.update("Line_A.containers.tank1.max_cap", 30.0)
+    registry.update("Shop.containers.tank1.max_cap", 30.0)
     env.run(until=env.now + 0.1)
 
     assert cont.capacity == 30.0
@@ -122,13 +122,13 @@ def test_integer_starting_capacity_keeps_fractional_updates(env, registry):
 
     registry.register_sim_parameter(
         SimParameter(
-            sim_id="Line_B",
+            sim_id="Warehouse",
             containers={"tank": CapacityConfig(current_cap=50, max_cap=100)},
         )
     )
-    cont = DynamicContainer(env, "Line_B", "tank", init=10)
+    cont = DynamicContainer(env, "Warehouse", "tank", init=10)
 
-    registry.update("Line_B.containers.tank.current_cap", 62.5)
+    registry.update("Warehouse.containers.tank.current_cap", 62.5)
     env.run(until=env.now + 0.1)
 
     assert cont.capacity == 62.5

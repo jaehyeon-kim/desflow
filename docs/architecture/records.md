@@ -13,13 +13,13 @@ Both shapes share `stream_type`, `sim_ts` and `timestamp`. Telemetry names its m
 Every egress provider, router and `when` predicate receives records of two shapes. Telemetry, from `context.publish` or `publish_telemetry`, is used for scalar metrics like resource utilization, queue lengths, or simulation lag:
 
 ```json
-{"stream_type": "telemetry", "sim_ts": 12.0, "timestamp": "2026-01-01T00:00:12.000", "path_id": "Line_A.lathe.in_use", "value": 2}
+{"stream_type": "telemetry", "sim_ts": 12.0, "timestamp": "2026-01-01T00:00:12.000", "path_id": "Shop.packers.in_use", "value": 2}
 ```
 
-Events, from `@app.task` or `publish_event`, are used for discrete task lifecycle events (such as a part arriving, entering a queue, or finishing processing):
+Events, from `@app.task` or `publish_event`, are used for discrete task lifecycle events (such as an order arriving, entering a queue, or finishing packing):
 
 ```json
-{"stream_type": "event", "sim_ts": 12.5, "timestamp": "2026-01-01T00:00:12.500", "key": "task-7", "value": {"path_id": "Line_A.service.milling", "status": "started"}}
+{"stream_type": "event", "sim_ts": 12.5, "timestamp": "2026-01-01T00:00:12.500", "key": "task-7", "value": {"path_id": "Shop.service.packing", "status": "started"}}
 ```
 
 `sim_ts` is simulation seconds. `timestamp` is `logical_start_time` plus `sim_ts`, as an ISO string with milliseconds, and with no time zone unless `logical_start_time` has one. `context.publish` prefixes the metric name with the `sim_id`. Every run with an egress also publishes `system.simulation.lag_seconds` once per simulation second: how far the simulation clock is behind the wall clock. A router that writes only events has to drop it.
@@ -83,8 +83,8 @@ The finished event has no `status` or `path_id` unless the task returns them. A 
 ```python title="docs/snippets/pages/records.py:telemetry"
 @app.telemetry_loop(interval=10.0)
 def report(context: SimulationContext):
-    # path_id is Line_A.lathe.in_use: the sim_id is added in front
-    context.publish("lathe.in_use", context.get_resource("lathe").in_use)
+    # path_id is Shop.packers.in_use: the sim_id is added in front
+    context.publish("packers.in_use", context.get_resource("packers").in_use)
 ```
 
 ```python title="docs/snippets/pages/records.py:low-level"

@@ -16,10 +16,10 @@ def _router():
 
 def test_router_sends_each_record_to_its_topic():
     route = _router()
-    telemetry = {"stream_type": "telemetry", "path_id": "Factory_A.lathe.in_use"}
-    assert route({**telemetry, "value": 1}) == "factory-telemetry"
+    telemetry = {"stream_type": "telemetry", "path_id": "Shop.packers.in_use"}
+    assert route({**telemetry, "value": 1}) == "shop-telemetry"
     event = {"stream_type": "event", "key": "task-1"}
-    assert route({**event, "value": {"status": "machine_failed"}}) == "system-alarms"
+    assert route({**event, "value": {"status": "packing_failed"}}) == "system-alarms"
     assert route({**event, "value": {"level": "ERROR"}}) == "system-alarms"
-    assert route({**event, "value": {"status": "finished"}}) == "factory-events"
-    assert route({**event, "value": "a plain string"}) == "factory-events"
+    assert route({**event, "value": {"status": "finished"}}) == "shop-events"
+    assert route({**event, "value": "a plain string"}) == "shop-events"

@@ -23,7 +23,7 @@ class DynamicValue:
 
     Attributes:
         env (Environment): The active SimPy environment.
-        name (str): The dot-notation path/name of this value (e.g., 'Line_A.lathe.capacity').
+        name (str): The dot-notation path/name of this value (e.g., 'Shop.resources.packers.current_cap').
     """
 
     def __init__(self, env: Environment, name: str, initial_value: Any):
@@ -83,7 +83,7 @@ class SimulationRegistry:
         Retrieve the `DynamicValue` object at a specific path.
 
         Args:
-            path (str): The dot-notation path (e.g., 'Line_A.arrival.standard.rate').
+            path (str): The dot-notation path (e.g., 'Shop.arrival.orders.rate').
 
         Returns:
             DynamicValue: The wrapper object for the requested parameter.
@@ -100,7 +100,7 @@ class SimulationRegistry:
         Retrieve the live configuration object (e.g., `DistributionConfig`).
 
         Args:
-            path (str): The dot-notation path (e.g., 'Line_A.service.milling').
+            path (str): The dot-notation path (e.g., 'Shop.service.packing').
 
         Returns:
             Any: The synchronized configuration object.

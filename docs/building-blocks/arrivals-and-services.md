@@ -1,11 +1,11 @@
 # Arrivals and Services: `Sampler` and the Distributions
 
-Two building blocks set the timing of every simulation. An **arrival** stream decides how often a new entity enters the model: an order, a part, a visitor. A **service** decides how long a piece of work takes: machining a part, checking out a basket, repairing a machine. Both are distributions of time in seconds, and every time one is needed, a value is drawn from the distribution with its current parameters.
+Two building blocks set the timing of every simulation. An **arrival** stream decides how often a new entity enters the model: an order, a visitor, a support call. A **service** decides how long a piece of work takes: packing an order, checking out a basket, answering a call. Both are distributions of time in seconds, and every time one is needed, a value is drawn from the distribution with its current parameters.
 
 | Building block | Answers | Used by | Example |
 |---|---|---|---|
-| Arrival | How long until the next entity? | the arrival loop, which starts a task for each one | a part every 2 s on average |
-| Service | How long does this piece of work take? | a task, while it holds its resource | 3 s of milling, give or take 0.5 s |
+| Arrival | How long until the next entity? | the arrival loop, which starts a task for each one | an order every 2 s on average |
+| Service | How long does this piece of work take? | a task, while it holds its resource | 3 s of packing, give or take 0.5 s |
 
 ---
 
@@ -32,20 +32,20 @@ The chart shows 200,000 draws from each, in half-second bins:
 === "YAML"
 
     ```yaml title="docs/snippets/yaml/arrivals_services.yaml:exponential"
-    # under arrivals: a part every 2 seconds on average
-    parts: {dist: exponential, rate: 0.5, spawn: mill}
+    # under arrivals: an order every 2 seconds on average
+    orders: {dist: exponential, rate: 0.5, spawn: pack}
     ```
 
 === "Builder"
 
     ```python title="docs/snippets/pages/arrivals_services.py:builder-exponential"
-    app.add_arrival("parts", dist="exponential", rate=0.5)  # a part every 2 s on average
+    app.add_arrival("orders", dist="exponential", rate=0.5)  # an order every 2 s on average
     ```
 
 === "Low-level"
 
     ```python title="docs/snippets/pages/arrivals_services.py:low-level-exponential"
-    gap = DistributionConfig(dist="exponential", rate=0.5)  # a part every 2 s on average
+    gap = DistributionConfig(dist="exponential", rate=0.5)  # an order every 2 s on average
     ```
 
 `rate` is per second: 0.5 is one every 2 seconds on average, and 2.0 is two per second. It is the usual choice for arrivals, because it is what you get when entities arrive independently of each other.
@@ -56,20 +56,20 @@ The chart shows 200,000 draws from each, in half-second bins:
 
     ```yaml title="docs/snippets/yaml/arrivals_services.yaml:normal"
     # under services: 3 s on average, give or take 0.5 s
-    milling: {dist: normal, mean: 3.0, std: 0.5}
+    packing: {dist: normal, mean: 3.0, std: 0.5}
     ```
 
 === "Builder"
 
     ```python title="docs/snippets/pages/arrivals_services.py:builder-normal"
-    app.add_service("milling", dist="normal", mean=3.0, std=0.5)  # 3 s, give or take 0.5 s
+    app.add_service("packing", dist="normal", mean=3.0, std=0.5)  # 3 s, give or take 0.5 s
     ```
 
 === "Low-level"
 
     ```python title="docs/snippets/pages/arrivals_services.py:low-level-normal"
     # 3 s, give or take 0.5 s
-    milling = DistributionConfig(dist="normal", mean=3.0, std=0.5)
+    packing = DistributionConfig(dist="normal", mean=3.0, std=0.5)
     ```
 
 A normal draw can be negative. Every time is raised to at least 0.00001 seconds, so when `std` is large next to `mean` many draws land on that floor and the average time goes up: with `mean: 1` and `std: 1`, 15.8% of draws are raised and the mean becomes 1.08, as the yellow bar in the chart shows. Use `truncated_normal` for such a time.
@@ -80,19 +80,19 @@ A normal draw can be negative. Every time is raised to at least 0.00001 seconds,
 
     ```yaml title="docs/snippets/yaml/arrivals_services.yaml:truncated-normal"
     # under services: 1 s on average, spread 1 s, never below 0.2 s
-    drilling: {dist: truncated_normal, mean: 1.0, std: 1.0, low: 0.2}
+    labelling: {dist: truncated_normal, mean: 1.0, std: 1.0, low: 0.2}
     ```
 
 === "Builder"
 
     ```python title="docs/snippets/pages/arrivals_services.py:builder-truncated-normal"
-    app.add_service("drilling", dist="truncated_normal", mean=1.0, std=1.0, low=0.2)
+    app.add_service("labelling", dist="truncated_normal", mean=1.0, std=1.0, low=0.2)
     ```
 
 === "Low-level"
 
     ```python title="docs/snippets/pages/arrivals_services.py:low-level-truncated-normal"
-    drilling = DistributionConfig(dist="truncated_normal", mean=1.0, std=1.0, low=0.2)
+    labelling = DistributionConfig(dist="truncated_normal", mean=1.0, std=1.0, low=0.2)
     ```
 
 A draw below `low` is thrown away and drawn again, so no draws pile up at the limit, and the mean is the truncated distribution's own: 1.29 s for `mean: 1, std: 1, low: 0`. Far into the tail, where plain draws would almost never land, it uses an exponential proposal (Robert, 1995), so it stays exact and fast for any `low`.
@@ -161,7 +161,7 @@ Every draw goes through a `Sampler`, which holds the random generator. A task dr
 
     ```python title="docs/snippets/pages/arrivals_services.py:builder-seed"
     # Same draws every run
-    app = SimulationContext(sim_id="Line_A", factor=0.0, random_seed=42)
+    app = SimulationContext(sim_id="Shop", factor=0.0, random_seed=42)
     ```
 
 === "Low-level"
@@ -173,14 +173,14 @@ Every draw goes through a `Sampler`, which holds the random generator. A task dr
 In the low-level API you draw yourself, from the current values:
 
 ```python title="docs/snippets/pages/arrivals_services.py:low-level-draw"
-seconds = sampler.sample(milling)  # one draw, in seconds, from the current values
+seconds = sampler.sample(packing)  # one draw, in seconds, from the current values
 ```
 
 A `Sampler` created with no generator draws nothing at random: every draw is the distribution's mean, or its value. That gives the time a model takes on average, which is useful in a test:
 
 ```python title="docs/snippets/pages/arrivals_services.py:no-generator"
 fixed = Sampler()  # no random generator: every draw is the mean, or the value
-assert fixed.sample(milling) == 3.0 and fixed.sample(gap) == 2.0
+assert fixed.sample(packing) == 3.0 and fixed.sample(gap) == 2.0
 ```
 
 ---
@@ -197,7 +197,7 @@ Dynamic DES names each distribution and its parameters once, in a `DistributionC
 
 Each parameter has a path in the registry: `<sim_id>.arrival.<name>.rate` for an exponential arrival, `<sim_id>.service.<name>.mean` and `.std`, `.low` for a truncated normal, and `.value` for a constant. A connector, a scenario or a process can change it while the simulation runs, as [Live Parameters](../architecture/registry.md) explains:
 
-- The next draw uses the new value. A part already being machined keeps the time it drew, and the arrival already being waited for keeps its gap.
+- The next draw uses the new value. An order already being packed keeps the time it drew, and the arrival already being waited for keeps its gap.
 - A value outside the range in the table is refused with an error log line, and the old value stays, as it would be refused at build:
 
 ```python title="docs/snippets/pages/arrivals_services.py:invalid"

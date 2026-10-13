@@ -1,6 +1,6 @@
 # Builder API
 
-The `SimulationContext` acts as the entry point and configuration builder for standard Dynamic DES simulations. It implements the **Builder Pattern** to construct the simulation environment and register resources, statistical samplers, and ingress/egress connectors. [First Simulation](../tutorials/first-simulation.md) builds a first factory this way, in its Builder tabs; this page lists every builder call, with an example of each.
+The `SimulationContext` acts as the entry point and configuration builder for standard Dynamic DES simulations. It implements the **Builder Pattern** to construct the simulation environment and register resources, statistical samplers, and ingress/egress connectors. [First Simulation](../tutorials/first-simulation.md) builds a first shop this way, in its Builder tabs; this page lists every builder call, with an example of each.
 
 ## Builder Lifecycle
 
@@ -20,13 +20,13 @@ Creating a simulation with `SimulationContext` follows a strict two-phase lifecy
 The fluent builder API allows chaining configurations:
 
 ### Resource Configuration
-* `.add_resource(name, current_cap, max_cap)`: Stages a discrete token-based resource (such as machines, work areas).
-* `.add_container(name, current_cap, max_cap)`: Stages a continuous fluid-like container (such as storage tanks, battery charge levels).
-* `.add_variable(name, value)`: Stages generic variables or physical parameters (such as system conveyor speeds).
+* `.add_resource(name, current_cap, max_cap)`: Stages a discrete token-based resource (such as packers or packing benches).
+* `.add_container(name, current_cap, max_cap)`: Stages a continuous container (such as a stock of boxes or a battery charge level).
+* `.add_variable(name, value)`: Stages generic variables or physical parameters (such as a conveyor speed).
 
 ```python title="docs/snippets/pages/builder.py:resources"
-app.add_resource("lathe", current_cap=2, max_cap=5)  # 2 machines now, room for 5
-app.add_container("coolant", current_cap=100.0, max_cap=200.0)  # litres in the tank
+app.add_resource("packers", current_cap=2, max_cap=5)  # 2 packers now, room for 5
+app.add_container("boxes", current_cap=100.0, max_cap=200.0)  # boxes in stock
 app.add_variable("conveyor_speed", 1.5)  # any other live value
 ```
 
@@ -36,7 +36,7 @@ app.add_variable("conveyor_speed", 1.5)  # any other live value
 
 ```python title="docs/snippets/pages/builder.py:clock"
 app = SimulationContext(
-    sim_id="Line_A",
+    sim_id="Shop",
     factor=0.0,  # 0.0 unpaced, 1.0 real time
     random_seed=42,  # the same draws on every run
     logical_start_time=datetime(2026, 10, 1, 9, 0),  # what simulation time 0 is
@@ -49,8 +49,8 @@ app = SimulationContext(
 * Each `dist` reads only its own parameters, and an invalid value raises `ValueError` here, so a mistake fails before the run. [YAML Blueprints](yaml.md#sections) lists the distributions and their rules.
 
 ```python title="docs/snippets/pages/builder.py:distributions"
-app.add_arrival("standard", dist="exponential", rate=0.5)  # a part every 2 s on average
-app.add_service("milling", dist="truncated_normal", mean=3.0, std=1.0, low=0.5)
+app.add_arrival("orders", dist="exponential", rate=0.5)  # an order every 2 s on average
+app.add_service("packing", dist="truncated_normal", mean=3.0, std=1.0, low=0.5)
 app.add_service("inspection", dist="constant", value=0.5)
 ```
 
@@ -60,25 +60,25 @@ app.add_service("inspection", dist="constant", value=0.5)
 * `@app.telemetry_loop(interval)`: Calls a function with the context every `interval` simulation seconds.
 
 ```python title="docs/snippets/pages/builder.py:decorators"
-@app.task(service_id="milling", resource_id="lathe")
-def mill(part_id: int):
+@app.task(service_id="packing", resource_id="packers")
+def pack(order_id: int):
     # The finished event's value is exactly this dictionary
-    return {"part_id": part_id, "status": "milled"}
+    return {"order_id": order_id, "status": "packed"}
 
 
-@app.arrival_loop("standard")
-def parts(context: SimulationContext):
-    part_id = 0
+@app.arrival_loop("orders")
+def orders(context: SimulationContext):
+    order_id = 0
     while True:
-        yield context.wait_for_arrival("standard")
-        context.spawn(mill(part_id))
-        part_id += 1
+        yield context.wait_for_arrival("orders")
+        context.spawn(pack(order_id))
+        order_id += 1
 
 
 @app.telemetry_loop(interval=5.0)
 def report(context: SimulationContext):
-    # Publishes Line_A.lathe.in_use every 5 simulation seconds
-    context.publish("lathe.in_use", context.get_resource("lathe").in_use)
+    # Publishes Shop.packers.in_use every 5 simulation seconds
+    context.publish("packers.in_use", context.get_resource("packers").in_use)
 ```
 
 ### Processes
@@ -88,7 +88,7 @@ def report(context: SimulationContext):
 ```python title="docs/snippets/pages/builder.py:process"
 def speed_drift(context: SimulationContext, step: float):
     """Raises the conveyor speed a little every 10 simulation seconds."""
-    path = "Line_A.variables.conveyor_speed"
+    path = "Shop.variables.conveyor_speed"
     while True:
         yield context.env.timeout(10.0)
         speed = context.env.registry.get(path).value
@@ -109,7 +109,7 @@ paths = app.compile_parameters()  # the SimParameter that run() registers
 * `.with_batching(..., max_queued_batches, drain_stall_seconds)`: Bounds the egress queue and sets how long teardown keeps waiting for it. The queue is bounded so a sink that cannot keep up slows the simulation instead of building a backlog, and teardown drains until the queue stops shrinking rather than abandoning it on a fixed deadline. A sink that stops consuming altogether raises `RuntimeError` rather than losing events silently.
 
 ```python title="docs/snippets/pages/builder.py:connectors"
-app.add_ingress(LocalIngress(schedule=[(5.0, "Line_A.resources.lathe.current_cap", 3)]))
+app.add_ingress(LocalIngress(schedule=[(5.0, "Shop.resources.packers.current_cap", 3)]))
 app.add_egress(ConsoleEgress(), batch_size=100, flush_interval=1.0)
 app.with_batching(batch_size=1_000, flush_interval=5.0)  # defaults for other sinks
 ```

@@ -43,14 +43,14 @@ class DynamicResource(BaseDynamicResource):
     A SimPy Resource with a dynamically adjustable capacity.
 
     Unlike a standard `simpy.Resource` where capacity is fixed at creation,
-    the `DynamicResource` listens to a `SimulationRegistry` path (e.g., 'Line_A.lathe.current_cap').
+    the `DynamicResource` listens to a `SimulationRegistry` path (e.g., 'Shop.resources.packers.current_cap').
     When the registry updates the capacity, the resource automatically adjusts,
     triggering pending requests if capacity increases.
 
     Attributes:
         env (DynamicRealtimeEnvironment): The active simulation environment.
-        sim_id (str): The prefix ID (e.g., 'Line_A').
-        resource_id (str): The specific resource name (e.g., 'lathe').
+        sim_id (str): The prefix ID (e.g., 'Shop').
+        resource_id (str): The specific resource name (e.g., 'packers').
     """
 
     def __init__(self, env: Environment, sim_id: str, resource_id: str):

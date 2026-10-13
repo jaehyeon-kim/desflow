@@ -20,9 +20,9 @@ Dynamic DES does this for any system with arrivals, work and limited capacity: a
 
 ## Events and the Event List
 
-This section is the same idea in the terms the rest of the docs use. A discrete-event simulation models a system as a series of **events**: a part arrives, a machine starts on it, the machine finishes. Each event happens at an instant, and between two events nothing changes. So the simulation keeps a list of what happens next, in time order, takes the earliest, moves its clock straight to that instant, and carries it out. Carrying out an event usually schedules more: a part that starts on the lathe schedules its own finish 1.5 seconds later.
+This section is the same idea in the terms the rest of the docs use. A discrete-event simulation models a system as a series of **events**: an order arrives, a packer starts on it, the packer finishes. Each event happens at an instant, and between two events nothing changes. So the simulation keeps a list of what happens next, in time order, takes the earliest, moves its clock straight to that instant, and carries it out. Carrying out an event usually schedules more: an order that a packer starts on schedules its own finish 1.5 seconds later.
 
-![The simulation clock jumps from event to event: part 1 arrives and starts at 0.0 s and finishes at 1.5 s, part 2 arrives and starts at 2.6 s and finishes at 4.1 s. Just after 0.0 s the event list holds part 1 finishing at 1.5 s and part 2 arriving at 2.6 s, so the clock jumps to 1.5 s](../assets/diagrams/event-clock.png)
+![The simulation clock jumps from event to event: order 1 arrives and starts at 0.0 s and finishes at 1.5 s, order 2 arrives and starts at 2.6 s and finishes at 4.1 s. Just after 0.0 s the event list holds order 1 finishing at 1.5 s and order 2 arriving at 2.6 s, so the clock jumps to 1.5 s](../assets/diagrams/event-clock.png)
 
 The clock jumps, so a simulated week with a few thousand events takes as long to compute as those events need, not a week. Dynamic DES runs on [SimPy](https://simpy.readthedocs.io/), which provides the event list and the clock. On top of SimPy it adds:
 
@@ -34,7 +34,7 @@ The clock jumps, so a simulated week with a few thousand events takes as long to
 
 ## Entities, Resources and Queues
 
-The things that flow through a model are **entities**: parts, orders, visitors. An entity arrives, needs something that is limited, such as a machine or a member of staff, holds it while it is served, and leaves. That limited thing is a **resource**. When every unit of a resource is busy, the next entity waits in its **queue**. Arrivals, service times, resources and queues are what a model is built from; [Building Blocks](../building-blocks/index.md) covers each one.
+The things that flow through a model are **entities**: orders, visitors, support calls. An entity arrives, needs something that is limited, such as a packer or a packing bench, holds it while it is served, and leaves. That limited thing is a **resource**. When every unit of a resource is busy, the next entity waits in its **queue**. Arrivals, service times, resources and queues are what a model is built from; [Building Blocks](../building-blocks/index.md) covers each one.
 
 Queues are where the interesting behaviour comes from. Two models with the same average times can have very different waits, because a run of quick arrivals or one slow job holds everyone up. A simulation shows that directly, where an average cannot.
 

@@ -9,27 +9,27 @@ def test_registry_registration_paths(registry, sample_params):
     """Verify that SimParameter is flattened into the correct dot-notation paths."""
     registry.register_sim_parameter(sample_params)
 
-    # Line_A.arrival.standard (Exponential) -> .rate
-    assert registry.get("Line_A.arrival.standard.rate").value == 1 / 10.0
+    # Shop.arrival.standard (Exponential) -> .rate
+    assert registry.get("Shop.arrival.standard.rate").value == 1 / 10.0
 
-    # Line_A.arrival.priority (Exponential) -> .rate
-    assert registry.get("Line_A.arrival.priority.rate").value == 1 / 50.0
+    # Shop.arrival.priority (Exponential) -> .rate
+    assert registry.get("Shop.arrival.priority.rate").value == 1 / 50.0
 
-    # Line_A.service.setup (Normal) -> .mean, .std
-    assert registry.get("Line_A.service.setup.mean").value == 2.0
-    assert registry.get("Line_A.service.setup.std").value == 0.5
+    # Shop.service.setup (Normal) -> .mean, .std
+    assert registry.get("Shop.service.setup.mean").value == 2.0
+    assert registry.get("Shop.service.setup.std").value == 0.5
 
-    # Line_A.service.milling (Normal) -> .mean, .std
-    assert registry.get("Line_A.service.milling.mean").value == 5.0
-    assert registry.get("Line_A.service.milling.std").value == 1.2
+    # Shop.service.packing (Normal) -> .mean, .std
+    assert registry.get("Shop.service.packing.mean").value == 5.0
+    assert registry.get("Shop.service.packing.std").value == 1.2
 
-    # Line_A.resources.lathe -> .current_cap, .max_cap
-    assert registry.get("Line_A.resources.lathe.current_cap").value == 2
-    assert registry.get("Line_A.resources.lathe.max_cap").value == 5
+    # Shop.resources.packers -> .current_cap, .max_cap
+    assert registry.get("Shop.resources.packers.current_cap").value == 2
+    assert registry.get("Shop.resources.packers.max_cap").value == 5
 
-    # Line_A.resources.operator -> .current_cap, .max_cap
-    assert registry.get("Line_A.resources.operator.current_cap").value == 1
-    assert registry.get("Line_A.resources.operator.max_cap").value == 3
+    # Shop.resources.operator -> .current_cap, .max_cap
+    assert registry.get("Shop.resources.operator.current_cap").value == 1
+    assert registry.get("Shop.resources.operator.max_cap").value == 3
 
 
 def test_registry_get_config(registry, sample_params):
@@ -37,14 +37,14 @@ def test_registry_get_config(registry, sample_params):
     registry.register_sim_parameter(sample_params)
 
     # Retrieve DistributionConfig
-    setup_cfg = registry.get_config("Line_A.service.setup")
+    setup_cfg = registry.get_config("Shop.service.setup")
     assert setup_cfg.mean == 2.0
     assert setup_cfg.dist == "normal"
 
     # Retrieve CapacityConfig
-    lathe_cfg = registry.get_config("Line_A.resources.lathe")
-    assert lathe_cfg.current_cap == 2
-    assert lathe_cfg.max_cap == 5
+    packers_cfg = registry.get_config("Shop.resources.packers")
+    assert packers_cfg.current_cap == 2
+    assert packers_cfg.max_cap == 5
 
 
 def test_registry_config_sync(registry, sample_params):
@@ -52,23 +52,23 @@ def test_registry_config_sync(registry, sample_params):
     registry.register_sim_parameter(sample_params)
 
     # Get reference to the config object
-    milling_cfg = registry.get_config("Line_A.service.milling")
-    lathe_cfg = registry.get_config("Line_A.resources.lathe")
+    packing_cfg = registry.get_config("Shop.service.packing")
+    packers_cfg = registry.get_config("Shop.resources.packers")
 
     # Update through registry
-    registry.update("Line_A.service.milling.mean", 99.0)
-    registry.update("Line_A.resources.lathe.current_cap", 4)
+    registry.update("Shop.service.packing.mean", 99.0)
+    registry.update("Shop.resources.packers.current_cap", 4)
 
     # The config objects themselves should be updated via reference
-    assert milling_cfg.mean == 99.0
-    assert lathe_cfg.current_cap == 4
+    assert packing_cfg.mean == 99.0
+    assert packers_cfg.current_cap == 4
 
 
 def test_registry_distribution_update_and_event(registry, sample_params):
     """Verify that updating a service path changes the value and signals the store."""
     registry.register_sim_parameter(sample_params)
 
-    target_path = "Line_A.service.setup.mean"
+    target_path = "Shop.service.setup.mean"
     dyn_val = registry.get(target_path)
 
     # Initially, the signal store should be empty
@@ -87,7 +87,7 @@ def test_registry_resource_update_and_event(registry, sample_params):
     """Verify that updating a resource path changes the value and signals the store."""
     registry.register_sim_parameter(sample_params)
 
-    target_path = "Line_A.resources.lathe.current_cap"
+    target_path = "Shop.resources.packers.current_cap"
     dyn_val = registry.get(target_path)
 
     # Initially, the signal store should be empty
@@ -118,23 +118,23 @@ def test_registry_variables_registration_and_sync(registry):
     """Verify that custom variables are registered, synced via dict assignment, and signal events."""
     # Create a localized parameter with custom variables to avoid depending on sample_params
     params = SimParameter(
-        sim_id="Line_B",
+        sim_id="Warehouse",
         variables={"is_active": True, "speed_limit": 1.5, "mode": "auto"},
     )
     registry.register_sim_parameter(params)
 
     # 1. Check Registration Paths
-    assert registry.get("Line_B.variables.is_active").value is True
-    assert registry.get("Line_B.variables.speed_limit").value == 1.5
-    assert registry.get("Line_B.variables.mode").value == "auto"
+    assert registry.get("Warehouse.variables.is_active").value is True
+    assert registry.get("Warehouse.variables.speed_limit").value == 1.5
+    assert registry.get("Warehouse.variables.mode").value == "auto"
 
     # 2. Check Config Retrieval (Should return the raw dictionary)
-    var_dict = registry.get_config("Line_B.variables")
+    var_dict = registry.get_config("Warehouse.variables")
     assert isinstance(var_dict, dict)
     assert var_dict["mode"] == "auto"
 
     # 3. Check Sync and Events
-    target_path = "Line_B.variables.speed_limit"
+    target_path = "Warehouse.variables.speed_limit"
     dyn_val = registry.get(target_path)
 
     # Initially, the signal store should be empty
@@ -168,9 +168,9 @@ def test_registry_rate_update_keeps_its_fraction(registry):
 @pytest.mark.parametrize(
     "path,value,old",
     [
-        ("Line_A.service.setup.std", -1.0, 0.5),
-        ("Line_A.arrival.standard.rate", 0.0, 0.1),
-        ("Line_A.arrival.standard.rate", -2.0, 0.1),
+        ("Shop.service.setup.std", -1.0, 0.5),
+        ("Shop.arrival.standard.rate", 0.0, 0.1),
+        ("Shop.arrival.standard.rate", -2.0, 0.1),
         ("Line_D.service.cast.mean", 0.0, 3.0),
         ("Line_D.service.cast.std", -0.5, 1.0),
     ],
@@ -202,9 +202,9 @@ def test_registry_refuses_an_invalid_distribution_update(
 def test_registry_accepts_a_zero_std(registry, sample_params):
     """A std of 0 is valid: the distribution becomes a constant."""
     registry.register_sim_parameter(sample_params)
-    registry.update("Line_A.service.setup.std", 0)
+    registry.update("Shop.service.setup.std", 0)
 
-    assert registry.get("Line_A.service.setup.std").value == 0.0
+    assert registry.get("Shop.service.setup.std").value == 0.0
 
 
 def test_registry_clamps_current_cap_to_max_cap(registry, sample_params, caplog):
@@ -212,10 +212,10 @@ def test_registry_clamps_current_cap_to_max_cap(registry, sample_params, caplog)
     registry.register_sim_parameter(sample_params)
 
     with caplog.at_level(logging.WARNING, logger="dynamic_des.core.registry"):
-        registry.update("Line_A.resources.lathe.current_cap", 7)
+        registry.update("Shop.resources.packers.current_cap", 7)
 
-    assert registry.get("Line_A.resources.lathe.current_cap").value == 5
-    assert registry.get_config("Line_A.resources.lathe").current_cap == 5
+    assert registry.get("Shop.resources.packers.current_cap").value == 5
+    assert registry.get_config("Shop.resources.packers").current_cap == 5
     assert "7" in caplog.text and "5" in caplog.text
 
 
@@ -224,43 +224,43 @@ def test_registry_clamps_negative_current_cap_to_zero(registry, sample_params, c
     registry.register_sim_parameter(sample_params)
 
     with caplog.at_level(logging.WARNING, logger="dynamic_des.core.registry"):
-        registry.update("Line_A.containers.tank1.current_cap", -3.5)
+        registry.update("Shop.containers.tank1.current_cap", -3.5)
 
-    assert registry.get("Line_A.containers.tank1.current_cap").value == 0.0
+    assert registry.get("Shop.containers.tank1.current_cap").value == 0.0
     assert "-3.5" in caplog.text
 
 
 def test_registry_keeps_a_container_fraction_within_max_cap(registry, sample_params):
     """A container keeps a fractional capacity that is within max_cap."""
     registry.register_sim_parameter(sample_params)
-    registry.update("Line_A.containers.tank1.current_cap", 42.5)
+    registry.update("Shop.containers.tank1.current_cap", 42.5)
 
-    assert registry.get("Line_A.containers.tank1.current_cap").value == 42.5
+    assert registry.get("Shop.containers.tank1.current_cap").value == 42.5
 
 
 def test_truncated_normal_low_is_a_live_path(registry):
     registry.register_sim_parameter(
         SimParameter(
-            sim_id="Line_A",
+            sim_id="Shop",
             service={
-                "milling": DistributionConfig(
+                "packing": DistributionConfig(
                     dist="truncated_normal", mean=3.0, std=1.0, low=0.5
                 )
             },
         )
     )
-    registry.update("Line_A.service.milling.low", 1.5)
-    assert registry.get_config("Line_A.service.milling").low == 1.5
+    registry.update("Shop.service.packing.low", 1.5)
+    assert registry.get_config("Shop.service.packing").low == 1.5
 
 
 def test_constant_value_is_a_live_path(registry):
     registry.register_sim_parameter(
         SimParameter(
-            sim_id="Line_A",
+            sim_id="Shop",
             service={"setup": DistributionConfig(dist="constant", value=3.0)},
         )
     )
-    registry.update("Line_A.service.setup.value", 4.0)
-    assert registry.get_config("Line_A.service.setup").value == 4.0
-    registry.update("Line_A.service.setup.value", -1.0)
-    assert registry.get_config("Line_A.service.setup").value == 4.0
+    registry.update("Shop.service.setup.value", 4.0)
+    assert registry.get_config("Shop.service.setup").value == 4.0
+    registry.update("Shop.service.setup.value", -1.0)
+    assert registry.get_config("Shop.service.setup").value == 4.0

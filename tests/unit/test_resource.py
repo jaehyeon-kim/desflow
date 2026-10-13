@@ -10,7 +10,7 @@ def flush_events(env):
 def test_resource_initialization(env, registry, sample_params):
     """Verify resource initializes with correct registry values."""
     registry.register_sim_parameter(sample_params)
-    res = DynamicResource(env, "Line_A", "lathe")
+    res = DynamicResource(env, "Shop", "packers")
 
     # Initial capacity from sample_params: current_cap=2, max_cap=5
     assert res.capacity == 2
@@ -21,7 +21,7 @@ def test_resource_initialization(env, registry, sample_params):
 def test_basic_request_release(env, registry, sample_params):
     """Verify standard request and release cycle using context manager."""
     registry.register_sim_parameter(sample_params)
-    res = DynamicResource(env, "Line_A", "lathe")
+    res = DynamicResource(env, "Shop", "packers")
 
     def user():
         with res.request() as req:
@@ -41,10 +41,10 @@ def test_basic_request_release(env, registry, sample_params):
 def test_request_cancellation(env, registry, sample_params):
     """Verify that leaving the 'with' block before getting a token doesn't break capacity."""
     registry.register_sim_parameter(sample_params)
-    registry.update("Line_A.resources.lathe.current_cap", 1)
+    registry.update("Shop.resources.packers.current_cap", 1)
     flush_events(env)
 
-    res = DynamicResource(env, "Line_A", "lathe")
+    res = DynamicResource(env, "Shop", "packers")
 
     def slow_user():
         with res.request() as req:
@@ -81,10 +81,10 @@ def test_request_cancellation(env, registry, sample_params):
 def test_priority_queuing(env, registry, sample_params):
     """Verify priority jumping with context manager."""
     registry.register_sim_parameter(sample_params)
-    registry.update("Line_A.resources.lathe.current_cap", 1)
+    registry.update("Shop.resources.packers.current_cap", 1)
     flush_events(env)
 
-    res = DynamicResource(env, "Line_A", "lathe")
+    res = DynamicResource(env, "Shop", "packers")
     log = []
 
     def user(name, priority, duration):
@@ -108,9 +108,9 @@ def test_priority_queuing(env, registry, sample_params):
 def test_dynamic_capacity_increase(env, registry, sample_params):
     """Verify that increasing current_cap in registry grows the pool."""
     registry.register_sim_parameter(sample_params)
-    res = DynamicResource(env, "Line_A", "lathe")  # Capacity starts at 2
+    res = DynamicResource(env, "Shop", "packers")  # Capacity starts at 2
 
-    registry.update("Line_A.resources.lathe.current_cap", 4)
+    registry.update("Shop.resources.packers.current_cap", 4)
     env.run(until=env.now + 0.1)
 
     assert res.capacity == 4
@@ -120,7 +120,7 @@ def test_dynamic_capacity_increase(env, registry, sample_params):
 def test_dynamic_capacity_decrease_while_busy(env, registry, sample_params):
     """Verify capacity reduction waits for tasks to finish."""
     registry.register_sim_parameter(sample_params)
-    res = DynamicResource(env, "Line_A", "lathe")  # Capacity 2
+    res = DynamicResource(env, "Shop", "packers")  # Capacity 2
 
     def worker():
         with res.request() as req:
@@ -135,7 +135,7 @@ def test_dynamic_capacity_decrease_while_busy(env, registry, sample_params):
     assert res.pool.level == 0
 
     # Request drop to 1
-    registry.update("Line_A.resources.lathe.current_cap", 1)
+    registry.update("Shop.resources.packers.current_cap", 1)
     env.run(until=env.now + 0.1)
 
     # Total capacity target is now 1, but level is still 0 because
@@ -150,10 +150,10 @@ def test_dynamic_capacity_decrease_while_busy(env, registry, sample_params):
 def test_max_cap_increase_allows_larger_capacity(env, registry, sample_params):
     """Verify raising max_cap lets current_cap grow past the original limit."""
     registry.register_sim_parameter(sample_params)
-    res = DynamicResource(env, "Line_A", "lathe")  # current 2, max 5
+    res = DynamicResource(env, "Shop", "packers")  # current 2, max 5
 
-    registry.update("Line_A.resources.lathe.max_cap", 8)
-    registry.update("Line_A.resources.lathe.current_cap", 7)
+    registry.update("Shop.resources.packers.max_cap", 8)
+    registry.update("Shop.resources.packers.current_cap", 7)
     env.run(until=env.now + 0.1)
 
     assert res.capacity == 7
@@ -163,9 +163,9 @@ def test_max_cap_increase_allows_larger_capacity(env, registry, sample_params):
 def test_max_cap_decrease_lowers_capacity(env, registry, sample_params):
     """Verify lowering max_cap below current_cap shrinks the pool at once."""
     registry.register_sim_parameter(sample_params)
-    res = DynamicResource(env, "Line_A", "lathe")  # current 2, max 5
+    res = DynamicResource(env, "Shop", "packers")  # current 2, max 5
 
-    registry.update("Line_A.resources.lathe.max_cap", 1)
+    registry.update("Shop.resources.packers.max_cap", 1)
     env.run(until=env.now + 0.1)
 
     assert res.capacity == 1
@@ -173,13 +173,13 @@ def test_max_cap_decrease_lowers_capacity(env, registry, sample_params):
 
 
 def _set_cap(registry, value):
-    registry.update("Line_A.resources.lathe.current_cap", value)
+    registry.update("Shop.resources.packers.current_cap", value)
 
 
 def test_shrink_while_busy_does_not_start_queued_task(env, registry, sample_params):
     """A release after a shrink is discarded, so a queued task does not start early."""
     registry.register_sim_parameter(sample_params)
-    res = DynamicResource(env, "Line_A", "lathe")  # Capacity 2
+    res = DynamicResource(env, "Shop", "packers")  # Capacity 2
     started = {}
 
     def worker(name, duration):
@@ -209,7 +209,7 @@ def test_shrink_to_zero_after_queue_drains_blocks_new_request(
     registry.register_sim_parameter(sample_params)
     _set_cap(registry, 1)
     flush_events(env)
-    res = DynamicResource(env, "Line_A", "lathe")
+    res = DynamicResource(env, "Shop", "packers")
     started = {}
 
     def worker(name, duration):
@@ -241,7 +241,7 @@ def test_request_and_shrink_to_zero_at_same_instant(env, registry, sample_params
     registry.register_sim_parameter(sample_params)
     _set_cap(registry, 1)
     flush_events(env)
-    res = DynamicResource(env, "Line_A", "lathe")
+    res = DynamicResource(env, "Shop", "packers")
     started = []
 
     def worker():
@@ -264,7 +264,7 @@ def test_request_and_shrink_to_zero_at_same_instant(env, registry, sample_params
 def test_grow_after_shrink_cancels_pending_shrink(env, registry, sample_params):
     """Growing back before busy units release restores the old capacity exactly."""
     registry.register_sim_parameter(sample_params)
-    res = DynamicResource(env, "Line_A", "lathe")  # Capacity 2
+    res = DynamicResource(env, "Shop", "packers")  # Capacity 2
     started = {}
 
     def worker(name, duration):
@@ -294,7 +294,7 @@ def test_grow_after_shrink_cancels_pending_shrink(env, registry, sample_params):
 def test_in_use_counts_busy_units_above_lowered_capacity(env, registry, sample_params):
     """in_use reports every busy unit while busy units exceed a lowered capacity."""
     registry.register_sim_parameter(sample_params)
-    res = DynamicResource(env, "Line_A", "lathe")  # Capacity 2
+    res = DynamicResource(env, "Shop", "packers")  # Capacity 2
 
     def worker(duration):
         with res.request() as req:
@@ -321,14 +321,14 @@ def test_in_use_counts_busy_units_above_lowered_capacity(env, registry, sample_p
 def test_max_cap_decrease_lowers_pool_capacity(env, registry, sample_params):
     """Lowering max_cap lowers the token pool capacity with it (defect 9)."""
     registry.register_sim_parameter(sample_params)
-    res = DynamicResource(env, "Line_A", "lathe")  # current 2, max 5
+    res = DynamicResource(env, "Shop", "packers")  # current 2, max 5
 
-    registry.update("Line_A.resources.lathe.max_cap", 1)
+    registry.update("Shop.resources.packers.max_cap", 1)
     env.run(until=env.now + 0.1)
     assert res.pool.capacity == 1, f"pool capacity is {res.pool.capacity}"
 
-    registry.update("Line_A.resources.lathe.max_cap", 4)
-    registry.update("Line_A.resources.lathe.current_cap", 3)
+    registry.update("Shop.resources.packers.max_cap", 4)
+    registry.update("Shop.resources.packers.current_cap", 3)
     env.run(until=env.now + 0.1)
     assert res.pool.capacity == 4
     assert res.capacity == 3
@@ -338,7 +338,7 @@ def test_max_cap_decrease_lowers_pool_capacity(env, registry, sample_params):
 def test_max_cap_decrease_while_busy_keeps_running_tasks(env, registry, sample_params):
     """Lowering max_cap below the busy count lets running tasks finish and release."""
     registry.register_sim_parameter(sample_params)
-    res = DynamicResource(env, "Line_A", "lathe")  # current 2, max 5
+    res = DynamicResource(env, "Shop", "packers")  # current 2, max 5
     finished = []
 
     def worker(name):
@@ -351,7 +351,7 @@ def test_max_cap_decrease_while_busy_keeps_running_tasks(env, registry, sample_p
     env.process(worker("B"))
     env.run(until=1)
 
-    registry.update("Line_A.resources.lathe.max_cap", 1)
+    registry.update("Shop.resources.packers.max_cap", 1)
     env.run(until=2)
     assert res.capacity == 1
     assert res.in_use == 2

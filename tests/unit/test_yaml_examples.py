@@ -129,16 +129,25 @@ def test_every_example_is_plain_yaml():
 
 def test_local():
     app = _build("local.yaml")
-    assert app._default_until == 60.0
-    [records] = _run(app, 60)
+    assert app._default_until == 30.0
+    [records] = _run(app, 30)
 
     finished = _finished(records)
     assert finished
-    # local.yaml has no seed and two lathes, so a later part can finish first
-    assert {"event_type": "part_produced", "quality": "A", "part_id": 0} in finished
-    assert {"Factory_A.utilization", "Factory_A.queue_length"} <= _telemetry_paths(
-        records
+    # Several packers work at once from 10 seconds, so a later order can finish first
+    assert {"event_type": "order_packed", "shipping": "standard", "order_id": 0} in (
+        finished
     )
+    assert {"Shop.packers.utilization", "Shop.packers.queue_length"} <= (
+        _telemetry_paths(records)
+    )
+    # The scenario adds packers at 10 seconds and removes one at 20 seconds.
+    capacity = {
+        r["sim_ts"]: r["value"]
+        for r in records
+        if r.get("path_id") == "Shop.packers.capacity"
+    }
+    assert (capacity[8.0], capacity[12.0], capacity[22.0]) == (1, 3, 2)
 
 
 def test_kafka():
@@ -160,17 +169,17 @@ def test_kafka():
     finished = _finished(records)
     assert finished
     assert all(
-        value == {"path_id": "Line_A.service.milling", "status": "finished"}
+        value == {"path_id": "Shop.service.packing", "status": "finished"}
         for value in finished
     )
     assert {
-        "Line_A.lathe.capacity",
-        "Line_A.lathe.in_use",
-        "Line_A.lathe.queue_length",
-        "Line_A.lathe.utilization",
+        "Shop.packers.capacity",
+        "Shop.packers.in_use",
+        "Shop.packers.queue_length",
+        "Shop.packers.utilization",
     } <= _telemetry_paths(records)
     capacity = [
-        r["value"] for r in records if r.get("path_id") == "Line_A.lathe.capacity"
+        r["value"] for r in records if r.get("path_id") == "Shop.packers.capacity"
     ]
     assert set(capacity) == {1}
 
@@ -387,8 +396,18 @@ async def test_redis():
     # The task has no service or resource, so it emits no queued or started event.
     assert len(finished) == len(_events(records))
     assert finished[:2] == [
-        {"__stream__": "part_events", "type": "A", "status": "arrived", "part_id": 0},
-        {"__stream__": "part_events", "type": "A", "status": "arrived", "part_id": 1},
+        {
+            "__stream__": "order_events",
+            "channel": "web",
+            "status": "placed",
+            "order_id": 0,
+        },
+        {
+            "__stream__": "order_events",
+            "channel": "web",
+            "status": "placed",
+            "order_id": 1,
+        },
     ]
 
     client = MagicMock()
@@ -400,8 +419,8 @@ async def test_redis():
         await _drain(egress, records)
 
     streams = [call.args[0] for call in pipe.xadd.call_args_list]
-    assert streams.count("part_events") == len(finished)
-    assert set(streams) == {"part_events", "events"}
+    assert streams.count("order_events") == len(finished)
+    assert set(streams) == {"order_events", "events"}
 
 
 def test_backfill_live():

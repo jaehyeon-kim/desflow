@@ -1,6 +1,6 @@
 # Low-level API
 
-The low-level API is `DynamicRealtimeEnvironment` used directly, with SimPy processes you write yourself. A script registers the parameters, attaches the connectors, creates the resources and starts its processes with `env.process`. The [builder API](context.md) does each of these steps inside `run()`, so this page is also a description of what the builder does for you. [First Simulation](../tutorials/first-simulation.md) builds a first factory this way, in its Low-level tabs.
+The low-level API is `DynamicRealtimeEnvironment` used directly, with SimPy processes you write yourself. A script registers the parameters, attaches the connectors, creates the resources and starts its processes with `env.process`. The [builder API](context.md) does each of these steps inside `run()`, so this page is also a description of what the builder does for you. [First Simulation](../tutorials/first-simulation.md) builds a first shop this way, in its Low-level tabs.
 
 Use the low-level API when you need what the builder does not do:
 
@@ -13,7 +13,7 @@ Use the low-level API when you need what the builder does not do:
 
 ## Steps of a Run
 
-A low-level script takes these steps, in this order. The sections below take them one at a time, with the code of one complete script: a lathe line with a coolant tank and a store for finished parts. The whole script is at the [end of the page](#full-script).
+A low-level script takes these steps, in this order. The sections below take them one at a time, with the code of one complete script: a packing team with a stock of boxes and a store for packed orders. The whole script is at the [end of the page](#full-script).
 
 ![The six calls of a low-level run, in order: create the environment, register the parameters, attach the connectors, create the resources, start the processes, run and tear down](../assets/diagrams/low-level-steps.png)
 
@@ -51,18 +51,18 @@ env = DynamicRealtimeEnvironment(factor=0.0)  # unpaced; 1.0 follows the wall cl
 ```python title="docs/snippets/pages/low_level.py:parameters"
 env.registry.register_sim_parameter(
     SimParameter(
-        sim_id="Line_A",
-        arrival={"parts": DistributionConfig(dist="exponential", rate=0.5)},
-        service={"milling": DistributionConfig(dist="normal", mean=1.5, std=0.3)},
-        resources={"lathe": CapacityConfig(current_cap=1, max_cap=3)},
-        containers={"coolant": CapacityConfig(current_cap=100.0, max_cap=100.0)},
+        sim_id="Shop",
+        arrival={"orders": DistributionConfig(dist="exponential", rate=0.5)},
+        service={"packing": DistributionConfig(dist="normal", mean=1.5, std=0.3)},
+        resources={"packers": CapacityConfig(current_cap=1, max_cap=3)},
+        containers={"boxes": CapacityConfig(current_cap=100.0, max_cap=100.0)},
         stores={"finished": CapacityConfig(current_cap=50, max_cap=50)},
-        variables={"coolant_per_part": 0.5},
+        variables={"boxes_per_order": 1.0},
     )
 )
 ```
 
-One `SimParameter` holds every parameter of one simulation under its `sim_id`. Registering it gives each value a path, such as `Line_A.arrival.parts.rate` or `Line_A.resources.lathe.current_cap`, and only the registered paths exist: a resource or a process that asks for any other raises `KeyError`. Stores can only be registered here; the builder has no way to declare them. [Live Parameters](registry.md) lists every path.
+One `SimParameter` holds every parameter of one simulation under its `sim_id`. Registering it gives each value a path, such as `Shop.arrival.orders.rate` or `Shop.resources.packers.current_cap`, and only the registered paths exist: a resource or a process that asks for any other raises `KeyError`. Stores can only be registered here; the builder has no way to declare them. [Live Parameters](registry.md) lists every path.
 
 ---
 
@@ -80,9 +80,9 @@ env.setup_egress([ConsoleEgress()])  # starts the egress thread
 ## Create Resources, Containers and Stores
 
 ```python title="docs/snippets/pages/low_level.py:resources"
-lathe = DynamicResource(env, "Line_A", "lathe")  # reads Line_A.resources.lathe.*
-coolant = DynamicContainer(env, "Line_A", "coolant", init=100.0)
-finished = DynamicStore(env, "Line_A", "finished")
+packers = DynamicResource(env, "Shop", "packers")  # reads Shop.resources.packers.*
+boxes = DynamicContainer(env, "Shop", "boxes", init=100.0)
+finished = DynamicStore(env, "Shop", "finished")
 sampler = Sampler(rng=np.random.default_rng(42))  # one seeded generator for every draw
 ```
 
@@ -92,35 +92,35 @@ Each reads its capacity from the registry when it is created, so the parameters 
 
 ## Write the Processes
 
-A process is a SimPy generator: it `yield`s to wait, and publishes records as it goes. This one is what `@app.task` does in the builder, plus a coolant tank and a store:
+A process is a SimPy generator: it `yield`s to wait, and publishes records as it goes. This one is what `@app.task` does in the builder, plus a stock of boxes and a store:
 
-```python title="docs/snippets/pages/low_level.py:part"
-def part(env, part_id):
-    """One part: queue for the lathe, use coolant, machine, then store the result."""
-    key, path_id = f"task-{part_id}", "Line_A.service.milling"
+```python title="docs/snippets/pages/low_level.py:order"
+def order(env, order_id):
+    """One order: queue for a packer, take a box, pack, then store the result."""
+    key, path_id = f"task-{order_id}", "Shop.service.packing"
     env.publish_event(key, {"path_id": path_id, "status": "queued"})
-    with lathe.request() as request:
+    with packers.request() as request:
         yield request
         env.publish_event(key, {"path_id": path_id, "status": "started"})
-        litres = env.registry.get("Line_A.variables.coolant_per_part").value
-        yield coolant.get(litres)  # waits if the tank is too low
+        count = env.registry.get("Shop.variables.boxes_per_order").value
+        yield boxes.get(count)  # waits if the stock is too low
         yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
-    yield finished.put({"part_id": part_id})
-    env.publish_event(key, {"status": "finished", "part_id": part_id})
+    yield finished.put({"order_id": order_id})
+    env.publish_event(key, {"status": "finished", "order_id": order_id})
 ```
 
-The time is drawn after the lathe is acquired, from the configuration the registry holds at that moment, so a change made while the part waited in the queue still applies to it.
+The time is drawn after a packer is acquired, from the configuration the registry holds at that moment, so a change made while the order waited in the queue still applies to it.
 
 The arrival loop keeps the configuration object rather than a copy of the rate. The registry updates that object in place, so the next draw uses the new rate:
 
 ```python title="docs/snippets/pages/low_level.py:arrivals"
 def arrivals(env):
-    gap = env.registry.get_config("Line_A.arrival.parts")  # the live config object
-    part_id = 0
+    gap = env.registry.get_config("Shop.arrival.orders")  # the live config object
+    order_id = 0
     while True:
         yield env.timeout(sampler.sample(gap))  # each draw reads the current rate
-        env.process(part(env, part_id))
-        part_id += 1
+        env.process(order(env, order_id))
+        order_id += 1
 ```
 
 Telemetry is a process that publishes at an interval. `publish_telemetry` uses the path exactly as given; the builder's `context.publish` adds the `sim_id` in front:
@@ -128,8 +128,8 @@ Telemetry is a process that publishes at an interval. `publish_telemetry` uses t
 ```python title="docs/snippets/pages/low_level.py:telemetry"
 def telemetry(env):
     while True:
-        env.publish_telemetry("Line_A.lathe.in_use", lathe.in_use)
-        env.publish_telemetry("Line_A.coolant.level", coolant.level)
+        env.publish_telemetry("Shop.packers.in_use", packers.in_use)
+        env.publish_telemetry("Shop.boxes.level", boxes.level)
         yield env.timeout(10.0)
 ```
 
@@ -137,15 +137,15 @@ A process can also change the simulation itself, through the registry, as a conn
 
 ```python title="docs/snippets/pages/low_level.py:control"
 def refill_and_rush(env):
-    """Refills coolant every minute, and doubles arrivals after five minutes."""
+    """Refills boxes every minute, and doubles arrivals after five minutes."""
     while True:
         yield env.timeout(60.0)
-        missing = coolant.capacity - coolant.level
+        missing = boxes.capacity - boxes.level
         if missing > 0:  # SimPy refuses a put of 0
-            yield coolant.put(missing)
-        if env.now >= 300 and env.registry.get("Line_A.arrival.parts.rate").value < 1.0:
-            env.registry.update("Line_A.arrival.parts.rate", 1.0)
-            env.registry.update("Line_A.resources.lathe.current_cap", 2)
+            yield boxes.put(missing)
+        if env.now >= 300 and env.registry.get("Shop.arrival.orders.rate").value < 1.0:
+            env.registry.update("Shop.arrival.orders.rate", 1.0)
+            env.registry.update("Shop.resources.packers.current_cap", 2)
 ```
 
 ---
@@ -189,7 +189,7 @@ The complete file, which the documentation tests run:
 ```python title="docs/snippets/pages/low_level.py"
 """A complete low-level simulation, as the Low-level API page explains it step by step.
 
-One lathe line with a coolant tank and a finished-goods store. tests/unit runs this
+One packing team with a stock of boxes and a store of packed orders. tests/unit runs this
 file unpaced, so every call on the page is checked.
 """
 
@@ -212,65 +212,65 @@ env = DynamicRealtimeEnvironment(factor=0.0)  # unpaced; 1.0 follows the wall cl
 
 env.registry.register_sim_parameter(
     SimParameter(
-        sim_id="Line_A",
-        arrival={"parts": DistributionConfig(dist="exponential", rate=0.5)},
-        service={"milling": DistributionConfig(dist="normal", mean=1.5, std=0.3)},
-        resources={"lathe": CapacityConfig(current_cap=1, max_cap=3)},
-        containers={"coolant": CapacityConfig(current_cap=100.0, max_cap=100.0)},
+        sim_id="Shop",
+        arrival={"orders": DistributionConfig(dist="exponential", rate=0.5)},
+        service={"packing": DistributionConfig(dist="normal", mean=1.5, std=0.3)},
+        resources={"packers": CapacityConfig(current_cap=1, max_cap=3)},
+        containers={"boxes": CapacityConfig(current_cap=100.0, max_cap=100.0)},
         stores={"finished": CapacityConfig(current_cap=50, max_cap=50)},
-        variables={"coolant_per_part": 0.5},
+        variables={"boxes_per_order": 1.0},
     )
 )
 
 env.setup_egress([ConsoleEgress()])  # starts the egress thread
 # env.setup_ingress([KafkaIngress(...)]) would start the ingress thread
 
-lathe = DynamicResource(env, "Line_A", "lathe")  # reads Line_A.resources.lathe.*
-coolant = DynamicContainer(env, "Line_A", "coolant", init=100.0)
-finished = DynamicStore(env, "Line_A", "finished")
+packers = DynamicResource(env, "Shop", "packers")  # reads Shop.resources.packers.*
+boxes = DynamicContainer(env, "Shop", "boxes", init=100.0)
+finished = DynamicStore(env, "Shop", "finished")
 sampler = Sampler(rng=np.random.default_rng(42))  # one seeded generator for every draw
 
 
-def part(env, part_id):
-    """One part: queue for the lathe, use coolant, machine, then store the result."""
-    key, path_id = f"task-{part_id}", "Line_A.service.milling"
+def order(env, order_id):
+    """One order: queue for a packer, take a box, pack, then store the result."""
+    key, path_id = f"task-{order_id}", "Shop.service.packing"
     env.publish_event(key, {"path_id": path_id, "status": "queued"})
-    with lathe.request() as request:
+    with packers.request() as request:
         yield request
         env.publish_event(key, {"path_id": path_id, "status": "started"})
-        litres = env.registry.get("Line_A.variables.coolant_per_part").value
-        yield coolant.get(litres)  # waits if the tank is too low
+        count = env.registry.get("Shop.variables.boxes_per_order").value
+        yield boxes.get(count)  # waits if the stock is too low
         yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
-    yield finished.put({"part_id": part_id})
-    env.publish_event(key, {"status": "finished", "part_id": part_id})
+    yield finished.put({"order_id": order_id})
+    env.publish_event(key, {"status": "finished", "order_id": order_id})
 
 
 def arrivals(env):
-    gap = env.registry.get_config("Line_A.arrival.parts")  # the live config object
-    part_id = 0
+    gap = env.registry.get_config("Shop.arrival.orders")  # the live config object
+    order_id = 0
     while True:
         yield env.timeout(sampler.sample(gap))  # each draw reads the current rate
-        env.process(part(env, part_id))
-        part_id += 1
+        env.process(order(env, order_id))
+        order_id += 1
 
 
 def telemetry(env):
     while True:
-        env.publish_telemetry("Line_A.lathe.in_use", lathe.in_use)
-        env.publish_telemetry("Line_A.coolant.level", coolant.level)
+        env.publish_telemetry("Shop.packers.in_use", packers.in_use)
+        env.publish_telemetry("Shop.boxes.level", boxes.level)
         yield env.timeout(10.0)
 
 
 def refill_and_rush(env):
-    """Refills coolant every minute, and doubles arrivals after five minutes."""
+    """Refills boxes every minute, and doubles arrivals after five minutes."""
     while True:
         yield env.timeout(60.0)
-        missing = coolant.capacity - coolant.level
+        missing = boxes.capacity - boxes.level
         if missing > 0:  # SimPy refuses a put of 0
-            yield coolant.put(missing)
-        if env.now >= 300 and env.registry.get("Line_A.arrival.parts.rate").value < 1.0:
-            env.registry.update("Line_A.arrival.parts.rate", 1.0)
-            env.registry.update("Line_A.resources.lathe.current_cap", 2)
+            yield boxes.put(missing)
+        if env.now >= 300 and env.registry.get("Shop.arrival.orders.rate").value < 1.0:
+            env.registry.update("Shop.arrival.orders.rate", 1.0)
+            env.registry.update("Shop.resources.packers.current_cap", 2)
 
 
 env.process(arrivals(env))
@@ -283,8 +283,8 @@ if __name__ == "__main__":
     finally:
         env.teardown()  # flushes the buffers and stops the threads
     assert (
-        lathe.capacity == 2
-        and env.registry.get("Line_A.arrival.parts.rate").value == 1.0
+        packers.capacity == 2
+        and env.registry.get("Shop.arrival.orders.rate").value == 1.0
     )
     assert len(finished.items) > 0
 ```

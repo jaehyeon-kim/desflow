@@ -9,12 +9,12 @@ from dynamic_des.blueprint import BlueprintError
 
 BLUEPRINT = """\
 simulation:
-  sim_id: Line_A
+  sim_id: Shop
   factor: 0
 resources:
-  lathe: {current_cap: 2, max_cap: 5}
+  packers: {current_cap: 2, max_cap: 5}
 services:
-  milling: {dist: normal, mean: 3.0, std: -0.5}
+  packing: {dist: normal, mean: 3.0, std: -0.5}
 run:
   until: 30
 """
@@ -34,10 +34,10 @@ def test_invalid_service_parameter_names_the_line(tmp_path):
 
 ARRIVAL_BLUEPRINT = """\
 simulation:
-  sim_id: Line_A
+  sim_id: Shop
   factor: 0
 resources:
-  lathe: {current_cap: 2, max_cap: 5}
+  packers: {current_cap: 2, max_cap: 5}
 arrivals:
   parts: {dist: exponential, rate: -1}
 run:
@@ -59,10 +59,10 @@ def test_invalid_arrival_parameter_names_the_line(tmp_path):
 
 CONSTANT_BLUEPRINT = """\
 simulation:
-  sim_id: Line_A
+  sim_id: Shop
   factor: 0
 resources:
-  lathe: {current_cap: 2, max_cap: 5}
+  packers: {current_cap: 2, max_cap: 5}
 services:
   setup: {dist: constant, value: 1.5}
 arrivals:

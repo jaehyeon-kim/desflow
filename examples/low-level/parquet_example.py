@@ -4,10 +4,11 @@ The low-level twin of `builder/parquet_example.py`. It wires
 `DynamicRealtimeEnvironment`, the registry and the connectors by hand rather than
 through the builder, which shows what `SimulationContext` does for you.
 
-`factor=0.0` detaches the clock from real time, so seven days of history are generated
-as fast as the machine allows and written to Parquet. A router keeps lifecycle events
-and drops telemetry. Writes to `data/`, or to S3 with the variables `yaml/parquet.yaml`
-reads: `PARQUET_FILESYSTEM=s3` and `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`.
+`factor=0.0` detaches the clock from real time, so seven days of shop orders are
+generated as fast as the machine allows and written to Parquet. A router keeps the
+lifecycle events and flattens them into rows. Writes to `data/`, or to S3 with the
+variables `yaml/parquet.yaml` reads: `PARQUET_FILESYSTEM=s3` and `S3_ENDPOINT`,
+`S3_ACCESS_KEY`, `S3_SECRET_KEY`.
 """
 
 import logging
@@ -65,6 +66,35 @@ def create_history_router(base_path: str):
     return history_router
 
 
+# The shop starts with 4 packers and has room for 10.
+PARAMS = SimParameter(
+    sim_id="Shop",
+    arrival={"orders": DistributionConfig(dist="exponential", rate=2.0)},
+    service={"packing": DistributionConfig(dist="normal", mean=2.0, std=0.2)},
+    resources={"packers": CapacityConfig(current_cap=4, max_cap=10)},
+)
+
+
+def pack_order(env, sampler, packers, task_id):
+    """What @app.task does: queued, started, the service time, then finished."""
+    key, path_id = f"task-{task_id}", "Shop.service.packing"
+    env.publish_event(key, {"path_id": path_id, "status": "queued"})
+    with packers.request() as req:
+        yield req
+        env.publish_event(key, {"path_id": path_id, "status": "started"})
+        yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
+        env.publish_event(key, {"path_id": path_id, "status": "finished"})
+
+
+def arrival_generator(env, sampler, packers):
+    gap = env.registry.get_config("Shop.arrival.orders")
+    task_id = 0
+    while True:
+        yield env.timeout(sampler.sample(gap))
+        env.process(pack_order(env, sampler, packers, task_id))
+        task_id += 1
+
+
 def run():
     # ---------------------------------------------------------
     # 1. DUAL-MODE STORAGE CONFIGURATION
@@ -85,16 +115,9 @@ def run():
     # ---------------------------------------------------------
     # 2. SIMULATION SETUP
     # ---------------------------------------------------------
-    line_a_params = SimParameter(
-        sim_id="Line_A",
-        arrival={"standard": DistributionConfig(dist="exponential", rate=2.0)},
-        service={"milling": DistributionConfig(dist="normal", mean=2.0, std=0.2)},
-        resources={"lathe": CapacityConfig(current_cap=4, max_cap=10)},
-    )
-
     start_time = datetime.now() - timedelta(days=7)
     env = DynamicRealtimeEnvironment(factor=0.0, logical_start_time=start_time)
-    env.registry.register_sim_parameter(line_a_params)
+    env.registry.register_sim_parameter(PARAMS)
 
     # Initialize Egress with the dynamic router and conditional filesystem
     router = create_history_router(base_path)
@@ -103,48 +126,10 @@ def run():
     # batch_size=5000 for compression, flush_interval=86400 (1 day in sim time)
     env.setup_egress([egress], batch_size=5000, flush_interval=86400)
 
-    res = DynamicResource(env, "Line_A", "lathe")
+    packers = DynamicResource(env, "Shop", "packers")
     sampler = Sampler(rng=np.random.default_rng(42))
 
-    def arrival_process(env: DynamicRealtimeEnvironment, res: DynamicResource):
-        arrival_cfg = env.registry.get_config("Line_A.arrival.standard")
-        service_path = "Line_A.service.milling"
-        task_id = 0
-
-        while True:
-            yield env.timeout(sampler.sample(arrival_cfg))
-            env.process(work_task(env, task_id, res, service_path))
-            task_id += 1
-
-    def work_task(
-        env: DynamicRealtimeEnvironment,
-        task_id: int,
-        res: DynamicResource,
-        path_id: str,
-    ):
-        task_key = f"task-{task_id}"
-        env.publish_event(task_key, {"path_id": path_id, "status": "queued"})
-
-        with res.request() as req:
-            yield req
-            current_service_cfg = env.registry.get_config(path_id)
-            env.publish_event(task_key, {"path_id": path_id, "status": "started"})
-            yield env.timeout(sampler.sample(current_service_cfg))
-            env.publish_event(task_key, {"path_id": path_id, "status": "finished"})
-
-    def telemetry_monitor(env: DynamicRealtimeEnvironment, res: DynamicResource):
-        while True:
-            env.publish_telemetry("Line_A.lathe.capacity", res.capacity)
-            env.publish_telemetry("Line_A.lathe.in_use", res.in_use)
-            env.publish_telemetry("Line_A.lathe.queue_length", len(res.queue.items))
-
-            util = (res.in_use / res.capacity) * 100 if res.capacity > 0 else 0
-            env.publish_telemetry("Line_A.lathe.utilization", util)
-
-            yield env.timeout(60.0)
-
-    env.process(arrival_process(env, res))
-    env.process(telemetry_monitor(env, res))
+    env.process(arrival_generator(env, sampler, packers))
 
     run_duration_str = "1 week"
     run_duration_sec = time_to_seconds(run_duration_str)

@@ -149,14 +149,14 @@ class PlainEnvironment(Environment, RegistryMixIn, IngressMixIn, EgressMixIn):
 
 def build_params() -> SimParameter:
     return SimParameter(
-        sim_id="Line_A",
+        sim_id="Shop",
         arrival={"standard": DistributionConfig(dist="exponential", rate=ARRIVAL_RATE)},
         service={
-            "milling": DistributionConfig(
+            "packing": DistributionConfig(
                 dist="normal", mean=SERVICE_MEAN, std=SERVICE_STD
             )
         },
-        resources={"lathe": CapacityConfig(current_cap=CAPACITY, max_cap=CAPACITY)},
+        resources={"packers": CapacityConfig(current_cap=CAPACITY, max_cap=CAPACITY)},
     )
 
 
@@ -167,7 +167,7 @@ def attach_workload(env: Any, publish: bool = True, log_events: bool = False) ->
     configuration runs exactly the same sequence of events and publishes exactly
     the same number of records.
     """
-    res = DynamicResource(env, "Line_A", "lathe")
+    res = DynamicResource(env, "Shop", "packers")
     sampler = Sampler(rng=np.random.default_rng(SEED))
     log = logging.getLogger("benchmark.workload")
 
@@ -191,8 +191,8 @@ def attach_workload(env: Any, publish: bool = True, log_events: bool = False) ->
                 log.info("task %s finished", task_key)
 
     def arrival_process():
-        arrival_cfg = env.registry.get_config("Line_A.arrival.standard")
-        service_path = "Line_A.service.milling"
+        arrival_cfg = env.registry.get_config("Shop.arrival.standard")
+        service_path = "Shop.service.packing"
         task_id = 0
         while True:
             yield env.timeout(sampler.sample(arrival_cfg))
@@ -202,13 +202,13 @@ def attach_workload(env: Any, publish: bool = True, log_events: bool = False) ->
     def telemetry_monitor():
         while True:
             if publish:
-                env.publish_telemetry("Line_A.resources.lathe.capacity", res.capacity)
-                env.publish_telemetry("Line_A.resources.lathe.in_use", res.in_use)
+                env.publish_telemetry("Shop.resources.packers.capacity", res.capacity)
+                env.publish_telemetry("Shop.resources.packers.in_use", res.in_use)
                 env.publish_telemetry(
-                    "Line_A.resources.lathe.queue_length", len(res.queue.items)
+                    "Shop.resources.packers.queue_length", len(res.queue.items)
                 )
                 util = (res.in_use / res.capacity) * 100 if res.capacity else 0
-                env.publish_telemetry("Line_A.resources.lathe.utilization", util)
+                env.publish_telemetry("Shop.resources.packers.utilization", util)
             yield env.timeout(2.0)
 
     env.process(arrival_process())
@@ -571,7 +571,7 @@ def cmd_micro() -> None:
     start = datetime(2026, 1, 1)
     now = 1234.5678
     key = "task-12345"
-    value = {"path_id": "Line_A.service.milling", "status": "finished"}
+    value = {"path_id": "Shop.service.packing", "status": "finished"}
     record = {
         "stream_type": "event",
         "sim_ts": 1234.568,
@@ -586,7 +586,7 @@ def cmd_micro() -> None:
         path_id: str
         status: str
 
-    model_value = TaskEvent(path_id="Line_A.service.milling", status="finished")
+    model_value = TaskEvent(path_id="Shop.service.packing", status="finished")
 
     def iso() -> str:
         return (start + timedelta(seconds=now)).isoformat(timespec="milliseconds")

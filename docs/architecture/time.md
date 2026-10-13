@@ -16,7 +16,7 @@ The same arguments exist on `DynamicRealtimeEnvironment`, on `SimulationContext`
 
 ```python title="docs/snippets/pages/pacing.py:logical-start"
 app = SimulationContext(
-    sim_id="Line_A",
+    sim_id="Shop",
     factor=0.0,
     logical_start_time=datetime.now() - timedelta(days=7),  # a week of history
 )
@@ -100,6 +100,6 @@ A run at `factor=0.0` has no relation to the wall clock until `go_live_at`, if o
 `until` is in simulation seconds. `SimulationContext.run()` and a blueprint's `run.until` also take a duration string such as `"10 min"`, `"8 hours"` or `"1 week"`, which `time_to_seconds` converts. A month counts as 30 days and a year as 365 days. Without `until`, SimPy runs until no events remain, so a run with an arrival loop continues until it is stopped. So does any run with a sink or an ingress connector, even when its own work has finished: the lag monitor that every sink starts, the timed flush of each sink at a `factor` above 0, and the ingress monitor all repeat for as long as the run lasts. Give such a run an `until`, or stop it with Ctrl+C.
 
 ```python title="docs/snippets/pages/pacing.py:run-length"
-app.add_resource("lathe", current_cap=1, max_cap=1)
+app.add_resource("packers", current_cap=1, max_cap=1)
 app.run(until="1 week")  # 604,800 simulation seconds; a number is seconds too
 ```

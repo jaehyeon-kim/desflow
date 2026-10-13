@@ -12,7 +12,7 @@ def flush_events(env):
 def test_store_initialization(env, registry, sample_params):
     """Verify standard store initializes correctly as FIFO."""
     registry.register_sim_parameter(sample_params)
-    store = DynamicStore(env, "Line_A", "buffer1")
+    store = DynamicStore(env, "Shop", "buffer1")
 
     assert store.capacity == 5
     assert isinstance(store._store, simpy.Store)
@@ -22,7 +22,7 @@ def test_store_initialization(env, registry, sample_params):
 def test_store_priority_initialization(env, registry, sample_params):
     """Verify priority flag correctly instantiates a PriorityStore."""
     registry.register_sim_parameter(sample_params)
-    store = DynamicStore(env, "Line_A", "buffer1", priority=True)
+    store = DynamicStore(env, "Shop", "buffer1", priority=True)
 
     assert store.capacity == 5
     assert isinstance(store._store, simpy.PriorityStore)
@@ -31,7 +31,7 @@ def test_store_priority_initialization(env, registry, sample_params):
 def test_priority_sorting(env, registry, sample_params):
     """Verify that priority sorting works identically to native SimPy."""
     registry.register_sim_parameter(sample_params)
-    store = DynamicStore(env, "Line_A", "buffer1", priority=True)
+    store = DynamicStore(env, "Shop", "buffer1", priority=True)
     out_log = []
 
     def process_flow():
@@ -57,7 +57,7 @@ def test_dynamic_capacity_increase(env, registry, sample_params):
     sample_params.stores["buffer1"].current_cap = 2
     registry.register_sim_parameter(sample_params)
 
-    store = DynamicStore(env, "Line_A", "buffer1")
+    store = DynamicStore(env, "Shop", "buffer1")
 
     def producer():
         yield store.put("item_1")
@@ -71,7 +71,7 @@ def test_dynamic_capacity_increase(env, registry, sample_params):
     assert len(store.items) == 2
 
     # Expand capacity via update
-    registry.update("Line_A.stores.buffer1.current_cap", 3)
+    registry.update("Shop.stores.buffer1.current_cap", 3)
     env.run(until=env.now + 0.1)
 
     # 3rd item unblocks and flows in
@@ -84,7 +84,7 @@ def test_capacity_shrinkage_paradox(env, registry, sample_params):
     sample_params.stores["buffer1"].current_cap = 3
     registry.register_sim_parameter(sample_params)
 
-    store = DynamicStore(env, "Line_A", "buffer1")
+    store = DynamicStore(env, "Shop", "buffer1")
 
     # Fill to 3
     store.put("item_1")
@@ -93,7 +93,7 @@ def test_capacity_shrinkage_paradox(env, registry, sample_params):
     env.run(until=1)
 
     # Shrink to 1 via update
-    registry.update("Line_A.stores.buffer1.current_cap", 1)
+    registry.update("Shop.stores.buffer1.current_cap", 1)
     flush_events(env)
 
     assert store.capacity == 1

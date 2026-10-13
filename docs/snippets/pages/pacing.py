@@ -10,7 +10,7 @@ from dynamic_des import DynamicRealtimeEnvironment, SimulationContext
 
 # --8<-- [start:logical-start]
 app = SimulationContext(
-    sim_id="Line_A",
+    sim_id="Shop",
     factor=0.0,
     logical_start_time=datetime.now() - timedelta(days=7),  # a week of history
 )
@@ -33,7 +33,7 @@ env = DynamicRealtimeEnvironment(
 # --8<-- [end:go-live]
 
 # --8<-- [start:run-length]
-app.add_resource("lathe", current_cap=1, max_cap=1)
+app.add_resource("packers", current_cap=1, max_cap=1)
 app.run(until="1 week")  # 604,800 simulation seconds; a number is seconds too
 # --8<-- [end:run-length]
 

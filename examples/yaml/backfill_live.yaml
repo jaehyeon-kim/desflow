@@ -2,15 +2,15 @@
 #
 # The YAML version of examples/builder/backfill_live_example.py. Until
 # go_live_at the clock is detached from the wall clock, so ten minutes of backdated
-# history are written to Parquet as fast as the machine allows. From go_live_at the
-# run is paced at one simulated second per real second, and the same events go to
-# Kafka for one minute.
+# shop orders are written to Parquet as fast as the machine allows. From go_live_at
+# the run is paced at one simulated second per real second, and the same events go
+# to Kafka for one minute.
 #
 # Needs a broker: odctl up kafka-lite.
 # Run it with: ddes run examples/yaml/backfill_live.yaml
 
 simulation:
-  sim_id: Line_A
+  sim_id: Shop
   # Unpaced to begin with, so the history costs no real time.
   factor: 0.0
   random_seed: 42
@@ -39,25 +39,25 @@ batching:
   flush_interval: 10.0
 
 resources:
-  lathe: {current_cap: 4, max_cap: 10}
+  packers: {current_cap: 4, max_cap: 10}
 
 services:
-  milling: {dist: normal, mean: 2.0, std: 0.2}
+  packing: {dist: normal, mean: 2.0, std: 0.2}
 
 arrivals:
-  standard: {dist: exponential, rate: 0.5, spawn: process_part}
+  orders: {dist: exponential, rate: 0.5, spawn: pack_order}
 
 tasks:
-  process_part:
-    service: milling
-    resource: lathe
-    payload: {path_id: Line_A.service.milling, status: finished}
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {path_id: Shop.service.packing, status: finished}
 
 telemetry:
   - interval: 30.0
     publish:
-      lathe.in_use: lathe.in_use
-      lathe.queue_length: lathe.queue_length
+      packers.in_use: packers.in_use
+      packers.queue_length: packers.queue_length
 
 run:
   # Ten minutes of history, then one minute of live tail.

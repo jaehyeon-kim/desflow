@@ -1,9 +1,9 @@
-"""The examples written three ways publish the same records.
+"""Every example written three ways publishes the same records.
 
-The orders example exists as YAML, builder and low-level code; the backfill example as
-YAML, builder and low-level code. Each Python version is run unpaced into a capturing
-sink in place of its real ones, and its records are compared with the builder
-version's. Nothing here contacts a database or a broker.
+Each example exists as YAML, builder and low-level code. Each version is run unpaced
+into a capturing sink in place of its real ones, and its events and telemetry are
+compared with the builder version's: the same keys and paths, the same values, at the
+same simulation times. Nothing here contacts a database, a broker or a catalog.
 """
 
 import asyncio
@@ -11,7 +11,9 @@ import importlib.util
 import queue
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pytest
 
 from dynamic_des import (
@@ -45,13 +47,22 @@ def _load(path):
     return module
 
 
-def _events(records):
-    """Events by key and value; timestamps depend on the moment the run started."""
-    return [(r["key"], r["value"]) for r in records if r["stream_type"] == "event"]
+def _records(records):
+    """Events by key and telemetry by path, with their values and simulation times.
+
+    Timestamps depend on the moment the run started, and the lag metric on how fast
+    the machine is, so both are left out.
+    """
+    return [
+        (r["stream_type"], r.get("key") or r.get("path_id"), r["value"], r["sim_ts"])
+        for r in records
+        if not str(r.get("path_id", "")).startswith("system.")
+    ]
 
 
 def _run_builder(app, until):
     app.factor = 0.0
+    app.go_live_at = None  # the backfill example stays unpaced for the comparison
     capture = _Capture()
     app._ingress_providers = []
     app._egress_providers = [capture]
@@ -59,81 +70,132 @@ def _run_builder(app, until):
     app._egress_batch_sizes = [None]
     app._egress_flush_intervals = [None]
     app.run(until=until)
-    return capture.records
+    return _records(capture.records)
 
 
-def _run_env(env, processes, until):
+def _run_low_level(module, until, processes):
+    """Runs the low-level version's processes, built by `processes(env, sampler)`."""
+    env = DynamicRealtimeEnvironment(factor=0.0)
+    env.registry.register_sim_parameter(module.PARAMS)
+    sampler = Sampler(rng=np.random.default_rng(42))
     capture = _Capture()
     env.setup_egress([capture])
-    for p in processes:
-        env.process(p)
+    for process in processes(env, sampler):
+        env.process(process)
     try:
         env.run(until=until)
     finally:
         env.teardown()
-    return capture.records
+    return _records(capture.records)
 
 
-@pytest.mark.parametrize("until", [120])
-def test_orders_low_level_matches_builder(until):
-    pytest.importorskip("asyncpg")
-    import numpy as np
-
-    builder = _load(EXAMPLES / "builder" / "postgres_orders_example.py")
-    low = _load(EXAMPLES / "low-level" / "postgres_orders_example.py")
-    expected = _events(_run_builder(builder.app, until))
-    env = DynamicRealtimeEnvironment(factor=0.0)
-    env.registry.register_sim_parameter(low.PARAMS)
-    sampler = Sampler(rng=np.random.default_rng(42))
-    got = _events(
-        _run_env(env, [low.order_generator(env, sampler, max_items=5)], until)
-    )
-    assert got and got == expected
+def _packers(env):
+    return DynamicResource(env, "Shop", "packers")
 
 
-def test_orders_yaml_matches_builder():
-    pytest.importorskip("asyncpg")
-    builder = _load(EXAMPLES / "builder" / "postgres_orders_example.py")
-    expected = _events(_run_builder(builder.app, 120))
-    sys.path.insert(0, str(EXAMPLES / "yaml" / "advanced"))
+def _from_yaml(path):
+    """Builds a blueprint, with its folder importable for a `!python` reference."""
+    sys.path.insert(0, str(path.parent))
     try:
         sys.modules.pop("postgres_orders_logic", None)
-        yaml_app = SimulationContext.from_yaml(
-            EXAMPLES / "yaml" / "advanced" / "postgres_orders.yaml"
-        )
+        return SimulationContext.from_yaml(path)
     finally:
-        sys.path.remove(str(EXAMPLES / "yaml" / "advanced"))
-    assert _events(_run_builder(yaml_app, 120)) == expected
+        sys.path.remove(str(path.parent))
 
 
-def test_backfill_low_level_matches_builder():
-    pytest.importorskip("aiokafka")
-    import numpy as np
+def _local(m, env, sampler):
+    packers = _packers(env)
+    return [
+        m.arrival_generator(env, sampler, packers),
+        m.telemetry_generator(env, packers),
+        m.capacity_changes(env),
+    ]
 
-    builder = _load(EXAMPLES / "builder" / "backfill_live_example.py")
-    low = _load(EXAMPLES / "low-level" / "backfill_live_example.py")
-    builder.app.go_live_at = None  # both stay unpaced for the comparison
-    expected = _events(_run_builder(builder.app, 300))
-    env = DynamicRealtimeEnvironment(factor=0.0)
-    env.registry.register_sim_parameter(low.PARAMS)
-    lathe = DynamicResource(env, "Line_A", "lathe")
-    sampler = Sampler(rng=np.random.default_rng(42))
-    got = _events(
-        _run_env(
-            env,
-            [
-                low.arrival_generator(env, sampler, lathe),
-                low.telemetry_generator(env, lathe),
-            ],
-            300,
-        )
-    )
+
+def _tasks_and_telemetry(m, env, sampler):
+    packers = _packers(env)
+    return [
+        m.arrival_generator(env, sampler, packers),
+        m.telemetry_generator(env, packers),
+    ]
+
+
+def _tasks(m, env, sampler):
+    return [m.arrival_generator(env, sampler, _packers(env))]
+
+
+def _orders(m, env, sampler):
+    return [m.order_generator(env, sampler)]
+
+
+def _orders_with_items(m, env, sampler):
+    return [m.order_generator(env, sampler, max_items=5)]
+
+
+# Example name, its YAML file, the extra its connectors import, the simulated seconds
+# to compare, and the processes its low-level version starts.
+EXAMPLE_CASES = [
+    ("local", "local.yaml", None, 30, _local),
+    ("kafka", "kafka.yaml", "aiokafka", 60, _tasks_and_telemetry),
+    ("parquet", "parquet.yaml", "pyarrow", 600, _tasks),
+    ("iceberg", "iceberg.yaml", "pyiceberg", 600, _tasks),
+    ("postgres", "postgres.yaml", "asyncpg", 60, _orders),
+    ("redis", "redis.yaml", "redis", 60, _orders),
+    ("backfill_live", "backfill_live.yaml", "aiokafka", 300, _tasks_and_telemetry),
+    (
+        "postgres_orders",
+        "advanced/postgres_orders.yaml",
+        "asyncpg",
+        120,
+        _orders_with_items,
+    ),
+]
+
+
+@pytest.fixture
+def no_catalog():
+    """The builder Iceberg example connects to its catalog when it is imported."""
+    with patch("pyiceberg.catalog.rest.RestCatalog", MagicMock()):
+        yield
+
+
+def _builder_records(name, until):
+    builder = _load(EXAMPLES / "builder" / f"{name}_example.py")
+    return _run_builder(builder.app, until)
+
+
+@pytest.mark.parametrize(
+    "name,yaml_file,extra,until,processes",
+    EXAMPLE_CASES,
+    ids=[case[0] for case in EXAMPLE_CASES],
+)
+def test_low_level_matches_builder(
+    name, yaml_file, extra, until, processes, no_catalog
+):
+    if extra:
+        pytest.importorskip(extra)
+    expected = _builder_records(name, until)
+    low = _load(EXAMPLES / "low-level" / f"{name}_example.py")
+    got = _run_low_level(low, until, lambda env, s: processes(low, env, s))
     assert got and got == expected
 
 
-def test_backfill_yaml_matches_builder():
-    pytest.importorskip("aiokafka")
-    builder = _load(EXAMPLES / "builder" / "backfill_live_example.py")
-    expected = _events(_run_builder(builder.app, 300))
-    yaml_app = SimulationContext.from_yaml(EXAMPLES / "yaml" / "backfill_live.yaml")
-    assert _events(_run_builder(yaml_app, 300)) == expected
+@pytest.mark.parametrize(
+    "name,yaml_file,extra,until,processes",
+    EXAMPLE_CASES,
+    ids=[case[0] for case in EXAMPLE_CASES],
+)
+def test_yaml_matches_builder(name, yaml_file, extra, until, processes, no_catalog):
+    if extra:
+        pytest.importorskip(extra)
+    expected = _builder_records(name, until)
+    yaml_app = _from_yaml(EXAMPLES / "yaml" / yaml_file)
+    assert _run_builder(yaml_app, until) == expected
+
+
+def test_every_example_is_compared():
+    """A new example must join the comparison, in all three APIs."""
+    names = {
+        p.stem.removesuffix("_example") for p in (EXAMPLES / "builder").glob("*.py")
+    }
+    assert names == {case[0] for case in EXAMPLE_CASES}

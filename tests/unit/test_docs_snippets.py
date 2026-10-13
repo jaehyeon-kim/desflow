@@ -24,7 +24,7 @@ def test_snippets_exist():
 
 @pytest.mark.parametrize("path", SNIPPETS, ids=[p.name for p in SNIPPETS])
 def test_snippet_builds_and_runs(path):
-    sys.modules.pop("workshop_logic", None)
+    sys.modules.pop("shop_logic", None)
     app = SimulationContext.from_yaml(path)
     app.factor = 0.0
     app.run(until=200)

@@ -65,7 +65,7 @@ async def test_kafka_ingress_pluggable_deserializers(MockConsumer):
     # Create a mock deserializer that returns a specific dictionary
     mock_deserializer = MagicMock()
     mock_deserializer.deserialize.return_value = {
-        "path_id": "Line_A.lathe.current_cap",
+        "path_id": "Shop.packers.current_cap",
         "value": 10,
     }
 
@@ -93,7 +93,7 @@ async def test_kafka_ingress_pluggable_deserializers(MockConsumer):
     # Verify the decoded data was placed in the queue
     assert not ingress_queue.empty()
     path, value = ingress_queue.get_nowait()
-    assert path == "Line_A.lathe.current_cap"
+    assert path == "Shop.packers.current_cap"
     assert value == 10
 
 
@@ -111,7 +111,7 @@ async def test_kafka_ingress_success(MockConsumer):
             class FakeMessage:
                 topic = "test-topic"  # Required by the new topic router
                 value = json.dumps(
-                    {"path_id": "Line_A.resources.lathe.current_cap", "value": 5}
+                    {"path_id": "Shop.resources.packers.current_cap", "value": 5}
                 ).encode("utf-8")
 
             yield FakeMessage()
@@ -137,5 +137,5 @@ async def test_kafka_ingress_success(MockConsumer):
 
     assert not ingress_queue.empty()
     path, value = ingress_queue.get_nowait()
-    assert path == "Line_A.resources.lathe.current_cap"
+    assert path == "Shop.resources.packers.current_cap"
     assert value == 5

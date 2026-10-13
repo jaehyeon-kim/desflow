@@ -5,12 +5,12 @@ def test_admin_process_telemetry():
     """Verify the admin connector properly routes telemetry messages to _vitals."""
     admin = KafkaAdminConnector(bootstrap_servers="localhost:9092")
     data = {
-        "path_id": "Line_A.lathe.utilization",
+        "path_id": "Shop.packers.utilization",
         "value": 99.9,
         "timestamp": "2023-01-01T00:00:00",
     }
     admin._process_message(data)
-    assert admin.get_vitals()["Line_A.lathe.utilization"] == 99.9
+    assert admin.get_vitals()["Shop.packers.utilization"] == 99.9
 
 
 def test_admin_process_events_and_pruning():
@@ -21,13 +21,13 @@ def test_admin_process_events_and_pruning():
     for i in range(3):
         data = {
             "key": f"task-{i}",
-            "value": {"path_id": "Line_A.service.milling", "status": "started"},
+            "value": {"path_id": "Shop.service.packing", "status": "started"},
             "timestamp": f"2023-01-01T00:00:0{i}",
         }
         admin._process_message(data)
 
     state = admin.get_state()
-    service_tasks = state["Line_A"]["milling"]
+    service_tasks = state["Shop"]["packing"]
 
     # Since max_tasks is 2, task-0 should have been pruned to prevent memory leaks
     assert len(service_tasks) == 2

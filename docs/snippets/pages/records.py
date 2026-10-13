@@ -10,15 +10,15 @@ from pydantic import BaseModel
 
 from dynamic_des import ConsoleEgress, DynamicRealtimeEnvironment, SimulationContext
 
-app = SimulationContext(sim_id="Line_A", factor=0.0).add_egress(ConsoleEgress())
-app.add_resource("lathe", current_cap=1, max_cap=1)
+app = SimulationContext(sim_id="Shop", factor=0.0).add_egress(ConsoleEgress())
+app.add_resource("packers", current_cap=1, max_cap=1)
 
 
 # --8<-- [start:telemetry]
 @app.telemetry_loop(interval=10.0)
 def report(context: SimulationContext):
-    # path_id is Line_A.lathe.in_use: the sim_id is added in front
-    context.publish("lathe.in_use", context.get_resource("lathe").in_use)
+    # path_id is Shop.packers.in_use: the sim_id is added in front
+    context.publish("packers.in_use", context.get_resource("packers").in_use)
 
 
 # --8<-- [end:telemetry]

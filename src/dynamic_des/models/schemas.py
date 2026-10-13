@@ -31,14 +31,14 @@ class TelemetryPayload(BaseStreamPayload):
 
     Attributes:
         stream_type (Literal["telemetry"]): Hardcoded to "telemetry" for downstream routing.
-        path_id (str): The dot-notation path of the metric (e.g., 'Line_A.lathe.utilization').
+        path_id (str): The dot-notation path of the metric (e.g., 'Shop.packers.utilization').
         value (Any): The scalar value of the metric at the given simulation time.
     """
 
     stream_type: Literal["telemetry"] = "telemetry"
     path_id: str = Field(
         ...,
-        description="The dot-notation path of the metric (e.g., 'Line_A.lathe.utilization').",
+        description="The dot-notation path of the metric (e.g., 'Shop.packers.utilization').",
     )
     value: Any = Field(..., description="The scalar value of the metric.")
 
@@ -47,7 +47,7 @@ class EventPayload(BaseStreamPayload):
     """
     Schema for high-volume discrete simulation events.
 
-    This payload tracks state transitions of specific entities (like tasks or parts) throughout
+    This payload tracks state transitions of specific entities (like tasks or orders) throughout
     the simulation lifecycle. The `key` attribute allows message brokers like Kafka to maintain
     strict chronological ordering for specific tasks.
 

@@ -1,6 +1,6 @@
 # YAML Blueprints, from First File to Connectors
 
-A blueprint puts the configuration of a simulation in a YAML file: the machines, the distributions, the connectors and the experiment. This guide starts with a first file, then adds a scripted experiment, connectors, and settings that change from one environment to the next. Every file on this page is plain YAML.
+A blueprint puts the configuration of a simulation in a YAML file: the resources, the distributions, the connectors and the experiment. This guide starts with a first file, then adds a scripted experiment, connectors, and settings that change from one environment to the next. Every file on this page is plain YAML.
 
 The [YAML Blueprints reference](../architecture/yaml.md) lists every section and field. Every file on this page is in the repository under [`docs/snippets/`](https://github.com/jaehyeon-kim/dynamic-des/tree/main/docs/snippets), and the tests build each one.
 
@@ -8,7 +8,7 @@ The [YAML Blueprints reference](../architecture/yaml.md) lists every section and
 
 ## When to use a blueprint
 
-Use a blueprint when the configuration is what changes between runs: a new arrival rate, a second machine, a different broker, a capacity experiment. A YAML file is easier to review and to diff than a builder chain, and a run is one command.
+Use a blueprint when the configuration is what changes between runs: a new arrival rate, a second packer, a different broker, a capacity experiment. A YAML file is easier to review and to diff than a builder chain, and a run is one command.
 
 Stay in Python when most of the program is logic. A blueprint can also reference Python objects with `!python` for the logic YAML cannot express, as [Python in a Blueprint](yaml-advanced.md) explains.
 
@@ -16,12 +16,12 @@ Stay in Python when most of the program is logic. A blueprint can also reference
 
 ## Write a first blueprint
 
-The smallest useful blueprint declares a machine, how long it works, how often parts arrive, and what happens to each part:
+The smallest useful blueprint declares a packer, how long packing takes, how often orders arrive, and what happens to each order:
 
 ```yaml title="docs/snippets/yaml/first.yaml"
-# A first blueprint: one machine, one kind of part, printed to the terminal.
+# A first blueprint: one packer, one kind of order, printed to the terminal.
 simulation:
-  sim_id: Workshop
+  sim_id: Shop
   # 0 runs as fast as the machine allows, so the run ends at once.
   factor: 0
   random_seed: 1
@@ -30,20 +30,20 @@ egress:
   - type: Console
 
 resources:
-  drill: {current_cap: 1, max_cap: 3}
+  packers: {current_cap: 1, max_cap: 3}
 
 services:
-  drilling: {dist: normal, mean: 4.0, std: 1.0}
+  packing: {dist: normal, mean: 4.0, std: 1.0}
 
 arrivals:
-  parts: {dist: exponential, rate: 0.2, spawn: drill_part}
+  orders: {dist: exponential, rate: 0.2, spawn: pack_order}
 
 tasks:
-  drill_part:
-    service: drilling
-    resource: drill
+  pack_order:
+    service: packing
+    resource: packers
     payload: {status: finished}
-    id_field: part_id
+    id_field: order_id
 
 run:
   until: 60
@@ -59,32 +59,32 @@ Every section of a blueprint becomes a builder call:
 
 ![simulation becomes SimulationContext, resources add_resource, services add_service, arrivals add_arrival, tasks @app.task, ingress and egress add_ingress and add_egress, scenario timed registry updates, and run run(until)](../assets/diagrams/blueprint-sections.png)
 
-Each section maps to one builder call. `resources` is `add_resource`, `services` is `add_service`, and `arrivals` is `add_arrival`. `spawn: drill_part` starts the `drill_part` task on every arrival, which is the arrival loop a Python script writes by hand. The task requests the drill, waits a sampled drilling time and publishes its `payload`:
+Each section maps to one builder call. `resources` is `add_resource`, `services` is `add_service`, and `arrivals` is `add_arrival`. `spawn: pack_order` starts the `pack_order` task on every arrival, which is the arrival loop a Python script writes by hand. The task requests a packer, waits a sampled packing time and publishes its `payload`:
 
 ```text
-[EVT] {'sim_ts': 5.365, 'timestamp': '...', 'key': 'task-0', 'value': {'path_id': 'Workshop.service.drilling', 'status': 'queued'}}
-[EVT] {'sim_ts': 5.365, 'timestamp': '...', 'key': 'task-0', 'value': {'path_id': 'Workshop.service.drilling', 'status': 'started'}}
-[EVT] {'sim_ts': 8.062, 'timestamp': '...', 'key': 'task-0', 'value': {'status': 'finished', 'part_id': 0}}
+[EVT] {'sim_ts': 5.365, 'timestamp': '...', 'key': 'task-0', 'value': {'path_id': 'Shop.service.packing', 'status': 'queued'}}
+[EVT] {'sim_ts': 5.365, 'timestamp': '...', 'key': 'task-0', 'value': {'path_id': 'Shop.service.packing', 'status': 'started'}}
+[EVT] {'sim_ts': 8.062, 'timestamp': '...', 'key': 'task-0', 'value': {'status': 'finished', 'order_id': 0}}
 ```
 
 `factor: 0` runs as fast as the machine allows, so 60 simulation seconds end at once. Set `factor: 1` to pace the run in real time. A mistake stops the load with the file and the line, before anything runs:
 
 ```text
-Error: first.yaml:22: task 'drill_part' uses service 'drill', which is not defined under services
+Error: first.yaml:22: task 'pack_order' uses service 'packers', which is not defined under services
 ```
 
 ---
 
 ## Script an experiment
 
-A `scenario` changes registry values at set simulation times. Here a second drill comes online at 30 seconds, parts arrive twice as fast from one minute, and the extra drill is removed at two minutes:
+A `scenario` changes registry values at set simulation times. Here a second packer starts at 30 seconds, orders arrive twice as fast from one minute, and the extra packer leaves at two minutes:
 
 ```yaml title="docs/snippets/yaml/scenario.yaml"
-# The first blueprint with a scripted experiment: a second drill comes online at
-# 30 s, parts arrive twice as fast from 1 min, and the extra drill is removed at
+# The first blueprint with a scripted experiment: a second packer starts at 30 s,
+# orders arrive twice as fast from 1 min, and the extra packer leaves at
 # 2 min. Every change lands at exactly that simulation time, on every run.
 simulation:
-  sim_id: Workshop
+  sim_id: Shop
   factor: 0
   random_seed: 1
 
@@ -92,32 +92,32 @@ egress:
   - type: Console
 
 resources:
-  drill: {current_cap: 1, max_cap: 3}
+  packers: {current_cap: 1, max_cap: 3}
 
 services:
-  drilling: {dist: normal, mean: 4.0, std: 1.0}
+  packing: {dist: normal, mean: 4.0, std: 1.0}
 
 arrivals:
-  parts: {dist: exponential, rate: 0.2, spawn: drill_part}
+  orders: {dist: exponential, rate: 0.2, spawn: pack_order}
 
 tasks:
-  drill_part:
-    service: drilling
-    resource: drill
+  pack_order:
+    service: packing
+    resource: packers
     payload: {status: finished}
-    id_field: part_id
+    id_field: order_id
 
 telemetry:
   # Shows each change as it lands.
   - interval: 10
     publish:
-      drill.capacity: drill.capacity
-      drill.queue_length: drill.queue_length
+      packers.capacity: packers.capacity
+      packers.queue_length: packers.queue_length
 
 scenario:
-  - {at: 30, path: Workshop.resources.drill.current_cap, value: 2}
-  - {at: 1 min, path: Workshop.arrival.parts.rate, value: 0.4}
-  - {at: 2 min, path: Workshop.resources.drill.current_cap, value: 1}
+  - {at: 30, path: Shop.resources.packers.current_cap, value: 2}
+  - {at: 1 min, path: Shop.arrival.orders.rate, value: 0.4}
+  - {at: 2 min, path: Shop.resources.packers.current_cap, value: 1}
 
 run:
   until: 3 min
@@ -126,11 +126,11 @@ run:
 The telemetry entry shows the change land:
 
 ```text
-[TEL] {'sim_ts': 20.0, 'timestamp': '...', 'path_id': 'Workshop.drill.capacity', 'value': 1}
-[TEL] {'sim_ts': 60.0, 'timestamp': '...', 'path_id': 'Workshop.drill.capacity', 'value': 2}
+[TEL] {'sim_ts': 20.0, 'timestamp': '...', 'path_id': 'Shop.packers.capacity', 'value': 1}
+[TEL] {'sim_ts': 60.0, 'timestamp': '...', 'path_id': 'Shop.packers.capacity', 'value': 2}
 ```
 
-The steps run on the simulation clock, so the experiment repeats exactly on every run and works at `factor: 0`. Every path is checked when the file is loaded. A misspelt path such as `Workshop.resources.dril.current_cap` stops the load with its line, rather than being ignored at the moment it is due.
+The steps run on the simulation clock, so the experiment repeats exactly on every run and works at `factor: 0`. Every path is checked when the file is loaded. A misspelt path such as `Shop.resources.packer.current_cap` stops the load with its line, rather than being ignored at the moment it is due.
 
 A path names one value in the registry: `<sim_id>.resources.<name>.current_cap`, `<sim_id>.arrival.<name>.rate` for an exponential arrival, `<sim_id>.service.<name>.mean`, or `<sim_id>.variables.<name>`. A scenario can run beside an ingress connector, so a scripted baseline can run while an operator steers over Kafka. [Scenarios versus `LocalIngress`](../architecture/registry.md#scenarios-versus-localingress) explains why a scenario is not a `LocalIngress` schedule.
 
@@ -143,18 +143,19 @@ Connectors are listed under `ingress` and `egress`. `type` is a short name, and 
 ```yaml title="examples/yaml/redis.yaml"
 # Redis Streams output with live parameter updates, in YAML.
 #
-# The YAML version of examples/builder/redis_example.py. Each part_arrival
-# spawns record_part, a task with no service or resource, which publishes its
-# payload at once. RedisEgress writes it to the part_events stream that the
-# __stream__ key names, while RedisIngress subscribes to the simulation_params
-# channel.
+# The YAML version of examples/builder/redis_example.py: an online shop that records
+# each order as it is placed. Each order spawns record_order, a task with no service
+# or resource, which publishes its payload at once. RedisEgress writes it to the
+# order_events stream that the __stream__ key names, while RedisIngress subscribes to
+# the simulation_params channel.
 #
 # Needs Valkey: odctl up valkey. Runs until interrupted with Ctrl + C.
 # Run it with: ddes run examples/yaml/redis.yaml
 
 simulation:
-  sim_id: Factory
+  sim_id: Shop
   factor: 1.0
+  random_seed: 42
 
 ingress:
   - type: Redis
@@ -171,13 +172,13 @@ egress:
       stream_name: events
 
 arrivals:
-  part_arrival: {dist: exponential, rate: 2.0, spawn: record_part}
+  orders: {dist: exponential, rate: 2.0, spawn: record_order}
 
 tasks:
-  record_part:
-    # id_field adds the task id as part_id.
-    payload: {__stream__: part_events, type: A, status: arrived}
-    id_field: part_id
+  record_order:
+    # id_field adds the task id as order_id.
+    payload: {__stream__: order_events, channel: web, status: placed}
+    id_field: order_id
 ```
 
 The other options of `add_egress` sit beside `config`: `when` routes records, and `batch_size` and `flush_interval` give one sink its own cadence. `when: history` sends the records stamped before `simulation.go_live_at`, and `when: live` sends the rest. `batching` sets the defaults, as `with_batching` does. The [YAML examples](../examples/local.md) cover every connector the builder examples use: Console, Kafka, Parquet, Iceberg, Postgres and Redis, and the backfill-then-live run that sends history to Parquet and the live tail to Kafka.
@@ -201,7 +202,7 @@ Settings that the Python API takes as objects are plain values in `config`:
 # Settings that change per environment, read from environment variables.
 # Run it with: SIM_FACTOR=1 ddes run environment.yaml
 simulation:
-  sim_id: ${SIM_ID:-Line_A}
+  sim_id: ${SIM_ID:-Shop}
   # An unquoted value is read after the replacement, so this is the number 0
   factor: ${SIM_FACTOR:-0}
   # Read against the moment the file is loaded: a day of history up to now
@@ -213,7 +214,7 @@ egress:
 resources:
   # Quoted, because ${...} inside {...} would end the mapping early; the check
   # turns the text into a number
-  lathe: {current_cap: "${LATHES:-2}", max_cap: 5}
+  packers: {current_cap: "${PACKERS:-2}", max_cap: 5}
 
 run:
   until: ${RUN_FOR:-1 hour}
