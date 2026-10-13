@@ -2613,7 +2613,8 @@
 <li><strong>Entity state:</strong> an order, a session or a parcel keeps its attributes as it moves from task to task, and every event of one entity carries its key.</li>
 <li><strong>Delays without a resource,</strong> for steps that only take time.</li>
 <li><strong>Stores and containers</strong> used by tasks, with a choice of queue order and task priority.</li>
-<li><strong>Built-in statistics:</strong> wait and service times, throughput, utilisation and queue length, published as telemetry.</li>
+<li><strong>Built-in statistics:</strong> wait and service times, throughput, utilisation and queue length, published as telemetry, with a warm-up period that leaves out early, unsteady output.</li>
+<li><strong>Replications:</strong> run a model with many seeds and get each statistic with a confidence interval, so a result is never read from one run.</li>
 <li><strong>Ground-truth records:</strong> a scenario step that injects a fault can publish a record of what it changed, sent only to chosen sinks, so a detector or an agent can be scored against it.</li>
 <li><strong><code>ddes explain</code>:</strong> shows a simulation as a graph, says whether each part is stable, points to the bottleneck and suggests changes.</li>
 </ul>
@@ -2633,8 +2634,10 @@
 </ul>
 <h3 id="docs">Docs</h3>
 <ul>
-<li><strong>Checking a model:</strong> from an idea to a stable model with <code>ddes explain</code>, and running it on the server.</li>
-<li><strong>Building blocks to come:</strong> a page for each new block as it ships, such as routing between tasks and built-in statistics.</li>
+<li><strong>Learn DES with the shop:</strong> a tutorial that grows one online shop page by page, each page answering a question with a number: queues and capacity, randomness and inputs, measuring and trusting results, stock, priorities, flows, comparing designs and live changes. It teaches discrete-event simulation and SimPy along the way, not only dynamic-des.</li>
+<li><strong>Simulation concepts:</strong> the steps of a simulation study, verification and validation, queueing basics and common modelling mistakes.</li>
+<li><strong>Checking a model:</strong> from an idea to a stable model with <code>ddes explain</code>, tests and validation, and running it on the server.</li>
+<li><strong>Building blocks to come:</strong> a reference page for each new block as it ships, such as routing between tasks and built-in statistics.</li>
 <li><strong>Reference:</strong> the YAML format, the command line and the record format in one place.</li>
 </ul>
 <h2 id="what-10-means">What 1.0 means</h2>
@@ -2648,7 +2651,6 @@
 <li><strong>Transport on maps:</strong> vehicles that move between locations on real roads and publish their positions.</li>
 <li><strong>Data-driven inputs:</strong> arrivals replayed from a file or a database, or taken live from a Kafka topic.</li>
 <li><strong>Decisions from outside:</strong> a dispatcher or an agent answers for one order or session, and a run can repeat exactly from a log of those answers.</li>
-<li><strong>Trustworthy results:</strong> replications with confidence intervals, and a warm-up period.</li>
 </ul>
 <h3 id="analysis">Analysis</h3>
 <ul>
