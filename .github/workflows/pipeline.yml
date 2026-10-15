@@ -19,6 +19,11 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Stages, each starting only when the one before it passes:
+  # 1. checks, in parallel: lint, extras-isolation and core-install;
+  # 2. tests, in parallel: unit-test, integration-test and blueprint;
+  # 3. docs-build;
+  # 4. docs, on main only.
   # Linting is not version specific, so it runs once rather than in all five
   # unit-test legs, where a single hook failure used to fail the matrix five times.
   lint:
@@ -36,63 +41,6 @@ jobs:
       # actions/cache@v4, which runs on the deprecated Node.js 20.
       - name: Run pre-commit
         run: uvx pre-commit run --show-diff-on-failure --color=always --all-files
-
-  unit-test:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: true
-
-      # Pre-downloads the interpreter. `uv run --python` below is what selects it.
-      - name: Fetch Python ${{ matrix.python-version }}
-        run: uv python install ${{ matrix.python-version }}
-
-      - name: Run Unit Tests
-        # --python is what selects the interpreter. `uv python install` above only
-        # downloads it, so without this every leg of the matrix would run the
-        # version in .python-version and the other four would test nothing new.
-        run: uv run --python ${{ matrix.python-version }} --with pytest-cov --all-extras pytest tests/unit/ --cov=src/desflow --cov-report=xml
-
-  integration-test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: true
-
-      # Pre-downloads the interpreter. `uv run --python` below is what selects it.
-      - name: Fetch Python 3.10
-        run: uv python install 3.10
-
-      # Example and test infrastructure comes from odctl, which the conftest
-      # drives with `odctl up` and `odctl down`. odctl is in the dev dependency
-      # group, so `uv run` installs it into .venv and puts it on PATH. Without
-      # it on PATH every container-backed test skips instead of failing, and the
-      # job reports green while testing nothing, so fail here if it is missing.
-      - name: Verify odctl is on PATH
-        run: |
-          uv run --python 3.10 --all-extras python -c "import shutil, sys; path = shutil.which('odctl'); print(path or 'odctl not found on PATH'); sys.exit(0 if path else 1)"
-
-      - name: Run Integration Tests
-        # Run tests/integration on a single baseline version. -ra lists every
-        # skipped test, so an unexpected skip is visible in the job log.
-        run: uv run --python 3.10 --all-extras pytest tests/integration/ -ra
-
-      # - name: Upload coverage reports to Codecov
-      #   uses: codecov/codecov-action@v4
-      #   with:
-      #     token: ${{ secrets.CODECOV_TOKEN }}
-      #     file: ./coverage.xml
 
   # Each leg installs exactly one extra into an empty environment, then imports and
   # constructs the connectors that extra exists to enable. Running the suite with
@@ -197,10 +145,93 @@ jobs:
           CHECK: ${{ matrix.check }}
         run: .venv/bin/python -c "$CHECK"
 
-  # The core install alone must run a plain YAML blueprint, which proves the desflow
+  # The core install alone must import and start the desflow command, which proves the
   # entry point, Typer and PyYAML need no extra.
   core-install:
+    name: Import the core install alone
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Install the package with no extra
+        run: |
+          uv venv --python 3.12
+          uv pip install .
+
+      - name: Import desflow and start the desflow command
+        run: |
+          .venv/bin/python -c "import desflow"
+          .venv/bin/desflow --help
+
+  unit-test:
+    needs: [lint, extras-isolation, core-install]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      # Pre-downloads the interpreter. `uv run --python` below is what selects it.
+      - name: Fetch Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Run Unit Tests
+        # --python is what selects the interpreter. `uv python install` above only
+        # downloads it, so without this every leg of the matrix would run the
+        # version in .python-version and the other four would test nothing new.
+        run: uv run --python ${{ matrix.python-version }} --with pytest-cov --all-extras pytest tests/unit/ --cov=src/desflow --cov-report=xml
+
+  integration-test:
+    needs: [lint, extras-isolation, core-install]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      # Pre-downloads the interpreter. `uv run --python` below is what selects it.
+      - name: Fetch Python 3.10
+        run: uv python install 3.10
+
+      # Example and test infrastructure comes from odctl, which the conftest
+      # drives with `odctl up` and `odctl down`. odctl is in the dev dependency
+      # group, so `uv run` installs it into .venv and puts it on PATH. Without
+      # it on PATH every container-backed test skips instead of failing, and the
+      # job reports green while testing nothing, so fail here if it is missing.
+      - name: Verify odctl is on PATH
+        run: |
+          uv run --python 3.10 --all-extras python -c "import shutil, sys; path = shutil.which('odctl'); print(path or 'odctl not found on PATH'); sys.exit(0 if path else 1)"
+
+      - name: Run Integration Tests
+        # Run tests/integration on a single baseline version. -ra lists every
+        # skipped test, so an unexpected skip is visible in the job log.
+        run: uv run --python 3.10 --all-extras pytest tests/integration/ -ra
+
+      # - name: Upload coverage reports to Codecov
+      #   uses: codecov/codecov-action@v4
+      #   with:
+      #     token: ${{ secrets.CODECOV_TOKEN }}
+      #     file: ./coverage.xml
+
+  # A plain YAML blueprint runs with the core install alone, as a new user's first
+  # command does.
+  blueprint:
     name: Run a YAML blueprint with the core install alone
+    needs: [lint, extras-isolation, core-install]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -219,9 +250,11 @@ jobs:
         run: .venv/bin/desflow run examples/yaml/local.yaml --until 2
 
   # A strict build fails on a broken link or anchor, so a pull request finds it
-  # before the docs job deploys from main. Material prints a notice about MkDocs 2.0
+  # before the docs job deploys from main. It runs after the tests, because the docs
+  # are only deployed from code that passed them. Material prints a notice about MkDocs 2.0
   # that strict mode counts as a warning; the variable turns that notice off.
   docs-build:
+    needs: [unit-test, integration-test, blueprint]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -237,7 +270,7 @@ jobs:
         run: uv run mkdocs build --strict
 
   docs:
-    needs: [lint, unit-test, integration-test, docs-build]
+    needs: docs-build
     permissions:
       contents: write
       pages: write
