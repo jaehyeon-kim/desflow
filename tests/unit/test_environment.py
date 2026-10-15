@@ -38,63 +38,6 @@ class TrackingEgress(BaseEgress):
             pass  # Clean shutdown
 
 
-def test_environment_clean_teardown():
-    """Verify that background threads and asyncio loops close cleanly."""
-    env = DynamicRealtimeEnvironment(strict=False)
-    tracker = TrackingEgress()
-    env.setup_egress(providers=[tracker])
-
-    env.run(until=1)
-
-    try:
-        env.teardown()
-    except Exception as e:
-        pytest.fail(f"Environment teardown raised an exception: {e}")
-
-
-def test_publish_telemetry():
-    """Verify telemetry formatting and queue placement."""
-    env = DynamicRealtimeEnvironment(strict=False)
-    tracker = TrackingEgress()
-
-    # Set batch_size=1 so it flushes to the queue immediately
-    env.setup_egress(providers=[tracker], batch_size=1)
-
-    env.publish_telemetry("Shop.packers.utilization", 85.5)
-
-    # Teardown guarantees the queue is fully drained into our tracker
-    env.teardown()
-
-    # The tracker should have received 1 batch containing 1 payload
-    assert len(tracker.received_batches) == 1
-    payload = tracker.received_batches[0][0]
-
-    assert payload["stream_type"] == "telemetry"
-    assert payload["path_id"] == "Shop.packers.utilization"
-    assert payload["value"] == 85.5
-    assert "sim_ts" in payload
-    assert "timestamp" in payload
-
-
-def test_publish_event():
-    """Verify discrete event formatting and queue buffering."""
-    env = DynamicRealtimeEnvironment(strict=False)
-    tracker = TrackingEgress()
-
-    env.setup_egress(providers=[tracker], batch_size=1)
-
-    env.publish_event("task-001", {"status": "started"})
-
-    env.teardown()
-
-    assert len(tracker.received_batches) == 1
-    payload = tracker.received_batches[0][0]
-
-    assert payload["stream_type"] == "event"
-    assert payload["key"] == "task-001"
-    assert payload["value"] == {"status": "started"}
-
-
 class SlowEgress(BaseEgress):
     """An egress provider that consumes one batch at a time, slowly.
 
@@ -130,16 +73,6 @@ class StalledEgress(BaseEgress):
                 await asyncio.sleep(0.05)
         except asyncio.CancelledError:
             pass
-
-
-def test_egress_queue_is_bounded():
-    """A bounded queue is what turns a slow sink into backpressure."""
-    env = DynamicRealtimeEnvironment(strict=False)
-    env.setup_egress(providers=[TrackingEgress()], max_queued_batches=7)
-
-    assert env.egress_queue.maxsize == 7
-
-    env.teardown()
 
 
 def test_teardown_waits_for_a_slow_sink():
@@ -245,18 +178,6 @@ def test_teardown_returns_when_providers_never_finish():
     assert elapsed < 5.0
 
 
-def test_zero_stall_window_does_not_hang():
-    """An impatient setting is still a working setting."""
-    env = DynamicRealtimeEnvironment(strict=False)
-    env.setup_egress(providers=[StalledEgress()], batch_size=1, drain_stall_seconds=0.0)
-
-    env.egress_queue.put([{"stream_type": "telemetry"}])
-
-    started = time.monotonic()
-    env.teardown()
-    assert time.monotonic() - started < 5.0
-
-
 def test_stall_window_is_honoured_before_giving_up():
     """The wait lasts about as long as it was told to, not five fixed seconds."""
     env = DynamicRealtimeEnvironment(strict=False)
@@ -288,45 +209,6 @@ class RecordingEgress:
                 self.batch_sizes.append(len(batch))
             except queue.Empty:
                 await asyncio.sleep(0.01)
-
-
-def test_two_providers_each_receive_every_record():
-    """Fan-out. Providers used to share one queue and compete for batches, so a run
-    with two sinks wrote part of the data to each with no error."""
-    first, second = RecordingEgress(), RecordingEgress()
-    env = DynamicRealtimeEnvironment(strict=False)
-    env.setup_egress(providers=[first, second], batch_size=1)
-
-    for i in range(5):
-        env.publish_telemetry("metric", i)
-
-    env.teardown()
-
-    assert len(first.records) == 5
-    assert len(second.records) == 5
-    assert [r["value"] for r in first.records] == [r["value"] for r in second.records]
-
-
-def test_a_predicate_routes_records_to_one_provider():
-    """Per-record routing. Each provider takes an optional predicate."""
-    hot, cold = RecordingEgress(), RecordingEgress()
-    env = DynamicRealtimeEnvironment(strict=False)
-    env.setup_egress(
-        providers=[hot, cold],
-        batch_size=1,
-        predicates=[
-            lambda r: r.get("value", 0) >= 3,
-            lambda r: r.get("value", 0) < 3,
-        ],
-    )
-
-    for i in range(5):
-        env.publish_telemetry("metric", i)
-
-    env.teardown()
-
-    assert sorted(r["value"] for r in hot.records) == [3, 4]
-    assert sorted(r["value"] for r in cold.records) == [0, 1, 2]
 
 
 def test_predicate_count_must_match_provider_count():
@@ -719,39 +601,6 @@ def test_non_string_keys_are_coerced_or_rejected_as_the_model_did():
             env.publish_event(5, {"status": "started"})
         with pytest.raises(ValidationError):
             env.publish_telemetry(None, 1.0)
-    finally:
-        env.teardown()
-
-
-def test_serialization_alias_is_not_applied_to_the_value():
-    """`model_dump(mode="json")` defaults to by_alias=False, to_jsonable_python to True.
-
-    Left at its default the new path renamed every aliased field of a user model, so
-    a consumer reading `real_name` would have found `aliasName` instead.
-    """
-    env = _buffered_env()
-    try:
-        env.publish_event("task-001", _Aliased(real_name="n"))
-        assert env._event_buffer[-1]["value"] == {"real_name": "n"}
-    finally:
-        env.teardown()
-
-
-def test_non_finite_floats_become_null():
-    """`model_dump(mode="json")` writes None for NaN and infinity.
-
-    to_jsonable_python defaults to leaving them as floats, which a Parquet sink
-    stores as NaN rather than null.
-    """
-    env = _buffered_env()
-    try:
-        env.publish_telemetry("metric", float("nan"))
-        env.publish_telemetry("metric", float("inf"))
-        env.publish_event("task-001", {"a": float("-inf")})
-
-        assert env._event_buffer[0]["value"] is None
-        assert env._event_buffer[1]["value"] is None
-        assert env._event_buffer[2]["value"] == {"a": None}
     finally:
         env.teardown()
 

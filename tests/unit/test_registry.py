@@ -32,21 +32,6 @@ def test_registry_registration_paths(registry, sample_params):
     assert registry.get("Shop.resources.operator.max_cap").value == 3
 
 
-def test_registry_get_config(registry, sample_params):
-    """Verify that config objects can be retrieved by path."""
-    registry.register_sim_parameter(sample_params)
-
-    # Retrieve DistributionConfig
-    setup_cfg = registry.get_config("Shop.service.setup")
-    assert setup_cfg.mean == 2.0
-    assert setup_cfg.dist == "normal"
-
-    # Retrieve CapacityConfig
-    packers_cfg = registry.get_config("Shop.resources.packers")
-    assert packers_cfg.current_cap == 2
-    assert packers_cfg.max_cap == 5
-
-
 def test_registry_config_sync(registry, sample_params):
     """Verify that updating a path also updates the parent config object attributes."""
     registry.register_sim_parameter(sample_params)

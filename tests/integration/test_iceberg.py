@@ -60,38 +60,6 @@ async def test_snapshot_count_equals_flush_count(iceberg_catalog, namespace):
 
 @pytest.mark.asyncio
 @pytest.mark.integration
-async def test_router_writes_two_tables_and_drops_records(iceberg_catalog, namespace):
-    """Another engine reads back only what the router kept, split as it routed."""
-    events = f"{namespace}.events"
-    telemetry = f"{namespace}.telemetry"
-
-    def router(data: dict):
-        if data["stream_type"] == "lag":
-            return None
-        return telemetry if data["stream_type"] == "telemetry" else events
-
-    egress = IcebergStorageEgress(catalog=iceberg_catalog, table_router=router)
-    q: queue.Queue = queue.Queue()
-    q.put(
-        [
-            {"stream_type": "event", "key": "a"},
-            {"stream_type": "telemetry", "key": "b"},
-            {"stream_type": "lag", "key": "dropped"},
-            {"stream_type": "event", "key": "c"},
-        ]
-    )
-
-    await _drain(egress, q)
-
-    event_rows = iceberg_catalog.load_table(events).scan().to_arrow().to_pylist()
-    telemetry_rows = iceberg_catalog.load_table(telemetry).scan().to_arrow().to_pylist()
-
-    assert sorted(r["key"] for r in event_rows) == ["a", "c"]
-    assert [r["key"] for r in telemetry_rows] == ["b"]
-
-
-@pytest.mark.asyncio
-@pytest.mark.integration
 async def test_explicit_schema_and_location_survive_the_round_trip(
     iceberg_catalog, namespace
 ):

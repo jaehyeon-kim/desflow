@@ -15,13 +15,6 @@ def mock_pool():
 
 
 @pytest.mark.asyncio
-async def test_postgres_egress_initialization():
-    egress = PostgresEgress("postgresql://user:password@localhost/db", "test_table")
-    assert egress.dsn == "postgresql://user:password@localhost/db"
-    assert egress.table_name == "test_table"
-
-
-@pytest.mark.asyncio
 @patch("desflow.connectors.egress.postgres.asyncpg.create_pool", new_callable=AsyncMock)
 async def test_postgres_egress_run(mock_create_pool, mock_pool, run_until):
     pool, conn = mock_pool

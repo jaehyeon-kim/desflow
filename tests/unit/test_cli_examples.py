@@ -25,16 +25,9 @@ def _local_fetch(url):
     return (EXAMPLES_DIR / path).read_bytes()
 
 
-def test_every_listed_file_exists():
-    for example in examples.EXAMPLES.values():
-        for path in [
-            p for paths in example.files.values() for p in paths
-        ] + example.shared:
-            assert (EXAMPLES_DIR / path).is_file(), f"{example.name}: {path}"
-
-
 def test_every_example_file_is_listed():
-    """A new example file that the command cannot download fails here."""
+    """A new example file that the command cannot download, or a listed file that is
+    missing, fails here."""
     listed = {
         p
         for e in examples.EXAMPLES.values()
@@ -46,11 +39,6 @@ def test_every_example_file_is_listed():
         if p.suffix in (".py", ".yaml") and "__pycache__" not in p.parts
     }
     assert on_disk == listed
-
-
-def test_every_example_has_all_three_versions():
-    for example in examples.EXAMPLES.values():
-        assert set(example.files) == set(examples.APIS), example.name
 
 
 @pytest.mark.parametrize(

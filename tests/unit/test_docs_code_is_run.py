@@ -1,6 +1,6 @@
 """Every Python block in the docs is a copy of a file that a test runs.
 
-A block written straight into a page is only parsed, never run, and the first such
+A block written straight into a page is never run, and the first such
 block that was run had a modelling defect. So a page shows Python only as a labelled
 copy (`title="examples/..."` or `title="docs/snippets/..."`), which
 test_docs_match_examples.py keeps equal to its file, and each snippet folder has a

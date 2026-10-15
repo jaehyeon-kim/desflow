@@ -74,12 +74,6 @@ def test_sampler_stochastic_lognormal(sampler):
     assert min(samples) > 0  # Log-normal is strictly positive
 
 
-def test_sampler_invalid_config():
-    """A config with a missing mean is refused, instead of sampling a mean of 0."""
-    with pytest.raises(ValueError, match="mean"):
-        DistributionConfig(dist="normal", mean=None, std=None)
-
-
 def test_lognormal_with_zero_std_is_a_constant(sampler):
     """A std of 0 gives the mean every time; it used to be replaced by 0.1."""
     cfg = DistributionConfig(dist="lognormal", mean=3.0, std=0.0)

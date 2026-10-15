@@ -4,10 +4,6 @@ A sidebar title names the subject in 24 characters or fewer; the page's own titl
 be longer and name the classes. Headings are names, and the order of the sections
 shows the steps, so a heading never starts with a number. A figure is a draw.io
 diagram, never box characters in a text block.
-
-The pages written before this rule are listed below and leave the lists as each one is
-rewritten. A listed title or page that no longer breaks the rule fails the test, so
-the lists only shrink.
 """
 
 import re
@@ -20,14 +16,6 @@ MAX_TITLE = 24
 
 # Kept on purpose: the example names both halves of its run.
 LONG_TITLES_ALLOWED = {"Parquet History, Kafka Live"}
-
-# Written before the rule; each leaves the list when its page is rewritten.
-LONG_TITLES_NOT_YET_REWRITTEN: set[str] = set()
-NUMBERED_HEADINGS_NOT_YET_REWRITTEN: set[str] = set()
-
-# Text blocks drawn with box characters; each becomes a draw.io diagram when its page
-# is rewritten.
-TEXT_DIAGRAMS_NOT_YET_REWRITTEN: set[str] = set()
 
 FENCE = re.compile(r"^```.*?^```", re.S | re.M)
 BOX_CHARACTERS = re.compile(r"[\u2500-\u257f]")
@@ -69,32 +57,23 @@ def _pages_with_text_diagrams():
 
 
 def test_sidebar_titles_are_short():
-    assert (
-        _long_titles() - LONG_TITLES_ALLOWED - LONG_TITLES_NOT_YET_REWRITTEN == set()
-    ), (
+    assert _long_titles() - LONG_TITLES_ALLOWED == set(), (
         f"Sidebar titles over {MAX_TITLE} characters. Shorten the nav title and keep "
         "the full name in the page's own title."
     )
 
 
 def test_headings_do_not_start_with_a_number():
-    assert (
-        _pages_with_numbered_headings() - NUMBERED_HEADINGS_NOT_YET_REWRITTEN == set()
-    ), "Headings that start with a number. Name the section instead."
-
-
-def test_figures_are_not_drawn_in_text():
-    assert _pages_with_text_diagrams() - TEXT_DIAGRAMS_NOT_YET_REWRITTEN == set(), (
-        "A figure drawn with box characters. Draw it in draw.io under "
-        "docs/assets/diagrams/ and export it with scripts/diagrams.py."
+    assert _pages_with_numbered_headings() == set(), (
+        "Headings that start with a number. Name the section instead."
     )
 
 
-def test_lists_of_old_pages_only_shrink():
-    """A rewritten page must leave the list, or the list would hide a new offender."""
-    assert LONG_TITLES_NOT_YET_REWRITTEN <= _long_titles()
-    assert NUMBERED_HEADINGS_NOT_YET_REWRITTEN <= _pages_with_numbered_headings()
-    assert TEXT_DIAGRAMS_NOT_YET_REWRITTEN <= _pages_with_text_diagrams()
+def test_figures_are_not_drawn_in_text():
+    assert _pages_with_text_diagrams() == set(), (
+        "A figure drawn with box characters. Draw it in draw.io under "
+        "docs/assets/diagrams/ and export it with scripts/diagrams.py."
+    )
 
 
 def test_no_paragraph_turns_into_a_heading():
