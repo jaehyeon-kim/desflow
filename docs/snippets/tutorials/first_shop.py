@@ -6,7 +6,7 @@ order. Every record is printed to the terminal.
 
 import logging
 
-from dynamic_des import ConsoleEgress, SimulationContext
+from desflow import ConsoleEgress, SimulationContext
 
 logging.basicConfig(
     level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"

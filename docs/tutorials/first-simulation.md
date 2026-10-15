@@ -10,10 +10,10 @@ Each step shows the code three ways, in tabs: a **YAML** blueprint, the **Builde
 
 ## Install
 
-The core package includes the `ddes` command:
+The core package includes the `desflow` command:
 
 ```bash
-pip install dynamic-des
+pip install desflow
 ```
 
 ---
@@ -205,7 +205,7 @@ Start it from a terminal:
 === "YAML"
 
     ```bash
-    ddes run first_shop.yaml
+    desflow run first_shop.yaml
     ```
 
 === "Builder"
@@ -326,7 +326,7 @@ In the first 10 seconds orders arrive faster than one packer finishes them, so t
 Install the Kafka extra and start a broker with [odctl](https://github.com/jaehyeon-kim/odctl), a separate command-line tool installed once with `pip install "odctl>=1.0,<2"`:
 
 ```bash
-pip install "dynamic-des[kafka]"
+pip install "desflow[kafka]"
 odctl up kafka-lite
 ```
 
@@ -397,7 +397,7 @@ The complete first shop, which the documentation tests run:
 
     ```yaml title="docs/snippets/yaml/first_shop.yaml"
     # The First Simulation tutorial: the shop as a blueprint.
-    # Run it with: ddes run first_shop.yaml
+    # Run it with: desflow run first_shop.yaml
     simulation:
       sim_id: Shop
       factor: 1.0  # 1 simulated second takes 1 real second
@@ -439,7 +439,7 @@ The complete first shop, which the documentation tests run:
 
     import logging
 
-    from dynamic_des import ConsoleEgress, SimulationContext
+    from desflow import ConsoleEgress, SimulationContext
 
     logging.basicConfig(
         level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
@@ -491,7 +491,7 @@ The complete first shop, which the documentation tests run:
 
     import numpy as np
 
-    from dynamic_des import (
+    from desflow import (
         CapacityConfig,
         ConsoleEgress,
         DistributionConfig,

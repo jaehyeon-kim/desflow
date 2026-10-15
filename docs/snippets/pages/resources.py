@@ -3,7 +3,7 @@
 A complete low-level run: tests/unit runs it unpaced, so every call is checked.
 """
 
-from dynamic_des import (
+from desflow import (
     CapacityConfig,
     DynamicContainer,
     DynamicRealtimeEnvironment,

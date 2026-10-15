@@ -2,7 +2,7 @@
 
 A blueprint puts the configuration of a simulation in a YAML file: the resources, the distributions, the connectors and the experiment. This guide starts with a first file, then adds a scripted experiment, connectors, and settings that change from one environment to the next. Every file on this page is plain YAML.
 
-The [YAML Blueprints reference](../architecture/yaml.md) lists every section and field. Every file on this page is in the repository under [`docs/snippets/`](https://github.com/jaehyeon-kim/dynamic-des/tree/main/docs/snippets), and the tests build each one.
+The [YAML Blueprints reference](../architecture/yaml.md) lists every section and field. Every file on this page is in the repository under [`docs/snippets/`](https://github.com/jaehyeon-kim/desflow/tree/main/docs/snippets), and the tests build each one.
 
 ---
 
@@ -52,7 +52,7 @@ run:
 Run it with the command the package installs:
 
 ```bash
-ddes run first.yaml
+desflow run first.yaml
 ```
 
 Every section of a blueprint becomes a builder call:
@@ -150,7 +150,7 @@ Connectors are listed under `ingress` and `egress`. `type` is a short name, and 
 # the simulation_params channel.
 #
 # Needs Valkey: odctl up valkey. Runs until interrupted with Ctrl + C.
-# Run it with: ddes run examples/yaml/redis.yaml
+# Run it with: desflow run examples/yaml/redis.yaml
 
 simulation:
   sim_id: Shop
@@ -200,7 +200,7 @@ Settings that the Python API takes as objects are plain values in `config`:
 
 ```yaml title="docs/snippets/yaml/environment.yaml"
 # Settings that change per environment, read from environment variables.
-# Run it with: SIM_FACTOR=1 ddes run environment.yaml
+# Run it with: SIM_FACTOR=1 desflow run environment.yaml
 simulation:
   sim_id: ${SIM_ID:-Shop}
   # An unquoted value is read after the replacement, so this is the number 0

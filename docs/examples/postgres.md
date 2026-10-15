@@ -10,23 +10,23 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
     **Quick Start**
 
-    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
     === "uv"
 
         ```bash
         # 1. Install
-        uv tool install "dynamic-des[postgres]" --with-executables-from "odctl>=1.0,<2"
+        uv tool install "desflow[postgres]" --with-executables-from "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get postgres --api yaml
+        desflow examples get postgres --api yaml
         cd postgres/yaml
 
         # 3. Start its service
         odctl up postgres
 
         # 4. Run it (Ctrl + C to stop)
-        ddes run postgres.yaml
+        desflow run postgres.yaml
 
         # 5. Stop its service when finished
         odctl down postgres --volumes
@@ -36,17 +36,17 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
         ```bash
         # 1. Install
-        pip install "dynamic-des[postgres]" "odctl>=1.0,<2"
+        pip install "desflow[postgres]" "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get postgres --api yaml
+        desflow examples get postgres --api yaml
         cd postgres/yaml
 
         # 3. Start its service
         odctl up postgres
 
         # 4. Run it (Ctrl + C to stop)
-        ddes run postgres.yaml
+        desflow run postgres.yaml
 
         # 5. Stop its service when finished
         odctl down postgres --volumes
@@ -66,7 +66,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
     `place_order` has no service or resource, so it publishes its fixed `payload` as soon as an arrival spawns it, with the task id added as `order_id`. `tables` gives the columns and the primary key of each table to create. The `timestamp` column is filled from the time the record carries.
 
-    Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
+    Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
     ```yaml title="examples/yaml/postgres.yaml"
     # Relational output in YAML.
@@ -78,7 +78,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
     # simulation_params and polls it for parameter updates.
     #
     # Needs a database: odctl up postgres. Runs until interrupted with Ctrl + C.
-    # Run it with: ddes run examples/yaml/postgres.yaml
+    # Run it with: desflow run examples/yaml/postgres.yaml
 
     simulation:
       sim_id: Shop
@@ -117,7 +117,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
 === "Builder"
 
-    This example demonstrates how to integrate `dynamic-des` into a relational database architecture using the **builder API (`SimulationContext`)**.
+    This example demonstrates how to integrate `desflow` into a relational database architecture using the **builder API (`SimulationContext`)**.
 
     **Writing Rows**
 
@@ -163,23 +163,23 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
     **Quick Start**
 
-    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
     === "uv"
 
         ```bash
         # 1. Install
-        uv tool install "dynamic-des[postgres]" --with-executables-from "odctl>=1.0,<2"
+        uv tool install "desflow[postgres]" --with-executables-from "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get postgres --api builder
+        desflow examples get postgres --api builder
         cd postgres/builder
 
         # 3. Start its service
         odctl up postgres
 
         # 4. Run it (Ctrl + C to stop)
-        uv run --no-project --with "dynamic-des[postgres]" postgres_example.py
+        uv run --no-project --with "desflow[postgres]" postgres_example.py
 
         # 5. Stop its service when finished
         odctl down postgres --volumes
@@ -189,10 +189,10 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
         ```bash
         # 1. Install
-        pip install "dynamic-des[postgres]" "odctl>=1.0,<2"
+        pip install "desflow[postgres]" "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get postgres --api builder
+        desflow examples get postgres --api builder
         cd postgres/builder
 
         # 3. Start its service
@@ -221,7 +221,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
     This script connects the simulation to PostgreSQL, creates the `orders` table and writes a continuous stream of orders.
 
-    Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
+    Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
     ```python title="examples/builder/postgres_example.py"
     """Relational output, builder API.
@@ -236,7 +236,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
     import logging
 
-    from dynamic_des import PostgresEgress, PostgresIngress, SimulationContext
+    from desflow import PostgresEgress, PostgresIngress, SimulationContext
 
     logger = logging.getLogger(__name__)
 
@@ -303,7 +303,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
 === "Low-level"
 
-    This example demonstrates how to integrate `dynamic-des` into a relational database architecture using the **low-level API (`DynamicRealtimeEnvironment`)**.
+    This example demonstrates how to integrate `desflow` into a relational database architecture using the **low-level API (`DynamicRealtimeEnvironment`)**.
 
     **Writing Rows**
 
@@ -336,23 +336,23 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
     **Quick Start**
 
-    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
     === "uv"
 
         ```bash
         # 1. Install
-        uv tool install "dynamic-des[postgres]" --with-executables-from "odctl>=1.0,<2"
+        uv tool install "desflow[postgres]" --with-executables-from "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get postgres --api low-level
+        desflow examples get postgres --api low-level
         cd postgres/low-level
 
         # 3. Start its service
         odctl up postgres
 
         # 4. Run it (Ctrl + C to stop)
-        uv run --no-project --with "dynamic-des[postgres]" postgres_example.py
+        uv run --no-project --with "desflow[postgres]" postgres_example.py
 
         # 5. Stop its service when finished
         odctl down postgres --volumes
@@ -362,10 +362,10 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
         ```bash
         # 1. Install
-        pip install "dynamic-des[postgres]" "odctl>=1.0,<2"
+        pip install "desflow[postgres]" "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get postgres --api low-level
+        desflow examples get postgres --api low-level
         cd postgres/low-level
 
         # 3. Start its service
@@ -394,7 +394,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
     This script connects the simulation to PostgreSQL, creates the `orders` table and writes a continuous stream of orders.
 
-    Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
+    Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
     ```python title="examples/low-level/postgres_example.py"
     """Relational output, low-level API.
@@ -410,7 +410,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
     import numpy as np
 
-    from dynamic_des import (
+    from desflow import (
         DistributionConfig,
         DynamicRealtimeEnvironment,
         PostgresEgress,

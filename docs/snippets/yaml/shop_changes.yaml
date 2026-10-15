@@ -1,6 +1,6 @@
 # The First Simulation tutorial, step 2: random packing times and two capacity
 # changes at set simulation times.
-# Run it with: ddes run shop_changes.yaml
+# Run it with: desflow run shop_changes.yaml
 # --8<-- [start:random]
 simulation:
   sim_id: Shop

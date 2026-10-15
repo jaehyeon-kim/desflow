@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from dynamic_des import SimulationContext
+from desflow import SimulationContext
 
 
 def test_builder_state_management():
@@ -91,7 +91,7 @@ def test_decorator_registration():
     assert app._startup_loops[1][1] is None  # Telemetry loop has no metadata
 
 
-@patch("dynamic_des.core.context.DynamicRealtimeEnvironment")
+@patch("desflow.core.context.DynamicRealtimeEnvironment")
 def test_simulation_execution_wiring(MockEnv):
     """
     Validates the .run() orchestration logic without running a real SimPy loop.
@@ -121,7 +121,7 @@ def test_simulation_execution_wiring(MockEnv):
     mock_env_instance.setup_egress.assert_called_once()
 
 
-@patch("dynamic_des.core.context.DynamicRealtimeEnvironment")
+@patch("desflow.core.context.DynamicRealtimeEnvironment")
 def test_logical_start_time_forwarding(MockEnv):
     """Validates that a logical start time is forwarded to the environment."""
     from datetime import datetime
@@ -133,7 +133,7 @@ def test_logical_start_time_forwarding(MockEnv):
     MockEnv.assert_called_once_with(factor=0.0, logical_start_time=start)
 
 
-@patch("dynamic_des.core.context.DynamicRealtimeEnvironment")
+@patch("desflow.core.context.DynamicRealtimeEnvironment")
 def test_go_live_at_forwarding(MockEnv):
     """Validates that a go-live instant is forwarded to the environment."""
     from datetime import datetime, timedelta
@@ -251,7 +251,7 @@ def test_with_batching_accepts_the_egress_bounds():
     assert app._drain_stall_seconds == 2.5
 
 
-@patch("dynamic_des.core.context.DynamicRealtimeEnvironment")
+@patch("desflow.core.context.DynamicRealtimeEnvironment")
 def test_egress_bounds_reach_the_environment(MockEnv):
     """What the builder collects has to arrive at setup_egress, or it does nothing."""
     instance = MockEnv.return_value
@@ -274,7 +274,7 @@ def test_egress_bounds_reach_the_environment(MockEnv):
     assert kwargs["drain_stall_seconds"] == 3.0
 
 
-@patch("dynamic_des.core.context.DynamicRealtimeEnvironment")
+@patch("desflow.core.context.DynamicRealtimeEnvironment")
 def test_per_provider_cadence_reaches_the_environment(MockEnv):
     """A cadence given on add_egress has to arrive, aligned by position."""
     instance = MockEnv.return_value

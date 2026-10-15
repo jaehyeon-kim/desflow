@@ -1,4 +1,4 @@
-"""Throughput benchmark and profile for dynamic-des (issue #5).
+"""Throughput benchmark and profile for desflow (issue #5).
 
 This is a measurement tool, not a test. It answers one question: for a run at
 ``factor=0`` with a fixed seed, how is wall-clock time split between the
@@ -45,7 +45,7 @@ import orjson
 from pydantic import BaseModel
 from simpy import Environment
 
-from dynamic_des import (
+from desflow import (
     CapacityConfig,
     ConsoleEgress,
     DistributionConfig,
@@ -54,9 +54,9 @@ from dynamic_des import (
     Sampler,
     SimParameter,
 )
-from dynamic_des.connectors.egress.base import BaseEgress, extract_dict
-from dynamic_des.core.environment import EgressMixIn, IngressMixIn, RegistryMixIn
-from dynamic_des.models.schemas import EventPayload
+from desflow.connectors.egress.base import BaseEgress, extract_dict
+from desflow.core.environment import EgressMixIn, IngressMixIn, RegistryMixIn
+from desflow.models.schemas import EventPayload
 
 # --------------------------------------------------------------------------
 # Workload
@@ -123,7 +123,7 @@ class CountingConsoleEgress(ConsoleEgress):
                 for data in batch:
                     stream = data.pop("stream_type", "unknown")
                     prefix = "[TEL]" if stream == "telemetry" else "[EVT]"
-                    logging.getLogger("dynamic_des.connectors.egress.local").info(
+                    logging.getLogger("desflow.connectors.egress.local").info(
                         f"{prefix} {data}"
                     )
             except queue.Empty:
@@ -300,7 +300,7 @@ def configure_logging(level: int) -> None:
     handler.setFormatter(logging.Formatter("%(levelname)s [%(asctime)s] %(message)s"))
     root.addHandler(handler)
     root.setLevel(level)
-    logging.getLogger("dynamic_des").setLevel(level)
+    logging.getLogger("desflow").setLevel(level)
     logging.getLogger("benchmark.workload").setLevel(level)
 
 

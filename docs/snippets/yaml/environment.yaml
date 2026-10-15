@@ -1,5 +1,5 @@
 # Settings that change per environment, read from environment variables.
-# Run it with: SIM_FACTOR=1 ddes run environment.yaml
+# Run it with: SIM_FACTOR=1 desflow run environment.yaml
 simulation:
   sim_id: ${SIM_ID:-Shop}
   # An unquoted value is read after the replacement, so this is the number 0

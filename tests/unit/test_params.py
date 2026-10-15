@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from dynamic_des.models.params import DistributionConfig, SimParameter
+from desflow.models.params import DistributionConfig, SimParameter
 
 
 def test_sim_parameter_structure(sample_params):

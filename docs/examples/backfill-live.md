@@ -8,23 +8,23 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
 
     **Quick Start**
 
-    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
     === "uv"
 
         ```bash
         # 1. Install
-        uv tool install "dynamic-des[kafka,parquet]" --with-executables-from "odctl>=1.0,<2"
+        uv tool install "desflow[kafka,parquet]" --with-executables-from "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get backfill-live --api yaml
+        desflow examples get backfill-live --api yaml
         cd backfill-live/yaml
 
         # 3. Start its service
         odctl up kafka-lite
 
         # 4. Run it
-        ddes run backfill_live.yaml
+        desflow run backfill_live.yaml
 
         # 5. Stop its service when finished
         odctl down kafka-lite --volumes
@@ -34,17 +34,17 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
 
         ```bash
         # 1. Install
-        pip install "dynamic-des[kafka,parquet]" "odctl>=1.0,<2"
+        pip install "desflow[kafka,parquet]" "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get backfill-live --api yaml
+        desflow examples get backfill-live --api yaml
         cd backfill-live/yaml
 
         # 3. Start its service
         odctl up kafka-lite
 
         # 4. Run it
-        ddes run backfill_live.yaml
+        desflow run backfill_live.yaml
 
         # 5. Stop its service when finished
         odctl down kafka-lite --volumes
@@ -58,7 +58,7 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
 
     `logical_start_time: -10m` and `go_live_at: now` are read against one moment, when the file is loaded, so they are exactly ten minutes apart, and `until: 11m` adds one minute of live tail. `when: history` sends the records stamped before `go_live_at` to Parquet, and `when: live` sends the rest to Kafka.
 
-    Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
+    Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
     ```yaml title="examples/yaml/backfill_live.yaml"
     # Backfill then go live in one run, in YAML.
@@ -70,7 +70,7 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
     # to Kafka for one minute.
     #
     # Needs a broker: odctl up kafka-lite.
-    # Run it with: ddes run examples/yaml/backfill_live.yaml
+    # Run it with: desflow run examples/yaml/backfill_live.yaml
 
     simulation:
       sim_id: Shop
@@ -129,27 +129,27 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
 
 === "Builder"
 
-    [`examples/builder/backfill_live_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/builder/backfill_live_example.py) backdates the clock by ten minutes, writes those ten minutes to Parquet in well under a second, then publishes to Kafka in real time for sixty seconds. `HISTORY_MINUTES` and `LIVE_SECONDS` set the two halves.
+    [`examples/builder/backfill_live_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/builder/backfill_live_example.py) backdates the clock by ten minutes, writes those ten minutes to Parquet in well under a second, then publishes to Kafka in real time for sixty seconds. `HISTORY_MINUTES` and `LIVE_SECONDS` set the two halves.
 
     **Quick Start**
 
-    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
     === "uv"
 
         ```bash
         # 1. Install
-        uv tool install "dynamic-des[kafka,parquet]" --with-executables-from "odctl>=1.0,<2"
+        uv tool install "desflow[kafka,parquet]" --with-executables-from "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get backfill-live --api builder
+        desflow examples get backfill-live --api builder
         cd backfill-live/builder
 
         # 3. Start its service
         odctl up kafka-lite
 
         # 4. Run it
-        uv run --no-project --with "dynamic-des[kafka,parquet]" backfill_live_example.py
+        uv run --no-project --with "desflow[kafka,parquet]" backfill_live_example.py
 
         # 5. Stop its service when finished
         odctl down kafka-lite --volumes
@@ -159,10 +159,10 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
 
         ```bash
         # 1. Install
-        pip install "dynamic-des[kafka,parquet]" "odctl>=1.0,<2"
+        pip install "desflow[kafka,parquet]" "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get backfill-live --api builder
+        desflow examples get backfill-live --api builder
         cd backfill-live/builder
 
         # 3. Start its service
@@ -179,7 +179,7 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
 
     **Full Source Code**
 
-    Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
+    Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
     ```python title="examples/builder/backfill_live_example.py"
     """
@@ -198,7 +198,7 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
     import time
     from datetime import datetime, timedelta
 
-    from dynamic_des import (
+    from desflow import (
         KafkaAdminConnector,
         KafkaEgress,
         ParquetStorageEgress,
@@ -356,27 +356,27 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
 
 === "Low-level"
 
-    [`examples/low-level/backfill_live_example.py`](https://github.com/jaehyeon-kim/dynamic-des/blob/main/examples/low-level/backfill_live_example.py) wires the same run by hand on `DynamicRealtimeEnvironment`: it backdates the clock by ten minutes, writes those ten minutes to Parquet in well under a second, then publishes to Kafka in real time for sixty seconds. `HISTORY_MINUTES` and `LIVE_SECONDS` set the two halves.
+    [`examples/low-level/backfill_live_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/backfill_live_example.py) wires the same run by hand on `DynamicRealtimeEnvironment`: it backdates the clock by ten minutes, writes those ten minutes to Parquet in well under a second, then publishes to Kafka in real time for sixty seconds. `HISTORY_MINUTES` and `LIVE_SECONDS` set the two halves.
 
     **Quick Start**
 
-    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
     === "uv"
 
         ```bash
         # 1. Install
-        uv tool install "dynamic-des[kafka,parquet]" --with-executables-from "odctl>=1.0,<2"
+        uv tool install "desflow[kafka,parquet]" --with-executables-from "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get backfill-live --api low-level
+        desflow examples get backfill-live --api low-level
         cd backfill-live/low-level
 
         # 3. Start its service
         odctl up kafka-lite
 
         # 4. Run it
-        uv run --no-project --with "dynamic-des[kafka,parquet]" backfill_live_example.py
+        uv run --no-project --with "desflow[kafka,parquet]" backfill_live_example.py
 
         # 5. Stop its service when finished
         odctl down kafka-lite --volumes
@@ -386,10 +386,10 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
 
         ```bash
         # 1. Install
-        pip install "dynamic-des[kafka,parquet]" "odctl>=1.0,<2"
+        pip install "desflow[kafka,parquet]" "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get backfill-live --api low-level
+        desflow examples get backfill-live --api low-level
         cd backfill-live/low-level
 
         # 3. Start its service
@@ -406,7 +406,7 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
 
     **Full Source Code**
 
-    Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
+    Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
     ```python title="examples/low-level/backfill_live_example.py"
     """
@@ -426,7 +426,7 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
 
     import numpy as np
 
-    from dynamic_des import (
+    from desflow import (
         CapacityConfig,
         DistributionConfig,
         DynamicRealtimeEnvironment,

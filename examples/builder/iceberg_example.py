@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 
 import pyarrow as pa
 
-from dynamic_des import IcebergStorageEgress, SimulationContext
+from desflow import IcebergStorageEgress, SimulationContext
 
 # Logging is configured here rather than in a wrapper, because this script is run
 # directly. Without it the run produces no output at all.

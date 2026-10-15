@@ -5,7 +5,7 @@ Building the egress opens no connection, so tests/unit run this file without a b
 
 from typing import Any, Dict
 
-from dynamic_des import KafkaEgress, SimulationContext
+from desflow import KafkaEgress, SimulationContext
 
 
 # --8<-- [start:router]

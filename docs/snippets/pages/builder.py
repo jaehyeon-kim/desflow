@@ -6,7 +6,7 @@ seconds, so every call shown on the page is checked.
 
 from datetime import datetime, timedelta
 
-from dynamic_des import ConsoleEgress, LocalIngress, SimulationContext
+from desflow import ConsoleEgress, LocalIngress, SimulationContext
 
 # --8<-- [start:clock]
 app = SimulationContext(

@@ -9,7 +9,7 @@ takes the context, picks out what the process needs, and hands over with
 import time
 import uuid
 
-from dynamic_des import KafkaAdminConnector
+from desflow import KafkaAdminConnector
 from generator import telemetry_monitor
 from sim_logic import arrival_process, drift_engine, roll_slab
 from src.config import (

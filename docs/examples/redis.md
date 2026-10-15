@@ -8,23 +8,23 @@ An online shop that writes each order to a Redis Stream as it is placed, and tak
 
     **Quick Start**
 
-    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
     === "uv"
 
         ```bash
         # 1. Install
-        uv tool install "dynamic-des[redis]" --with-executables-from "odctl>=1.0,<2"
+        uv tool install "desflow[redis]" --with-executables-from "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get redis --api yaml
+        desflow examples get redis --api yaml
         cd redis/yaml
 
         # 3. Start its service
         odctl up valkey
 
         # 4. Run it (Ctrl + C to stop)
-        ddes run redis.yaml
+        desflow run redis.yaml
 
         # 5. Stop its service when finished
         odctl down valkey --volumes
@@ -34,17 +34,17 @@ An online shop that writes each order to a Redis Stream as it is placed, and tak
 
         ```bash
         # 1. Install
-        pip install "dynamic-des[redis]" "odctl>=1.0,<2"
+        pip install "desflow[redis]" "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get redis --api yaml
+        desflow examples get redis --api yaml
         cd redis/yaml
 
         # 3. Start its service
         odctl up valkey
 
         # 4. Run it (Ctrl + C to stop)
-        ddes run redis.yaml
+        desflow run redis.yaml
 
         # 5. Stop its service when finished
         odctl down valkey --volumes
@@ -64,7 +64,7 @@ An online shop that writes each order to a Redis Stream as it is placed, and tak
 
     `record_order` has no service or resource, so it publishes its fixed `payload` as soon as an arrival spawns it, with the task id added as `order_id`. A mapping payload is a constant, so every order here comes from the `web` channel; the builder and low-level versions publish the same records.
 
-    Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
+    Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
     ```yaml title="examples/yaml/redis.yaml"
     # Redis Streams output with live parameter updates, in YAML.
@@ -76,7 +76,7 @@ An online shop that writes each order to a Redis Stream as it is placed, and tak
     # the simulation_params channel.
     #
     # Needs Valkey: odctl up valkey. Runs until interrupted with Ctrl + C.
-    # Run it with: ddes run examples/yaml/redis.yaml
+    # Run it with: desflow run examples/yaml/redis.yaml
 
     simulation:
       sim_id: Shop
@@ -109,7 +109,7 @@ An online shop that writes each order to a Redis Stream as it is placed, and tak
 
 === "Builder"
 
-    This example demonstrates how to integrate `dynamic-des` with Redis using the **builder API (`SimulationContext`)**.
+    This example demonstrates how to integrate `desflow` with Redis using the **builder API (`SimulationContext`)**.
 
     With `RedisIngress` and `RedisEgress`, the simulation reads parameter updates through Pub/Sub and writes events and telemetry to Redis Streams.
 
@@ -157,23 +157,23 @@ An online shop that writes each order to a Redis Stream as it is placed, and tak
 
     **Quick Start**
 
-    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
     === "uv"
 
         ```bash
         # 1. Install
-        uv tool install "dynamic-des[redis]" --with-executables-from "odctl>=1.0,<2"
+        uv tool install "desflow[redis]" --with-executables-from "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get redis --api builder
+        desflow examples get redis --api builder
         cd redis/builder
 
         # 3. Start its service
         odctl up valkey
 
         # 4. Run it (Ctrl + C to stop)
-        uv run --no-project --with "dynamic-des[redis]" redis_example.py
+        uv run --no-project --with "desflow[redis]" redis_example.py
 
         # 5. Stop its service when finished
         odctl down valkey --volumes
@@ -183,10 +183,10 @@ An online shop that writes each order to a Redis Stream as it is placed, and tak
 
         ```bash
         # 1. Install
-        pip install "dynamic-des[redis]" "odctl>=1.0,<2"
+        pip install "desflow[redis]" "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get redis --api builder
+        desflow examples get redis --api builder
         cd redis/builder
 
         # 3. Start its service
@@ -213,7 +213,7 @@ An online shop that writes each order to a Redis Stream as it is placed, and tak
 
     **Full Source Code**
 
-    Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
+    Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
     ```python title="examples/builder/redis_example.py"
     """Redis Streams output with live parameter updates, builder API.
@@ -228,7 +228,7 @@ An online shop that writes each order to a Redis Stream as it is placed, and tak
 
     import logging
 
-    from dynamic_des import RedisEgress, RedisIngress, SimulationContext
+    from desflow import RedisEgress, RedisIngress, SimulationContext
 
     logger = logging.getLogger(__name__)
 
@@ -284,29 +284,29 @@ An online shop that writes each order to a Redis Stream as it is placed, and tak
 
 === "Low-level"
 
-    This example demonstrates how to integrate `dynamic-des` with Redis using the **low-level API (`DynamicRealtimeEnvironment`)**.
+    This example demonstrates how to integrate `desflow` with Redis using the **low-level API (`DynamicRealtimeEnvironment`)**.
 
     This is useful if you are migrating existing SimPy generators and prefer to handle `env.process()` and component registration manually rather than through the builder.
 
     **Quick Start**
 
-    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
     === "uv"
 
         ```bash
         # 1. Install
-        uv tool install "dynamic-des[redis]" --with-executables-from "odctl>=1.0,<2"
+        uv tool install "desflow[redis]" --with-executables-from "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get redis --api low-level
+        desflow examples get redis --api low-level
         cd redis/low-level
 
         # 3. Start its service
         odctl up valkey
 
         # 4. Run it (Ctrl + C to stop)
-        uv run --no-project --with "dynamic-des[redis]" redis_example.py
+        uv run --no-project --with "desflow[redis]" redis_example.py
 
         # 5. Stop its service when finished
         odctl down valkey --volumes
@@ -316,10 +316,10 @@ An online shop that writes each order to a Redis Stream as it is placed, and tak
 
         ```bash
         # 1. Install
-        pip install "dynamic-des[redis]" "odctl>=1.0,<2"
+        pip install "desflow[redis]" "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get redis --api low-level
+        desflow examples get redis --api low-level
         cd redis/low-level
 
         # 3. Start its service
@@ -346,7 +346,7 @@ An online shop that writes each order to a Redis Stream as it is placed, and tak
 
     **Full Source Code**
 
-    Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
+    Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
     ```python title="examples/low-level/redis_example.py"
     """Redis Streams output with live parameter updates, low-level API.
@@ -363,7 +363,7 @@ An online shop that writes each order to a Redis Stream as it is placed, and tak
 
     import numpy as np
 
-    from dynamic_des import (
+    from desflow import (
         DistributionConfig,
         DynamicRealtimeEnvironment,
         RedisEgress,

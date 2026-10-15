@@ -1,0 +1,52 @@
+# The last release of dynamic-des, the name of desflow before 0.20.0. It installs
+# desflow, so `pip install dynamic-des` keeps working. The workflow
+# .github/workflows/publish-dynamic-des.yml builds and publishes it.
+[project]
+name = "dynamic-des"
+version = "0.20.0"
+description = "dynamic-des is renamed desflow. This package installs desflow."
+readme = "README.md"
+authors = [
+    { name = "Jaehyeon Kim", email = "dottami@gmail.com" }
+]
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = ["desflow>=0.20.0"]
+classifiers = [
+    "Development Status :: 7 - Inactive",
+    "Programming Language :: Python :: 3",
+]
+
+# The old command, also in desflow. pip upgrades dynamic-des 0.19.0 by deleting its
+# bin/ddes after desflow has written it, so this release writes it back.
+[project.scripts]
+ddes = "desflow.blueprint.cli:ddes"
+
+# The extras of desflow, so `pip install "dynamic-des[kafka]"` installs what it did.
+[project.optional-dependencies]
+kafka = ["desflow[kafka]>=0.20.0"]
+redis = ["desflow[redis]>=0.20.0"]
+postgres = ["desflow[postgres]>=0.20.0"]
+confluent = ["desflow[confluent]>=0.20.0"]
+glue = ["desflow[glue]>=0.20.0"]
+parquet = ["desflow[parquet]>=0.20.0"]
+iceberg = ["desflow[iceberg]>=0.20.0"]
+all = ["desflow[all]>=0.20.0"]
+
+[project.urls]
+Homepage = "https://jaehyeon.me/desflow/"
+Repository = "https://github.com/jaehyeon-kim/desflow"
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+# The wheel ships the same dynamic_des/__init__.py and py.typed as desflow. pip upgrades
+# dynamic-des 0.19.0 by deleting every file its RECORD lists, dynamic_des/__init__.py
+# included, after desflow has written it; dynamic-des 0.20.0 then writes it back.
+# The sdist copies the file from the desflow source at build time, and the wheel,
+# built from the sdist, finds dynamic_des/ by hatchling's default selection. So a
+# wheel can be built from the published sdist, but a new sdist cannot.
+[tool.hatch.build.targets.sdist.force-include]
+"../../src/dynamic_des/__init__.py" = "dynamic_des/__init__.py"
+"../../src/dynamic_des/py.typed" = "dynamic_des/py.typed"

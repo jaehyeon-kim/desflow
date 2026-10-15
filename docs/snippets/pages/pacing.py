@@ -6,7 +6,7 @@ in under a second.
 
 from datetime import datetime, timedelta
 
-from dynamic_des import DynamicRealtimeEnvironment, SimulationContext
+from desflow import DynamicRealtimeEnvironment, SimulationContext
 
 # --8<-- [start:logical-start]
 app = SimulationContext(

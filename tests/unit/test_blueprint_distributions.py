@@ -4,8 +4,8 @@ import textwrap
 
 import pytest
 
-from dynamic_des import SimulationContext
-from dynamic_des.blueprint import BlueprintError
+from desflow import SimulationContext
+from desflow.blueprint import BlueprintError
 
 BLUEPRINT = """\
 simulation:

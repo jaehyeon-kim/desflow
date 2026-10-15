@@ -7,7 +7,7 @@
 # simulation_params and polls it for parameter updates.
 #
 # Needs a database: odctl up postgres. Runs until interrupted with Ctrl + C.
-# Run it with: ddes run examples/yaml/postgres.yaml
+# Run it with: desflow run examples/yaml/postgres.yaml
 
 simulation:
   sim_id: Shop

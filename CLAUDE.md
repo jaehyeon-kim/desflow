@@ -1,4 +1,4 @@
-# dynamic-des
+# desflow
 
 Real-time SimPy simulations whose parameters change while they run, writing events and telemetry to Kafka, Redis, PostgreSQL, Parquet and JSONL files, and Iceberg tables. The public roadmap is `docs/about/roadmap.md`.
 
@@ -6,11 +6,13 @@ Real-time SimPy simulations whose parameters change while they run, writing even
 
 | Path | Contents |
 |---|---|
-| `src/dynamic_des/core/` | `environment.py` (`DynamicRealtimeEnvironment`, egress buffering, record building), `context.py` (the `SimulationContext` builder), `registry.py` (live parameters), `sampler.py` (distributions) |
-| `src/dynamic_des/models/` | `params.py` (`SimParameter`, `DistributionConfig`, `CapacityConfig`), `schemas.py` (`EventPayload`, `TelemetryPayload`: the published record schema) |
-| `src/dynamic_des/resources/` | `DynamicResource`, `DynamicContainer`, `DynamicStore`, with capacities driven by the registry |
-| `src/dynamic_des/connectors/` | `ingress/` (parameter changes in), `egress/` (records out), `admin/` |
-| `src/dynamic_des/blueprint/` | YAML blueprints: `models.py` (Pydantic models), `loader.py` (`!python`), `build.py`, `cli.py` (`ddes`), `examples.py` (what `ddes examples` lists and downloads; a new example file must be added there, or `test_cli_examples.py` fails) |
+| `src/desflow/core/` | `environment.py` (`DynamicRealtimeEnvironment`, egress buffering, record building), `context.py` (the `SimulationContext` builder), `registry.py` (live parameters), `sampler.py` (distributions) |
+| `src/desflow/models/` | `params.py` (`SimParameter`, `DistributionConfig`, `CapacityConfig`), `schemas.py` (`EventPayload`, `TelemetryPayload`: the published record schema) |
+| `src/desflow/resources/` | `DynamicResource`, `DynamicContainer`, `DynamicStore`, with capacities driven by the registry |
+| `src/desflow/connectors/` | `ingress/` (parameter changes in), `egress/` (records out), `admin/` |
+| `src/desflow/blueprint/` | YAML blueprints: `models.py` (Pydantic models), `loader.py` (`!python`), `build.py`, `cli.py` (`desflow`), `examples.py` (what `desflow examples` lists and downloads; a new example file must be added there, or `test_cli_examples.py` fails) |
+| `src/dynamic_des/` | the import name before the rename to desflow in 0.20.0: warns with a `FutureWarning` and aliases every `dynamic_des.<module>` to `desflow.<module>`; `ddes` in `blueprint/cli.py` is the old command, which warns and runs `desflow`. Both are removed in a later release, named in the Changelog (`docs/about/changelog.md`) |
+| `compat/dynamic-des/` | the last `dynamic-des` release: depends on `desflow` with the same extras and declares the `ddes` command, and its sdist copies `src/dynamic_des/__init__.py` and `py.typed` at build time, so a pip upgrade from 0.19.0 keeps both; published by hand with `publish-dynamic-des.yml` |
 | `examples/` | `low-level/` (low-level API), `builder/` (builder), `yaml/` (blueprints) |
 | `docs/` | MkDocs Material site, versioned with mike, deployed from `main` |
 | `tests/unit/`, `tests/integration/` | unit tests; integration tests against containers started with odctl |
@@ -23,7 +25,7 @@ uv run --all-extras pytest tests/unit -q          # unit tests, as CI runs them 
 uv run --all-extras pytest tests/integration -ra  # needs Docker; starts odctl profiles on demand
 uvx pre-commit run --all-files                    # ruff, ruff format, mypy, whitespace, YAML
 DISABLE_MKDOCS_2_WARNING=true uv run mkdocs build --strict
-uv run mkdocs serve -a 127.0.0.1:8001             # docs at http://127.0.0.1:8001/dynamic-des/
+uv run mkdocs serve -a 127.0.0.1:8001             # docs at http://127.0.0.1:8001/desflow/
 ```
 
 A plain `uv run` without `--all-extras` removes the extras from the venv, and the connector tests then fail to import.
@@ -43,9 +45,22 @@ A plain `uv run` without `--all-extras` removes the extras from the venv, and th
 
 ## Release
 
-1. Bump `version` in `pyproject.toml`; merging to `main` deploys the docs as that version, aliased `latest`, and copies its `404.html` to the site root.
-2. Tag `vX.Y.Z` and publish a GitHub release. `publish.yml` runs on the published release and uploads to PyPI.
+1. Bump `version` in `pyproject.toml` and add the release to `docs/about/changelog.md`, with an Upgrading line for any rename or behaviour change; merging to `main` deploys the docs as that version, aliased `latest`, and copies its `404.html` to the site root.
+2. Tag `vX.Y.Z` and publish a GitHub release. `publish.yml` runs on the published release and uploads to PyPI through the `pypi` environment.
 3. Python 3.15 is not in the CI matrix yet: confluent-kafka has no 3.15 wheel (issue #40).
+
+The rename release, 0.20.0, goes out in this order instead. Until step 2, every `jaehyeon-kim/desflow` URL (the README images, the CI badge, `desflow examples get` at tag `v0.20.0`) points at the placeholder repository.
+
+1. Delete the placeholder repository `jaehyeon-kim/desflow`.
+2. Rename `dynamic-des` to `desflow` in the repository settings. Never create a repository named `dynamic-des` afterwards: GitHub's redirects from the old name stop working if one exists.
+3. Set the repository homepage to `https://jaehyeon.me/desflow/`.
+4. Add the `pypi` environment (Settings, Environments).
+5. On PyPI, both projects publish from `jaehyeon-kim/desflow` (set on 15 Oct 2026): `desflow` from `publish.yml`, `dynamic-des` from `publish-dynamic-des.yml`.
+6. In the blog repository `jaehyeon-kim.github.io`, on the same day: generate the forwarding pages for `https://jaehyeon.me/dynamic-des/` (its `static/dynamic-des/` folder) with its `scripts/make-dynamic-des-redirects.py`, from the file list of `gh-pages`, read with `git ls-tree -r --name-only origin/gh-pages`, and the built desflow site, and replace the `dynamic-des` tag on the blog posts with `desflow`, which the README links to at `https://jaehyeon.me/tags/desflow/`, with a forwarding page at `/tags/dynamic-des/`; and point the docs sitemap line in `layouts/robots.txt` at `desflow/latest/sitemap.xml`.
+7. Merge to `main`, which deploys the docs. For 0.20.0 the deploy first runs `mike delete --all`, which removes the dynamic-des versions 0.1.0 to 0.19.0, `latest/`, `versions.json` and the root files from the tip of `gh-pages`. They stay in the branch history, so the file list for step 6 can still be read from the last commit before "Removed everything with mike". Then, in Google Search Console, replace the sitemap `https://jaehyeon.me/dynamic-des/latest/sitemap.xml` with `https://jaehyeon.me/desflow/latest/sitemap.xml`.
+8. Tag `v0.20.0` and publish the GitHub release, which publishes desflow to PyPI.
+9. Run `publish-dynamic-des.yml` by hand, which publishes the last `dynamic-des` release.
+10. In the first commit after 0.20.0 ships, remove the `mike delete --all` block from `pipeline.yml`.
 
 ## Git
 

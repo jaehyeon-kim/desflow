@@ -1,7 +1,7 @@
 import asyncio
 import queue
 import pytest
-from dynamic_des.connectors.egress.local import ConsoleEgress
+from desflow.connectors.egress.local import ConsoleEgress
 
 import logging
 

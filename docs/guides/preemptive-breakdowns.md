@@ -15,7 +15,7 @@ import logging
 
 import simpy
 
-from dynamic_des import ConsoleEgress, SimulationContext
+from desflow import ConsoleEgress, SimulationContext
 
 logging.basicConfig(level=logging.INFO)
 

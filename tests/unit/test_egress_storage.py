@@ -14,7 +14,7 @@ try:
 except ImportError:
     HAS_PYARROW = False
 
-from dynamic_des.connectors.egress.storage import (
+from desflow.connectors.egress.storage import (
     JsonlStorageEgress,
     ParquetStorageEgress,
     _generate_chunk_filename,
@@ -208,7 +208,7 @@ def test_parse_iso_time_handles_each_kind():
     """Each column kind gets the Python value its sink accepts."""
     from datetime import date, datetime
 
-    from dynamic_des.connectors.egress.base import parse_iso_time
+    from desflow.connectors.egress.base import parse_iso_time
 
     assert parse_iso_time("2026-01-01T10:00:00+02:00", "timestamp") == datetime(
         2026, 1, 1, 8, 0
@@ -220,7 +220,7 @@ def test_parse_iso_time_handles_each_kind():
 
 def test_filesystem_mapping_builds_an_s3_filesystem():
     """An S3 mapping passes its keys to S3FileSystem; an http endpoint sets the scheme."""
-    from dynamic_des.connectors.egress.storage import _build_filesystem
+    from desflow.connectors.egress.storage import _build_filesystem
 
     built = _build_filesystem(
         {
@@ -243,7 +243,7 @@ def test_filesystem_mapping_builds_an_s3_filesystem():
 
 def test_filesystem_defaults_and_objects():
     """None is the local disk, a mapping without a type is local, an object is kept."""
-    from dynamic_des.connectors.egress.storage import _build_filesystem
+    from desflow.connectors.egress.storage import _build_filesystem
 
     given = fs.LocalFileSystem()
     assert isinstance(_build_filesystem(None, fs), fs.LocalFileSystem)
@@ -253,7 +253,7 @@ def test_filesystem_defaults_and_objects():
 
 def test_empty_filesystem_values_are_left_out():
     """Values an unset environment variable leaves empty fall back to the defaults."""
-    from dynamic_des.connectors.egress.storage import _build_filesystem
+    from desflow.connectors.egress.storage import _build_filesystem
 
     empty = {"type": "", "endpoint_override": "", "access_key": None}
     assert isinstance(_build_filesystem(empty, fs), fs.LocalFileSystem)

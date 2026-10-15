@@ -4,7 +4,7 @@ tests/unit runs this file unpaced.
 """
 
 # --8<-- [start:container]
-from dynamic_des import DynamicContainer, SimulationContext
+from desflow import DynamicContainer, SimulationContext
 
 # run() creates the packers; the container is only registered
 app = (

@@ -1,6 +1,6 @@
 # Installation
 
-This page installs Dynamic DES, runs a first simulation that needs no containers, and sets up the services the other examples use.
+This page installs desflow, runs a first simulation that needs no containers, and sets up the services the other examples use.
 
 ## Install the Package
 
@@ -9,20 +9,22 @@ Install the core library with uv or pip:
 === "uv"
 
     ```bash
-    # The ddes command
-    uv tool install dynamic-des
+    # The desflow command
+    uv tool install desflow
 
     # Or the library, in a uv project
-    uv add dynamic-des
+    uv add desflow
     ```
 
 === "pip"
 
     ```bash
-    pip install dynamic-des
+    pip install desflow
     ```
 
-The connectors are optional extras, for example `uv add "dynamic-des[kafka,parquet]"` or `pip install "dynamic-des[kafka,parquet]"`:
+desflow was called dynamic-des before 0.20.0. Code that imports `dynamic_des` and scripts that run `ddes` keep working with a warning until a later release, and the [Changelog](about/changelog.md) says what to change.
+
+The connectors are optional extras, for example `uv add "desflow[kafka,parquet]"` or `pip install "desflow[kafka,parquet]"`:
 
 | Extra | Adds |
 |---|---|
@@ -45,64 +47,64 @@ The local example is an online shop that packs orders and prints its events and 
 
     **Quick Start**
 
-    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
     === "uv"
 
         ```bash
         # 1. Install
-        uv tool install dynamic-des
+        uv tool install desflow
 
         # 2. Download the example
-        ddes examples get local --api yaml
+        desflow examples get local --api yaml
         cd local/yaml
 
         # 3. Run it
-        ddes run local.yaml
+        desflow run local.yaml
         ```
 
     === "pip"
 
         ```bash
         # 1. Install
-        pip install dynamic-des
+        pip install desflow
 
         # 2. Download the example
-        ddes examples get local --api yaml
+        desflow examples get local --api yaml
         cd local/yaml
 
         # 3. Run it
-        ddes run local.yaml
+        desflow run local.yaml
         ```
 
 === "Builder"
 
     **Quick Start**
 
-    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
     === "uv"
 
         ```bash
         # 1. Install
-        uv tool install dynamic-des
+        uv tool install desflow
 
         # 2. Download the example
-        ddes examples get local --api builder
+        desflow examples get local --api builder
         cd local/builder
 
         # 3. Run it
-        uv run --no-project --with dynamic-des local_example.py
+        uv run --no-project --with desflow local_example.py
         ```
 
     === "pip"
 
         ```bash
         # 1. Install
-        pip install dynamic-des
+        pip install desflow
 
         # 2. Download the example
-        ddes examples get local --api builder
+        desflow examples get local --api builder
         cd local/builder
 
         # 3. Run it
@@ -113,37 +115,37 @@ The local example is an online shop that packs orders and prints its events and 
 
     **Quick Start**
 
-    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
     === "uv"
 
         ```bash
         # 1. Install
-        uv tool install dynamic-des
+        uv tool install desflow
 
         # 2. Download the example
-        ddes examples get local --api low-level
+        desflow examples get local --api low-level
         cd local/low-level
 
         # 3. Run it
-        uv run --no-project --with dynamic-des local_example.py
+        uv run --no-project --with desflow local_example.py
         ```
 
     === "pip"
 
         ```bash
         # 1. Install
-        pip install dynamic-des
+        pip install desflow
 
         # 2. Download the example
-        ddes examples get local --api low-level
+        desflow examples get local --api low-level
         cd local/low-level
 
         # 3. Run it
         python local_example.py
         ```
 
-`ddes examples` lists every example.
+`desflow examples` lists every example.
 
 ---
 

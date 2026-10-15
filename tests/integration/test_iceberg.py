@@ -6,7 +6,7 @@ from datetime import datetime
 import pyarrow as pa
 import pytest
 
-from dynamic_des.connectors.egress.iceberg import IcebergStorageEgress
+from desflow.connectors.egress.iceberg import IcebergStorageEgress
 
 
 @pytest.fixture

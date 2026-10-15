@@ -1,4 +1,4 @@
-"""`ddes examples` lists every example and downloads it at the installed release.
+"""`desflow examples` lists every example and downloads it at the installed release.
 
 Downloads are served from the repository's own examples/ folder, so the tests need
 no network and check that what a reader gets is what the repository holds.
@@ -11,8 +11,8 @@ from unittest import mock
 import pytest
 from typer.testing import CliRunner
 
-from dynamic_des.blueprint import examples
-from dynamic_des.blueprint.cli import app
+from desflow.blueprint import examples
+from desflow.blueprint.cli import app
 
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLES_DIR = ROOT / "examples"

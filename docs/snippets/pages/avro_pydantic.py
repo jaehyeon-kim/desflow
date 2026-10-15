@@ -10,7 +10,7 @@ a broker or a schema registry.
 # --8<-- [start:model]
 from pydantic import BaseModel
 
-from dynamic_des import DynamicRealtimeEnvironment
+from desflow import DynamicRealtimeEnvironment
 
 
 class TaskEvent(BaseModel):
@@ -29,15 +29,15 @@ def work_task(env: DynamicRealtimeEnvironment, task_id: int):
 
 
 # --8<-- [start:router]
-from dynamic_des import KafkaEgress
-from dynamic_des.connectors.egress.kafka import ConfluentAvroSerializer
+from desflow import KafkaEgress
+from desflow.connectors.egress.kafka import ConfluentAvroSerializer
 
 # An Avro serializer for the predictions topic. The schema describes the whole record
 # KafkaEgress sends, with the prediction as its value.
 prediction_serializer = ConfluentAvroSerializer(
     registry_url="http://127.0.0.1:8081",
     schema_str="""{
-      "type": "record", "name": "PredictionEvent", "namespace": "com.dynamic_des.ml",
+      "type": "record", "name": "PredictionEvent", "namespace": "com.desflow.ml",
       "fields": [
         {"name": "key", "type": "string"},
         {"name": "sim_ts", "type": "double"},
@@ -96,7 +96,7 @@ class PredictionRecord(AvroBaseModel):
     value: MLPrediction
 
     class Meta:
-        namespace = "com.dynamic_des.ml"
+        namespace = "com.desflow.ml"
         schema_name = "PredictionEvent"
 
 

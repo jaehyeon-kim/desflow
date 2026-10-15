@@ -5,8 +5,8 @@ Needs Kafka: odctl up kafka-lite. Runs until stopped with Ctrl+C.
 
 import numpy as np
 
-from dynamic_des import DynamicRealtimeEnvironment, DynamicResource, Sampler
-from dynamic_des import KafkaEgress, KafkaIngress
+from desflow import DynamicRealtimeEnvironment, DynamicResource, Sampler
+from desflow import KafkaEgress, KafkaIngress
 from shop_changes_low_level import PARAMS, SEED, capacity_plan, order_generator
 
 

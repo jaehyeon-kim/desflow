@@ -14,9 +14,9 @@ import pytest
 from pydantic import BaseModel, Field, ValidationError
 from pydantic_core import PydanticSerializationError
 
-from dynamic_des.connectors.egress.base import BaseEgress
-from dynamic_des.core.environment import DynamicRealtimeEnvironment
-from dynamic_des.models.schemas import EventPayload, TelemetryPayload
+from desflow.connectors.egress.base import BaseEgress
+from desflow.core.environment import DynamicRealtimeEnvironment
+from desflow.models.schemas import EventPayload, TelemetryPayload
 
 
 class TrackingEgress(BaseEgress):
@@ -436,7 +436,7 @@ def test_a_run_without_go_live_keeps_its_factor():
 
 def test_go_live_before_the_start_paces_the_whole_run(caplog):
     """A go-live instant already in the past is the degenerate case: live throughout."""
-    with caplog.at_level(logging.WARNING, logger="dynamic_des.core.environment"):
+    with caplog.at_level(logging.WARNING, logger="desflow.core.environment"):
         env = DynamicRealtimeEnvironment(
             factor=0.0,
             strict=False,
@@ -1010,7 +1010,7 @@ def test_nan_becomes_none_inside_a_pydantic_model():
     """A model keeps NaN in its own dump, so the record value is cleaned as well."""
     from pydantic import BaseModel
 
-    from dynamic_des.core.environment import _jsonable
+    from desflow.core.environment import _jsonable
 
     class Reading(BaseModel):
         celsius: float

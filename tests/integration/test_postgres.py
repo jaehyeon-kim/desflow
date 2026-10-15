@@ -3,8 +3,8 @@ import queue
 import pytest
 import asyncpg
 
-from dynamic_des.connectors.egress.postgres import PostgresEgress
-from dynamic_des.connectors.ingress.postgres import PostgresIngress
+from desflow.connectors.egress.postgres import PostgresEgress
+from desflow.connectors.ingress.postgres import PostgresIngress
 
 
 @pytest.mark.asyncio

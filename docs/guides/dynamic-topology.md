@@ -13,7 +13,7 @@ The builder (`SimulationContext`) creates every resource before the clock starts
 ```python title="docs/snippets/guides/dynamic_topology.py"
 import logging
 
-from dynamic_des import (
+from desflow import (
     CapacityConfig,
     ConsoleEgress,
     DynamicRealtimeEnvironment,

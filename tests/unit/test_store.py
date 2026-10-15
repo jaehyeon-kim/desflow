@@ -1,6 +1,6 @@
 import simpy
 
-from dynamic_des.resources.store import DynamicStore
+from desflow.resources.store import DynamicStore
 
 
 def flush_events(env):

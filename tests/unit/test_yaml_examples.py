@@ -1,6 +1,6 @@
 """Every YAML example builds, runs at factor 0 and produces the records it describes.
 
-Each file in examples/yaml/ is built as `ddes run` builds it, with the
+Each file in examples/yaml/ is built as `desflow run` builds it, with the
 environment variables it reads left unset so the defaults apply. The connectors are
 checked as constructed, then replaced by capturing sinks for a short run at factor 0.
 The captured records are passed to the real connector code where that needs no
@@ -23,9 +23,9 @@ import pyarrow.parquet as pq
 import pytest
 from pyarrow import fs
 
-from dynamic_des import SimulationContext
-from dynamic_des.connectors.egress.base import BaseEgress
-from dynamic_des.connectors.egress.storage import _build_filesystem
+from desflow import SimulationContext
+from desflow.connectors.egress.base import BaseEgress
+from desflow.connectors.egress.storage import _build_filesystem
 
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLES = ROOT / "examples" / "yaml"
@@ -339,7 +339,7 @@ def postgres():
     conn.execute.side_effect = execute
     conn.fetch.side_effect = fetch
     with patch(
-        "dynamic_des.connectors.egress.postgres.asyncpg.create_pool",
+        "desflow.connectors.egress.postgres.asyncpg.create_pool",
         new=AsyncMock(return_value=pool),
     ):
         yield state
@@ -413,9 +413,7 @@ async def test_redis():
     client = MagicMock()
     pipe = client.pipeline.return_value
     pipe.execute = AsyncMock()
-    with patch(
-        "dynamic_des.connectors.egress.redis.redis.from_url", return_value=client
-    ):
+    with patch("desflow.connectors.egress.redis.redis.from_url", return_value=client):
         await _drain(egress, records)
 
     streams = [call.args[0] for call in pipe.xadd.call_args_list]

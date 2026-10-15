@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 import numpy as np
 import pyarrow as pa
 
-from dynamic_des import (
+from desflow import (
     CapacityConfig,
     DistributionConfig,
     DynamicRealtimeEnvironment,
@@ -27,7 +27,7 @@ from dynamic_des import (
     Sampler,
     SimParameter,
 )
-from dynamic_des.utils import time_to_seconds
+from desflow.utils import time_to_seconds
 
 logging.basicConfig(
     level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"

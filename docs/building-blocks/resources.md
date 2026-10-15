@@ -1,6 +1,6 @@
 # Resources: `DynamicResource`, `DynamicContainer` and `DynamicStore`
 
-Standard SimPy objects are static. Dynamic DES wraps SimPy objects so their capacity follows the registry in real time.
+Standard SimPy objects are static. desflow wraps SimPy objects so their capacity follows the registry in real time.
 
 ---
 
@@ -25,7 +25,7 @@ def order(env, order_id, priority=1):
 
 ### Shrinking Safety Guarantee
 When capacity increases, tokens are immediately added to the pool. When capacity shrinks (for example, from 5 packers to 2 when three go on a break):
-* If 4 packers are currently packing orders, **Dynamic DES will not terminate active processes**.
+* If 4 packers are currently packing orders, **desflow will not terminate active processes**.
 * Idle tokens leave the pool at once. The units still busy above the new capacity are owed: while tokens are owed, each released token is discarded instead of returning to the pool.
 * No waiting task starts until the busy units are within the new capacity (2). `in_use` counts the busy units, so it can be above `capacity` until they finish.
 * A capacity raised again before the owed tokens arrive first cancels them, then adds any remaining difference to the pool.
@@ -88,20 +88,20 @@ def pack(env, order_id):
 
 ---
 
-## SimPy and Dynamic DES
+## SimPy and desflow
 
 SimPy's `Resource`, `Container` and `Store` take their capacity when they are created and keep it: the `capacity` property has no setter, so assigning a new value raises `AttributeError` (checked with SimPy 4.1.1). A SimPy model whose capacity changes, such as packers going on a break, has to model it some other way, such as a process that holds the resource.
 
-Dynamic DES builds each one from SimPy parts and lets the capacity follow the registry. `DynamicResource` keeps requests in a SimPy `PriorityStore` and free units as tokens in a SimPy `Container`, and a dispatcher process gives tokens to requests; a change of capacity adds tokens, or removes idle ones at once and the rest as busy units finish. `DynamicContainer` and `DynamicStore` wrap SimPy's `Container` and `Store` and apply a new capacity in the same way. The request, `put` and `get` calls are SimPy's, so code written for SimPy resources works unchanged.
+desflow builds each one from SimPy parts and lets the capacity follow the registry. `DynamicResource` keeps requests in a SimPy `PriorityStore` and free units as tokens in a SimPy `Container`, and a dispatcher process gives tokens to requests; a change of capacity adds tokens, or removes idle ones at once and the rest as busy units finish. `DynamicContainer` and `DynamicStore` wrap SimPy's `Container` and `Store` and apply a new capacity in the same way. The request, `put` and `get` calls are SimPy's, so code written for SimPy resources works unchanged.
 
 ---
 
 ## Creating Them
 
-`SimulationContext.run()` creates a `DynamicResource` for every `add_resource`. It does not create containers or stores: `add_container` registers the capacity paths only. A process that needs a container builds it from the registered paths. `DynamicContainer` and `DynamicStore` are imported from `dynamic_des`, like `DynamicResource`. Stores have no builder method; register them with `SimParameter(stores=...)` on the low-level API.
+`SimulationContext.run()` creates a `DynamicResource` for every `add_resource`. It does not create containers or stores: `add_container` registers the capacity paths only. A process that needs a container builds it from the registered paths. `DynamicContainer` and `DynamicStore` are imported from `desflow`, like `DynamicResource`. Stores have no builder method; register them with `SimParameter(stores=...)` on the low-level API.
 
 ```python title="docs/snippets/pages/resources_builder.py:container"
-from dynamic_des import DynamicContainer, SimulationContext
+from desflow import DynamicContainer, SimulationContext
 
 # run() creates the packers; the container is only registered
 app = (

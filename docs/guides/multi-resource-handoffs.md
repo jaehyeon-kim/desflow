@@ -13,7 +13,7 @@ A handoff passes an order from one resource to the next without letting go of th
 ```python title="docs/snippets/guides/multi_resource_handoffs.py"
 import logging
 
-from dynamic_des import ConsoleEgress, SimulationContext
+from desflow import ConsoleEgress, SimulationContext
 
 logging.basicConfig(level=logging.INFO)
 

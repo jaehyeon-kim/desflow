@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from dynamic_des.models.schemas import EventPayload, TelemetryPayload
+from desflow.models.schemas import EventPayload, TelemetryPayload
 
 
 def test_telemetry_payload_valid():

@@ -106,7 +106,7 @@ The same settings in a blueprint:
 
 ```yaml title="docs/snippets/yaml/batching.yaml"
 # The batching settings of the Batching and Delivery page, as a blueprint.
-# Run it with: ddes run batching.yaml
+# Run it with: desflow run batching.yaml
 simulation:
   sim_id: Shop
   factor: 0

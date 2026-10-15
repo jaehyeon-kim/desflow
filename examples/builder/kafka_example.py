@@ -15,7 +15,7 @@ import time
 
 from pydantic import BaseModel
 
-from dynamic_des import (
+from desflow import (
     KafkaAdminConnector,
     KafkaEgress,
     KafkaIngress,

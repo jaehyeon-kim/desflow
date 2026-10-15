@@ -14,7 +14,7 @@ import time
 import numpy as np
 from pydantic import BaseModel
 
-from dynamic_des import (
+from desflow import (
     CapacityConfig,
     DistributionConfig,
     DynamicRealtimeEnvironment,
@@ -39,7 +39,7 @@ BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 # ==========================================
 class TaskEvent(BaseModel):
     """
-    Thanks to dynamic-des's duck-typing, we can pass this Pydantic model
+    Thanks to desflow's duck-typing, we can pass this Pydantic model
     directly into env.publish_event(). KafkaEgress converts it to a dict and
     serializes it, to JSON or to Avro.
     """
@@ -122,7 +122,7 @@ def run():
     ingress = KafkaIngress(topic="sim-config", bootstrap_servers=BOOTSTRAP_SERVERS)
 
     # By default, this uses JsonSerializer. To use Avro for enterprise environments:
-    # from dynamic_des.connectors.egress.kafka import ConfluentAvroSerializer
+    # from desflow.connectors.egress.kafka import ConfluentAvroSerializer
     # avro_serializer = ConfluentAvroSerializer(
     #     registry_url="http://127.0.0.1:8081", schema_str=AVRO_SCHEMA
     # )

@@ -11,15 +11,15 @@ A blueprint is built through the same public builder methods a Python script cal
 
 ## Running a Blueprint
 
-From a shell, with the `ddes` command that the package installs. Your own blueprint runs the same way; these lines use the local example:
+From a shell, with the `desflow` command that the package installs. Your own blueprint runs the same way; these lines use the local example:
 
 ```bash
-ddes examples get local --api yaml    # downloads local/yaml/local.yaml
+desflow examples get local --api yaml    # downloads local/yaml/local.yaml
 cd local/yaml
-ddes run local.yaml                   # runs until run.until, 60 s in this file
-ddes run local.yaml --until 10min     # overrides run.until
-ddes examples                         # lists the other examples
-ddes --version
+desflow run local.yaml                   # runs until run.until, 60 s in this file
+desflow run local.yaml --until 10min     # overrides run.until
+desflow examples                         # lists the other examples
+desflow --version
 ```
 
 `--until` takes seconds or a duration such as `10 min`, `2 hours` or `1 week`, the forms `time_to_seconds` accepts. The command logs at INFO level, so `ConsoleEgress` output is visible. An invalid file prints its errors and exits with code 1.
@@ -27,7 +27,7 @@ ddes --version
 From Python:
 
 ```python title="docs/snippets/pages/yaml_loading.py:from-yaml"
-from dynamic_des import SimulationContext
+from desflow import SimulationContext
 
 app = SimulationContext.from_yaml("local.yaml")
 app.run()  # calls run.before, then runs until run.until
@@ -266,9 +266,9 @@ A blueprint covers configuration. Anything that is logic stays in Python.
 
 A file is read in five steps. A step that fails stops the load with a `BlueprintError` naming the file and the line, before anything runs:
 
-![from_yaml and ddes run read the file, check every field, check the names, build the context and check the scenario, in that order, and return a SimulationContext; any step that fails raises BlueprintError with the file and line](../assets/diagrams/blueprint-loading.png)
+![from_yaml and desflow run read the file, check every field, check the names, build the context and check the scenario, in that order, and return a SimulationContext; any step that fails raises BlueprintError with the file and line](../assets/diagrams/blueprint-loading.png)
 
-Every error names the file and the line, and `ddes run` prints it after `Error:`. Validation errors are all reported at once:
+Every error names the file and the line, and `desflow run` prints it after `Error:`. Validation errors are all reported at once:
 
 ```text
 Error: err.yaml:3: simulation.speed: Extra inputs are not permitted

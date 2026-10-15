@@ -2,8 +2,8 @@ import math
 import numpy as np
 import pytest
 
-from dynamic_des.core.sampler import Sampler
-from dynamic_des.models.params import DistributionConfig
+from desflow.core.sampler import Sampler
+from desflow.models.params import DistributionConfig
 
 
 @pytest.fixture

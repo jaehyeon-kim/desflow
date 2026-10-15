@@ -11,8 +11,8 @@ from pathlib import Path
 import pytest
 import yaml
 
-from dynamic_des import SimulationContext
-from dynamic_des.blueprint.loader import BlueprintLoader
+from desflow import SimulationContext
+from desflow.blueprint.loader import BlueprintLoader
 
 ROOT = Path(__file__).resolve().parents[2]
 SNIPPETS = sorted((ROOT / "docs" / "snippets" / "yaml").glob("*.yaml"))

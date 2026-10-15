@@ -12,23 +12,23 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
 
     **Quick Start**
 
-    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
     === "uv"
 
         ```bash
         # 1. Install
-        uv tool install "dynamic-des[iceberg]" --with-executables-from "odctl>=1.0,<2"
+        uv tool install "desflow[iceberg]" --with-executables-from "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get iceberg --api yaml
+        desflow examples get iceberg --api yaml
         cd iceberg/yaml
 
         # 3. Start its service
         odctl up catalog
 
         # 4. Run it
-        ddes run iceberg.yaml
+        desflow run iceberg.yaml
 
         # 5. Stop its service when finished
         odctl down catalog --volumes
@@ -38,17 +38,17 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
 
         ```bash
         # 1. Install
-        pip install "dynamic-des[iceberg]" "odctl>=1.0,<2"
+        pip install "desflow[iceberg]" "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get iceberg --api yaml
+        desflow examples get iceberg --api yaml
         cd iceberg/yaml
 
         # 3. Start its service
         odctl up catalog
 
         # 4. Run it
-        ddes run iceberg.yaml
+        desflow run iceberg.yaml
 
         # 5. Stop its service when finished
         odctl down catalog --volumes
@@ -66,7 +66,7 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
 
     `catalog` is a mapping of PyIceberg catalog properties, passed to PyIceberg's `load_catalog`. `schemas` names a type for each column, so `timestamp` is created as a timestamp rather than inferred as a string, and the ISO time each record carries is converted before the write.
 
-    Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
+    Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
     ```yaml title="examples/yaml/iceberg.yaml"
     # Lakehouse data generation in YAML.
@@ -78,7 +78,7 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
     #
     # Needs the odctl catalog profile: odctl up catalog. ICEBERG_URI, ICEBERG_WAREHOUSE,
     # S3_ENDPOINT, S3_ACCESS_KEY and S3_SECRET_KEY override the catalog and credentials.
-    # Run it with: ddes run examples/yaml/iceberg.yaml
+    # Run it with: desflow run examples/yaml/iceberg.yaml
 
     simulation:
       sim_id: Shop
@@ -137,23 +137,23 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
 
     **Quick Start**
 
-    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
     === "uv"
 
         ```bash
         # 1. Install
-        uv tool install "dynamic-des[iceberg]" --with-executables-from "odctl>=1.0,<2"
+        uv tool install "desflow[iceberg]" --with-executables-from "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get iceberg --api builder
+        desflow examples get iceberg --api builder
         cd iceberg/builder
 
         # 3. Start its service
         odctl up catalog
 
         # 4. Run it
-        uv run --no-project --with "dynamic-des[iceberg]" iceberg_example.py
+        uv run --no-project --with "desflow[iceberg]" iceberg_example.py
 
         # 5. Stop its service when finished
         odctl down catalog --volumes
@@ -163,10 +163,10 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
 
         ```bash
         # 1. Install
-        pip install "dynamic-des[iceberg]" "odctl>=1.0,<2"
+        pip install "desflow[iceberg]" "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get iceberg --api builder
+        desflow examples get iceberg --api builder
         cd iceberg/builder
 
         # 3. Start its service
@@ -187,7 +187,7 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
 
     This script simulates the shop over a 1-day period. It routes lifecycle events into one Iceberg table and pins the schema so the event time is a real timestamp rather than the string inference would give.
 
-    Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
+    Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
     ```python title="examples/builder/iceberg_example.py"
     """
@@ -211,7 +211,7 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
 
     import pyarrow as pa
 
-    from dynamic_des import IcebergStorageEgress, SimulationContext
+    from desflow import IcebergStorageEgress, SimulationContext
 
     # Logging is configured here rather than in a wrapper, because this script is run
     # directly. Without it the run produces no output at all.
@@ -373,23 +373,23 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
 
     **Quick Start**
 
-    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
     === "uv"
 
         ```bash
         # 1. Install
-        uv tool install "dynamic-des[iceberg]" --with-executables-from "odctl>=1.0,<2"
+        uv tool install "desflow[iceberg]" --with-executables-from "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get iceberg --api low-level
+        desflow examples get iceberg --api low-level
         cd iceberg/low-level
 
         # 3. Start its service
         odctl up catalog
 
         # 4. Run it
-        uv run --no-project --with "dynamic-des[iceberg]" iceberg_example.py
+        uv run --no-project --with "desflow[iceberg]" iceberg_example.py
 
         # 5. Stop its service when finished
         odctl down catalog --volumes
@@ -399,10 +399,10 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
 
         ```bash
         # 1. Install
-        pip install "dynamic-des[iceberg]" "odctl>=1.0,<2"
+        pip install "desflow[iceberg]" "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get iceberg --api low-level
+        desflow examples get iceberg --api low-level
         cd iceberg/low-level
 
         # 3. Start its service
@@ -423,7 +423,7 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
 
     This script simulates the shop over a 1-day period. It routes lifecycle events into one Iceberg table and pins the schema so the event time is a real timestamp rather than the string inference would give.
 
-    Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
+    Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
     ```python title="examples/low-level/iceberg_example.py"
     """Lakehouse data generation, low-level API.
@@ -446,7 +446,7 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
     import numpy as np
     import pyarrow as pa
 
-    from dynamic_des import (
+    from desflow import (
         CapacityConfig,
         DistributionConfig,
         DynamicRealtimeEnvironment,
@@ -455,7 +455,7 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
         Sampler,
         SimParameter,
     )
-    from dynamic_des.utils import time_to_seconds
+    from desflow.utils import time_to_seconds
 
     logging.basicConfig(
         level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"

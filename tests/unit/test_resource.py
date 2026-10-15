@@ -1,4 +1,4 @@
-from dynamic_des.resources.resource import DynamicResource
+from desflow.resources.resource import DynamicResource
 
 
 def flush_events(env):

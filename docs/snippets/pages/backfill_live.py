@@ -6,7 +6,7 @@ tests/unit run this file without a broker.
 
 from datetime import datetime, timedelta
 
-from dynamic_des import (
+from desflow import (
     DynamicRealtimeEnvironment,
     KafkaEgress,
     ParquetStorageEgress,

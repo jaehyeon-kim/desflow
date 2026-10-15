@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from dynamic_des.connectors.ingress.kafka import (
+from desflow.connectors.ingress.kafka import (
     ConfluentAvroDeserializer,
     GlueAvroDeserializer,
     KafkaIngress,
@@ -25,7 +25,7 @@ def test_missing_avro_deserializer_dependencies():
             "confluent_kafka.serialization": None,
         },
     ):
-        with pytest.raises(ImportError, match=r"pip install dynamic-des\[confluent\]"):
+        with pytest.raises(ImportError, match=r"pip install desflow\[confluent\]"):
             ConfluentAvroDeserializer(registry_url="http://mock")
 
     # Hide boto3
@@ -38,12 +38,12 @@ def test_missing_avro_deserializer_dependencies():
             "aws_schema_registry.avro": None,
         },
     ):
-        with pytest.raises(ImportError, match=r"pip install dynamic-des\[glue\]"):
+        with pytest.raises(ImportError, match=r"pip install desflow\[glue\]"):
             GlueAvroDeserializer(registry_name="mock")
 
 
 @pytest.mark.asyncio
-@patch("dynamic_des.connectors.ingress.kafka.AIOKafkaConsumer")
+@patch("desflow.connectors.ingress.kafka.AIOKafkaConsumer")
 async def test_kafka_ingress_pluggable_deserializers(MockConsumer):
     """Verify that topic_deserializers correctly route binary payloads to custom deserializers."""
 
@@ -98,7 +98,7 @@ async def test_kafka_ingress_pluggable_deserializers(MockConsumer):
 
 
 @pytest.mark.asyncio
-@patch("dynamic_des.connectors.ingress.kafka.AIOKafkaConsumer")
+@patch("desflow.connectors.ingress.kafka.AIOKafkaConsumer")
 async def test_kafka_ingress_success(MockConsumer):
     """Verify the default JSON fallback deserializes successfully."""
 

@@ -1,6 +1,6 @@
 import logging
 
-from dynamic_des import (
+from desflow import (
     CapacityConfig,
     ConsoleEgress,
     DynamicRealtimeEnvironment,

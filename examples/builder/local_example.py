@@ -11,7 +11,7 @@ after 30 simulation seconds.
 
 import logging
 
-from dynamic_des import ConsoleEgress, SimulationContext
+from desflow import ConsoleEgress, SimulationContext
 
 # Logging is configured here rather than in a wrapper, because this script is run
 # directly. Without it the run produces no output at all.

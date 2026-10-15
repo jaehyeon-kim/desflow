@@ -185,11 +185,11 @@ assert fixed.sample(packing) == 3.0 and fixed.sample(gap) == 2.0
 
 ---
 
-## SimPy and Dynamic DES
+## SimPy and desflow
 
 SimPy has no distributions: a SimPy model draws its own times, usually with `random.expovariate(0.5)` for a gap or `random.normalvariate(3.0, 0.5)` for a service, and writes `yield env.timeout(...)` with the result. Nothing checks the parameters, a negative draw is passed to `timeout`, which raises, and the parameters are ordinary variables that only the model's code can change.
 
-Dynamic DES names each distribution and its parameters once, in a `DistributionConfig`. The parameters are checked when the model is built, every draw goes through one seeded `Sampler` and is raised to at least 0.00001 seconds, and the configuration lives in the registry, so a connector or a scenario can change it while the simulation runs.
+desflow names each distribution and its parameters once, in a `DistributionConfig`. The parameters are checked when the model is built, every draw goes through one seeded `Sampler` and is raised to at least 0.00001 seconds, and the configuration lives in the registry, so a connector or a scenario can change it while the simulation runs.
 
 ---
 

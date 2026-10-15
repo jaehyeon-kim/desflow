@@ -4,8 +4,8 @@ import queue
 import pytest
 from aiokafka import AIOKafkaConsumer
 
-from dynamic_des.connectors.egress.kafka import KafkaEgress
-from dynamic_des.connectors.admin.kafka import KafkaAdminConnector
+from desflow.connectors.egress.kafka import KafkaEgress
+from desflow.connectors.admin.kafka import KafkaAdminConnector
 
 
 @pytest.mark.asyncio

@@ -5,10 +5,10 @@ import textwrap
 import pytest
 from typer.testing import CliRunner
 
-from dynamic_des import SimulationContext
-from dynamic_des.blueprint import BlueprintError
-from dynamic_des.blueprint.cli import app as cli
-from dynamic_des.connectors.egress.base import BaseEgress
+from desflow import SimulationContext
+from desflow.blueprint import BlueprintError
+from desflow.blueprint.cli import app as cli
+from desflow.connectors.egress.base import BaseEgress
 
 MINIMAL = """\
 simulation:
@@ -217,7 +217,7 @@ def test_cli_rejects_a_missing_file(tmp_path):
 
 
 def test_cli_prints_the_version():
-    from dynamic_des import __version__
+    from desflow import __version__
 
     result = CliRunner().invoke(cli, ["--version"])
     assert result.exit_code == 0

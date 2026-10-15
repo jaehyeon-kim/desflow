@@ -6,23 +6,23 @@ Related records are rows that belong together across tables. Here every customer
 
     **Quick Start**
 
-    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
     === "uv"
 
         ```bash
         # 1. Install
-        uv tool install "dynamic-des[postgres]" --with-executables-from "odctl>=1.0,<2"
+        uv tool install "desflow[postgres]" --with-executables-from "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get related-records --api yaml
+        desflow examples get related-records --api yaml
         cd related-records/yaml
 
         # 3. Start its service
         odctl up postgres
 
         # 4. Run it (Ctrl + C to stop)
-        ddes run postgres_orders.yaml
+        desflow run postgres_orders.yaml
 
         # 5. Stop its service when finished
         odctl down postgres --volumes
@@ -32,17 +32,17 @@ Related records are rows that belong together across tables. Here every customer
 
         ```bash
         # 1. Install
-        pip install "dynamic-des[postgres]" "odctl>=1.0,<2"
+        pip install "desflow[postgres]" "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get related-records --api yaml
+        desflow examples get related-records --api yaml
         cd related-records/yaml
 
         # 3. Start its service
         odctl up postgres
 
         # 4. Run it (Ctrl + C to stop)
-        ddes run postgres_orders.yaml
+        desflow run postgres_orders.yaml
 
         # 5. Stop its service when finished
         odctl down postgres --volumes
@@ -52,7 +52,7 @@ Related records are rows that belong together across tables. Here every customer
 
     The generator is listed under `processes` with `kwargs`, so it is called as `order_generator(context, arrival="orders", max_items=5)`. It draws from `context.sampler.rng`, the generator seeded by `random_seed`, so a seeded run repeats the same orders.
 
-    Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
+    Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
     ```yaml title="examples/yaml/advanced/postgres_orders.yaml"
     # Orders with random line items, in YAML with one Python function.
@@ -66,7 +66,7 @@ Related records are rows that belong together across tables. Here every customer
     # records whose __table__ key names its table. Each creates its table at start.
     #
     # Needs a database: odctl up postgres. Runs until interrupted with Ctrl + C.
-    # Run it with: ddes run examples/yaml/advanced/postgres_orders.yaml
+    # Run it with: desflow run examples/yaml/advanced/postgres_orders.yaml
 
     simulation:
       sim_id: Shop
@@ -167,23 +167,23 @@ Related records are rows that belong together across tables. Here every customer
 
     **Quick Start**
 
-    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
     === "uv"
 
         ```bash
         # 1. Install
-        uv tool install "dynamic-des[postgres]" --with-executables-from "odctl>=1.0,<2"
+        uv tool install "desflow[postgres]" --with-executables-from "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get related-records --api builder
+        desflow examples get related-records --api builder
         cd related-records/builder
 
         # 3. Start its service
         odctl up postgres
 
         # 4. Run it (Ctrl + C to stop)
-        uv run --no-project --with "dynamic-des[postgres]" postgres_orders_example.py
+        uv run --no-project --with "desflow[postgres]" postgres_orders_example.py
 
         # 5. Stop its service when finished
         odctl down postgres --volumes
@@ -193,10 +193,10 @@ Related records are rows that belong together across tables. Here every customer
 
         ```bash
         # 1. Install
-        pip install "dynamic-des[postgres]" "odctl>=1.0,<2"
+        pip install "desflow[postgres]" "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get related-records --api builder
+        desflow examples get related-records --api builder
         cd related-records/builder
 
         # 3. Start its service
@@ -228,7 +228,7 @@ Related records are rows that belong together across tables. Here every customer
 
     import logging
 
-    from dynamic_des import PostgresEgress, PostgresIngress, SimulationContext
+    from desflow import PostgresEgress, PostgresIngress, SimulationContext
 
     logging.basicConfig(
         level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
@@ -319,23 +319,23 @@ Related records are rows that belong together across tables. Here every customer
 
     **Quick Start**
 
-    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
     === "uv"
 
         ```bash
         # 1. Install
-        uv tool install "dynamic-des[postgres]" --with-executables-from "odctl>=1.0,<2"
+        uv tool install "desflow[postgres]" --with-executables-from "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get related-records --api low-level
+        desflow examples get related-records --api low-level
         cd related-records/low-level
 
         # 3. Start its service
         odctl up postgres
 
         # 4. Run it (Ctrl + C to stop)
-        uv run --no-project --with "dynamic-des[postgres]" postgres_orders_example.py
+        uv run --no-project --with "desflow[postgres]" postgres_orders_example.py
 
         # 5. Stop its service when finished
         odctl down postgres --volumes
@@ -345,10 +345,10 @@ Related records are rows that belong together across tables. Here every customer
 
         ```bash
         # 1. Install
-        pip install "dynamic-des[postgres]" "odctl>=1.0,<2"
+        pip install "desflow[postgres]" "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get related-records --api low-level
+        desflow examples get related-records --api low-level
         cd related-records/low-level
 
         # 3. Start its service
@@ -381,7 +381,7 @@ Related records are rows that belong together across tables. Here every customer
 
     import numpy as np
 
-    from dynamic_des import (
+    from desflow import (
         DistributionConfig,
         DynamicRealtimeEnvironment,
         PostgresEgress,

@@ -4,8 +4,8 @@ import queue
 
 import pytest
 
-from dynamic_des.connectors.egress.local import ConsoleEgress
-from dynamic_des.connectors.ingress.local import LocalIngress
+from desflow.connectors.egress.local import ConsoleEgress
+from desflow.connectors.ingress.local import LocalIngress
 
 
 @pytest.mark.asyncio

@@ -4,7 +4,7 @@ import pytest
 from pathlib import Path
 import pyarrow.parquet as pq
 
-from dynamic_des.connectors.egress.storage import ParquetStorageEgress
+from desflow.connectors.egress.storage import ParquetStorageEgress
 
 
 @pytest.mark.asyncio

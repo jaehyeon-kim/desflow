@@ -1,7 +1,7 @@
 import queue
 from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
-from dynamic_des.connectors.egress.postgres import PostgresEgress
+from desflow.connectors.egress.postgres import PostgresEgress
 
 
 @pytest.fixture
@@ -22,9 +22,7 @@ async def test_postgres_egress_initialization():
 
 
 @pytest.mark.asyncio
-@patch(
-    "dynamic_des.connectors.egress.postgres.asyncpg.create_pool", new_callable=AsyncMock
-)
+@patch("desflow.connectors.egress.postgres.asyncpg.create_pool", new_callable=AsyncMock)
 async def test_postgres_egress_run(mock_create_pool, mock_pool, run_until):
     pool, conn = mock_pool
     mock_create_pool.return_value = pool
@@ -90,9 +88,7 @@ def test_upsert_batch_without_the_key_raises():
 
 
 @pytest.mark.asyncio
-@patch(
-    "dynamic_des.connectors.egress.postgres.asyncpg.create_pool", new_callable=AsyncMock
-)
+@patch("desflow.connectors.egress.postgres.asyncpg.create_pool", new_callable=AsyncMock)
 async def test_upsert_key_missing_from_the_table_fails_at_start(
     mock_create_pool, mock_pool
 ):
@@ -128,9 +124,7 @@ def test_records_with_different_columns_are_written_in_separate_runs():
 
 
 @pytest.mark.asyncio
-@patch(
-    "dynamic_des.connectors.egress.postgres.asyncpg.create_pool", new_callable=AsyncMock
-)
+@patch("desflow.connectors.egress.postgres.asyncpg.create_pool", new_callable=AsyncMock)
 async def test_iso_strings_are_converted_for_time_columns(
     mock_create_pool, mock_pool, run_until
 ):
@@ -181,9 +175,7 @@ ORDERS = {
 
 
 @pytest.mark.asyncio
-@patch(
-    "dynamic_des.connectors.egress.postgres.asyncpg.create_pool", new_callable=AsyncMock
-)
+@patch("desflow.connectors.egress.postgres.asyncpg.create_pool", new_callable=AsyncMock)
 async def test_tables_are_created_before_the_columns_are_read(
     mock_create_pool, mock_pool
 ):
@@ -217,9 +209,7 @@ async def test_tables_are_created_before_the_columns_are_read(
 
 
 @pytest.mark.asyncio
-@patch(
-    "dynamic_des.connectors.egress.postgres.asyncpg.create_pool", new_callable=AsyncMock
-)
+@patch("desflow.connectors.egress.postgres.asyncpg.create_pool", new_callable=AsyncMock)
 async def test_a_table_created_by_another_writer_meanwhile_is_ignored(
     mock_create_pool, mock_pool
 ):

@@ -4,7 +4,7 @@ Builds a small `Shop`, prints the parameters it registers, and runs it unpaced f
 few seconds so the telemetry loop publishes the packers's capacity.
 """
 
-from dynamic_des import ConsoleEgress, SimulationContext
+from desflow import ConsoleEgress, SimulationContext
 
 app = (
     SimulationContext(sim_id="Shop", factor=0.0)

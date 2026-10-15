@@ -1,11 +1,11 @@
-site_name: Dynamic DES
+site_name: desflow
 site_description: Realistic event streams from a SimPy simulation you can steer while it runs, written to Kafka, Redis, PostgreSQL, Parquet, JSONL and Iceberg.
 # mike appends a folder to site_url when it deploys a version. canonical_version
 # below makes that folder latest/, so every version's pages name the same page
 # under latest/ as canonical and search engines index one copy, not one per release.
-site_url: https://jaehyeon.me/dynamic-des/
-repo_url: https://github.com/jaehyeon-kim/dynamic-des
-repo_name: dynamic-des
+site_url: https://jaehyeon.me/desflow/
+repo_url: https://github.com/jaehyeon-kim/desflow
+repo_name: desflow
 
 theme:
   name: material
@@ -43,6 +43,8 @@ plugins:
         tutorials/declarative.md: tutorials/first-simulation.md
         tutorials/yaml.md: tutorials/first-simulation.md
         architecture/resources.md: building-blocks/resources.md
+        # The page named after the package before the rename to desflow in 0.20.0.
+        des/simpy-and-dynamic-des.md: des/simpy-and-desflow.md
         # Pages removed before 0.17.0. Older versions name latest/<page> as their
         # canonical address, so each needs a page there.
         architecture/paradigms.md: architecture/overview.md
@@ -80,7 +82,7 @@ plugins:
   - llmstxt:
       # mike serves each version under its own folder, so the links in llms.txt
       # point at latest/, where the current pages are.
-      base_url: https://jaehyeon.me/dynamic-des/latest/
+      base_url: https://jaehyeon.me/desflow/latest/
       full_output: llms-full.txt
       sections: {} # required by the plugin; filled from the nav by the hook
   - mkdocstrings:
@@ -88,7 +90,7 @@ plugins:
         python:
           paths: [src]
           options:
-            show_root_full_path: false # Removes 'dynamic_des.core...' prefix
+            show_root_full_path: false # Removes 'desflow.core...' prefix
             show_root_toc_entry: true # Ensures class appears in TOC
             show_root_heading: true # Shows the class name as a heading
             show_category_heading: true # Groups methods, attributes, etc.
@@ -103,7 +105,7 @@ plugins:
 extra:
   version:
     provider: mike
-  # Same property as the blog, so both sit in one view. Filter by /dynamic-des/.
+  # Same property as the blog, so both sit in one view. Filter by /desflow/.
   analytics:
     provider: google
     property: G-076N8WCGWZ
@@ -127,7 +129,7 @@ nav:
       - First Simulation: tutorials/first-simulation.md
   - How Simulation Works:
       - What Is DES?: des/how-it-works.md
-      - SimPy and Dynamic DES: des/simpy-and-dynamic-des.md
+      - SimPy and desflow: des/simpy-and-desflow.md
       - Building Blocks:
           - Overview: building-blocks/index.md
           - Arrivals and Services: building-blocks/arrivals-and-services.md
@@ -176,6 +178,7 @@ nav:
   - API Reference: api.md
   - About:
       - Roadmap: about/roadmap.md
+      - Changelog: about/changelog.md
 
 markdown_extensions:
   - pymdownx.highlight:

@@ -2,7 +2,7 @@
 
 Labelled blocks are copies of tested files. The unlabelled ones, short fragments in
 the guides, are not run, so this checks what goes stale first when the code changes:
-each block must parse, every name it imports from dynamic_des must exist, and every
+each block must parse, every name it imports from desflow must exist, and every
 method it calls on the builder (`app`), the environment (`env`, `context.env`) or the
 registry must exist on that class.
 """
@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from dynamic_des import (
+from desflow import (
     DynamicRealtimeEnvironment,
     SimulationContext,
     SimulationRegistry,
@@ -57,7 +57,7 @@ def test_block_is_valid_and_names_what_exists(where, code):
         if (
             isinstance(node, ast.ImportFrom)
             and node.module
-            and node.module.startswith("dynamic_des")
+            and node.module.startswith("desflow")
         ):
             module = importlib.import_module(node.module)
             for alias in node.names:

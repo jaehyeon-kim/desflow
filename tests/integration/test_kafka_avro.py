@@ -19,9 +19,9 @@ import urllib.request
 import pytest
 from aiokafka import AIOKafkaConsumer
 
-from dynamic_des.connectors.admin.kafka import KafkaAdminConnector
-from dynamic_des.connectors.egress.kafka import ConfluentAvroSerializer, KafkaEgress
-from dynamic_des.connectors.ingress.kafka import ConfluentAvroDeserializer
+from desflow.connectors.admin.kafka import KafkaAdminConnector
+from desflow.connectors.egress.kafka import ConfluentAvroSerializer, KafkaEgress
+from desflow.connectors.ingress.kafka import ConfluentAvroDeserializer
 
 TOPIC = "test-avro-events"
 
@@ -31,7 +31,7 @@ SCHEMA = json.dumps(
     {
         "type": "record",
         "name": "OrderEvent",
-        "namespace": "dynamic_des.test",
+        "namespace": "desflow.test",
         "fields": [
             {"name": "key", "type": "string"},
             {

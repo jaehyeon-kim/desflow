@@ -58,7 +58,7 @@ jobs:
         # --python is what selects the interpreter. `uv python install` above only
         # downloads it, so without this every leg of the matrix would run the
         # version in .python-version and the other four would test nothing new.
-        run: uv run --python ${{ matrix.python-version }} --with pytest-cov --all-extras pytest tests/unit/ --cov=src/dynamic_des --cov-report=xml
+        run: uv run --python ${{ matrix.python-version }} --with pytest-cov --all-extras pytest tests/unit/ --cov=src/desflow --cov-report=xml
 
   integration-test:
     runs-on: ubuntu-latest
@@ -108,7 +108,7 @@ jobs:
         include:
           - extra: kafka
             check: |
-              from dynamic_des import KafkaAdminConnector, KafkaEgress, KafkaIngress
+              from desflow import KafkaAdminConnector, KafkaEgress, KafkaIngress
 
               KafkaEgress(bootstrap_servers="localhost:9092")
               KafkaIngress(topic="sim-config", bootstrap_servers="localhost:9092")
@@ -117,8 +117,8 @@ jobs:
             check: |
               import json
 
-              from dynamic_des.connectors.egress.kafka import ConfluentAvroSerializer
-              from dynamic_des.connectors.ingress.kafka import ConfluentAvroDeserializer
+              from desflow.connectors.egress.kafka import ConfluentAvroSerializer
+              from desflow.connectors.ingress.kafka import ConfluentAvroDeserializer
 
               schema = json.dumps(
                   {
@@ -133,8 +133,8 @@ jobs:
             check: |
               import json
 
-              from dynamic_des.connectors.egress.kafka import GlueAvroSerializer
-              from dynamic_des.connectors.ingress.kafka import GlueAvroDeserializer
+              from desflow.connectors.egress.kafka import GlueAvroSerializer
+              from desflow.connectors.ingress.kafka import GlueAvroDeserializer
 
               schema = json.dumps(
                   {
@@ -147,19 +147,19 @@ jobs:
               GlueAvroDeserializer(registry_name="sim-registry")
           - extra: redis
             check: |
-              from dynamic_des import RedisEgress, RedisIngress
+              from desflow import RedisEgress, RedisIngress
 
               RedisEgress(url="redis://localhost:6379/0")
               RedisIngress(url="redis://localhost:6379/0")
           - extra: postgres
             check: |
-              from dynamic_des import PostgresEgress, PostgresIngress
+              from desflow import PostgresEgress, PostgresIngress
 
               PostgresEgress(connection_dsn="postgresql://user:pass@localhost:5432/sim")
               PostgresIngress(connection_dsn="postgresql://user:pass@localhost:5432/sim")
           - extra: parquet
             check: |
-              from dynamic_des import JsonlStorageEgress, ParquetStorageEgress
+              from desflow import JsonlStorageEgress, ParquetStorageEgress
 
               JsonlStorageEgress(default_path="data/events.jsonl")
               ParquetStorageEgress(default_path="data/events.parquet")
@@ -170,7 +170,7 @@ jobs:
               from pyarrow import fs
           - extra: iceberg
             check: |
-              from dynamic_des import IcebergStorageEgress
+              from desflow import IcebergStorageEgress
 
               IcebergStorageEgress(catalog=object(), default_table="sim.events")
 
@@ -197,7 +197,7 @@ jobs:
           CHECK: ${{ matrix.check }}
         run: .venv/bin/python -c "$CHECK"
 
-  # The core install alone must run a plain YAML blueprint, which proves the ddes
+  # The core install alone must run a plain YAML blueprint, which proves the desflow
   # entry point, Typer and PyYAML need no extra.
   core-install:
     name: Run a YAML blueprint with the core install alone
@@ -216,7 +216,7 @@ jobs:
           uv pip install .
 
       - name: Run the local blueprint for two simulation seconds
-        run: .venv/bin/ddes run examples/yaml/local.yaml --until 2
+        run: .venv/bin/desflow run examples/yaml/local.yaml --until 2
 
   # A strict build fails on a broken link or anchor, so a pull request finds it
   # before the docs job deploys from main. Material prints a notice about MkDocs 2.0
@@ -260,6 +260,15 @@ jobs:
           # Dynamically extract the version string from pyproject.toml
           VERSION=$(grep -m 1 '^version = ' pyproject.toml | cut -d '"' -f 2)
           echo "Extracted version: $VERSION"
+
+          # The rename release starts the desflow site without the dynamic-des
+          # versions 0.1.0 to 0.19.0: delete --all removes every file on gh-pages,
+          # versions.json and the root files included, in a local commit that the
+          # push below sends with the deploy. A later merge while the version is
+          # still 0.20.0 deletes and deploys 0.20.0 again, with the same result.
+          if [ "$VERSION" = "0.20.0" ]; then
+            uv run mike delete --all
+          fi
 
           # Deploy the extracted version and tag it as 'latest'
           uv run mike deploy --update-aliases $VERSION latest
