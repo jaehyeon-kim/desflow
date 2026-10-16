@@ -49,19 +49,6 @@ A plain `uv run` without `--all-extras` removes the extras from the venv, and th
 2. Tag `vX.Y.Z` and publish a GitHub release. `publish.yml` runs on the published release and uploads to PyPI through the `pypi` environment.
 3. Python 3.15 is not in the CI matrix yet: confluent-kafka has no 3.15 wheel (issue #40).
 
-The rename release, 0.20.0, goes out in this order instead. Until step 2, every `jaehyeon-kim/desflow` URL (the README images, the CI badge, `desflow examples get` at tag `v0.20.0`) points at the placeholder repository.
-
-1. Delete the placeholder repository `jaehyeon-kim/desflow`.
-2. Rename `dynamic-des` to `desflow` in the repository settings. Never create a repository named `dynamic-des` afterwards: GitHub's redirects from the old name stop working if one exists.
-3. Set the repository homepage to `https://jaehyeon.me/desflow/`.
-4. Add the `pypi` environment (Settings, Environments).
-5. On PyPI, both projects publish from `jaehyeon-kim/desflow` (set on 15 Oct 2026): `desflow` from `publish.yml`, `dynamic-des` from `publish-dynamic-des.yml`.
-6. In the blog repository `jaehyeon-kim.github.io`, on the same day: generate the forwarding pages for `https://jaehyeon.me/dynamic-des/` (its `static/dynamic-des/` folder) with its `scripts/make-dynamic-des-redirects.py`, from the file list of `gh-pages`, read with `git ls-tree -r --name-only origin/gh-pages`, and the built desflow site, and replace the `dynamic-des` tag on the blog posts with `desflow`, which the README links to at `https://jaehyeon.me/tags/desflow/`, with a forwarding page at `/tags/dynamic-des/`; and point the docs sitemap line in `layouts/robots.txt` at `desflow/latest/sitemap.xml`.
-7. Merge to `main`, which deploys the docs. For 0.20.0 the deploy first runs `mike delete --all`, which removes the dynamic-des versions 0.1.0 to 0.19.0, `latest/`, `versions.json` and the root files from the tip of `gh-pages`. They stay in the branch history, so the file list for step 6 can still be read from the last commit before "Removed everything with mike". Then, in Google Search Console, replace the sitemap `https://jaehyeon.me/dynamic-des/latest/sitemap.xml` with `https://jaehyeon.me/desflow/latest/sitemap.xml`.
-8. Tag `v0.20.0` and publish the GitHub release, which publishes desflow to PyPI.
-9. Run `publish-dynamic-des.yml` by hand, which publishes the last `dynamic-des` release.
-10. In the first commit after 0.20.0 ships, remove the `mike delete --all` block from `pipeline.yml`.
-
 ## Git
 
 - Commit or push only when asked. Do not create branches unless asked.
