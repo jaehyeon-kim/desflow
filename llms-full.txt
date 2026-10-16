@@ -19685,23 +19685,23 @@ Done in 0.20.0: install `desflow`, import `desflow` and run `desflow`.
 
 Distributions and seeds
 
-Done in code, ships in 0.21.0: more distributions, including one built from values taken from real data, each drawing from its own random stream, so adding an arrival leaves the other draws unchanged. desflow now needs Python 3.11 or later. [#42](https://github.com/jaehyeon-kim/desflow/issues/42)
+Done in 0.21.0: more distributions, including one built from values taken from real data, each drawing from its own random stream, so adding an arrival leaves the other draws unchanged. desflow now needs Python 3.11 or later. [#42](https://github.com/jaehyeon-kim/desflow/issues/42)
 
 Ingress messages
 
-Done in code, ships in 0.21.0: every ingress connector, Kafka, Redis and PostgreSQL, takes a parameter change as `path` and `value`, the names a scenario step already uses. [#51](https://github.com/jaehyeon-kim/desflow/issues/51)
+Done in 0.21.0: every ingress connector, Kafka, Redis and PostgreSQL, takes a parameter change as `path` and `value`, the names a scenario step already uses. [#51](https://github.com/jaehyeon-kim/desflow/issues/51)
 
 Stores, containers and priority
 
-Done in code, ships in 0.21.0: stores and containers used by tasks, with a choice of queue order and task priority. [#43](https://github.com/jaehyeon-kim/desflow/issues/43)
+Done in 0.21.0: stores and containers used by tasks, with a choice of queue order and task priority. [#43](https://github.com/jaehyeon-kim/desflow/issues/43)
 
 Flows
 
-Done in code, ships in 0.21.0: routing between tasks by a condition or by probability, entity state that an order keeps from task to task, and delays without a resource. [#44](https://github.com/jaehyeon-kim/desflow/issues/44)
+Done in 0.21.0: routing between tasks by a condition or by probability, entity state that an order keeps from task to task, and delays without a resource. [#44](https://github.com/jaehyeon-kim/desflow/issues/44)
 
 Statistics and ground truth
 
-Done in code, ships in 0.21.0: wait and service times, throughput, utilisation and queue length as telemetry, with a warm-up period; and ground-truth records of what a scenario changed, so a detector or an agent can be scored against them. [#45](https://github.com/jaehyeon-kim/desflow/issues/45)
+Done in 0.21.0: wait and service times, throughput, utilisation and queue length as telemetry, with a warm-up period; and ground-truth records of what a scenario changed, so a detector or an agent can be scored against them. [#45](https://github.com/jaehyeon-kim/desflow/issues/45)
 
 Replications
 
