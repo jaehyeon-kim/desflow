@@ -181,6 +181,12 @@ nav:
       - Changelog: about/changelog.md
 
 markdown_extensions:
+  - attr_list
+  - md_in_html
+  - neoteroi.timeline
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
   - pymdownx.highlight:
       anchor_linenums: true
       line_spans: __span
@@ -190,3 +196,7 @@ markdown_extensions:
   - pymdownx.superfences
   - pymdownx.tabbed:
       alternate_style: true
+
+extra_css:
+  - css/neoteroi-mkdocs.css
+  - css/roadmap.css

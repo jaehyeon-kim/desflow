@@ -9,7 +9,6 @@ diagram, never box characters in a text block.
 import re
 from pathlib import Path
 
-import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 MAX_TITLE = 24
@@ -31,8 +30,7 @@ def _nav_titles(items):
                 yield from _nav_titles(value)
 
 
-def _long_titles():
-    nav = yaml.safe_load((ROOT / "mkdocs.yml").read_text(encoding="utf-8"))["nav"]
+def _long_titles(nav):
     return {t for t in _nav_titles(nav) if len(t) > MAX_TITLE}
 
 
@@ -56,8 +54,8 @@ def _pages_with_text_diagrams():
     }
 
 
-def test_sidebar_titles_are_short():
-    assert _long_titles() - LONG_TITLES_ALLOWED == set(), (
+def test_sidebar_titles_are_short(mkdocs_nav):
+    assert _long_titles(mkdocs_nav) - LONG_TITLES_ALLOWED == set(), (
         f"Sidebar titles over {MAX_TITLE} characters. Shorten the nav title and keep "
         "the full name in the page's own title."
     )

@@ -20,7 +20,7 @@ Change an arrival rate or a capacity while the simulation runs, from **Kafka**, 
 
 Events and telemetry go to **Kafka**, **Redis**, **PostgreSQL**, **Parquet** or **JSONL** files (on local disk or S3-compatible storage), or **Apache Iceberg** tables. A model is a YAML file, a Python builder, or SimPy code.
 
-**Used for:** testing streaming pipelines with data that behaves like production, demos and workshops, digital twins that follow live data, and training data for models that predict delays or load.
+**Used for:** testing streaming pipelines with data that behaves like production, training data for ML models that predict delays or load, data for testing AI agents, digital twins that follow live data, and demos and workshops.
 
 The control dashboard changes simulation parameters while a run is going, and the telemetry reacts without a restart:
 
@@ -34,7 +34,6 @@ The control dashboard changes simulation parameters while a run is going, and th
 - **Live parameters**: arrival rates, service times and capacities change mid-run through registry paths such as `Shop.arrival.standard.rate`. A resource grows at once, and shrinks only as busy units are released, so no work in progress is lost.
 - **Several sinks per run**: each sink added with `add_egress` has its own `when` filter, `batch_size` and `flush_interval`, so one run can feed a stream and a data lake together.
 - **Backfill then go live**: one run generates backdated history at full speed, then switches to real time at `go_live_at`.
-- **Three ways to write a simulation**: the low-level `DynamicRealtimeEnvironment`, the `SimulationContext` builder, or a YAML blueprint run with `desflow run`.
 - **Serialisation**: JSON through `orjson` by default, Avro through the Confluent or AWS Glue Schema Registry for chosen topics, and Pydantic models published as they are.
 - **Kafka security**: extra keyword arguments go to the Kafka client, so SASL, mTLS, OAuth and AWS IAM clusters work.
 
@@ -73,35 +72,11 @@ The connectors are optional extras, for example `uv add "desflow[kafka,parquet]"
 
 ## Run an Example
 
-Every example is written three ways: as a YAML blueprint, with the builder API and with the low-level API. The local example needs no container. Here is its YAML version:
-
-`desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
-
-**With uv**
+The local example needs no container. With desflow installed as above, `desflow examples get` downloads the example at the release you installed, into a folder of its own, and `desflow run` runs it:
 
 ```bash
-# 1. Install
-uv tool install desflow
-
-# 2. Download the example
 desflow examples get local --api yaml
 cd local/yaml
-
-# 3. Run it
-desflow run local.yaml
-```
-
-**With pip**
-
-```bash
-# 1. Install
-pip install desflow
-
-# 2. Download the example
-desflow examples get local --api yaml
-cd local/yaml
-
-# 3. Run it
 desflow run local.yaml
 ```
 
@@ -150,24 +125,17 @@ run:
 
 ## Roadmap
 
-- **Planned for 1.0:** routing between tasks, entity state, more distributions, stores and containers, built-in statistics, replications and `desflow explain`; a blueprint JSON Schema and a skill for AI assistants; a simulation server (`desflow serve`) with a REST API, a browser UI and schedules, run locally through [odctl](https://github.com/jaehyeon-kim/odctl); a page in the docs for each new building block as it ships.
-- **Future work:** breakdowns and schedules, transport on maps, data-driven inputs, experiments and analysis, animation, generated values in YAML, more sinks and delivery faults.
-
-The [roadmap page](https://jaehyeon.me/desflow/latest/about/roadmap/) has the details.
+The next releases complete the simulation model (distributions, stores, flows, statistics and replications) and add `desflow explain` and a Learn DES tutorial, followed by a simulation server with tools for AI agents. The [roadmap page](https://jaehyeon.me/desflow/latest/about/roadmap/) shows them in order, with what is in progress.
 
 ## Learn More
 
-The documentation is at [jaehyeon.me/desflow](https://jaehyeon.me/desflow/).
+The documentation is at [jaehyeon.me/desflow](https://jaehyeon.me/desflow/). Good places to start:
 
-- **Getting Started**: [installation](https://jaehyeon.me/desflow/latest/getting-started/), and [First Simulation](https://jaehyeon.me/desflow/latest/tutorials/first-simulation/), which builds one online shop step by step with a tab for YAML, the builder API and the low-level API at each step.
-- **How Simulation Works**: [what discrete-event simulation is](https://jaehyeon.me/desflow/latest/des/how-it-works/), [what SimPy does and what desflow adds](https://jaehyeon.me/desflow/latest/des/simpy-and-desflow/), the [building blocks](https://jaehyeon.me/desflow/latest/building-blocks/) of a model (arrivals and services, tasks and processes, resources), and [queues and capacity](https://jaehyeon.me/desflow/latest/des/queues-and-capacity/).
-- **Core Architecture**: the [three ways to write a simulation](https://jaehyeon.me/desflow/latest/architecture/overview/), each in detail ([low-level](https://jaehyeon.me/desflow/latest/architecture/low-level/), [builder](https://jaehyeon.me/desflow/latest/architecture/context/), [YAML](https://jaehyeon.me/desflow/latest/architecture/yaml/)), and the runtime: the [environment](https://jaehyeon.me/desflow/latest/architecture/environment/), [live parameters](https://jaehyeon.me/desflow/latest/architecture/registry/), [time and pacing](https://jaehyeon.me/desflow/latest/architecture/time/), [connectors](https://jaehyeon.me/desflow/latest/architecture/connectors/), [records and telemetry](https://jaehyeon.me/desflow/latest/architecture/records/), and [batching and delivery](https://jaehyeon.me/desflow/latest/architecture/batching/).
-- **Guides**: [record routing](https://jaehyeon.me/desflow/latest/guides/complex-routing/), [Avro and Pydantic](https://jaehyeon.me/desflow/latest/guides/avro-and-pydantic/), [secure Kafka](https://jaehyeon.me/desflow/latest/guides/kafka-security/), [backfill then go live](https://jaehyeon.me/desflow/latest/guides/backfill-then-live/), [changing parameters](https://jaehyeon.me/desflow/latest/guides/live-parameters/), [writing blueprints](https://jaehyeon.me/desflow/latest/guides/yaml-blueprints/), and the custom logic guides: [Python in a blueprint](https://jaehyeon.me/desflow/latest/guides/yaml-advanced/), [multi-resource handoffs](https://jaehyeon.me/desflow/latest/guides/multi-resource-handoffs/), [preemptive breakdowns](https://jaehyeon.me/desflow/latest/guides/preemptive-breakdowns/) and [dynamic topology](https://jaehyeon.me/desflow/latest/guides/dynamic-topology/).
-- **Examples**: one page per example, with the YAML, builder and low-level versions side by side, starting with the [overview](https://jaehyeon.me/desflow/latest/examples/).
-- **API Reference**: [every public class](https://jaehyeon.me/desflow/latest/api/).
-- **About**: the [roadmap](https://jaehyeon.me/desflow/latest/about/roadmap/) and the [Changelog](https://jaehyeon.me/desflow/latest/about/changelog/).
+- [Installation](https://jaehyeon.me/desflow/latest/getting-started/) and [First Simulation](https://jaehyeon.me/desflow/latest/tutorials/first-simulation/), which builds one online shop step by step.
+- [Examples](https://jaehyeon.me/desflow/latest/examples/), each in YAML, the builder API and the low-level API.
+- [API Reference](https://jaehyeon.me/desflow/latest/api/), the [roadmap](https://jaehyeon.me/desflow/latest/about/roadmap/) and the [Changelog](https://jaehyeon.me/desflow/latest/about/changelog/).
 
-## Related reading
+## Related Reading
 
 Blog posts about desflow and the projects built on it are tagged [desflow](https://jaehyeon.me/tags/desflow/) on jaehyeon.me.
 

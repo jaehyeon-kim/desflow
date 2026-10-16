@@ -1,7 +1,9 @@
 import asyncio
 import queue
+from pathlib import Path
 
 import pytest
+import yaml
 
 from desflow.core.environment import DynamicRealtimeEnvironment
 from desflow.models.params import CapacityConfig, DistributionConfig, SimParameter
@@ -87,3 +89,21 @@ def mock_egress_queue():
     This is required for aiokafka and other async providers.
     """
     return queue.Queue()
+
+
+class _MkDocsLoader(yaml.SafeLoader):
+    """A safe loader that reads `!!python/name:` tags in mkdocs.yml as None."""
+
+
+_MkDocsLoader.add_multi_constructor(
+    "tag:yaml.org,2002:python/", lambda loader, suffix, node: None
+)
+
+
+@pytest.fixture
+def mkdocs_nav():
+    """The `nav` of mkdocs.yml, which a safe load refuses because of its Python tags."""
+    text = (Path(__file__).resolve().parents[1] / "mkdocs.yml").read_text(
+        encoding="utf-8"
+    )
+    return yaml.load(text, Loader=_MkDocsLoader)["nav"]

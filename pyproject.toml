@@ -133,6 +133,8 @@ dev = [
     "mkdocs-llmstxt>=0.5.1 ; python_full_version >= '3.11'",
     # 1.2.3 adds properdocs, a second documentation tool with its own command.
     "mkdocs-redirects==1.2.2",
+    # The roadmap page draws its releases as a timeline.
+    "neoteroi-mkdocs>=1.2.0",
 ]
 
 [tool.pytest.ini_options]

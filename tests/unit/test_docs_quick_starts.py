@@ -156,10 +156,19 @@ def test_every_example_has_a_page():
     assert set(PAGES) == set(EXAMPLES)
 
 
-def test_readme_uses_the_template():
-    """The README shows the YAML version of the local example, without tabs."""
+def test_readme_runs_the_template_commands():
+    """The README runs the local example's YAML version with the template's commands.
+
+    The README installs desflow once, in its Installation section, so its example
+    block keeps the template's download and run commands and leaves out the install.
+    """
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    expected = quick_start(EXAMPLES["local"], "yaml", tabs=False).replace(
-        "**Quick Start**\n\n", "", 1
-    )
-    assert expected in readme
+    template = quick_start(EXAMPLES["local"], "yaml", tabs=False)
+    pip_block = template[template.index("**With pip**") :]
+    commands = [
+        line
+        for line in pip_block.split("\n")
+        if line and not line.startswith(("#", "`", "*", "pip install"))
+    ]
+    expected = "```bash\n" + "\n".join(commands) + "\n```"
+    assert expected in readme[readme.index("## Run an Example") :]

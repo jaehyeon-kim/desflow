@@ -46,7 +46,7 @@ A plain `uv run` without `--all-extras` removes the extras from the venv, and th
 ## Release
 
 1. Bump `version` in `pyproject.toml` and add the release to `docs/about/changelog.md`, with an Upgrading line for any rename or behaviour change; merging to `main` deploys the docs as that version, aliased `latest`, and copies its `404.html` to the site root.
-2. Tag `vX.Y.Z` and publish a GitHub release. `publish.yml` runs on the published release and uploads to PyPI through the `pypi` environment.
+2. Tag `vX.Y.Z` and publish a GitHub release whose text is that version's Changelog section, so the two never differ: `python scripts/release_notes.py X.Y.Z > /tmp/notes.md`, then `gh release create vX.Y.Z --title vX.Y.Z --notes-file /tmp/notes.md`. `publish.yml` runs on the published release and uploads to PyPI through the `pypi` environment.
 3. Python 3.15 is not in the CI matrix yet: confluent-kafka has no 3.15 wheel (issue #40).
 
 ## Git
