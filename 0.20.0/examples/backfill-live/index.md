@@ -1,0 +1,558 @@
+# Backfill Then Go Live
+
+One run writes ten minutes of backdated history to Parquet, then publishes to Kafka in real time. [Backfill Then Go Live in One Run](https://jaehyeon.me/desflow/latest/guides/backfill-then-live/index.md) explains how the two instants work. Each tab shows the example written one way, and the three publish the same records.
+
+This example builds the simulation of the Builder tab from a YAML blueprint, with no Python. Until `go_live_at` the run is unpaced and writes backdated history to Parquet. From `go_live_at` it is paced in real time and publishes to Kafka.
+
+**Quick Start**
+
+`desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+```bash
+# 1. Install
+uv tool install "desflow[kafka,parquet]" --with-executables-from "odctl>=1.0,<2"
+
+# 2. Download the example
+desflow examples get backfill-live --api yaml
+cd backfill-live/yaml
+
+# 3. Start its service
+odctl up kafka-lite
+
+# 4. Run it
+desflow run backfill_live.yaml
+
+# 5. Stop its service when finished
+odctl down kafka-lite --volumes
+```
+
+```bash
+# 1. Install
+pip install "desflow[kafka,parquet]" "odctl>=1.0,<2"
+
+# 2. Download the example
+desflow examples get backfill-live --api yaml
+cd backfill-live/yaml
+
+# 3. Start its service
+odctl up kafka-lite
+
+# 4. Run it
+desflow run backfill_live.yaml
+
+# 5. Stop its service when finished
+odctl down kafka-lite --volumes
+```
+
+**What It Does**
+
+Ten minutes of history are written to `data/backfill/` within the first second, then the run publishes to `sim-events` and `sim-telemetry` in real time for 60 seconds and ends. The history folder is created on the first write, and `KafkaEgress` creates the two topics when it starts.
+
+**Full Source Code**
+
+`logical_start_time: -10m` and `go_live_at: now` are read against one moment, when the file is loaded, so they are exactly ten minutes apart, and `until: 11m` adds one minute of live tail. `when: history` sends the records stamped before `go_live_at` to Parquet, and `when: live` sends the rest to Kafka.
+
+Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
+
+examples/yaml/backfill_live.yaml
+
+```yaml
+# Backfill then go live in one run, in YAML.
+#
+# The YAML version of examples/builder/backfill_live_example.py. Until
+# go_live_at the clock is detached from the wall clock, so ten minutes of backdated
+# shop orders are written to Parquet as fast as the machine allows. From go_live_at
+# the run is paced at one simulated second per real second, and the same events go
+# to Kafka for one minute.
+#
+# Needs a broker: odctl up kafka-lite.
+# Run it with: desflow run examples/yaml/backfill_live.yaml
+
+simulation:
+  sim_id: Shop
+  # Unpaced to begin with, so the history costs no real time.
+  factor: 0.0
+  random_seed: 42
+  logical_start_time: -10m
+  # From here the same run is paced at one simulated second per real second.
+  go_live_at: now
+
+egress:
+  - type: Parquet
+    config:
+      default_path: data/backfill/events.parquet
+    # Records stamped before go_live_at.
+    when: history
+  - type: Kafka
+    config:
+      event_topic: sim-events
+      telemetry_topic: sim-telemetry
+      bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}
+    # Records stamped at or after go_live_at.
+    when: live
+
+# Only batch_size governs the history. The interval flush starts at go-live, so the
+# live tail also flushes every 10 seconds.
+batching:
+  batch_size: 2000
+  flush_interval: 10.0
+
+resources:
+  packers: {current_cap: 4, max_cap: 10}
+
+services:
+  packing: {dist: normal, mean: 2.0, std: 0.2}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.5, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {path_id: Shop.service.packing, status: finished}
+
+telemetry:
+  - interval: 30.0
+    publish:
+      packers.in_use: packers.in_use
+      packers.queue_length: packers.queue_length
+
+run:
+  # Ten minutes of history, then one minute of live tail.
+  until: 11m
+```
+
+[`examples/builder/backfill_live_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/builder/backfill_live_example.py) backdates the clock by ten minutes, writes those ten minutes to Parquet in well under a second, then publishes to Kafka in real time for sixty seconds. `HISTORY_MINUTES` and `LIVE_SECONDS` set the two halves.
+
+**Quick Start**
+
+`desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+```bash
+# 1. Install
+uv tool install "desflow[kafka,parquet]" --with-executables-from "odctl>=1.0,<2"
+
+# 2. Download the example
+desflow examples get backfill-live --api builder
+cd backfill-live/builder
+
+# 3. Start its service
+odctl up kafka-lite
+
+# 4. Run it
+uv run --no-project --with "desflow[kafka,parquet]" backfill_live_example.py
+
+# 5. Stop its service when finished
+odctl down kafka-lite --volumes
+```
+
+```bash
+# 1. Install
+pip install "desflow[kafka,parquet]" "odctl>=1.0,<2"
+
+# 2. Download the example
+desflow examples get backfill-live --api builder
+cd backfill-live/builder
+
+# 3. Start its service
+odctl up kafka-lite
+
+# 4. Run it
+python backfill_live_example.py
+
+# 5. Stop its service when finished
+odctl down kafka-lite --volumes
+```
+
+History finishes within the same second the run starts, then nothing is logged at all until teardown, because from `go_live_at` the run waits on the wall clock exactly as a live twin does. `Logical clock reached go-live` is the line that confirms the switch.
+
+**Full Source Code**
+
+Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
+
+examples/builder/backfill_live_example.py
+
+```python
+"""
+Backfill-then-live Example.
+
+One run produces both halves of a tiered dataset. Until `go_live_at` the clock is
+detached from the wall clock, so ten minutes of backdated shop orders are written to
+Parquet as fast as the machine allows. From `go_live_at` the same run is paced at one
+simulated second per real second, and the same events are published to Kafka as they
+happen. Doing this in two processes would mean repeating the seed and the start
+instant in both, and keeping them in step by hand.
+"""
+
+import logging
+import os
+import time
+from datetime import datetime, timedelta
+
+from desflow import (
+    KafkaAdminConnector,
+    KafkaEgress,
+    ParquetStorageEgress,
+    SimulationContext,
+)
+
+# Logging is configured here rather than in a wrapper, because this script is run
+# directly. Without it the run produces no output at all.
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%H:%M:%S",
+)
+
+logger = logging.getLogger(__name__)
+
+BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+EVENT_TOPIC = "sim-events"
+TELEMETRY_TOPIC = "sim-telemetry"
+
+# How much history to generate, and how long to keep tailing once live. The live half
+# costs real time, second for second, so it is short by default.
+HISTORY = timedelta(minutes=float(os.getenv("HISTORY_MINUTES", "10")))
+LIVE_SECONDS = float(os.getenv("LIVE_SECONDS", "60"))
+
+base_path = os.getenv("DEST_PATH", "data/backfill")
+
+# The go-live instant is now, so everything before it is history and everything after
+# it is the live tail. These sit at module scope because the builder below needs them,
+# and the builder has to stay at module scope for the decorators to attach to it.
+GO_LIVE_AT = datetime.now()
+LOGICAL_START_TIME = GO_LIVE_AT - HISTORY
+
+# Records carry their logical time as an ISO string, so the predicates that split the
+# two sinks compare strings. That works because every timestamp comes from the same
+# formatter: identical layout, so ordering by text is ordering by time.
+GO_LIVE_ISO = GO_LIVE_AT.isoformat(timespec="milliseconds")
+
+
+def is_history(record: dict) -> bool:
+    """True for records stamped before the go-live instant."""
+    return record["timestamp"] < GO_LIVE_ISO
+
+
+def is_live(record: dict) -> bool:
+    """True for records stamped at or after the go-live instant."""
+    return record["timestamp"] >= GO_LIVE_ISO
+
+
+def history_router(data: dict) -> str | None:
+    """Drops telemetry and flattens the event payload, as Parquet needs flat rows."""
+    if data.get("stream_type") != "event":
+        return None
+
+    if isinstance(data.get("value"), dict):
+        data.update(data.pop("value"))
+
+    return f"{base_path}/events.parquet"
+
+
+# ==========================================
+# 1. Infrastructure Builder
+# ==========================================
+app = (
+    SimulationContext(
+        sim_id="Shop",
+        # Unpaced to begin with, so the history costs no real time.
+        factor=0.0,
+        random_seed=42,
+        logical_start_time=LOGICAL_START_TIME,
+        # From here the same run is paced at one simulated second per real second.
+        go_live_at=GO_LIVE_AT,
+    )
+    .add_egress(ParquetStorageEgress(path_router=history_router), when=is_history)
+    .add_egress(
+        KafkaEgress(
+            event_topic=EVENT_TOPIC,
+            telemetry_topic=TELEMETRY_TOPIC,
+            bootstrap_servers=BOOTSTRAP_SERVERS,
+        ),
+        when=is_live,
+    )
+    # Only batch_size governs the history. The interval flush is a simulation process,
+    # started only when factor is non-zero as the egress is set up, and this run starts
+    # at 0.0. It starts at go-live, so the live tail also flushes every 10 seconds.
+    .with_batching(batch_size=2000, flush_interval=10.0)
+    .add_resource("packers", current_cap=4, max_cap=10)
+    .add_service("packing", dist="normal", mean=2.0, std=0.2)
+    .add_arrival("orders", dist="exponential", rate=0.5)
+)
+
+
+# ==========================================
+# 2. Simulation Logic
+# ==========================================
+@app.task(service_id="packing", resource_id="packers")
+def pack_order(task_id: int, context):
+    """Returns the flat payload that both sinks receive for a finished task."""
+    return {"path_id": "Shop.service.packing", "status": "finished"}
+
+
+@app.arrival_loop("orders")
+def arrival_generator(context):
+    task_id = 0
+    while True:
+        yield context.wait_for_arrival("orders")
+        context.spawn(pack_order(task_id, context))
+        task_id += 1
+
+
+@app.telemetry_loop(interval=30.0)
+def telemetry_generator(context):
+    """Samples resource use every 30 simulation seconds."""
+    res = context.get_resource("packers")
+
+    context.publish("packers.in_use", res.in_use)
+    context.publish("packers.queue_length", len(res.queue.items))
+
+
+# ==========================================
+# 3. Execution
+# ==========================================
+def run():
+    """Generates the history instantly, then tails live for LIVE_SECONDS."""
+    os.makedirs(base_path, exist_ok=True)
+
+    try:
+        admin = KafkaAdminConnector(bootstrap_servers=BOOTSTRAP_SERVERS, max_tasks=100)
+        admin.create_topics(
+            topics_config=[
+                {"name": EVENT_TOPIC, "partitions": 1},
+                {"name": TELEMETRY_TOPIC, "partitions": 1},
+            ]
+        )
+        time.sleep(2)
+    except Exception as e:
+        logger.warning(f"Could not explicitly create topics: {e}")
+
+    logger.info(
+        "Backfilling from %s to %s into '%s/', then tailing live to Kafka for %.0fs.",
+        LOGICAL_START_TIME.strftime("%Y-%m-%d %H:%M:%S"),
+        GO_LIVE_AT.strftime("%Y-%m-%d %H:%M:%S"),
+        base_path,
+        LIVE_SECONDS,
+    )
+
+    app.run(until=HISTORY.total_seconds() + LIVE_SECONDS)
+
+    logger.info("Run complete. History is in '%s/', the tail is in Kafka.", base_path)
+
+
+if __name__ == "__main__":
+    run()
+```
+
+[`examples/low-level/backfill_live_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/backfill_live_example.py) wires the same run by hand on `DynamicRealtimeEnvironment`: it backdates the clock by ten minutes, writes those ten minutes to Parquet in well under a second, then publishes to Kafka in real time for sixty seconds. `HISTORY_MINUTES` and `LIVE_SECONDS` set the two halves.
+
+**Quick Start**
+
+`desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+```bash
+# 1. Install
+uv tool install "desflow[kafka,parquet]" --with-executables-from "odctl>=1.0,<2"
+
+# 2. Download the example
+desflow examples get backfill-live --api low-level
+cd backfill-live/low-level
+
+# 3. Start its service
+odctl up kafka-lite
+
+# 4. Run it
+uv run --no-project --with "desflow[kafka,parquet]" backfill_live_example.py
+
+# 5. Stop its service when finished
+odctl down kafka-lite --volumes
+```
+
+```bash
+# 1. Install
+pip install "desflow[kafka,parquet]" "odctl>=1.0,<2"
+
+# 2. Download the example
+desflow examples get backfill-live --api low-level
+cd backfill-live/low-level
+
+# 3. Start its service
+odctl up kafka-lite
+
+# 4. Run it
+python backfill_live_example.py
+
+# 5. Stop its service when finished
+odctl down kafka-lite --volumes
+```
+
+History finishes within the same second the run starts, then nothing is logged at all until teardown, because from `go_live_at` the run waits on the wall clock exactly as a live twin does. `Logical clock reached go-live` is the line that confirms the switch.
+
+**Full Source Code**
+
+Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
+
+examples/low-level/backfill_live_example.py
+
+```python
+"""
+Backfill-then-live Example, low-level API.
+
+The low-level twin of `builder/backfill_live_example.py`. One run produces both
+halves of a tiered dataset. Until `go_live_at` the clock is detached from the wall
+clock, so ten minutes of backdated shop orders are written to Parquet as fast as the
+machine allows. From `go_live_at` the same run is paced at one simulated second per
+real second, and the same events are published to Kafka as they happen.
+"""
+
+import logging
+import os
+import time
+from datetime import datetime, timedelta
+
+import numpy as np
+
+from desflow import (
+    CapacityConfig,
+    DistributionConfig,
+    DynamicRealtimeEnvironment,
+    DynamicResource,
+    KafkaAdminConnector,
+    KafkaEgress,
+    ParquetStorageEgress,
+    Sampler,
+    SimParameter,
+)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%H:%M:%S",
+)
+logger = logging.getLogger(__name__)
+
+BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+EVENT_TOPIC = "sim-events"
+TELEMETRY_TOPIC = "sim-telemetry"
+
+HISTORY = timedelta(minutes=float(os.getenv("HISTORY_MINUTES", "10")))
+LIVE_SECONDS = float(os.getenv("LIVE_SECONDS", "60"))
+base_path = os.getenv("DEST_PATH", "data/backfill")
+
+GO_LIVE_AT = datetime.now()
+LOGICAL_START_TIME = GO_LIVE_AT - HISTORY
+GO_LIVE_ISO = GO_LIVE_AT.isoformat(timespec="milliseconds")
+
+PARAMS = SimParameter(
+    sim_id="Shop",
+    arrival={"orders": DistributionConfig(dist="exponential", rate=0.5)},
+    service={"packing": DistributionConfig(dist="normal", mean=2.0, std=0.2)},
+    resources={"packers": CapacityConfig(current_cap=4, max_cap=10)},
+)
+
+
+def is_history(record: dict) -> bool:
+    """True for records stamped before the go-live instant."""
+    return record["timestamp"] < GO_LIVE_ISO
+
+
+def is_live(record: dict) -> bool:
+    """True for records stamped at or after the go-live instant."""
+    return record["timestamp"] >= GO_LIVE_ISO
+
+
+def history_router(data: dict) -> str | None:
+    """Drops telemetry and flattens the event payload, as Parquet needs flat rows."""
+    if data.get("stream_type") != "event":
+        return None
+    if isinstance(data.get("value"), dict):
+        data.update(data.pop("value"))
+    return f"{base_path}/events.parquet"
+
+
+def pack_order(env, sampler, packers, task_id):
+    """What @app.task does: queued, started, the service time, then finished."""
+    key, path_id = f"task-{task_id}", "Shop.service.packing"
+    env.publish_event(key, {"path_id": path_id, "status": "queued"})
+    with packers.request() as request:
+        yield request
+        env.publish_event(key, {"path_id": path_id, "status": "started"})
+        yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
+        env.publish_event(key, {"path_id": path_id, "status": "finished"})
+
+
+def arrival_generator(env, sampler, packers):
+    gap = env.registry.get_config("Shop.arrival.orders")
+    task_id = 0
+    while True:
+        yield env.timeout(sampler.sample(gap))
+        env.process(pack_order(env, sampler, packers, task_id))
+        task_id += 1
+
+
+def telemetry_generator(env, packers):
+    """Samples resource use every 30 simulation seconds."""
+    while True:
+        env.publish_telemetry("Shop.packers.in_use", packers.in_use)
+        env.publish_telemetry("Shop.packers.queue_length", len(packers.queue.items))
+        yield env.timeout(30.0)
+
+
+def run():
+    """Generates the history instantly, then tails live for LIVE_SECONDS."""
+    os.makedirs(base_path, exist_ok=True)
+    try:
+        admin = KafkaAdminConnector(bootstrap_servers=BOOTSTRAP_SERVERS, max_tasks=100)
+        admin.create_topics(
+            topics_config=[
+                {"name": EVENT_TOPIC, "partitions": 1},
+                {"name": TELEMETRY_TOPIC, "partitions": 1},
+            ]
+        )
+        time.sleep(2)
+    except Exception as e:
+        logger.warning(f"Could not explicitly create topics: {e}")
+
+    env = DynamicRealtimeEnvironment(
+        factor=0.0,  # unpaced, so the history costs no real time
+        logical_start_time=LOGICAL_START_TIME,
+        go_live_at=GO_LIVE_AT,  # from here, one simulated second per real second
+    )
+    env.registry.register_sim_parameter(PARAMS)
+    env.setup_egress(
+        [
+            ParquetStorageEgress(path_router=history_router),
+            KafkaEgress(
+                event_topic=EVENT_TOPIC,
+                telemetry_topic=TELEMETRY_TOPIC,
+                bootstrap_servers=BOOTSTRAP_SERVERS,
+            ),
+        ],
+        batch_size=2000,
+        flush_interval=10.0,
+        predicates=[is_history, is_live],  # matched to the providers by position
+    )
+    packers = DynamicResource(env, "Shop", "packers")
+    sampler = Sampler(rng=np.random.default_rng(42))
+    env.process(arrival_generator(env, sampler, packers))
+    env.process(telemetry_generator(env, packers))
+
+    logger.info(
+        "Backfilling from %s to %s into '%s/', then tailing live to Kafka for %.0fs.",
+        LOGICAL_START_TIME.strftime("%Y-%m-%d %H:%M:%S"),
+        GO_LIVE_AT.strftime("%Y-%m-%d %H:%M:%S"),
+        base_path,
+        LIVE_SECONDS,
+    )
+    try:
+        env.run(until=HISTORY.total_seconds() + LIVE_SECONDS)
+    finally:
+        env.teardown()
+    logger.info("Run complete. History is in '%s/', the tail is in Kafka.", base_path)
+
+
+if __name__ == "__main__":
+    run()
+```
