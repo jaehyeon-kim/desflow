@@ -1,0 +1,70 @@
+# desflow
+
+> Realistic event streams from a SimPy simulation you can steer while it runs, written to Kafka, Redis, PostgreSQL, Parquet, JSONL and Iceberg.
+
+## Home
+
+- [Home](https://jaehyeon.me/desflow/latest/index.md)
+
+## Getting Started
+
+- [Installation](https://jaehyeon.me/desflow/latest/getting-started/index.md)
+- [First Simulation](https://jaehyeon.me/desflow/latest/tutorials/first-simulation/index.md)
+
+## How Simulation Works
+
+- [What Is DES?](https://jaehyeon.me/desflow/latest/des/how-it-works/index.md)
+- [SimPy and desflow](https://jaehyeon.me/desflow/latest/des/simpy-and-desflow/index.md)
+- [Overview](https://jaehyeon.me/desflow/latest/building-blocks/index.md)
+- [Arrivals and Services](https://jaehyeon.me/desflow/latest/building-blocks/arrivals-and-services/index.md)
+- [Tasks and Processes](https://jaehyeon.me/desflow/latest/building-blocks/tasks-and-processes/index.md)
+- [Resources](https://jaehyeon.me/desflow/latest/building-blocks/resources/index.md)
+- [Queues and Capacity](https://jaehyeon.me/desflow/latest/des/queues-and-capacity/index.md)
+
+## Core Architecture
+
+- [Overview](https://jaehyeon.me/desflow/latest/architecture/overview/index.md)
+- [Low-level API](https://jaehyeon.me/desflow/latest/architecture/low-level/index.md)
+- [Builder API](https://jaehyeon.me/desflow/latest/architecture/context/index.md)
+- [YAML Blueprints](https://jaehyeon.me/desflow/latest/architecture/yaml/index.md)
+- [Environment](https://jaehyeon.me/desflow/latest/architecture/environment/index.md)
+- [Live Parameters](https://jaehyeon.me/desflow/latest/architecture/registry/index.md)
+- [Time and Pacing](https://jaehyeon.me/desflow/latest/architecture/time/index.md)
+- [Connectors](https://jaehyeon.me/desflow/latest/architecture/connectors/index.md)
+- [Records and Telemetry](https://jaehyeon.me/desflow/latest/architecture/records/index.md)
+- [Batching and Delivery](https://jaehyeon.me/desflow/latest/architecture/batching/index.md)
+
+## Guides
+
+- [Complex Routing (Kafka)](https://jaehyeon.me/desflow/latest/guides/complex-routing/index.md)
+- [Avro and Pydantic](https://jaehyeon.me/desflow/latest/guides/avro-and-pydantic/index.md)
+- [Secure Kafka](https://jaehyeon.me/desflow/latest/guides/kafka-security/index.md)
+- [Backfill Then Go Live](https://jaehyeon.me/desflow/latest/guides/backfill-then-live/index.md)
+- [Changing Parameters](https://jaehyeon.me/desflow/latest/guides/live-parameters/index.md)
+- [Writing Blueprints](https://jaehyeon.me/desflow/latest/guides/yaml-blueprints/index.md)
+- [Python in a Blueprint](https://jaehyeon.me/desflow/latest/guides/yaml-advanced/index.md)
+- [Multi-Resource Handoffs](https://jaehyeon.me/desflow/latest/guides/multi-resource-handoffs/index.md)
+- [Preemptive Breakdowns](https://jaehyeon.me/desflow/latest/guides/preemptive-breakdowns/index.md)
+- [Dynamic Topology](https://jaehyeon.me/desflow/latest/guides/dynamic-topology/index.md)
+
+## Examples
+
+- [Overview](https://jaehyeon.me/desflow/latest/examples/index.md)
+- [Local Simulation](https://jaehyeon.me/desflow/latest/examples/local/index.md)
+- [Kafka Digital Twin](https://jaehyeon.me/desflow/latest/examples/kafka/index.md)
+- [Parquet](https://jaehyeon.me/desflow/latest/examples/parquet/index.md)
+- [Iceberg](https://jaehyeon.me/desflow/latest/examples/iceberg/index.md)
+- [Relational DB (Postgres)](https://jaehyeon.me/desflow/latest/examples/postgres/index.md)
+- [In-Memory Store (Redis)](https://jaehyeon.me/desflow/latest/examples/redis/index.md)
+- [Backfill Then Go Live](https://jaehyeon.me/desflow/latest/examples/backfill-live/index.md)
+- [Generate Related Records](https://jaehyeon.me/desflow/latest/examples/advanced-postgres-orders/index.md)
+
+## API Reference
+
+- [API Reference](https://jaehyeon.me/desflow/latest/api/index.md)
+
+## About
+
+- [Roadmap](https://jaehyeon.me/desflow/latest/about/roadmap/index.md)
+- [Changelog](https://jaehyeon.me/desflow/latest/about/changelog/index.md)
+
