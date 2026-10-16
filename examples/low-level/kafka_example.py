@@ -62,21 +62,36 @@ PARAMS = SimParameter(
 # ==========================================
 # 3. Simulation Logic
 # ==========================================
-def pack_order(env, sampler, packers, task_id):
+def pack_order(env, sampler, packers, key, task_id):
     """Publishes a Pydantic model instead of a dict for each lifecycle event."""
-    key, path_id = f"task-{task_id}", "Shop.service.packing"
-    env.publish_event(key, TaskEvent(path_id=path_id, status="queued"))
+    path_id = "Shop.service.packing"
+    env.publish_event(
+        key,
+        TaskEvent(path_id=path_id, status="queued"),
+        task="pack_order",
+        instance=task_id,
+    )
 
     with packers.request() as req:
         yield req
 
         logger.info(f"Task {task_id} started at sim time: {env.now:.2f}s")
-        env.publish_event(key, TaskEvent(path_id=path_id, status="started"))
+        env.publish_event(
+            key,
+            TaskEvent(path_id=path_id, status="started"),
+            task="pack_order",
+            instance=task_id,
+        )
 
         # Use the latest service config from the registry
         yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
 
-        env.publish_event(key, TaskEvent(path_id=path_id, status="finished"))
+        env.publish_event(
+            key,
+            TaskEvent(path_id=path_id, status="finished"),
+            task="pack_order",
+            instance=task_id,
+        )
 
 
 def arrival_generator(env, sampler, packers):
@@ -84,21 +99,8 @@ def arrival_generator(env, sampler, packers):
     task_id = 0
     while True:
         yield env.timeout(sampler.sample(gap))
-        env.process(pack_order(env, sampler, packers, task_id))
+        env.process(pack_order(env, sampler, packers, f"orders-{task_id + 1}", task_id))
         task_id += 1
-
-
-def telemetry_generator(env, packers):
-    """Low-volume system health stream, pushed to the 'sim-telemetry' topic."""
-    while True:
-        env.publish_telemetry("Shop.packers.capacity", packers.capacity)
-        env.publish_telemetry("Shop.packers.in_use", packers.in_use)
-        env.publish_telemetry("Shop.packers.queue_length", len(packers.queue.items))
-
-        util = (packers.in_use / packers.capacity) * 100 if packers.capacity > 0 else 0
-        env.publish_telemetry("Shop.packers.utilization", util)
-
-        yield env.timeout(2.0)
 
 
 # ==========================================
@@ -139,12 +141,13 @@ def run():
     env.registry.register_sim_parameter(PARAMS)
     env.setup_ingress([ingress])
     env.setup_egress([egress])
+    # The packers' readings every 2 seconds, which kafka_dashboard.py shows
+    env.setup_stats("Shop", "minimal", interval=2.0)
 
     packers = DynamicResource(env, "Shop", "packers")
     sampler = Sampler(rng=np.random.default_rng(42))
 
     env.process(arrival_generator(env, sampler, packers))
-    env.process(telemetry_generator(env, packers))
 
     print("Simulation started.")
     print("  - Listen to 'sim-telemetry' for system vitals.")

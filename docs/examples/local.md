@@ -1,12 +1,12 @@
 # Local Simulation
 
-An online shop that packs orders and prints its events and telemetry to the terminal. It needs no container, so it is the place to start. Each tab shows the example written one way: with the builder API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](../architecture/overview.md) compares the three.
+An online shop that packs orders and prints its events and telemetry to the terminal. It needs no container, so it is the place to start. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../user-guide/ways-to-write.md) compares the three.
 
 Local connectors need no Docker, Kafka or other external store, so this example is useful for testing and benchmarking.
 
 === "YAML"
 
-    This example builds the same simulation as the builder example in the Builder tab, from a YAML blueprint and nothing else. No Python is written: the arrival loop, the task and the telemetry loop are all declared in the file.
+    This example builds the same simulation as the builder example in the Builder tab, from a YAML blueprint and nothing else. No Python is written: the arrival loop, the task and the statistics are all declared in the file.
 
     It writes to `ConsoleEgress` and needs no container, so it is the place to start.
 
@@ -44,20 +44,22 @@ Local connectors need no Docker, Kafka or other external store, so this example 
 
     **What It Does**
 
-    The run prints every record to the terminal and stops after 30 simulation seconds, which at `factor: 1.0` is 30 real seconds. Telemetry lines carry `[TEL]` and events carry `[EVT]`:
+    The run prints every record to the terminal and stops after 30 simulation seconds, which at `factor: 1.0` is 30 real seconds. Telemetry lines carry `[TEL]` and events carry `[EVT]`. These are the events of the first order, and the packers' capacity reading before and after the first change:
 
+    <!-- records: local-records -->
     ```text
-    [TEL] {'sim_ts': 0.0, 'timestamp': '...', 'path_id': 'Shop.packers.capacity', 'value': 1}
-    [EVT] {'sim_ts': 2.404, 'timestamp': '...', 'key': 'task-0', 'value': {'path_id': 'Shop.service.packing', 'status': 'queued'}}
-    [EVT] {'sim_ts': 5.779, 'timestamp': '...', 'key': 'task-0', 'value': {'event_type': 'order_packed', 'shipping': 'standard', 'order_id': 0}}
-    [TEL] {'sim_ts': 12.0, 'timestamp': '...', 'path_id': 'Shop.packers.capacity', 'value': 3}
+    [EVT] {'sim_ts': 1.276, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'path_id': 'Shop.service.packing', 'status': 'queued'}}
+    [EVT] {'sim_ts': 1.276, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'path_id': 'Shop.service.packing', 'status': 'started'}}
+    [TEL] {'sim_ts': 2.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.capacity', 'value': 1}
+    [EVT] {'sim_ts': 4.651, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'event_type': 'order_packed', 'shipping': 'standard', 'order_id': 0}}
+    [TEL] {'sim_ts': 12.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.capacity', 'value': 3}
     ```
 
-    Each order produces a `queued`, a `started` and a finished event. The finished event is the task's `payload`, with the task id added as `order_id` because of `id_field`. The capacity telemetry shows the scenario: one packer, three from 10 seconds, then two from 20 seconds. Add `--until 10` to stop after 10 simulation seconds instead.
+    Each order produces a `queued`, a `started` and a finished event. Every event carries the order's key, such as `orders-1`, with the task's name and instance. The finished event is the task's `payload`, with the task id added as `order_id` because of `id_field`. The capacity reading shows the scenario: one packer, three from 10 seconds, then two from 20 seconds. Add `--until 10` to stop after 10 simulation seconds instead.
 
     **Full Source Code**
 
-    The blueprint declares one resource, one service and one arrival. `spawn` names the task each arrival starts, the `telemetry` entry publishes four statistics of the packers every 2 simulation seconds, and the `scenario` changes the number of packers at 10 and 20 seconds.
+    The blueprint declares one resource, one service and one arrival. `spawn` names the task each arrival starts, `stats: minimal` publishes the packers' four readings every 2 simulation seconds, and the `scenario` changes the number of packers at 10 and 20 seconds.
 
     Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
@@ -97,14 +99,9 @@ Local connectors need no Docker, Kafka or other external store, so this example 
         payload: {event_type: order_packed, shipping: standard}
         id_field: order_id
 
-    telemetry:
-      # Samples the packers every 2 simulation seconds.
-      - interval: 2.0
-        publish:
-          packers.capacity: packers.capacity
-          packers.in_use: packers.in_use
-          packers.queue_length: packers.queue_length
-          packers.utilization: packers.utilization
+    # Publishes the packers' capacity, in_use, queue_length and utilization every 2
+    # simulation seconds, as Shop.stats.resources.packers.<reading>.
+    stats: {level: minimal, interval: 2}
 
     scenario:
       # Three packers from 10 seconds, then two from 20 seconds.
@@ -165,7 +162,7 @@ Local connectors need no Docker, Kafka or other external store, so this example 
     The smallest complete example. An online shop packs orders: `Shop` is built with
     `SimulationContext` and writes to `ConsoleEgress`, so events and telemetry are printed
     to the terminal and nothing external is involved. A scenario adds packers at 10
-    seconds and removes one at 20 seconds, and the telemetry shows the effect.
+    seconds and removes one at 20 seconds, and the built-in statistics show the effect.
 
     Start here. It needs no broker, no database and no object store, and it ends on its own
     after 30 simulation seconds.
@@ -194,6 +191,8 @@ Local connectors need no Docker, Kafka or other external store, so this example 
         .add_resource("packers", current_cap=1, max_cap=5)
         .add_service("packing", dist="normal", mean=3.0, std=0.5)
         .add_arrival("orders", dist="exponential", rate=1.0)
+        # The packers' readings every 2 simulation seconds
+        .with_stats("minimal", interval=2.0)
     )
 
 
@@ -211,21 +210,10 @@ Local connectors need no Docker, Kafka or other external store, so this example 
         """Spawns a pack_order task for every order the 'orders' distribution draws."""
         task_id = 0
         while True:
-            yield context.wait_for_arrival("orders")
-            context.spawn(pack_order(task_id, context))
+            # Each arrival is a new order, whose key (orders-1, orders-2) is on its events
+            entity = yield context.wait_for_arrival("orders")
+            context.spawn(pack_order(task_id, context, entity=entity))
             task_id += 1
-
-
-    @app.telemetry_loop(interval=2.0)
-    def telemetry_generator(context):
-        """Samples the packers every 2 simulation seconds."""
-        res = context.get_resource("packers")
-        util = (res.in_use / res.capacity) * 100 if res.capacity > 0 else 0
-
-        context.publish("packers.capacity", res.capacity)
-        context.publish("packers.in_use", res.in_use)
-        context.publish("packers.queue_length", len(res.queue.items))
-        context.publish("packers.utilization", util)
 
 
     def capacity_changes(context):
@@ -300,8 +288,8 @@ Local connectors need no Docker, Kafka or other external store, so this example 
 
     The low-level twin of `builder/local_example.py`, built on `DynamicRealtimeEnvironment`
     directly. An online shop packs orders and writes to `ConsoleEgress`. A scenario
-    process adds packers at 10 seconds and removes one at 20 seconds, and the telemetry
-    shows the effect.
+    process adds packers at 10 seconds and removes one at 20 seconds, and the built-in
+    statistics show the effect.
 
     Needs no containers. Ends on its own after 30 simulation seconds.
     """
@@ -334,19 +322,24 @@ Local connectors need no Docker, Kafka or other external store, so this example 
     )
 
 
-    def pack_order(env, sampler, packers, task_id):
-        """Models the task lifecycle: queued, started, then finished with its payload."""
-        key, path_id = f"task-{task_id}", "Shop.service.packing"
-        env.publish_event(key, {"path_id": path_id, "status": "queued"})
+    def pack_order(env, sampler, packers, key, task_id):
+        """Models the task lifecycle: queued, started, then finished with its payload.
 
+        Every event carries the order's key, and the task's name and instance id.
+        """
+        path_id = "Shop.service.packing"
+
+        def publish(value):
+            env.publish_event(key, value, task="pack_order", instance=task_id)
+
+        publish({"path_id": path_id, "status": "queued"})
         with packers.request() as req:
             yield req
-            env.publish_event(key, {"path_id": path_id, "status": "started"})
+            publish({"path_id": path_id, "status": "started"})
             # Late binding: the service time is read when the work starts
             yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
-            env.publish_event(
-                key,
-                {"event_type": "order_packed", "shipping": "standard", "order_id": task_id},
+            publish(
+                {"event_type": "order_packed", "shipping": "standard", "order_id": task_id}
             )
 
 
@@ -357,19 +350,9 @@ Local connectors need no Docker, Kafka or other external store, so this example 
         task_id = 0
         while True:
             yield env.timeout(sampler.sample(gap))
-            env.process(pack_order(env, sampler, packers, task_id))
+            # Each arrival is a new order, keyed orders-1, orders-2 and so on
+            env.process(pack_order(env, sampler, packers, f"orders-{task_id + 1}", task_id))
             task_id += 1
-
-
-    def telemetry_generator(env, packers):
-        """Samples the packers every 2 simulation seconds."""
-        while True:
-            util = (packers.in_use / packers.capacity) * 100 if packers.capacity > 0 else 0
-            env.publish_telemetry("Shop.packers.capacity", packers.capacity)
-            env.publish_telemetry("Shop.packers.in_use", packers.in_use)
-            env.publish_telemetry("Shop.packers.queue_length", len(packers.queue.items))
-            env.publish_telemetry("Shop.packers.utilization", util)
-            yield env.timeout(2.0)
 
 
     def capacity_changes(env):
@@ -385,12 +368,13 @@ Local connectors need no Docker, Kafka or other external store, so this example 
         env = DynamicRealtimeEnvironment(factor=1.0)
         env.registry.register_sim_parameter(PARAMS)
         env.setup_egress([ConsoleEgress()])
+        # The packers' readings every 2 simulation seconds
+        env.setup_stats("Shop", "minimal", interval=2.0)
 
         packers = DynamicResource(env, "Shop", "packers")
         sampler = Sampler(rng=np.random.default_rng(42))
 
         env.process(arrival_generator(env, sampler, packers))
-        env.process(telemetry_generator(env, packers))
         env.process(capacity_changes(env))
 
         logger.info("Simulation started. Watch the capacity change at 10 s and 20 s...")

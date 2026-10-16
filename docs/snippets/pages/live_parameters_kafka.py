@@ -1,6 +1,6 @@
 """Sets the packers capacity of the running Kafka example.
 
-`KafkaAdminConnector.send_config` publishes `{"path_id": ..., "value": ...}` to the
+`KafkaAdminConnector.send_config` publishes `{"path": ..., "value": ...}` to the
 topic `KafkaIngress` reads, `sim-config` in the example. Call `set_packer_capacity(3)`
 while the example runs.
 """

@@ -1,5 +1,5 @@
 # Connectors in a blueprint, as the YAML Blueprints page shows them. The services
-# are the odctl profiles the examples use; tests/unit only loads this file.
+# are the odctl profiles the examples use; tests/docs only loads this file.
 simulation:
   sim_id: Shop
   factor: 1

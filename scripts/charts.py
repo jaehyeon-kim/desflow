@@ -1,0 +1,406 @@
+"""Draw the charts the docs show, from runs of the tutorial snippets.
+
+Each name in `CHARTS` runs the code of a page, unpaced, and saves a PNG under
+docs/assets/charts/ with the same name. The charts are committed, so the docs build
+needs no matplotlib; run this after a change to a tutorial snippet or a distribution.
+tests/docs/test_docs_diagrams.py checks that every chart is made here and used on a
+page.
+
+Usage: python scripts/charts.py [name ...]
+"""
+
+import importlib.util
+import sys
+from pathlib import Path
+from typing import Callable, Dict
+
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt  # noqa: E402
+
+ROOT = Path(__file__).resolve().parents[1]
+CHARTS_DIR = ROOT / "docs" / "assets" / "charts"
+TUTORIALS = ROOT / "docs" / "snippets" / "tutorials"
+
+# 7.5 inches at 150 dots per inch is 1,125 pixels, within the width the docs show
+# without shrinking the text.
+WIDTH, HEIGHT, DPI = 7.5, 4.0, 150
+BLUE, ORANGE, GREY, GREEN = "#6c8ebf", "#d79b00", "#666666", "#82b366"
+
+plt.rcParams.update(
+    {
+        "font.size": 12,
+        "axes.spines.top": False,
+        "axes.spines.right": False,
+        "axes.titlesize": 13,
+    }
+)
+
+
+def _module(name: str):
+    """Imports a tutorial snippet by its file name."""
+    sys.path.insert(0, str(TUTORIALS))
+    try:
+        spec = importlib.util.spec_from_file_location(name, TUTORIALS / f"{name}.py")
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+    finally:
+        sys.path.remove(str(TUTORIALS))
+
+
+def _pages_module(name: str):
+    """Imports a User Guide snippet by its file name."""
+    folder = ROOT / "docs" / "snippets" / "pages"
+    spec = importlib.util.spec_from_file_location(name, folder / f"{name}.py")
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _save(fig, name: str) -> None:
+    CHARTS_DIR.mkdir(parents=True, exist_ok=True)
+    fig.tight_layout()
+    fig.savefig(CHARTS_DIR / f"{name}.png", dpi=DPI)
+    plt.close(fig)
+
+
+def queues_wait() -> None:
+    """Queues and Capacity: the mean wait of the busy hour for 1 to 4 packers."""
+    module = _module("queues_and_capacity")
+    packers = [1, 2, 3, 4]
+    waits = [module.mean_wait(n) for n in packers]
+    fig, ax = plt.subplots(figsize=(WIDTH, HEIGHT))
+    ax.bar([str(n) for n in packers], waits, color=BLUE)
+    ax.axhline(10, color=ORANGE, linestyle="--", linewidth=2)
+    ax.text(3.45, 12, "10 seconds", color=ORANGE, ha="right")
+    ax.set_yscale("log")
+    ax.set_ylim(0.1, max(waits) * 4)
+    ticks = [0.1, 1, 10, 100, 1000]
+    ax.set_yticks(ticks, [f"{t:,g}" for t in ticks])
+    ax.minorticks_off()
+    for x, wait in enumerate(waits):
+        ax.text(x, wait * 1.15, f"{wait:.2f} s", ha="center")
+    ax.set_xlabel("packers")
+    ax.set_ylabel("mean wait (seconds, log scale)")
+    ax.set_title("Mean wait in the busy hour: 1.8 orders a second, 1.5 s of packing")
+    _save(fig, "queues-wait")
+
+
+def _draws(config, n: int = 20000):
+    """`n` draws of a distribution, as the run draws them."""
+    from desflow import Sampler
+
+    sampler = Sampler(seed=42)
+    config.stream = "chart"
+    return [sampler.sample(config) for _ in range(n)]
+
+
+def choosing_inputs() -> None:
+    """Choosing Inputs: the four packing candidates and the mean wait of each."""
+    module = _module("choosing_inputs")
+    low_level = _module("choosing_inputs_low_level")
+    services = low_level.params().service
+    colours = {
+        "constant": GREY,
+        "triangular": GREEN,
+        "empirical": BLUE,
+        "exponential": ORANGE,
+    }
+    fig, (shapes, waits) = plt.subplots(
+        1, 2, figsize=(WIDTH, HEIGHT), gridspec_kw={"width_ratios": [3, 2]}
+    )
+    bins = [i * 0.25 for i in range(0, 25)]
+    for name in ("exponential", "empirical", "triangular"):
+        shapes.hist(
+            _draws(services[name]),
+            bins=bins,
+            density=True,
+            histtype="step",
+            linewidth=2,
+            color=colours[name],
+            label=name,
+        )
+    shapes.axvline(1.5, color=GREY, linewidth=2, label="constant")
+    shapes.set_xlabel("packing time (seconds)")
+    shapes.set_ylabel("share of draws")
+    shapes.set_yticks([])
+    shapes.legend(frameon=False)
+    shapes.set_title("Four packing times, mean 1.5 s")
+    names = module.CANDIDATES
+    values = [module.mean_wait(name) for name in names]
+    waits.barh(names[::-1], values[::-1], color=[colours[n] for n in names[::-1]])
+    for y, value in enumerate(values[::-1]):
+        waits.text(value + 0.05, y, f"{value:.2f} s", va="center")
+    waits.set_xlim(0, max(values) * 1.35)
+    waits.set_xlabel("mean wait (seconds)")
+    waits.set_title("Mean wait, busy hour")
+    _save(fig, "choosing-inputs")
+
+
+def measuring_queue() -> None:
+    """Measuring a Run: the packer queue over five minutes, its time-weighted
+    average, and what readings every 10 seconds see."""
+    from desflow import DynamicRealtimeEnvironment, DynamicResource, Sampler
+
+    module = _module("measuring_a_run_low_level")
+    until = 300
+    env = DynamicRealtimeEnvironment(factor=0)
+    env.registry.register_sim_parameter(module.PARAMS)
+    env.setup_stats("Shop", "basic", interval=10)
+    trace = [(0.0, 0)]
+    changed = env.stats.changed
+
+    def record(category, name):
+        changed(category, name)
+        trace.append((env.now, len(packers.queue.items)))
+
+    env.stats.changed = record
+    packers = DynamicResource(env, "Shop", "packers")
+    env.process(module.order_generator(env, Sampler(seed=42), packers))
+    try:
+        env.run(until=until)
+    finally:
+        env.teardown()
+    average = env.stats.readings()["Shop.stats.resources.packers.queue_length_avg"]
+
+    def at(time):
+        return [length for when, length in trace if when <= time][-1]
+
+    samples = [(s, at(s)) for s in range(10, until + 1, 10)]
+    sampled = sum(length for _, length in samples) / len(samples)
+    fig, ax = plt.subplots(figsize=(WIDTH, HEIGHT))
+    ax.step(
+        [w for w, _ in trace],
+        [n for _, n in trace],
+        where="post",
+        color=BLUE,
+        linewidth=1,
+        label="queue length",
+    )
+    ax.plot(
+        [s for s, _ in samples],
+        [n for _, n in samples],
+        "o",
+        color=GREY,
+        label=f"reading every 10 s, mean {sampled:.2f}",
+    )
+    ax.axhline(
+        average,
+        color=ORANGE,
+        linestyle="--",
+        linewidth=2,
+        label=f"time-weighted average, {average:.2f}",
+    )
+    ax.set_xlim(0, until)
+    # Room above the highest queue for the legend, so it covers no data
+    top = max(n for _, n in trace)
+    ax.set_ylim(-0.5, top * 1.5)
+    ax.set_yticks(range(0, top + 1, 2))
+    ax.set_xlabel("simulation time (seconds)")
+    ax.set_ylabel("orders waiting")
+    ax.set_title("Orders waiting for a packer, first five minutes")
+    ax.legend(frameon=False, loc="upper left")
+    _save(fig, "measuring-queue")
+
+
+def trusting_warmup() -> None:
+    """Trusting Results: the start of the busy hour, read every 10 seconds, with
+    the 2-minute warm-up marked."""
+    from desflow import DynamicRealtimeEnvironment, DynamicResource, Sampler
+
+    module = _module("trusting_results_low_level")
+    until = 15 * 60
+    env = DynamicRealtimeEnvironment(factor=0)
+    env.registry.register_sim_parameter(module.PARAMS)
+    env.setup_stats("Shop", "typical", interval=10)
+    readings = []
+
+    def read():
+        while True:
+            yield env.timeout(10)
+            values = env.stats.readings()
+            readings.append(
+                (
+                    env.now / 60,
+                    values["Shop.stats.resources.packers.queue_length"],
+                    values.get("Shop.stats.tasks.pack_order.wait_mean", 0.0),
+                )
+            )
+
+    packers = DynamicResource(env, "Shop", "packers")
+    env.process(module.order_generator(env, Sampler(seed=42), packers))
+    env.process(read())
+    try:
+        env.run(until=until + 1)
+    finally:
+        env.teardown()
+    minutes = [m for m, _, _ in readings]
+    fig, (queue, wait) = plt.subplots(2, 1, figsize=(WIDTH, 5.0), sharex=True)
+    queue.plot(minutes, [q for _, q, _ in readings], "o-", color=BLUE, markersize=3)
+    queue.set_ylabel("orders waiting")
+    queue.set_title("The busy hour from an empty shop, read every 10 seconds")
+    wait.plot(minutes, [w for _, _, w in readings], color=BLUE, linewidth=2)
+    wait.set_ylabel("mean wait so far (s)")
+    wait.set_xlabel("simulation time (minutes)")
+    for ax in (queue, wait):
+        ax.axvline(module.WARMUP / 60, color=ORANGE, linestyle="--", linewidth=2)
+    wait.text(
+        module.WARMUP / 60 + 0.2, 0.55, "end of the 2-minute warm-up", color=ORANGE
+    )
+    wait.set_xlim(0, until / 60)
+    _save(fig, "trusting-warmup")
+
+
+def stock_level() -> None:
+    """Stock: the level of the stock over 30 minutes, for 60-box and 40-box
+    deliveries every 100 seconds, with the stock-outs marked."""
+    import logging
+
+    module = _module("stock")
+    logging.getLogger("desflow").setLevel(logging.WARNING)
+    until = 30 * 60
+    fig, ax = plt.subplots(figsize=(WIDTH, HEIGHT))
+    for delivery, colour in ((60, BLUE), (40, ORANGE)):
+        app = module.shop(delivery)
+        points: list = []
+
+        def read(context, points=points):
+            stock = context.get_container("stock")
+            while True:
+                points.append((context.env.now / 60, stock.level))
+                yield context.env.timeout(1)
+
+        app.add_process(read)
+        app.run(until=until + 1)
+        minutes = [m for m, _ in points]
+        levels = [level for _, level in points]
+        ax.plot(
+            minutes,
+            levels,
+            color=colour,
+            linewidth=2,
+            label=f"deliveries of {delivery}",
+        )
+        if delivery == 40:
+            # A grey bar under the line wherever the stock is 0
+            empty = [-8 if level == 0 else None for _, level in points]
+            ax.plot(
+                minutes,
+                [float("nan") if e is None else e for e in empty],
+                color=GREY,
+                linewidth=5,
+                solid_capstyle="butt",
+                label="stock is 0: orders wait",
+            )
+    ax.set_xlim(0, until / 60)
+    ax.set_ylim(-15, None)
+    ax.set_xlabel("simulation time (minutes)")
+    ax.set_ylabel("boxes on the shelf")
+    ax.set_title("Stock level, a delivery every 100 seconds")
+    ax.legend(frameon=False, loc="upper left")
+    _save(fig, "stock-level")
+
+
+def priorities_wait() -> None:
+    """Priorities: the mean wait of express and regular orders under fifo and
+    priority."""
+    import logging
+
+    module = _module("priorities")
+    logging.getLogger("desflow").setLevel(logging.WARNING)
+    waits = {queue: module.mean_waits(queue) for queue in ("fifo", "priority")}
+    fig, ax = plt.subplots(figsize=(WIDTH, HEIGHT))
+    width = 0.38
+    for offset, task, colour, label in (
+        (-width / 2, "pack_express", ORANGE, "express orders"),
+        (width / 2, "pack_order", BLUE, "regular orders"),
+    ):
+        values = [waits[q][task] for q in waits]
+        xs = [i + offset for i in range(len(waits))]
+        ax.bar(xs, values, width, color=colour, label=label)
+        for x, value in zip(xs, values):
+            ax.text(x, value + 0.1, f"{value:.2f} s", ha="center")
+    ax.set_xticks(range(len(waits)), [f"queue: {q}" for q in waits])
+    ax.set_ylabel("mean wait (seconds)")
+    ax.set_title("One packer, 0.6 orders a second, a quarter of them express")
+    ax.legend(frameon=False, loc="upper left")
+    ax.set_ylim(0, max(max(w.values()) for w in waits.values()) * 1.2)
+    _save(fig, "priorities-wait")
+
+
+def distribution_shapes() -> None:
+    """Arrivals and Services: 200,000 draws from each distribution family, with the
+    parameters of the examples on the page."""
+    from desflow import DistributionConfig, Sampler
+
+    module = _pages_module("arrivals_services")
+    examples = [
+        ("exponential", module.gap, "rate 0.5"),
+        (
+            "normal",
+            DistributionConfig(dist="normal", mean=1.0, std=1.0),
+            "mean 1, std 1",
+        ),
+        (
+            "truncated_normal",
+            DistributionConfig(dist="truncated_normal", mean=1.0, std=1.0, low=0.0),
+            "mean 1, std 1, low 0",
+        ),
+        ("lognormal", module.repair, "mean 4, std 3"),
+        ("constant", module.inspection, "value 0.5"),
+        ("uniform", module.scanning, "low 1, high 2"),
+        ("triangular", module.wrapping, "low 1, mode 1.25, high 2.25"),
+        ("gamma", module.checking, "shape 3, scale 0.5"),
+        (
+            "weibull",
+            DistributionConfig(dist="weibull", shape=1.5, scale=1.0),
+            "shape 1.5, scale 1",
+        ),
+        ("empirical", module.sealing, "edges 0, 1, 2, 4; counts 10, 30, 5"),
+    ]
+    # Two columns and five rows, so the text keeps its full size at the page's width
+    fig, axes = plt.subplots(5, 2, figsize=(WIDTH, 10.0))
+    for ax, (name, config, label) in zip(axes.flat, examples):
+        sampler = Sampler(seed=42)
+        config.stream = name
+        draws = [sampler.sample(config) for _ in range(200_000)]
+        mean = sum(draws) / len(draws)
+        # The longest 0.5% of draws are left off, so a long tail does not hide the shape
+        top = sorted(draws)[int(len(draws) * 0.995)]
+        low, high = min(draws), max(top, min(draws) + 1)
+        if top == low:  # a constant: one bar, with the axis centred on its value
+            low, high = low - 0.5, low + 0.5
+        ax.hist(draws, bins=40, range=(low, high), color=BLUE)
+        ax.axvline(mean, color=ORANGE, linewidth=1.5)
+        ax.set_title(name.replace("_", " "))
+        ax.set_xlabel(label)
+        ax.set_yticks([])
+        for side in ("left",):
+            ax.spines[side].set_visible(False)
+    fig.suptitle("200,000 draws from each family; the orange line is their mean")
+    _save(fig, "distribution-shapes")
+
+
+CHARTS: Dict[str, Callable[[], None]] = {
+    "distribution-shapes": distribution_shapes,
+    "priorities-wait": priorities_wait,
+    "stock-level": stock_level,
+    "trusting-warmup": trusting_warmup,
+    "measuring-queue": measuring_queue,
+    "queues-wait": queues_wait,
+    "choosing-inputs": choosing_inputs,
+}
+
+
+def main(names) -> None:
+    for name in names or CHARTS:
+        CHARTS[name]()
+        print(f"{name} -> docs/assets/charts/{name}.png")
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

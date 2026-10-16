@@ -260,3 +260,61 @@ def test_malformed_tables_are_refused_at_construction(spec, message):
     """A mistake in tables fails when the egress is built, not at the first batch."""
     with pytest.raises(ValueError, match=message):
         PostgresEgress("postgresql://u:p@localhost/db", tables={"orders": spec})
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.postgres.asyncpg.create_pool", new_callable=AsyncMock)
+async def test_events_carry_task_fields_and_labels_are_json_rows(
+    mock_create_pool, mock_pool, run_until
+):
+    pool, conn = mock_pool
+    mock_create_pool.return_value = pool
+    columns = ["event_id", "task", "instance", "path", "old", "new", "label"]
+    conn.fetch.return_value = [{"column_name": name} for name in columns]
+    egress = PostgresEgress("postgresql://u:p@localhost/db", "records")
+    egress_queue = queue.Queue()
+    egress_queue.put(
+        [
+            {
+                "stream_type": "event",
+                "key": "orders-1",
+                "task": "pack",
+                "instance": 0,
+                "value": {},
+            },
+            # A payload field of the same name wins over the record field
+            {
+                "stream_type": "event",
+                "key": "orders-2",
+                "task": "pack",
+                "instance": 1,
+                "value": {"task": "mine"},
+            },
+            {
+                "stream_type": "label",
+                "path": "Shop.service.packing.mean",
+                "old": 3.0,
+                "new": 5.0,
+                "label": {"fault": "slow_packing"},
+            },
+        ]
+    )
+    await run_until(
+        egress.run(egress_queue),
+        lambda: conn.executemany.call_count == 3 and egress_queue.empty(),
+    )
+    rows = []
+    for call in conn.executemany.call_args_list:
+        query, values = call[0]
+        names = query.split("(", 1)[1].split(")", 1)[0].split(", ")
+        rows.extend(dict(zip(names, row)) for row in values)
+    assert rows == [
+        {"event_id": "orders-1", "task": "pack", "instance": 0},
+        {"task": "mine", "event_id": "orders-2", "instance": 1},
+        {
+            "path": "Shop.service.packing.mean",
+            "old": "3.0",
+            "new": "5.0",
+            "label": '{"fault":"slow_packing"}',
+        },
+    ]

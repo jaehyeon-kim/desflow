@@ -53,11 +53,8 @@ tasks:
     resource: packers
     payload: {path_id: Shop.service.packing, status: finished}
 
-telemetry:
-  - interval: 30.0
-    publish:
-      packers.in_use: packers.in_use
-      packers.queue_length: packers.queue_length
+# The packers' readings every 30 simulation seconds.
+stats: {level: minimal, interval: 30}
 
 run:
   # Ten minutes of history, then one minute of live tail.

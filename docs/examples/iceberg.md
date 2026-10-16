@@ -1,6 +1,6 @@
 # Fast-Forward to Iceberg
 
-A day of an online shop's orders, generated at `factor=0.0` and appended to an Apache Iceberg table through an Iceberg REST catalog. Each tab shows the example written one way: with the builder API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](../architecture/overview.md) compares the three.
+A day of an online shop's orders, generated at `factor=0.0` and appended to an Apache Iceberg table through an Iceberg REST catalog. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../user-guide/ways-to-write.md) compares the three.
 
 `ParquetStorageEgress` writes files and leaves registering them as a table to you. `IcebergStorageEgress` appends into an Iceberg table instead, so one run ends with a table another engine can query.
 
@@ -337,8 +337,8 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
     def arrival_generator(context):
         task_id = 0
         while True:
-            yield context.wait_for_arrival("orders")
-            context.spawn(pack_order(task_id, context))
+            entity = yield context.wait_for_arrival("orders")
+            context.spawn(pack_order(task_id, context, entity=entity))
             task_id += 1
 
 
@@ -531,15 +531,30 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
     )
 
 
-    def pack_order(env, sampler, packers, task_id):
+    def pack_order(env, sampler, packers, key, task_id):
         """What @app.task does: queued, started, the service time, then finished."""
-        key, path_id = f"task-{task_id}", "Shop.service.packing"
-        env.publish_event(key, {"path_id": path_id, "status": "queued"})
+        path_id = "Shop.service.packing"
+        env.publish_event(
+            key,
+            {"path_id": path_id, "status": "queued"},
+            task="pack_order",
+            instance=task_id,
+        )
         with packers.request() as req:
             yield req
-            env.publish_event(key, {"path_id": path_id, "status": "started"})
+            env.publish_event(
+                key,
+                {"path_id": path_id, "status": "started"},
+                task="pack_order",
+                instance=task_id,
+            )
             yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
-            env.publish_event(key, {"path_id": path_id, "status": "finished"})
+            env.publish_event(
+                key,
+                {"path_id": path_id, "status": "finished"},
+                task="pack_order",
+                instance=task_id,
+            )
 
 
     def arrival_generator(env, sampler, packers):
@@ -547,7 +562,7 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
         task_id = 0
         while True:
             yield env.timeout(sampler.sample(gap))
-            env.process(pack_order(env, sampler, packers, task_id))
+            env.process(pack_order(env, sampler, packers, f"orders-{task_id + 1}", task_id))
             task_id += 1
 
 

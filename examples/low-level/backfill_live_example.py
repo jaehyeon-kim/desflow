@@ -73,15 +73,30 @@ def history_router(data: dict) -> str | None:
     return f"{base_path}/events.parquet"
 
 
-def pack_order(env, sampler, packers, task_id):
+def pack_order(env, sampler, packers, key, task_id):
     """What @app.task does: queued, started, the service time, then finished."""
-    key, path_id = f"task-{task_id}", "Shop.service.packing"
-    env.publish_event(key, {"path_id": path_id, "status": "queued"})
+    path_id = "Shop.service.packing"
+    env.publish_event(
+        key,
+        {"path_id": path_id, "status": "queued"},
+        task="pack_order",
+        instance=task_id,
+    )
     with packers.request() as request:
         yield request
-        env.publish_event(key, {"path_id": path_id, "status": "started"})
+        env.publish_event(
+            key,
+            {"path_id": path_id, "status": "started"},
+            task="pack_order",
+            instance=task_id,
+        )
         yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
-        env.publish_event(key, {"path_id": path_id, "status": "finished"})
+        env.publish_event(
+            key,
+            {"path_id": path_id, "status": "finished"},
+            task="pack_order",
+            instance=task_id,
+        )
 
 
 def arrival_generator(env, sampler, packers):
@@ -89,16 +104,8 @@ def arrival_generator(env, sampler, packers):
     task_id = 0
     while True:
         yield env.timeout(sampler.sample(gap))
-        env.process(pack_order(env, sampler, packers, task_id))
+        env.process(pack_order(env, sampler, packers, f"orders-{task_id + 1}", task_id))
         task_id += 1
-
-
-def telemetry_generator(env, packers):
-    """Samples resource use every 30 simulation seconds."""
-    while True:
-        env.publish_telemetry("Shop.packers.in_use", packers.in_use)
-        env.publish_telemetry("Shop.packers.queue_length", len(packers.queue.items))
-        yield env.timeout(30.0)
 
 
 def run():
@@ -135,10 +142,11 @@ def run():
         flush_interval=10.0,
         predicates=[is_history, is_live],  # matched to the providers by position
     )
+    # The packers' readings every 30 simulation seconds
+    env.setup_stats("Shop", "minimal", interval=30.0)
     packers = DynamicResource(env, "Shop", "packers")
     sampler = Sampler(rng=np.random.default_rng(42))
     env.process(arrival_generator(env, sampler, packers))
-    env.process(telemetry_generator(env, packers))
 
     logger.info(
         "Backfilling from %s to %s into '%s/', then tailing live to Kafka for %.0fs.",

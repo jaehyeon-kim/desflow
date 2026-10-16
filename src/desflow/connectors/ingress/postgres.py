@@ -2,13 +2,32 @@ import asyncio
 import json
 import logging
 import queue
-from typing import Any
+from typing import Any, Mapping, Tuple
 
 import asyncpg
 
-from desflow.connectors.ingress.base import BaseIngress
+from desflow.connectors.ingress.base import BaseIngress, parse_change
 
 logger = logging.getLogger(__name__)
+
+# Logged with a missing-column error: a table created by desflow 0.20.0 or
+# earlier still has the old column names.
+_RENAME_HINT = (
+    "; desflow 0.21.0 renamed the columns param_path and param_value to path and"
+    " value: ALTER TABLE {table} RENAME COLUMN param_path TO path; ALTER TABLE"
+    " {table} RENAME COLUMN param_value TO value;"
+)
+
+
+def _row_change(row: Mapping[str, Any]) -> Tuple[str, Any]:
+    """Reads the change in a row, parsing `value` as JSON and keeping the text when it is not JSON."""
+    raw_val = row["value"]
+    try:
+        # Parse JSON to keep types (e.g. ints, dicts)
+        val = json.loads(raw_val)
+    except (json.JSONDecodeError, TypeError):
+        val = raw_val
+    return parse_change({"path": row["path"], "value": val})
 
 
 class PostgresIngress(BaseIngress):
@@ -17,7 +36,9 @@ class PostgresIngress(BaseIngress):
 
     This connector polls a specified configuration table for rows where 'is_applied'
     is FALSE. It parses the parameter path and value, forwards them to the
-    simulation registry, and then updates the row to mark it as applied.
+    simulation registry, and then updates the row to mark it as applied. A row
+    with a null path or value is logged as a warning, skipped and marked as
+    applied, so it is not read again.
     """
 
     def __init__(
@@ -33,7 +54,7 @@ class PostgresIngress(BaseIngress):
         Args:
             connection_dsn: PostgreSQL connection string (DSN).
             table_name: Table to poll for parameter updates. Must have columns:
-                        id (serial), param_path (text), param_value (text/json), is_applied (boolean).
+                        id (serial), path (text), value (text/json), is_applied (boolean).
             poll_interval: Seconds to wait between database polls.
             **kwargs: Additional connection pool arguments for asyncpg.
         """
@@ -54,12 +75,18 @@ class PostgresIngress(BaseIngress):
                 await conn.execute(f"""
                     CREATE TABLE IF NOT EXISTS {self.table_name} (
                         id SERIAL PRIMARY KEY,
-                        param_path VARCHAR(255) NOT NULL,
-                        param_value TEXT NOT NULL,
+                        path VARCHAR(255) NOT NULL,
+                        value TEXT NOT NULL,
                         is_applied BOOLEAN DEFAULT FALSE,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     );
                 """)
+
+    def _describe(self, error: Exception) -> str:
+        """Returns the error text, with the column rename statements for a missing column."""
+        if isinstance(error, asyncpg.UndefinedColumnError):
+            return f"{error}{_RENAME_HINT.format(table=self.table_name)}"
+        return str(error)
 
     async def run(self, ingress_queue: queue.Queue) -> None:
         """
@@ -75,24 +102,26 @@ class PostgresIngress(BaseIngress):
         try:
             assert self.pool is not None
             async with self.pool.acquire() as conn:
-                # Get the latest applied value for each distinct param_path
+                # Get the latest applied value for each distinct path
                 rows = await conn.fetch(f"""
-                    SELECT DISTINCT ON (param_path) param_path, param_value
+                    SELECT DISTINCT ON (path) path, value
                     FROM {self.table_name}
                     WHERE is_applied = TRUE
-                    ORDER BY param_path, id DESC
+                    ORDER BY path, id DESC
                 """)
                 for row in rows:
-                    path = row["param_path"]
-                    raw_val = row["param_value"]
                     try:
-                        val = json.loads(raw_val)
-                    except json.JSONDecodeError:
-                        val = raw_val
+                        path, val = _row_change(row)
+                    except ValueError as e:
+                        logger.warning(f"Skipped a PostgreSQL ingress row: {e}")
+                        continue
                     ingress_queue.put((path, val))
                     logger.info(f"Loaded historical parameter state: {path} = {val}")
         except Exception as e:
-            logger.error(f"Error loading historical state from {self.table_name}: {e}")
+            logger.error(
+                f"Error loading historical state from {self.table_name}: "
+                f"{self._describe(e)}"
+            )
 
         # Phase 2: Continuously poll for new unapplied updates
         while True:
@@ -101,7 +130,7 @@ class PostgresIngress(BaseIngress):
                 async with self.pool.acquire() as conn:
                     # Fetch all unapplied parameter updates
                     rows = await conn.fetch(f"""
-                        SELECT id, param_path, param_value
+                        SELECT id, path, value
                         FROM {self.table_name}
                         WHERE is_applied = FALSE
                         ORDER BY id ASC
@@ -110,36 +139,34 @@ class PostgresIngress(BaseIngress):
                     if rows:
                         applied_ids = []
                         for row in rows:
-                            row_id = row["id"]
-                            path = row["param_path"]
-                            raw_val = row["param_value"]
-
+                            # A bad row is marked applied too, so it is skipped once
+                            applied_ids.append(row["id"])
                             try:
-                                # Attempt to parse JSON to maintain types (e.g. ints, dicts)
-                                val = json.loads(raw_val)
-                            except json.JSONDecodeError:
-                                # Fallback to raw string if it's not valid JSON
-                                val = raw_val
+                                path, val = _row_change(row)
+                            except ValueError as e:
+                                logger.warning(
+                                    f"Skipped a PostgreSQL ingress row {row['id']}: {e}"
+                                )
+                                continue
 
                             # Send to the simulation registry queue
                             ingress_queue.put((path, val))
-                            applied_ids.append(row_id)
                             logger.info(f"Ingested parameter update: {path} = {val}")
 
                         # Mark the rows as applied so we don't process them again
-                        if applied_ids:
-                            await conn.execute(
-                                f"""
-                                UPDATE {self.table_name}
-                                SET is_applied = TRUE
-                                WHERE id = ANY($1::int[])
-                            """,
-                                applied_ids,
-                            )
+                        await conn.execute(
+                            f"""
+                            UPDATE {self.table_name}
+                            SET is_applied = TRUE
+                            WHERE id = ANY($1::int[])
+                        """,
+                            applied_ids,
+                        )
 
             except Exception as e:
                 logger.error(
-                    f"Error polling PostgresIngress table {self.table_name}: {e}"
+                    f"Error polling PostgresIngress table {self.table_name}: "
+                    f"{self._describe(e)}"
                 )
 
             # Wait before polling again

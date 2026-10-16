@@ -59,6 +59,8 @@ app = (
     .add_resource("packers", current_cap=1, max_cap=10)
     .add_service("packing", dist="normal", mean=3.0, std=0.5)
     .add_arrival("orders", dist="exponential", rate=1.0)
+    # The packers' readings every 2 seconds, which kafka_dashboard.py shows
+    .with_stats("minimal", interval=2.0)
 )
 
 
@@ -84,23 +86,9 @@ def pack_order(task_id: int, context):
 def arrival_generator(context):
     task_id = 0
     while True:
-        yield context.wait_for_arrival("orders")
-        context.spawn(pack_order(task_id, context))
+        entity = yield context.wait_for_arrival("orders")
+        context.spawn(pack_order(task_id, context, entity=entity))
         task_id += 1
-
-
-@app.telemetry_loop(interval=2.0)
-def telemetry_monitor(context):
-    """Low-volume system health stream."""
-    res = context.get_resource("packers")
-
-    # The same metrics as the low-level and YAML versions
-    context.publish("packers.capacity", res.capacity)
-    context.publish("packers.in_use", res.in_use)
-    context.publish("packers.queue_length", len(res.queue.items))
-
-    util = (res.in_use / res.capacity) * 100 if res.capacity > 0 else 0
-    context.publish("packers.utilization", util)
 
 
 # ==========================================

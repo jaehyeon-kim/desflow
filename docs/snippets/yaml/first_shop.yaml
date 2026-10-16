@@ -4,13 +4,14 @@
 simulation:
   sim_id: Shop
   factor: 1.0  # 1 simulated second takes 1 real second
+  random_seed: 42  # the same arrival times on every run
 
 resources:
   packers: {current_cap: 1, max_cap: 1}
 
 services:
-  # With no std, a normal distribution returns its mean every time
-  packing: {dist: normal, mean: 1.5}
+  # Every order takes exactly 1.5 seconds to pack
+  packing: {dist: constant, value: 1.5}
 
 arrivals:
   # One order every 2 seconds on average; each arrival spawns pack_order
@@ -22,9 +23,8 @@ tasks:
   pack_order:
     service: packing
     resource: packers
-    # The finished event's value; id_field adds the task id as order_id
-    payload: {}
-    id_field: order_id
+    # The value of the finished event
+    payload: {event_type: order_packed}
 # --8<-- [end:order]
 
 # --8<-- [start:records]
@@ -34,5 +34,5 @@ egress:
 
 # --8<-- [start:run]
 run:
-  until: 10
+  until: 20
 # --8<-- [end:run]

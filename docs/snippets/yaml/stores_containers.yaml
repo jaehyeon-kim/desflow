@@ -1,0 +1,67 @@
+# The stores and containers of the Stores and Containers page, as a blueprint.
+# Run it with: desflow run stores_containers.yaml
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+egress:
+  - type: Console
+
+resources:
+  packers: {current_cap: 2, max_cap: 4}
+
+# --8<-- [start:container]
+containers:
+  # An amount: room for 100 boxes, 20 when the run starts
+  stock: {current_cap: 100, max_cap: 100, level: 20}
+# --8<-- [end:container]
+
+# --8<-- [start:store]
+stores:
+  # Items: room for 5 parcels, empty when the run starts
+  parcels: {current_cap: 5, max_cap: 10}
+# --8<-- [end:store]
+
+services:
+  packing: {dist: constant, value: 3 s}
+  collecting: {dist: constant, value: 1 s}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.5, spawn: take_order}
+  couriers: {dist: constant, value: 4 s, spawn: collect}
+
+tasks:
+  take_order:
+    # Takes no time; its payload says how many boxes the order needs
+    payload: {boxes: 2}
+    next: pack_order
+  # --8<-- [start:take]
+  pack_order:
+    service: packing
+    resource: packers
+    # Takes the boxes the previous task's payload names, once it has a packer
+    get: {container: stock, amount: payload.boxes}
+    # --8<-- [end:take]
+    # --8<-- [start:put]
+    # Adds its finished payload to the store as an item
+    put: {store: parcels}
+    payload: {event_type: order_packed}
+    # --8<-- [end:put]
+  collect:
+    service: collecting
+    # Takes the oldest parcel, waiting while the store is empty
+    get: {store: parcels}
+    payload: {event_type: parcel_collected}
+
+# --8<-- [start:level]
+scenario:
+  # A stock count at 30 seconds: the level path sets what the container holds
+  - {at: 30, path: Shop.containers.stock.level, value: 50}
+# --8<-- [end:level]
+
+# capacity, level, getters_waiting and putters_waiting every 10 seconds
+stats: minimal
+
+run:
+  until: 1 min

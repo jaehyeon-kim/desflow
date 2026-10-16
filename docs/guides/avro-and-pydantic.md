@@ -12,7 +12,7 @@ The code below publishes to Kafka, so start a broker first with `odctl up kafka-
 
 `publish_event` turns a Pydantic V2 model into a JSON-ready dict before any egress sees it, so you do not convert it yourself. Pydantic V1 models, including `pydantic.v1`, are not supported and raise a `PydanticSerializationError`.
 
-```python title="docs/snippets/pages/avro_pydantic.py:model"
+```python title="docs/snippets/guides/avro_and_pydantic.py:model"
 from pydantic import BaseModel
 
 from desflow import DynamicRealtimeEnvironment
@@ -23,10 +23,10 @@ class TaskEvent(BaseModel):
     status: str
 
 
-def work_task(env: DynamicRealtimeEnvironment, task_id: int):
+def work_task(env: DynamicRealtimeEnvironment, number: int):
     # The model is passed as it is; publish_event turns it into a dict.
-    event = TaskEvent(path_id="Shop.packers", status="queued")
-    env.publish_event(f"task-{task_id}", event)
+    event = TaskEvent(path_id="Shop.service.packing", status="queued")
+    env.publish_event(f"orders-{number + 1}", event, task="pack_order", instance=number)
     yield env.timeout(0)
 ```
 
@@ -38,9 +38,9 @@ A topic router picks the topic of each record, and `topic_serializers` names the
 
 ![A Pydantic model published with publish_event becomes a record whose value is a dict; the KafkaEgress topic_router picks a topic, which is written as Avro if it is in topic_serializers and as JSON otherwise](../assets/diagrams/serializer-routing.png)
 
-`KafkaEgress` serializes the whole record, not only its `value`: `key`, `sim_ts`, `timestamp` and `value`, without `stream_type`. An Avro schema therefore describes that record, with your payload as the `value` field. `ConfluentAvroSerializer` uses a Confluent Schema Registry, and `GlueAvroSerializer` uses an AWS Glue Schema Registry.
+`KafkaEgress` serializes the whole record, not only its `value`: `key`, `task`, `instance`, `sim_ts`, `timestamp` and `value`, without `stream_type`. `task` and `instance` are null on an event published without them, so the schema makes both nullable. An Avro schema therefore describes that record, with your payload as the `value` field. `ConfluentAvroSerializer` uses a Confluent Schema Registry, and `GlueAvroSerializer` uses an AWS Glue Schema Registry.
 
-```python title="docs/snippets/pages/avro_pydantic.py:router"
+```python title="docs/snippets/guides/avro_and_pydantic.py:router"
 from desflow import KafkaEgress
 from desflow.connectors.egress.kafka import ConfluentAvroSerializer
 
@@ -52,6 +52,8 @@ prediction_serializer = ConfluentAvroSerializer(
       "type": "record", "name": "PredictionEvent", "namespace": "com.desflow.ml",
       "fields": [
         {"name": "key", "type": "string"},
+        {"name": "task", "type": ["null", "string"], "default": null},
+        {"name": "instance", "type": ["null", "long"], "default": null},
         {"name": "sim_ts", "type": "double"},
         {"name": "timestamp", "type": "string"},
         {"name": "value", "type": {
@@ -91,7 +93,9 @@ egress = KafkaEgress(
 
 A schema written by hand as a JSON string can drift from the model it describes. The `dataclasses-avroschema` package generates it from a Pydantic model instead. `AvroBaseModel` is a Pydantic model that can also write its Avro schema:
 
-```python title="docs/snippets/pages/avro_pydantic.py:schema"
+```python title="docs/snippets/guides/avro_and_pydantic.py:schema"
+from typing import Optional
+
 from dataclasses_avroschema.pydantic import AvroBaseModel
 from pydantic import Field
 
@@ -108,6 +112,8 @@ class PredictionRecord(AvroBaseModel):
     """The record KafkaEgress serializes for an event."""
 
     key: str
+    task: Optional[str] = None
+    instance: Optional[int] = None
     sim_ts: float
     timestamp: str
     value: MLPrediction
@@ -122,7 +128,7 @@ schema_string = PredictionRecord.avro_schema()
 
 Both `ConfluentAvroSerializer` and `GlueAvroSerializer` take the generated string as `schema_str`:
 
-```python title="docs/snippets/pages/avro_pydantic.py:generated"
+```python title="docs/snippets/guides/avro_and_pydantic.py:generated"
 generated_serializer = ConfluentAvroSerializer(
     registry_url="http://127.0.0.1:8081",
     schema_str=PredictionRecord.avro_schema(),  # follows the model
@@ -134,3 +140,212 @@ egress = KafkaEgress(
     topic_serializers={"ml-predictions": generated_serializer},
 )
 ```
+
+---
+
+## Run the Shop
+
+In this shop, each packed order's finished event is a prediction: the task returns an `MLPrediction`, and the router sends it to `ml-predictions` as Avro. The `queued` and `started` events go to `sim-events` as JSON. Before the run, the script creates the three topics, because `KafkaEgress` creates none when it has a router:
+
+```python title="docs/snippets/guides/avro_and_pydantic.py:shop"
+import logging
+
+from desflow import KafkaAdminConnector, SimulationContext
+
+app = (
+    SimulationContext(sim_id="Shop", factor=1.0, random_seed=42)
+    .add_resource("packers", current_cap=1, max_cap=1)
+    .add_service("packing", dist="constant", value=1.5)
+    .add_arrival("orders", dist="exponential", rate=0.5)
+    .add_egress(egress)  # predictions as Avro, the rest as JSON
+)
+
+
+@app.task(service_id="packing", resource_id="packers")
+def pack_order(task_id: int, entity):
+    # The finished event is a prediction for the order, published as the model
+    return MLPrediction(task_id=entity.key, confidence=0.9)
+
+
+@app.arrival_loop("orders")
+def orders(context: SimulationContext):
+    while True:
+        order = yield context.wait_for_arrival("orders")
+        context.spawn(pack_order(context.next_instance("pack_order"), entity=order))
+
+
+if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
+    )
+    # With a router, KafkaEgress creates no topics, so create them first
+    admin = KafkaAdminConnector(bootstrap_servers="localhost:9092")
+    topics = ["sim-events", "sim-telemetry", "ml-predictions"]
+    admin.create_topics([{"name": topic} for topic in topics])
+    app.run(until="1 min")
+```
+
+Run it with `python avro_and_pydantic.py` while `kafka-lite` is up. The serializer registers the generated schema with the schema registry of `kafka-lite` on its first send.
+
+---
+
+## Full Script
+
+??? example "Full script"
+
+    The complete file. It needs the `kafka-lite` profile, which runs a Kafka broker and a schema registry:
+
+    ```python title="docs/snippets/guides/avro_and_pydantic.py"
+    """The Pydantic models, topic router and Avro serializers of the Avro and Pydantic page.
+
+    The shop at the end publishes predictions as Avro and every other record as JSON. It
+    needs a Kafka broker and a schema registry: start both with `odctl up kafka-lite`, then
+    run `python avro_and_pydantic.py`.
+    """
+
+    # Each section carries its own imports, as the page shows it.
+    # ruff: noqa: E402
+
+    from pydantic import BaseModel
+
+    from desflow import DynamicRealtimeEnvironment
+
+
+    class TaskEvent(BaseModel):
+        path_id: str
+        status: str
+
+
+    def work_task(env: DynamicRealtimeEnvironment, number: int):
+        # The model is passed as it is; publish_event turns it into a dict.
+        event = TaskEvent(path_id="Shop.service.packing", status="queued")
+        env.publish_event(f"orders-{number + 1}", event, task="pack_order", instance=number)
+        yield env.timeout(0)
+
+
+    from desflow import KafkaEgress
+    from desflow.connectors.egress.kafka import ConfluentAvroSerializer
+
+    # An Avro serializer for the predictions topic. The schema describes the whole record
+    # KafkaEgress sends, with the prediction as its value.
+    prediction_serializer = ConfluentAvroSerializer(
+        registry_url="http://127.0.0.1:8081",
+        schema_str="""{
+          "type": "record", "name": "PredictionEvent", "namespace": "com.desflow.ml",
+          "fields": [
+            {"name": "key", "type": "string"},
+            {"name": "task", "type": ["null", "string"], "default": null},
+            {"name": "instance", "type": ["null", "long"], "default": null},
+            {"name": "sim_ts", "type": "double"},
+            {"name": "timestamp", "type": "string"},
+            {"name": "value", "type": {
+              "type": "record", "name": "MLPrediction",
+              "fields": [
+                {"name": "event_type", "type": "string"},
+                {"name": "task_id", "type": "string"},
+                {"name": "confidence", "type": "double"}
+              ]
+            }}
+          ]
+        }""",
+    )
+
+
+    # A topic router that sends predictions to their own topic.
+    def ml_topic_router(data: dict) -> str:
+        if data.get("stream_type") == "telemetry":
+            return "sim-telemetry"
+        value = data.get("value", {})
+        if value.get("event_type") == "prediction":
+            return "ml-predictions"
+        return "sim-events"
+
+
+    egress = KafkaEgress(
+        bootstrap_servers="localhost:9092",
+        topic_router=ml_topic_router,
+        # Only ml-predictions is Avro; sim-telemetry and sim-events use JSON.
+        topic_serializers={"ml-predictions": prediction_serializer},
+    )
+
+
+    from typing import Optional
+
+    from dataclasses_avroschema.pydantic import AvroBaseModel
+    from pydantic import Field
+
+
+    class MLPrediction(AvroBaseModel):
+        """The prediction, published as the event value."""
+
+        event_type: str = "prediction"
+        task_id: str = Field(...)
+        confidence: float = Field(...)
+
+
+    class PredictionRecord(AvroBaseModel):
+        """The record KafkaEgress serializes for an event."""
+
+        key: str
+        task: Optional[str] = None
+        instance: Optional[int] = None
+        sim_ts: float
+        timestamp: str
+        value: MLPrediction
+
+        class Meta:
+            namespace = "com.desflow.ml"
+            schema_name = "PredictionEvent"
+
+
+    schema_string = PredictionRecord.avro_schema()
+
+
+    generated_serializer = ConfluentAvroSerializer(
+        registry_url="http://127.0.0.1:8081",
+        schema_str=PredictionRecord.avro_schema(),  # follows the model
+    )
+
+    egress = KafkaEgress(
+        bootstrap_servers="localhost:9092",
+        topic_router=ml_topic_router,
+        topic_serializers={"ml-predictions": generated_serializer},
+    )
+
+
+    import logging
+
+    from desflow import KafkaAdminConnector, SimulationContext
+
+    app = (
+        SimulationContext(sim_id="Shop", factor=1.0, random_seed=42)
+        .add_resource("packers", current_cap=1, max_cap=1)
+        .add_service("packing", dist="constant", value=1.5)
+        .add_arrival("orders", dist="exponential", rate=0.5)
+        .add_egress(egress)  # predictions as Avro, the rest as JSON
+    )
+
+
+    @app.task(service_id="packing", resource_id="packers")
+    def pack_order(task_id: int, entity):
+        # The finished event is a prediction for the order, published as the model
+        return MLPrediction(task_id=entity.key, confidence=0.9)
+
+
+    @app.arrival_loop("orders")
+    def orders(context: SimulationContext):
+        while True:
+            order = yield context.wait_for_arrival("orders")
+            context.spawn(pack_order(context.next_instance("pack_order"), entity=order))
+
+
+    if __name__ == "__main__":
+        logging.basicConfig(
+            level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
+        )
+        # With a router, KafkaEgress creates no topics, so create them first
+        admin = KafkaAdminConnector(bootstrap_servers="localhost:9092")
+        topics = ["sim-events", "sim-telemetry", "ml-predictions"]
+        admin.create_topics([{"name": topic} for topic in topics])
+        app.run(until="1 min")
+    ```

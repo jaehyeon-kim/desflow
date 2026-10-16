@@ -1,0 +1,43 @@
+# The Trusting Results tutorial: the busy hour, measured after a warm-up.
+# Run it with: desflow run trusting_results.yaml
+# Without the warm-up: WARMUP=0 desflow run trusting_results.yaml
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+  # --8<-- [start:warmup]
+  # Records and statistics start after the first 2 minutes; 0 keeps everything
+  warmup: ${WARMUP:-2 min}
+  # --8<-- [end:warmup]
+
+resources:
+  packers: {current_cap: 3, max_cap: 10}
+
+arrivals:
+  orders: {dist: exponential, rate: 1.8, spawn: pack_order}
+
+services:
+  # The 40 packing times measured at the bench, in seconds
+  packing:
+    dist: empirical
+    values: [1.5, 2.5, 2.4, 1.2, 1.3, 1.2, 1.8, 1.4, 2.0, 0.7,
+             2.7, 1.4, 1.9, 1.4, 1.3, 1.8, 2.0, 1.4, 1.4, 1.9,
+             1.1, 0.8, 1.7, 1.1, 0.7, 1.1, 1.2, 0.9, 0.8, 1.5,
+             2.1, 1.3, 1.1, 1.7, 1.9, 1.3, 1.8, 2.2, 1.4, 1.1]
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+
+# --8<-- [start:plot]
+# wait_mean every 10 seconds is the mean wait so far: plot it against sim_ts
+stats: {level: typical, interval: 10}
+
+egress:
+  - type: Console
+# --8<-- [end:plot]
+
+run:
+  until: 1 h

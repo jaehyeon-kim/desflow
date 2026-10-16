@@ -75,6 +75,14 @@ def run(
             "'10 min'. Overrides run.until in the file.",
         ),
     ] = None,
+    seed: Annotated[
+        Optional[int],
+        typer.Option(
+            metavar="N",
+            help="The random seed. Overrides simulation.random_seed in the file. A "
+            "run without one logs the seed it drew, with the command that repeats it.",
+        ),
+    ] = None,
 ) -> None:
     """Build the simulation in FILE and run it."""
     stop_at = _parse_until(until)
@@ -91,6 +99,8 @@ def run(
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(code=1) from None
 
+    if seed is not None:
+        context.random_seed = seed
     try:
         context.run(until=stop_at)
     except KeyboardInterrupt:

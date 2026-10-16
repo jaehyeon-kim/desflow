@@ -173,7 +173,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v7
 
@@ -189,7 +189,7 @@ jobs:
       - name: Run Unit Tests
         # --python is what selects the interpreter. `uv python install` above only
         # downloads it, so without this every leg of the matrix would run the
-        # version in .python-version and the other four would test nothing new.
+        # version in .python-version and the other three would test nothing new.
         run: uv run --python ${{ matrix.python-version }} --with pytest-cov --all-extras pytest tests/unit/ --cov=src/desflow --cov-report=xml
 
   integration-test:
@@ -204,8 +204,8 @@ jobs:
           enable-cache: true
 
       # Pre-downloads the interpreter. `uv run --python` below is what selects it.
-      - name: Fetch Python 3.10
-        run: uv python install 3.10
+      - name: Fetch Python 3.11
+        run: uv python install 3.11
 
       # Example and test infrastructure comes from odctl, which the conftest
       # drives with `odctl up` and `odctl down`. odctl is in the dev dependency
@@ -214,12 +214,12 @@ jobs:
       # job reports green while testing nothing, so fail here if it is missing.
       - name: Verify odctl is on PATH
         run: |
-          uv run --python 3.10 --all-extras python -c "import shutil, sys; path = shutil.which('odctl'); print(path or 'odctl not found on PATH'); sys.exit(0 if path else 1)"
+          uv run --python 3.11 --all-extras python -c "import shutil, sys; path = shutil.which('odctl'); print(path or 'odctl not found on PATH'); sys.exit(0 if path else 1)"
 
       - name: Run Integration Tests
         # Run tests/integration on a single baseline version. -ra lists every
         # skipped test, so an unexpected skip is visible in the job log.
-        run: uv run --python 3.10 --all-extras pytest tests/integration/ -ra
+        run: uv run --python 3.11 --all-extras pytest tests/integration/ -ra
 
       # - name: Upload coverage reports to Codecov
       #   uses: codecov/codecov-action@v4
@@ -249,9 +249,11 @@ jobs:
       - name: Run the local blueprint for two simulation seconds
         run: .venv/bin/desflow run examples/yaml/local.yaml --until 2
 
-  # A strict build fails on a broken link or anchor, so a pull request finds it
-  # before the docs job deploys from main. It runs after the tests, because the docs
-  # are only deployed from code that passed them. Material prints a notice about MkDocs 2.0
+  # The docs tests check that every page's code matches its file, that the snippets
+  # and examples run, and that the generated pages and record blocks are current. A
+  # strict build fails on a broken link or anchor, so a pull request finds it before
+  # the docs job deploys from main. It runs after the tests, because the docs are only
+  # deployed from code that passed them. Material prints a notice about MkDocs 2.0
   # that strict mode counts as a warning; the variable turns that notice off.
   docs-build:
     needs: [unit-test, integration-test, blueprint]
@@ -263,6 +265,9 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
+
+      - name: Run the docs and example tests
+        run: uv run --all-extras pytest tests/docs/ -q
 
       - name: Build the docs in strict mode
         env:

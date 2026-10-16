@@ -107,6 +107,8 @@ app = (
     .add_resource("packers", current_cap=4, max_cap=10)
     .add_service("packing", dist="normal", mean=2.0, std=0.2)
     .add_arrival("orders", dist="exponential", rate=0.5)
+    # The packers' readings every 30 simulation seconds
+    .with_stats("minimal", interval=30.0)
 )
 # --8<-- [end:builder]
 
@@ -124,18 +126,9 @@ def pack_order(task_id: int, context):
 def arrival_generator(context):
     task_id = 0
     while True:
-        yield context.wait_for_arrival("orders")
-        context.spawn(pack_order(task_id, context))
+        entity = yield context.wait_for_arrival("orders")
+        context.spawn(pack_order(task_id, context, entity=entity))
         task_id += 1
-
-
-@app.telemetry_loop(interval=30.0)
-def telemetry_generator(context):
-    """Samples resource use every 30 simulation seconds."""
-    res = context.get_resource("packers")
-
-    context.publish("packers.in_use", res.in_use)
-    context.publish("packers.queue_length", len(res.queue.items))
 
 
 # ==========================================

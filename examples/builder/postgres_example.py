@@ -56,8 +56,8 @@ def place_order(task_id: int, context):
 def order_generator(context):
     task_id = 0
     while True:
-        yield context.wait_for_arrival("orders")
-        context.spawn(place_order(task_id, context))
+        entity = yield context.wait_for_arrival("orders")
+        context.spawn(place_order(task_id, context, entity=entity))
         task_id += 1
         # --8<-- [end:records]
 
@@ -65,8 +65,8 @@ def order_generator(context):
 def run():
     logger.info("Starting Builder Postgres Demo. Press Ctrl+C to stop...")
     logger.info(
-        "Test Ingress by running: INSERT INTO simulation_params (param_path, "
-        "param_value) VALUES ('Shop.arrival.orders.rate', '5.0');"
+        "Test Ingress by running: INSERT INTO simulation_params (path, "
+        "value) VALUES ('Shop.arrival.orders.rate', '5.0');"
     )
     try:
         app.run()

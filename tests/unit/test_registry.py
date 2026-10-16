@@ -204,6 +204,22 @@ def test_registry_clamps_current_cap_to_max_cap(registry, sample_params, caplog)
     assert "7" in caplog.text and "5" in caplog.text
 
 
+def test_registry_lowers_current_cap_with_a_lower_max_cap(
+    registry, sample_params, caplog
+):
+    """A max_cap below current_cap clamps current_cap, and a later level reads it."""
+    registry.register_sim_parameter(sample_params)
+
+    with caplog.at_level(logging.WARNING, logger="desflow.core.registry"):
+        registry.update("Shop.containers.tank1.max_cap", 30.0)
+    registry.update("Shop.containers.tank1.level", 40.0)
+
+    assert registry.get("Shop.containers.tank1.current_cap").value == 30.0
+    assert registry.get_config("Shop.containers.tank1").current_cap == 30.0
+    assert registry.get("Shop.containers.tank1.level").value == 30.0
+    assert "above the new max_cap 30.0" in caplog.text
+
+
 def test_registry_clamps_negative_current_cap_to_zero(registry, sample_params, caplog):
     """A negative current_cap is stored as 0."""
     registry.register_sim_parameter(sample_params)
@@ -223,29 +239,40 @@ def test_registry_keeps_a_container_fraction_within_max_cap(registry, sample_par
     assert registry.get("Shop.containers.tank1.current_cap").value == 42.5
 
 
-def test_truncated_normal_low_is_a_live_path(registry):
-    registry.register_sim_parameter(
-        SimParameter(
-            sim_id="Shop",
-            service={
-                "packing": DistributionConfig(
-                    dist="truncated_normal", mean=3.0, std=1.0, low=0.5
-                )
-            },
-        )
-    )
-    registry.update("Shop.service.packing.low", 1.5)
-    assert registry.get_config("Shop.service.packing").low == 1.5
+@pytest.mark.parametrize(
+    "config,paths",
+    [
+        (DistributionConfig(dist="exponential", rate=1.0), {"rate"}),
+        (DistributionConfig(dist="normal", mean=3.0), {"mean", "std"}),
+        (DistributionConfig(dist="truncated_normal", mean=3.0), {"mean", "std", "low"}),
+        (DistributionConfig(dist="constant", value=3.0), {"value"}),
+        (DistributionConfig(dist="uniform", low=1, high=3), {"low", "high"}),
+        (
+            DistributionConfig(dist="triangular", low=1, mode=2, high=4),
+            {"low", "mode", "high"},
+        ),
+        (DistributionConfig(dist="gamma", shape=2, scale=1), {"shape", "scale"}),
+        (DistributionConfig(dist="weibull", shape=2, scale=1), {"shape", "scale"}),
+        # Its lists are taken at load, so nothing changes live
+        (DistributionConfig(dist="empirical", values=[1, 2], weights=[1, 1]), set()),
+    ],
+    ids=lambda value: value.dist if isinstance(value, DistributionConfig) else "",
+)
+def test_each_family_registers_one_path_per_parameter(registry, config, paths):
+    registry.register_sim_parameter(SimParameter(sim_id="Shop", service={"x": config}))
 
-
-def test_constant_value_is_a_live_path(registry):
-    registry.register_sim_parameter(
-        SimParameter(
-            sim_id="Shop",
-            service={"setup": DistributionConfig(dist="constant", value=3.0)},
-        )
-    )
-    registry.update("Shop.service.setup.value", 4.0)
-    assert registry.get_config("Shop.service.setup").value == 4.0
-    registry.update("Shop.service.setup.value", -1.0)
-    assert registry.get_config("Shop.service.setup").value == 4.0
+    registered = {
+        path.rsplit(".", 1)[1]
+        for path in registry._values
+        if path.startswith("Shop.service.x.")
+    }
+    assert registered == paths
+    # The family is fixed at load, so a parameter it does not take has no path
+    registry.update("Shop.service.x.dist", "normal")
+    assert registry.get_config("Shop.service.x").dist == config.dist
+    for name in paths:
+        current = getattr(config, name)
+        registry.update(f"Shop.service.x.{name}", current + 1)
+        assert getattr(registry.get_config("Shop.service.x"), name) == current + 1
+    # Its sequence is named by its path without the sim id
+    assert config.stream == "service.x"

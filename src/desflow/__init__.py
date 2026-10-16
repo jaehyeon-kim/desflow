@@ -20,8 +20,8 @@ Standard Usage Example:
     def order_generator(context):
         order_id = 0
         while True:
-            yield context.wait_for_arrival("orders")
-            context.spawn(pack_order(order_id))
+            entity = yield context.wait_for_arrival("orders")
+            context.spawn(pack_order(order_id, entity=entity))
             order_id += 1
 
     @app.task(service_id="packing", resource_id="packers")
@@ -44,10 +44,17 @@ from desflow.connectors.egress.local import ConsoleEgress
 from desflow.connectors.ingress.local import LocalIngress
 from desflow.core.context import SimulationContext
 from desflow.core.environment import DynamicRealtimeEnvironment
+from desflow.core.flow import Router, Transfer
 from desflow.core.registry import SimulationRegistry
 from desflow.core.sampler import Sampler
-from desflow.models.params import CapacityConfig, DistributionConfig, SimParameter
-from desflow.models.schemas import EventPayload, TelemetryPayload
+from desflow.models.flow import Entity, Upstream
+from desflow.models.params import (
+    CapacityConfig,
+    ContainerConfig,
+    DistributionConfig,
+    SimParameter,
+)
+from desflow.models.schemas import EventPayload, LabelPayload, TelemetryPayload
 from desflow.resources.container import DynamicContainer
 from desflow.resources.resource import DynamicResource
 from desflow.resources.store import DynamicStore
@@ -72,10 +79,16 @@ __all__ = [
     "SimParameter",
     "DistributionConfig",
     "CapacityConfig",
+    "ContainerConfig",
+    "Entity",
+    "Upstream",
+    "Router",
+    "Transfer",
     "LocalIngress",
     "ConsoleEgress",
     "EventPayload",
     "TelemetryPayload",
+    "LabelPayload",
     "time_to_seconds",
 ]
 

@@ -1,6 +1,6 @@
 [project]
 name = "desflow"
-version = "0.20.0"
+version = "0.21.0"
 description = "Realistic event streams from a SimPy simulation you can steer while it runs, written to Kafka, Redis, PostgreSQL, Parquet, JSONL and Iceberg."
 readme = "README.md"
 authors = [
@@ -20,7 +20,7 @@ keywords = [
     "iceberg",
     "parquet"
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
 classifiers = [
@@ -33,7 +33,6 @@ classifiers = [
     "Intended Audience :: Education",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -130,11 +129,16 @@ dev = [
     "pytest-cov>=5.0.0",
     "types-redis>=4.6.0",
     "types-pyyaml>=6.0.12",
-    "mkdocs-llmstxt>=0.5.1 ; python_full_version >= '3.11'",
+    "mkdocs-llmstxt>=0.5.1",
     # 1.2.3 adds properdocs, a second documentation tool with its own command.
     "mkdocs-redirects==1.2.2",
     # The roadmap page draws its releases as a timeline.
     "neoteroi-mkdocs>=1.2.0",
+    # scripts/charts.py draws the tutorial answers and the distribution shapes.
+    "matplotlib>=3.11.2",
+    # Builds the generated Reference pages. 0.6.1 adds properdocs, as
+    # mkdocs-redirects 1.2.3 does.
+    "mkdocs-gen-files==0.6.0",
 ]
 
 [tool.pytest.ini_options]

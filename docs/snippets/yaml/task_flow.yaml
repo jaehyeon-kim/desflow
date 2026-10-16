@@ -1,0 +1,72 @@
+# The flows of the Task Flow page, as a blueprint.
+# Run it with: desflow run task_flow.yaml
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+egress:
+  - type: Console
+
+resources:
+  packers: {current_cap: 2, max_cap: 4}
+
+containers:
+  stock: {current_cap: 100, max_cap: 100, level: 10}
+
+services:
+  packing: {dist: constant, value: 1.5 s}
+  wrapping: {dist: constant, value: 3 s}
+  supplying: {dist: constant, value: 30 s}
+
+# --8<-- [start:attributes]
+arrivals:
+  # Each order starts with these attributes, read as attr.gift
+  orders: {dist: exponential, rate: 0.5, spawn: check_order, attributes: {gift: 0}}
+  gifts: {dist: exponential, rate: 0.1, spawn: check_order, attributes: {gift: 1}}
+# --8<-- [end:attributes]
+  deliveries: {dist: constant, value: 30 s, spawn: restock}
+
+tasks:
+  # --8<-- [start:condition]
+  check_order:
+    payload: {total: 80}
+    # Rules are tried in order; the first that holds wins, default catches the rest
+    next:
+      when:
+        - {condition: "level.stock == 0", task: backorder}
+        - {condition: "payload.total >= 100 or attr.gift == 1", task: wrap_gift}
+      default: pack_order
+  # --8<-- [end:condition]
+  backorder:
+    service: supplying
+    # --8<-- [start:set]
+    # Applied to the order's attributes when the task finishes
+    set: {backordered: 1}
+    # --8<-- [end:set]
+    payload: {event_type: order_backordered}
+    next: check_order
+  wrap_gift:
+    service: wrapping
+    payload: {event_type: gift_wrapped}
+    next: pack_order
+  # --8<-- [start:weights]
+  pack_order:
+    service: packing
+    resource: packers
+    get: {container: stock, amount: 1}
+    payload: {event_type: order_packed}
+    # A task drawn in proportion to its weight: one in ten is packed again
+    next:
+      weights: {ship_order: 9, pack_order: 1}
+  # --8<-- [end:weights]
+  restock:
+    put: {container: stock, amount: 20}
+    payload: {event_type: stock_delivered}
+  ship_order:
+    payload: {event_type: order_shipped}
+    # A payload includes attributes only when it names them
+    attributes: [gift, backordered]
+
+run:
+  until: 2 min

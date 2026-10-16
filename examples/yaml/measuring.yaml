@@ -1,0 +1,56 @@
+# Measuring a run in YAML: built-in statistics, a warm-up and ground-truth records.
+#
+# The twin of examples/builder/measuring_example.py. The shop publishes every
+# statistic of its packers and its pack task every 5 minutes. The first 3 minutes
+# are a warm-up: no sink receives records from them, and the statistics start again
+# when it ends, so they measure the busy shop, not the empty one it started as. At
+# 12 minutes packing slows down, and a ground-truth record says so, on a sink of its
+# own that receives nothing else.
+#
+# Needs no containers. Runs unpaced and ends after 20 simulation minutes.
+# Run it with: desflow run examples/yaml/measuring.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+  warmup: 3 min
+
+egress:
+  # Events and statistics from the end of the warm-up on.
+  - type: Console
+  # Ground-truth records only, for a scorer that checks what a detector found.
+  - type: Console
+    when: labels
+
+resources:
+  packers: {current_cap: 2, max_cap: 4}
+
+services:
+  # A mean of 4 seconds (shape times scale).
+  packing: {dist: gamma, shape: 4, scale: 1}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.4, spawn: pack}
+
+tasks:
+  pack:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+
+# --8<-- [start:measure]
+# Every level: readings, counts and time averages, mean and maximum wait and service,
+# and their 50th, 95th and 99th percentiles, such as Shop.stats.tasks.pack.wait_p95.
+stats: {level: all, interval: 5 min}
+
+scenario:
+  # Packing slows from 4 to 4.8 seconds on average. The record is the ground truth.
+  - at: 12 min
+    path: Shop.service.packing.scale
+    value: 1.2
+    record: {fault: slow_packing, cause: new packing material}
+
+# --8<-- [end:measure]
+run:
+  until: 20 min

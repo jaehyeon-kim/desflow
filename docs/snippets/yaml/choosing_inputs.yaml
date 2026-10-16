@@ -1,0 +1,49 @@
+# The Choosing Inputs tutorial: the busy hour with four candidate packing times.
+# Run it once per candidate, and read the mean wait from the last lines:
+#   PACKING=empirical desflow run choosing_inputs.yaml 2>&1 | grep wait_mean
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+resources:
+  packers: {current_cap: 3, max_cap: 10}
+
+arrivals:
+  orders: {dist: exponential, rate: 1.8, spawn: pack_order}
+
+services:
+  # Four candidates for packing, each with a mean of 1.5 seconds
+  constant: {dist: constant, value: 1.5 s}
+  exponential: {dist: exponential, rate: 0.6667}  # 1 / 1.5 s
+  # --8<-- [start:triangular]
+  # An expert's estimate: at least 1 s, usually 1.25 s, at most 2.25 s
+  triangular: {dist: triangular, low: 1 s, mode: 1.25 s, high: 2.25 s}
+  # --8<-- [end:triangular]
+  # --8<-- [start:empirical]
+  # 40 packing times measured at the bench, in seconds
+  empirical:
+    dist: empirical
+    values: [1.5, 2.5, 2.4, 1.2, 1.3, 1.2, 1.8, 1.4, 2.0, 0.7,
+             2.7, 1.4, 1.9, 1.4, 1.3, 1.8, 2.0, 1.4, 1.4, 1.9,
+             1.1, 0.8, 1.7, 1.1, 0.7, 1.1, 1.2, 0.9, 0.8, 1.5,
+             2.1, 1.3, 1.1, 1.7, 1.9, 1.3, 1.8, 2.2, 1.4, 1.1]
+  # --8<-- [end:empirical]
+
+# --8<-- [start:compare]
+tasks:
+  pack_order:
+    # The candidate comes from the PACKING variable, empirical when it is not set
+    service: ${PACKING:-empirical}
+    resource: packers
+    payload: {event_type: order_packed}
+
+# The mean wait of pack_order, published at the end
+stats: {level: typical, interval: 1 h}
+# --8<-- [end:compare]
+
+egress:
+  - type: Console
+
+run:
+  until: 1 h

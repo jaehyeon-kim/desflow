@@ -1,6 +1,6 @@
-# Relational DB (Postgres)
+# PostgreSQL
 
-An online shop that writes its orders to PostgreSQL and takes parameter updates from a PostgreSQL table. Each tab shows the example written one way: with the builder API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](../architecture/overview.md) compares the three.
+An online shop that writes its orders to PostgreSQL and takes parameter updates from a PostgreSQL table. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../user-guide/ways-to-write.md) compares the three.
 
 With `PostgresEgress` in place of the console egress, the simulation runs as a separate data generator. It writes rows into PostgreSQL with asynchronous bulk inserts through `asyncpg`.
 
@@ -59,7 +59,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
     In a second terminal, raise the arrival rate while it runs:
 
     ```bash
-    docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params (param_path, param_value) VALUES ('Shop.arrival.orders.rate', '5.0');"
+    docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params (path, value) VALUES ('Shop.arrival.orders.rate', '5.0');"
     ```
 
     **Full Source Code**
@@ -152,14 +152,14 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
     def order_generator(context):
         task_id = 0
         while True:
-            yield context.wait_for_arrival("orders")
-            context.spawn(place_order(task_id, context))
+            entity = yield context.wait_for_arrival("orders")
+            context.spawn(place_order(task_id, context, entity=entity))
             task_id += 1
     ```
 
     **Dynamic Parameter Updates (Ingress)**
 
-    This example also attaches a `PostgresIngress` listening to a `simulation_params` table. While the simulation runs, inserting a row with `param_path` and `param_value` into that table changes the parameter, such as the order arrival rate. The simulation fetches the new configuration within its poll interval, 2 seconds by default.
+    This example also attaches a `PostgresIngress` listening to a `simulation_params` table. While the simulation runs, inserting a row with `path` and `value` into that table changes the parameter, such as the order arrival rate. The simulation fetches the new configuration within its poll interval, 2 seconds by default.
 
     **Quick Start**
 
@@ -208,7 +208,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
     **In a second terminal, execute the dynamic parameter update:**
     ```bash
     # Connect to the database container and inject the parameter (maintains audit history!)
-    docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params (param_path, param_value) VALUES ('Shop.arrival.orders.rate', '5.0');"
+    docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params (path, value) VALUES ('Shop.arrival.orders.rate', '5.0');"
     ```
     Within the poll interval, the run logs `Ingested parameter update: Shop.arrival.orders.rate = 5.0`, and orders then arrive five times faster.
 
@@ -279,16 +279,16 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
     def order_generator(context):
         task_id = 0
         while True:
-            yield context.wait_for_arrival("orders")
-            context.spawn(place_order(task_id, context))
+            entity = yield context.wait_for_arrival("orders")
+            context.spawn(place_order(task_id, context, entity=entity))
             task_id += 1
 
 
     def run():
         logger.info("Starting Builder Postgres Demo. Press Ctrl+C to stop...")
         logger.info(
-            "Test Ingress by running: INSERT INTO simulation_params (param_path, "
-            "param_value) VALUES ('Shop.arrival.orders.rate', '5.0');"
+            "Test Ingress by running: INSERT INTO simulation_params (path, "
+            "value) VALUES ('Shop.arrival.orders.rate', '5.0');"
         )
         try:
             app.run()
@@ -327,12 +327,15 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
         "total_amount": 59.97,
         "status": "pending",
     }
-    env.publish_event(f"task-{task_id}", order)
+    # The order key, and the task name and instance id the builder adds
+    env.publish_event(
+        f"orders-{task_id + 1}", order, task="place_order", instance=task_id
+    )
     ```
 
     **Dynamic Parameter Updates (Ingress)**
 
-    This example also attaches a `PostgresIngress` listening to a `simulation_params` table. While the simulation runs, inserting a row with `param_path` and `param_value` into that table changes the parameter, such as the order arrival rate. The simulation fetches the new configuration within its poll interval, 2 seconds by default.
+    This example also attaches a `PostgresIngress` listening to a `simulation_params` table. While the simulation runs, inserting a row with `path` and `value` into that table changes the parameter, such as the order arrival rate. The simulation fetches the new configuration within its poll interval, 2 seconds by default.
 
     **Quick Start**
 
@@ -381,7 +384,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
     **In a second terminal, execute the dynamic parameter update:**
     ```bash
     # Connect to the database container and inject the parameter (maintains audit history!)
-    docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params (param_path, param_value) VALUES ('Shop.arrival.orders.rate', '5.0');"
+    docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params (path, value) VALUES ('Shop.arrival.orders.rate', '5.0');"
     ```
     Within the poll interval, the run logs `Ingested parameter update: Shop.arrival.orders.rate = 5.0`, and orders then arrive five times faster.
 
@@ -456,7 +459,10 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
                 "total_amount": 59.97,
                 "status": "pending",
             }
-            env.publish_event(f"task-{task_id}", order)
+            # The order key, and the task name and instance id the builder adds
+            env.publish_event(
+                f"orders-{task_id + 1}", order, task="place_order", instance=task_id
+            )
             task_id += 1
 
 
@@ -474,8 +480,8 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
         logger.info("Starting Low-level Postgres Demo. Press Ctrl+C to stop...")
         logger.info(
-            "Test Ingress by running: INSERT INTO simulation_params (param_path, "
-            "param_value) VALUES ('Shop.arrival.orders.rate', '5.0');"
+            "Test Ingress by running: INSERT INTO simulation_params (path, "
+            "value) VALUES ('Shop.arrival.orders.rate', '5.0');"
         )
 
         try:

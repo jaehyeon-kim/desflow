@@ -25,7 +25,7 @@ pip install "desflow[kafka]"
 python examples/builder/kafka_example.py
 ```
 
-Extras by example: `kafka` for `*/kafka_example.py` and `kafka_dashboard.py`, `postgres` for `*/postgres_example.py`, `redis` for `*/redis_example.py`, `parquet` for `*/parquet_example.py`, `iceberg` for `*/iceberg_example.py`, both `kafka` and `parquet` for `*/backfill_live_example.py`, `postgres` for `*/postgres_orders_example.py`, and none for `*/local_example.py`.
+Extras by example: `kafka` for `*/kafka_example.py` and `kafka_dashboard.py`, `postgres` for `*/postgres_example.py`, `redis` for `*/redis_example.py`, `parquet` for `*/parquet_example.py`, `iceberg` for `*/iceberg_example.py`, both `kafka` and `parquet` for `*/backfill_live_example.py`, `postgres` for `*/postgres_orders_example.py`, and none for `*/local_example.py`, `*/stock_example.py`, `*/flow_example.py` and `*/measuring_example.py`.
 
 `kafka_dashboard.py` additionally needs `nicegui`, which is not a dependency of the library because nothing in the package imports it. Run it as `uv run --extra kafka --with nicegui examples/kafka_dashboard.py`, which installs nothing permanently, or `pip install nicegui` first.
 
@@ -35,7 +35,7 @@ Containers come from [odctl](https://github.com/jaehyeon-kim/odctl), installed o
 
 | Example | Profile | Start |
 |---|---|---|
-| `*/local_example.py` | none | |
+| `*/local_example.py`, `*/stock_example.py`, `*/flow_example.py`, `*/measuring_example.py` | none | |
 | `*/kafka_example.py` | `kafka-lite` | `odctl up kafka-lite` |
 | `*/backfill_live_example.py`, `yaml/backfill_live.yaml` | `kafka-lite` | `odctl up kafka-lite` |
 | `*/postgres_orders_example.py`, `yaml/advanced/postgres_orders.yaml` | `postgres` | `odctl up postgres` |
@@ -57,7 +57,7 @@ Kafka and Redis are the two whose profile names are not what you would guess, be
 
 `yaml/` holds the same simulations as YAML blueprints, described in the next section.
 
-The three versions of each example run the same simulation and publish the same records, so reading one against another shows what the builder and the blueprint do for you. `tests/unit/test_example_twins.py` runs all three and compares their events and telemetry.
+The three versions of each example run the same simulation and publish the same records, so reading one against another shows what the builder and the blueprint do for you. `tests/docs/test_example_twins.py` runs all three and compares their events and telemetry.
 
 ## YAML blueprints
 
@@ -67,4 +67,4 @@ The three versions of each example run the same simulation and publish the same 
 uv run desflow run examples/yaml/local.yaml
 ```
 
-The blueprints in `yaml/` are plain YAML with no Python. `yaml/advanced/postgres_orders.yaml` keeps its order generator in Python, in `postgres_orders_logic.py` beside it, and references it with `!python`. The extras and odctl profiles are the same as for the Python versions, so `kafka.yaml` needs `--extra kafka` and `odctl up kafka-lite`, and `backfill_live.yaml` needs both `kafka` and `parquet`. `tests/unit/test_yaml_examples.py` builds and runs each blueprint and checks the records it produces.
+The blueprints in `yaml/` are plain YAML with no Python. `yaml/advanced/postgres_orders.yaml` keeps its order generator in Python, in `postgres_orders_logic.py` beside it, and references it with `!python`. The extras and odctl profiles are the same as for the Python versions, so `kafka.yaml` needs `--extra kafka` and `odctl up kafka-lite`, and `backfill_live.yaml` needs both `kafka` and `parquet`. `tests/docs/test_yaml_examples.py` builds and runs each blueprint and checks the records it produces.

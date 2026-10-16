@@ -1,7 +1,7 @@
-"""Per-sink batching and the low-level `go_live_at` of the Backfill Then Go Live guide.
+"""Per-sink batching and the low-level `go_live_at` of the backfill-live example page.
 
 Building the connectors and the environment opens no connection and starts no run, so
-tests/unit run this file without a broker.
+tests/docs run this file without a broker.
 """
 
 from datetime import datetime, timedelta

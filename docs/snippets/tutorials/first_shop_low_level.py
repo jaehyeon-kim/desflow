@@ -6,8 +6,6 @@ order. Every record is printed to the terminal.
 
 import logging
 
-import numpy as np
-
 from desflow import (
     CapacityConfig,
     ConsoleEgress,
@@ -26,35 +24,39 @@ logging.basicConfig(
 PARAMS = SimParameter(
     sim_id="Shop",
     arrival={"orders": DistributionConfig(dist="exponential", rate=0.5)},
-    service={"packing": DistributionConfig(dist="normal", mean=1.5)},
+    service={"packing": DistributionConfig(dist="constant", value=1.5)},
     resources={"packers": CapacityConfig(current_cap=1, max_cap=1)},
 )
+SEED = 42  # the same arrival times on every run
 # --8<-- [end:shop]
 
 
 # --8<-- [start:order]
-def pack_order(env, sampler, packers, order_id):
+def pack_order(env, sampler, packers, key, task_id):
     """One order: wait for a packer, pack it, release the packer."""
-    key = f"task-{order_id}"
     path_id = "Shop.service.packing"
-    env.publish_event(key, {"path_id": path_id, "status": "queued"})
 
+    def publish(value):
+        env.publish_event(key, value, task="pack_order", instance=task_id)
+
+    publish({"path_id": path_id, "status": "queued"})
     with packers.request() as request:
         yield request
-        env.publish_event(key, {"path_id": path_id, "status": "started"})
+        publish({"path_id": path_id, "status": "started"})
         service = env.registry.get_config(path_id)
         yield env.timeout(sampler.sample(service))
-        env.publish_event(key, {"order_id": order_id})
+        publish({"event_type": "order_packed"})
 
 
 def order_generator(env, sampler, packers):
-    """Starts one pack_order for every arrival."""
+    """Starts one pack_order for every arrival, keyed orders-1, orders-2, ..."""
     arrival = env.registry.get_config("Shop.arrival.orders")
-    order_id = 0
+    task_id = 0
     while True:
         yield env.timeout(sampler.sample(arrival))
-        env.process(pack_order(env, sampler, packers, order_id))
-        order_id += 1
+        key = f"orders-{task_id + 1}"
+        env.process(pack_order(env, sampler, packers, key, task_id))
+        task_id += 1
 
 
 # --8<-- [end:order]
@@ -66,22 +68,22 @@ SINKS = [ConsoleEgress()]  # passed to env.setup_egress in run below
 
 
 # --8<-- [start:run]
-def run(until=10.0, factor=1.0):
+def run(until=20, factor=1.0):
     env = DynamicRealtimeEnvironment(factor=factor)
     env.registry.register_sim_parameter(PARAMS)
     env.setup_egress(SINKS)
 
     packers = DynamicResource(env, "Shop", "packers")
-    sampler = Sampler(rng=np.random.default_rng())
+    sampler = Sampler(seed=SEED)
 
     env.process(order_generator(env, sampler, packers))
     try:
         env.run(until=until)
     finally:
         env.teardown()
+    return env
 
 
 if __name__ == "__main__":
-    print("Starting simulation...")
     run()
 # --8<-- [end:run]

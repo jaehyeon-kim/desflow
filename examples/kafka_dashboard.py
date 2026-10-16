@@ -98,7 +98,11 @@ def run():
 
                     async def apply():
                         if ui_state["selected_resource"]:
-                            path = f"{ui_state['selected_resource'].split('.')[0]}.resources.{ui_state['selected_resource'].split('.')[1]}.current_cap"
+                            # Shop.stats.resources.packers -> Shop.resources.packers
+                            sim_id, _, _, resource = ui_state[
+                                "selected_resource"
+                            ].split(".")
+                            path = f"{sim_id}.resources.{resource}.current_cap"
                             await admin.send_config(
                                 "sim-config", path, int(cap_input.value)
                             )
@@ -205,12 +209,17 @@ def run():
 
         def process_data():
             v = admin.get_vitals()
-            keys = [k for k in v.keys() if k.endswith(".capacity")]
+            # The minimal statistics: <sim_id>.stats.resources.<resource>.<reading>
+            keys = [
+                k
+                for k in v.keys()
+                if ".stats.resources." in k and k.endswith(".capacity")
+            ]
             if not keys:
                 return
 
             if ui_state["selected_resource"] is None:
-                ui_state["selected_resource"] = keys[0].replace(".capacity", "")
+                ui_state["selected_resource"] = keys[0].removesuffix(".capacity")
 
             base_path = ui_state["selected_resource"]
 

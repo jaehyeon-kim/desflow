@@ -1,0 +1,21 @@
+# A blueprint with a mistake, for the YAML Blueprints page: pack_order has a priority,
+# but its resource serves its queue in the default order, fifo.
+simulation:
+  sim_id: Shop
+  factor: 0
+
+resources:
+  packers: {current_cap: 1, max_cap: 2}
+
+services:
+  packing: {dist: constant, value: 1.5 s}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.5, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    priority: 0
+    payload: {event_type: order_packed}

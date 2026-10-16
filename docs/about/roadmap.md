@@ -1,6 +1,6 @@
 # Roadmap
 
-Releases come in the order shown, without dates: a release ships when it is ready. The timeline marks the release that is done, the one in progress and the ones that follow, up to the Learn DES docs. Each links to its GitHub issue.
+Releases come in the order shown, without dates: a release ships when it is ready. The timeline marks the release that is done, the work that is done in code and ships with the next release, the releases that follow, and the Learn section of the docs. Each links to its GitHub issue.
 
 ## Now and next
 
@@ -10,25 +10,25 @@ Releases come in the order shown, without dates: a release ships when it is read
   icon: ':material-check:'
   key: done
 - title: Distributions and seeds
-  content: 'More distributions, including one built from values taken from real data, each drawing from its own random sequence, so adding an arrival leaves the other draws unchanged. desflow then needs Python 3.11 or later. [#42](https://github.com/jaehyeon-kim/desflow/issues/42)'
-  icon: ':material-play:'
+  content: 'Done in code, ships in 0.21.0: more distributions, including one built from values taken from real data, each drawing from its own random stream, so adding an arrival leaves the other draws unchanged. desflow now needs Python 3.11 or later. [#42](https://github.com/jaehyeon-kim/desflow/issues/42)'
+  icon: ':material-check:'
   key: now
 - title: Ingress messages
-  content: 'Every ingress connector, Kafka, Redis and PostgreSQL, takes a parameter change as `path` and `value`, the names a scenario step already uses. [#51](https://github.com/jaehyeon-kim/desflow/issues/51)'
-  icon: ':material-clock-outline:'
-  key: planned
+  content: 'Done in code, ships in 0.21.0: every ingress connector, Kafka, Redis and PostgreSQL, takes a parameter change as `path` and `value`, the names a scenario step already uses. [#51](https://github.com/jaehyeon-kim/desflow/issues/51)'
+  icon: ':material-check:'
+  key: now
 - title: Stores, containers and priority
-  content: 'Stores and containers used by tasks, with a choice of queue order and task priority. [#43](https://github.com/jaehyeon-kim/desflow/issues/43)'
-  icon: ':material-clock-outline:'
-  key: planned
+  content: 'Done in code, ships in 0.21.0: stores and containers used by tasks, with a choice of queue order and task priority. [#43](https://github.com/jaehyeon-kim/desflow/issues/43)'
+  icon: ':material-check:'
+  key: now
 - title: Flows
-  content: 'Routing between tasks by a condition or by probability, entity state that an order keeps from task to task, and delays without a resource. [#44](https://github.com/jaehyeon-kim/desflow/issues/44)'
-  icon: ':material-clock-outline:'
-  key: planned
+  content: 'Done in code, ships in 0.21.0: routing between tasks by a condition or by probability, entity state that an order keeps from task to task, and delays without a resource. [#44](https://github.com/jaehyeon-kim/desflow/issues/44)'
+  icon: ':material-check:'
+  key: now
 - title: Statistics and ground truth
-  content: 'Wait and service times, throughput, utilisation and queue length as telemetry, with a warm-up period; and ground-truth records of what a scenario changed, so a detector or an agent can be scored against them. [#45](https://github.com/jaehyeon-kim/desflow/issues/45)'
-  icon: ':material-clock-outline:'
-  key: planned
+  content: 'Done in code, ships in 0.21.0: wait and service times, throughput, utilisation and queue length as telemetry, with a warm-up period; and ground-truth records of what a scenario changed, so a detector or an agent can be scored against them. [#45](https://github.com/jaehyeon-kim/desflow/issues/45)'
+  icon: ':material-check:'
+  key: now
 - title: Replications
   content: 'Run a model with many seeds and get each statistic with a confidence interval, so a result is never read from one run. [#59](https://github.com/jaehyeon-kim/desflow/issues/59)'
   icon: ':material-clock-outline:'
@@ -41,15 +41,15 @@ Releases come in the order shown, without dates: a release ships when it is read
   content: 'Shows a simulation as a graph, says whether each part is stable, points to the bottleneck and suggests changes; and `desflow run --sample` prints a few records from a blueprint. [#47](https://github.com/jaehyeon-kim/desflow/issues/47)'
   icon: ':material-clock-outline:'
   key: planned
-- title: Learn DES with the shop
-  content: 'A tutorial that grows one online shop page by page, each page answering a question with a number, and Simulation Concepts pages on studies, verification and queueing. [#60](https://github.com/jaehyeon-kim/desflow/issues/60)'
+- title: Learn section
+  content: 'Finishes the shop tutorial, which grows one online shop page by page and answers a question with a number on each page, and adds concept pages on studies, verification and queueing. 0.21.0 opens the Learn section with the first nine tutorial pages. [#60](https://github.com/jaehyeon-kim/desflow/issues/60)'
   icon: ':material-clock-outline:'
   key: planned
 ::/timeline::
 
 ## Later
 
-The releases after the Learn DES docs, on the way to 1.0, in the order they are planned.
+The work after the Learn section, on the way to 1.0, in the order it is planned.
 
 <div class="grid cards" markdown>
 
@@ -101,6 +101,14 @@ The releases after the Learn DES docs, on the way to 1.0, in the order they are 
 
     [#32](https://github.com/jaehyeon-kim/desflow/issues/32), [#40](https://github.com/jaehyeon-kim/desflow/issues/40)
 
+-   __Reserve the gen key__
+
+    ---
+
+    A blueprint mapping with a `gen` key is refused, so the value generators planned after 1.0 do not change what a 1.0 blueprint means.
+
+    [#53](https://github.com/jaehyeon-kim/desflow/issues/53)
+
 -   __Speed__
 
     ---
@@ -113,7 +121,7 @@ The releases after the Learn DES docs, on the way to 1.0, in the order they are 
 
     ---
 
-    Reference pages for the YAML format, the command line and the record format, a compatibility policy and upgrade notes.
+    The generated YAML key reference, a command-line page, the record format marked frozen, a compatibility policy and upgrade notes.
 
     [#54](https://github.com/jaehyeon-kim/desflow/issues/54)
 
@@ -163,4 +171,4 @@ From 1.0, the YAML blueprint format, the `desflow` command, the public Python AP
 ### Docs
 
 - **Reference:** a page for each generator and connector, with examples and the records they produce, and a command-line cheat sheet.
-- **Guides:** generating data at scale, testing pipelines with simulated data, and performance tuning.
+- **How-To:** generating data at scale, testing pipelines with simulated data, and performance tuning.

@@ -44,8 +44,8 @@ def record_order(task_id: int, context):
 def order_generator(context):
     task_id = 0
     while True:
-        yield context.wait_for_arrival("orders")
-        context.spawn(record_order(task_id, context))
+        entity = yield context.wait_for_arrival("orders")
+        context.spawn(record_order(task_id, context, entity=entity))
         task_id += 1
         # --8<-- [end:records]
 
@@ -55,7 +55,7 @@ def run():
     logger.info(
         "Test Ingress by running: docker exec -it valkey valkey-cli --user user "
         "--pass password PUBLISH simulation_params "
-        '\'{"param_path": "Shop.arrival.orders.rate", "param_value": 10.0}\''
+        '\'{"path": "Shop.arrival.orders.rate", "value": 10.0}\''
     )
     try:
         app.run()

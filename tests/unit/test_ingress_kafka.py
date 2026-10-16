@@ -65,7 +65,7 @@ async def test_kafka_ingress_pluggable_deserializers(MockConsumer):
     # Create a mock deserializer that returns a specific dictionary
     mock_deserializer = MagicMock()
     mock_deserializer.deserialize.return_value = {
-        "path_id": "Shop.packers.current_cap",
+        "path": "Shop.packers.current_cap",
         "value": 10,
     }
 
@@ -111,7 +111,7 @@ async def test_kafka_ingress_success(MockConsumer):
             class FakeMessage:
                 topic = "test-topic"  # Required by the new topic router
                 value = json.dumps(
-                    {"path_id": "Shop.resources.packers.current_cap", "value": 5}
+                    {"path": "Shop.resources.packers.current_cap", "value": 5}
                 ).encode("utf-8")
 
             yield FakeMessage()
@@ -139,3 +139,46 @@ async def test_kafka_ingress_success(MockConsumer):
     path, value = ingress_queue.get_nowait()
     assert path == "Shop.resources.packers.current_cap"
     assert value == 5
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.ingress.kafka.AIOKafkaConsumer")
+async def test_kafka_ingress_logs_and_skips_bad_messages(MockConsumer, caplog):
+    """A message that is not JSON, uses the old keys or has a null value is logged and skipped."""
+    payloads = [
+        b"not json",
+        json.dumps({"path_id": "Shop.arrival.orders.rate", "value": 2}).encode(),
+        json.dumps({"path": "Shop.arrival.orders.rate", "value": None}).encode(),
+        json.dumps({"path": "Shop.arrival.orders.rate", "value": 3}).encode(),
+    ]
+
+    class FakeConsumer:
+        def __init__(self):
+            self.start = AsyncMock()
+            self.stop = AsyncMock()
+
+        async def __aiter__(self):
+            for payload in payloads:
+                msg = MagicMock(topic="sim-config", value=payload)
+                yield msg
+            await asyncio.sleep(999)
+
+    MockConsumer.return_value = FakeConsumer()
+    ingress_queue = queue.Queue()
+    ingress = KafkaIngress(topic="sim-config", bootstrap_servers="localhost:9092")
+
+    with caplog.at_level("WARNING", logger="desflow.connectors.ingress.kafka"):
+        task = asyncio.create_task(ingress.run(ingress_queue))
+        await asyncio.sleep(0.1)
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    assert ingress_queue.get_nowait() == ("Shop.arrival.orders.rate", 3)
+    assert ingress_queue.empty()
+    skipped = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+    assert len(skipped) == 3
+    assert all(m.startswith("Skipped a Kafka ingress message") for m in skipped)
+    assert "renamed to path and value in desflow 0.21.0" in skipped[1]

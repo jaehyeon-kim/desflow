@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import itertools
+from typing import Tuple
+
 from simpy import Container, Environment, Event, PriorityItem, PriorityStore
 
+from desflow.config import DEFAULT_QUEUE_ORDER, QUEUE_ORDERS
 from desflow.resources.base import BaseDynamicResource
 
 
@@ -13,13 +17,14 @@ class DynamicResourceRequest(Event):
     for future features like priority-shifting or logging.
     """
 
-    def __init__(self, resource: DynamicResource, priority: int):
+    def __init__(self, resource: DynamicResource, priority: float):
         super().__init__(resource.env)
         self.resource = resource
         self.cancelled = False  # Track if user leaves the queue before getting a token
 
-        # Put this request into the priority queue
-        self.resource.queue.put(PriorityItem(priority, self))
+        # Put this request into the queue, ranked by the resource's queue order
+        self.resource.queue.put(PriorityItem(self.resource._rank(priority), self))
+        self.resource._changed()
 
         # Wake up the dispatcher
         if not self.resource._request_event.triggered:
@@ -47,13 +52,25 @@ class DynamicResource(BaseDynamicResource):
     When the registry updates the capacity, the resource automatically adjusts,
     triggering pending requests if capacity increases.
 
+    Waiting requests are served in the resource's queue order: `fifo` (the
+    default) serves the oldest first, `lifo` the newest first, and `priority` the
+    lowest `priority` value first. A sequence number breaks ties, so requests of
+    equal priority are served first in, first out.
+
     Attributes:
         env (DynamicRealtimeEnvironment): The active simulation environment.
         sim_id (str): The prefix ID (e.g., 'Shop').
         resource_id (str): The specific resource name (e.g., 'packers').
+        queue_order (str): `fifo`, `lifo` or `priority`.
     """
 
-    def __init__(self, env: Environment, sim_id: str, resource_id: str):
+    def __init__(
+        self,
+        env: Environment,
+        sim_id: str,
+        resource_id: str,
+        queue: str = DEFAULT_QUEUE_ORDER,
+    ):
         """
         Initializes the DynamicResource and binds it to the registry.
 
@@ -61,7 +78,19 @@ class DynamicResource(BaseDynamicResource):
             env (Environment): The SimPy environment (must include the RegistryMixIn).
             sim_id (str): The parent simulation ID.
             resource_id (str): The name of the resource.
+            queue (str): The queue order: `fifo`, `lifo` or `priority`. Defaults to
+                `fifo`. A request's `priority` counts only under `priority`.
+
+        Raises:
+            ValueError: If `queue` is not one of the three orders.
         """
+        if queue not in QUEUE_ORDERS:
+            raise ValueError(
+                f"queue must be one of {', '.join(QUEUE_ORDERS)}, got '{queue}'"
+            )
+        self.queue_order = queue
+        # Counts requests, so equal ranks keep their arrival order
+        self._sequence = itertools.count()
         super().__init__(env, sim_id, resource_id, "resources")
 
         max_cap = int(self._max_cap_val.value)
@@ -79,6 +108,7 @@ class DynamicResource(BaseDynamicResource):
 
         self._request_event = self.env.event()
         self.env.process(self._dispatcher())
+        self._register()
 
     @property
     def capacity(self) -> int:
@@ -95,14 +125,33 @@ class DynamicResource(BaseDynamicResource):
         """Units currently held by tasks, including units above a lowered capacity."""
         return self._busy
 
-    def request(self, priority: int = 1):
-        """Returns a context-manager enabled request."""
+    def request(self, priority: float = 1) -> DynamicResourceRequest:
+        """
+        Returns a context-manager enabled request.
+
+        Args:
+            priority: Lower values are served first when the queue order is
+                `priority`; ignored under `fifo` and `lifo`.
+
+        Returns:
+            DynamicResourceRequest: An event that succeeds when a unit is granted.
+        """
         return DynamicResourceRequest(self, priority)
 
     def release(self):
         """Return a token to the pool, or discard it while a shrink is still owed."""
         self._busy -= 1
+        self._changed()
         return self._return_token()
+
+    def _rank(self, priority: float) -> Tuple[float, int]:
+        """The sort key of a new request under this resource's queue order."""
+        sequence = next(self._sequence)
+        if self.queue_order == "priority":
+            return (priority, sequence)
+        if self.queue_order == "lifo":
+            return (0, -sequence)
+        return (0, sequence)
 
     def _return_token(self) -> Event:
         if self._owed > 0:
@@ -133,6 +182,7 @@ class DynamicResource(BaseDynamicResource):
             # not empty, so the get succeeds at once; reading it without a yield
             # leaves no step in which a shrink could arrive before the grant.
             ticket = self.queue.get().value
+            self._changed()
 
             # If the user cancelled their request (e.g., timed out while waiting),
             # return the token to the pool and move to the next person.
@@ -143,6 +193,7 @@ class DynamicResource(BaseDynamicResource):
             # Signal the user process
             if not ticket.item.triggered:
                 self._busy += 1
+                self._changed()
                 ticket.item.succeed()
 
     def _handle_capacity_change(self, new_target: float):
@@ -173,3 +224,4 @@ class DynamicResource(BaseDynamicResource):
         # Lower the pool's limit when max_cap falls. This is safe because the pool
         # now holds at most new_target tokens, and owed releases never reach it.
         self.pool._capacity = max_cap
+        self._changed()

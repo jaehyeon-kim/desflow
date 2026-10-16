@@ -114,8 +114,8 @@ def pack_order(task_id: int, context):
 def arrival_generator(context):
     task_id = 0
     while True:
-        yield context.wait_for_arrival("orders")
-        context.spawn(pack_order(task_id, context))
+        entity = yield context.wait_for_arrival("orders")
+        context.spawn(pack_order(task_id, context, entity=entity))
         task_id += 1
 
 

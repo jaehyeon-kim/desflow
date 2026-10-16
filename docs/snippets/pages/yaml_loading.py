@@ -1,6 +1,6 @@
 """Loading a blueprint from Python, as the YAML Blueprints and Builder API pages show it.
 
-tests/unit runs this file. `local.yaml` is the local example, which `desflow examples get
+tests/docs runs this file. `local.yaml` is the local example, which `desflow examples get
 local` downloads into the current folder. The example paces its run at factor 1.0 for
 30 s, so this file runs an unpaced copy of it from the current folder.
 """

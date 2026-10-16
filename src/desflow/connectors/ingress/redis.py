@@ -6,7 +6,7 @@ from typing import Any
 import orjson
 import redis.asyncio as redis
 
-from desflow.connectors.ingress.base import BaseIngress
+from desflow.connectors.ingress.base import BaseIngress, parse_change
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,9 @@ class RedisIngress(BaseIngress):
 
     This connector utilizes `redis.asyncio` to listen on a specified Redis channel
     for parameter updates, parsing them from JSON, and pushing them to the simulation's
-    internal update queue.
+    internal update queue. Each message is a JSON object with `path` and `value`,
+    such as `{"path": "Shop.arrival.orders.rate", "value": 10.0}`; a message that
+    cannot be parsed or does not have both is logged as a warning and skipped.
 
     Attributes:
         url (str): The connection URL for the Redis server.
@@ -56,7 +58,7 @@ class RedisIngress(BaseIngress):
         The main execution loop for subscribing to Redis and receiving updates.
 
         Continuously polls the Pub/Sub channel for incoming JSON messages containing
-        `param_path` and `param_value`, placing successfully parsed updates onto the
+        `path` and `value`, placing successfully parsed updates onto the
         internal update queue.
 
         Args:
@@ -75,13 +77,9 @@ class RedisIngress(BaseIngress):
                 )
                 if message and message["type"] == "message":
                     try:
-                        data = orjson.loads(message["data"])
-                        param_path = data.get("param_path")
-                        param_value = data.get("param_value")
-                        if param_path is not None and param_value is not None:
-                            update_queue.put((param_path, param_value))
+                        update_queue.put(parse_change(orjson.loads(message["data"])))
                     except Exception as e:
-                        logger.error(f"Failed to parse Redis Ingress message: {e}")
+                        logger.warning(f"Skipped a Redis ingress message: {e}")
                 else:
                     await asyncio.sleep(self.poll_interval)
         except asyncio.CancelledError:

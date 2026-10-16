@@ -14,11 +14,11 @@ logging.basicConfig(
 
 # --8<-- [start:shop]
 app = (
-    # 1 simulated second = 1 real second
-    SimulationContext(sim_id="Shop", factor=1.0)
+    # 1 simulated second = 1 real second; a seed gives the same arrivals every run
+    SimulationContext(sim_id="Shop", factor=1.0, random_seed=42)
     .add_resource("packers", current_cap=1, max_cap=1)
-    # With no std, a normal distribution returns its mean every time
-    .add_service("packing", dist="normal", mean=1.5)
+    # Every order takes exactly 1.5 seconds to pack
+    .add_service("packing", dist="constant", value=1.5)
     # One order every 2 seconds on average
     .add_arrival("orders", dist="exponential", rate=0.5)
 )
@@ -27,19 +27,20 @@ app = (
 
 # --8<-- [start:order]
 @app.task(service_id="packing", resource_id="packers")
-def pack_order(order_id: int):
+def pack_order(task_id: int):
     # Requests a packer, waits the packing time, releases the packer.
-    # The returned dictionary is the finished event's value.
-    return {"order_id": order_id}
+    # The returned dictionary is the value of the finished event.
+    return {"event_type": "order_packed"}
 
 
 @app.arrival_loop("orders")
 def order_generator(context: SimulationContext):
-    order_id = 0
+    task_id = 0
     while True:
-        yield context.wait_for_arrival("orders")
-        context.spawn(pack_order(order_id))
-        order_id += 1
+        # Waits for the next arrival and returns the new order, keyed orders-1, ...
+        order = yield context.wait_for_arrival("orders")
+        context.spawn(pack_order(task_id, entity=order))
+        task_id += 1
 
 
 # --8<-- [end:order]
@@ -51,5 +52,5 @@ app.add_egress(ConsoleEgress())
 
 # --8<-- [start:run]
 if __name__ == "__main__":
-    app.run(until=10.0)
+    app.run(until=20)
 # --8<-- [end:run]

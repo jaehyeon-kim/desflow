@@ -45,7 +45,10 @@ def order_generator(env, sampler):
             "channel": "web",
             "status": "placed",
         }
-        env.publish_event(f"task-{task_id}", order_event)
+        # The order key, and the task name and instance id the builder adds
+        env.publish_event(
+            f"orders-{task_id + 1}", order_event, task="record_order", instance=task_id
+        )
         task_id += 1
 
 
@@ -62,7 +65,7 @@ def run():
     logger.info(
         "Test Ingress by running: docker exec -it valkey valkey-cli --user user "
         "--pass password PUBLISH simulation_params "
-        '\'{"param_path": "Shop.arrival.orders.rate", "param_value": 10.0}\''
+        '\'{"path": "Shop.arrival.orders.rate", "value": 10.0}\''
     )
 
     try:

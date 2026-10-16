@@ -12,7 +12,8 @@ def order_generator(context, arrival: str, max_items: int):
     order_id = 1
     item_id = 1
     while True:
-        yield context.wait_for_arrival(arrival)
+        # The order's key, such as orders-1, is the record key of all its records
+        entity = yield context.wait_for_arrival(arrival)
 
         total = 0.0
         for _ in range(int(rng.integers(1, max_items + 1))):
@@ -20,7 +21,7 @@ def order_generator(context, arrival: str, max_items: int):
             quantity = int(rng.integers(1, 4))
             total += price * quantity
             context.env.publish_event(
-                f"order-{order_id}",
+                entity.key,
                 {
                     "__table__": "order_items",
                     "order_item_id": item_id,
@@ -33,7 +34,7 @@ def order_generator(context, arrival: str, max_items: int):
             item_id += 1
 
         context.env.publish_event(
-            f"order-{order_id}",
+            entity.key,
             {
                 "__table__": "orders",
                 "order_id": order_id,

@@ -1,0 +1,37 @@
+# The statistics of the Statistics page, as a blueprint.
+# Run it with: desflow run statistics.yaml
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+egress:
+  - type: Console
+
+resources:
+  packers: {current_cap: 2, max_cap: 5}
+
+services:
+  packing: {dist: gamma, shape: 4, scale: 0.75 s}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.6, spawn: pack_order}
+
+tasks:
+  pack_order: {service: packing, resource: packers, payload: {event_type: order_packed}}
+
+# --8<-- [start:levels]
+# none (the default), minimal, basic, typical or all, each adding to the one before;
+# published every interval of simulation time and once at the end
+stats: {level: typical, interval: 1 min}
+# --8<-- [end:levels]
+
+# --8<-- [start:custom]
+telemetry:
+  # Readings of your own: called as packers_report(context) every 30 seconds
+  - interval: 30
+    function: !python shop_logic.packers_report
+# --8<-- [end:custom]
+
+run:
+  until: 2 min

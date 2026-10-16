@@ -13,7 +13,9 @@ import simpy
 from pydantic import ValidationError
 
 from desflow.blueprint.loader import BlueprintError, SourceMap, read_document
-from desflow.blueprint.models import RESOURCE_STATS, Blueprint, Run
+from desflow.blueprint.models import Blueprint, Run
+from desflow.config import LABELS
+from desflow.core.expressions import Expression
 from desflow.core.context import SimulationContext
 from desflow.core.registry import SimulationRegistry
 
@@ -75,6 +77,7 @@ def build(path: Union[str, Path]) -> Tuple[SimulationContext, Run]:
     _check_references(blueprint, source)
     context = _build_context(blueprint, source)
     _check_scenario(blueprint, context, source)
+    _check_registry_reads(blueprint, context, source)
     return context, blueprint.run
 
 
@@ -82,7 +85,17 @@ def _validation_error(exc: ValidationError, source: SourceMap) -> BlueprintError
     """Lists every validation error, each with its line."""
     messages = []
     for error in exc.errors():
-        location = error["loc"]
+        # A task's `next` is a name or rules, and pydantic adds which one to the
+        # location; the file has no such key, so it is left out.
+        location = tuple(
+            part
+            for index, part in enumerate(error["loc"])
+            if not (
+                index
+                and error["loc"][index - 1] == "next"
+                and part in ("name", "rules")
+            )
+        )
         where = ".".join(str(part) for part in location) or "top level"
         messages.append(str(source.error(location, f"{where}: {error['msg']}")))
     return BlueprintError("\n".join(messages))
@@ -90,6 +103,12 @@ def _validation_error(exc: ValidationError, source: SourceMap) -> BlueprintError
 
 def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
     """Checks that every name one section uses is defined in another."""
+    for name in set(blueprint.stores) & set(blueprint.containers):
+        raise source.error(
+            ("stores", name),
+            f"'{name}' is both a store and a container; level.{name} needs one",
+        )
+
     for name, task in blueprint.tasks.items():
         if task.service is not None and task.service not in blueprint.services:
             raise source.error(
@@ -103,14 +122,54 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                 f"task '{name}' uses resource '{task.resource}', which is not "
                 f"defined under resources",
             )
-
-    for name, capacity in blueprint.resources.items():
-        for field in ("current_cap", "max_cap"):
-            if not float(getattr(capacity, field)).is_integer():
+        if (
+            task.priority is not None
+            and blueprint.resources[task.resource or ""].queue != "priority"
+        ):
+            raise source.error(
+                ("tasks", name, "priority"),
+                f"task '{name}' has a priority, but resource '{task.resource}' "
+                f"does not set queue: priority",
+            )
+        for field in ("get", "put"):
+            step = getattr(task, field)
+            if step is None:
+                continue
+            kind, target = (
+                ("store", step.store)
+                if step.store is not None
+                else ("container", step.container)
+            )
+            section = blueprint.stores if kind == "store" else blueprint.containers
+            if target not in section:
                 raise source.error(
-                    ("resources", name, field),
-                    f"resource '{name}' needs a whole number for {field}",
+                    ("tasks", name, field),
+                    f"task '{name}' uses {kind} '{target}', which is not defined "
+                    f"under {kind}s",
                 )
+        for target, location in _routes(name, task):
+            if target not in blueprint.tasks:
+                raise source.error(
+                    location,
+                    f"task '{name}' routes to '{target}', which is not defined "
+                    f"under tasks",
+                )
+        for expression, location in _expressions(name, task):
+            for level in expression.references["level"]:
+                if level not in blueprint.stores and level not in blueprint.containers:
+                    raise source.error(
+                        location,
+                        f"level.{level} names no store or container",
+                    )
+
+    for kind in ("resources", "stores"):
+        for name, capacity in getattr(blueprint, kind).items():
+            for field in ("current_cap", "max_cap"):
+                if not float(getattr(capacity, field)).is_integer():
+                    raise source.error(
+                        (kind, name, field),
+                        f"{kind[:-1]} '{name}' needs a whole number for {field}",
+                    )
 
     for name, arrival in blueprint.arrivals.items():
         if arrival.spawn is not None and arrival.spawn not in blueprint.tasks:
@@ -133,22 +192,56 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
         )
 
     for index, egress in enumerate(blueprint.egress):
-        if isinstance(egress.when, str) and blueprint.simulation.go_live_at is None:
+        if (
+            isinstance(egress.when, str)
+            and egress.when != LABELS
+            and blueprint.simulation.go_live_at is None
+        ):
             raise source.error(
                 ("egress", index, "when"),
                 f"when: {egress.when} needs simulation.go_live_at",
             )
 
-    for index, entry in enumerate(blueprint.telemetry):
-        for metric, reference in (entry.publish or {}).items():
-            resource, _, stat = reference.rpartition(".")
-            if resource not in blueprint.resources or stat not in RESOURCE_STATS:
-                raise source.error(
-                    ("telemetry", index, "publish", metric),
-                    f"'{reference}' must be <resource>.<stat>, with a resource "
-                    f"defined under resources and a stat from "
-                    f"{', '.join(RESOURCE_STATS)}",
+
+def _routes(name: str, task: Any) -> List[Tuple[str, Tuple[Union[str, int], ...]]]:
+    """Every task a `next` can lead to, with where it is written."""
+    where: Tuple[Union[str, int], ...] = ("tasks", name, "next")
+    if task.next is None:
+        return []
+    if isinstance(task.next, str):
+        return [(task.next, where)]
+    routes = [
+        (rule.task, where + ("when", index, "task"))
+        for index, rule in enumerate(task.next.when)
+    ]
+    if task.next.default is not None:
+        routes.append((task.next.default, where + ("default",)))
+    for target in task.next.weights or {}:
+        routes.append((target, where + ("weights", target)))
+    return routes
+
+
+def _expressions(
+    name: str, task: Any
+) -> List[Tuple[Expression, Tuple[Union[str, int], ...]]]:
+    """Every expression a task holds, parsed, with where it is written."""
+    where: Tuple[Union[str, int], ...] = ("tasks", name)
+    found = []
+    if isinstance(task.priority, str):
+        found.append((Expression(task.priority), where + ("priority",)))
+    for field in ("get", "put"):
+        step = getattr(task, field)
+        if step is not None and isinstance(step.amount, str):
+            found.append((Expression(step.amount), where + (field, "amount")))
+    if task.next is not None and not isinstance(task.next, str):
+        for index, rule in enumerate(task.next.when):
+            found.append(
+                (
+                    Expression(rule.condition),
+                    where + ("next", "when", index, "condition"),
                 )
+            )
+    return found
 
 
 def _build_context(blueprint: Blueprint, source: SourceMap) -> SimulationContext:
@@ -163,46 +256,67 @@ def _build_context(blueprint: Blueprint, source: SourceMap) -> SimulationContext
         provider = _connector(egress.type, egress.config, EGRESS_TYPES)
         context.add_egress(
             provider(source, ("egress", index)),
-            when=_when(egress.when, blueprint),
+            when=LABELS if egress.when == LABELS else _when(egress.when, blueprint),
             batch_size=egress.batch_size,
             flush_interval=egress.flush_interval,
         )
 
     if blueprint.batching is not None:
         context.with_batching(**blueprint.batching.model_dump(exclude_none=True))
+    if blueprint.stats is not None:
+        context.with_stats(blueprint.stats.level, blueprint.stats.interval)
 
-    for name, capacity in blueprint.resources.items():
-        context.add_resource(name, int(capacity.current_cap), int(capacity.max_cap))
-    for name, capacity in blueprint.containers.items():
-        context.add_container(name, capacity.current_cap, capacity.max_cap)
+    for name, resource in blueprint.resources.items():
+        context.add_resource(
+            name, int(resource.current_cap), int(resource.max_cap), queue=resource.queue
+        )
+    for name, store in blueprint.stores.items():
+        context.add_store(name, int(store.current_cap), int(store.max_cap))
+    for name, container in blueprint.containers.items():
+        context.add_container(
+            name, container.current_cap, container.max_cap, level=container.level
+        )
     for name, value in blueprint.variables.items():
         context.add_variable(name, value)
     for name, dist in blueprint.services.items():
-        context.add_service(name, **_set_fields(vars(dist)))
+        context.add_service(name, dist.dist, **dist.parameters())
     for name, arrival in blueprint.arrivals.items():
-        context.add_arrival(name, **_set_fields(arrival.model_dump(exclude={"spawn"})))
+        context.add_arrival(
+            name, arrival.dist, attributes=arrival.attributes, **arrival.parameters()
+        )
 
     tasks = {
-        name: context.task(service_id=task.service, resource_id=task.resource)(
-            _payload(task.payload, task.id_field)
-        )
+        name: context.task(
+            service_id=task.service,
+            resource_id=task.resource,
+            name=name,
+            priority=task.priority,
+            get=None if task.get is None else task.get.transfer(),
+            put=None if task.put is None else task.put.transfer(),
+            next=task.next_rules(),
+            set=task.set,
+        )(_payload(task.payload, task.id_field, task.attributes))
         for name, task in blueprint.tasks.items()
     }
 
     for name, arrival in blueprint.arrivals.items():
         if arrival.spawn is not None:
-            context.arrival_loop(name)(_spawn_loop(name, tasks[arrival.spawn]))
+            context.arrival_loop(name)(
+                _spawn_loop(name, arrival.spawn, tasks[arrival.spawn])
+            )
 
     for process in blueprint.processes:
         context.add_process(process.function, **process.kwargs)
 
     for entry in blueprint.telemetry:
-        sample = entry.function or _publish_stats(entry.publish or {})
-        context.telemetry_loop(entry.interval)(sample)
+        context.telemetry_loop(entry.interval)(entry.function)
 
     if blueprint.scenario:
         steps = sorted(
-            ((step.at, step.path, step.value) for step in blueprint.scenario),
+            (
+                (step.at, step.path, step.value, step.record)
+                for step in blueprint.scenario
+            ),
             key=lambda step: step[0],
         )
         context.add_process(_run_scenario, steps=steps)
@@ -226,6 +340,8 @@ def _check_scenario(
     registry.register_sim_parameter(context.compile_parameters())
 
     for index, step in enumerate(blueprint.scenario):
+        if step.path is None:
+            continue
         try:
             current = registry.get(step.path).value
         except KeyError:
@@ -246,18 +362,44 @@ def _check_scenario(
                 ) from None
 
 
+def _check_registry_reads(
+    blueprint: Blueprint, context: SimulationContext, source: SourceMap
+) -> None:
+    """Checks every `registry["<path>"]` an expression reads against the registry."""
+    registry = SimulationRegistry(simpy.Environment())
+    registry.register_sim_parameter(context.compile_parameters())
+    for name, task in blueprint.tasks.items():
+        for expression, location in _expressions(name, task):
+            for path in expression.references["registry"]:
+                try:
+                    registry.get(path)
+                except KeyError:
+                    raise source.error(
+                        location, f'registry["{path}"] is not a registry path'
+                    ) from None
+
+
 def _run_scenario(
-    context: SimulationContext, steps: List[Tuple[float, str, Any]]
+    context: SimulationContext,
+    steps: List[Tuple[float, Optional[str], Any, Optional[Dict[str, Any]]]],
 ) -> Generator:
     """Applies each scenario step at its simulation time.
 
     It waits on the simulation clock, so a scenario repeats exactly and works at
-    `factor=0`, where `LocalIngress`, which waits on the wall clock, would not.
+    `factor=0`, where `LocalIngress`, which waits on the wall clock, would not. A
+    step with a `record` publishes a ground-truth record of the change.
     """
-    for at, path, value in steps:
+    registry = context.env.registry
+    for at, path, value, record in steps:
         if at > context.env.now:
             yield context.env.timeout(at - context.env.now)
-        context.env.registry.update(path, value)
+        old = new = None
+        if path is not None:
+            old = registry.get(path).value
+            registry.update(path, value)
+            new = registry.get(path).value
+        if record is not None:
+            context.env.publish_label(record, path=path, old=old, new=new)
 
 
 def _when(
@@ -346,49 +488,39 @@ def _instantiate(
 
 
 def _payload(
-    payload: Union[Dict[str, Any], Callable[..., Any]], id_field: Union[str, None]
+    payload: Union[Dict[str, Any], Callable[..., Any]],
+    id_field: Union[str, None],
+    attributes: List[str],
 ) -> Callable:
-    """The task body: a `!python` payload function, or a copy of a mapping payload."""
+    """The task body: a `!python` payload function, or a copy of a mapping payload.
+
+    A mapping payload gains the task id under `id_field`, and the entity attributes
+    `attributes` names, each under its own name.
+    """
     if callable(payload):
         return payload
 
-    def body(task_id: int, context: SimulationContext) -> Dict[str, Any]:
+    def body(task_id: int, context: SimulationContext, entity: Any) -> Dict[str, Any]:
         event = dict(payload)
         if id_field is not None:
             event[id_field] = task_id
+        for name in attributes:
+            event[name] = entity.attributes.get(name)
         return event
 
     return body
 
 
-def _spawn_loop(arrival: str, task: Callable) -> Callable:
-    """The arrival loop a builder example writes by hand."""
+def _spawn_loop(arrival: str, name: str, task: Callable) -> Callable:
+    """The arrival loop a builder example writes by hand.
+
+    The instance id comes from the task's one counter on the context, which `next`
+    and every other arrival that spawns the task share.
+    """
 
     def loop(context: SimulationContext):
-        task_id = 0
         while True:
-            yield context.wait_for_arrival(arrival)
-            context.spawn(task(task_id, context))
-            task_id += 1
+            entity = yield context.wait_for_arrival(arrival)
+            context.spawn(task(context.next_instance(name), context, entity=entity))
 
     return loop
-
-
-def _publish_stats(publish: Dict[str, str]) -> Callable:
-    """The telemetry body: publishes each named resource statistic."""
-
-    def sample(context: SimulationContext) -> None:
-        for metric, reference in publish.items():
-            name, _, stat = reference.rpartition(".")
-            res = context.get_resource(name)
-            if stat == "capacity":
-                value: Any = res.capacity
-            elif stat == "in_use":
-                value = res.in_use
-            elif stat == "queue_length":
-                value = len(res.queue.items)
-            else:
-                value = (res.in_use / res.capacity) * 100 if res.capacity > 0 else 0
-            context.publish(metric, value)
-
-    return sample

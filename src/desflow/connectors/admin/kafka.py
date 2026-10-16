@@ -82,17 +82,18 @@ class KafkaAdminConnector:
         finally:
             admin_client.close()
 
-    async def send_config(self, topic: str, path_id: str, value: Any):
+    async def send_config(self, topic: str, path: str, value: Any):
         """
         Sends a surgical parameter update to a simulation config topic.
 
         This method acts as an external controller, allowing users to
         dynamically update registry paths (e.g., arrival rates or resource
-        capacities) while the simulation is running.
+        capacities) while the simulation is running. The message is the JSON
+        object `{"path": path, "value": value}`, the format `KafkaIngress` reads.
 
         Args:
             topic: The Kafka topic the simulation is listening to for config.
-            path_id: The registry dot-notation path (e.g., 'Shop.resources.packers.max_cap').
+            path: The registry dot-notation path (e.g., 'Shop.resources.packers.max_cap').
             value: The new value to be applied to the path.
         """
         producer = AIOKafkaProducer(
@@ -100,7 +101,7 @@ class KafkaAdminConnector:
         )
         try:
             await producer.start()  # inside the try, so a failed start closes it
-            payload = json.dumps({"path_id": path_id, "value": value}).encode("utf-8")
+            payload = json.dumps({"path": path, "value": value}).encode("utf-8")
             await producer.send_and_wait(topic, payload)
         finally:
             await producer.stop()

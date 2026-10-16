@@ -1,10 +1,11 @@
-"""The builder calls of the Builder API page, one section per group of methods.
+"""The Builder API page: a whole simulation in one Python file, step by step.
 
-The file is a complete simulation: tests/unit runs it unpaced for 30 simulation
-seconds, so every call shown on the page is checked.
+Run it with `python builder.py`: it runs unpaced for 2 simulation minutes and prints
+every record to the terminal.
 """
 
-from datetime import datetime, timedelta
+import logging
+from datetime import datetime
 
 from desflow import ConsoleEgress, LocalIngress, SimulationContext
 
@@ -19,40 +20,69 @@ app = SimulationContext(
 
 # --8<-- [start:resources]
 app.add_resource("packers", current_cap=2, max_cap=5)  # 2 packers now, room for 5
-app.add_container("boxes", current_cap=100.0, max_cap=200.0)  # boxes in stock
+app.add_container("boxes", current_cap=200, max_cap=200, level=100)  # an amount
+app.add_store("parcels", current_cap=20, max_cap=50)  # items, waiting for a courier
 app.add_variable("conveyor_speed", 1.5)  # any other live value
 # --8<-- [end:resources]
 
 # --8<-- [start:distributions]
 app.add_arrival("orders", dist="exponential", rate=0.5)  # an order every 2 s on average
-app.add_service("packing", dist="truncated_normal", mean=3.0, std=1.0, low=0.5)
-app.add_service("inspection", dist="constant", value=0.5)
+app.add_arrival("couriers", dist="constant", value=10)  # a courier every 10 s
+app.add_service("packing", dist="triangular", low=1, mode=2, high=4)
+app.add_service("labelling", dist="constant", value=0.5)
 # --8<-- [end:distributions]
 
 
-# --8<-- [start:decorators]
-@app.task(service_id="packing", resource_id="packers")
-def pack(order_id: int):
-    # The finished event's value is exactly this dictionary
-    return {"order_id": order_id, "status": "packed"}
+# --8<-- [start:tasks]
+@app.task(
+    service_id="packing",
+    resource_id="packers",
+    get={"container": "boxes", "amount": 1},  # one box, once it has a packer
+    next="print_label",  # the task that follows
+)
+def pack_order(task_id: int):
+    # The value of the finished event: exactly this dictionary
+    return {"event_type": "order_packed"}
 
 
+@app.task(service_id="labelling", put={"store": "parcels"})  # a timed step
+def print_label(task_id: int, upstream):
+    # upstream is what pack_order handed on; the payload becomes the parcel
+    return {"event_type": "label_printed", "packed_by": upstream.task_id}
+
+
+@app.task(get={"store": "parcels"})
+def collect(task_id: int, item):
+    return {"event_type": "parcel_collected", "label": item["event_type"]}
+
+
+# --8<-- [end:tasks]
+
+
+# --8<-- [start:arrivals]
 @app.arrival_loop("orders")
 def orders(context: SimulationContext):
-    order_id = 0
+    task_id = 0
     while True:
-        yield context.wait_for_arrival("orders")
-        context.spawn(pack(order_id))
-        order_id += 1
+        order = yield context.wait_for_arrival("orders")  # keyed orders-1, ...
+        context.spawn(pack_order(task_id, entity=order))
+        task_id += 1
 
 
-@app.telemetry_loop(interval=5.0)
-def report(context: SimulationContext):
-    # Publishes Shop.packers.in_use every 5 simulation seconds
-    context.publish("packers.in_use", context.get_resource("packers").in_use)
+@app.arrival_loop("couriers")
+def couriers(context: SimulationContext):
+    task_id = 0
+    while True:
+        courier = yield context.wait_for_arrival("couriers")
+        context.spawn(collect(task_id, entity=courier))
+        task_id += 1
 
 
-# --8<-- [end:decorators]
+# --8<-- [end:arrivals]
+
+# --8<-- [start:stats]
+app.with_stats("typical", interval=30)  # readings, counts, waits, every 30 s
+# --8<-- [end:stats]
 
 
 # --8<-- [start:process]
@@ -78,5 +108,10 @@ app.with_batching(batch_size=1_000, flush_interval=5.0)  # defaults for other si
 paths = app.compile_parameters()  # the SimParameter that run() registers
 # --8<-- [end:compile]
 
+# --8<-- [start:run]
 if __name__ == "__main__":
-    app.run(until=timedelta(seconds=30).total_seconds())
+    logging.basicConfig(
+        level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
+    )
+    app.run(until="2 min")
+# --8<-- [end:run]

@@ -130,7 +130,8 @@ Related records are rows that belong together across tables. Here every customer
         order_id = 1
         item_id = 1
         while True:
-            yield context.wait_for_arrival(arrival)
+            # The order's key, such as orders-1, is the record key of all its records
+            entity = yield context.wait_for_arrival(arrival)
 
             total = 0.0
             for _ in range(int(rng.integers(1, max_items + 1))):
@@ -138,7 +139,7 @@ Related records are rows that belong together across tables. Here every customer
                 quantity = int(rng.integers(1, 4))
                 total += price * quantity
                 context.env.publish_event(
-                    f"order-{order_id}",
+                    entity.key,
                     {
                         "__table__": "order_items",
                         "order_item_id": item_id,
@@ -151,7 +152,7 @@ Related records are rows that belong together across tables. Here every customer
                 item_id += 1
 
             context.env.publish_event(
-                f"order-{order_id}",
+                entity.key,
                 {
                     "__table__": "orders",
                     "order_id": order_id,
@@ -269,7 +270,8 @@ Related records are rows that belong together across tables. Here every customer
         order_id = 1
         item_id = 1
         while True:
-            yield context.wait_for_arrival(arrival)
+            # The order's key, such as orders-1, is the record key of all its records
+            entity = yield context.wait_for_arrival(arrival)
 
             total = 0.0
             for _ in range(int(rng.integers(1, max_items + 1))):
@@ -277,7 +279,7 @@ Related records are rows that belong together across tables. Here every customer
                 quantity = int(rng.integers(1, 4))
                 total += price * quantity
                 context.env.publish_event(
-                    f"order-{order_id}",
+                    entity.key,
                     {
                         "__table__": "order_items",
                         "order_item_id": item_id,
@@ -290,7 +292,7 @@ Related records are rows that belong together across tables. Here every customer
                 item_id += 1
 
             context.env.publish_event(
-                f"order-{order_id}",
+                entity.key,
                 {
                     "__table__": "orders",
                     "order_id": order_id,
@@ -426,8 +428,8 @@ Related records are rows that belong together across tables. Here every customer
     def order_generator(env, sampler: Sampler, max_items: int):
         """Publishes an order and its items on every arrival.
 
-        The gaps and the order contents come from the same seeded generator, in the same
-        order as the builder version, so the two publish the same records.
+        The gaps come from the arrival's own random sequence and the order contents from
+        `sampler.rng`, as in the builder version, so the two publish the same records.
         """
         rng = sampler.rng
         arrival = env.registry.get_config("Shop.arrival.orders")
@@ -442,7 +444,7 @@ Related records are rows that belong together across tables. Here every customer
                 quantity = int(rng.integers(1, 4))
                 total += price * quantity
                 env.publish_event(
-                    f"order-{order_id}",
+                    f"orders-{order_id}",
                     {
                         "__table__": "order_items",
                         "order_item_id": item_id,
@@ -455,7 +457,7 @@ Related records are rows that belong together across tables. Here every customer
                 item_id += 1
 
             env.publish_event(
-                f"order-{order_id}",
+                f"orders-{order_id}",
                 {
                     "__table__": "orders",
                     "order_id": order_id,
@@ -498,5 +500,5 @@ When the run starts, each `PostgresEgress` creates its table, `orders` or `order
 In a second terminal, raise the arrival rate while it runs:
 
 ```bash
-docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params (param_path, param_value) VALUES ('Shop.arrival.orders.rate', '5.0');"
+docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params (path, value) VALUES ('Shop.arrival.orders.rate', '5.0');"
 ```

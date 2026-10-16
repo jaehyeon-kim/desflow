@@ -1,7 +1,7 @@
-"""Each connector built and attached to a context, as the Connectors page shows them.
+"""Each connector built and attached to a context, as Ingress and Egress show them.
 
 The addresses are those of the odctl profiles the examples use. Building a connector
-opens no connection: it connects when the run starts, so tests/unit run this file
+opens no connection: it connects when the run starts, so tests/docs run this file
 without any service.
 """
 
@@ -33,12 +33,12 @@ app.add_ingress(
 # --8<-- [end:local-ingress]
 
 # --8<-- [start:kafka-ingress]
-# Reads {"path_id": ..., "value": ...} messages from the sim-config topic
+# Reads {"path": ..., "value": ...} messages from the sim-config topic
 app.add_ingress(KafkaIngress(topic="sim-config", bootstrap_servers="localhost:9092"))
 # --8<-- [end:kafka-ingress]
 
 # --8<-- [start:redis-ingress]
-# Reads {"param_path": ..., "param_value": ...} messages from a Pub/Sub channel
+# Reads {"path": ..., "value": ...} messages from a Pub/Sub channel
 app.add_ingress(
     RedisIngress(
         "redis://user:password@localhost:6379/0", channel_name="simulation_params"
@@ -47,7 +47,7 @@ app.add_ingress(
 # --8<-- [end:redis-ingress]
 
 # --8<-- [start:postgres-ingress]
-# Applies new rows of simulation_params, checking every 2 seconds
+# Applies new rows (path, value) of simulation_params, checking every 2 seconds
 app.add_ingress(
     PostgresIngress(
         "postgresql://user:password@localhost:5432/odctl",

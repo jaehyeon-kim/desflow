@@ -1,0 +1,46 @@
+# Ground-truth records of the Live Parameters page: what a scenario changed, and why.
+# Run it with: desflow run ground_truth.yaml
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+# --8<-- [start:sinks]
+egress:
+  # The data under test: events and telemetry, and no label
+  - type: Console
+  # The labels only, for a scorer that checks what a detector found
+  - type: Jsonl
+    config: {default_path: labels/labels.jsonl}
+    when: labels
+# --8<-- [end:sinks]
+
+resources:
+  packers: {current_cap: 2, max_cap: 5}
+
+services:
+  packing: {dist: constant, value: 1.5 s}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.5, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+
+# --8<-- [start:record]
+scenario:
+  # Changes the rate and publishes a ground-truth record of the change
+  - at: 30
+    path: Shop.arrival.orders.rate
+    value: 1.5
+    record: {fault: order_surge, cause: flash sale}
+  # A record with no change, such as a fault planted outside the model
+  - at: 45
+    record: {fault: label_printer_offline}
+# --8<-- [end:record]
+
+run:
+  until: 1 min

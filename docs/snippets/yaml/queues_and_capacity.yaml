@@ -1,0 +1,41 @@
+# The Queues and Capacity tutorial: the shop in its busy hour, as a blueprint.
+# Run it once per number of packers, and read the mean wait from the last lines:
+#   PACKERS=3 desflow run queues_and_capacity.yaml 2>&1 | grep wait_mean
+# --8<-- [start:load]
+simulation:
+  sim_id: Shop
+  factor: 0  # unpaced: the hour runs in about a second
+  random_seed: 42
+
+services:
+  packing: {dist: constant, value: 1.5 s}
+
+arrivals:
+  # The busy hour: 1.8 orders a second, more than one packer can pack
+  orders: {dist: exponential, rate: 1.8, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+
+egress:
+  - type: Console
+
+run:
+  until: 1 h
+# --8<-- [end:load]
+
+# --8<-- [start:packers]
+resources:
+  # The number of packers comes from the PACKERS variable, 1 when it is not set
+  packers:
+    current_cap: ${PACKERS:-1}
+    max_cap: 10
+# --8<-- [end:packers]
+
+# --8<-- [start:stats]
+# The mean wait of pack_order, published once an hour and at the end
+stats: {level: typical, interval: 1 h}
+# --8<-- [end:stats]

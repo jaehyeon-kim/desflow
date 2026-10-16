@@ -1,11 +1,12 @@
 """The registry calls of the Live Parameters page.
 
-The file is a complete low-level run: tests/unit runs it unpaced, so every call shown
+The file is a complete low-level run: tests/docs runs it unpaced, so every call shown
 on the page is checked.
 """
 
 from desflow import (
     CapacityConfig,
+    ContainerConfig,
     DistributionConfig,
     DynamicRealtimeEnvironment,
     DynamicResource,
@@ -18,6 +19,7 @@ params = SimParameter(
     arrival={"orders": DistributionConfig(dist="exponential", rate=0.5)},
     service={"packing": DistributionConfig(dist="normal", mean=3.0, std=0.5)},
     resources={"packers": CapacityConfig(current_cap=2, max_cap=5)},
+    containers={"stock": ContainerConfig(current_cap=100, max_cap=100, level=40)},
     variables={"conveyor_speed": 1.5},
 )
 env = DynamicRealtimeEnvironment(factor=0.0)
@@ -26,6 +28,7 @@ env.registry.register_sim_parameter(params)
 #   Shop.arrival.orders.rate
 #   Shop.service.packing.mean, Shop.service.packing.std
 #   Shop.resources.packers.current_cap, Shop.resources.packers.max_cap
+#   Shop.containers.stock.current_cap, .max_cap and .level
 #   Shop.variables.conveyor_speed
 print(env.registry.get("Shop.resources.packers.current_cap").value)  # 2
 # --8<-- [end:paths]
@@ -37,6 +40,8 @@ env.registry.update("Shop.resources.packers.current_cap", 3)  # applied
 env.registry.update("Shop.resources.packers.current_cap", 9)  # stored as 5, the max_cap
 env.registry.update("Shop.service.packing.std", -1.0)  # refused, the old 0.5 stays
 env.registry.update("Shop.resources.lath.current_cap", 3)  # no such path: ignored
+env.registry.update("Shop.service.packing.rate", 2.0)  # normal has no rate: ignored
+env.registry.update("Shop.containers.stock.level", 150)  # stored as 100, the capacity
 # --8<-- [end:update]
 
 # --8<-- [start:follow]
@@ -74,3 +79,4 @@ if __name__ == "__main__":
         env.teardown()
     assert env.registry.get("Shop.resources.packers.current_cap").value == 5
     assert env.registry.get("Shop.service.packing.std").value == 0.5
+    assert env.registry.get("Shop.containers.stock.level").value == 100

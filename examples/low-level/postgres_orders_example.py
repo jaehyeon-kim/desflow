@@ -58,8 +58,8 @@ ORDER_ITEMS = {
 def order_generator(env, sampler: Sampler, max_items: int):
     """Publishes an order and its items on every arrival.
 
-    The gaps and the order contents come from the same seeded generator, in the same
-    order as the builder version, so the two publish the same records.
+    The gaps come from the arrival's own random sequence and the order contents from
+    `sampler.rng`, as in the builder version, so the two publish the same records.
     """
     rng = sampler.rng
     arrival = env.registry.get_config("Shop.arrival.orders")
@@ -74,7 +74,7 @@ def order_generator(env, sampler: Sampler, max_items: int):
             quantity = int(rng.integers(1, 4))
             total += price * quantity
             env.publish_event(
-                f"order-{order_id}",
+                f"orders-{order_id}",
                 {
                     "__table__": "order_items",
                     "order_item_id": item_id,
@@ -87,7 +87,7 @@ def order_generator(env, sampler: Sampler, max_items: int):
             item_id += 1
 
         env.publish_event(
-            f"order-{order_id}",
+            f"orders-{order_id}",
             {
                 "__table__": "orders",
                 "order_id": order_id,

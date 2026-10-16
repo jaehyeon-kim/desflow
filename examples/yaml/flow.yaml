@@ -1,0 +1,70 @@
+# A flow of tasks in YAML: pick, wrap gifts, pack, then ship.
+#
+# The twin of examples/builder/flow_example.py. Each order is an entity with a key,
+# such as orders-1 or gifts-1, that every event of every task it passes through
+# carries. Gift orders carry the attribute gift: 1 and are wrapped after picking;
+# the others go straight to packing. One parcel in ten fails its check and is packed
+# again, and wrapping and shipping are timed steps, which use no resource.
+#
+# Needs no containers. Runs unpaced and ends after 120 simulation seconds.
+# Run it with: desflow run examples/yaml/flow.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+egress:
+  - type: Console
+
+resources:
+  pickers: {current_cap: 2, max_cap: 4}
+  packers: {current_cap: 2, max_cap: 4}
+
+services:
+  # Two exponential steps in a row (Erlang): a mean of 2 seconds, less variable.
+  picking: {dist: gamma, shape: 2, scale: 1}
+  wrapping: {dist: constant, value: 3 s}
+  packing: {dist: lognormal, mean: 2.5, std: 1}
+  # Shipping times taken from data: 6 in 10 take 5 seconds.
+  shipping: {dist: empirical, values: [5 s, 10 s, 30 s], weights: [6, 3, 1]}
+
+arrivals:
+  # Each entity starts with these attributes, read as attr.<name>.
+  orders: {dist: exponential, rate: 0.4, spawn: pick, attributes: {gift: 0}}
+  gifts: {dist: exponential, rate: 0.1, spawn: pick, attributes: {gift: 1}}
+
+# --8<-- [start:routes]
+tasks:
+  pick:
+    service: picking
+    resource: pickers
+    payload: {event_type: order_picked}
+    # The first rule that holds wins; default catches the rest.
+    next:
+      when:
+        - {condition: "attr.gift == 1", task: wrap}
+      default: pack
+  wrap:
+    # A timed step: a service and no resource, so no queued event and no wait.
+    service: wrapping
+    payload: {event_type: gift_wrapped}
+    # Applied to the entity's attributes when the task finishes.
+    set: {wrapped: 1}
+    next: pack
+  pack:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+    # Drawn from this task's own random sequence: one parcel in ten is packed again.
+    next:
+      weights: {ship: 9, pack: 1}
+# --8<-- [end:routes]
+  ship:
+    service: shipping
+    payload: {event_type: order_shipped}
+    # A payload includes attributes only when it names them.
+    attributes: [gift, wrapped]
+
+run:
+  until: 120

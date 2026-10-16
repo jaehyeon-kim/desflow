@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from typing import Any
 
 import asyncpg
+import orjson
 
 from desflow.connectors.egress.base import BaseEgress, parse_iso_columns
 
@@ -58,6 +59,29 @@ def _table_spec(name: str, spec: Any) -> tuple[dict[str, str], list[str]]:
     return columns, primary_key
 
 
+def _label_row(record: dict) -> dict:
+    """
+    Returns the row a ground-truth record is written as.
+
+    `old`, `new` and `label` can hold any JSON value, so they are written as JSON
+    text, which a TEXT or a JSONB column takes.
+
+    Args:
+        record: A record with `stream_type` "label".
+
+    Returns:
+        dict: `sim_ts`, `timestamp`, `path`, `old`, `new` and `label`.
+    """
+    return {
+        "sim_ts": record.get("sim_ts"),
+        "timestamp": record.get("timestamp"),
+        "path": record.get("path"),
+        "old": orjson.dumps(record.get("old")).decode(),
+        "new": orjson.dumps(record.get("new")).decode(),
+        "label": orjson.dumps(record.get("label")).decode(),
+    }
+
+
 def _create_table_sql(
     name: str, columns: dict[str, str], primary_key: list[str]
 ) -> str:
@@ -99,6 +123,11 @@ class PostgresEgress(BaseEgress):
 
     Tables named in `tables` are created at start when they do not exist, so a run
     needs no separate schema step.
+
+    An event's row also carries the record's `key` as `event_id`, and its `task` and
+    `instance`, unless the payload has fields of those names. A ground-truth record,
+    sent to a sink added with `when: labels`, is written as `sim_ts`, `timestamp`,
+    `path`, `old`, `new` and `label`, the last three as JSON text.
 
     Examples:
         Updating orders as their status changes:
@@ -298,6 +327,9 @@ class PostgresEgress(BaseEgress):
                 # Support multi-table multiplexing using a __table__ key
                 clean_batch = []
                 for item in batch:
+                    if item.get("stream_type") == "label":
+                        clean_batch.append(_label_row(item))
+                        continue
                     # `item` is an EventPayload or TelemetryPayload dict.
                     # The actual user data is in `item["value"]`.
                     payload = item.get("value")
@@ -313,6 +345,9 @@ class PostgresEgress(BaseEgress):
 
                     if "key" in item:
                         payload_copy["event_id"] = item["key"]
+                        # A payload field of the same name wins, as in flat files
+                        for field in ("task", "instance"):
+                            payload_copy.setdefault(field, item.get(field))
                     if "path_id" in item:
                         payload_copy["path_id"] = item["path_id"]
 

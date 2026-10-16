@@ -12,7 +12,8 @@ resources:
   packers: {current_cap: 1, max_cap: 3}
 
 services:
-  packing: {dist: normal, mean: 4.0, std: 1.0}
+  packing: {dist: normal, mean: 4 s, std: 1 s}
+  labelling: {dist: constant, value: 2 s}
 
 # --8<-- [start:arrival]
 arrivals:
@@ -26,20 +27,24 @@ tasks:
   pack_order:
     service: packing  # how long the work takes
     resource: packers  # what it holds while it works
-    payload: {status: finished}  # the finished event's value
-    id_field: order_id  # adds the task id to the payload
+    payload: {event_type: order_packed}  # the finished event's value
+    next: print_label  # the task that follows; Task Flow has the other forms
   return_logged:
     # No service and no resource: publishes its payload at once
-    payload: {status: logged}
-    id_field: return_id
+    payload: {event_type: return_logged}
 # --8<-- [end:task]
-
+  # --8<-- [start:timed-step]
+  print_label:
+    # A service and no resource: a timed step that starts at once
+    service: labelling
+    payload: {event_type: label_printed}
+  # --8<-- [end:timed-step]
 # --8<-- [start:payload-function]
   # also under tasks: a payload computed by a Python function
   pack_with_delivery:
     service: packing
     resource: packers
-    # Called as choose_delivery(task_id, context) when the order is packed
+    # Called as choose_delivery(task_id, context) when the order gets a packer
     payload: !python shop_logic.choose_delivery
 # --8<-- [end:payload-function]
 
@@ -49,12 +54,6 @@ processes:
   - function: !python shop_logic.breaks
     kwargs: {resource: packers, every: 50, duration: 5}
 # --8<-- [end:process]
-
-# --8<-- [start:telemetry]
-telemetry:
-  - interval: 10
-    publish: {packers_busy: packers.in_use, packers_waiting: packers.queue_length}
-# --8<-- [end:telemetry]
 
 run:
   until: 3 min

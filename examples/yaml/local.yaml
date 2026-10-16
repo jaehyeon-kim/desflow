@@ -33,14 +33,9 @@ tasks:
     payload: {event_type: order_packed, shipping: standard}
     id_field: order_id
 
-telemetry:
-  # Samples the packers every 2 simulation seconds.
-  - interval: 2.0
-    publish:
-      packers.capacity: packers.capacity
-      packers.in_use: packers.in_use
-      packers.queue_length: packers.queue_length
-      packers.utilization: packers.utilization
+# Publishes the packers' capacity, in_use, queue_length and utilization every 2
+# simulation seconds, as Shop.stats.resources.packers.<reading>.
+stats: {level: minimal, interval: 2}
 
 scenario:
   # Three packers from 10 seconds, then two from 20 seconds.

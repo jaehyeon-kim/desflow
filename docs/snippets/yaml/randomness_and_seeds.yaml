@@ -1,0 +1,38 @@
+# The Randomness and Seeds tutorial: the busy shop, seeded, with returns.
+# Run it with: desflow run randomness_and_seeds.yaml
+simulation:
+  sim_id: Shop
+  factor: 0
+  # --8<-- [start:seed]
+  # The same random numbers on every run; leave it out to draw a new seed
+  random_seed: 42
+  # --8<-- [end:seed]
+
+resources:
+  packers: {current_cap: 3, max_cap: 10}
+
+services:
+  # Packing varies: 1.5 seconds on average, give or take 0.5
+  packing: {dist: normal, mean: 1.5 s, std: 0.5 s}
+
+# --8<-- [start:returns]
+arrivals:
+  orders: {dist: exponential, rate: 1.8, spawn: pack_order}
+  # Returned parcels: about one every 5 seconds
+  returns: {dist: exponential, rate: 0.2, spawn: receive_return}
+
+tasks:
+  # A return is recorded as it arrives; it does not use a packer
+  receive_return:
+    payload: {event_type: return_received}
+# --8<-- [end:returns]
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+
+egress:
+  - type: Console
+
+run:
+  until: 1 min

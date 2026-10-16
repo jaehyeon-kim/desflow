@@ -1,0 +1,76 @@
+# The A Flow of Tasks tutorial: orders are picked, packed and shipped.
+# Run it with: desflow run flow_of_tasks.yaml
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+resources:
+  pickers: {current_cap: 2, max_cap: 4}
+  packers: {current_cap: 2, max_cap: 4}
+
+containers:
+  # Boxes on the shelf, restocked with 53 every 100 seconds
+  stock: {current_cap: 200, max_cap: 200, level: 50}
+
+services:
+  picking: {dist: uniform, low: 1 s, high: 3 s}
+  packing: {dist: constant, value: 1.5 s}
+  # The supplier takes a minute to send an item that is out of stock
+  supplying: {dist: constant, value: 1 min}
+
+# --8<-- [start:attributes]
+arrivals:
+  # Each order starts with the attributes given here, read as attr.<name>
+  orders: {dist: exponential, rate: 0.4, spawn: pick_order, attributes: {express: 0}}
+  express: {dist: exponential, rate: 0.1, spawn: pick_order, attributes: {express: 1}}
+  # --8<-- [end:attributes]
+  deliveries: {dist: constant, value: 100 s, spawn: restock}
+
+tasks:
+  # --8<-- [start:chain]
+  pick_order:
+    service: picking
+    resource: pickers
+    payload: {event_type: order_picked}
+    # The first rule that holds wins; default catches the rest
+    next:
+      when:
+        - {condition: "level.stock == 0", task: backorder}
+      default: pack_order
+  # --8<-- [end:chain]
+  # --8<-- [start:backorder]
+  backorder:
+    # A timed step: a service and no resource, so it starts at once
+    service: supplying
+    payload: {event_type: order_backordered}
+    # Applied to the order's attributes when the step finishes
+    set: {backordered: 1}
+    next: pick_order
+  # --8<-- [end:backorder]
+  # --8<-- [start:rework]
+  pack_order:
+    service: packing
+    resource: packers
+    get: {container: stock, amount: 1}
+    payload: {event_type: order_packed}
+    # One parcel in 20 fails its check and is packed again
+    next:
+      weights: {ship_order: 95, pack_order: 5}
+  # --8<-- [end:rework]
+  ship_order:
+    payload: {event_type: order_shipped}
+    # A payload includes attributes only when it names them
+    attributes: [express, backordered]
+  restock:
+    put: {container: stock, amount: 53}
+    payload: {event_type: stock_delivered}
+
+# Finished counts of every task and flow, at the end
+stats: {level: basic, interval: 1 h}
+
+egress:
+  - type: Console
+
+run:
+  until: 1 h

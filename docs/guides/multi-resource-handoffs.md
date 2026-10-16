@@ -29,34 +29,38 @@ app = (
 )
 
 
-def handoff_worker(context: SimulationContext, order_id: int):
+def handoff_worker(context: SimulationContext, order, task_id: int):
     picker = context.get_resource("picker")
     bench = context.get_resource("bench")
-    key = f"task-{order_id}"
-    context.env.publish_event(key, {"status": "queued"})
+
+    def publish(value):
+        # Keyed by the order, orders-1 and so on, with the task and its instance id
+        context.env.publish_event(order.key, value, task="handoff", instance=task_id)
+
+    publish({"status": "queued"})
 
     # The picker is released by hand below, not by a `with` block, because the
     # handoff happens in the middle of the bench's block.
     yield picker.request()
-    context.env.publish_event(key, {"status": "picked"})
+    publish({"status": "picked"})
     yield context.env.timeout(WALK)
 
     # Ask for the bench while still holding the picker.
     with bench.request() as bench_req:
         yield bench_req
-        context.env.publish_event(key, {"status": "at_bench"})
+        publish({"status": "at_bench"})
         picker.release()  # the order is on the bench, so the picker is free
         yield context.env.timeout(PACKING)
-        context.env.publish_event(key, {"status": "finished"})
+        publish({"status": "finished"})
 
 
 @app.arrival_loop("orders")
 def arrival_loop(context: SimulationContext):
-    order_id = 0
+    task_id = 0
     while True:
-        yield context.wait_for_arrival("orders")
-        context.spawn(handoff_worker(context, order_id))
-        order_id += 1
+        order = yield context.wait_for_arrival("orders")
+        context.spawn(handoff_worker(context, order, task_id))
+        task_id += 1
 
 
 if __name__ == "__main__":
@@ -69,7 +73,7 @@ Save it as `multi_resource_handoffs.py` and run `python multi_resource_handoffs.
 
 ## How It Works
 
-- **`handoff_worker`** is one order. It publishes `queued`, waits for the picker, publishes `picked` and spends `WALK` seconds on the way to the bench.
+- **`handoff_worker`** is one order. It publishes each event with the order's key, `orders-1` and so on, and with the task name `handoff` and its instance id. It publishes `queued`, waits for the picker, publishes `picked` and spends `WALK` seconds on the way to the bench.
 - **Asking for the bench** happens inside the picker's hold: the order waits for the bench while it still has the picker. When it gets the bench it publishes `at_bench` and calls `picker.release()`, so the next order can use the picker. It is packed for `PACKING` seconds, publishes `finished` and releases the bench when its `with` block ends.
 - **`picker.request()`** is not in a `with` block, because a `with` block would release the picker at its end, after the packing. The picker is released by hand instead.
 - **`arrival_loop`** starts a `handoff_worker` for each arriving order. Orders arrive about once a second and packing takes 4 seconds, so the bench is the bottleneck. An order that waits for the bench keeps the picker, and the orders behind it wait for the picker.

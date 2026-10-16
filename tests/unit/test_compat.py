@@ -6,9 +6,9 @@ is imported.
 
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
-import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -65,13 +65,12 @@ def test_ddes_warns_then_runs_desflow():
 
 def test_last_dynamic_des_release_has_every_desflow_extra():
     """`pip install "dynamic-des[kafka]"` must install what `desflow[kafka]` does."""
-    # tomllib is in the standard library from Python 3.11.
-    tomllib = pytest.importorskip("tomllib")
     main = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     compat = tomllib.loads(
         (ROOT / "compat" / "dynamic-des" / "pyproject.toml").read_text(encoding="utf-8")
     )
-    version = main["project"]["version"]
+    # The last dynamic-des release needs at least the desflow of the same version.
+    version = compat["project"]["version"]
     assert compat["project"]["optional-dependencies"] == {
         extra: [f"desflow[{extra}]>={version}"]
         for extra in main["project"]["optional-dependencies"]
@@ -80,7 +79,6 @@ def test_last_dynamic_des_release_has_every_desflow_extra():
 
 def test_last_dynamic_des_release_has_the_ddes_command():
     """pip deletes 0.19.0's bin/ddes on upgrade, after desflow wrote it."""
-    tomllib = pytest.importorskip("tomllib")
     main = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     compat = tomllib.loads(
         (ROOT / "compat" / "dynamic-des" / "pyproject.toml").read_text(encoding="utf-8")

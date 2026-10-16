@@ -22,14 +22,18 @@ on_printer = []
 
 
 # --8<-- [start:worker]
-def worker_task(context: SimulationContext, task_id: int):
+def worker_task(context: SimulationContext, order, task_id: int):
     printer = context.get_resource("printer")
-    key = f"task-{task_id}"
-    context.env.publish_event(key, {"status": "queued"})
+
+    def publish(value):
+        # Keyed by the order, orders-1 and so on, with the task and its instance id
+        context.env.publish_event(order.key, value, task="label", instance=task_id)
+
+    publish({"status": "queued"})
 
     with printer.request() as req:
         yield req
-        context.env.publish_event(key, {"status": "started"})
+        publish({"status": "started"})
         remaining = LABELLING
         while remaining > 0:
             on_printer.append(context.env.active_process)
@@ -39,16 +43,14 @@ def worker_task(context: SimulationContext, task_id: int):
                 remaining = 0
             except simpy.Interrupt as interrupt:
                 remaining -= context.env.now - began
-                context.env.publish_event(
-                    key, {"status": "interrupted", "cause": interrupt.cause}
-                )
+                publish({"status": "interrupted", "cause": interrupt.cause})
             on_printer.remove(context.env.active_process)
             if remaining > 0:
                 # The order stays on the printer, so no other order can start, and a
                 # printer under repair cannot jam again.
                 yield context.env.timeout(REPAIR)
-                context.env.publish_event(key, {"status": "printer_repaired"})
-        context.env.publish_event(key, {"status": "finished"})
+                publish({"status": "printer_repaired"})
+        publish({"status": "finished"})
 
 
 # --8<-- [end:worker]
@@ -70,8 +72,8 @@ def arrival_loop(context: SimulationContext):
     context.spawn(chaos_monkey(context))
     task_id = 0
     while True:
-        yield context.wait_for_arrival("orders")
-        context.spawn(worker_task(context, task_id))
+        order = yield context.wait_for_arrival("orders")
+        context.spawn(worker_task(context, order, task_id))
         task_id += 1
 
 

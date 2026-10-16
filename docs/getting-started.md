@@ -167,13 +167,13 @@ pip install "odctl>=1.0,<2"
 
 Each example needs at most one odctl profile, started before you run it and torn down after:
 
-![The local and parquet examples need nothing started; kafka and backfill-live need odctl up kafka-lite; postgres and related-records need postgres; redis needs valkey; iceberg needs catalog; parquet written to S3 needs storage](assets/diagrams/example-infrastructure.png)
+![The local, parquet, stock, flow and measuring examples need nothing started; kafka and backfill-live need odctl up kafka-lite; postgres and related-records need postgres; redis needs valkey; iceberg needs catalog; parquet written to S3 needs storage](assets/diagrams/example-infrastructure.png)
 
 | Example | Start | Stop |
 |---|---|---|
-| local | nothing needed | |
-| kafka, backfill-live, dashboard | `odctl up kafka-lite` | `odctl down kafka-lite --volumes` |
-| postgres | `odctl up postgres` | `odctl down postgres --volumes` |
+| local, parquet, stock, flow, measuring | nothing needed | |
+| kafka, backfill-live | `odctl up kafka-lite` | `odctl down kafka-lite --volumes` |
+| postgres, related-records | `odctl up postgres` | `odctl down postgres --volumes` |
 | redis | `odctl up valkey` | `odctl down valkey --volumes` |
 | parquet with `PARQUET_FILESYSTEM=s3` | `odctl up storage` | `odctl down storage --volumes` |
 | iceberg | `odctl up catalog` | `odctl down catalog --volumes` |
@@ -190,5 +190,5 @@ The Postgres database is `odctl`. The object store bucket is `odctl-dev`. Valkey
 
 ## Next Steps
 
-- [First Simulation](tutorials/first-simulation.md) builds an online shop step by step, then adds random times, capacity changes and Kafka.
+- [First Simulation](tutorials/first-simulation.md), the first page of the shop tutorial in the Learn section, builds an online shop step by step, and the pages after it grow the shop one idea at a time.
 - The [examples](examples/index.md) show each connector, written three ways, with the profile each one needs.

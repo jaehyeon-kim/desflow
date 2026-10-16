@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional, Protocol
 
 from aiokafka import AIOKafkaConsumer
 
-from desflow.connectors.ingress.base import BaseIngress
+from desflow.connectors.ingress.base import BaseIngress, parse_change
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ class MessageDeserializer(Protocol):
             payload (bytes): The raw binary payload of the Kafka message.
 
         Returns:
-            Any: The deserialized data, typically a dictionary containing a 'path_id' and 'value'.
+            Any: The deserialized data, typically a dictionary containing a 'path' and 'value'.
         """
         ...
 
@@ -181,8 +181,9 @@ class KafkaIngress(BaseIngress):
     messages into state updates for the SimulationRegistry. It supports pluggable
     deserialization (Avro/JSON) while remaining 100% backward compatible.
 
-    The expected resulting dictionary format must contain a 'path_id' string
-    and a 'value' of any serializable type.
+    The expected resulting dictionary format must contain a 'path' string
+    and a non-null 'value' of any serializable type. A message that cannot be
+    decoded or does not have both is logged as a warning and skipped.
 
     Attributes:
         topic (str): The Kafka topic name used for configuration signals.
@@ -246,12 +247,10 @@ class KafkaIngress(BaseIngress):
                             # Decode binary payload -> Python Dict
                             data = deserializer.deserialize(msg.topic, msg.value)
 
-                            ingress_queue.put((data["path_id"], data["value"]))
+                            ingress_queue.put(parse_change(data))
 
                         except Exception as e:
-                            logger.warning(
-                                f"Malformed or undecodable Kafka message: {e}"
-                            )
+                            logger.warning(f"Skipped a Kafka ingress message: {e}")
                 finally:
                     await consumer.stop()
 

@@ -4,6 +4,7 @@ from typing import Any, Callable, Dict, Optional
 
 from simpy import Environment, Store
 
+from desflow.core.distributions import get_distribution
 from desflow.models.params import (
     CapacityConfig,
     DistributionConfig,
@@ -50,6 +51,19 @@ class DynamicValue:
             # Signal a change if not already signaled
             if len(self._signal.items) == 0:
                 self._signal.put(True)
+
+    def track(self, new_value: Any):
+        """
+        Records a value the model changed itself, without signalling a change.
+
+        A container's level changes whenever a task puts or takes an amount. The
+        registry keeps that level so a reader sees it, but the container that made
+        the change must not be told to apply it again.
+
+        Args:
+            new_value (Any): The value now in effect.
+        """
+        self._value = new_value
 
     def wait_for_change(self):
         """
@@ -123,7 +137,10 @@ class SimulationRegistry:
         A distribution parameter outside its range (for example a negative std) is
         refused with an error log line, as a value of the wrong type is, and the old
         value is kept. A `current_cap` outside `[0, max_cap]` is clamped to that range
-        with a warning log line.
+        with a warning log line, also when a lower `max_cap` arrives, and so is a
+        container `level` outside `[0, current_cap]`. A path the model does not have,
+        such as a parameter the distribution's family does not take, is refused with a
+        warning log line.
 
         Args:
             path (str): The dot-notation path to update.
@@ -163,6 +180,21 @@ class SimulationRegistry:
                     logger.error(f"Invalid value for '{path}': {exc}. Update ignored.")
                     return
 
+            # Keep a container level within [0, current_cap], what the container holds
+            if (
+                isinstance(parent_obj, CapacityConfig)
+                and attr == "level"
+                and validated_value is not None
+            ):
+                cap = self._values[f"{parent_path}.current_cap"].value
+                clamped = type(validated_value)(min(max(validated_value, 0), cap))
+                if clamped != validated_value:
+                    logger.warning(
+                        f"level {validated_value} for '{path}' is outside "
+                        f"[0, current_cap {cap}]. Stored as {clamped}."
+                    )
+                    validated_value = clamped
+
             # Keep current_cap within [0, max_cap], the range the resource uses
             if isinstance(parent_obj, CapacityConfig) and attr == "current_cap":
                 max_cap = self._values[f"{parent_path}.max_cap"].value
@@ -173,6 +205,14 @@ class SimulationRegistry:
                         f"[0, max_cap {max_cap}]. Stored as {clamped}."
                     )
                     validated_value = clamped
+
+            # A lower max_cap clamps current_cap first, so no reader sees it above
+            if (
+                isinstance(parent_obj, CapacityConfig)
+                and attr == "max_cap"
+                and validated_value is not None
+            ):
+                self._clamp_current_cap(parent_path, parent_obj, validated_value)
 
             # Update the DynamicValue (triggers SimPy events)
             self._values[path].update(validated_value)
@@ -185,6 +225,22 @@ class SimulationRegistry:
                 setattr(parent_obj, attr, validated_value)
         else:
             logger.warning(f"Attempted to update non-existent path: {path}")
+
+    def _clamp_current_cap(
+        self, parent_path: str, config: CapacityConfig, max_cap: Any
+    ) -> None:
+        """Lowers a stored `current_cap` above a new `max_cap` to it, with a warning."""
+        path = f"{parent_path}.current_cap"
+        current = self._values[path].value
+        if current is None or current <= max_cap:
+            return
+        clamped = type(current)(max_cap)
+        logger.warning(
+            f"current_cap {current} for '{path}' is above the new max_cap {max_cap}. "
+            f"Stored as {clamped}."
+        )
+        self._values[path].update(clamped)
+        config.current_cap = clamped
 
     def register_sim_parameter(self, param: SimParameter):
         """
@@ -220,6 +276,10 @@ class SimulationRegistry:
             # A container level is continuous, so an integer starting value must not
             # make later updates integers through the type cast in update()
             self._register_cap(path, cap_config, cast=float)
+            level = float(getattr(cap_config, "level", 0.0))
+            self._values[f"{path}.level"] = DynamicValue(
+                self.env, f"{path}.level", level
+            )
 
         # Register Stores
         for name, cap_config in param.stores.items():
@@ -234,26 +294,18 @@ class SimulationRegistry:
             self._values[path] = DynamicValue(self.env, path, value)
 
     def _register_dist(self, path_prefix: str, dist_config: Any):
-        """Internal: Flattens a DistributionConfig."""
-        if dist_config.dist == "exponential":
-            self._values[f"{path_prefix}.rate"] = DynamicValue(
-                self.env, f"{path_prefix}.rate", dist_config.rate
-            )
-        elif dist_config.dist == "constant":
-            self._values[f"{path_prefix}.value"] = DynamicValue(
-                self.env, f"{path_prefix}.value", dist_config.value
-            )
-        else:
-            self._values[f"{path_prefix}.mean"] = DynamicValue(
-                self.env, f"{path_prefix}.mean", dist_config.mean
-            )
-            self._values[f"{path_prefix}.std"] = DynamicValue(
-                self.env, f"{path_prefix}.std", dist_config.std
-            )
-            if dist_config.dist == "truncated_normal":
-                self._values[f"{path_prefix}.low"] = DynamicValue(
-                    self.env, f"{path_prefix}.low", dist_config.low
-                )
+        """Internal: registers one path per parameter its family declares.
+
+        It also names the config's random sequence: its path without the sim id.
+        The values of an `empirical` distribution are lists, taken at load, so they
+        get no path.
+        """
+        dist_config.stream = path_prefix.split(".", 1)[1]
+        for name in get_distribution(dist_config.dist).live:
+            value = getattr(dist_config, name)
+            if value is not None:
+                path = f"{path_prefix}.{name}"
+                self._values[path] = DynamicValue(self.env, path, value)
 
     def _register_cap(
         self, path_prefix: str, cap_config: Any, cast: Optional[Callable] = None

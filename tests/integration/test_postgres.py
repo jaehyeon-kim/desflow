@@ -50,15 +50,15 @@ async def test_postgres_ingress_loads_historical_state(postgres_container):
     await conn.execute("""
         CREATE TABLE test_sim_params (
             id SERIAL PRIMARY KEY,
-            param_path TEXT,
-            param_value TEXT,
+            path TEXT,
+            value TEXT,
             is_applied BOOLEAN DEFAULT FALSE
         );
     """)
 
     # Insert multiple historical records for the same path
     await conn.execute("""
-        INSERT INTO test_sim_params (param_path, param_value, is_applied)
+        INSERT INTO test_sim_params (path, value, is_applied)
         VALUES
             ('Test.param', '1.0', TRUE),
             ('Test.param', '5.0', TRUE),
@@ -87,10 +87,93 @@ async def test_postgres_ingress_loads_historical_state(postgres_container):
     # Verify it updated the table marking ID 3 as applied
     conn = await asyncpg.connect(dsn)
     is_applied = await conn.fetchval(
-        "SELECT is_applied FROM test_sim_params WHERE param_value = '10.0'"
+        "SELECT is_applied FROM test_sim_params WHERE value = '10.0'"
     )
     assert is_applied is True
     await conn.close()
+
+
+async def _run_ingress_until(ingress, q, count, timeout=15.0):
+    """Run the ingress until the queue holds `count` changes or the timeout passes."""
+    task = asyncio.create_task(ingress.run(q))
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    try:
+        while q.qsize() < count and loop.time() < deadline:
+            await asyncio.sleep(0.1)
+    finally:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_postgres_ingress_creates_its_table(postgres_container):
+    """The table PostgresIngress creates takes rows with path and value."""
+    dsn = postgres_container
+    conn = await asyncpg.connect(dsn)
+    await conn.execute("DROP TABLE IF EXISTS test_new_params")
+    await conn.close()
+
+    ingress = PostgresIngress(dsn, table_name="test_new_params", poll_interval=0.1)
+    await ingress._init_pool()  # creates the table, as run() does first
+    conn = await asyncpg.connect(dsn)
+    await conn.execute(
+        "INSERT INTO test_new_params (path, value) VALUES ('Test.param', '3')"
+    )
+    await conn.close()
+
+    q = queue.Queue()
+    await _run_ingress_until(ingress, q, 1)
+
+    assert q.get_nowait() == ("Test.param", 3)
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_postgres_ingress_old_columns_and_rename(postgres_container, caplog):
+    """A table with the old columns logs the rename statements, and running them makes it work."""
+    dsn = postgres_container
+    conn = await asyncpg.connect(dsn)
+    await conn.execute("DROP TABLE IF EXISTS test_old_params")
+    await conn.execute("""
+        CREATE TABLE test_old_params (
+            id SERIAL PRIMARY KEY,
+            param_path VARCHAR(255) NOT NULL,
+            param_value TEXT NOT NULL,
+            is_applied BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        INSERT INTO test_old_params (param_path, param_value) VALUES ('Test.param', '7');
+    """)
+    await conn.close()
+
+    with caplog.at_level("ERROR", logger="desflow.connectors.ingress.postgres"):
+        await _run_ingress_until(
+            PostgresIngress(dsn, table_name="test_old_params", poll_interval=0.1),
+            queue.Queue(),
+            count=1,
+            timeout=1.0,
+        )
+    hint = caplog.records[0].getMessage()
+    statements = hint[hint.index("ALTER TABLE") :]
+    assert statements == (
+        "ALTER TABLE test_old_params RENAME COLUMN param_path TO path; "
+        "ALTER TABLE test_old_params RENAME COLUMN param_value TO value;"
+    )
+
+    conn = await asyncpg.connect(dsn)
+    await conn.execute(statements)
+    await conn.close()
+
+    q = queue.Queue()
+    await _run_ingress_until(
+        PostgresIngress(dsn, table_name="test_old_params", poll_interval=0.1), q, 1
+    )
+    assert q.get_nowait() == ("Test.param", 7)
 
 
 @pytest.mark.asyncio

@@ -1,7 +1,7 @@
-"""The registry paths and telemetry of the Change Parameters guide.
+"""The registry paths and readings of the Live Parameters page.
 
 Builds a small `Shop`, prints the parameters it registers, and runs it unpaced for a
-few seconds so the telemetry loop publishes the packers's capacity.
+few seconds so the statistics publish the packers' capacity.
 """
 
 from desflow import ConsoleEgress, SimulationContext
@@ -20,11 +20,8 @@ print(app.compile_parameters())
 
 
 # --8<-- [start:telemetry]
-@app.telemetry_loop(interval=2.0)
-def packer_metrics(context):
-    context.publish("packers.capacity", context.get_resource("packers").capacity)
-
-
+# The packers' capacity, in use, queue and utilization every 2 seconds
+app.with_stats("minimal", interval=2.0)
 # --8<-- [end:telemetry]
 
 

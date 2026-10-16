@@ -18,7 +18,7 @@ class LocalIngress(BaseIngress):
     Attributes:
         schedule (List[Tuple[float, str, Any]]): A chronologically sorted
             list of updates, where each tuple contains (delay_seconds,
-            path_id, value).
+            path, value).
     """
 
     def __init__(self, schedule: List[Tuple[float, str, Any]]):
@@ -45,11 +45,11 @@ class LocalIngress(BaseIngress):
 
         Args:
             ingress_queue: A thread-safe queue used to transmit the
-                (path_id, value) updates to the SimulationRegistry.
+                (path, value) updates to the SimulationRegistry.
         """
         last_time = 0.0
-        for delay, path_id, value in self.schedule:
+        for delay, path, value in self.schedule:
             # Wait for the relative time difference
             await asyncio.sleep(delay - last_time)
-            ingress_queue.put((path_id, value))
+            ingress_queue.put((path, value))
             last_time = delay

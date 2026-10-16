@@ -1,4 +1,4 @@
-# The batching settings of the Batching and Delivery page, as a blueprint.
+# The delivery settings of the Egress page, as a blueprint.
 # Run it with: desflow run batching.yaml
 simulation:
   sim_id: Shop

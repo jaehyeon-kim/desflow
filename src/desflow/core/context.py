@@ -1,15 +1,39 @@
+import contextlib
 import functools
+import inspect
+import itertools
 import logging
+import secrets
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, Union
 
-import numpy as np
+import simpy
 
+from desflow.config import (
+    DEFAULT_QUEUE_ORDER,
+    DEFAULT_STATS_INTERVAL,
+    DEFAULT_STATS_LEVEL,
+    LABELS,
+    QUEUE_ORDERS,
+    STATS_LEVELS,
+)
 from desflow.core.environment import DynamicRealtimeEnvironment
+from desflow.core.expressions import Expression
+from desflow.core.flow import NextSpec, Router, Transfer, make_scope
+from desflow.core.registry import SimulationRegistry
 from desflow.core.sampler import Sampler
-from desflow.models.params import CapacityConfig, DistributionConfig, SimParameter
+from desflow.models.flow import Entity, Upstream
+from desflow.models.params import (
+    CapacityConfig,
+    ContainerConfig,
+    DistributionConfig,
+    SimParameter,
+)
+from desflow.resources.container import DynamicContainer
 from desflow.resources.resource import DynamicResource
+from desflow.resources.store import DynamicStore
+from desflow.utils import time_to_seconds
 
 logger = logging.getLogger(__name__)
 
@@ -32,10 +56,10 @@ class SimulationContext:
     2.  **One registry**: All registered configurations are flattened
         and managed by the internal `SimulationRegistry`, allowing external
         Kafka Admin commands to mutate these states safely during runtime.
-    3.  **Deterministic Stochasticity**: By exposing a central `Sampler` driven
-        by a seeded NumPy generator, all background arrivals, decorators, and
-        user-defined physical generators share the same random state, ensuring
-        100% reproducible Digital Twin executions.
+    3.  **Deterministic Stochasticity**: The `Sampler` gives each distribution a
+        random sequence of its own, made from `random_seed`, so a seeded run repeats
+        exactly, and adding a distribution leaves the others' draws unchanged. A run
+        without `random_seed` draws a seed and logs it, so it can be repeated.
 
     Attributes:
         sim_id (str): The unique namespace for this simulation instance (e.g., 'HotRolling').
@@ -44,7 +68,9 @@ class SimulationContext:
             fast-forward loop (ideal for historical data processing).
         go_live_at (Optional[datetime]): Logical instant at which `factor` is replaced
             by real-time pacing, so one run can backfill history and then tail live.
-        random_seed (Optional[int]): The deterministic seed for the NumPy RNG.
+        warmup (Optional[float]): The end of the warm-up, in simulation seconds.
+        random_seed (Optional[int]): The run's seed. When None, `run()` draws one,
+            logs it and uses it; read it afterwards from `sampler.seed`.
         sampler (Optional[Sampler]): The centralized Random Number Generator engine.
             Accessible to user-defined raw generators only after `.run()` is called.
     """
@@ -56,6 +82,7 @@ class SimulationContext:
         random_seed: Optional[int] = None,
         logical_start_time: Optional[datetime] = None,
         go_live_at: Optional[datetime] = None,
+        warmup: Union[float, str, None] = None,
     ):
         """
         Initializes the context builder with a designated namespace and temporal factor.
@@ -73,12 +100,22 @@ class SimulationContext:
                 With `factor=0.0` and a backdated `logical_start_time`, the history up
                 to this instant is generated as fast as the machine allows and the rest
                 arrives in real time, so a backfill and a live tail take one run.
+            warmup: The end of the warm-up, in simulation seconds or as a duration
+                such as `"10 min"`. No sink receives a record stamped before it, and
+                the built-in statistics are reset at that time, so they measure the
+                steady state only.
+
+        Raises:
+            ValueError: If `warmup` is negative or not a duration.
         """
         self.sim_id = sim_id
         self.factor = factor
         self.random_seed = random_seed
         self.logical_start_time = logical_start_time
         self.go_live_at = go_live_at
+        self.warmup = None if warmup is None else _seconds(warmup)
+        if self.warmup is not None and self.warmup < 0:
+            raise ValueError(f"warmup must be 0 or more, got {warmup}")
 
         # Builder State (Pre-Compilation)
         self._ingress_providers: List[Any] = []
@@ -95,21 +132,41 @@ class SimulationContext:
         self._max_queued_batches = 2000
         self._drain_stall_seconds = 30.0
 
+        # Aligned with _egress_providers by position.
+        self._egress_labels: List[bool] = []
+        self._stats_level = DEFAULT_STATS_LEVEL
+        self._stats_interval = DEFAULT_STATS_INTERVAL
+
         self._resources_config: Dict[str, CapacityConfig] = {}
+        self._resource_queues: Dict[str, str] = {}
         self._containers_config: Dict[str, CapacityConfig] = {}
+        self._stores_config: Dict[str, CapacityConfig] = {}
         self._services_config: Dict[str, DistributionConfig] = {}
         self._arrivals_config: Dict[str, DistributionConfig] = {}
+        # Per arrival: the attributes each entity starts with, and the key function
+        self._arrival_entities: Dict[
+            str, Tuple[Dict[str, Any], Optional[Callable[[int], str]]]
+        ] = {}
         self._variables_config: Dict[str, Any] = {}
+        # Tasks by name, with what run() checks before the clock starts
+        self._tasks: Dict[str, Callable] = {}
+        self._task_specs: Dict[str, "_TaskSpec"] = {}
 
         # Runtime State (Post-Compilation)
         self._env: Optional[DynamicRealtimeEnvironment] = None
         self.sampler: Optional[Sampler] = None
         self._resources_map: Dict[str, DynamicResource] = {}
+        self._stores_map: Dict[str, DynamicStore] = {}
+        self._containers_map: Dict[str, DynamicContainer] = {}
+        self._entity_counters: Dict[str, "itertools.count[int]"] = {}
+        self._instance_counters: Dict[str, "itertools.count[int]"] = {}
         self._startup_loops: List[Tuple[Callable, Optional[str]]] = []
 
         # Set by from_yaml from the blueprint's `run` section.
         self._default_until: Any = None
         self._before_run: List[Callable[[], Any]] = []
+        # How the log tells a run without a seed to repeat itself, with `{seed}`
+        self._repeat_hint: Optional[str] = None
 
     @classmethod
     def from_yaml(cls, path: Union[str, Path]) -> "SimulationContext":
@@ -142,6 +199,7 @@ class SimulationContext:
         context, run = build(path)
         context._default_until = run.until
         context._before_run = list(run.before)
+        context._repeat_hint = f"Repeat it with: desflow run {path} --seed {{seed}}"
         return context
 
     # ==========================================
@@ -165,7 +223,7 @@ class SimulationContext:
     def add_egress(
         self,
         provider: Any,
-        when: Optional[Callable[[dict], bool]] = None,
+        when: Union[Callable[[dict], bool], str, None] = None,
         batch_size: Optional[int] = None,
         flush_interval: Optional[float] = None,
     ) -> "SimulationContext":
@@ -182,6 +240,9 @@ class SimulationContext:
                 (e.g., `KafkaEgress` or `ParquetStorageEgress`).
             when: Optional predicate taking one record and returning True to send it to
                 this provider. None sends every record, which is the usual case.
+                `"labels"` makes it a labels sink: it receives the ground-truth
+                records (`env.publish_label`) and nothing else, and no other sink
+                receives them.
             batch_size: Records this provider buffers before flushing. None uses the
                 context default from `with_batching`. A stream sink wants a small
                 value to keep latency down; a file or lake sink wants a large one,
@@ -192,6 +253,9 @@ class SimulationContext:
 
         Returns:
             SimulationContext: The current instance for method chaining.
+
+        Raises:
+            ValueError: If `when` is a string other than `"labels"`.
 
         Each provider buffers separately, so memory is the sum of the buffers rather
         than one. A large lake buffer will dominate that sum.
@@ -210,10 +274,46 @@ class SimulationContext:
             app.add_egress(parquet, batch_size=200_000, flush_interval=300)
             ```
         """
+        if isinstance(when, str) and when != LABELS:
+            raise ValueError(f"when takes a function or '{LABELS}', got '{when}'")
         self._egress_providers.append(provider)
-        self._egress_predicates.append(when)
+        self._egress_predicates.append(None if isinstance(when, str) else when)
+        self._egress_labels.append(when == LABELS)
         self._egress_batch_sizes.append(batch_size)
         self._egress_flush_intervals.append(flush_interval)
+        return self
+
+    def with_stats(
+        self, level: str = "basic", interval: float = DEFAULT_STATS_INTERVAL
+    ) -> "SimulationContext":
+        """
+        Switches on the built-in statistics, published as telemetry.
+
+        Each level publishes what the levels before it publish, and more: `minimal`
+        the readings of every resource, store and container right now; `basic`
+        finished counts and time-weighted averages; `typical` the mean and maximum
+        wait and service time of each task; `all` their 50th, 95th and 99th
+        percentiles. Names look like `<sim_id>.stats.tasks.<task>.wait_mean`.
+
+        Args:
+            level: `none`, `minimal`, `basic`, `typical` or `all`.
+            interval: Simulation seconds between publications; they are also
+                published once at the end of the run. Defaults to 10.
+
+        Returns:
+            SimulationContext: The current instance for method chaining.
+
+        Raises:
+            ValueError: If the level is unknown or the interval is not positive.
+        """
+        if level not in STATS_LEVELS:
+            raise ValueError(
+                f"stats level must be one of {', '.join(STATS_LEVELS)}, got '{level}'"
+            )
+        if not interval > 0:
+            raise ValueError(f"stats interval must be greater than 0, got {interval}")
+        self._stats_level = level
+        self._stats_interval = float(interval)
         return self
 
     def with_batching(
@@ -253,7 +353,11 @@ class SimulationContext:
         return self
 
     def add_resource(
-        self, name: str, current_cap: int, max_cap: int
+        self,
+        name: str,
+        current_cap: int,
+        max_cap: int,
+        queue: str = DEFAULT_QUEUE_ORDER,
     ) -> "SimulationContext":
         """
         Registers a discrete logical resource capable of processing tasks.
@@ -266,34 +370,80 @@ class SimulationContext:
             name: The internal identifier (e.g., 'mill_structural').
             current_cap: The active physical token capacity at simulation start.
             max_cap: The absolute physical maximum bound of tokens allowed.
+            queue: The order waiting tasks are served in: `fifo` (the default),
+                `lifo` or `priority`, which serves the lowest task priority first and
+                the oldest first among equal priorities.
 
         Returns:
             SimulationContext: The current instance for method chaining.
+
+        Raises:
+            ValueError: If `queue` is not one of the three orders.
         """
+        if queue not in QUEUE_ORDERS:
+            raise ValueError(
+                f"queue must be one of {', '.join(QUEUE_ORDERS)}, got '{queue}'"
+            )
         self._resources_config[name] = CapacityConfig(
             current_cap=current_cap, max_cap=max_cap
         )
+        self._resource_queues[name] = queue
         return self
 
     def add_container(
-        self, name: str, current_cap: float, max_cap: float
+        self, name: str, current_cap: float, max_cap: float, level: float = 0.0
     ) -> "SimulationContext":
         """
-        Registers a continuous state container representing fluid or gradual levels.
+        Registers a container: an amount that tasks take from and add to, such as stock.
 
-        Unlike Resources, Containers map to floating-point metrics. They are
-        specifically utilized for modeling continuous physical states such as
-        concept drift (wear and tear), fluid levels, or thermal degradation.
+        `current_cap` is the capacity, the largest level, as for a resource. The
+        level starts at `level` and has a live registry path of its own,
+        `<sim_id>.containers.<name>.level`, so a scenario or an ingress message can
+        set it during the run, such as a restock. Models that used `current_cap` as a
+        level, such as wear, use `level` instead.
 
         Args:
-            name: The internal identifier (e.g., 'wear_structural').
-            current_cap: The starting floating-point level (e.g., 0.001 for a new machine).
-            max_cap: The absolute maximum ceiling (e.g., 100.0 for catastrophic failure).
+            name: The internal identifier (e.g., 'stock').
+            current_cap: The capacity at simulation start.
+            max_cap: The largest capacity a live update can set.
+            level: The amount held at simulation start. Defaults to 0.
 
         Returns:
             SimulationContext: The current instance for method chaining.
+
+        Raises:
+            ValueError: If a store already has this name.
         """
-        self._containers_config[name] = CapacityConfig(
+        if name in self._stores_config:
+            raise ValueError(f"'{name}' is already a store")
+        self._containers_config[name] = ContainerConfig(
+            current_cap=current_cap, max_cap=max_cap, level=float(level)
+        )
+        return self
+
+    def add_store(
+        self, name: str, current_cap: int, max_cap: int
+    ) -> "SimulationContext":
+        """
+        Registers a store: a place that holds items, which tasks put and get.
+
+        A task puts its finished payload as an item and gets the oldest item,
+        waiting when the store is full or empty.
+
+        Args:
+            name: The internal identifier (e.g., 'parcels').
+            current_cap: The number of items it can hold at simulation start.
+            max_cap: The largest capacity a live update can set.
+
+        Returns:
+            SimulationContext: The current instance for method chaining.
+
+        Raises:
+            ValueError: If a container already has this name.
+        """
+        if name in self._containers_config:
+            raise ValueError(f"'{name}' is already a container")
+        self._stores_config[name] = CapacityConfig(
             current_cap=current_cap, max_cap=max_cap
         )
         return self
@@ -319,65 +469,116 @@ class SimulationContext:
     def add_service(
         self,
         name: str,
-        dist: Literal[
-            "exponential", "normal", "lognormal", "truncated_normal", "constant"
-        ],
-        mean: float = 0.0,
-        std: float = 0.0,
-        rate: float = 0.0,
+        dist: str,
+        *,
+        rate: Optional[float] = None,
+        mean: Optional[float] = None,
+        std: Optional[float] = None,
         low: Optional[float] = None,
         value: Optional[float] = None,
+        high: Optional[float] = None,
+        mode: Optional[float] = None,
+        shape: Optional[float] = None,
+        scale: Optional[float] = None,
+        values: Optional[List[float]] = None,
+        weights: Optional[List[float]] = None,
+        edges: Optional[List[float]] = None,
+        counts: Optional[List[float]] = None,
     ) -> "SimulationContext":
         """
         Registers a statistical distribution defining a process service duration.
 
+        The parameters are keyword-only, so their order never changes the meaning.
+        Give only those `dist` takes; `desflow.core.distributions.DISTRIBUTIONS`
+        lists each family's parameters and rules.
+
         Args:
-            name: The internal identifier (e.g., 'pass_roughing').
-            dist: The distribution family ('normal', 'exponential', 'lognormal').
-            mean: The mean (mu) for normal/lognormal distributions.
-            std: The standard deviation (sigma) for normal/lognormal distributions.
-            rate: The rate (lambda) for exponential distributions.
-            low: The lowest value of a truncated normal (0 when not given).
+            name: The internal identifier (e.g., 'packing').
+            dist: The family: exponential, normal, lognormal, truncated_normal,
+                constant, uniform, triangular, gamma, weibull or empirical.
+            rate: Events per second, for exponential.
+            mean: The mean, for normal, lognormal and truncated_normal.
+            std: The standard deviation, for the same three (0 when not given).
+            low: The lowest value, for truncated_normal (0 when not given), uniform
+                and triangular.
             value: The time a constant distribution always gives.
+            high: The highest value, for uniform and triangular.
+            mode: The most likely value, for triangular.
+            shape: The shape, for gamma and weibull.
+            scale: The scale, for gamma and weibull.
+            values: The values an empirical draws from, taken at load.
+            weights: One weight per empirical value.
+            edges: The bin edges of an empirical histogram.
+            counts: One count per empirical histogram bin.
 
         Returns:
             SimulationContext: The current instance for method chaining.
+
+        Raises:
+            ValueError: If the family is unknown, or a parameter is missing, out of
+                range or not one the family takes.
         """
-        self._services_config[name] = DistributionConfig(
-            dist=dist, mean=mean, std=std, rate=rate, low=low, value=value
-        )
+        self._services_config[name] = _distribution(dist, locals())
         return self
 
     def add_arrival(
         self,
         name: str,
-        dist: Literal[
-            "exponential", "normal", "lognormal", "truncated_normal", "constant"
-        ],
-        rate: float = 0.0,
-        mean: float = 0.0,
-        std: float = 0.0,
+        dist: str,
+        *,
+        rate: Optional[float] = None,
+        mean: Optional[float] = None,
+        std: Optional[float] = None,
         low: Optional[float] = None,
         value: Optional[float] = None,
+        high: Optional[float] = None,
+        mode: Optional[float] = None,
+        shape: Optional[float] = None,
+        scale: Optional[float] = None,
+        values: Optional[List[float]] = None,
+        weights: Optional[List[float]] = None,
+        edges: Optional[List[float]] = None,
+        counts: Optional[List[float]] = None,
+        attributes: Optional[Mapping[str, Any]] = None,
+        key: Optional[Callable[[int], str]] = None,
     ) -> "SimulationContext":
         """
         Registers a statistical distribution defining the inter-arrival times of entities.
 
+        Each arrival starts a new entity, which `wait_for_arrival` returns. Its key,
+        the record key of every event it causes, is the arrival name and a counter
+        (`orders-1`, `orders-2`) unless `key` gives another.
+
         Args:
-            name: The internal identifier (e.g., 'structural').
-            dist: The distribution type ('exponential', 'normal', 'lognormal').
-            rate: The rate (lambda) for exponential distributions.
-            mean: The mean (mu) for normal/lognormal distributions.
-            std: The standard deviation (sigma) for normal/lognormal distributions.
-            low: The lowest value of a truncated normal (0 when not given).
+            name: The internal identifier (e.g., 'orders').
+            dist: The family, as for `add_service`.
+            rate: Events per second, for exponential.
+            mean: The mean, for normal, lognormal and truncated_normal.
+            std: The standard deviation, for the same three (0 when not given).
+            low: The lowest value, for truncated_normal, uniform and triangular.
             value: The time a constant distribution always gives.
+            high: The highest value, for uniform and triangular.
+            mode: The most likely value, for triangular.
+            shape: The shape, for gamma and weibull.
+            scale: The scale, for gamma and weibull.
+            values: The values an empirical draws from, taken at load.
+            weights: One weight per empirical value.
+            edges: The bin edges of an empirical histogram.
+            counts: One count per empirical histogram bin.
+            attributes: The attributes each entity starts with, read in conditions
+                as `attr.<name>`. Each entity gets its own copy.
+            key: A function of the entity's counter, from 1, returning its key.
 
         Returns:
             SimulationContext: The current instance for method chaining.
+
+        Raises:
+            ValueError: If the family is unknown, or a parameter is missing, out of
+                range or not one the family takes.
         """
-        self._arrivals_config[name] = DistributionConfig(
-            dist=dist, rate=rate, mean=mean, std=std, low=low, value=value
-        )
+        params = {k: v for k, v in locals().items() if k not in ("attributes", "key")}
+        self._arrivals_config[name] = _distribution(dist, params)
+        self._arrival_entities[name] = (dict(attributes or {}), key)
         return self
 
     # ==========================================
@@ -385,7 +586,18 @@ class SimulationContext:
     # ==========================================
 
     def task(
-        self, service_id: Optional[str] = None, resource_id: Optional[str] = None
+        self,
+        service_id: Optional[str] = None,
+        resource_id: Optional[str] = None,
+        *,
+        name: Optional[str] = None,
+        priority: Union[
+            float, str, Callable[[Any, Dict[str, Any]], float], None
+        ] = None,
+        get: Union[Transfer, Mapping[str, Any], None] = None,
+        put: Union[Transfer, Mapping[str, Any], None] = None,
+        next: NextSpec = None,
+        set: Optional[Mapping[str, Any]] = None,
     ) -> Callable:
         """
         Transforms a standard Python function into an event-driven SimPy task.
@@ -394,84 +606,212 @@ class SimulationContext:
         clock synchronization, and standardized telemetry lineage.
 
         Lifecycle Execution:
-        1. Emits a strict `queued` event payload to the telemetry stream.
-        2. Blocks asynchronous execution until the specified `resource_id` token is acquired.
-        3. Emits a strict `started` event payload upon acquisition.
+        1. Emits a `queued` event, when the task waits for a resource or a `get`.
+        2. Waits for the `resource_id` unit, in the resource's queue order, then for
+           its `get`.
+        3. Emits a `started` event.
         4. Executes the wrapped user function to extract custom payload data.
-        5. Samples the live `service_id` distribution and yields the temporal timeout.
-        6. Emits a strict `finished` event containing the user's custom payload.
+        5. Samples the live `service_id` distribution and yields the timeout.
+        6. Adds its `put`, waiting for room, and emits its finished event with the
+           user's payload.
+        7. Applies `set` to the entity's attributes and starts the `next` task.
 
-        A task with neither `service_id` nor `resource_id` takes no time and holds no
-        resource. When spawned it emits the payload at once, with no `queued` or
-        `started` event, which suits an arrival that only records that it happened.
+        Every event carries the entity's key as its record key, and the task's name
+        and instance id as the record's `task` and `instance` fields.
+
+        A task with a service and no resource is a timed step: no `queued` event, so
+        its wait is 0. A task with no service, resource or get takes no time: when
+        spawned it emits the payload at once (after its `put`, if it has one), with
+        no `queued` or `started` event.
+
+        Call the task as `task(task_id, ...)`. Pass `entity=` with the entity
+        `wait_for_arrival` returned; without one the task starts an entity of its
+        own, keyed by its name and a counter. The function receives `entity`,
+        `upstream` (what the previous task handed on, or None) and `item` (what a
+        store `get` took) by keyword, each only when it declares that parameter, so
+        existing functions keep working. A task started by `next` is called with its
+        own instance id and the same other arguments as the task before it.
 
         Args:
             service_id: The ID of the configured distribution dictating the execution time.
             resource_id: The ID of the configured resource this task exclusively requires.
+            name: The task's name in records, statistics and `next` rules. Defaults
+                to the function's name.
+            priority: For a resource whose queue order is `priority`, lowest first: a
+                number, an expression such as `"attr.priority"`, or a function of the
+                task id and the entity's attributes. It is read when the task joins
+                the queue, before its payload exists.
+            get: What the task takes before it starts: `{"container": name,
+                "amount": ...}` or `{"store": name}`. The amount is a number, an
+                expression such as `"payload.quantity"`, or a function of the task id
+                and the upstream payload. Defaults to an amount of 1.
+            put: What the task adds when it finishes, in the same form; a store
+                receives the finished payload.
+            next: The task that follows: a task name, `{"when": [{"condition": ...,
+                "task": ...}], "default": ...}`, `{"weights": {name: weight}}`, or a
+                function of the `Upstream` returning a name or None.
+            set: Attribute values applied to the entity when the task finishes.
 
         Raises:
-            ValueError: If only one of `service_id` and `resource_id` is given.
+            ValueError: If a resource is given without a service, a priority without
+                a resource, the name is taken, or `get`, `put` or `next` is
+                malformed.
 
         Returns:
             Callable: A decorator that wraps the target function into a SimPy generator.
 
         Example:
             ```python
-            @app.task(service_id="packing", resource_id="packers")
-            def pack_order(task_id: int):
-                return {"status": "success", "order_id": task_id}
+            @app.task(service_id="packing", resource_id="packers", next="ship")
+            def pack_order(task_id: int, context):
+                return {"status": "packed"}
             ```
         """
-
-        if (service_id is None) != (resource_id is None):
+        if resource_id is not None and service_id is None:
             raise ValueError(
-                "give both service_id and resource_id, or neither for a task that "
-                "emits its payload at once"
+                "a task with a resource needs a service; give service_id too"
             )
-
-        def emit(user_func):
-            def wrapper(task_id: int, *args, **kwargs):
-                if not self._env:
-                    raise RuntimeError("Simulation has not been built yet.")
-                payload = user_func(task_id, *args, **kwargs)
-                self._env.publish_event(f"task-{task_id}", payload)
-                # Makes this a generator, which `spawn` needs, without waiting.
-                yield from ()
-
-            return wrapper
-
-        if service_id is None or resource_id is None:
-            return emit
+        if priority is not None and resource_id is None:
+            raise ValueError(
+                "priority orders a resource's queue, so it needs a resource"
+            )
+        rank_of = Expression(priority) if isinstance(priority, str) else None
+        take = None if get is None else Transfer.of(get)
+        give = None if put is None else Transfer.of(put)
+        router = Router(next)
+        attribute_changes = dict(set or {})
 
         def decorator(user_func):
-            def wrapper(task_id: int, *args, **kwargs):
+            task_name = name or user_func.__name__
+            if task_name in self._tasks:
+                raise ValueError(f"a task called '{task_name}' already exists")
+            declared = inspect.signature(user_func).parameters
+            spec = _TaskSpec(
+                task_name, service_id, resource_id, priority, take, give, router
+            )
+            waits = resource_id is not None or take is not None
+            timed = service_id is not None or waits
+
+            def wrapper(
+                task_id: Any,
+                *args: Any,
+                entity: Optional[Entity] = None,
+                upstream: Optional[Upstream] = None,
+                **kwargs: Any,
+            ):
                 if not self._env or not self.sampler:
                     raise RuntimeError("Simulation has not been built yet.")
+                env = self._env
+                if entity is None:
+                    entity = self._new_entity(task_name, None)
+                extra: Dict[str, Any] = {}
+                if "entity" in declared:
+                    extra["entity"] = entity
+                if "upstream" in declared:
+                    extra["upstream"] = upstream
 
-                res = self._resources_map[resource_id]
-                task_key = f"task-{task_id}"
-                path_id = f"{self.sim_id}.service.{service_id}"
+                def publish(value: Any) -> None:
+                    env.publish_event(entity.key, value, task_name, task_id)
 
-                self._env.publish_event(
-                    task_key, {"path_id": path_id, "status": "queued"}
+                def status(state: str) -> Dict[str, Any]:
+                    if service_id is None:
+                        return {"status": state}
+                    return {
+                        "path_id": f"{self.sim_id}.service.{service_id}",
+                        "status": state,
+                    }
+
+                if waits:
+                    publish(status("queued"))
+                    env.stats.task_queued(task_name, task_id)
+                unit: Any  # a resource request, or no wait at all
+                if resource_id is not None:
+                    holder = self._resources_map[resource_id]
+                    rank: Any = priority
+                    if rank_of is not None:
+                        scope = make_scope(
+                            upstream, entity.attributes, env, self._levels()
+                        )
+                        rank = rank_of.evaluate(scope)
+                    elif callable(priority):
+                        rank = priority(task_id, entity.attributes)
+                    unit = holder.request(1 if rank is None else rank)
+                else:
+                    unit = contextlib.nullcontext()
+                with unit as request:
+                    if request is not None:
+                        yield request
+                    if take is not None:
+                        got = yield from self._transfer(
+                            take, "get", task_id, entity, upstream, None
+                        )
+                        if "item" in declared:
+                            extra["item"] = got
+                    if timed:
+                        publish(status("started"))
+                        env.stats.task_started(task_name, task_id)
+
+                    payload = user_func(task_id, *args, **kwargs, **extra)
+
+                    if service_id is not None:
+                        config = env.registry.get_config(
+                            f"{self.sim_id}.service.{service_id}"
+                        )
+                        yield env.timeout(self.sampler.sample(config))
+                    if give is not None:
+                        yield from self._transfer(
+                            give, "put", task_id, entity, upstream, payload
+                        )
+                    publish(payload)
+                    env.stats.task_finished(task_name, task_id)
+
+                entity.attributes.update(attribute_changes)
+                handed = Upstream(task_id, entity.key, entity.attributes, payload)
+                following = router.choose(handed, env, self._levels())
+                if following is None:
+                    env.stats.flow_finished(entity.arrival)
+                    return
+                if following not in self._tasks:
+                    raise ValueError(
+                        f"task '{task_name}' routes to '{following}', which is not a task"
+                    )
+                env.process(
+                    self._tasks[following](
+                        self.next_instance(following),
+                        *args,
+                        entity=entity,
+                        upstream=handed,
+                        **kwargs,
+                    )
                 )
 
-                with res.request() as req:
-                    yield req
-                    self._env.publish_event(
-                        task_key, {"path_id": path_id, "status": "started"}
-                    )
-
-                    payload = user_func(task_id, *args, **kwargs)
-
-                    service_cfg = self._env.registry.get_config(path_id)
-                    yield self._env.timeout(self.sampler.sample(service_cfg))
-
-                    self._env.publish_event(task_key, payload)
-
+            self._tasks[task_name] = wrapper
+            self._task_specs[task_name] = spec
             return wrapper
 
         return decorator
+
+    def _transfer(
+        self,
+        transfer: Transfer,
+        direction: str,
+        task_id: Any,
+        entity: Entity,
+        upstream: Optional[Upstream],
+        payload: Any,
+    ):
+        """Gets from or puts into a store or container, waiting as long as it takes."""
+        if transfer.store is not None:
+            store = self._stores_map[transfer.store]
+            if direction == "get":
+                return (yield store.get())
+            yield store.put(payload)
+            return None
+        container = self._containers_map[transfer.target]
+        scope = make_scope(upstream, entity.attributes, self._env, self._levels())
+        amount = transfer.amount_for(task_id, upstream, scope)
+        yield container.get(amount) if direction == "get" else container.put(amount)
+        return None
 
     def arrival_loop(self, arrival_id: str) -> Callable:
         """
@@ -566,6 +906,16 @@ class SimulationContext:
         """
         Yields a dynamic SimPy timeout based on the live arrival distribution.
 
+        The timeout's value is the new `Entity`, so an arrival loop writes
+        `entity = yield context.wait_for_arrival("orders")` and passes
+        `entity=entity` to the task it spawns.
+
+        Args:
+            arrival_id: The arrival's name.
+
+        Returns:
+            simpy.events.Timeout: The gap to the next arrival, valued with its entity.
+
         Raises:
             RuntimeError: If called during the Builder Phase (before `.run()`).
         """
@@ -573,7 +923,78 @@ class SimulationContext:
             raise RuntimeError("Cannot sample arrival before context is run.")
 
         cfg = self._env.registry.get_config(f"{self.sim_id}.arrival.{arrival_id}")
-        return self._env.timeout(self.sampler.sample(cfg))
+        entity = self._new_entity(arrival_id, self._arrival_entities.get(arrival_id))
+        return self._env.timeout(self.sampler.sample(cfg), value=entity)
+
+    def next_instance(self, task: str) -> int:
+        """
+        Returns the next instance id of a task, counting from 0.
+
+        Each task has one counter, which `next` uses when it starts the task. An
+        arrival loop that spawns a task by hand takes the id from here too, so a
+        task started both by an arrival and by `next` never repeats an id.
+
+        Args:
+            task: The task's name.
+
+        Returns:
+            int: The task's next instance id.
+        """
+        counter = self._instance_counters.setdefault(task, itertools.count())
+        return next(counter)
+
+    def _new_entity(
+        self,
+        arrival: str,
+        options: Optional[Tuple[Dict[str, Any], Optional[Callable[[int], str]]]],
+    ) -> Entity:
+        """Starts an entity: the next counter of `arrival`, its key and attributes."""
+        counter = self._entity_counters.setdefault(arrival, itertools.count(1))
+        number = next(counter)
+        attributes, key = options if options is not None else ({}, None)
+        return Entity(
+            key=f"{arrival}-{number}" if key is None else key(number),
+            arrival=arrival,
+            attributes=dict(attributes),
+        )
+
+    def _levels(self) -> Dict[str, Any]:
+        """Stores and containers by name, which `level.<name>` reads."""
+        return {**self._stores_map, **self._containers_map}
+
+    def get_store(self, store_id: str) -> DynamicStore:
+        """
+        Retrieves an active `DynamicStore`.
+
+        Args:
+            store_id: The store's name.
+
+        Returns:
+            DynamicStore: The store.
+
+        Raises:
+            RuntimeError: If called during the Builder Phase.
+        """
+        if not self._env:
+            raise RuntimeError("Stores are not instantiated until context is run.")
+        return self._stores_map[store_id]
+
+    def get_container(self, container_id: str) -> DynamicContainer:
+        """
+        Retrieves an active `DynamicContainer`.
+
+        Args:
+            container_id: The container's name.
+
+        Returns:
+            DynamicContainer: The container.
+
+        Raises:
+            RuntimeError: If called during the Builder Phase.
+        """
+        if not self._env:
+            raise RuntimeError("Containers are not instantiated until context is run.")
+        return self._containers_map[container_id]
 
     def get_resource(self, resource_id: str) -> DynamicResource:
         """
@@ -623,6 +1044,7 @@ class SimulationContext:
             sim_id=self.sim_id,
             resources=self._resources_config,
             containers=self._containers_config,
+            stores=self._stores_config,
             service=self._services_config,
             arrival=self._arrivals_config,
             variables=self._variables_config,
@@ -650,9 +1072,14 @@ class SimulationContext:
                 the utility module (e.g., "1 week", "8 hours"). If None, a context
                 built by `from_yaml` uses the blueprint's `run.until`, and otherwise
                 the simulation runs infinitely.
+
+        Raises:
+            ValueError: If a task's `next`, `priority`, `get` or `put` names something
+                the context does not define.
         """
         if until is None:
             until = self._default_until
+        self._check_tasks()
         for setup in self._before_run:
             setup()
 
@@ -665,8 +1092,25 @@ class SimulationContext:
             env_kwargs["go_live_at"] = self.go_live_at
         self._env = DynamicRealtimeEnvironment(**env_kwargs)
 
-        # Initializes RNG with the deterministic seed
-        self.sampler = Sampler(rng=np.random.default_rng(self.random_seed))
+        # One random sequence per distribution, all from the run's seed
+        seed = self.random_seed
+        if seed is None:
+            seed = secrets.randbelow(2**32)
+            logger.info(
+                f"No random_seed was given, so this run uses {seed}. "
+                + (
+                    self._repeat_hint.format(seed=seed)
+                    if self._repeat_hint
+                    else f"Pass random_seed={seed} to repeat it."
+                )
+            )
+        self.sampler = Sampler(seed=seed)
+        for task_name, spec in self._task_specs.items():
+            if spec.router.weighted:
+                spec.router.rng = self.sampler.generator(f"route.{task_name}")
+
+        if self._stats_level != "none":
+            self._env.setup_stats(self.sim_id, self._stats_level, self._stats_interval)
 
         # Compile Master Parameter Object
         self._env.registry.register_sim_parameter(self.compile_parameters())
@@ -685,12 +1129,22 @@ class SimulationContext:
                 predicates=self._egress_predicates,
                 batch_sizes=self._egress_batch_sizes,
                 flush_intervals=self._egress_flush_intervals,
+                labels=self._egress_labels,
+                warmup=self.warmup,
             )
+        elif self.warmup is not None:
+            self._env.process(self._end_warmup(self.warmup))
 
         # Hydrate Physical SimPy Resources
         for res_id in self._resources_config.keys():
             self._resources_map[res_id] = DynamicResource(
-                self._env, self.sim_id, res_id
+                self._env, self.sim_id, res_id, queue=self._resource_queues[res_id]
+            )
+        for store_id in self._stores_config:
+            self._stores_map[store_id] = DynamicStore(self._env, self.sim_id, store_id)
+        for container_id in self._containers_config:
+            self._containers_map[container_id] = DynamicContainer(
+                self._env, self.sim_id, container_id
             )
 
         # Boot Registered Daemon Generators
@@ -705,10 +1159,119 @@ class SimulationContext:
         try:
             logger.info("Simulation engine started.")
             if isinstance(until, str):
-                from desflow.utils import time_to_seconds
-
                 until = time_to_seconds(until)
 
             self._env.run(until=until)
         finally:
             self._env.teardown()
+
+    def _end_warmup(self, warmup: float):
+        """Resets the statistics at the end of the warm-up, for a run with no sink."""
+        yield self.env.timeout(warmup)
+        self.env.stats.reset()
+
+    def _check_tasks(self) -> None:
+        """Checks what each task names, before the clock or any connector starts."""
+        holders = {**self._stores_config, **self._containers_config}
+        registry: Optional[SimulationRegistry] = None
+        for name, spec in self._task_specs.items():
+            if (
+                spec.resource_id is not None
+                and spec.resource_id not in self._resources_config
+            ):
+                raise ValueError(
+                    f"task '{name}' uses resource '{spec.resource_id}', which is not added"
+                )
+            if (
+                spec.service_id is not None
+                and spec.service_id not in self._services_config
+            ):
+                raise ValueError(
+                    f"task '{name}' uses service '{spec.service_id}', which is not added"
+                )
+            if (
+                spec.priority is not None
+                and self._resource_queues.get(spec.resource_id or "") != "priority"
+            ):
+                raise ValueError(
+                    f"task '{name}' has a priority, but resource '{spec.resource_id}' "
+                    f"does not queue by priority; add it with queue='priority'"
+                )
+            for transfer in (spec.get, spec.put):
+                if transfer is None:
+                    continue
+                kind = "store" if transfer.store is not None else "container"
+                config = (
+                    self._stores_config if kind == "store" else self._containers_config
+                )
+                if transfer.target not in config:
+                    raise ValueError(
+                        f"task '{name}' uses {kind} '{transfer.target}', which is not added"
+                    )
+            for target in spec.router.tasks or ():
+                if target not in self._tasks:
+                    raise ValueError(
+                        f"task '{name}' routes to '{target}', which is not a task"
+                    )
+            expressions = list(spec.router.conditions)
+            if isinstance(spec.priority, str):
+                expressions.append(Expression(spec.priority))
+            for transfer in (spec.get, spec.put):
+                if transfer is not None and isinstance(transfer.amount, str):
+                    expressions.append(Expression(transfer.amount))
+            for expression in expressions:
+                for level in expression.references["level"]:
+                    if level not in holders:
+                        raise ValueError(
+                            f"task '{name}' reads level.{level}, but no store or "
+                            f"container is called '{level}'"
+                        )
+                for path in expression.references["registry"]:
+                    if registry is None:
+                        # The paths the run will register, built by the same code
+                        registry = SimulationRegistry(simpy.Environment())
+                        registry.register_sim_parameter(self.compile_parameters())
+                    try:
+                        registry.get(path)
+                    except KeyError:
+                        raise ValueError(
+                            f"task '{name}' reads registry[\"{path}\"], which is "
+                            f"not a registry path"
+                        ) from None
+
+
+class _TaskSpec:
+    """What `run()` checks about a task before the clock starts."""
+
+    def __init__(
+        self,
+        name: str,
+        service_id: Optional[str],
+        resource_id: Optional[str],
+        priority: Any,
+        get: Optional[Transfer],
+        put: Optional[Transfer],
+        router: Router,
+    ):
+        self.name = name
+        self.service_id = service_id
+        self.resource_id = resource_id
+        self.priority = priority
+        self.get = get
+        self.put = put
+        self.router = router
+
+
+def _seconds(value: Union[float, str]) -> float:
+    """Reads seconds, or a duration such as `"10 min"`."""
+    return time_to_seconds(value) if isinstance(value, str) else float(value)
+
+
+def _distribution(dist: str, params: Mapping[str, Any]) -> DistributionConfig:
+    """Builds a config from the parameters a builder method was given."""
+    given = {
+        key: value
+        for key, value in params.items()
+        if key not in ("self", "name", "dist") and value is not None
+    }
+    return DistributionConfig(dist=dist, **given)

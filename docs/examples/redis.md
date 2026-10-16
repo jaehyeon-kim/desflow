@@ -1,6 +1,6 @@
-# In-Memory Store (Redis)
+# Redis
 
-An online shop that writes each order to a Redis Stream as it is placed, and takes parameter updates from a Redis Pub/Sub channel. Each tab shows the example written one way: with the builder API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](../architecture/overview.md) compares the three.
+An online shop that writes each order to a Redis Stream as it is placed, and takes parameter updates from a Redis Pub/Sub channel. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../user-guide/ways-to-write.md) compares the three.
 
 === "YAML"
 
@@ -55,7 +55,7 @@ An online shop that writes each order to a Redis Stream as it is placed, and tak
     The run writes order records to the `order_events` stream, and the lag telemetry to `events`, until you stop it. In a second terminal, raise the arrival rate while it runs:
 
     ```bash
-    docker exec -it valkey valkey-cli --user user --pass password PUBLISH simulation_params '{"param_path": "Shop.arrival.orders.rate", "param_value": 10.0}'
+    docker exec -it valkey valkey-cli --user user --pass password PUBLISH simulation_params '{"path": "Shop.arrival.orders.rate", "value": 10.0}'
     ```
 
     `RedisIngress` does not log the message it receives, so the sign that the update landed is that `XLEN order_events` climbs about five times faster.
@@ -144,8 +144,8 @@ An online shop that writes each order to a Redis Stream as it is placed, and tak
     def order_generator(context):
         task_id = 0
         while True:
-            yield context.wait_for_arrival("orders")
-            context.spawn(record_order(task_id, context))
+            entity = yield context.wait_for_arrival("orders")
+            context.spawn(record_order(task_id, context, entity=entity))
             task_id += 1
     ```
 
@@ -153,7 +153,7 @@ An online shop that writes each order to a Redis Stream as it is placed, and tak
 
     **Dynamic Parameter Updates (Ingress)**
 
-    The `RedisIngress` in the builder above listens to the Pub/Sub channel `simulation_params`. While the simulation runs, publishing a JSON message with `param_path` and `param_value` to that channel changes the parameter, such as `{"param_path": "Shop.arrival.orders.rate", "param_value": 10.0}` to raise the arrival rate. The example logs a `valkey-cli` command that sends it.
+    The `RedisIngress` in the builder above listens to the Pub/Sub channel `simulation_params`. While the simulation runs, publishing a JSON message with `path` and `value` to that channel changes the parameter, such as `{"path": "Shop.arrival.orders.rate", "value": 10.0}` to raise the arrival rate. The example logs a `valkey-cli` command that sends it.
 
     **Quick Start**
 
@@ -202,7 +202,7 @@ An online shop that writes each order to a Redis Stream as it is placed, and tak
     **In a second terminal, execute the dynamic parameter update:**
     ```bash
     # Connect to the Valkey container and publish the parameter update
-    docker exec -it valkey valkey-cli --user user --pass password PUBLISH simulation_params '{"param_path": "Shop.arrival.orders.rate", "param_value": 10.0}'
+    docker exec -it valkey valkey-cli --user user --pass password PUBLISH simulation_params '{"path": "Shop.arrival.orders.rate", "value": 10.0}'
     ```
     `RedisIngress` does not log the message it receives, so the sign that the update landed is the throughput. The arrival rate goes from 2.0 to 10.0 per second, and `XLEN order_events` climbs about five times faster than before.
 
@@ -259,8 +259,8 @@ An online shop that writes each order to a Redis Stream as it is placed, and tak
     def order_generator(context):
         task_id = 0
         while True:
-            yield context.wait_for_arrival("orders")
-            context.spawn(record_order(task_id, context))
+            entity = yield context.wait_for_arrival("orders")
+            context.spawn(record_order(task_id, context, entity=entity))
             task_id += 1
 
 
@@ -269,7 +269,7 @@ An online shop that writes each order to a Redis Stream as it is placed, and tak
         logger.info(
             "Test Ingress by running: docker exec -it valkey valkey-cli --user user "
             "--pass password PUBLISH simulation_params "
-            '\'{"param_path": "Shop.arrival.orders.rate", "param_value": 10.0}\''
+            '\'{"path": "Shop.arrival.orders.rate", "value": 10.0}\''
         )
         try:
             app.run()
@@ -335,7 +335,7 @@ An online shop that writes each order to a Redis Stream as it is placed, and tak
     **In a second terminal, execute the dynamic parameter update:**
     ```bash
     # Connect to the Valkey container and publish the parameter update
-    docker exec -it valkey valkey-cli --user user --pass password PUBLISH simulation_params '{"param_path": "Shop.arrival.orders.rate", "param_value": 10.0}'
+    docker exec -it valkey valkey-cli --user user --pass password PUBLISH simulation_params '{"path": "Shop.arrival.orders.rate", "value": 10.0}'
     ```
     `RedisIngress` does not log the message it receives, so the sign that the update landed is the throughput. The arrival rate goes from 2.0 to 10.0 per second, and `XLEN order_events` climbs about five times faster than before.
 
@@ -396,7 +396,10 @@ An online shop that writes each order to a Redis Stream as it is placed, and tak
                 "channel": "web",
                 "status": "placed",
             }
-            env.publish_event(f"task-{task_id}", order_event)
+            # The order key, and the task name and instance id the builder adds
+            env.publish_event(
+                f"orders-{task_id + 1}", order_event, task="record_order", instance=task_id
+            )
             task_id += 1
 
 
@@ -413,7 +416,7 @@ An online shop that writes each order to a Redis Stream as it is placed, and tak
         logger.info(
             "Test Ingress by running: docker exec -it valkey valkey-cli --user user "
             "--pass password PUBLISH simulation_params "
-            '\'{"param_path": "Shop.arrival.orders.rate", "param_value": 10.0}\''
+            '\'{"path": "Shop.arrival.orders.rate", "value": 10.0}\''
         )
 
         try:

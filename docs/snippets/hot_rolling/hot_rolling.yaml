@@ -39,9 +39,10 @@ resources:
   mill_high_alloy: {current_cap: 4, max_cap: 10}
 
 containers:
-  wear_structural: {current_cap: 0.001, max_cap: 100.0}
-  wear_microalloyed: {current_cap: 0.001, max_cap: 100.0}
-  wear_high_alloy: {current_cap: 0.001, max_cap: 100.0}
+  # The wear is the level; current_cap is the most wear a roll can have
+  wear_structural: {current_cap: 100.0, max_cap: 100.0, level: 0.001}
+  wear_microalloyed: {current_cap: 100.0, max_cap: 100.0, level: 0.001}
+  wear_high_alloy: {current_cap: 100.0, max_cap: 100.0, level: 0.001}
 
 variables:
   velocity_structural: {type: abrupt, value: 0.0}

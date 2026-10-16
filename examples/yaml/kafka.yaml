@@ -42,11 +42,5 @@ tasks:
     resource: packers
     payload: {path_id: Shop.service.packing, status: finished}
 
-telemetry:
-  # Samples the packers every 2 simulation seconds.
-  - interval: 2.0
-    publish:
-      packers.capacity: packers.capacity
-      packers.in_use: packers.in_use
-      packers.queue_length: packers.queue_length
-      packers.utilization: packers.utilization
+# The packers' readings every 2 seconds, which kafka_dashboard.py shows.
+stats: {level: minimal, interval: 2}

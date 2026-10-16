@@ -1,6 +1,6 @@
 """The clock settings of the Time and Pacing page.
 
-tests/unit runs this file. Every run in it is unpaced or very short, so it finishes
+tests/docs runs this file. Every run in it is unpaced or very short, so it finishes
 in under a second.
 """
 
@@ -32,10 +32,19 @@ env = DynamicRealtimeEnvironment(
 )
 # --8<-- [end:go-live]
 
+# --8<-- [start:warmup]
+# No sink receives a record stamped before 10 minutes, and the statistics restart then
+measured = SimulationContext(sim_id="Shop", factor=0.0, warmup="10 min")
+# In the low-level API, the warm-up is set with the sinks:
+# env.setup_egress(sinks, warmup=600)
+# --8<-- [end:warmup]
+
 # --8<-- [start:run-length]
 app.add_resource("packers", current_cap=1, max_cap=1)
 app.run(until="1 week")  # 604,800 simulation seconds; a number is seconds too
 # --8<-- [end:run-length]
+
+assert measured.warmup == 600
 
 for e in (live, twice_as_fast, unpaced, env):
     e.teardown()

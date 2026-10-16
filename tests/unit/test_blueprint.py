@@ -61,11 +61,12 @@ def test_blueprint_builds_through_the_builder(tmp_path):
     assert (app.sim_id, app.factor, app.random_seed) == ("Shop", 0, 7)
     assert app._resources_config["packers"].current_cap == 2
     packing = app._services_config["packing"]
+    # Only the parameters the family takes are set
     assert (packing.dist, packing.mean, packing.std, packing.rate) == (
         "normal",
         3.0,
         0.5,
-        0.0,
+        None,
     )
     assert app._arrivals_config["standard"].rate == 1.0
     assert app._default_until == 30.0
@@ -89,7 +90,7 @@ def test_tasks_spawned_from_an_arrival_publish_the_payload(tmp_path):
     [
         ("  factor: 0\n", "  factor: 0\n  speed: 2\n", 4, "simulation.speed"),
         ("mean: 3.0, std: 0.5", "mean: 3.0, std: 0.5, shape: 2", 8, "shape"),
-        ("dist: exponential", "dist: poisson", 10, "arrivals.standard.dist"),
+        ("dist: exponential", "dist: poisson", 10, "Unsupported distribution"),
         (
             "  packers: {current_cap: 2, max_cap: 5}",
             "  packers: {current_cap: 2}",
@@ -126,13 +127,6 @@ def test_cross_reference_errors_name_the_line(tmp_path, old, new, line, fragment
     message = str(error.value)
     assert message.startswith(f"{path}:{line}:"), message
     assert fragment in message
-
-
-def test_telemetry_reference_must_name_a_resource_and_stat(tmp_path):
-    text = MINIMAL + "telemetry:\n  - interval: 1\n    publish: {x: packers.speed}\n"
-    path = write(tmp_path, text)
-    with pytest.raises(BlueprintError, match=rf"{path}:21: 'packers.speed'"):
-        SimulationContext.from_yaml(path)
 
 
 def test_unknown_connector_type_names_the_line(tmp_path):
@@ -388,13 +382,6 @@ def test_a_process_must_be_a_generator_function(tmp_path, logic):
         SimulationContext.from_yaml(path)
 
 
-def test_telemetry_needs_publish_or_function(tmp_path, logic):
-    text = MINIMAL + "telemetry:\n  - interval: 1\n"
-    path = write(tmp_path, text)
-    with pytest.raises(BlueprintError, match="give either publish or function"):
-        SimulationContext.from_yaml(path)
-
-
 def test_id_field_needs_a_mapping_payload(tmp_path, logic):
     text = MINIMAL.replace(
         "    payload: {status: finished}\n",
@@ -430,11 +417,7 @@ def test_scenario_applies_on_simulation_time_at_factor_0(tmp_path):
         MINIMAL
         + "variables:\n  mode: cold\n"
         + SCENARIO
-        + textwrap.dedent("""\
-        telemetry:
-          - interval: 1
-            publish: {cap: packers.capacity}
-        """)
+        + "stats: {level: minimal, interval: 1}\n"
     )
     app = SimulationContext.from_yaml(write(tmp_path, text))
     capture = _Capture()
@@ -444,7 +427,7 @@ def test_scenario_applies_on_simulation_time_at_factor_0(tmp_path):
     capacity = {
         r["sim_ts"]: r["value"]
         for r in capture.records
-        if r.get("path_id") == "Shop.cap"
+        if r.get("path_id") == "Shop.stats.resources.packers.capacity"
     }
     assert capacity[9.0] == 2
     assert capacity[11.0] == 4
@@ -640,9 +623,7 @@ egress:
     when: history
   - type: Console
     when: live
-telemetry:
-  - interval: 1
-    publish: {busy: packers.in_use}
+stats: {level: minimal, interval: 1}
 """
 
 
@@ -706,40 +687,35 @@ def test_a_task_without_service_or_resource_emits_at_once(tmp_path):
     assert [r["value"]["order_id"] for r in events] == list(range(len(events)))
 
 
-@pytest.mark.parametrize("drop", ["    service: packing\n", "    resource: packers\n"])
-def test_a_task_needs_service_and_resource_together(tmp_path, drop):
-    path = write(tmp_path, MINIMAL.replace(drop, ""))
+def test_a_resource_needs_a_service(tmp_path):
+    path = write(tmp_path, MINIMAL.replace("    service: packing\n", ""))
     with pytest.raises(
-        BlueprintError, match=rf"{path}:12: tasks.part: .*give both service and"
+        BlueprintError, match=rf"{path}:12: tasks.part: .*a resource needs a service"
     ):
         SimulationContext.from_yaml(path)
 
 
-def test_telemetry_publishes_capacity_and_in_use(tmp_path):
-    text = MINIMAL + textwrap.dedent("""\
-        telemetry:
-          - interval: 1
-            publish:
-              cap: packers.capacity
-              busy: packers.in_use
-              util: packers.utilization
-              queue: packers.queue_length
-        """)
+def test_stats_minimal_publishes_resource_readings(tmp_path):
+    text = MINIMAL + "stats: {level: minimal, interval: 1}\n"
     app = SimulationContext.from_yaml(write(tmp_path, text))
     capture = _Capture()
     app.add_egress(capture)
     app.run(until=20)
 
+    prefix = "Shop.stats.resources.packers."
     samples = {}
     for r in capture.records:
-        if r["stream_type"] == "telemetry" and r["path_id"].startswith("Shop."):
-            samples.setdefault(r["sim_ts"], {})[r["path_id"].removeprefix("Shop.")] = r[
+        if r["stream_type"] == "telemetry" and r["path_id"].startswith(prefix):
+            samples.setdefault(r["sim_ts"], {})[r["path_id"].removeprefix(prefix)] = r[
                 "value"
             ]
+    # Every second, and once more at the end of the run
     assert len(samples) == 20
-    assert all(s["cap"] == 2 for s in samples.values())
-    assert all(s["busy"] / s["cap"] * 100 == s["util"] for s in samples.values())
-    assert any(s["busy"] > 0 for s in samples.values())
+    assert all(s["capacity"] == 2 for s in samples.values())
+    assert all(
+        s["in_use"] / s["capacity"] * 100 == s["utilization"] for s in samples.values()
+    )
+    assert any(s["in_use"] > 0 for s in samples.values())
 
 
 # ---------------------------------------------------------------------------
@@ -762,11 +738,7 @@ def test_container_capacity_keeps_fractions(tmp_path):
 @pytest.mark.parametrize(
     "extra,line,fragment",
     [
-        (
-            "telemetry:\n  - interval: 0\n    publish: {cap: packers.capacity}\n",
-            20,
-            "interval",
-        ),
+        ("stats: {level: minimal, interval: 0}\n", 19, "interval"),
         ("batching: {batch_size: 0, flush_interval: 1}\n", 19, "batch_size"),
         ("batching: {batch_size: 10, flush_interval: 0}\n", 19, "flush_interval"),
         ("egress:\n  - type: Console\n    flush_interval: 0\n", 21, "flush_interval"),

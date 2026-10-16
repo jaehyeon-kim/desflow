@@ -4,7 +4,7 @@ Sometimes the layout itself changes during a run: a dock opens a new bay, or a s
 
 ![A supervisor process registers the new wrappers paths in the registry, creates a DynamicResource for them, and new workers request the wrappers](../assets/diagrams/topology-change.png)
 
-The builder (`SimulationContext`) creates every resource before the clock starts and has no call to add one later. A resource added during the run is written with the [low-level API](../architecture/low-level.md): register its parameters, then create the `DynamicResource` that reads them.
+The builder (`SimulationContext`) creates every resource before the clock starts and has no call to add one later. A resource added during the run is written with the [low-level API](../user-guide/low-level-api.md): register its parameters, then create the `DynamicResource` that reads them.
 
 ---
 
@@ -103,4 +103,4 @@ Save it as `dynamic_topology.py` and run `python dynamic_topology.py`. It runs f
 - **`worker`** is one job: it publishes `queued`, `started` and `finished` with the resource it used.
 - **`run`** creates the environment, starts the supervisor and calls `env.teardown()` at the end, which writes the records still in the buffers.
 
-The wrappers' capacity is live like any other. A scenario, a connector or a process can change `Shop.resources.wrappers.current_cap` once the path exists, as [Live Parameters](../architecture/registry.md) describes.
+The wrappers' capacity is live like any other. A scenario, a connector or a process can change `Shop.resources.wrappers.current_cap` once the path exists, as [Live Parameters](../user-guide/live-parameters.md) describes.

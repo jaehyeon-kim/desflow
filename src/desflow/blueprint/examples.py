@@ -83,7 +83,7 @@ EXAMPLES: Dict[str, Example] = {
         ),
         Example(
             "postgres",
-            "Relational DB (Postgres)",
+            "PostgreSQL",
             "writes orders to PostgreSQL and takes updates from a table",
             _three("postgres.yaml", "postgres_example.py"),
             profile="postgres",
@@ -92,7 +92,7 @@ EXAMPLES: Dict[str, Example] = {
         ),
         Example(
             "redis",
-            "In-Memory Store (Redis)",
+            "Redis",
             "writes to a Redis Stream and takes updates from Pub/Sub",
             _three("redis.yaml", "redis_example.py"),
             profile="valkey",
@@ -101,11 +101,29 @@ EXAMPLES: Dict[str, Example] = {
         ),
         Example(
             "backfill-live",
-            "Backfill Then Go Live",
+            "Parquet History, Kafka Live",
             "backdated history to Parquet, then live to Kafka",
             _three("backfill_live.yaml", "backfill_live_example.py"),
             profile="kafka-lite",
             extras="kafka,parquet",
+        ),
+        Example(
+            "stock",
+            "Stock, Parcels and Express Orders",
+            "packing takes stock and fills a parcel store; express orders go first",
+            _three("stock.yaml", "stock_example.py"),
+        ),
+        Example(
+            "flow",
+            "A Flow of Tasks",
+            "orders routed through pick, gift wrap, pack and ship, with rework",
+            _three("flow.yaml", "flow_example.py"),
+        ),
+        Example(
+            "measuring",
+            "Measuring a Run",
+            "built-in statistics after a warm-up, and ground truth for a fault",
+            _three("measuring.yaml", "measuring_example.py"),
         ),
         Example(
             "related-records",
@@ -169,9 +187,14 @@ def download(
         try:
             contents.append((target, _fetch(url)))
         except urllib.error.HTTPError as exc:
+            hint = ""
+            if ref != "main":  # main has every example, so nothing else to try
+                hint = (
+                    f" An example added after this release is not at {ref}; "
+                    "try --ref main."
+                )
             raise RuntimeError(
-                f"could not download {url} ({exc.code}). An example added after this "
-                f"release is not at {ref}; try --ref main."
+                f"could not download {url} ({exc.code}).{hint}"
             ) from None
         except urllib.error.URLError as exc:
             raise RuntimeError(f"could not reach {url}: {exc.reason}") from None

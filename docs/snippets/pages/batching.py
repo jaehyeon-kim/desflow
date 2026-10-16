@@ -1,6 +1,6 @@
-"""The batching settings of the Batching and Delivery page, in Python.
+"""The delivery settings of the Egress page, in Python.
 
-tests/unit runs this file: each sink is built, nothing is connected, and a short
+tests/docs runs this file: each sink is built, nothing is connected, and a short
 unpaced run uses the console sinks.
 """
 
@@ -9,7 +9,6 @@ from datetime import datetime
 from desflow import ConsoleEgress, DynamicRealtimeEnvironment, SimulationContext
 
 stream, lake, audit = ConsoleEgress(), ConsoleEgress(), ConsoleEgress()
-hot_from = datetime.now().isoformat(timespec="milliseconds")
 
 app = SimulationContext(sim_id="Shop", factor=0.0)
 
@@ -20,6 +19,8 @@ app.add_egress(stream).add_egress(lake)  # both receive every record
 app = SimulationContext(sim_id="Shop", factor=0.0)
 
 # --8<-- [start:when]
+# A record carries its timestamp as an ISO string, so compare with one
+hot_from = datetime.now().isoformat(timespec="milliseconds")
 app.add_egress(stream, when=lambda r: r["timestamp"] >= hot_from)  # hot tail
 app.add_egress(lake, when=lambda r: r["timestamp"] < hot_from)  # cold history
 app.add_egress(audit)  # no predicate: everything
@@ -42,6 +43,13 @@ app.add_egress(stream, batch_size=50, flush_interval=0.5)  # small and often
 app.add_egress(lake, batch_size=200_000)  # large files, the default interval
 # --8<-- [end:per-sink]
 
+app = SimulationContext(sim_id="Shop", factor=0.0, warmup="2 min")
+
+# --8<-- [start:labels]
+app.add_egress(stream)  # events and telemetry, never a label
+app.add_egress(audit, when="labels")  # ground-truth labels, and nothing else
+# --8<-- [end:labels]
+
 # --8<-- [start:low-level]
 env = DynamicRealtimeEnvironment(factor=0.0)
 env.setup_egress(
@@ -51,6 +59,8 @@ env.setup_egress(
     predicates=[None, lambda r: r["stream_type"] == "event"],  # by position
     batch_sizes=[50, None],  # None: the default
     flush_intervals=[0.5, None],
+    labels=[False, False],  # True makes a provider a labels sink
+    warmup=None,  # simulation seconds before which no provider gets a record
 )
 # --8<-- [end:low-level]
 

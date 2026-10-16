@@ -1,9 +1,41 @@
-from typing import Any
+from typing import Any, Callable, Optional
 
 from simpy import Environment, Event, PriorityStore, Store
-from simpy.resources.store import StoreGet
+from simpy.resources.store import StoreGet, StorePut
 
 from desflow.resources.base import BaseDynamicResource
+
+
+class _Notifying:
+    """Reports every change of a SimPy store's items to `_on_change`."""
+
+    _on_change: Callable[[], None]
+
+    def _do_put(self, event: StorePut) -> Optional[bool]:
+        before = len(self.items)  # type: ignore[attr-defined]
+        done = super()._do_put(event)  # type: ignore[misc]
+        if len(self.items) != before:  # type: ignore[attr-defined]
+            self._on_change()
+        return done
+
+    def _do_get(self, event: StoreGet) -> Optional[bool]:
+        before = len(self.items)  # type: ignore[attr-defined]
+        done = super()._do_get(event)  # type: ignore[misc]
+        if len(self.items) != before:  # type: ignore[attr-defined]
+            self._on_change()
+        return done
+
+
+class _Store(_Notifying, Store):
+    def __init__(self, env: Environment, on_change: Callable[[], None], **kwargs: Any):
+        self._on_change = on_change
+        super().__init__(env, **kwargs)
+
+
+class _PriorityStore(_Notifying, PriorityStore):
+    def __init__(self, env: Environment, on_change: Callable[[], None], **kwargs: Any):
+        self._on_change = on_change
+        super().__init__(env, **kwargs)
 
 
 class DynamicStore(BaseDynamicResource):
@@ -48,10 +80,9 @@ class DynamicStore(BaseDynamicResource):
         initial_capacity = max(0, min(int(self._current_cap_val.value), max_cap))
 
         # Dynamically select the underlying SimPy storage engine
-        if priority:
-            self._store = PriorityStore(env, capacity=initial_capacity)
-        else:
-            self._store = Store(env, capacity=initial_capacity)
+        kind = _PriorityStore if priority else _Store
+        self._store = kind(env, self._changed, capacity=initial_capacity)
+        self._register()
 
     @property
     def capacity(self) -> int:
@@ -68,6 +99,21 @@ class DynamicStore(BaseDynamicResource):
         in the store.
         """
         return self._store.items
+
+    @property
+    def level(self) -> int:
+        """int: The number of items held."""
+        return len(self._store.items)
+
+    @property
+    def getters_waiting(self) -> int:
+        """int: Requests waiting to get an item."""
+        return len(self._store.get_queue)
+
+    @property
+    def putters_waiting(self) -> int:
+        """int: Requests waiting to put an item."""
+        return len(self._store.put_queue)
 
     def put(self, item: Any) -> Event:
         """

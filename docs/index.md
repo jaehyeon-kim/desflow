@@ -10,7 +10,7 @@ Change an arrival rate or a capacity while the simulation runs, from **Kafka**, 
 
 Events and telemetry go to **Kafka**, **Redis**, **PostgreSQL**, **Parquet** or **JSONL** files (on local disk or S3-compatible storage), or **Apache Iceberg** tables. A model is a YAML file, a Python builder, or SimPy code.
 
-**Used for:** testing streaming pipelines with data that behaves like production, demos and workshops, digital twins that follow live data, and training data for models that predict delays or load.
+**Used for:** testing streaming pipelines with data that behaves like production, demos and workshops, digital twins that follow live data, training data for models that predict delays or load, and evaluating agents and detectors against ground truth: a seeded run plants a fault and records what it planted, so an answer can be scored against the known cause.
 
 <div align="center">
   <img src="assets/architecture.png" alt="desflow architecture" width="900" />

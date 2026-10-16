@@ -13,7 +13,7 @@ resources:
   packers: {current_cap: 1, max_cap: 3}
 
 services:
-  packing: {dist: normal, mean: 4.0, std: 1.0}
+  packing: {dist: normal, mean: 4 s, std: 1 s}
 
 arrivals:
   orders: {dist: exponential, rate: 0.2, spawn: pack_order}
@@ -22,15 +22,10 @@ tasks:
   pack_order:
     service: packing
     resource: packers
-    payload: {status: finished}
-    id_field: order_id
+    payload: {event_type: order_packed}
 
-telemetry:
-  # Shows each change as it lands.
-  - interval: 10
-    publish:
-      packers.capacity: packers.capacity
-      packers.queue_length: packers.queue_length
+# The packers' capacity and queue every 10 seconds, to see each change land
+stats: minimal
 
 scenario:
   - {at: 30, path: Shop.resources.packers.current_cap, value: 2}

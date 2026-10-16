@@ -8,6 +8,10 @@ class BaseDynamicResource:
         self.env = env
         self.sim_id = sim_id
         self.obj_id = obj_id
+        self._category = category
+        # The environment's built-in statistics, when it has them. A plain SimPy
+        # environment with a registry works too, without statistics.
+        self._stats = getattr(env, "stats", None)
 
         path = f"{sim_id}.{category}.{obj_id}"
         self._current_cap_val: DynamicValue = env.registry.get(f"{path}.current_cap")
@@ -15,6 +19,16 @@ class BaseDynamicResource:
 
         self.env.process(self._watch_capacity())
         self.env.process(self._watch_max_capacity())
+
+    def _register(self):
+        """Adds this object to the statistics; each subclass calls it once it is built."""
+        if self._stats is not None:
+            self._stats.add(self._category, self.obj_id, self)
+
+    def _changed(self):
+        """Tells the statistics that a reading changed, so time averages stay exact."""
+        if self._stats is not None:
+            self._stats.changed(self._category, self.obj_id)
 
     def _watch_capacity(self):
         while True:

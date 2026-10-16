@@ -89,8 +89,8 @@ def test_normal_with_zero_std_is_a_constant(sampler):
 def test_sampler_unknown_distribution_raises(sampler):
     """An unknown family raises, as the docstring says, instead of returning min_delay."""
     cfg = DistributionConfig(dist="normal", mean=1.0, std=0.0)
-    cfg.dist = "uniform"  # type: ignore[assignment]
-    with pytest.raises(ValueError, match="uniform"):
+    cfg.dist = "deterministic"
+    with pytest.raises(ValueError, match="deterministic"):
         sampler.sample(cfg)
 
 

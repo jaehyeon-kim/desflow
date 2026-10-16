@@ -134,6 +134,43 @@ def test_integer_starting_capacity_keeps_fractional_updates(env, registry):
     assert cont.capacity == 62.5
 
 
+def test_the_level_path_follows_the_container_and_sets_it(env, registry):
+    """The registry's level follows every put and get, and a live update sets the
+    level, serving a get that waited on an empty container (a restock)."""
+    from desflow.models.params import ContainerConfig, SimParameter
+
+    registry.register_sim_parameter(
+        SimParameter(
+            sim_id="Shop",
+            containers={"stock": ContainerConfig(current_cap=50, max_cap=50, level=3)},
+        )
+    )
+    stock = DynamicContainer(env, "Shop", "stock")
+    level = registry.get("Shop.containers.stock.level")
+    assert stock.level == 3.0 and level.value == 3.0
+    took = []
+
+    def packer():
+        yield stock.get(2)
+        yield stock.get(2)  # one box left, so this waits for the restock
+        took.append(env.now)
+
+    def restock():
+        yield env.timeout(10)
+        registry.update("Shop.containers.stock.level", 20)
+
+    env.process(packer())
+    env.process(restock())
+    env.run(until=5)
+    assert level.value == 1.0 and stock.getters_waiting == 1
+    env.run(until=15)
+    assert took == [10]
+    assert stock.level == 18.0 and level.value == 18.0
+    # A level above the capacity is stored as the capacity
+    registry.update("Shop.containers.stock.level", 70)
+    assert level.value == 50.0
+
+
 def test_resource_classes_are_exported_from_the_package():
     """Verify all three dynamic resource classes import from desflow."""
     import desflow

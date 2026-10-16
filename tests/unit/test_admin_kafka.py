@@ -1,4 +1,12 @@
+import asyncio
+import json
+import queue
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
 from desflow.connectors.admin.kafka import KafkaAdminConnector
+from desflow.connectors.ingress.kafka import KafkaIngress
 
 
 def test_admin_process_telemetry():
@@ -34,3 +42,47 @@ def test_admin_process_events_and_pruning():
     assert "task-0" not in service_tasks
     assert "task-1" in service_tasks
     assert "task-2" in service_tasks
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.ingress.kafka.AIOKafkaConsumer")
+@patch("desflow.connectors.admin.kafka.AIOKafkaProducer")
+async def test_send_config_message_is_read_by_kafka_ingress(MockProducer, MockConsumer):
+    """send_config writes {"path": ..., "value": ...}, and KafkaIngress reads it back."""
+    producer = MockProducer.return_value
+    producer.start = AsyncMock()
+    producer.stop = AsyncMock()
+    producer.send_and_wait = AsyncMock()
+
+    admin = KafkaAdminConnector(bootstrap_servers="localhost:9092")
+    await admin.send_config("sim-config", "Shop.resources.packers.current_cap", 4)
+
+    topic, payload = producer.send_and_wait.call_args.args
+    assert topic == "sim-config"
+    assert json.loads(payload) == {
+        "path": "Shop.resources.packers.current_cap",
+        "value": 4,
+    }
+
+    class FakeConsumer:
+        def __init__(self):
+            self.start = AsyncMock()
+            self.stop = AsyncMock()
+
+        async def __aiter__(self):
+            yield MagicMock(topic=topic, value=payload)
+            await asyncio.sleep(999)
+
+    MockConsumer.return_value = FakeConsumer()
+    ingress_queue = queue.Queue()
+    task = asyncio.create_task(
+        KafkaIngress(topic, bootstrap_servers="localhost:9092").run(ingress_queue)
+    )
+    await asyncio.sleep(0.1)
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
+    assert ingress_queue.get_nowait() == ("Shop.resources.packers.current_cap", 4)

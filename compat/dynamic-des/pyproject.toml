@@ -9,7 +9,7 @@ readme = "README.md"
 authors = [
     { name = "Jaehyeon Kim", email = "dottami@gmail.com" }
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = "MIT"
 dependencies = ["desflow>=0.20.0"]
 classifiers = [

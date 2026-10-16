@@ -12,7 +12,9 @@ from pydantic_core import to_jsonable_python
 
 from simpy import RealtimeEnvironment
 
+from desflow.config import DEFAULT_STATS_INTERVAL
 from desflow.core.registry import SimulationRegistry
+from desflow.core.statistics import Statistics
 
 logger = logging.getLogger(__name__)
 
@@ -173,6 +175,8 @@ class EgressMixIn:
         predicates: Optional[List[Optional[Callable[[Dict[str, Any]], bool]]]] = None,
         batch_sizes: Optional[List[Optional[int]]] = None,
         flush_intervals: Optional[List[Optional[float]]] = None,
+        labels: Optional[List[bool]] = None,
+        warmup: Optional[float] = None,
     ):
         """
         Initializes the egress buffers and starts the background publisher threads.
@@ -202,6 +206,16 @@ class EgressMixIn:
                 Iceberg, the commit.
             flush_intervals (List, optional): One entry per provider, aligned by
                 position. None falls back to `flush_interval`.
+            labels (List, optional): One entry per provider, aligned by position.
+                True makes it a labels sink, which receives the ground-truth records
+                from `publish_label` and nothing else; every other provider never
+                receives them. Defaults to None, which is no labels sink.
+            warmup (float, optional): The end of the warm-up, in simulation seconds.
+                No provider receives a record stamped before it, and the built-in
+                statistics are reset at that time. Defaults to None, no warm-up.
+
+        Raises:
+            ValueError: If a per-provider list has the wrong length.
 
         Each provider gets its own queue. They previously shared one, so several
         providers competed for batches instead of each receiving them, and a run with
@@ -231,6 +245,19 @@ class EgressMixIn:
         self.egress_flush_intervals: List[float] = self._resolve_per_provider(
             flush_intervals, flush_interval, len(providers), "flush_intervals"
         )
+        self.egress_labels: List[bool] = [
+            bool(flag)
+            for flag in self._resolve_per_provider(
+                labels, False, len(providers), "labels"
+            )
+        ]
+        self.egress_warmup = warmup
+        if warmup is not None:
+            self.egress_predicates = [
+                _after_warmup(float(warmup), predicate)
+                for predicate in self.egress_predicates
+            ]
+            self.process(self._end_warmup(float(warmup)))  # type: ignore[attr-defined]
         self.egress_lag_monitor_interval = lag_monitor_interval
         # One buffer per provider. They shared one until batching moved behind the
         # fan-out, which meant a single cadence for every sink and no way to give a
@@ -265,6 +292,15 @@ class EgressMixIn:
         # Only start the lag monitor if an interval > 0 is provided
         if self.egress_lag_monitor_interval and self.egress_lag_monitor_interval > 0:
             self.process(self._lag_monitor())  # type: ignore[attr-defined]
+
+    def _end_warmup(self, warmup: float):
+        """Internal: resets the built-in statistics when the warm-up ends.
+
+        It is started with the egress, before the statistics' own timer reaches the
+        same time, so a publication due at that moment already reads the reset values.
+        """
+        yield self.timeout(warmup)  # type: ignore[attr-defined]
+        self.stats.reset()  # type: ignore[attr-defined]
 
     @property
     def _event_buffer(self) -> List[Dict[str, Any]]:
@@ -424,9 +460,14 @@ class EgressMixIn:
         """Internal: routes one record into each provider's buffer.
 
         Predicates are tested here rather than at flush time, so a record is tested
-        once on the way in instead of against every predicate at fan-out.
+        once on the way in instead of against every predicate at fan-out. A
+        ground-truth record goes only to labels sinks, and every other record only to
+        the others.
         """
+        is_label = record["stream_type"] == "label"
         for index, predicate in enumerate(self.egress_predicates):
+            if self.egress_labels[index] is not is_label:
+                continue
             if predicate is not None and not predicate(record):
                 continue
             self._event_buffers[index].append(record)
@@ -458,7 +499,13 @@ class EgressMixIn:
             }
         )
 
-    def publish_event(self, event_key: str, value: Any):
+    def publish_event(
+        self,
+        event_key: str,
+        value: Any,
+        task: Optional[str] = None,
+        instance: Any = None,
+    ):
         """
         Buffers a high-volume discrete event (e.g., a task starting or finishing).
 
@@ -466,10 +513,14 @@ class EgressMixIn:
         or when `flush_interval` occurs to optimize external I/O throughput.
 
         Args:
-            event_key (str): A unique identifier for the event (e.g., 'task-001').
+            event_key (str): The record key: the entity's key, such as `orders-1`.
             value (Any): A dictionary or a Pydantic model containing the event
                 payload. It is made JSON-serializable on the way out, so a nested model
                 is flattened and a datetime becomes an ISO string, exactly as before.
+            task (str, optional): The name of the task the event belongs to, written
+                as the record's `task` field, so the payload stays the user's own.
+            instance (Any, optional): The task's instance id, written as the record's
+                `instance` field.
         """
         if not hasattr(self, "_event_buffers"):
             return  # Fail silently if no egress is configured
@@ -497,7 +548,45 @@ class EgressMixIn:
                     if type(event_key) is str
                     else _KEY_ADAPTER.validate_python(event_key)
                 ),
+                "task": task,
+                "instance": instance,
                 "value": _jsonable(value),
+            }
+        )
+
+    def publish_label(
+        self,
+        label: Dict[str, Any],
+        path: Optional[str] = None,
+        old: Any = None,
+        new: Any = None,
+    ):
+        """
+        Publishes a ground-truth record: what the simulation changed, and why.
+
+        It goes only to labels sinks (`when: labels` in YAML, `when="labels"` in
+        `add_egress`), so detectors and agents can be scored against it while the
+        pipeline under test never sees it. Fields and order match `LabelPayload`.
+
+        Args:
+            label (Dict[str, Any]): The step's `record` mapping, such as
+                `{"fault": "slow_packing"}`.
+            path (str, optional): The registry path the step changed, or None.
+            old (Any, optional): The value before the change.
+            new (Any, optional): The value after the change.
+        """
+        if not hasattr(self, "_event_buffers"):
+            return  # Fail silently if no egress is configured
+
+        self._append_record(
+            {
+                "stream_type": "label",
+                "sim_ts": float(round(self.now, 3)),  # type: ignore[attr-defined]
+                "timestamp": self._get_iso_timestamp(self.start_datetime, self.now),  # type: ignore[attr-defined]
+                "path": path,
+                "old": _jsonable(old),
+                "new": _jsonable(new),
+                "label": _jsonable(label),
             }
         )
 
@@ -590,8 +679,63 @@ class EgressMixIn:
             loop.call_soon_threadsafe(loop.stop)
 
 
+def _after_warmup(
+    warmup: float, predicate: Optional[Callable[[Dict[str, Any]], bool]]
+) -> Callable[[Dict[str, Any]], bool]:
+    """A predicate that refuses records before `warmup`, then asks `predicate`."""
+
+    def accept(record: Dict[str, Any]) -> bool:
+        if record["sim_ts"] < warmup:
+            return False
+        return predicate is None or predicate(record)
+
+    return accept
+
+
+class StatisticsMixIn:
+    """
+    Gives the environment its built-in statistics, `stats`, and their timer.
+    """
+
+    def _create_statistics(self):
+        """Creates the statistics, which collect nothing until `setup_stats`."""
+        self.stats = Statistics(self)
+
+    def setup_stats(
+        self,
+        sim_id: str,
+        level: str = "basic",
+        interval: float = DEFAULT_STATS_INTERVAL,
+    ):
+        """
+        Switches the built-in statistics on and publishes them as telemetry.
+
+        They are published every `interval` simulation seconds and once more at
+        teardown. Call it before building resources, stores and containers, or after:
+        each one adds itself to `stats` when it is built.
+
+        Args:
+            sim_id (str): The first part of every name, as in
+                `<sim_id>.stats.resources.<name>.utilization`.
+            level (str): `none`, `minimal`, `basic`, `typical` or `all`.
+            interval (float): Simulation seconds between publications. Defaults to 10.
+
+        Raises:
+            ValueError: If the level is unknown or the interval is not positive.
+        """
+        self.stats.configure(sim_id, level, interval)
+        if self.stats.enabled:
+            self.process(self._publish_stats())  # type: ignore[attr-defined]
+
+    def _publish_stats(self):
+        """Internal: publishes the statistics every interval."""
+        while True:
+            yield self.timeout(self.stats.interval)  # type: ignore[attr-defined]
+            self.stats.publish()
+
+
 class DynamicRealtimeEnvironment(
-    RealtimeEnvironment, RegistryMixIn, IngressMixIn, EgressMixIn
+    RealtimeEnvironment, RegistryMixIn, IngressMixIn, EgressMixIn, StatisticsMixIn
 ):
     """
     The core simulation engine for `desflow`.
@@ -643,6 +787,7 @@ class DynamicRealtimeEnvironment(
             )
 
         self.setup_registry()
+        self._create_statistics()
 
     def _resolve_go_live_time(self, go_live_at: datetime, initial_time: float) -> float:
         """Converts the go-live instant into a simulation time, on the logical clock.
@@ -724,6 +869,9 @@ class DynamicRealtimeEnvironment(
         ingress and egress are cleanly stopped. Should be called in a `finally` block.
         """
         logger.info("Environment teardown initiated.")
+        # The last publication of the built-in statistics, at the end of the run
+        if self.stats.enabled:
+            self.stats.publish()
         if hasattr(self, "teardown_egress"):
             self.teardown_egress()
         if hasattr(self, "teardown_ingress"):

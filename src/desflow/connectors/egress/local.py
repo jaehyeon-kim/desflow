@@ -6,6 +6,8 @@ from desflow.connectors.egress.base import BaseEgress
 
 logger = logging.getLogger(__name__)
 
+_PREFIXES = {"telemetry": "[TEL]", "event": "[EVT]", "label": "[LBL]"}
+
 
 class ConsoleEgress(BaseEgress):
     """
@@ -25,6 +27,7 @@ class ConsoleEgress(BaseEgress):
         output with specific prefixes:
         - [TEL]: Telemetry data (e.g., resource utilization, queue lengths).
         - [EVT]: Event data (e.g., task lifecycle transitions).
+        - [LBL]: Ground-truth records, on a sink added with `when: labels`.
 
         Args:
             egress_queue: A thread-safe queue containing lists of dictionaries
@@ -42,7 +45,7 @@ class ConsoleEgress(BaseEgress):
                 for data in batch:
                     # Identify the stream type for the prefix
                     stream = data.get("stream_type", "unknown")
-                    prefix = "[TEL]" if stream == "telemetry" else "[EVT]"
+                    prefix = _PREFIXES.get(stream, "[EVT]")
 
                     # Log the remaining data (path_id/key, value, timestamp) without
                     # altering the record. Every egress provider is handed the same

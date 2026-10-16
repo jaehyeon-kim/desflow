@@ -1,0 +1,71 @@
+# Stock, parcels and express orders in YAML.
+#
+# The twin of examples/builder/stock_example.py. Packing an order takes one box from
+# the stock container and puts the packed parcel in the parcels store, where a
+# courier collects it. Express orders have priority 1 and standard orders 2, and the
+# packers serve the lowest priority first. The stock runs out, so packing waits until
+# a restock at 40 seconds sets the level to 30.
+#
+# Needs no containers. Runs unpaced and ends after 60 simulation seconds.
+# Run it with: desflow run examples/yaml/stock.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+egress:
+  - type: Console
+
+resources:
+  # Waiting orders are served by priority, the oldest first among equal priorities.
+  packers: {current_cap: 2, max_cap: 4, queue: priority}
+
+stores:
+  # Packed parcels wait here for a courier. Packing waits when it is full.
+  parcels: {current_cap: 10, max_cap: 10}
+
+containers:
+  # Boxes on the shelf. current_cap is the most it holds; level is what it holds now.
+  stock: {current_cap: 50, max_cap: 50, level: 15}
+
+services:
+  # An expert's estimate: at least 1 second, usually 2, at most 4.
+  packing: {dist: triangular, low: 1 s, mode: 2 s, high: 4 s}
+  collecting: {dist: uniform, low: 1, high: 3}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.5, spawn: pack, attributes: {priority: 2}}
+  express: {dist: exponential, rate: 0.1, spawn: pack, attributes: {priority: 1}}
+  couriers: {dist: constant, value: 2, spawn: collect}
+
+# --8<-- [start:pack]
+tasks:
+  pack:
+    service: packing
+    resource: packers
+    # Each order's own attribute, read when it joins the queue.
+    priority: attr.priority
+    # Takes one box once it has a packer, and waits while the stock is empty.
+    get: {container: stock, amount: 1}
+    # Puts the finished payload in the store as a parcel.
+    put: {store: parcels}
+    payload: {event_type: order_packed}
+    attributes: [priority]
+# --8<-- [end:pack]
+  collect:
+    # A courier waits for a parcel, then takes 1 to 3 seconds to load it.
+    service: collecting
+    get: {store: parcels}
+    payload: {event_type: parcel_collected}
+
+# The packers', parcels' and stock's readings every 10 seconds, such as
+# Shop.stats.containers.stock.level.
+stats: {level: minimal, interval: 10}
+
+scenario:
+  # A restock: the level path sets what the container holds.
+  - {at: 40, path: Shop.containers.stock.level, value: 30}
+
+run:
+  until: 60

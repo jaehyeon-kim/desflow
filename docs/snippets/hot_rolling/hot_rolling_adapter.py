@@ -3,7 +3,8 @@
 A blueprint calls every process as `function(context, **kwargs)`. The processes in
 sim_logic.py take `(env, sampler, resource, ...)` instead, so each function here
 takes the context, picks out what the process needs, and hands over with
-`yield from`. Nothing in sim_logic.py changes.
+`yield from`. Only the wear paths in sim_logic.py change, from `current_cap` to
+`level`.
 """
 
 import time

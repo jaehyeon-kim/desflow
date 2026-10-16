@@ -1,4 +1,4 @@
-# Telemetry entries of the YAML Blueprints page.
+# A custom reading in a blueprint, for the YAML Format page.
 # Run it with: desflow run telemetry.yaml
 simulation:
   sim_id: Shop
@@ -11,25 +11,20 @@ resources:
   packers: {current_cap: 2, max_cap: 5}
 
 services:
-  packing: {dist: normal, mean: 3.0, std: 0.5}
+  packing: {dist: normal, mean: 3 s, std: 0.5 s}
 
 arrivals:
   orders: {dist: exponential, rate: 0.5, spawn: pack}
 
 tasks:
-  pack: {service: packing, resource: packers, payload: {}}
+  pack: {service: packing, resource: packers, payload: {event_type: order_packed}}
 
 # --8<-- [start:telemetry]
 telemetry:
-  # Every 5 simulation seconds, as Shop.packers_busy and Shop.packers_waiting
+  # Every 5 simulation seconds, calls packers_report(context), which publishes
+  # Shop.waiting_per_packer and Shop.arrival_rate with context.publish
   - interval: 5
-    publish:
-      packers_busy: packers.in_use
-      packers_waiting: packers.queue_length
-  # Every 60 seconds, the share of the packers in use, in percent
-  - interval: 60
-    publish:
-      packers_utilization: packers.utilization
+    function: !python shop_logic.packers_report
 # --8<-- [end:telemetry]
 
 run:

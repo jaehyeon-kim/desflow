@@ -58,7 +58,10 @@ def order_generator(env, sampler):
             "total_amount": 59.97,
             "status": "pending",
         }
-        env.publish_event(f"task-{task_id}", order)
+        # The order key, and the task name and instance id the builder adds
+        env.publish_event(
+            f"orders-{task_id + 1}", order, task="place_order", instance=task_id
+        )
         # --8<-- [end:records]
         task_id += 1
 
@@ -79,8 +82,8 @@ def run():
 
     logger.info("Starting Low-level Postgres Demo. Press Ctrl+C to stop...")
     logger.info(
-        "Test Ingress by running: INSERT INTO simulation_params (param_path, "
-        "param_value) VALUES ('Shop.arrival.orders.rate', '5.0');"
+        "Test Ingress by running: INSERT INTO simulation_params (path, "
+        "value) VALUES ('Shop.arrival.orders.rate', '5.0');"
     )
 
     try:

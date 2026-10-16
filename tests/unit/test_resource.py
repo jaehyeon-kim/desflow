@@ -1,3 +1,5 @@
+import pytest
+
 from desflow.resources.resource import DynamicResource
 
 
@@ -84,7 +86,7 @@ def test_priority_queuing(env, registry, sample_params):
     registry.update("Shop.resources.packers.current_cap", 1)
     flush_events(env)
 
-    res = DynamicResource(env, "Shop", "packers")
+    res = DynamicResource(env, "Shop", "packers", queue="priority")
     log = []
 
     def user(name, priority, duration):
@@ -361,3 +363,63 @@ def test_max_cap_decrease_while_busy_keeps_running_tasks(env, registry, sample_p
     assert res.pool.level == 1
     assert res.pool.capacity == 1
     assert res.in_use == 0
+
+
+@pytest.mark.parametrize(
+    "queue,expected",
+    [
+        ("fifo", list(range(10))),
+        ("lifo", list(reversed(range(10)))),
+        # Equal priorities: first in, first out, where a plain heap mixed them up
+        ("priority", list(range(10))),
+    ],
+)
+def test_queue_order_with_equal_priorities(
+    env, registry, sample_params, queue, expected
+):
+    registry.register_sim_parameter(sample_params)
+    registry.update("Shop.resources.packers.current_cap", 1)
+    flush_events(env)
+    res = DynamicResource(env, "Shop", "packers", queue=queue)
+    served = []
+
+    def user(name):
+        with res.request(priority=1) as req:
+            yield req
+            served.append(name)
+            yield env.timeout(1)
+
+    def holder():
+        with res.request() as req:
+            yield req
+            yield env.timeout(5)
+
+    env.process(holder())
+    env.run(until=1)
+    for name in range(10):
+        env.process(user(name))
+    env.run()
+    assert served == expected
+
+
+def test_priority_counts_only_under_the_priority_order(env, registry, sample_params):
+    registry.register_sim_parameter(sample_params)
+    registry.update("Shop.resources.packers.current_cap", 1)
+    flush_events(env)
+    res = DynamicResource(env, "Shop", "packers")
+    served = []
+
+    def user(name, priority):
+        with res.request(priority=priority) as req:
+            yield req
+            served.append(name)
+            yield env.timeout(1)
+
+    env.process(user("first", 5))
+    env.run(until=0.5)
+    env.process(user("later", 5))
+    env.process(user("urgent", 0))
+    env.run()
+    assert served == ["first", "later", "urgent"]
+    with pytest.raises(ValueError, match="queue must be one of"):
+        DynamicResource(env, "Shop", "operator", queue="random")

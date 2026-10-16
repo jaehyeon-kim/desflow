@@ -31,7 +31,7 @@ The control dashboard changes simulation parameters while a run is going, and th
 ## Key Features
 
 - **Real time or full speed**: `DynamicRealtimeEnvironment` runs SimPy in step with the system clock, or unpaced, and reports how far the simulation lags behind real time.
-- **Live parameters**: arrival rates, service times and capacities change mid-run through registry paths such as `Shop.arrival.standard.rate`. A resource grows at once, and shrinks only as busy units are released, so no work in progress is lost.
+- **Live parameters**: arrival rates, service times and capacities change mid-run through registry paths such as `Shop.arrival.orders.rate`. A resource grows at once, and shrinks only as busy units are released, so no work in progress is lost.
 - **Several sinks per run**: each sink added with `add_egress` has its own `when` filter, `batch_size` and `flush_interval`, so one run can feed a stream and a data lake together.
 - **Backfill then go live**: one run generates backdated history at full speed, then switches to real time at `go_live_at`.
 - **Serialisation**: JSON through `orjson` by default, Avro through the Confluent or AWS Glue Schema Registry for chosen topics, and Pydantic models published as they are.
@@ -94,13 +94,14 @@ This blueprint is a small online shop: one packer, an order about every 2 second
 simulation:
   sim_id: Shop
   factor: 1.0  # 1 simulated second takes 1 real second
+  random_seed: 42  # the same arrival times on every run
 
 resources:
   packers: {current_cap: 1, max_cap: 1}
 
 services:
-  # With no std, a normal distribution returns its mean every time
-  packing: {dist: normal, mean: 1.5}
+  # Every order takes exactly 1.5 seconds to pack
+  packing: {dist: constant, value: 1.5}
 
 arrivals:
   # One order every 2 seconds on average; each arrival spawns pack_order
@@ -110,22 +111,21 @@ tasks:
   pack_order:
     service: packing
     resource: packers
-    # The finished event's value; id_field adds the task id as order_id
-    payload: {}
-    id_field: order_id
+    # The value of the finished event
+    payload: {event_type: order_packed}
 
 egress:
   - type: Console
 
 run:
-  until: 10
+  until: 20
 ```
 
-[First Simulation](https://jaehyeon.me/desflow/latest/tutorials/first-simulation/) builds this shop step by step, with the YAML, builder and low-level code side by side at each step, and the [comparison of the three ways](https://jaehyeon.me/desflow/latest/architecture/overview/) explains which to choose.
+[First Simulation](https://jaehyeon.me/desflow/latest/tutorials/first-simulation/) builds this shop step by step, with the YAML, builder and low-level code side by side at each step, and the [comparison of the three ways](https://jaehyeon.me/desflow/latest/user-guide/ways-to-write/) explains which to choose.
 
 ## Roadmap
 
-The next releases complete the simulation model (distributions, stores, flows, statistics and replications) and add `desflow explain` and a Learn DES tutorial, followed by a simulation server with tools for AI agents. The [roadmap page](https://jaehyeon.me/desflow/latest/about/roadmap/) shows them in order, with what is in progress.
+Version 0.21.0 adds distributions, stores, flows, statistics and the first pages of the shop tutorial in the Learn section. The next releases add replications, the record format that 1.0 keeps stable, `desflow explain` and the rest of the tutorial, followed by a simulation server with tools for AI agents. The [roadmap page](https://jaehyeon.me/desflow/latest/about/roadmap/) shows them in order, with what is in progress.
 
 ## Learn More
 

@@ -49,7 +49,7 @@ async def test_redis_integration(redis_container):
     await asyncio.sleep(1)
 
     # Publish data
-    publish_data = {"param_path": "test.path", "param_value": 42}
+    publish_data = {"path": "test.path", "value": 42}
     await client.publish("test_params", orjson.dumps(publish_data))
 
     # Wait for ingress to process

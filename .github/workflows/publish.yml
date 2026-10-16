@@ -23,7 +23,7 @@ jobs:
         uses: astral-sh/setup-uv@v7
 
       - name: Set up Python
-        run: uv python install 3.10
+        run: uv python install 3.11
 
       # A release tagged v0.16.0 must publish version 0.16.0, or PyPI receives a version
       # nobody released. The tag goes through env, not into the script text.

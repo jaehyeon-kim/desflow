@@ -1,6 +1,6 @@
 # Fast-Forward to Parquet
 
-A week of an online shop's orders, generated at `factor=0.0` and written to Parquet files on the local disk or in S3-compatible storage. Each tab shows the example written one way: with the builder API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](../architecture/overview.md) compares the three.
+A week of an online shop's orders, generated at `factor=0.0` and written to Parquet files on the local disk or in S3-compatible storage. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../user-guide/ways-to-write.md) compares the three.
 
 desflow is built for real-time digital twins, but the same model can also run faster than real time. With the time factor at 0 and a chosen start time, a run generates a large amount of historical data in seconds, or predicts future states.
 
@@ -42,7 +42,7 @@ desflow is built for real-time digital twins, but the same model can also run fa
 
     **What It Does**
 
-    The run writes Parquet chunks to a local `data/` folder by default and ends on its own. The folder is created on the first write. On a laptop a week of simulated time takes about 20 seconds and writes about 850 files with 3.6 million rows, one row per lifecycle event. Without a router, the egress drops telemetry and writes each event as one flat row, so the columns are `stream_type`, `sim_ts`, `timestamp`, `key`, `path_id` and `status`. `logical_start_time: -7d` stamps the week as history that ends now.
+    The run writes Parquet chunks to a local `data/` folder by default and ends on its own. The folder is created on the first write. On a laptop a week of simulated time takes about 20 seconds and writes about 850 files with 3.6 million rows, one row per lifecycle event. Without a router, the egress drops telemetry and writes each event as one flat row, so the columns are `stream_type`, `sim_ts`, `timestamp`, `key`, `task`, `instance`, `path_id` and `status`. `logical_start_time: -7d` stamps the week as history that ends now.
 
     To write to S3 instead, install `odctl` (`uv tool install "odctl>=1.0,<2"` or `pip install "odctl>=1.0,<2"`), start the object store, and set these variables before the run command. All three versions read the same ones. The chunks land under the `odctl-dev/history/` prefix, browsable at <http://localhost:8889>.
 
@@ -283,8 +283,8 @@ desflow is built for real-time digital twins, but the same model can also run fa
     def arrival_generator(context):
         task_id = 0
         while True:
-            yield context.wait_for_arrival("orders")
-            context.spawn(pack_order(task_id, context))
+            entity = yield context.wait_for_arrival("orders")
+            context.spawn(pack_order(task_id, context, entity=entity))
             task_id += 1
 
 
@@ -440,15 +440,30 @@ desflow is built for real-time digital twins, but the same model can also run fa
     )
 
 
-    def pack_order(env, sampler, packers, task_id):
+    def pack_order(env, sampler, packers, key, task_id):
         """What @app.task does: queued, started, the service time, then finished."""
-        key, path_id = f"task-{task_id}", "Shop.service.packing"
-        env.publish_event(key, {"path_id": path_id, "status": "queued"})
+        path_id = "Shop.service.packing"
+        env.publish_event(
+            key,
+            {"path_id": path_id, "status": "queued"},
+            task="pack_order",
+            instance=task_id,
+        )
         with packers.request() as req:
             yield req
-            env.publish_event(key, {"path_id": path_id, "status": "started"})
+            env.publish_event(
+                key,
+                {"path_id": path_id, "status": "started"},
+                task="pack_order",
+                instance=task_id,
+            )
             yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
-            env.publish_event(key, {"path_id": path_id, "status": "finished"})
+            env.publish_event(
+                key,
+                {"path_id": path_id, "status": "finished"},
+                task="pack_order",
+                instance=task_id,
+            )
 
 
     def arrival_generator(env, sampler, packers):
@@ -456,7 +471,7 @@ desflow is built for real-time digital twins, but the same model can also run fa
         task_id = 0
         while True:
             yield env.timeout(sampler.sample(gap))
-            env.process(pack_order(env, sampler, packers, task_id))
+            env.process(pack_order(env, sampler, packers, f"orders-{task_id + 1}", task_id))
             task_id += 1
 
 

@@ -103,15 +103,30 @@ PARAMS = SimParameter(
 )
 
 
-def pack_order(env, sampler, packers, task_id):
+def pack_order(env, sampler, packers, key, task_id):
     """What @app.task does: queued, started, the service time, then finished."""
-    key, path_id = f"task-{task_id}", "Shop.service.packing"
-    env.publish_event(key, {"path_id": path_id, "status": "queued"})
+    path_id = "Shop.service.packing"
+    env.publish_event(
+        key,
+        {"path_id": path_id, "status": "queued"},
+        task="pack_order",
+        instance=task_id,
+    )
     with packers.request() as req:
         yield req
-        env.publish_event(key, {"path_id": path_id, "status": "started"})
+        env.publish_event(
+            key,
+            {"path_id": path_id, "status": "started"},
+            task="pack_order",
+            instance=task_id,
+        )
         yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
-        env.publish_event(key, {"path_id": path_id, "status": "finished"})
+        env.publish_event(
+            key,
+            {"path_id": path_id, "status": "finished"},
+            task="pack_order",
+            instance=task_id,
+        )
 
 
 def arrival_generator(env, sampler, packers):
@@ -119,7 +134,7 @@ def arrival_generator(env, sampler, packers):
     task_id = 0
     while True:
         yield env.timeout(sampler.sample(gap))
-        env.process(pack_order(env, sampler, packers, task_id))
+        env.process(pack_order(env, sampler, packers, f"orders-{task_id + 1}", task_id))
         task_id += 1
 
 

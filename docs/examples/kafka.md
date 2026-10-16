@@ -1,6 +1,6 @@
 # Kafka Digital Twin
 
-An online shop that packs orders, takes parameter updates from a Kafka topic and publishes its events and telemetry to Kafka topics. Each tab shows the example written one way: with the builder API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](../architecture/overview.md) compares the three.
+An online shop that packs orders, takes parameter updates from a Kafka topic and publishes its events and telemetry to Kafka topics. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../user-guide/ways-to-write.md) compares the three.
 
 With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simulation runs as a separate service. It reads JSON parameter updates from a topic, and publishes telemetry and typed Pydantic events to other topics.
 
@@ -68,7 +68,7 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
 
     **Full Source Code**
 
-    The blueprint wires both Kafka connectors and declares the packers, the packing service, the order arrival and the task. The finished event of each task is the fixed `payload`, and the `telemetry` entry publishes four built-in statistics of the packers every 2 simulation seconds, the same four the builder and low-level versions publish.
+    The blueprint wires both Kafka connectors and declares the packers, the packing service, the order arrival and the task. The finished event of each task is the fixed `payload`, and `stats: minimal` publishes the packers' four built-in readings every 2 simulation seconds, as `with_stats("minimal", interval=2.0)` and `env.setup_stats` do in the builder and low-level versions.
 
     Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
@@ -117,14 +117,8 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
         resource: packers
         payload: {path_id: Shop.service.packing, status: finished}
 
-    telemetry:
-      # Samples the packers every 2 simulation seconds.
-      - interval: 2.0
-        publish:
-          packers.capacity: packers.capacity
-          packers.in_use: packers.in_use
-          packers.queue_length: packers.queue_length
-          packers.utilization: packers.utilization
+    # The packers' readings every 2 seconds, which kafka_dashboard.py shows.
+    stats: {level: minimal, interval: 2}
     ```
 
 === "Builder"
@@ -251,6 +245,8 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
         .add_resource("packers", current_cap=1, max_cap=10)
         .add_service("packing", dist="normal", mean=3.0, std=0.5)
         .add_arrival("orders", dist="exponential", rate=1.0)
+        # The packers' readings every 2 seconds, which kafka_dashboard.py shows
+        .with_stats("minimal", interval=2.0)
     )
 
 
@@ -276,23 +272,9 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
     def arrival_generator(context):
         task_id = 0
         while True:
-            yield context.wait_for_arrival("orders")
-            context.spawn(pack_order(task_id, context))
+            entity = yield context.wait_for_arrival("orders")
+            context.spawn(pack_order(task_id, context, entity=entity))
             task_id += 1
-
-
-    @app.telemetry_loop(interval=2.0)
-    def telemetry_monitor(context):
-        """Low-volume system health stream."""
-        res = context.get_resource("packers")
-
-        # The same metrics as the low-level and YAML versions
-        context.publish("packers.capacity", res.capacity)
-        context.publish("packers.in_use", res.in_use)
-        context.publish("packers.queue_length", len(res.queue.items))
-
-        util = (res.in_use / res.capacity) * 100 if res.capacity > 0 else 0
-        context.publish("packers.utilization", util)
 
 
     # ==========================================
@@ -452,21 +434,36 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
     # ==========================================
     # 3. Simulation Logic
     # ==========================================
-    def pack_order(env, sampler, packers, task_id):
+    def pack_order(env, sampler, packers, key, task_id):
         """Publishes a Pydantic model instead of a dict for each lifecycle event."""
-        key, path_id = f"task-{task_id}", "Shop.service.packing"
-        env.publish_event(key, TaskEvent(path_id=path_id, status="queued"))
+        path_id = "Shop.service.packing"
+        env.publish_event(
+            key,
+            TaskEvent(path_id=path_id, status="queued"),
+            task="pack_order",
+            instance=task_id,
+        )
 
         with packers.request() as req:
             yield req
 
             logger.info(f"Task {task_id} started at sim time: {env.now:.2f}s")
-            env.publish_event(key, TaskEvent(path_id=path_id, status="started"))
+            env.publish_event(
+                key,
+                TaskEvent(path_id=path_id, status="started"),
+                task="pack_order",
+                instance=task_id,
+            )
 
             # Use the latest service config from the registry
             yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
 
-            env.publish_event(key, TaskEvent(path_id=path_id, status="finished"))
+            env.publish_event(
+                key,
+                TaskEvent(path_id=path_id, status="finished"),
+                task="pack_order",
+                instance=task_id,
+            )
 
 
     def arrival_generator(env, sampler, packers):
@@ -474,21 +471,8 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
         task_id = 0
         while True:
             yield env.timeout(sampler.sample(gap))
-            env.process(pack_order(env, sampler, packers, task_id))
+            env.process(pack_order(env, sampler, packers, f"orders-{task_id + 1}", task_id))
             task_id += 1
-
-
-    def telemetry_generator(env, packers):
-        """Low-volume system health stream, pushed to the 'sim-telemetry' topic."""
-        while True:
-            env.publish_telemetry("Shop.packers.capacity", packers.capacity)
-            env.publish_telemetry("Shop.packers.in_use", packers.in_use)
-            env.publish_telemetry("Shop.packers.queue_length", len(packers.queue.items))
-
-            util = (packers.in_use / packers.capacity) * 100 if packers.capacity > 0 else 0
-            env.publish_telemetry("Shop.packers.utilization", util)
-
-            yield env.timeout(2.0)
 
 
     # ==========================================
@@ -529,12 +513,13 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
         env.registry.register_sim_parameter(PARAMS)
         env.setup_ingress([ingress])
         env.setup_egress([egress])
+        # The packers' readings every 2 seconds, which kafka_dashboard.py shows
+        env.setup_stats("Shop", "minimal", interval=2.0)
 
         packers = DynamicResource(env, "Shop", "packers")
         sampler = Sampler(rng=np.random.default_rng(42))
 
         env.process(arrival_generator(env, sampler, packers))
-        env.process(telemetry_generator(env, packers))
 
         print("Simulation started.")
         print("  - Listen to 'sim-telemetry' for system vitals.")

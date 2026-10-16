@@ -1,6 +1,6 @@
 """The publishing calls of the Records and Telemetry page.
 
-tests/unit runs this file unpaced with a console sink, so every record shown is
+tests/docs runs this file unpaced with a console sink, so every record shown is
 built for real.
 """
 
@@ -17,8 +17,9 @@ app.add_resource("packers", current_cap=1, max_cap=1)
 # --8<-- [start:telemetry]
 @app.telemetry_loop(interval=10.0)
 def report(context: SimulationContext):
-    # path_id is Shop.packers.in_use: the sim_id is added in front
-    context.publish("packers.in_use", context.get_resource("packers").in_use)
+    # path_id is Shop.packers_free: the sim_id is added in front
+    packers = context.get_resource("packers")
+    context.publish("packers_free", packers.capacity - packers.in_use)
 
 
 # --8<-- [end:telemetry]
@@ -50,7 +51,10 @@ app.add_process(readings)
 env = DynamicRealtimeEnvironment(factor=0.0)
 env.setup_egress([ConsoleEgress()])
 env.publish_telemetry("plant.power_kw", 412.5)  # path_id exactly as given
-env.publish_event("order-17", {"status": "shipped"})  # key and value as given
+# key, task, instance and value as given; task and instance are optional
+env.publish_event("orders-17", {"status": "shipped"}, task="ship", instance=16)
+# A ground-truth label, which only a when: labels sink receives
+env.publish_label({"fault": "slow_packing"}, path="Shop.service.packing.scale")
 # --8<-- [end:low-level]
 
 if __name__ == "__main__":

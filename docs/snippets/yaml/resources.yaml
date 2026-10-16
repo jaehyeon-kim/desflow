@@ -1,0 +1,39 @@
+# The resources of the Resources page, as a blueprint.
+# Run it with: desflow run resources.yaml
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+egress:
+  - type: Console
+
+# --8<-- [start:queue-order]
+resources:
+  # fifo (the default), lifo or priority; priority serves the lowest number first,
+  # and equal priorities first in, first out
+  packers: {current_cap: 1, max_cap: 4, queue: priority}
+# --8<-- [end:queue-order]
+
+services:
+  packing: {dist: constant, value: 1.5 s}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.4, spawn: pack_order, attributes: {tier: 2}}
+  express: {dist: exponential, rate: 0.1, spawn: pack_order, attributes: {tier: 1}}
+
+# --8<-- [start:priority]
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    # A number, or an expression read when the order joins the queue
+    priority: attr.tier
+    payload: {event_type: order_packed}
+# --8<-- [end:priority]
+
+# The packers' capacity, in_use, queue_length and utilization every 10 seconds
+stats: minimal
+
+run:
+  until: 1 min

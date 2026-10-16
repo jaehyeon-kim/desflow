@@ -324,15 +324,15 @@ def test_a_task_without_service_or_resource_emits_its_payload_at_once():
     app.run(until=5)
 
     events = [r for r in records if r["stream_type"] == "event"]
-    assert [(r["sim_ts"], r["key"], r["value"]) for r in events] == [
-        (3.0, "task-7", {"tick": 7})
-    ]
+    # Called without an entity, the task starts one keyed by its name and a counter
+    assert [
+        (r["sim_ts"], r["key"], r["task"], r["instance"], r["value"]) for r in events
+    ] == [(3.0, "tick-1", "tick", 7, {"tick": 7})]
 
 
-@pytest.mark.parametrize("kwargs", [{"service_id": "s"}, {"resource_id": "r"}])
-def test_a_task_needs_both_service_and_resource_or_neither(kwargs):
-    with pytest.raises(ValueError, match="give both service_id and resource_id"):
-        SimulationContext("TestSim").task(**kwargs)
+def test_a_resource_needs_a_service():
+    with pytest.raises(ValueError, match="a task with a resource needs a service"):
+        SimulationContext("TestSim").task(resource_id="r")
 
 
 def test_add_service_refuses_an_invalid_parameter():

@@ -1,0 +1,56 @@
+# The Stock tutorial: packing takes a box from stock, and deliveries restock it.
+# Run it with: desflow run stock.yaml
+# With smaller deliveries: DELIVERY=40 desflow run stock.yaml
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+resources:
+  packers: {current_cap: 1, max_cap: 4}
+
+services:
+  packing: {dist: constant, value: 1.5 s}
+
+# --8<-- [start:container]
+containers:
+  # Boxes on the shelf: room for 200, and 50 when the run starts
+  stock: {current_cap: 200, max_cap: 200, level: 50}
+# --8<-- [end:container]
+
+arrivals:
+  # One order every 2 seconds on average: 50 boxes every 100 seconds
+  orders: {dist: exponential, rate: 0.5, spawn: pack_order}
+  # --8<-- [start:restock]
+  # A delivery every 100 seconds
+  deliveries: {dist: constant, value: 100 s, spawn: restock}
+  # --8<-- [end:restock]
+
+tasks:
+  # --8<-- [start:take]
+  pack_order:
+    service: packing
+    resource: packers
+    # One box per order, taken once the order has a packer; waits while stock is 0
+    get: {container: stock, amount: 1}
+    payload: {event_type: order_packed}
+  # --8<-- [end:take]
+  # --8<-- [start:delivery]
+  restock:
+    # Adds the delivery to the shelf; waits while there is no room for it all
+    put:
+      container: stock
+      amount: ${DELIVERY:-60}
+    payload: {event_type: stock_delivered}
+  # --8<-- [end:delivery]
+
+# --8<-- [start:watch]
+# The stock's level and waiting tasks every 10 seconds, and the mean wait at the end
+stats: typical
+# --8<-- [end:watch]
+
+egress:
+  - type: Console
+
+run:
+  until: 1 h

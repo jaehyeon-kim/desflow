@@ -1,7 +1,9 @@
-from typing import Optional, cast
+import zlib
+from typing import Dict, Optional
 
 import numpy as np
 
+from desflow.core.distributions import get_distribution
 from desflow.models.params import DistributionConfig
 
 
@@ -12,27 +14,96 @@ class Sampler:
     The Sampler evaluates the configuration *at the exact moment* it is called.
     This allows the simulation to dynamically respond to external parameter changes.
 
+    Each distribution draws from a random sequence of its own, made from the run's
+    seed and the distribution's registry path without the sim id (`arrival.orders`,
+    `service.packing`): `SeedSequence(seed, spawn_key=(CRC32 of the path,))`. Adding
+    an arrival therefore leaves every other distribution's draws unchanged, so two
+    versions of a model run with one seed draw the same numbers for every
+    distribution they share (common random numbers).
+
     Attributes:
-        rng (np.random.Generator): The NumPy random number generator instance.
+        rng (Optional[np.random.Generator]): The run's main generator, for draws in
+            your own code. Distributions do not draw from it, so adding one does
+            not change these draws either. None when nothing is drawn at random.
+        seed (Optional[int]): The seed the sequences come from, or None.
     """
 
-    def __init__(self, rng: Optional[np.random.Generator] = None):
+    def __init__(
+        self, rng: Optional[np.random.Generator] = None, *, seed: Optional[int] = None
+    ):
         """
         Initializes the Sampler.
 
+        With neither `rng` nor `seed`, nothing is drawn at random: each sample is
+        the distribution's mean (for `truncated_normal`, its mean or `low`, whichever
+        is higher).
+
         Args:
-            rng (np.random.Generator, optional): A seeded NumPy random generator for reproducible runs.
-                If None, nothing is drawn at random: each sample is the distribution's mean,
-                or `1 / rate` for an exponential distribution.
+            rng: A seeded NumPy generator, such as `np.random.default_rng(42)`. Its
+                seed gives each distribution its sequence, so `Sampler(rng=
+                np.random.default_rng(42))` draws the same numbers as
+                `Sampler(seed=42)`, and the generator itself stays the run's main
+                generator.
+            seed: The run's seed, instead of `rng`.
+
+        Raises:
+            ValueError: If both `rng` and `seed` are given.
         """
+        if rng is not None and seed is not None:
+            raise ValueError("give rng or seed, not both")
+        if seed is not None:
+            rng = np.random.default_rng(seed)
         self.rng = rng
+        self._seed_sequence: Optional[np.random.SeedSequence] = None
+        if rng is not None:
+            sequence = rng.bit_generator.seed_seq
+            if isinstance(sequence, np.random.SeedSequence):
+                self._seed_sequence = sequence
+        self.seed: Optional[int] = (
+            None if self._seed_sequence is None else self._seed_sequence.entropy  # type: ignore[assignment]
+        )
+        self._generators: Dict[str, np.random.Generator] = {}
+
+    def generator(self, name: str) -> Optional[np.random.Generator]:
+        """
+        Returns the random sequence called `name`, made from the run's seed.
+
+        Distributions use their registry path without the sim id, and probability
+        routing uses `route.<task>`. Your own code can take a sequence of its own
+        the same way, so its draws do not shift when the model changes.
+
+        Args:
+            name: The sequence's name.
+
+        Returns:
+            Optional[np.random.Generator]: The same generator for the same name every
+                time; None when the sampler draws nothing at random. A sampler made
+                from a generator without a seed sequence returns that generator.
+        """
+        if self._seed_sequence is None:
+            return self.rng
+        generator = self._generators.get(name)
+        if generator is None:
+            base = self._seed_sequence
+            sequence = np.random.SeedSequence(
+                base.entropy,
+                spawn_key=tuple(base.spawn_key) + (zlib.crc32(name.encode()),),
+                pool_size=base.pool_size,
+            )
+            generator = np.random.default_rng(sequence)
+            self._generators[name] = generator
+        return generator
 
     def sample(self, config: DistributionConfig, min_delay: float = 0.00001) -> float:
         """
         Draws a random sample using the current parameters in the provided config.
 
+        A config the registry has registered draws from its own sequence; one built
+        by hand and never registered draws from `rng`.
+
         Args:
             config (DistributionConfig): The live configuration object retrieved from the Registry.
+            min_delay (float): The smallest value returned.
 
         Returns:
             float: A sampled float representing a time duration (e.g., arrival gap or service time).
@@ -44,64 +115,10 @@ class Sampler:
         """
         # The parameters were checked by DistributionConfig and by the registry on
         # every live update, so the ones each family uses are set and in range.
-        if config.dist == "exponential":
-            scale = 1.0 / cast(float, config.rate)
-            if self.rng is None:
-                return max(min_delay, scale)
-            return max(min_delay, self.rng.exponential(scale))
-
-        if config.dist == "normal":
-            m, s = cast(float, config.mean), cast(float, config.std)
-            if self.rng is None:
-                return max(min_delay, m)
-            # With a std of 0 this returns the mean exactly
-            return max(min_delay, self.rng.normal(m, s))
-
-        if config.dist == "lognormal":
-            m, s = cast(float, config.mean), cast(float, config.std)
-            if self.rng is None:
-                return max(min_delay, m)
-
-            # mu/sigma conversion
-            mu = np.log(m**2 / np.sqrt(s**2 + m**2))
-            sigma = np.sqrt(np.log(1 + (s**2 / m**2)))
-            value = self.rng.lognormal(mu, sigma)
-            # With a std of 0 the draw is the mean up to rounding, so return the mean
-            # exactly. The draw is still made, so later draws stay the same.
-            return max(min_delay, m if s == 0 else value)
-
-        if config.dist == "constant":
-            # The same time every draw, and no random number is used
-            return max(min_delay, cast(float, config.value))
-
-        if config.dist == "truncated_normal":
-            m, s = cast(float, config.mean), cast(float, config.std)
-            low = cast(float, config.low)
-            if self.rng is None or s == 0:
-                return max(min_delay, m, low)
-            return max(
-                min_delay, low + s * _standard_normal_above((low - m) / s, self.rng)
-            )
-
-        raise ValueError(f"Unsupported distribution '{config.dist}'")
-
-
-def _standard_normal_above(a: float, rng: np.random.Generator) -> float:
-    """
-    Draws a standard normal value conditioned on being at least `a`, minus `a`.
-
-    Near or below the mean, plain draws are kept when they land above `a`. Further
-    into the tail that would almost never happen, so an exponential proposal is used
-    instead (Robert, 1995, "Simulation of truncated normal variables"), which keeps
-    the draw exact and fast however far `a` is from the mean.
-    """
-    if a < 0.5:
-        while True:
-            z = rng.standard_normal()
-            if z >= a:
-                return float(z - a)
-    alpha = (a + np.sqrt(a * a + 4.0)) / 2.0
-    while True:
-        z = a + rng.exponential(1.0 / alpha)
-        if rng.random() <= np.exp(-((z - alpha) ** 2) / 2.0):
-            return float(z - a)
+        family = get_distribution(config.dist)
+        if self.rng is None:
+            return max(min_delay, family.fixed(config))
+        if not family.random:
+            return max(min_delay, family.draw(config, self.rng))
+        rng = self.rng if config.stream is None else self.generator(config.stream)
+        return max(min_delay, family.draw(config, rng))  # type: ignore[arg-type]

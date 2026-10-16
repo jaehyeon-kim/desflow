@@ -1,0 +1,43 @@
+# The Priorities tutorial: express orders go before regular ones.
+# Run it with: desflow run priorities.yaml
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+# --8<-- [start:queue]
+resources:
+  # The packer serves the lowest priority first, the oldest first among equals
+  packers: {current_cap: 1, max_cap: 4, queue: priority}
+# --8<-- [end:queue]
+
+services:
+  packing: {dist: constant, value: 1.5 s}
+
+arrivals:
+  # 0.6 orders a second in all, one in four of them express
+  orders: {dist: exponential, rate: 0.45, spawn: pack_order}
+  express: {dist: exponential, rate: 0.15, spawn: pack_express}
+
+# --8<-- [start:priority]
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    priority: 1
+    payload: {event_type: order_packed}
+  pack_express:
+    service: packing
+    resource: packers
+    priority: 0  # served before any regular order that is waiting
+    payload: {event_type: express_packed}
+# --8<-- [end:priority]
+
+# The mean wait of each task at the end
+stats: {level: typical, interval: 1 h}
+
+egress:
+  - type: Console
+
+run:
+  until: 1 h

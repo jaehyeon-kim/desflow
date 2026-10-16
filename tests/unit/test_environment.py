@@ -16,7 +16,7 @@ from pydantic_core import PydanticSerializationError
 
 from desflow.connectors.egress.base import BaseEgress
 from desflow.core.environment import DynamicRealtimeEnvironment
-from desflow.models.schemas import EventPayload, TelemetryPayload
+from desflow.models.schemas import EventPayload, LabelPayload, TelemetryPayload
 
 
 class TrackingEgress(BaseEgress):
@@ -625,7 +625,7 @@ def test_envelope_key_order_matches_the_published_schema():
     """Key order is part of the record, because the sinks serialize the dict as given."""
     env = _buffered_env()
     try:
-        env.publish_event("task-001", {"status": "started"})
+        env.publish_event("orders-1", {"status": "started"}, "pack", 0)
         env.publish_telemetry("metric", 1.0)
 
         assert list(env._event_buffer[0]) == [
@@ -633,6 +633,8 @@ def test_envelope_key_order_matches_the_published_schema():
             "sim_ts",
             "timestamp",
             "key",
+            "task",
+            "instance",
             "value",
         ]
         assert list(env._event_buffer[1]) == [
@@ -644,6 +646,32 @@ def test_envelope_key_order_matches_the_published_schema():
         ]
         assert list(EventPayload.model_fields) == list(env._event_buffer[0])
         assert list(TelemetryPayload.model_fields) == list(env._event_buffer[1])
+    finally:
+        env.teardown()
+
+    # A ground-truth record, in a labels sink's buffer
+    env = DynamicRealtimeEnvironment(strict=False)
+    env.setup_egress(
+        providers=[TrackingEgress()],
+        batch_size=10**6,
+        lag_monitor_interval=0,
+        labels=[True],
+    )
+    try:
+        env.publish_label({"fault": "slow"}, path="Shop.x", old=1, new=2)
+        assert (
+            list(env._event_buffer[0])
+            == list(LabelPayload.model_fields)
+            == [
+                "stream_type",
+                "sim_ts",
+                "timestamp",
+                "path",
+                "old",
+                "new",
+                "label",
+            ]
+        )
     finally:
         env.teardown()
 
