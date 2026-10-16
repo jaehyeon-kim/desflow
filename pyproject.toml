@@ -1,6 +1,6 @@
 [project]
-name = "dynamic-des"
-version = "0.19.0"
+name = "desflow"
+version = "0.20.0"
 description = "Realistic event streams from a SimPy simulation you can steer while it runs, written to Kafka, Redis, PostgreSQL, Parquet, JSONL and Iceberg."
 readme = "README.md"
 authors = [
@@ -53,13 +53,15 @@ dependencies = [
 ]
 
 [project.scripts]
-ddes = "dynamic_des.blueprint.cli:app"
+desflow = "desflow.blueprint.cli:app"
+# The command before the rename. It warns, then runs desflow.
+ddes = "desflow.blueprint.cli:ddes"
 
 [project.urls]
-Homepage = "https://jaehyeon.me/dynamic-des/"
-Repository = "https://github.com/jaehyeon-kim/dynamic-des"
-Documentation = "https://jaehyeon.me/dynamic-des/"
-Issues = "https://github.com/jaehyeon-kim/dynamic-des/issues"
+Homepage = "https://jaehyeon.me/desflow/"
+Repository = "https://github.com/jaehyeon-kim/desflow"
+Documentation = "https://jaehyeon.me/desflow/"
+Issues = "https://github.com/jaehyeon-kim/desflow/issues"
 
 [project.optional-dependencies]
 kafka =[
@@ -70,8 +72,8 @@ redis = ["redis>=5.0.1"]
 postgres =["asyncpg>=0.29.0"]
 confluent = [
     # ConfluentAvroSerializer lives in the Kafka connector module, so the kafka
-    # extra is required for `pip install dynamic-des[confluent]` to be usable.
-    "dynamic-des[kafka]",
+    # extra is required for `pip install desflow[confluent]` to be usable.
+    "desflow[kafka]",
     # The schemaregistry and avro extras carry httpx and fastavro, which
     # confluent-kafka stopped bundling in 2.6. Without them the registry client
     # cannot be imported at all.
@@ -79,7 +81,7 @@ confluent = [
     "dataclasses-avroschema[pydantic]"
 ]
 glue = [
-    "dynamic-des[kafka]",
+    "desflow[kafka]",
     "aws-glue-schema-registry",
     "boto3",
     "dataclasses-avroschema[pydantic]",
@@ -100,11 +102,16 @@ iceberg = [
     "pyiceberg[pyarrow]>=0.7.0"
 ]
 all = [
-    "dynamic-des[kafka,redis,postgres,confluent,glue,parquet,iceberg]"
+    "desflow[kafka,redis,postgres,confluent,glue,parquet,iceberg]"
 ]
 [build-system]
 requires = ["uv_build>=0.9.16,<0.13.0"]
 build-backend = "uv_build"
+
+[tool.uv.build-backend]
+# dynamic_des is the import name before the rename. It warns and loads desflow, so
+# code written for dynamic-des keeps running until it is removed in a later release.
+module-name = ["desflow", "dynamic_des"]
 
 [dependency-groups]
 dev = [

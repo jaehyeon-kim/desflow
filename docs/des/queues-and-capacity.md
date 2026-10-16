@@ -138,4 +138,4 @@ A queue that keeps climbing from one report to the next, while `in_use` stays at
 - **Start-up.** A run starts empty, so its first minutes have shorter queues than the rest. Leave them out of any measurement, or run long enough that they do not matter.
 - **Long runs.** Averages from a short run are noisy, the more so near utilisation 1. The measurements above use 200,000 simulated seconds, which takes about a second unpaced.
 - **Breaks lower capacity.** A packer on a break 5 seconds in every 50 has about 90% of its capacity, so include that in the formula.
-- **Analysis tools are planned**: `ddes explain` will show a model as a graph, compute each resource's utilisation and point to the bottleneck before a run; see the [Roadmap](../about/roadmap.md).
+- **Analysis tools are planned**: `desflow explain` will show a model as a graph, compute each resource's utilisation and point to the bottleneck before a run; see the [Roadmap](../about/roadmap.md).

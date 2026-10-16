@@ -2,7 +2,7 @@
 
 A blueprint holds configuration as plain YAML, and the [first guide](yaml-blueprints.md) covers that. When a simulation needs logic that YAML cannot express, the file can reference a Python object with `!python module.attribute` in place of a value. This guide covers when to use it, how a reference is found, what each field receives and the security note, and ends with the OML hot rolling twin as a worked case.
 
-The [advanced Postgres example](../examples/advanced-postgres-orders.md) is a complete blueprint with one Python process. Every file on this page is in the repository under [`docs/snippets/`](https://github.com/jaehyeon-kim/dynamic-des/tree/main/docs/snippets).
+The [advanced Postgres example](../examples/advanced-postgres-orders.md) is a complete blueprint with one Python process. Every file on this page is in the repository under [`docs/snippets/`](https://github.com/jaehyeon-kim/desflow/tree/main/docs/snippets).
 
 ---
 
@@ -206,7 +206,7 @@ The configuration moves to YAML. The processes stay as they are, and a small ada
 # in sim_logic.py, and hot_rolling_adapter.py beside this file adapts them.
 #
 # Place this file and the adapter in sim_control/, then run from there:
-#   ddes run hot_rolling.yaml
+#   desflow run hot_rolling.yaml
 simulation:
   sim_id: HotRolling
   factor: 1.0
@@ -294,7 +294,7 @@ takes the context, picks out what the process needs, and hands over with
 import time
 import uuid
 
-from dynamic_des import KafkaAdminConnector
+from desflow import KafkaAdminConnector
 from generator import telemetry_monitor
 from sim_logic import arrival_process, drift_engine, roll_slab
 from src.config import (

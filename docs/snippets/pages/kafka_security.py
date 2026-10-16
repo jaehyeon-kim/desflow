@@ -5,7 +5,7 @@ and MSK examples read certificate files or call AWS, so they sit in functions th
 defines and does not call.
 """
 
-from dynamic_des import KafkaEgress
+from desflow import KafkaEgress
 
 
 def my_router(data: dict) -> str:
@@ -29,7 +29,7 @@ def mtls_ingress():
     # --8<-- [start:mtls]
     from aiokafka.helpers import create_ssl_context
 
-    from dynamic_des import KafkaIngress
+    from desflow import KafkaIngress
 
     ssl_context = create_ssl_context(
         cafile="/path/to/ca.pem",
@@ -53,7 +53,7 @@ def msk_connectors():
     from aws_msk_iam_sasl_signer import MSKAuthTokenProvider
     from kafka.sasl.oauth import AbstractTokenProvider as SyncTokenProvider
 
-    from dynamic_des import KafkaAdminConnector, KafkaEgress
+    from desflow import KafkaAdminConnector, KafkaEgress
 
     def msk_token() -> str:
         # Uses the AWS credentials of your environment, or the EC2 or EKS role

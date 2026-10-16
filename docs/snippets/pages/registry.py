@@ -4,7 +4,7 @@ The file is a complete low-level run: tests/unit runs it unpaced, so every call 
 on the page is checked.
 """
 
-from dynamic_des import (
+from desflow import (
     CapacityConfig,
     DistributionConfig,
     DynamicRealtimeEnvironment,

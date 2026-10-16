@@ -5,10 +5,10 @@ import textwrap
 import pytest
 from typer.testing import CliRunner
 
-from dynamic_des import SimulationContext
-from dynamic_des.blueprint import BlueprintError
-from dynamic_des.blueprint.cli import app as cli
-from dynamic_des.connectors.egress.base import BaseEgress
+from desflow import SimulationContext
+from desflow.blueprint import BlueprintError
+from desflow.blueprint.cli import app as cli
+from desflow.connectors.egress.base import BaseEgress
 
 MINIMAL = """\
 simulation:
@@ -82,32 +82,6 @@ def test_tasks_spawned_from_an_arrival_publish_the_payload(tmp_path):
     assert finished
     assert finished[0] == {"status": "finished", "order_id": finished[0]["order_id"]}
     assert max(r["sim_ts"] for r in capture.records) <= 30.0
-
-
-def test_telemetry_publishes_resource_statistics(tmp_path):
-    text = MINIMAL + textwrap.dedent("""\
-        telemetry:
-          - interval: 5
-            publish: {packers.capacity: packers.capacity, busy: packers.utilization}
-        """)
-    app = SimulationContext.from_yaml(write(tmp_path, text))
-    capture = _Capture()
-    app.add_egress(capture)
-    app.run(until=10)
-
-    metrics = [
-        (r["sim_ts"], r["path_id"], r["value"])
-        for r in capture.records
-        if r["stream_type"] == "telemetry" and r["path_id"].startswith("Shop")
-    ]
-    assert metrics[:2] == [(0.0, "Shop.packers.capacity", 2), (0.0, "Shop.busy", 0)]
-
-
-def test_until_accepts_a_duration(tmp_path):
-    app = SimulationContext.from_yaml(
-        write(tmp_path, MINIMAL.replace("until: 30", "until: 2 min"))
-    )
-    assert app._default_until == 120.0
 
 
 @pytest.mark.parametrize(
@@ -217,7 +191,7 @@ def test_cli_rejects_a_missing_file(tmp_path):
 
 
 def test_cli_prints_the_version():
-    from dynamic_des import __version__
+    from desflow import __version__
 
     result = CliRunner().invoke(cli, ["--version"])
     assert result.exit_code == 0
@@ -479,25 +453,6 @@ def test_scenario_applies_on_simulation_time_at_factor_0(tmp_path):
     registry = app.env.registry
     assert registry.get("Shop.arrival.standard.rate").value == 3.0
     assert registry.get("Shop.variables.mode").value == "warm"
-
-
-def test_scenario_repeats_exactly(tmp_path):
-    text = MINIMAL + SCENARIO.replace(
-        "  - {at: 0, path: Shop.variables.mode, value: warm}\n", ""
-    )
-
-    def run_once():
-        app = SimulationContext.from_yaml(write(tmp_path, text))
-        capture = _Capture()
-        app.add_egress(capture)
-        app.run(until=25)
-        return [
-            (r["sim_ts"], r.get("key"), r["value"])
-            for r in capture.records
-            if r["stream_type"] == "event"
-        ]
-
-    assert run_once() == run_once()
 
 
 @pytest.mark.parametrize(

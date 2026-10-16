@@ -8,7 +8,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from dynamic_des import ConsoleEgress, DynamicRealtimeEnvironment, SimulationContext
+from desflow import ConsoleEgress, DynamicRealtimeEnvironment, SimulationContext
 
 app = SimulationContext(sim_id="Shop", factor=0.0).add_egress(ConsoleEgress())
 app.add_resource("packers", current_cap=1, max_cap=1)

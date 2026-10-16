@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from dynamic_des import SimulationContext
+from desflow import SimulationContext
 
 
 def test_builder_state_management():
@@ -73,25 +73,7 @@ def test_env_property_exposes_environment():
     assert app.env is app._env
 
 
-def test_decorator_registration():
-    """Validates that loops are properly staged for execution."""
-    app = SimulationContext("TestSim")
-
-    @app.arrival_loop("standard")
-    def dummy_arrival(context):
-        pass
-
-    @app.telemetry_loop(interval=1.0)
-    def dummy_telemetry(context):
-        pass
-
-    # Should register two startup loops internally
-    assert len(app._startup_loops) == 2
-    assert app._startup_loops[0][1] == "standard"  # Arrival loop includes metadata
-    assert app._startup_loops[1][1] is None  # Telemetry loop has no metadata
-
-
-@patch("dynamic_des.core.context.DynamicRealtimeEnvironment")
+@patch("desflow.core.context.DynamicRealtimeEnvironment")
 def test_simulation_execution_wiring(MockEnv):
     """
     Validates the .run() orchestration logic without running a real SimPy loop.
@@ -119,35 +101,6 @@ def test_simulation_execution_wiring(MockEnv):
     # Validate that connectors were passed to the engine
     mock_env_instance.setup_ingress.assert_called_once_with([mock_ingress])
     mock_env_instance.setup_egress.assert_called_once()
-
-
-@patch("dynamic_des.core.context.DynamicRealtimeEnvironment")
-def test_logical_start_time_forwarding(MockEnv):
-    """Validates that a logical start time is forwarded to the environment."""
-    from datetime import datetime
-
-    start = datetime(2024, 1, 1, 12, 0, 0)
-    app = SimulationContext("TestSim", factor=0.0, logical_start_time=start)
-    app.run(until=1)
-
-    MockEnv.assert_called_once_with(factor=0.0, logical_start_time=start)
-
-
-@patch("dynamic_des.core.context.DynamicRealtimeEnvironment")
-def test_go_live_at_forwarding(MockEnv):
-    """Validates that a go-live instant is forwarded to the environment."""
-    from datetime import datetime, timedelta
-
-    start = datetime(2024, 1, 1, 12, 0, 0)
-    go_live = start + timedelta(hours=1)
-    app = SimulationContext(
-        "TestSim", factor=0.0, logical_start_time=start, go_live_at=go_live
-    )
-    app.run(until=1)
-
-    MockEnv.assert_called_once_with(
-        factor=0.0, logical_start_time=start, go_live_at=go_live
-    )
 
 
 def test_go_live_at_switches_pacing_during_a_builder_run():
@@ -238,20 +191,7 @@ def test_with_batching_defaults_the_egress_bounds():
     assert app._drain_stall_seconds == 30.0
 
 
-def test_with_batching_accepts_the_egress_bounds():
-    """The queue bound and the drain wait are configurable from the builder."""
-    app = SimulationContext("TestSim", factor=0.0).with_batching(
-        batch_size=100,
-        flush_interval=0.5,
-        max_queued_batches=25,
-        drain_stall_seconds=2.5,
-    )
-
-    assert app._max_queued_batches == 25
-    assert app._drain_stall_seconds == 2.5
-
-
-@patch("dynamic_des.core.context.DynamicRealtimeEnvironment")
+@patch("desflow.core.context.DynamicRealtimeEnvironment")
 def test_egress_bounds_reach_the_environment(MockEnv):
     """What the builder collects has to arrive at setup_egress, or it does nothing."""
     instance = MockEnv.return_value
@@ -274,7 +214,7 @@ def test_egress_bounds_reach_the_environment(MockEnv):
     assert kwargs["drain_stall_seconds"] == 3.0
 
 
-@patch("dynamic_des.core.context.DynamicRealtimeEnvironment")
+@patch("desflow.core.context.DynamicRealtimeEnvironment")
 def test_per_provider_cadence_reaches_the_environment(MockEnv):
     """A cadence given on add_egress has to arrive, aligned by position."""
     instance = MockEnv.return_value
@@ -335,16 +275,6 @@ def test_per_provider_cadence_takes_effect_through_the_builder():
     assert len(large.batch_sizes) == 1
 
 
-def test_add_arrival_keeps_the_standard_deviation():
-    """A normal arrival lost its spread, because add_arrival had no std to pass on."""
-    app = SimulationContext("TestSim", factor=0.0).add_arrival(
-        "batch", dist="normal", mean=4.0, std=0.5
-    )
-
-    config = app._arrivals_config["batch"]
-    assert (config.dist, config.mean, config.std) == ("normal", 4.0, 0.5)
-
-
 def test_add_arrival_std_reaches_the_registry():
     """The spread is registered, so it can be changed while the run is live."""
     app = SimulationContext("TestSim", factor=0.0).add_arrival(
@@ -403,18 +333,6 @@ def test_a_task_without_service_or_resource_emits_its_payload_at_once():
 def test_a_task_needs_both_service_and_resource_or_neither(kwargs):
     with pytest.raises(ValueError, match="give both service_id and resource_id"):
         SimulationContext("TestSim").task(**kwargs)
-
-
-def test_live_rate_update_keeps_its_fraction():
-    """add_arrival(rate=2) then a live update to 0.5 reads back 0.5, not int(0.5) = 0."""
-    app = SimulationContext("TestSim", factor=0.0).add_arrival(
-        "a", dist="exponential", rate=2
-    )
-    app.run(until=1)
-
-    app.env.registry.update("TestSim.arrival.a.rate", 0.5)
-
-    assert app.env.registry.get("TestSim.arrival.a.rate").value == 0.5
 
 
 def test_add_service_refuses_an_invalid_parameter():

@@ -4,7 +4,7 @@
       <root>
         <mxCell id="0"/>
         <mxCell id="1" parent="0"/>
-        <mxCell id="title" value="Shapes and colours used in every dynamic-des diagram, taken from architecture.drawio" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="700" height="30" as="geometry"/></mxCell>
+        <mxCell id="title" value="Shapes and colours used in every desflow diagram, taken from architecture.drawio" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="700" height="30" as="geometry"/></mxCell>
         <mxCell id="s10" value="" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="0" y="50" width="120" height="44" as="geometry"/></mxCell>
         <mxCell id="t10" value="SimPy process, task or resource" style="text;html=1;align=left;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=14;" vertex="1" parent="1"><mxGeometry x="140" y="50" width="520" height="44" as="geometry"/></mxCell>
         <mxCell id="s11" value="" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=3;" vertex="1" parent="1"><mxGeometry x="0" y="110" width="120" height="44" as="geometry"/></mxCell>

@@ -35,7 +35,7 @@ def _events(caplog):
 
 def test_low_level_shop_publishes_order_events(caplog):
     module = _load("first_shop_low_level")
-    with caplog.at_level(logging.INFO, logger="dynamic_des"):
+    with caplog.at_level(logging.INFO, logger="desflow"):
         module.run(until=30, factor=0.0)
     events = _events(caplog)
     assert any("'status': 'queued'" in line for line in events)
@@ -46,7 +46,7 @@ def test_low_level_shop_publishes_order_events(caplog):
 def test_builder_shop_publishes_order_events(caplog):
     module = _load("first_shop")
     module.app.factor = 0.0
-    with caplog.at_level(logging.INFO, logger="dynamic_des"):
+    with caplog.at_level(logging.INFO, logger="desflow"):
         module.app.run(until=30)
     assert any("'value': {'order_id': 0}" in line for line in _events(caplog))
 

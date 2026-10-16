@@ -1,139 +1,86 @@
-"""
-Dynamic DES: Real-time SimPy control plane for event-driven digital twins.
+"""The import name before the rename: `dynamic_des` loads `desflow`.
 
-Bridges operations research (SimPy discrete-event simulation) with modern data engineering
-(Kafka, Redis, Parquet, S3). Features the `SimulationContext` builder pattern to support
-digital twin configuration, dynamic registry updates, and asynchronous I/O egress.
-
-Standard Usage Example:
-    from dynamic_des import SimulationContext, ConsoleEgress
-
-    app = (
-        SimulationContext(sim_id="Shop", factor=1.0)
-        .add_resource("packers", current_cap=1, max_cap=1)
-        .add_arrival("orders", dist="exponential", rate=2.0)
-        .add_service("packing", dist="normal", mean=1.0)
-        .add_egress(ConsoleEgress())
-    )
-
-    @app.arrival_loop("orders")
-    def order_generator(context):
-        order_id = 0
-        while True:
-            yield context.wait_for_arrival("orders")
-            context.spawn(pack_order(order_id))
-            order_id += 1
-
-    @app.task(service_id="packing", resource_id="packers")
-    def pack_order(order_id):
-        return {"order_id": order_id}
-
-    app.run(until=10.0)
-
-A YAML blueprint builds the same kind of context: `SimulationContext.from_yaml(path)`,
-or `ddes run <file>.yaml` from a shell.
+The package dynamic-des was renamed desflow in 0.20.0. This module keeps code written
+for it running: `import dynamic_des` warns once and gives the names of `desflow`, and
+`import dynamic_des.<module>` gives the module `desflow.<module>` itself, so a class
+imported under either name is the same class. It is removed in a later release, as
+the Changelog says.
 """
 
-import logging
-from importlib.metadata import PackageNotFoundError, version
+import importlib
+import importlib.abc
+import importlib.machinery
+import importlib.util
+import sys
+import warnings
+from types import ModuleType
+from typing import Any, Optional, Sequence
 
-# ---------------------------------------------------------
-# Core & Local Components (Always Available)
-# ---------------------------------------------------------
-from dynamic_des.connectors.egress.local import ConsoleEgress
-from dynamic_des.connectors.ingress.local import LocalIngress
-from dynamic_des.core.context import SimulationContext
-from dynamic_des.core.environment import DynamicRealtimeEnvironment
-from dynamic_des.core.registry import SimulationRegistry
-from dynamic_des.core.sampler import Sampler
-from dynamic_des.models.params import CapacityConfig, DistributionConfig, SimParameter
-from dynamic_des.models.schemas import EventPayload, TelemetryPayload
-from dynamic_des.resources.container import DynamicContainer
-from dynamic_des.resources.resource import DynamicResource
-from dynamic_des.resources.store import DynamicStore
-from dynamic_des.utils import time_to_seconds
+# FutureWarning, not DeprecationWarning: Python hides a DeprecationWarning unless it
+# is raised in __main__, so code that imports this module from its own package would
+# never see it. A FutureWarning is shown by default wherever the import is.
+warnings.warn(
+    "dynamic_des is renamed desflow and will be removed in a later release. "
+    "Import desflow instead.",
+    FutureWarning,
+    stacklevel=2,
+)
 
-try:
-    __version__ = version("dynamic-des")
-except PackageNotFoundError:
-    __version__ = "0.0.0-dev"
+import desflow  # noqa: E402
+from desflow import *  # noqa: E402, F403
+from desflow import __all__, __version__  # noqa: E402, F401
 
-logging.getLogger(__name__).addHandler(logging.NullHandler())
+_OLD = __name__
+_NEW = desflow.__name__
 
-# Base exports that require no extra dependencies
-__all__ = [
-    "DynamicRealtimeEnvironment",
-    "Sampler",
-    "SimulationContext",
-    "SimulationRegistry",
-    "DynamicResource",
-    "DynamicContainer",
-    "DynamicStore",
-    "SimParameter",
-    "DistributionConfig",
-    "CapacityConfig",
-    "LocalIngress",
-    "ConsoleEgress",
-    "EventPayload",
-    "TelemetryPayload",
-    "time_to_seconds",
-]
 
-# ---------------------------------------------------------
-# Optional: Kafka Connectors (Requires `pip install dynamic-des[kafka]`)
-# ---------------------------------------------------------
-try:
-    from dynamic_des.connectors.admin.kafka import KafkaAdminConnector  # noqa: F401
-    from dynamic_des.connectors.egress.kafka import KafkaEgress  # noqa: F401
-    from dynamic_des.connectors.ingress.kafka import KafkaIngress  # noqa: F401
+class _AliasLoader(importlib.abc.Loader):
+    """Load `dynamic_des.<module>` as the module `desflow.<module>` itself."""
 
-    __all__.extend(["KafkaAdminConnector", "KafkaEgress", "KafkaIngress"])
-except ImportError:
-    pass
+    def __init__(self, target: str) -> None:
+        self._target = target
+        self._spec: Optional[importlib.machinery.ModuleSpec] = None
 
-# ---------------------------------------------------------
-# Optional: Storage Connectors (Requires `pip install dynamic-des[parquet]`)
-# ---------------------------------------------------------
-try:
-    from dynamic_des.connectors.egress.storage import (
-        JsonlStorageEgress,  # noqa: F401
-        ParquetStorageEgress,  # noqa: F401
-    )
+    def create_module(self, spec: importlib.machinery.ModuleSpec) -> ModuleType:
+        """Import the desflow module and return it in place of a new module."""
+        module = importlib.import_module(self._target)
+        self._spec = module.__spec__
+        return module
 
-    __all__.extend(["JsonlStorageEgress", "ParquetStorageEgress"])
-except ImportError:
-    pass
+    def exec_module(self, module: ModuleType) -> None:
+        """Give the desflow module back its own spec.
 
-# ---------------------------------------------------------
-# Optional: Iceberg Connector (Requires `pip install dynamic-des[iceberg]`)
-# ---------------------------------------------------------
-try:
-    from dynamic_des.connectors.egress.iceberg import (
-        IcebergStorageEgress,  # noqa: F401
-    )
+        The import system sets `__spec__` to the alias spec after `create_module`,
+        and the module must keep the spec of its real name.
+        """
+        module.__spec__ = self._spec
 
-    __all__.extend(["IcebergStorageEgress"])
-except ImportError:
-    pass
 
-# ---------------------------------------------------------
-# Optional: Postgres Connectors (Requires `pip install dynamic-des[postgres]`)
-# ---------------------------------------------------------
-try:
-    from dynamic_des.connectors.egress.postgres import PostgresEgress  # noqa: F401
-    from dynamic_des.connectors.ingress.postgres import PostgresIngress  # noqa: F401
+class _AliasFinder(importlib.abc.MetaPathFinder):
+    """Find `dynamic_des.<module>` imports and send them to `desflow.<module>`."""
 
-    __all__.extend(["PostgresEgress", "PostgresIngress"])
-except ImportError:
-    pass
+    # Marks the finder across reloads, where the class is a new object.
+    _dynamic_des_alias = True
 
-# ---------------------------------------------------------
-# Optional: Redis Connectors (Requires `pip install dynamic-des[redis]`)
-# ---------------------------------------------------------
-try:
-    from dynamic_des.connectors.egress.redis import RedisEgress  # noqa: F401
-    from dynamic_des.connectors.ingress.redis import RedisIngress  # noqa: F401
+    def find_spec(
+        self,
+        fullname: str,
+        path: Optional[Sequence[str]] = None,
+        target: Optional[ModuleType] = None,
+    ) -> Optional[importlib.machinery.ModuleSpec]:
+        """Return an alias spec for a submodule of `dynamic_des`, otherwise None."""
+        if not fullname.startswith(_OLD + "."):
+            return None
+        new_name = _NEW + fullname[len(_OLD) :]
+        if importlib.util.find_spec(new_name) is None:
+            return None
+        return importlib.machinery.ModuleSpec(fullname, _AliasLoader(new_name))
 
-    __all__.extend(["RedisEgress", "RedisIngress"])
-except ImportError:
-    pass
+
+if not any(getattr(finder, "_dynamic_des_alias", False) for finder in sys.meta_path):
+    sys.meta_path.insert(0, _AliasFinder())
+
+
+def __getattr__(name: str) -> Any:
+    """Give any other attribute of `desflow`, such as a submodule already imported."""
+    return getattr(desflow, name)

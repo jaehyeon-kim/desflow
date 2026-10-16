@@ -7,7 +7,7 @@ while the example runs.
 
 import asyncio
 
-from dynamic_des import KafkaAdminConnector
+from desflow import KafkaAdminConnector
 
 
 def set_packer_capacity(value: int) -> None:

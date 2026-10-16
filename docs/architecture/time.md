@@ -28,7 +28,7 @@ A naive datetime gives timestamps with no time zone. A timezone-aware one gives 
 
 ## Temporal Factor
 
-Dynamic DES decoupling is achieved by setting the `factor` parameter on the environment. This determines how simulated seconds relate to real-world wall-clock seconds:
+desflow decoupling is achieved by setting the `factor` parameter on the environment. This determines how simulated seconds relate to real-world wall-clock seconds:
 
 ```text
 Wall-Clock Duration = Simulated Duration × factor
@@ -73,7 +73,7 @@ Pacing is driven by the logical clock, not by how long the process has been runn
 
 At the switch the mapping from simulated time to wall-clock time is re-anchored: the go-live instant is treated as now, and simulated seconds run from there. Without that, the first paced event would sleep off the whole backfill in real seconds, and a week of history would become a week of waiting.
 
-The factor switched to is always `1.0`. `go_live_at` names a moment, not a speed, and going live means real time. No other change of pacing can be scheduled. A [YAML scenario](../guides/yaml-blueprints.md#script-an-experiment), from [issue #15](https://github.com/jaehyeon-kim/dynamic-des/issues/15), schedules changes to registry values at set simulation times, but not to the pacing.
+The factor switched to is always `1.0`. `go_live_at` names a moment, not a speed, and going live means real time. No other change of pacing can be scheduled. A [YAML scenario](../guides/yaml-blueprints.md#script-an-experiment), from [issue #15](https://github.com/jaehyeon-kim/desflow/issues/15), schedules changes to registry values at set simulation times, but not to the pacing.
 
 Three cases are worth stating explicitly.
 

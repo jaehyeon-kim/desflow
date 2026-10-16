@@ -10,26 +10,26 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
 
     **Quick Start**
 
-    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
     === "uv"
 
         ```bash
         # 1. Install
-        uv tool install "dynamic-des[kafka]" --with-executables-from "odctl>=1.0,<2"
+        uv tool install "desflow[kafka]" --with-executables-from "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get kafka --api yaml
+        desflow examples get kafka --api yaml
         cd kafka/yaml
 
         # 3. Start its service
         odctl up kafka-lite
 
         # 4. Run it (Ctrl + C to stop)
-        ddes run kafka.yaml
+        desflow run kafka.yaml
 
         # 5. In a second terminal, in the same folder, watch and steer it at http://localhost:8080
-        uv run --no-project --with "dynamic-des[kafka]" --with nicegui ../kafka_dashboard.py
+        uv run --no-project --with "desflow[kafka]" --with nicegui ../kafka_dashboard.py
 
         # 6. Stop its service when finished
         odctl down kafka-lite --volumes
@@ -39,17 +39,17 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
 
         ```bash
         # 1. Install
-        pip install "dynamic-des[kafka]" "odctl>=1.0,<2" nicegui
+        pip install "desflow[kafka]" "odctl>=1.0,<2" nicegui
 
         # 2. Download the example
-        ddes examples get kafka --api yaml
+        desflow examples get kafka --api yaml
         cd kafka/yaml
 
         # 3. Start its service
         odctl up kafka-lite
 
         # 4. Run it (Ctrl + C to stop)
-        ddes run kafka.yaml
+        desflow run kafka.yaml
 
         # 5. In a second terminal, in the same folder, watch and steer it at http://localhost:8080
         python ../kafka_dashboard.py
@@ -70,7 +70,7 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
 
     The blueprint wires both Kafka connectors and declares the packers, the packing service, the order arrival and the task. The finished event of each task is the fixed `payload`, and the `telemetry` entry publishes four built-in statistics of the packers every 2 simulation seconds, the same four the builder and low-level versions publish.
 
-    Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
+    Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
     ```yaml title="examples/yaml/kafka.yaml"
     # Kafka digital twin in YAML.
@@ -82,7 +82,7 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
     #
     # Needs a broker: odctl up kafka-lite. Runs until interrupted with Ctrl + C.
     # KAFKA_BOOTSTRAP_SERVERS overrides the broker address.
-    # Run it with: ddes run examples/yaml/kafka.yaml
+    # Run it with: desflow run examples/yaml/kafka.yaml
 
     simulation:
       sim_id: Shop
@@ -129,30 +129,30 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
 
 === "Builder"
 
-    This example demonstrates how to integrate `dynamic-des` into a full event-driven architecture using the **builder API (`SimulationContext`)**.
+    This example demonstrates how to integrate `desflow` into a full event-driven architecture using the **builder API (`SimulationContext`)**.
 
     **Quick Start**
 
-    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
     === "uv"
 
         ```bash
         # 1. Install
-        uv tool install "dynamic-des[kafka]" --with-executables-from "odctl>=1.0,<2"
+        uv tool install "desflow[kafka]" --with-executables-from "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get kafka --api builder
+        desflow examples get kafka --api builder
         cd kafka/builder
 
         # 3. Start its service
         odctl up kafka-lite
 
         # 4. Run it (Ctrl + C to stop)
-        uv run --no-project --with "dynamic-des[kafka]" kafka_example.py
+        uv run --no-project --with "desflow[kafka]" kafka_example.py
 
         # 5. In a second terminal, in the same folder, watch and steer it at http://localhost:8080
-        uv run --no-project --with "dynamic-des[kafka]" --with nicegui ../kafka_dashboard.py
+        uv run --no-project --with "desflow[kafka]" --with nicegui ../kafka_dashboard.py
 
         # 6. Stop its service when finished
         odctl down kafka-lite --volumes
@@ -162,10 +162,10 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
 
         ```bash
         # 1. Install
-        pip install "dynamic-des[kafka]" "odctl>=1.0,<2" nicegui
+        pip install "desflow[kafka]" "odctl>=1.0,<2" nicegui
 
         # 2. Download the example
-        ddes examples get kafka --api builder
+        desflow examples get kafka --api builder
         cd kafka/builder
 
         # 3. Start its service
@@ -187,7 +187,7 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
 
     This script connects the simulation to Kafka topics and utilizes Pydantic models for structured event logging.
 
-    Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
+    Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
     ```python title="examples/builder/kafka_example.py"
     """Kafka Digital Twin, builder API.
@@ -207,7 +207,7 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
 
     from pydantic import BaseModel
 
-    from dynamic_des import (
+    from desflow import (
         KafkaAdminConnector,
         KafkaEgress,
         KafkaIngress,
@@ -327,30 +327,30 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
 
 === "Low-level"
 
-    This example demonstrates how to integrate `dynamic-des` into a full event-driven architecture using the low-level **Low-level API**.
+    This example demonstrates how to integrate `desflow` into a full event-driven architecture using the low-level **Low-level API**.
 
     **Quick Start**
 
-    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
     === "uv"
 
         ```bash
         # 1. Install
-        uv tool install "dynamic-des[kafka]" --with-executables-from "odctl>=1.0,<2"
+        uv tool install "desflow[kafka]" --with-executables-from "odctl>=1.0,<2"
 
         # 2. Download the example
-        ddes examples get kafka --api low-level
+        desflow examples get kafka --api low-level
         cd kafka/low-level
 
         # 3. Start its service
         odctl up kafka-lite
 
         # 4. Run it (Ctrl + C to stop)
-        uv run --no-project --with "dynamic-des[kafka]" kafka_example.py
+        uv run --no-project --with "desflow[kafka]" kafka_example.py
 
         # 5. In a second terminal, in the same folder, watch and steer it at http://localhost:8080
-        uv run --no-project --with "dynamic-des[kafka]" --with nicegui ../kafka_dashboard.py
+        uv run --no-project --with "desflow[kafka]" --with nicegui ../kafka_dashboard.py
 
         # 6. Stop its service when finished
         odctl down kafka-lite --volumes
@@ -360,10 +360,10 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
 
         ```bash
         # 1. Install
-        pip install "dynamic-des[kafka]" "odctl>=1.0,<2" nicegui
+        pip install "desflow[kafka]" "odctl>=1.0,<2" nicegui
 
         # 2. Download the example
-        ddes examples get kafka --api low-level
+        desflow examples get kafka --api low-level
         cd kafka/low-level
 
         # 3. Start its service
@@ -385,7 +385,7 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
 
     This script connects the simulation to Kafka topics and utilizes Pydantic models for structured event logging.
 
-    Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
+    Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
     ```python title="examples/low-level/kafka_example.py"
     """Kafka Digital Twin, low-level API.
@@ -404,7 +404,7 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
     import numpy as np
     from pydantic import BaseModel
 
-    from dynamic_des import (
+    from desflow import (
         CapacityConfig,
         DistributionConfig,
         DynamicRealtimeEnvironment,
@@ -429,7 +429,7 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
     # ==========================================
     class TaskEvent(BaseModel):
         """
-        Thanks to dynamic-des's duck-typing, we can pass this Pydantic model
+        Thanks to desflow's duck-typing, we can pass this Pydantic model
         directly into env.publish_event(). KafkaEgress converts it to a dict and
         serializes it, to JSON or to Avro.
         """
@@ -512,7 +512,7 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
         ingress = KafkaIngress(topic="sim-config", bootstrap_servers=BOOTSTRAP_SERVERS)
 
         # By default, this uses JsonSerializer. To use Avro for enterprise environments:
-        # from dynamic_des.connectors.egress.kafka import ConfluentAvroSerializer
+        # from desflow.connectors.egress.kafka import ConfluentAvroSerializer
         # avro_serializer = ConfluentAvroSerializer(
         #     registry_url="http://127.0.0.1:8081", schema_str=AVRO_SCHEMA
         # )

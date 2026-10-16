@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from dynamic_des.connectors.egress.redis import RedisEgress
+from desflow.connectors.egress.redis import RedisEgress
 
 
 @pytest.mark.asyncio
@@ -22,7 +22,7 @@ async def test_redis_egress(run_until):
 
     egress = RedisEgress(url="redis://localhost:6379/0", stream_name="default_stream")
 
-    with patch("dynamic_des.connectors.egress.redis.redis.from_url") as mock_from_url:
+    with patch("desflow.connectors.egress.redis.redis.from_url") as mock_from_url:
         from unittest.mock import MagicMock
 
         mock_client = AsyncMock()

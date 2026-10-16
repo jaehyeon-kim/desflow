@@ -3,7 +3,7 @@
 ## Simulation Context
 
 <!-- prettier-ignore -->
-::: dynamic_des.core.context.SimulationContext
+::: desflow.core.context.SimulationContext
     options:
       heading_level: 3
       show_root_heading: true
@@ -13,13 +13,13 @@
 `SimulationContext.from_yaml` is the usual entry point. `build` is what it calls, and returns the `run` section as well.
 
 <!-- prettier-ignore -->
-::: dynamic_des.blueprint.build.build
+::: desflow.blueprint.build.build
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: dynamic_des.blueprint.loader.BlueprintError
+::: desflow.blueprint.loader.BlueprintError
     options:
       heading_level: 3
       show_root_heading: true
@@ -27,7 +27,7 @@
 ## Environment
 
 <!-- prettier-ignore -->
-::: dynamic_des.core.environment.DynamicRealtimeEnvironment
+::: desflow.core.environment.DynamicRealtimeEnvironment
     options:
       heading_level: 3
       show_root_heading: true
@@ -44,53 +44,53 @@
 ## Registry & Parameters
 
 <!-- prettier-ignore -->
-::: dynamic_des.core.registry.SimulationRegistry
+::: desflow.core.registry.SimulationRegistry
     options:
       heading_level: 3
 
 <!-- prettier-ignore -->
-::: dynamic_des.models.params.SimParameter
+::: desflow.models.params.SimParameter
     options:
       heading_level: 3
 
 <!-- prettier-ignore -->
-::: dynamic_des.models.params.CapacityConfig
+::: desflow.models.params.CapacityConfig
     options:
       heading_level: 3
 
 <!-- prettier-ignore -->
-::: dynamic_des.models.params.DistributionConfig
+::: desflow.models.params.DistributionConfig
     options:
       heading_level: 3
 
 ## Data Payloads
 
 <!-- prettier-ignore -->
-::: dynamic_des.models.schemas.TelemetryPayload
+::: desflow.models.schemas.TelemetryPayload
     options:
       heading_level: 3
 
 <!-- prettier-ignore -->
-::: dynamic_des.models.schemas.EventPayload
+::: desflow.models.schemas.EventPayload
     options:
       heading_level: 3
 
 <!-- prettier-ignore -->
-::: dynamic_des.models.schemas.BaseStreamPayload
+::: desflow.models.schemas.BaseStreamPayload
     options:
       heading_level: 3
 
 ## Utilities
 
 <!-- prettier-ignore -->
-::: dynamic_des.core.sampler.Sampler
+::: desflow.core.sampler.Sampler
     options:
       heading_level: 3
       members:
         - sample
 
 <!-- prettier-ignore -->
-::: dynamic_des.utils.time_to_seconds
+::: desflow.utils.time_to_seconds
     options:
       heading_level: 3
       show_root_heading: true
@@ -98,7 +98,7 @@
 ## Resources
 
 <!-- prettier-ignore -->
-::: dynamic_des.resources.resource.DynamicResource
+::: desflow.resources.resource.DynamicResource
     options:
       heading_level: 3
       members:
@@ -108,7 +108,7 @@
         - capacity
 
 <!-- prettier-ignore -->
-::: dynamic_des.resources.container.DynamicContainer
+::: desflow.resources.container.DynamicContainer
     options:
       heading_level: 3
       members:
@@ -118,7 +118,7 @@
         - capacity
 
 <!-- prettier-ignore -->
-::: dynamic_des.resources.store.DynamicStore
+::: desflow.resources.store.DynamicStore
     options:
       heading_level: 3
       members:
@@ -130,7 +130,7 @@
 ## Admin & Infrastructure
 
 <!-- prettier-ignore -->
-::: dynamic_des.connectors.admin.kafka.KafkaAdminConnector
+::: desflow.connectors.admin.kafka.KafkaAdminConnector
     options:
       heading_level: 3
       members:
@@ -143,116 +143,116 @@
 ## Connectors (Ingress)
 
 <!-- prettier-ignore -->
-::: dynamic_des.connectors.ingress.base.BaseIngress
+::: desflow.connectors.ingress.base.BaseIngress
     options:
       heading_level: 3
 
 <!-- prettier-ignore -->
-::: dynamic_des.connectors.ingress.kafka.KafkaIngress
+::: desflow.connectors.ingress.kafka.KafkaIngress
     options:
       heading_level: 3
 
 <!-- prettier-ignore -->
-::: dynamic_des.connectors.ingress.local.LocalIngress
+::: desflow.connectors.ingress.local.LocalIngress
     options:
       heading_level: 3
 
 <!-- prettier-ignore -->
-::: dynamic_des.connectors.ingress.postgres.PostgresIngress
+::: desflow.connectors.ingress.postgres.PostgresIngress
     options:
       heading_level: 3
       members:
         - run
 
 <!-- prettier-ignore -->
-::: dynamic_des.connectors.ingress.redis.RedisIngress
+::: desflow.connectors.ingress.redis.RedisIngress
     options:
       heading_level: 3
 
 ## Deserializers
 
 <!-- prettier-ignore -->
-::: dynamic_des.connectors.ingress.kafka.MessageDeserializer
+::: desflow.connectors.ingress.kafka.MessageDeserializer
     options:
       heading_level: 3
 
 <!-- prettier-ignore -->
-::: dynamic_des.connectors.ingress.kafka.JsonDeserializer
+::: desflow.connectors.ingress.kafka.JsonDeserializer
     options:
       heading_level: 3
 
 <!-- prettier-ignore -->
-::: dynamic_des.connectors.ingress.kafka.ConfluentAvroDeserializer
+::: desflow.connectors.ingress.kafka.ConfluentAvroDeserializer
     options:
       heading_level: 3
 
 <!-- prettier-ignore -->
-::: dynamic_des.connectors.ingress.kafka.GlueAvroDeserializer
+::: desflow.connectors.ingress.kafka.GlueAvroDeserializer
     options:
       heading_level: 3
 
 ## Connectors (Egress)
 
 <!-- prettier-ignore -->
-::: dynamic_des.connectors.egress.base.BaseEgress
+::: desflow.connectors.egress.base.BaseEgress
     options:
       heading_level: 3
 
 <!-- prettier-ignore -->
-::: dynamic_des.connectors.egress.kafka.KafkaEgress
+::: desflow.connectors.egress.kafka.KafkaEgress
     options:
       heading_level: 3
 
 <!-- prettier-ignore -->
-::: dynamic_des.connectors.egress.local.ConsoleEgress
+::: desflow.connectors.egress.local.ConsoleEgress
     options:
       heading_level: 3
 
 <!-- prettier-ignore -->
-::: dynamic_des.connectors.egress.postgres.PostgresEgress
+::: desflow.connectors.egress.postgres.PostgresEgress
     options:
       heading_level: 3
       members:
         - run
 
 <!-- prettier-ignore -->
-::: dynamic_des.connectors.egress.redis.RedisEgress
+::: desflow.connectors.egress.redis.RedisEgress
     options:
       heading_level: 3
 
 <!-- prettier-ignore -->
-::: dynamic_des.connectors.egress.storage.JsonlStorageEgress
+::: desflow.connectors.egress.storage.JsonlStorageEgress
     options:
       heading_level: 3
 
 <!-- prettier-ignore -->
-::: dynamic_des.connectors.egress.storage.ParquetStorageEgress
+::: desflow.connectors.egress.storage.ParquetStorageEgress
     options:
       heading_level: 3
 
 <!-- prettier-ignore -->
-::: dynamic_des.connectors.egress.iceberg.IcebergStorageEgress
+::: desflow.connectors.egress.iceberg.IcebergStorageEgress
     options:
       heading_level: 3
 
 ## Serializers
 
 <!-- prettier-ignore -->
-::: dynamic_des.connectors.egress.kafka.MessageSerializer
+::: desflow.connectors.egress.kafka.MessageSerializer
     options:
       heading_level: 3
 
 <!-- prettier-ignore -->
-::: dynamic_des.connectors.egress.kafka.JsonSerializer
+::: desflow.connectors.egress.kafka.JsonSerializer
     options:
       heading_level: 3
 
 <!-- prettier-ignore -->
-::: dynamic_des.connectors.egress.kafka.ConfluentAvroSerializer
+::: desflow.connectors.egress.kafka.ConfluentAvroSerializer
     options:
       heading_level: 3
 
 <!-- prettier-ignore -->
-::: dynamic_des.connectors.egress.kafka.GlueAvroSerializer
+::: desflow.connectors.egress.kafka.GlueAvroSerializer
     options:
       heading_level: 3

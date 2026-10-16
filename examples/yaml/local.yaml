@@ -5,7 +5,7 @@
 # terminal. A scenario adds packers at 10 seconds and removes one at 20 seconds, and
 # the run ends on its own after 30 simulation seconds.
 #
-# Run it with: ddes run examples/yaml/local.yaml
+# Run it with: desflow run examples/yaml/local.yaml
 
 simulation:
   sim_id: Shop

@@ -11,7 +11,7 @@ import logging
 import os
 from datetime import datetime, timedelta
 
-from dynamic_des import ParquetStorageEgress, SimulationContext
+from desflow import ParquetStorageEgress, SimulationContext
 
 # Logging is configured here rather than in a wrapper, because this script is run
 # directly. Without it the run produces no output at all.

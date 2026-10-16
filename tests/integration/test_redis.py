@@ -4,8 +4,8 @@ import pytest
 import redis.asyncio as redis
 import orjson
 
-from dynamic_des.connectors.egress.redis import RedisEgress
-from dynamic_des.connectors.ingress.redis import RedisIngress
+from desflow.connectors.egress.redis import RedisEgress
+from desflow.connectors.ingress.redis import RedisIngress
 
 
 @pytest.mark.integration

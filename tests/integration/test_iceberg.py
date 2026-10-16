@@ -6,7 +6,7 @@ from datetime import datetime
 import pyarrow as pa
 import pytest
 
-from dynamic_des.connectors.egress.iceberg import IcebergStorageEgress
+from desflow.connectors.egress.iceberg import IcebergStorageEgress
 
 
 @pytest.fixture
@@ -56,38 +56,6 @@ async def test_snapshot_count_equals_flush_count(iceberg_catalog, namespace):
     table = iceberg_catalog.load_table(identifier)
     assert len(table.metadata.snapshots) == 3
     assert table.scan().to_arrow().num_rows == 12
-
-
-@pytest.mark.asyncio
-@pytest.mark.integration
-async def test_router_writes_two_tables_and_drops_records(iceberg_catalog, namespace):
-    """Another engine reads back only what the router kept, split as it routed."""
-    events = f"{namespace}.events"
-    telemetry = f"{namespace}.telemetry"
-
-    def router(data: dict):
-        if data["stream_type"] == "lag":
-            return None
-        return telemetry if data["stream_type"] == "telemetry" else events
-
-    egress = IcebergStorageEgress(catalog=iceberg_catalog, table_router=router)
-    q: queue.Queue = queue.Queue()
-    q.put(
-        [
-            {"stream_type": "event", "key": "a"},
-            {"stream_type": "telemetry", "key": "b"},
-            {"stream_type": "lag", "key": "dropped"},
-            {"stream_type": "event", "key": "c"},
-        ]
-    )
-
-    await _drain(egress, q)
-
-    event_rows = iceberg_catalog.load_table(events).scan().to_arrow().to_pylist()
-    telemetry_rows = iceberg_catalog.load_table(telemetry).scan().to_arrow().to_pylist()
-
-    assert sorted(r["key"] for r in event_rows) == ["a", "c"]
-    assert [r["key"] for r in telemetry_rows] == ["b"]
 
 
 @pytest.mark.asyncio

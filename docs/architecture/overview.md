@@ -1,6 +1,6 @@
 # Ways to Write a Simulation
 
-Dynamic DES provides three ways to build your event-driven simulations, allowing you to choose between ease of use and raw control. A YAML blueprint holds only configuration, the builder API adds Python logic through a builder, and the low-level API gives raw control.
+desflow provides three ways to build your event-driven simulations, allowing you to choose between ease of use and raw control. A YAML blueprint holds only configuration, the builder API adds Python logic through a builder, and the low-level API gives raw control.
 
 ---
 
@@ -8,7 +8,7 @@ Dynamic DES provides three ways to build your event-driven simulations, allowing
 
 | Feature | YAML Blueprint | Builder API | Low-level API |
 |---|---|---|---|
-| **Entry Point** | `ddes run` or `SimulationContext.from_yaml` | `SimulationContext` | `DynamicRealtimeEnvironment` |
+| **Entry Point** | `desflow run` or `SimulationContext.from_yaml` | `SimulationContext` | `DynamicRealtimeEnvironment` |
 | **Philosophy** | Declare the simulation in a file. Python is referenced with `!python` only for logic YAML cannot express. | Define *what* the system looks like and use decorators for task lifecycles. | Define *how* every event and resource operates step-by-step. |
 | **Boilerplate** | None. Logic YAML cannot express is Python referenced with `!python`. | Low (Automatic event emission, resource requesting, and sampling). | High (Manual queueing, starting, timing out, and releasing). |
 | **Typical Use Case** | Varying parameters, connectors and timed experiments between runs without editing code. | Building standard digital twins, historical data generation, and forecasting pipelines. | Edge-case scenarios requiring dynamic topology changes mid-run. |

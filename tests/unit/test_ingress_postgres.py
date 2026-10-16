@@ -2,7 +2,7 @@ import asyncio
 import queue
 from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
-from dynamic_des.connectors.ingress.postgres import PostgresIngress
+from desflow.connectors.ingress.postgres import PostgresIngress
 
 
 @pytest.fixture
@@ -17,7 +17,7 @@ def mock_pool():
 
 @pytest.mark.asyncio
 @patch(
-    "dynamic_des.connectors.ingress.postgres.asyncpg.create_pool",
+    "desflow.connectors.ingress.postgres.asyncpg.create_pool",
     new_callable=AsyncMock,
 )
 async def test_postgres_ingress_run(mock_create_pool, mock_pool):

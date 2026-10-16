@@ -1,6 +1,6 @@
 # Builder API
 
-The `SimulationContext` acts as the entry point and configuration builder for standard Dynamic DES simulations. It implements the **Builder Pattern** to construct the simulation environment and register resources, statistical samplers, and ingress/egress connectors. [First Simulation](../tutorials/first-simulation.md) builds a first shop this way, in its Builder tabs; this page lists every builder call, with an example of each.
+The `SimulationContext` acts as the entry point and configuration builder for standard desflow simulations. It implements the **Builder Pattern** to construct the simulation environment and register resources, statistical samplers, and ingress/egress connectors. [First Simulation](../tutorials/first-simulation.md) builds a first shop this way, in its Builder tabs; this page lists every builder call, with an example of each.
 
 ## Builder Lifecycle
 
@@ -118,13 +118,13 @@ app.with_batching(batch_size=1_000, flush_interval=5.0)  # defaults for other si
 
 ## Building from YAML
 
-`SimulationContext.from_yaml(path)` builds a context from a [YAML blueprint](yaml.md). The file is validated first, and every error names the file and line. The context is then built with the builder methods above, in the order a script calls them, so the result is an ordinary `SimulationContext`. Here `local.yaml` is the local example, which `ddes examples get local --api yaml` downloads to `local/yaml/`.
+`SimulationContext.from_yaml(path)` builds a context from a [YAML blueprint](yaml.md). The file is validated first, and every error names the file and line. The context is then built with the builder methods above, in the order a script calls them, so the result is an ordinary `SimulationContext`. Here `local.yaml` is the local example, which `desflow examples get local --api yaml` downloads to `local/yaml/`.
 
 ```python title="docs/snippets/pages/yaml_loading.py:from-yaml"
-from dynamic_des import SimulationContext
+from desflow import SimulationContext
 
 app = SimulationContext.from_yaml("local.yaml")
 app.run()  # calls run.before, then runs until run.until
 ```
 
-`run()` calls the blueprint's `run.before` functions first, and uses `run.until` when no `until` is passed. The `ddes run` command does the same from a shell.
+`run()` calls the blueprint's `run.before` functions first, and uses `run.until` when no `until` is passed. The `desflow run` command does the same from a shell.

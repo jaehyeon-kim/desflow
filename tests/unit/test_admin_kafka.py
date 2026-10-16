@@ -1,4 +1,4 @@
-from dynamic_des.connectors.admin.kafka import KafkaAdminConnector
+from desflow.connectors.admin.kafka import KafkaAdminConnector
 
 
 def test_admin_process_telemetry():

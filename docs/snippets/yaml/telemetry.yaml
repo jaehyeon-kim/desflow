@@ -1,5 +1,5 @@
 # Telemetry entries of the YAML Blueprints page.
-# Run it with: ddes run telemetry.yaml
+# Run it with: desflow run telemetry.yaml
 simulation:
   sim_id: Shop
   factor: 0

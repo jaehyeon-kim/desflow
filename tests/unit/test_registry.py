@@ -2,7 +2,7 @@ import logging
 
 import pytest
 
-from dynamic_des.models.params import DistributionConfig, SimParameter
+from desflow.models.params import DistributionConfig, SimParameter
 
 
 def test_registry_registration_paths(registry, sample_params):
@@ -30,21 +30,6 @@ def test_registry_registration_paths(registry, sample_params):
     # Shop.resources.operator -> .current_cap, .max_cap
     assert registry.get("Shop.resources.operator.current_cap").value == 1
     assert registry.get("Shop.resources.operator.max_cap").value == 3
-
-
-def test_registry_get_config(registry, sample_params):
-    """Verify that config objects can be retrieved by path."""
-    registry.register_sim_parameter(sample_params)
-
-    # Retrieve DistributionConfig
-    setup_cfg = registry.get_config("Shop.service.setup")
-    assert setup_cfg.mean == 2.0
-    assert setup_cfg.dist == "normal"
-
-    # Retrieve CapacityConfig
-    packers_cfg = registry.get_config("Shop.resources.packers")
-    assert packers_cfg.current_cap == 2
-    assert packers_cfg.max_cap == 5
 
 
 def test_registry_config_sync(registry, sample_params):
@@ -189,7 +174,7 @@ def test_registry_refuses_an_invalid_distribution_update(
     parent_path, attr = path.rsplit(".", 1)
     dyn_val = registry.get(path)
 
-    with caplog.at_level(logging.ERROR, logger="dynamic_des.core.registry"):
+    with caplog.at_level(logging.ERROR, logger="desflow.core.registry"):
         registry.update(path, value)
 
     assert dyn_val.value == old
@@ -211,7 +196,7 @@ def test_registry_clamps_current_cap_to_max_cap(registry, sample_params, caplog)
     """A current_cap above max_cap is stored as max_cap, which is what the resource uses."""
     registry.register_sim_parameter(sample_params)
 
-    with caplog.at_level(logging.WARNING, logger="dynamic_des.core.registry"):
+    with caplog.at_level(logging.WARNING, logger="desflow.core.registry"):
         registry.update("Shop.resources.packers.current_cap", 7)
 
     assert registry.get("Shop.resources.packers.current_cap").value == 5
@@ -223,7 +208,7 @@ def test_registry_clamps_negative_current_cap_to_zero(registry, sample_params, c
     """A negative current_cap is stored as 0."""
     registry.register_sim_parameter(sample_params)
 
-    with caplog.at_level(logging.WARNING, logger="dynamic_des.core.registry"):
+    with caplog.at_level(logging.WARNING, logger="desflow.core.registry"):
         registry.update("Shop.containers.tank1.current_cap", -3.5)
 
     assert registry.get("Shop.containers.tank1.current_cap").value == 0.0

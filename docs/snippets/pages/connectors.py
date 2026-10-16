@@ -8,7 +8,7 @@ without any service.
 from pyarrow import fs
 from pyiceberg.catalog.rest import RestCatalog
 
-from dynamic_des import (
+from desflow import (
     ConsoleEgress,
     IcebergStorageEgress,
     JsonlStorageEgress,

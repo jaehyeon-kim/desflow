@@ -6,7 +6,7 @@ unpaced run uses the console sinks.
 
 from datetime import datetime
 
-from dynamic_des import ConsoleEgress, DynamicRealtimeEnvironment, SimulationContext
+from desflow import ConsoleEgress, DynamicRealtimeEnvironment, SimulationContext
 
 stream, lake, audit = ConsoleEgress(), ConsoleEgress(), ConsoleEgress()
 hot_from = datetime.now().isoformat(timespec="milliseconds")

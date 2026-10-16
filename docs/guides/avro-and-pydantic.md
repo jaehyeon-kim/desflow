@@ -15,7 +15,7 @@ The code below publishes to Kafka, so start a broker first with `odctl up kafka-
 ```python title="docs/snippets/pages/avro_pydantic.py:model"
 from pydantic import BaseModel
 
-from dynamic_des import DynamicRealtimeEnvironment
+from desflow import DynamicRealtimeEnvironment
 
 
 class TaskEvent(BaseModel):
@@ -41,15 +41,15 @@ A topic router picks the topic of each record, and `topic_serializers` names the
 `KafkaEgress` serializes the whole record, not only its `value`: `key`, `sim_ts`, `timestamp` and `value`, without `stream_type`. An Avro schema therefore describes that record, with your payload as the `value` field. `ConfluentAvroSerializer` uses a Confluent Schema Registry, and `GlueAvroSerializer` uses an AWS Glue Schema Registry.
 
 ```python title="docs/snippets/pages/avro_pydantic.py:router"
-from dynamic_des import KafkaEgress
-from dynamic_des.connectors.egress.kafka import ConfluentAvroSerializer
+from desflow import KafkaEgress
+from desflow.connectors.egress.kafka import ConfluentAvroSerializer
 
 # An Avro serializer for the predictions topic. The schema describes the whole record
 # KafkaEgress sends, with the prediction as its value.
 prediction_serializer = ConfluentAvroSerializer(
     registry_url="http://127.0.0.1:8081",
     schema_str="""{
-      "type": "record", "name": "PredictionEvent", "namespace": "com.dynamic_des.ml",
+      "type": "record", "name": "PredictionEvent", "namespace": "com.desflow.ml",
       "fields": [
         {"name": "key", "type": "string"},
         {"name": "sim_ts", "type": "double"},
@@ -113,7 +113,7 @@ class PredictionRecord(AvroBaseModel):
     value: MLPrediction
 
     class Meta:
-        namespace = "com.dynamic_des.ml"
+        namespace = "com.desflow.ml"
         schema_name = "PredictionEvent"
 
 

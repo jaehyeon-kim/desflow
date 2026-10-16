@@ -201,7 +201,7 @@ Telemetry reports a value at a fixed interval of simulation time. YAML publishes
 
 ---
 
-## SimPy and Dynamic DES
+## SimPy and desflow
 
 In SimPy a task is a process you write: request the resource with `with resource.request() as request: yield request`, wait with `yield env.timeout(...)`, and leave the `with` block to release it. The Low-level tabs above are exactly that SimPy code, with one addition: `env.publish_event` at each step, so the run produces records.
 

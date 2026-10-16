@@ -1,5 +1,5 @@
 # The distributions of the Arrivals and Services page, in one blueprint.
-# Run it with: ddes run arrivals_services.yaml
+# Run it with: desflow run arrivals_services.yaml
 simulation:
   sim_id: Shop
   factor: 0

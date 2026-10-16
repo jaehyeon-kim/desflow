@@ -19,6 +19,11 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Stages, each starting only when the one before it passes:
+  # 1. checks, in parallel: lint, extras-isolation and core-install;
+  # 2. tests, in parallel: unit-test, integration-test and blueprint;
+  # 3. docs-build;
+  # 4. docs, on main only.
   # Linting is not version specific, so it runs once rather than in all five
   # unit-test legs, where a single hook failure used to fail the matrix five times.
   lint:
@@ -37,7 +42,134 @@ jobs:
       - name: Run pre-commit
         run: uvx pre-commit run --show-diff-on-failure --color=always --all-files
 
+  # Each leg installs exactly one extra into an empty environment, then imports and
+  # constructs the connectors that extra exists to enable. Running the suite with
+  # --all-extras hides a missing transitive dependency in one extra, because another
+  # extra supplies it. None of these constructors open a socket, so no broker,
+  # registry or database is needed.
+  extras-isolation:
+    name: Import ${{ matrix.extra }} extra alone
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - extra: kafka
+            check: |
+              from desflow import KafkaAdminConnector, KafkaEgress, KafkaIngress
+
+              KafkaEgress(bootstrap_servers="localhost:9092")
+              KafkaIngress(topic="sim-config", bootstrap_servers="localhost:9092")
+              KafkaAdminConnector(bootstrap_servers="localhost:9092")
+          - extra: confluent
+            check: |
+              import json
+
+              from desflow.connectors.egress.kafka import ConfluentAvroSerializer
+              from desflow.connectors.ingress.kafka import ConfluentAvroDeserializer
+
+              schema = json.dumps(
+                  {
+                      "type": "record",
+                      "name": "Ping",
+                      "fields": [{"name": "value", "type": "double"}],
+                  }
+              )
+              ConfluentAvroSerializer(registry_url="http://localhost:8081", schema_str=schema)
+              ConfluentAvroDeserializer(registry_url="http://localhost:8081")
+          - extra: glue
+            check: |
+              import json
+
+              from desflow.connectors.egress.kafka import GlueAvroSerializer
+              from desflow.connectors.ingress.kafka import GlueAvroDeserializer
+
+              schema = json.dumps(
+                  {
+                      "type": "record",
+                      "name": "Ping",
+                      "fields": [{"name": "value", "type": "double"}],
+                  }
+              )
+              GlueAvroSerializer(registry_name="sim-registry", schema_str=schema)
+              GlueAvroDeserializer(registry_name="sim-registry")
+          - extra: redis
+            check: |
+              from desflow import RedisEgress, RedisIngress
+
+              RedisEgress(url="redis://localhost:6379/0")
+              RedisIngress(url="redis://localhost:6379/0")
+          - extra: postgres
+            check: |
+              from desflow import PostgresEgress, PostgresIngress
+
+              PostgresEgress(connection_dsn="postgresql://user:pass@localhost:5432/sim")
+              PostgresIngress(connection_dsn="postgresql://user:pass@localhost:5432/sim")
+          - extra: parquet
+            check: |
+              from desflow import JsonlStorageEgress, ParquetStorageEgress
+
+              JsonlStorageEgress(default_path="data/events.jsonl")
+              ParquetStorageEgress(default_path="data/events.parquet")
+
+              # Both writers import pyarrow lazily inside their run loops, so
+              # constructing them does not prove pyarrow is installed.
+              import pyarrow.parquet
+              from pyarrow import fs
+          - extra: iceberg
+            check: |
+              from desflow import IcebergStorageEgress
+
+              IcebergStorageEgress(catalog=object(), default_table="sim.events")
+
+              # The connector takes the catalog from the caller and imports pyarrow
+              # lazily, so constructing it proves neither is installed. The REST
+              # catalog client and the Arrow FileIO are what the extra has to carry.
+              from pyiceberg.catalog.rest import RestCatalog
+              from pyiceberg.io.pyarrow import PyArrowFileIO
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Install only the ${{ matrix.extra }} extra
+        run: |
+          uv venv --python 3.12
+          uv pip install ".[${{ matrix.extra }}]"
+
+      - name: Import and construct the ${{ matrix.extra }} connectors
+        env:
+          CHECK: ${{ matrix.check }}
+        run: .venv/bin/python -c "$CHECK"
+
+  # The core install alone must import and start the desflow command, which proves the
+  # entry point, Typer and PyYAML need no extra.
+  core-install:
+    name: Import the core install alone
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Install the package with no extra
+        run: |
+          uv venv --python 3.12
+          uv pip install .
+
+      - name: Import desflow and start the desflow command
+        run: |
+          .venv/bin/python -c "import desflow"
+          .venv/bin/desflow --help
+
   unit-test:
+    needs: [lint, extras-isolation, core-install]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -58,9 +190,10 @@ jobs:
         # --python is what selects the interpreter. `uv python install` above only
         # downloads it, so without this every leg of the matrix would run the
         # version in .python-version and the other four would test nothing new.
-        run: uv run --python ${{ matrix.python-version }} --with pytest-cov --all-extras pytest tests/unit/ --cov=src/dynamic_des --cov-report=xml
+        run: uv run --python ${{ matrix.python-version }} --with pytest-cov --all-extras pytest tests/unit/ --cov=src/desflow --cov-report=xml
 
   integration-test:
+    needs: [lint, extras-isolation, core-install]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -94,113 +227,11 @@ jobs:
       #     token: ${{ secrets.CODECOV_TOKEN }}
       #     file: ./coverage.xml
 
-  # Each leg installs exactly one extra into an empty environment, then imports and
-  # constructs the connectors that extra exists to enable. Running the suite with
-  # --all-extras hides a missing transitive dependency in one extra, because another
-  # extra supplies it. None of these constructors open a socket, so no broker,
-  # registry or database is needed.
-  extras-isolation:
-    name: Import ${{ matrix.extra }} extra alone
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - extra: kafka
-            check: |
-              from dynamic_des import KafkaAdminConnector, KafkaEgress, KafkaIngress
-
-              KafkaEgress(bootstrap_servers="localhost:9092")
-              KafkaIngress(topic="sim-config", bootstrap_servers="localhost:9092")
-              KafkaAdminConnector(bootstrap_servers="localhost:9092")
-          - extra: confluent
-            check: |
-              import json
-
-              from dynamic_des.connectors.egress.kafka import ConfluentAvroSerializer
-              from dynamic_des.connectors.ingress.kafka import ConfluentAvroDeserializer
-
-              schema = json.dumps(
-                  {
-                      "type": "record",
-                      "name": "Ping",
-                      "fields": [{"name": "value", "type": "double"}],
-                  }
-              )
-              ConfluentAvroSerializer(registry_url="http://localhost:8081", schema_str=schema)
-              ConfluentAvroDeserializer(registry_url="http://localhost:8081")
-          - extra: glue
-            check: |
-              import json
-
-              from dynamic_des.connectors.egress.kafka import GlueAvroSerializer
-              from dynamic_des.connectors.ingress.kafka import GlueAvroDeserializer
-
-              schema = json.dumps(
-                  {
-                      "type": "record",
-                      "name": "Ping",
-                      "fields": [{"name": "value", "type": "double"}],
-                  }
-              )
-              GlueAvroSerializer(registry_name="sim-registry", schema_str=schema)
-              GlueAvroDeserializer(registry_name="sim-registry")
-          - extra: redis
-            check: |
-              from dynamic_des import RedisEgress, RedisIngress
-
-              RedisEgress(url="redis://localhost:6379/0")
-              RedisIngress(url="redis://localhost:6379/0")
-          - extra: postgres
-            check: |
-              from dynamic_des import PostgresEgress, PostgresIngress
-
-              PostgresEgress(connection_dsn="postgresql://user:pass@localhost:5432/sim")
-              PostgresIngress(connection_dsn="postgresql://user:pass@localhost:5432/sim")
-          - extra: parquet
-            check: |
-              from dynamic_des import JsonlStorageEgress, ParquetStorageEgress
-
-              JsonlStorageEgress(default_path="data/events.jsonl")
-              ParquetStorageEgress(default_path="data/events.parquet")
-
-              # Both writers import pyarrow lazily inside their run loops, so
-              # constructing them does not prove pyarrow is installed.
-              import pyarrow.parquet
-              from pyarrow import fs
-          - extra: iceberg
-            check: |
-              from dynamic_des import IcebergStorageEgress
-
-              IcebergStorageEgress(catalog=object(), default_table="sim.events")
-
-              # The connector takes the catalog from the caller and imports pyarrow
-              # lazily, so constructing it proves neither is installed. The REST
-              # catalog client and the Arrow FileIO are what the extra has to carry.
-              from pyiceberg.catalog.rest import RestCatalog
-              from pyiceberg.io.pyarrow import PyArrowFileIO
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: true
-
-      - name: Install only the ${{ matrix.extra }} extra
-        run: |
-          uv venv --python 3.12
-          uv pip install ".[${{ matrix.extra }}]"
-
-      - name: Import and construct the ${{ matrix.extra }} connectors
-        env:
-          CHECK: ${{ matrix.check }}
-        run: .venv/bin/python -c "$CHECK"
-
-  # The core install alone must run a plain YAML blueprint, which proves the ddes
-  # entry point, Typer and PyYAML need no extra.
-  core-install:
+  # A plain YAML blueprint runs with the core install alone, as a new user's first
+  # command does.
+  blueprint:
     name: Run a YAML blueprint with the core install alone
+    needs: [lint, extras-isolation, core-install]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -216,12 +247,14 @@ jobs:
           uv pip install .
 
       - name: Run the local blueprint for two simulation seconds
-        run: .venv/bin/ddes run examples/yaml/local.yaml --until 2
+        run: .venv/bin/desflow run examples/yaml/local.yaml --until 2
 
   # A strict build fails on a broken link or anchor, so a pull request finds it
-  # before the docs job deploys from main. Material prints a notice about MkDocs 2.0
+  # before the docs job deploys from main. It runs after the tests, because the docs
+  # are only deployed from code that passed them. Material prints a notice about MkDocs 2.0
   # that strict mode counts as a warning; the variable turns that notice off.
   docs-build:
+    needs: [unit-test, integration-test, blueprint]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -237,7 +270,7 @@ jobs:
         run: uv run mkdocs build --strict
 
   docs:
-    needs: [lint, unit-test, integration-test, docs-build]
+    needs: docs-build
     permissions:
       contents: write
       pages: write
@@ -260,6 +293,15 @@ jobs:
           # Dynamically extract the version string from pyproject.toml
           VERSION=$(grep -m 1 '^version = ' pyproject.toml | cut -d '"' -f 2)
           echo "Extracted version: $VERSION"
+
+          # The rename release starts the desflow site without the dynamic-des
+          # versions 0.1.0 to 0.19.0: delete --all removes every file on gh-pages,
+          # versions.json and the root files included, in a local commit that the
+          # push below sends with the deploy. A later merge while the version is
+          # still 0.20.0 deletes and deploys 0.20.0 again, with the same result.
+          if [ "$VERSION" = "0.20.0" ]; then
+            uv run mike delete --all
+          fi
 
           # Deploy the extracted version and tag it as 'latest'
           uv run mike deploy --update-aliases $VERSION latest

@@ -12,7 +12,7 @@ Needs a database: odctl up postgres. Runs until interrupted with Ctrl + C.
 
 import logging
 
-from dynamic_des import PostgresEgress, PostgresIngress, SimulationContext
+from desflow import PostgresEgress, PostgresIngress, SimulationContext
 
 logging.basicConfig(
     level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"

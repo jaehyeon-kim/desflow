@@ -1,8 +1,8 @@
 # Examples
 
-Runnable examples of one online shop, each written three ways: as a YAML blueprint in `yaml/`, with the builder API in `builder/` and with the low-level API in `low-level/`. They live outside the package, so `pip install dynamic-des` does not carry them and the library declares only what it imports.
+Runnable examples of one online shop, each written three ways: as a YAML blueprint in `yaml/`, with the builder API in `builder/` and with the low-level API in `low-level/`. They live outside the package, so `pip install desflow` does not carry them and the library declares only what it imports.
 
-Outside a clone, `ddes examples get <name>` downloads an example at the release you have installed, each version into a folder of its own; `ddes examples` lists them.
+Outside a clone, `desflow examples get <name>` downloads an example at the release you have installed, each version into a folder of its own; `desflow examples` lists them.
 
 From a clone, run one directly:
 
@@ -21,7 +21,7 @@ uv run --extra kafka examples/builder/kafka_example.py
 With pip, install first and run with `python`:
 
 ```bash
-pip install "dynamic-des[kafka]"
+pip install "desflow[kafka]"
 python examples/builder/kafka_example.py
 ```
 
@@ -61,10 +61,10 @@ The three versions of each example run the same simulation and publish the same 
 
 ## YAML blueprints
 
-`yaml/` holds the YAML version of every example, run with the `ddes` command:
+`yaml/` holds the YAML version of every example, run with the `desflow` command:
 
 ```bash
-uv run ddes run examples/yaml/local.yaml
+uv run desflow run examples/yaml/local.yaml
 ```
 
 The blueprints in `yaml/` are plain YAML with no Python. `yaml/advanced/postgres_orders.yaml` keeps its order generator in Python, in `postgres_orders_logic.py` beside it, and references it with `!python`. The extras and odctl profiles are the same as for the Python versions, so `kafka.yaml` needs `--extra kafka` and `odctl up kafka-lite`, and `backfill_live.yaml` needs both `kafka` and `parquet`. `tests/unit/test_yaml_examples.py` builds and runs each blueprint and checks the records it produces.

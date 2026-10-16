@@ -24,7 +24,7 @@ A low-level script takes these steps, in this order. The sections below take the
 ```python title="docs/snippets/pages/low_level.py:imports"
 import numpy as np
 
-from dynamic_des import (
+from desflow import (
     CapacityConfig,
     ConsoleEgress,
     DistributionConfig,
@@ -195,7 +195,7 @@ file unpaced, so every call on the page is checked.
 
 import numpy as np
 
-from dynamic_des import (
+from desflow import (
     CapacityConfig,
     ConsoleEgress,
     DistributionConfig,

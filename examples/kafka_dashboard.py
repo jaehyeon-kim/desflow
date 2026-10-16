@@ -18,13 +18,13 @@ try:
     from nicegui import app, ui
 except ModuleNotFoundError as exc:
     raise SystemExit(
-        "This dashboard needs nicegui, which is not a dependency of dynamic-des "
+        "This dashboard needs nicegui, which is not a dependency of desflow "
         "because the library itself never imports it. Install it with "
         "Either rerun as 'uv run --with nicegui examples/kafka_dashboard.py', which "
         "needs no install, or install it with 'pip install nicegui' first."
     ) from exc
 
-from dynamic_des import KafkaAdminConnector
+from desflow import KafkaAdminConnector
 
 # Logging is configured here rather than in a wrapper, because this script is run
 # directly. Without it the run produces no output at all.
@@ -74,7 +74,7 @@ def run():
         # Header
         with ui.header().classes("bg-slate-900 justify-center"):
             with ui.row().classes("w-full max-w-7xl items-center justify-between px-4"):
-                ui.label("Dynamic DES | Real-time Capacity Simulator").classes(
+                ui.label("desflow | Real-time Capacity Simulator").classes(
                     "text-white text-xl font-bold"
                 )
                 ui.label().bind_text_from(

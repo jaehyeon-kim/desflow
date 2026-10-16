@@ -7,8 +7,8 @@ import orjson
 import pytest
 from pydantic import BaseModel
 
-from dynamic_des.connectors.egress.base import extract_dict
-from dynamic_des.connectors.egress.kafka import (
+from desflow.connectors.egress.base import extract_dict
+from desflow.connectors.egress.kafka import (
     ConfluentAvroSerializer,
     GlueAvroSerializer,
     KafkaEgress,
@@ -18,7 +18,7 @@ from dynamic_des.connectors.egress.kafka import (
 @pytest.fixture(autouse=True)
 def mock_admin():
     """Keeps the topic creation at start from reaching for a broker."""
-    with patch("dynamic_des.connectors.egress.kafka.KafkaAdminConnector") as admin:
+    with patch("desflow.connectors.egress.kafka.KafkaAdminConnector") as admin:
         yield admin
 
 
@@ -56,7 +56,7 @@ def test_missing_avro_dependencies():
             "confluent_kafka.serialization": None,
         },
     ):
-        with pytest.raises(ImportError, match=r"pip install dynamic-des\[confluent\]"):
+        with pytest.raises(ImportError, match=r"pip install desflow\[confluent\]"):
             ConfluentAvroSerializer(registry_url="http://mock", schema_str="{}")
 
     # Hide boto3
@@ -69,7 +69,7 @@ def test_missing_avro_dependencies():
             "aws_schema_registry.avro": None,
         },
     ):
-        with pytest.raises(ImportError, match=r"pip install dynamic-des\[glue\]"):
+        with pytest.raises(ImportError, match=r"pip install desflow\[glue\]"):
             GlueAvroSerializer(registry_name="mock", schema_str="{}")
 
 
@@ -100,7 +100,7 @@ def test_avro_serializers_construct_with_extras_installed():
 
 
 @pytest.mark.asyncio
-@patch("dynamic_des.connectors.egress.kafka.AIOKafkaProducer")
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
 async def test_kafka_egress_pluggable_serializers(MockProducer, run_until):
     """Verify that topic_serializers correctly route payloads to custom serializers."""
     mock_producer_instance = AsyncMock()
@@ -145,7 +145,7 @@ async def test_kafka_egress_pluggable_serializers(MockProducer, run_until):
 
 
 @pytest.mark.asyncio
-@patch("dynamic_des.connectors.egress.kafka.AIOKafkaProducer")
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
 async def test_kafka_egress_default_telemetry_routing(MockProducer, run_until):
     """Verify default routing for telemetry streams."""
     mock_producer_instance = AsyncMock()
@@ -193,7 +193,7 @@ async def test_kafka_egress_default_telemetry_routing(MockProducer, run_until):
 
 
 @pytest.mark.asyncio
-@patch("dynamic_des.connectors.egress.kafka.AIOKafkaProducer")
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
 async def test_kafka_egress_default_event_routing(MockProducer, run_until):
     """Verify default routing for event streams."""
     mock_producer_instance = AsyncMock()
@@ -231,7 +231,7 @@ async def test_kafka_egress_default_event_routing(MockProducer, run_until):
 
 
 @pytest.mark.asyncio
-@patch("dynamic_des.connectors.egress.kafka.AIOKafkaProducer")
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
 async def test_kafka_egress_omits_stream_type_by_default(MockProducer, run_until):
     """Verify the default keeps stream_type out of the message and off the record.
 
@@ -262,7 +262,7 @@ async def test_kafka_egress_omits_stream_type_by_default(MockProducer, run_until
 
 
 @pytest.mark.asyncio
-@patch("dynamic_des.connectors.egress.kafka.AIOKafkaProducer")
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
 async def test_kafka_egress_include_stream_type(MockProducer, run_until):
     """Verify include_stream_type=True keeps the field in the published message."""
     mock_producer_instance = AsyncMock()
@@ -301,7 +301,7 @@ async def test_kafka_egress_include_stream_type(MockProducer, run_until):
 
 
 @pytest.mark.asyncio
-@patch("dynamic_des.connectors.egress.kafka.AIOKafkaProducer")
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
 async def test_kafka_egress_include_stream_type_with_topic_router(
     MockProducer, run_until
 ):
@@ -361,7 +361,7 @@ def test_avro_drops_stream_type_when_schema_omits_it():
 
 
 @pytest.mark.asyncio
-@patch("dynamic_des.connectors.egress.kafka.AIOKafkaProducer")
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
 async def test_kafka_egress_custom_topic_router(MockProducer, run_until):
     """Verify that a custom router function correctly overrides default behavior."""
     mock_producer_instance = AsyncMock()
@@ -429,7 +429,7 @@ async def _run_until_started(egress, producer):
 
 
 @pytest.mark.asyncio
-@patch("dynamic_des.connectors.egress.kafka.AIOKafkaProducer")
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
 async def test_topics_are_created_at_start(MockProducer, mock_admin):
     """Without a router, the event and telemetry topics are created before producing."""
     MockProducer.return_value = AsyncMock()
@@ -456,7 +456,7 @@ async def test_topics_are_created_at_start(MockProducer, mock_admin):
 
 
 @pytest.mark.asyncio
-@patch("dynamic_des.connectors.egress.kafka.AIOKafkaProducer")
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
 async def test_one_topic_for_both_streams_is_created_once(MockProducer, mock_admin):
     """The same name for both streams is one topic."""
     MockProducer.return_value = AsyncMock()
@@ -472,7 +472,7 @@ async def test_one_topic_for_both_streams_is_created_once(MockProducer, mock_adm
 
 
 @pytest.mark.asyncio
-@patch("dynamic_des.connectors.egress.kafka.AIOKafkaProducer")
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
 async def test_a_router_leaves_topics_to_the_caller(MockProducer, mock_admin):
     """Only the router knows its topics, so none are created."""
     MockProducer.return_value = AsyncMock()
@@ -484,7 +484,7 @@ async def test_a_router_leaves_topics_to_the_caller(MockProducer, mock_admin):
 
 
 @pytest.mark.asyncio
-@patch("dynamic_des.connectors.egress.kafka.AIOKafkaProducer")
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
 async def test_a_failed_topic_creation_does_not_stop_the_producer(
     MockProducer, mock_admin
 ):
@@ -500,7 +500,7 @@ async def test_a_failed_topic_creation_does_not_stop_the_producer(
 
 
 @pytest.mark.asyncio
-@patch("dynamic_des.connectors.egress.kafka.AIOKafkaProducer")
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
 async def test_a_failed_start_closes_the_producer(MockProducer, run_until):
     """aiokafka leaves a producer open when start() fails; the egress closes it."""
     failed = AsyncMock()

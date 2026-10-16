@@ -14,7 +14,7 @@ import os
 import time
 from datetime import datetime, timedelta
 
-from dynamic_des import (
+from desflow import (
     KafkaAdminConnector,
     KafkaEgress,
     ParquetStorageEgress,

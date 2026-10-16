@@ -12,34 +12,34 @@ Local connectors need no Docker, Kafka or other external store, so this example 
 
     **Quick Start**
 
-    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
     === "uv"
 
         ```bash
         # 1. Install
-        uv tool install dynamic-des
+        uv tool install desflow
 
         # 2. Download the example
-        ddes examples get local --api yaml
+        desflow examples get local --api yaml
         cd local/yaml
 
         # 3. Run it
-        ddes run local.yaml
+        desflow run local.yaml
         ```
 
     === "pip"
 
         ```bash
         # 1. Install
-        pip install dynamic-des
+        pip install desflow
 
         # 2. Download the example
-        ddes examples get local --api yaml
+        desflow examples get local --api yaml
         cd local/yaml
 
         # 3. Run it
-        ddes run local.yaml
+        desflow run local.yaml
         ```
 
     **What It Does**
@@ -59,7 +59,7 @@ Local connectors need no Docker, Kafka or other external store, so this example 
 
     The blueprint declares one resource, one service and one arrival. `spawn` names the task each arrival starts, the `telemetry` entry publishes four statistics of the packers every 2 simulation seconds, and the `scenario` changes the number of packers at 10 and 20 seconds.
 
-    Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
+    Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
     ```yaml title="examples/yaml/local.yaml"
     # Local simulation in YAML, with no Python and no containers.
@@ -69,7 +69,7 @@ Local connectors need no Docker, Kafka or other external store, so this example 
     # terminal. A scenario adds packers at 10 seconds and removes one at 20 seconds, and
     # the run ends on its own after 30 simulation seconds.
     #
-    # Run it with: ddes run examples/yaml/local.yaml
+    # Run it with: desflow run examples/yaml/local.yaml
 
     simulation:
       sim_id: Shop
@@ -123,30 +123,30 @@ Local connectors need no Docker, Kafka or other external store, so this example 
 
     **Quick Start**
 
-    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
     === "uv"
 
         ```bash
         # 1. Install
-        uv tool install dynamic-des
+        uv tool install desflow
 
         # 2. Download the example
-        ddes examples get local --api builder
+        desflow examples get local --api builder
         cd local/builder
 
         # 3. Run it
-        uv run --no-project --with dynamic-des local_example.py
+        uv run --no-project --with desflow local_example.py
         ```
 
     === "pip"
 
         ```bash
         # 1. Install
-        pip install dynamic-des
+        pip install desflow
 
         # 2. Download the example
-        ddes examples get local --api builder
+        desflow examples get local --api builder
         cd local/builder
 
         # 3. Run it
@@ -157,7 +157,7 @@ Local connectors need no Docker, Kafka or other external store, so this example 
 
     This script builds the shop, runs it for 30 simulation seconds, and streams events and telemetry directly to your terminal.
 
-    Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
+    Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
     ```python title="examples/builder/local_example.py"
     """Local simulation, builder API, no containers.
@@ -173,7 +173,7 @@ Local connectors need no Docker, Kafka or other external store, so this example 
 
     import logging
 
-    from dynamic_des import ConsoleEgress, SimulationContext
+    from desflow import ConsoleEgress, SimulationContext
 
     # Logging is configured here rather than in a wrapper, because this script is run
     # directly. Without it the run produces no output at all.
@@ -259,30 +259,30 @@ Local connectors need no Docker, Kafka or other external store, so this example 
 
     **Quick Start**
 
-    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
     === "uv"
 
         ```bash
         # 1. Install
-        uv tool install dynamic-des
+        uv tool install desflow
 
         # 2. Download the example
-        ddes examples get local --api low-level
+        desflow examples get local --api low-level
         cd local/low-level
 
         # 3. Run it
-        uv run --no-project --with dynamic-des local_example.py
+        uv run --no-project --with desflow local_example.py
         ```
 
     === "pip"
 
         ```bash
         # 1. Install
-        pip install dynamic-des
+        pip install desflow
 
         # 2. Download the example
-        ddes examples get local --api low-level
+        desflow examples get local --api low-level
         cd local/low-level
 
         # 3. Run it
@@ -293,7 +293,7 @@ Local connectors need no Docker, Kafka or other external store, so this example 
 
     This script builds the shop and runs it for 30 simulation seconds. The `capacity_changes` process changes the number of packers from 1 to 3 at 10 seconds, then down to 2 at 20 seconds. Events and telemetry stream directly to your terminal, driven by plain SimPy generators.
 
-    Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
+    Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
     ```python title="examples/low-level/local_example.py"
     """Local simulation, low-level API, no containers.
@@ -310,7 +310,7 @@ Local connectors need no Docker, Kafka or other external store, so this example 
 
     import numpy as np
 
-    from dynamic_des import (
+    from desflow import (
         CapacityConfig,
         ConsoleEgress,
         DistributionConfig,

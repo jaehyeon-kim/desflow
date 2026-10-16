@@ -3,8 +3,8 @@ import queue
 
 import pytest
 
-from dynamic_des.core.environment import DynamicRealtimeEnvironment
-from dynamic_des.models.params import CapacityConfig, DistributionConfig, SimParameter
+from desflow.core.environment import DynamicRealtimeEnvironment
+from desflow.models.params import CapacityConfig, DistributionConfig, SimParameter
 
 
 @pytest.fixture

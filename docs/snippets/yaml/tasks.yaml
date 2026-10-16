@@ -1,5 +1,5 @@
 # The tasks and processes of the Tasks and Processes page, as a blueprint.
-# Run it with: ddes run tasks.yaml
+# Run it with: desflow run tasks.yaml
 simulation:
   sim_id: Shop
   factor: 0

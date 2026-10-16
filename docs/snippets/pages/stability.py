@@ -7,7 +7,7 @@ against the queueing formula.
 
 import numpy as np
 
-from dynamic_des import (
+from desflow import (
     CapacityConfig,
     DistributionConfig,
     DynamicRealtimeEnvironment,

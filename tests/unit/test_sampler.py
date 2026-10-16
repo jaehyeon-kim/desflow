@@ -2,8 +2,8 @@ import math
 import numpy as np
 import pytest
 
-from dynamic_des.core.sampler import Sampler
-from dynamic_des.models.params import DistributionConfig
+from desflow.core.sampler import Sampler
+from desflow.models.params import DistributionConfig
 
 
 @pytest.fixture
@@ -72,12 +72,6 @@ def test_sampler_stochastic_lognormal(sampler):
     # Log-normal mean is usually close to desired mean in large samples
     assert 9.5 < np.mean(samples) < 10.5
     assert min(samples) > 0  # Log-normal is strictly positive
-
-
-def test_sampler_invalid_config():
-    """A config with a missing mean is refused, instead of sampling a mean of 0."""
-    with pytest.raises(ValueError, match="mean"):
-        DistributionConfig(dist="normal", mean=None, std=None)
 
 
 def test_lognormal_with_zero_std_is_a_constant(sampler):

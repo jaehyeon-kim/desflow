@@ -8,6 +8,8 @@ jobs:
   pypi-publish:
     name: Build and publish Python package
     runs-on: ubuntu-latest
+    # PyPI's trusted publisher for desflow names no environment, so it accepts this one.
+    environment: pypi
     # These permissions are strictly required for PyPI OIDC Trusted Publishing
     permissions:
       contents: read

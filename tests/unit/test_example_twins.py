@@ -16,13 +16,13 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from dynamic_des import (
+from desflow import (
     DynamicRealtimeEnvironment,
     DynamicResource,
     Sampler,
     SimulationContext,
 )
-from dynamic_des.connectors.egress.base import BaseEgress
+from desflow.connectors.egress.base import BaseEgress
 
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLES = ROOT / "examples"

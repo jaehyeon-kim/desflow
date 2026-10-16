@@ -10,7 +10,7 @@ Needs Valkey: `odctl up valkey`. Runs until interrupted with Ctrl + C.
 
 import logging
 
-from dynamic_des import RedisEgress, RedisIngress, SimulationContext
+from desflow import RedisEgress, RedisIngress, SimulationContext
 
 logger = logging.getLogger(__name__)
 

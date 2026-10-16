@@ -1,6 +1,6 @@
 # Connectors
 
-Connectors are the integration gateways of Dynamic DES. They handle the communication flow between the internal simulation registry/event queue and external systems.
+Connectors are the integration gateways of desflow. They handle the communication flow between the internal simulation registry/event queue and external systems.
 
 Each snippet below attaches a connector to a `SimulationContext` called `app` with `add_ingress` or `add_egress`. The low-level API passes the same objects to `env.setup_ingress` and `env.setup_egress`, and a YAML blueprint lists them under `ingress` and `egress`.
 

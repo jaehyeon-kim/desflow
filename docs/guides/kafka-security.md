@@ -31,7 +31,7 @@ For a cluster that requires mutual TLS, build an SSL context from your certifica
 ```python title="docs/snippets/pages/kafka_security.py:mtls"
 from aiokafka.helpers import create_ssl_context
 
-from dynamic_des import KafkaIngress
+from desflow import KafkaIngress
 
 ssl_context = create_ssl_context(
     cafile="/path/to/ca.pem",
@@ -60,7 +60,7 @@ from aiokafka.abc import AbstractTokenProvider as AsyncTokenProvider
 from aws_msk_iam_sasl_signer import MSKAuthTokenProvider
 from kafka.sasl.oauth import AbstractTokenProvider as SyncTokenProvider
 
-from dynamic_des import KafkaAdminConnector, KafkaEgress
+from desflow import KafkaAdminConnector, KafkaEgress
 
 def msk_token() -> str:
     # Uses the AWS credentials of your environment, or the EC2 or EKS role

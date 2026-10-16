@@ -8,7 +8,7 @@ try:
 except ImportError:
     HAS_PYARROW = False
 
-from dynamic_des.connectors.egress.iceberg import IcebergStorageEgress
+from desflow.connectors.egress.iceberg import IcebergStorageEgress
 
 pytestmark = pytest.mark.skipif(
     not HAS_PYARROW, reason="pyarrow is required for the Iceberg egress tests"

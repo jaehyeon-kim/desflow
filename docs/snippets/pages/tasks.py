@@ -3,7 +3,7 @@
 tests/unit runs this file: both versions run unpaced for 3 simulation minutes.
 """
 
-from dynamic_des import (
+from desflow import (
     CapacityConfig,
     ConsoleEgress,
     DistributionConfig,

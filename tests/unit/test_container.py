@@ -1,4 +1,4 @@
-from dynamic_des.resources.container import DynamicContainer
+from desflow.resources.container import DynamicContainer
 
 
 def flush_events(env):
@@ -118,7 +118,7 @@ def test_max_cap_decrease_lowers_capacity(env, registry, sample_params):
 
 def test_integer_starting_capacity_keeps_fractional_updates(env, registry):
     """Verify a container registered with whole numbers still takes 62.5."""
-    from dynamic_des.models.params import CapacityConfig, SimParameter
+    from desflow.models.params import CapacityConfig, SimParameter
 
     registry.register_sim_parameter(
         SimParameter(
@@ -135,12 +135,12 @@ def test_integer_starting_capacity_keeps_fractional_updates(env, registry):
 
 
 def test_resource_classes_are_exported_from_the_package():
-    """Verify all three dynamic resource classes import from dynamic_des."""
-    import dynamic_des
-    from dynamic_des.resources.store import DynamicStore
+    """Verify all three dynamic resource classes import from desflow."""
+    import desflow
+    from desflow.resources.store import DynamicStore
 
-    assert dynamic_des.DynamicContainer is DynamicContainer
-    assert dynamic_des.DynamicStore is DynamicStore
+    assert desflow.DynamicContainer is DynamicContainer
+    assert desflow.DynamicStore is DynamicStore
     assert {"DynamicResource", "DynamicContainer", "DynamicStore"} <= set(
-        dynamic_des.__all__
+        desflow.__all__
     )

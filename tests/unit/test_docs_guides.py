@@ -39,7 +39,7 @@ def _events(caplog):
 def test_jams_stop_the_printer_until_repaired(caplog):
     module = _load("preemptive_breakdowns")
     module.app.factor = 0.0
-    with caplog.at_level(logging.INFO, logger="dynamic_des"):
+    with caplog.at_level(logging.INFO, logger="desflow"):
         module.app.run(until=200)
     events = _events(caplog)
     statuses = [value["status"] for _, value in events]
@@ -64,7 +64,7 @@ def test_jams_stop_the_printer_until_repaired(caplog):
 def test_handoff_holds_the_picker_until_the_bench_is_free(caplog):
     module = _load("multi_resource_handoffs")
     module.app.factor = 0.0
-    with caplog.at_level(logging.INFO, logger="dynamic_des"):
+    with caplog.at_level(logging.INFO, logger="desflow"):
         module.app.run(until=60)
     events = _events(caplog)
     assert any(value["status"] == "finished" for _, value in events)
@@ -94,7 +94,7 @@ def test_handoff_holds_the_picker_until_the_bench_is_free(caplog):
 
 def test_supervisor_adds_the_wrappers_mid_run(caplog):
     module = _load("dynamic_topology")
-    with caplog.at_level(logging.INFO, logger="dynamic_des"):
+    with caplog.at_level(logging.INFO, logger="desflow"):
         resources = module.run(until=20, factor=0.0)
     assert set(resources) == {"packers", "wrappers"}
     assert resources["wrappers"].capacity == 2

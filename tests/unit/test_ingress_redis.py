@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 import orjson
 import pytest
 
-from dynamic_des.connectors.ingress.redis import RedisIngress
+from desflow.connectors.ingress.redis import RedisIngress
 
 
 @pytest.mark.asyncio
@@ -15,7 +15,7 @@ async def test_redis_ingress():
         url="redis://localhost:6379/0", channel_name="test_params", poll_interval=0.01
     )
 
-    with patch("dynamic_des.connectors.ingress.redis.redis.from_url") as mock_from_url:
+    with patch("desflow.connectors.ingress.redis.redis.from_url") as mock_from_url:
         from unittest.mock import MagicMock
 
         mock_client = AsyncMock()

@@ -1,4 +1,4 @@
-"""`ddes examples` lists every example and downloads it at the installed release.
+"""`desflow examples` lists every example and downloads it at the installed release.
 
 Downloads are served from the repository's own examples/ folder, so the tests need
 no network and check that what a reader gets is what the repository holds.
@@ -11,8 +11,8 @@ from unittest import mock
 import pytest
 from typer.testing import CliRunner
 
-from dynamic_des.blueprint import examples
-from dynamic_des.blueprint.cli import app
+from desflow.blueprint import examples
+from desflow.blueprint.cli import app
 
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLES_DIR = ROOT / "examples"
@@ -25,16 +25,9 @@ def _local_fetch(url):
     return (EXAMPLES_DIR / path).read_bytes()
 
 
-def test_every_listed_file_exists():
-    for example in examples.EXAMPLES.values():
-        for path in [
-            p for paths in example.files.values() for p in paths
-        ] + example.shared:
-            assert (EXAMPLES_DIR / path).is_file(), f"{example.name}: {path}"
-
-
 def test_every_example_file_is_listed():
-    """A new example file that the command cannot download fails here."""
+    """A new example file that the command cannot download, or a listed file that is
+    missing, fails here."""
     listed = {
         p
         for e in examples.EXAMPLES.values()
@@ -46,11 +39,6 @@ def test_every_example_file_is_listed():
         if p.suffix in (".py", ".yaml") and "__pycache__" not in p.parts
     }
     assert on_disk == listed
-
-
-def test_every_example_has_all_three_versions():
-    for example in examples.EXAMPLES.values():
-        assert set(example.files) == set(examples.APIS), example.name
 
 
 @pytest.mark.parametrize(

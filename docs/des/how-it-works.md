@@ -14,7 +14,7 @@ You could answer by watching the shop with a notebook. You would not write somet
 
 A **discrete-event simulation** (DES) is that notebook, written by a computer. You describe the shop: how often customers come, how long a coffee takes, how many baristas there are. The computer then plays out the events one after another, with random variation like in real life, and writes down what happens. Because it skips the quiet seconds, it can play out a day, or a year, in moments. Change the description, add a barista or double the customers, and run it again to see the difference.
 
-Dynamic DES does this for any system with arrivals, work and limited capacity: a factory, a warehouse, a shop, a support desk, a network. What it adds is that every event is also sent out as a record, to Kafka, a database or files, so the simulation becomes a source of realistic data. [Building Blocks](../building-blocks/index.md) shows the parts you describe a model with, and [Queues and Capacity](queues-and-capacity.md) explains why the coffee shop's queue grows the way it does.
+desflow does this for any system with arrivals, work and limited capacity: a factory, a warehouse, a shop, a support desk, a network. What it adds is that every event is also sent out as a record, to Kafka, a database or files, so the simulation becomes a source of realistic data. [Building Blocks](../building-blocks/index.md) shows the parts you describe a model with, and [Queues and Capacity](queues-and-capacity.md) explains why the coffee shop's queue grows the way it does.
 
 ---
 
@@ -24,7 +24,7 @@ This section is the same idea in the terms the rest of the docs use. A discrete-
 
 ![The simulation clock jumps from event to event: order 1 arrives and starts at 0.0 s and finishes at 1.5 s, order 2 arrives and starts at 2.6 s and finishes at 4.1 s. Just after 0.0 s the event list holds order 1 finishing at 1.5 s and order 2 arriving at 2.6 s, so the clock jumps to 1.5 s](../assets/diagrams/event-clock.png)
 
-The clock jumps, so a simulated week with a few thousand events takes as long to compute as those events need, not a week. Dynamic DES runs on [SimPy](https://simpy.readthedocs.io/), which provides the event list and the clock. On top of SimPy it adds:
+The clock jumps, so a simulated week with a few thousand events takes as long to compute as those events need, not a week. desflow runs on [SimPy](https://simpy.readthedocs.io/), which provides the event list and the clock. On top of SimPy it adds:
 
 - **Pacing.** `factor` makes the clock follow the wall clock (`1.0`), run faster or slower, or not wait at all (`0.0`), so the same model can drive a live dashboard or write a month of history in seconds. [Time and Pacing](../architecture/time.md) explains it.
 - **Live values.** Every parameter is in a registry and can change while the simulation runs. [Live Parameters](../architecture/registry.md) explains it.

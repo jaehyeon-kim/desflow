@@ -3,7 +3,7 @@
 Needs Kafka: odctl up kafka-lite. Runs until stopped with Ctrl+C.
 """
 
-from dynamic_des import KafkaEgress, KafkaIngress, SimulationContext
+from desflow import KafkaEgress, KafkaIngress, SimulationContext
 
 app = (
     SimulationContext(sim_id="Shop", factor=1.0, random_seed=42)

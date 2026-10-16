@@ -6,7 +6,7 @@ draws from each distribution and checks the rules the page states.
 
 import numpy as np
 
-from dynamic_des import DistributionConfig, Sampler, SimulationContext
+from desflow import DistributionConfig, Sampler, SimulationContext
 
 # --8<-- [start:builder-seed]
 # Same draws every run

@@ -2,7 +2,7 @@
 
 A week of an online shop's orders, generated at `factor=0.0` and written to Parquet files on the local disk or in S3-compatible storage. Each tab shows the example written one way: with the builder API, with the low-level API, or as a YAML blueprint. [Ways to write a simulation](../architecture/overview.md) compares the three.
 
-Dynamic DES is built for real-time digital twins, but the same model can also run faster than real time. With the time factor at 0 and a chosen start time, a run generates a large amount of historical data in seconds, or predicts future states.
+desflow is built for real-time digital twins, but the same model can also run faster than real time. With the time factor at 0 and a chosen start time, a run generates a large amount of historical data in seconds, or predicts future states.
 
 === "YAML"
 
@@ -10,34 +10,34 @@ Dynamic DES is built for real-time digital twins, but the same model can also ru
 
     **Quick Start**
 
-    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
     === "uv"
 
         ```bash
         # 1. Install
-        uv tool install "dynamic-des[parquet]"
+        uv tool install "desflow[parquet]"
 
         # 2. Download the example
-        ddes examples get parquet --api yaml
+        desflow examples get parquet --api yaml
         cd parquet/yaml
 
         # 3. Run it
-        ddes run parquet.yaml
+        desflow run parquet.yaml
         ```
 
     === "pip"
 
         ```bash
         # 1. Install
-        pip install "dynamic-des[parquet]"
+        pip install "desflow[parquet]"
 
         # 2. Download the example
-        ddes examples get parquet --api yaml
+        desflow examples get parquet --api yaml
         cd parquet/yaml
 
         # 3. Run it
-        ddes run parquet.yaml
+        desflow run parquet.yaml
         ```
 
     **What It Does**
@@ -58,7 +58,7 @@ Dynamic DES is built for real-time digital twins, but the same model can also ru
 
     `filesystem` is a mapping. `type` picks the local disk or S3, and the other keys are passed to PyArrow's `S3FileSystem`. A key whose value is empty is left out, so with no variables set the mapping is the local disk.
 
-    Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
+    Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
     ```yaml title="examples/yaml/parquet.yaml"
     # Historical data generation in YAML.
@@ -71,7 +71,7 @@ Dynamic DES is built for real-time digital twins, but the same model can also ru
     # Writes to ./data by default. To write to the odctl storage profile instead (odctl
     # up storage), set PARQUET_FILESYSTEM=s3, DEST_PATH=odctl-dev/history,
     # S3_ENDPOINT=http://localhost:8333, S3_ACCESS_KEY=user and S3_SECRET_KEY=password.
-    # Run it with: ddes run examples/yaml/parquet.yaml
+    # Run it with: desflow run examples/yaml/parquet.yaml
 
     simulation:
       sim_id: Shop
@@ -120,30 +120,30 @@ Dynamic DES is built for real-time digital twins, but the same model can also ru
 
     **Quick Start**
 
-    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
     === "uv"
 
         ```bash
         # 1. Install
-        uv tool install "dynamic-des[parquet]"
+        uv tool install "desflow[parquet]"
 
         # 2. Download the example
-        ddes examples get parquet --api builder
+        desflow examples get parquet --api builder
         cd parquet/builder
 
         # 3. Run it
-        uv run --no-project --with "dynamic-des[parquet]" parquet_example.py
+        uv run --no-project --with "desflow[parquet]" parquet_example.py
         ```
 
     === "pip"
 
         ```bash
         # 1. Install
-        pip install "dynamic-des[parquet]"
+        pip install "desflow[parquet]"
 
         # 2. Download the example
-        ddes examples get parquet --api builder
+        desflow examples get parquet --api builder
         cd parquet/builder
 
         # 3. Run it
@@ -164,7 +164,7 @@ Dynamic DES is built for real-time digital twins, but the same model can also ru
 
     This script simulates the shop over a 7-day period. It demonstrates how to route lifecycle events to one Parquet dataset, flattened into rows, and write them out instantly.
 
-    Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
+    Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
     ```python title="examples/builder/parquet_example.py"
     """
@@ -180,7 +180,7 @@ Dynamic DES is built for real-time digital twins, but the same model can also ru
     import os
     from datetime import datetime, timedelta
 
-    from dynamic_des import ParquetStorageEgress, SimulationContext
+    from desflow import ParquetStorageEgress, SimulationContext
 
     # Logging is configured here rather than in a wrapper, because this script is run
     # directly. Without it the run produces no output at all.
@@ -316,30 +316,30 @@ Dynamic DES is built for real-time digital twins, but the same model can also ru
 
     **Quick Start**
 
-    `ddes examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
 
     === "uv"
 
         ```bash
         # 1. Install
-        uv tool install "dynamic-des[parquet]"
+        uv tool install "desflow[parquet]"
 
         # 2. Download the example
-        ddes examples get parquet --api low-level
+        desflow examples get parquet --api low-level
         cd parquet/low-level
 
         # 3. Run it
-        uv run --no-project --with "dynamic-des[parquet]" parquet_example.py
+        uv run --no-project --with "desflow[parquet]" parquet_example.py
         ```
 
     === "pip"
 
         ```bash
         # 1. Install
-        pip install "dynamic-des[parquet]"
+        pip install "desflow[parquet]"
 
         # 2. Download the example
-        ddes examples get parquet --api low-level
+        desflow examples get parquet --api low-level
         cd parquet/low-level
 
         # 3. Run it
@@ -360,7 +360,7 @@ Dynamic DES is built for real-time digital twins, but the same model can also ru
 
     This script simulates the shop over a 7-day period. It demonstrates how to route lifecycle events to one Parquet dataset, flattened into rows, and write them out.
 
-    Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/dynamic-des/tree/main/examples) of the repository, and the label on the block below is this one's path there.
+    Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
     ```python title="examples/low-level/parquet_example.py"
     """Historical data generation, low-level API.
@@ -382,7 +382,7 @@ Dynamic DES is built for real-time digital twins, but the same model can also ru
 
     import numpy as np
 
-    from dynamic_des import (
+    from desflow import (
         CapacityConfig,
         DistributionConfig,
         DynamicRealtimeEnvironment,
@@ -391,7 +391,7 @@ Dynamic DES is built for real-time digital twins, but the same model can also ru
         Sampler,
         SimParameter,
     )
-    from dynamic_des.utils import time_to_seconds
+    from desflow.utils import time_to_seconds
 
     logging.basicConfig(
         level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
