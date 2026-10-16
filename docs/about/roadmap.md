@@ -10,25 +10,25 @@ Releases come in the order shown, without dates: a release ships when it is read
   icon: ':material-check:'
   key: done
 - title: Distributions and seeds
-  content: 'Done in code, ships in 0.21.0: more distributions, including one built from values taken from real data, each drawing from its own random stream, so adding an arrival leaves the other draws unchanged. desflow now needs Python 3.11 or later. [#42](https://github.com/jaehyeon-kim/desflow/issues/42)'
+  content: 'Done in 0.21.0: more distributions, including one built from values taken from real data, each drawing from its own random stream, so adding an arrival leaves the other draws unchanged. desflow now needs Python 3.11 or later. [#42](https://github.com/jaehyeon-kim/desflow/issues/42)'
   icon: ':material-check:'
-  key: now
+  key: done
 - title: Ingress messages
-  content: 'Done in code, ships in 0.21.0: every ingress connector, Kafka, Redis and PostgreSQL, takes a parameter change as `path` and `value`, the names a scenario step already uses. [#51](https://github.com/jaehyeon-kim/desflow/issues/51)'
+  content: 'Done in 0.21.0: every ingress connector, Kafka, Redis and PostgreSQL, takes a parameter change as `path` and `value`, the names a scenario step already uses. [#51](https://github.com/jaehyeon-kim/desflow/issues/51)'
   icon: ':material-check:'
-  key: now
+  key: done
 - title: Stores, containers and priority
-  content: 'Done in code, ships in 0.21.0: stores and containers used by tasks, with a choice of queue order and task priority. [#43](https://github.com/jaehyeon-kim/desflow/issues/43)'
+  content: 'Done in 0.21.0: stores and containers used by tasks, with a choice of queue order and task priority. [#43](https://github.com/jaehyeon-kim/desflow/issues/43)'
   icon: ':material-check:'
-  key: now
+  key: done
 - title: Flows
-  content: 'Done in code, ships in 0.21.0: routing between tasks by a condition or by probability, entity state that an order keeps from task to task, and delays without a resource. [#44](https://github.com/jaehyeon-kim/desflow/issues/44)'
+  content: 'Done in 0.21.0: routing between tasks by a condition or by probability, entity state that an order keeps from task to task, and delays without a resource. [#44](https://github.com/jaehyeon-kim/desflow/issues/44)'
   icon: ':material-check:'
-  key: now
+  key: done
 - title: Statistics and ground truth
-  content: 'Done in code, ships in 0.21.0: wait and service times, throughput, utilisation and queue length as telemetry, with a warm-up period; and ground-truth records of what a scenario changed, so a detector or an agent can be scored against them. [#45](https://github.com/jaehyeon-kim/desflow/issues/45)'
+  content: 'Done in 0.21.0: wait and service times, throughput, utilisation and queue length as telemetry, with a warm-up period; and ground-truth records of what a scenario changed, so a detector or an agent can be scored against them. [#45](https://github.com/jaehyeon-kim/desflow/issues/45)'
   icon: ':material-check:'
-  key: now
+  key: done
 - title: Replications
   content: 'Run a model with many seeds and get each statistic with a confidence interval, so a result is never read from one run. [#59](https://github.com/jaehyeon-kim/desflow/issues/59)'
   icon: ':material-clock-outline:'
