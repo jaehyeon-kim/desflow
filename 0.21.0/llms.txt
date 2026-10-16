@@ -1,0 +1,79 @@
+# desflow
+
+> Realistic event streams from a SimPy simulation you can steer while it runs, written to Kafka, Redis, PostgreSQL, Parquet, JSONL and Iceberg.
+
+## Home
+
+- [Home](https://jaehyeon.me/desflow/latest/index.md)
+
+## Installation
+
+- [Installation](https://jaehyeon.me/desflow/latest/getting-started/index.md)
+
+## Learn
+
+- [What Is DES?](https://jaehyeon.me/desflow/latest/des/how-it-works/index.md)
+- [SimPy and desflow](https://jaehyeon.me/desflow/latest/des/simpy-and-desflow/index.md)
+- [First Simulation](https://jaehyeon.me/desflow/latest/tutorials/first-simulation/index.md)
+- [Queues and Capacity](https://jaehyeon.me/desflow/latest/tutorials/queues-and-capacity/index.md)
+- [Randomness and Seeds](https://jaehyeon.me/desflow/latest/tutorials/randomness-and-seeds/index.md)
+- [Choosing Inputs](https://jaehyeon.me/desflow/latest/tutorials/choosing-inputs/index.md)
+- [Measuring a Run](https://jaehyeon.me/desflow/latest/tutorials/measuring-a-run/index.md)
+- [Trusting Results](https://jaehyeon.me/desflow/latest/tutorials/trusting-results/index.md)
+- [Stock](https://jaehyeon.me/desflow/latest/tutorials/stock/index.md)
+- [Priorities](https://jaehyeon.me/desflow/latest/tutorials/priorities/index.md)
+- [A Flow of Tasks](https://jaehyeon.me/desflow/latest/tutorials/flow-of-tasks/index.md)
+
+## User Guide
+
+- [Ways to Write](https://jaehyeon.me/desflow/latest/user-guide/ways-to-write/index.md)
+- [YAML Blueprints](https://jaehyeon.me/desflow/latest/user-guide/blueprints/index.md)
+- [Builder API](https://jaehyeon.me/desflow/latest/user-guide/builder-api/index.md)
+- [Low-level API](https://jaehyeon.me/desflow/latest/user-guide/low-level-api/index.md)
+- [Building Blocks](https://jaehyeon.me/desflow/latest/user-guide/building-blocks/index.md)
+- [Arrivals and Services](https://jaehyeon.me/desflow/latest/user-guide/arrivals-and-services/index.md)
+- [Tasks and Processes](https://jaehyeon.me/desflow/latest/user-guide/tasks-and-processes/index.md)
+- [Resources](https://jaehyeon.me/desflow/latest/user-guide/resources/index.md)
+- [Stores and Containers](https://jaehyeon.me/desflow/latest/user-guide/stores-and-containers/index.md)
+- [Task Flow](https://jaehyeon.me/desflow/latest/user-guide/task-flow/index.md)
+- [Statistics](https://jaehyeon.me/desflow/latest/user-guide/statistics/index.md)
+- [Live Parameters](https://jaehyeon.me/desflow/latest/user-guide/live-parameters/index.md)
+- [Time and Pacing](https://jaehyeon.me/desflow/latest/user-guide/time-and-pacing/index.md)
+- [Ingress](https://jaehyeon.me/desflow/latest/user-guide/ingress/index.md)
+- [Egress](https://jaehyeon.me/desflow/latest/user-guide/egress/index.md)
+
+## How-To
+
+- [Python in a Blueprint](https://jaehyeon.me/desflow/latest/guides/yaml-advanced/index.md)
+- [Complex Routing (Kafka)](https://jaehyeon.me/desflow/latest/guides/complex-routing/index.md)
+- [Avro and Pydantic](https://jaehyeon.me/desflow/latest/guides/avro-and-pydantic/index.md)
+- [Secure Kafka](https://jaehyeon.me/desflow/latest/guides/kafka-security/index.md)
+- [Multi-Resource Handoffs](https://jaehyeon.me/desflow/latest/guides/multi-resource-handoffs/index.md)
+- [Preemptive Breakdowns](https://jaehyeon.me/desflow/latest/guides/preemptive-breakdowns/index.md)
+- [Dynamic Topology](https://jaehyeon.me/desflow/latest/guides/dynamic-topology/index.md)
+
+## Examples
+
+- [Overview](https://jaehyeon.me/desflow/latest/examples/index.md)
+- [Local Simulation](https://jaehyeon.me/desflow/latest/examples/local/index.md)
+- [Kafka Digital Twin](https://jaehyeon.me/desflow/latest/examples/kafka/index.md)
+- [Parquet](https://jaehyeon.me/desflow/latest/examples/parquet/index.md)
+- [Iceberg](https://jaehyeon.me/desflow/latest/examples/iceberg/index.md)
+- [PostgreSQL](https://jaehyeon.me/desflow/latest/examples/postgres/index.md)
+- [Redis](https://jaehyeon.me/desflow/latest/examples/redis/index.md)
+- [Parquet History, Kafka Live](https://jaehyeon.me/desflow/latest/examples/backfill-live/index.md)
+- [Generate Related Records](https://jaehyeon.me/desflow/latest/examples/advanced-postgres-orders/index.md)
+
+## Reference
+
+- [API Reference](https://jaehyeon.me/desflow/latest/api/index.md)
+- [YAML Format](https://jaehyeon.me/desflow/latest/reference/yaml-format/index.md)
+- [Records and Telemetry](https://jaehyeon.me/desflow/latest/reference/records-and-telemetry/index.md)
+- [Distributions](https://jaehyeon.me/desflow/latest/reference/distributions/index.md)
+- [Statistics](https://jaehyeon.me/desflow/latest/reference/statistics/index.md)
+
+## About
+
+- [Roadmap](https://jaehyeon.me/desflow/latest/about/roadmap/index.md)
+- [Changelog](https://jaehyeon.me/desflow/latest/about/changelog/index.md)
+

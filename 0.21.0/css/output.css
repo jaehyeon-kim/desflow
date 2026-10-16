@@ -1,0 +1,7 @@
+/* Output blocks (```text: logs and [EVT]/[TEL] records) wrap long lines instead of
+   scrolling sideways, so a whole record can be read at once. Python, YAML and shell
+   blocks keep their lines as written. */
+.md-typeset .language-text pre > code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

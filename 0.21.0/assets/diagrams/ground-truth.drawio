@@ -1,0 +1,48 @@
+<mxfile>
+  <diagram name="ground-truth" id="ground-truth">
+    <mxGraphModel grid="0" page="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="A scenario step changes the data and records the change as a label" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=16;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="0" y="0" width="750" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="c1" value="scenario step at 30 s&lt;br&gt;&lt;font style='font-size:12px'&gt;path, value and record&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="215.0" y="60.0" width="320" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="c2" value="registry&lt;br&gt;&lt;font style='font-size:12px'&gt;Shop.arrival.orders.rate: 0.5 to 1.5&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=3;" vertex="1" parent="1">
+          <mxGeometry x="0.0" y="230" width="300" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="c3" value="publish_label&lt;br&gt;&lt;font style='font-size:12px'&gt;path, old, new, label&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="450.0" y="230" width="300" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="c4" value="data sink&lt;br&gt;&lt;font style='font-size:12px'&gt;events and telemetry; no label&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="0.0" y="420" width="300" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="c5" value="when: labels sink&lt;br&gt;&lt;font style='font-size:12px'&gt;labels only&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="450.0" y="420" width="300" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="c6" value="update" style="edgeStyle=orthogonalEdgeStyle;rounded=0;sketch=1;html=1;strokeWidth=3;endArrow=block;strokeColor=#6c8ebf;fontFamily=Comic Sans MS;fontSize=13;labelBackgroundColor=#ffffff;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;align=left;" edge="1" parent="1" source="c1" target="c2">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" x="12" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c7" value="record" style="edgeStyle=orthogonalEdgeStyle;rounded=0;sketch=1;html=1;strokeWidth=3;endArrow=block;strokeColor=#6c8ebf;fontFamily=Comic Sans MS;fontSize=13;labelBackgroundColor=#ffffff;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;align=right;" edge="1" parent="1" source="c1" target="c3">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" x="-12" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c8" value="more orders: the&lt;br&gt;data a detector sees" style="edgeStyle=orthogonalEdgeStyle;rounded=0;sketch=1;html=1;strokeWidth=3;endArrow=block;strokeColor=#82b366;fontFamily=Comic Sans MS;fontSize=13;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;align=left;" edge="1" parent="1" source="c2" target="c4">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" x="12" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="c9" value="the ground truth&lt;br&gt;a scorer reads" style="edgeStyle=orthogonalEdgeStyle;rounded=0;sketch=1;html=1;strokeWidth=3;endArrow=block;strokeColor=#6c8ebf;fontFamily=Comic Sans MS;fontSize=13;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;align=right;" edge="1" parent="1" source="c3" target="c5">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="offset" x="-12" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

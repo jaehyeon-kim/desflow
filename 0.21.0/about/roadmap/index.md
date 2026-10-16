@@ -1,0 +1,167 @@
+# Roadmap
+
+Releases come in the order shown, without dates: a release ships when it is ready. The timeline marks the release that is done, the work that is done in code and ships with the next release, the releases that follow, and the Learn section of the docs. Each links to its GitHub issue.
+
+## Now and next
+
+Rename to desflow
+
+Done in 0.20.0: install `desflow`, import `desflow` and run `desflow`.
+
+Distributions and seeds
+
+Done in code, ships in 0.21.0: more distributions, including one built from values taken from real data, each drawing from its own random stream, so adding an arrival leaves the other draws unchanged. desflow now needs Python 3.11 or later. [#42](https://github.com/jaehyeon-kim/desflow/issues/42)
+
+Ingress messages
+
+Done in code, ships in 0.21.0: every ingress connector, Kafka, Redis and PostgreSQL, takes a parameter change as `path` and `value`, the names a scenario step already uses. [#51](https://github.com/jaehyeon-kim/desflow/issues/51)
+
+Stores, containers and priority
+
+Done in code, ships in 0.21.0: stores and containers used by tasks, with a choice of queue order and task priority. [#43](https://github.com/jaehyeon-kim/desflow/issues/43)
+
+Flows
+
+Done in code, ships in 0.21.0: routing between tasks by a condition or by probability, entity state that an order keeps from task to task, and delays without a resource. [#44](https://github.com/jaehyeon-kim/desflow/issues/44)
+
+Statistics and ground truth
+
+Done in code, ships in 0.21.0: wait and service times, throughput, utilisation and queue length as telemetry, with a warm-up period; and ground-truth records of what a scenario changed, so a detector or an agent can be scored against them. [#45](https://github.com/jaehyeon-kim/desflow/issues/45)
+
+Replications
+
+Run a model with many seeds and get each statistic with a confidence interval, so a result is never read from one run. [#59](https://github.com/jaehyeon-kim/desflow/issues/59)
+
+Record contract
+
+The record format that 1.0 keeps stable, including a `timezone` setting for timestamps. [#51](https://github.com/jaehyeon-kim/desflow/issues/51)
+
+desflow explain
+
+Shows a simulation as a graph, says whether each part is stable, points to the bottleneck and suggests changes; and `desflow run --sample` prints a few records from a blueprint. [#47](https://github.com/jaehyeon-kim/desflow/issues/47)
+
+Learn section
+
+Finishes the shop tutorial, which grows one online shop page by page and answers a question with a number on each page, and adds concept pages on studies, verification and queueing. 0.21.0 opens the Learn section with the first nine tutorial pages. [#60](https://github.com/jaehyeon-kim/desflow/issues/60)
+
+## Later
+
+The work after the Learn section, on the way to 1.0, in the order it is planned.
+
+- **Blueprint schema and AI skill**
+
+  ______________________________________________________________________
+
+  A JSON Schema for blueprints, shipped in the package, and a skill that teaches an AI assistant to write and check blueprints.
+
+  [#41](https://github.com/jaehyeon-kim/desflow/issues/41)
+
+- **Server: API and MCP tools**
+
+  ______________________________________________________________________
+
+  `desflow serve` runs simulations through a REST API: upload, start, stop, change parameters while a run is going and follow its events. Tools for AI agents (MCP) ship with it, or with the next server release, as an experimental part.
+
+  [#48](https://github.com/jaehyeon-kim/desflow/issues/48)
+
+- **Server: browser UI**
+
+  ______________________________________________________________________
+
+  The same from a browser, including each simulation's graph from `desflow explain`.
+
+  [#49](https://github.com/jaehyeon-kim/desflow/issues/49)
+
+- **Server: schedules**
+
+  ______________________________________________________________________
+
+  Run simulations on cron schedules.
+
+  [#50](https://github.com/jaehyeon-kim/desflow/issues/50)
+
+- **Server image and odctl profile**
+
+  ______________________________________________________________________
+
+  A published image and an [odctl](https://github.com/jaehyeon-kim/odctl) profile run the server locally with nothing installed on the host.
+
+  [#52](https://github.com/jaehyeon-kim/desflow/issues/52)
+
+- **Storage and Python 3.15**
+
+  ______________________________________________________________________
+
+  Parquet and JSONL on more cloud storage, more Iceberg catalogs, and Python 3.15 support.
+
+  [#32](https://github.com/jaehyeon-kim/desflow/issues/32), [#40](https://github.com/jaehyeon-kim/desflow/issues/40)
+
+- **Reserve the gen key**
+
+  ______________________________________________________________________
+
+  A blueprint mapping with a `gen` key is refused, so the value generators planned after 1.0 do not change what a 1.0 blueprint means.
+
+  [#53](https://github.com/jaehyeon-kim/desflow/issues/53)
+
+- **Speed**
+
+  ______________________________________________________________________
+
+  Faster runs without changing the published records.
+
+  [#24](https://github.com/jaehyeon-kim/desflow/issues/24)
+
+- **1.0**
+
+  ______________________________________________________________________
+
+  The generated YAML key reference, a command-line page, the record format marked frozen, a compatibility policy and upgrade notes.
+
+  [#54](https://github.com/jaehyeon-kim/desflow/issues/54)
+
+## What 1.0 means
+
+From 1.0, the YAML blueprint format, the `desflow` command, the public Python API (`SimulationContext`, `DynamicRealtimeEnvironment` and the connectors) and the published record format stay compatible across every 1.x release. The package status moves from Beta to Production/Stable.
+
+## After 1.0
+
+### Simulation model
+
+- **Breakdowns, schedules and incidents:** failures and repairs, planned maintenance, arrival rates and shifts by time of day, and faults that start at random times.
+- **More flow and resource features:** preemption, batching, matching and splitting, reneging, setup times, and resources chosen by skill.
+- **Reuse, costs and continuous flow:** parts of a model defined once and used several times, costs and energy per resource state, and levels that rise and fall continuously.
+- **Transport on maps:** vehicles that move between locations on real roads and publish their positions.
+- **Data-driven inputs:** arrivals replayed from a file or a database, or taken live from a Kafka topic.
+- **Decisions from outside:** a dispatcher or an agent answers for one order or session, and a run can repeat exactly from a log of those answers.
+
+### Analysis
+
+- **Experiments:** parameter sweeps, experiment designs, optimisation, and calibration against observed data.
+- **Fitting and comparison:** fit distributions to real data, and compare runs and variants.
+
+### Simulation server
+
+- **Visualisation:** animation of a running or recorded simulation, and a map view.
+- **Distributed runs:** workers on several machines.
+
+### Writing simulations
+
+- **Generated values in blueprints:** random values, IDs and timestamps in YAML, then entities, relations between records, states and ramps.
+- **Preview loop:** run a blueprint again each time the file changes, and check a file without running it.
+- **Example gallery and visual builder.**
+
+### Connectors
+
+- **More sinks:** a webhook sink, a generic SQL sink and more.
+- **Delivery faults:** records delivered late, twice, damaged or not at all, to test how a pipeline handles them.
+- **Lineage:** each run reported to OpenLineage and OpenMetadata.
+
+### Platform
+
+- **More speed:** larger changes for faster runs, and a faster runtime for YAML-only blueprints if measurements show the need.
+
+### Docs
+
+- **Reference:** a page for each generator and connector, with examples and the records they produce, and a command-line cheat sheet.
+- **How-To:** generating data at scale, testing pipelines with simulated data, and performance tuning.
