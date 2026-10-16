@@ -8,6 +8,8 @@
 
 **Realistic event streams from a simulation you can steer while it runs.**
 
+> **dynamic-des is now desflow.** The package was renamed in 0.20.0: install `desflow`, import `desflow` and run `desflow`. Code that imports `dynamic_des` and scripts that run `ddes` keep working with a warning until a later release, and the [Changelog](https://jaehyeon.me/desflow/latest/about/changelog/) says what to change.
+
 <div align="center">
   <img src="https://raw.githubusercontent.com/jaehyeon-kim/desflow/main/docs/assets/architecture.png" alt="desflow architecture" width="900" />
 </div>
@@ -55,8 +57,6 @@ With pip:
 ```bash
 pip install desflow
 ```
-
-desflow was called dynamic-des before 0.20.0. Code that imports `dynamic_des` and scripts that run `ddes` keep working with a warning until a later release, and the [Changelog](https://jaehyeon.me/desflow/latest/about/changelog/) says what to change.
 
 The connectors are optional extras, for example `uv add "desflow[kafka,parquet]"` or `pip install "desflow[kafka,parquet]"`:
 
