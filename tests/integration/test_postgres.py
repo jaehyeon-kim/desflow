@@ -7,6 +7,34 @@ from desflow.connectors.egress.postgres import PostgresEgress
 from desflow.connectors.ingress.postgres import PostgresIngress
 
 
+async def _fetch(dsn, sql):
+    conn = await asyncpg.connect(dsn)
+    try:
+        return await conn.fetch(sql)
+    finally:
+        await conn.close()
+
+
+async def _run_egress_until(egress, q, done, timeout=15.0):
+    """Run the egress until `done()` is true or the timeout passes, then stop it.
+
+    A fixed one-second wait failed on a slow CI runner with half the rows written,
+    so the tests poll the table instead.
+    """
+    task = asyncio.create_task(egress.run(q))
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    try:
+        while not await done() and loop.time() < deadline:
+            await asyncio.sleep(0.1)
+    finally:
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+
 @pytest.mark.asyncio
 @pytest.mark.integration
 async def test_postgres_ingress_loads_historical_state(postgres_container):
@@ -103,15 +131,12 @@ async def test_postgres_egress_column_filtering(postgres_container):
 
     q.put(mock_event)
 
-    # Run the egress to process the batch
-    task = asyncio.create_task(egress.run(q))
-    await asyncio.sleep(1.0)
-    task.cancel()
+    async def written():
+        return len(await _fetch(dsn, "SELECT * FROM test_orders")) == 1
 
-    # Verify the insertion
-    conn = await asyncpg.connect(dsn)
-    rows = await conn.fetch("SELECT * FROM test_orders")
-    await conn.close()
+    await _run_egress_until(egress, q, written)
+
+    rows = await _fetch(dsn, "SELECT * FROM test_orders")
 
     assert len(rows) == 1
     assert rows[0]["order_id"] == 99
@@ -147,17 +172,18 @@ async def test_postgres_egress_upsert_updates_existing_rows(postgres_container):
         ]
     )
 
-    task = asyncio.create_task(egress.run(q))
-    await asyncio.sleep(1.0)
-    task.cancel()
-    try:
-        await task
-    except asyncio.CancelledError:
-        pass
+    sql = "SELECT * FROM test_order_status ORDER BY order_id"
 
-    conn = await asyncpg.connect(dsn)
-    rows = await conn.fetch("SELECT * FROM test_order_status ORDER BY order_id")
-    await conn.close()
+    async def written():
+        rows = await _fetch(dsn, sql)
+        return [(r["order_id"], r["status"]) for r in rows] == [
+            (1, "delivered"),
+            (2, "processing"),
+        ]
+
+    await _run_egress_until(egress, q, written)
+
+    rows = await _fetch(dsn, sql)
 
     assert [(r["order_id"], r["status"]) for r in rows] == [
         (1, "delivered"),
@@ -194,17 +220,15 @@ async def test_postgres_egress_partial_upsert_keeps_other_columns(postgres_conta
         ]
     )
 
-    task = asyncio.create_task(egress.run(q))
-    await asyncio.sleep(1.0)
-    task.cancel()
-    try:
-        await task
-    except asyncio.CancelledError:
-        pass
+    sql = "SELECT * FROM test_order_totals ORDER BY order_id"
 
-    conn = await asyncpg.connect(dsn)
-    rows = await conn.fetch("SELECT * FROM test_order_totals ORDER BY order_id")
-    await conn.close()
+    async def written():
+        rows = await _fetch(dsn, sql)
+        return len(rows) == 2 and rows[0]["status"] == "shipped"
+
+    await _run_egress_until(egress, q, written)
+
+    rows = await _fetch(dsn, sql)
 
     assert [(r["order_id"], r["status"], r["total"]) for r in rows] == [
         (1, "shipped", 10.0),
