@@ -29,12 +29,28 @@ Releases come in the order shown, without dates: a release ships when it is read
   content: 'Done in 0.21.0: wait and service times, throughput, utilisation and queue length as telemetry, with a warm-up period; and ground-truth records of what a scenario changed, so a detector or an agent can be scored against them. [#45](https://github.com/jaehyeon-kim/desflow/issues/45)'
   icon: ':material-check:'
   key: done
+- title: Native core parity
+  content: 'In 0.22.0: SimPy-equivalent modelling in all three ways to write a model, including waiting on events and processes, interrupts and preemption, competing resources, filtered inventory, run control, and reneging and balking. [#64](https://github.com/jaehyeon-kim/desflow/issues/64)'
+  icon: ':material-clock-outline:'
+  key: planned
+- title: Breakdowns, changing demand and replay
+  content: 'In 0.22.0: a resource that fails and is repaired, a finite schedule that changes an arrival rate or a capacity, and replay of a local file as arrivals. [#65](https://github.com/jaehyeon-kim/desflow/issues/65)'
+  icon: ':material-clock-outline:'
+  key: planned
 - title: Replications
-  content: 'Run a model with many seeds and get each statistic with a confidence interval, so a result is never read from one run. [#59](https://github.com/jaehyeon-kim/desflow/issues/59)'
+  content: 'In 0.22.0: run a model with many seeds and get each statistic with a confidence interval, so a result is never read from one run. [#59](https://github.com/jaehyeon-kim/desflow/issues/59)'
+  icon: ':material-clock-outline:'
+  key: planned
+- title: Local studies
+  content: 'In 0.22.0: parameter sweeps, paired comparison, distribution fitting and a report, without a server. [#66](https://github.com/jaehyeon-kim/desflow/issues/66)'
+  icon: ':material-clock-outline:'
+  key: planned
+- title: Speed
+  content: 'In 0.22.0: faster runs without changing the published records. [#24](https://github.com/jaehyeon-kim/desflow/issues/24)'
   icon: ':material-clock-outline:'
   key: planned
 - title: Record contract
-  content: 'The record format that 1.0 keeps stable, including a `timezone` setting for timestamps. [#51](https://github.com/jaehyeon-kim/desflow/issues/51)'
+  content: 'In 0.22.0: the record format that 1.0 keeps stable, including a `timezone` setting for timestamps. [#51](https://github.com/jaehyeon-kim/desflow/issues/51)'
   icon: ':material-clock-outline:'
   key: planned
 - title: desflow explain
@@ -109,14 +125,6 @@ The work after the Learn section, on the way to 1.0, in the order it is planned.
 
     [#53](https://github.com/jaehyeon-kim/desflow/issues/53)
 
--   __Speed__
-
-    ---
-
-    Faster runs without changing the published records.
-
-    [#24](https://github.com/jaehyeon-kim/desflow/issues/24)
-
 -   __1.0__
 
     ---
@@ -135,17 +143,17 @@ From 1.0, the YAML blueprint format, the `desflow` command, the public Python AP
 
 ### Simulation model
 
-- **Breakdowns, schedules and incidents:** failures and repairs, planned maintenance, arrival rates and shifts by time of day, and faults that start at random times.
-- **More flow and resource features:** preemption, batching, matching and splitting, reneging, setup times, and resources chosen by skill.
+- **Breakdowns, schedules and incidents:** planned maintenance, repeating schedules by time of day, and faults that start at random times.
+- **More flow and resource features:** batching, matching and splitting, setup times, and resources chosen by skill.
 - **Reuse, costs and continuous flow:** parts of a model defined once and used several times, costs and energy per resource state, and levels that rise and fall continuously.
 - **Transport on maps:** vehicles that move between locations on real roads and publish their positions.
-- **Data-driven inputs:** arrivals replayed from a file or a database, or taken live from a Kafka topic.
+- **Data-driven inputs:** arrivals replayed from a database, or taken live from a Kafka topic.
 - **Decisions from outside:** a dispatcher or an agent answers for one order or session, and a run can repeat exactly from a log of those answers.
 
 ### Analysis
 
-- **Experiments:** parameter sweeps, experiment designs, optimisation, and calibration against observed data.
-- **Fitting and comparison:** fit distributions to real data, and compare runs and variants.
+- **Experiments:** experiment designs, optimisation, and calibration against observed data.
+- **Fitting and comparison:** distribution fitting from more data sources, automatic fault-impact studies, and fuller run comparison and fidelity scoring.
 
 ### Simulation server
 
