@@ -1,6 +1,6 @@
 """Redis Streams output with live parameter updates, low-level API.
 
-The low-level twin of `builder/redis_example.py`: an online shop that records each
+The low-level twin of `builder/redis_example.py`. The simulation records each
 order as it is placed. `RedisEgress` writes the records to the `order_events` stream,
 named by each record's `__stream__` key, and `RedisIngress` subscribes to the
 `simulation_params` channel.

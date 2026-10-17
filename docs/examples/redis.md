@@ -1,6 +1,6 @@
 # Redis
 
-An online shop that writes each order to a Redis Stream as it is placed, and takes parameter updates from a Redis Pub/Sub channel. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../user-guide/ways-to-write.md) compares the three.
+This example models a shop receiving orders. The simulation writes each order to a Redis Stream as it is placed and reads parameter updates from a Redis Pub/Sub channel. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../user-guide/ways-to-write.md) compares the three.
 
 === "YAML"
 
@@ -69,7 +69,7 @@ An online shop that writes each order to a Redis Stream as it is placed, and tak
     ```yaml title="examples/yaml/redis.yaml"
     # Redis Streams output with live parameter updates, in YAML.
     #
-    # The YAML version of examples/builder/redis_example.py: an online shop that records
+    # The YAML version of examples/builder/redis_example.py: a simulation that records
     # each order as it is placed. Each order spawns record_order, a task with no service
     # or resource, which publishes its payload at once. RedisEgress writes it to the
     # order_events stream that the __stream__ key names, while RedisIngress subscribes to
@@ -218,7 +218,7 @@ An online shop that writes each order to a Redis Stream as it is placed, and tak
     ```python title="examples/builder/redis_example.py"
     """Redis Streams output with live parameter updates, builder API.
 
-    `Shop`, an online shop, records each order as it is placed. `RedisEgress` writes the
+    The simulation records each order as it is placed. `RedisEgress` writes the
     records to the `order_events` Redis Stream, named by each record's `__stream__` key,
     while `RedisIngress` subscribes to the `simulation_params` channel, so publishing a
     message to that channel changes the arrival rate of a running simulation.
@@ -351,7 +351,7 @@ An online shop that writes each order to a Redis Stream as it is placed, and tak
     ```python title="examples/low-level/redis_example.py"
     """Redis Streams output with live parameter updates, low-level API.
 
-    The low-level twin of `builder/redis_example.py`: an online shop that records each
+    The low-level twin of `builder/redis_example.py`. The simulation records each
     order as it is placed. `RedisEgress` writes the records to the `order_events` stream,
     named by each record's `__stream__` key, and `RedisIngress` subscribes to the
     `simulation_params` channel.

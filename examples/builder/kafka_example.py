@@ -1,7 +1,7 @@
 """Kafka Digital Twin, builder API.
 
-Builds `Shop`, an online shop packing orders, with `SimulationContext` and connects it
-to Kafka in both directions. `KafkaIngress` reads parameter updates from `sim-config`,
+Models a shop packing orders with `SimulationContext` and connects the simulation
+to Kafka for input and output. `KafkaIngress` reads parameter updates from `sim-config`,
 so the running simulation can be steered without restarting it. `KafkaEgress`
 publishes lifecycle events to `sim-events` and metrics to `sim-telemetry`, with
 Pydantic models giving the events a declared shape.

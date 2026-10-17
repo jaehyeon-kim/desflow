@@ -1,9 +1,9 @@
 """Local simulation, builder API, no containers.
 
-The smallest complete example. An online shop packs orders: `Shop` is built with
-`SimulationContext` and writes to `ConsoleEgress`, so events and telemetry are printed
-to the terminal and nothing external is involved. A scenario adds packers at 10
-seconds and removes one at 20 seconds, and the built-in statistics show the effect.
+This example models a shop packing orders with `SimulationContext`.
+`ConsoleEgress` prints events and telemetry to the terminal, so nothing external is
+involved. A scenario adds packers at 10 seconds and removes one at 20 seconds.
+The built-in statistics show the effect.
 
 Start here. It needs no broker, no database and no object store, and it ends on its own
 after 30 simulation seconds.

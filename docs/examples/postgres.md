@@ -1,6 +1,6 @@
 # PostgreSQL
 
-An online shop that writes its orders to PostgreSQL and takes parameter updates from a PostgreSQL table. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../user-guide/ways-to-write.md) compares the three.
+This example models a shop receiving orders. The simulation writes order records to PostgreSQL and reads parameter updates from a PostgreSQL table. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../user-guide/ways-to-write.md) compares the three.
 
 With `PostgresEgress` in place of the console egress, the simulation runs as a separate data generator. It writes rows into PostgreSQL with asynchronous bulk inserts through `asyncpg`.
 
@@ -71,8 +71,8 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
     ```yaml title="examples/yaml/postgres.yaml"
     # Relational output in YAML.
     #
-    # The YAML version of examples/builder/postgres_example.py: an online shop that
-    # writes its orders to one table. Each order spawns place_order, a task with no
+    # The YAML version of examples/builder/postgres_example.py: a simulation that
+    # writes order records to one table. Each order spawns place_order, a task with no
     # service or resource, which publishes its payload at once. PostgresEgress creates
     # the orders table at start and writes one row per order. PostgresIngress creates
     # simulation_params and polls it for parameter updates.
@@ -226,7 +226,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
     ```python title="examples/builder/postgres_example.py"
     """Relational output, builder API.
 
-    `Shop`, an online shop, writes its orders to the PostgreSQL table `orders`.
+    The simulation writes order records to the PostgreSQL table `orders`.
     `PostgresEgress` creates the table at start and writes one row per order, and
     `PostgresIngress` creates `simulation_params` and polls it for parameter updates, so
     inserting a row there changes the arrival rate of a running simulation.
@@ -402,8 +402,8 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
     ```python title="examples/low-level/postgres_example.py"
     """Relational output, low-level API.
 
-    The low-level twin of `builder/postgres_example.py`: an online shop that writes its
-    orders to the PostgreSQL table `orders`. `PostgresEgress` creates the table at start,
+    The low-level twin of `builder/postgres_example.py`. The simulation writes order
+    records to the PostgreSQL table `orders`. `PostgresEgress` creates the table at start,
     and `PostgresIngress` creates `simulation_params` and polls it for parameter updates.
 
     Needs a database: `odctl up postgres`. Runs until interrupted with Ctrl + C.

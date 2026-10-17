@@ -1,6 +1,6 @@
 """Redis Streams output with live parameter updates, builder API.
 
-`Shop`, an online shop, records each order as it is placed. `RedisEgress` writes the
+The simulation records each order as it is placed. `RedisEgress` writes the
 records to the `order_events` Redis Stream, named by each record's `__stream__` key,
 while `RedisIngress` subscribes to the `simulation_params` channel, so publishing a
 message to that channel changes the arrival rate of a running simulation.

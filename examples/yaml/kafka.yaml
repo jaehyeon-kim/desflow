@@ -1,6 +1,6 @@
 # Kafka digital twin in YAML.
 #
-# The YAML version of examples/builder/kafka_example.py, an online shop packing
+# The YAML version of examples/builder/kafka_example.py, a shop packing
 # orders. KafkaIngress reads parameter updates from sim-config, and KafkaEgress
 # publishes lifecycle events to sim-events and packer metrics to sim-telemetry.
 # KafkaEgress creates its two topics when the run starts.

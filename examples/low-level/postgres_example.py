@@ -1,7 +1,7 @@
 """Relational output, low-level API.
 
-The low-level twin of `builder/postgres_example.py`: an online shop that writes its
-orders to the PostgreSQL table `orders`. `PostgresEgress` creates the table at start,
+The low-level twin of `builder/postgres_example.py`. The simulation writes order
+records to the PostgreSQL table `orders`. `PostgresEgress` creates the table at start,
 and `PostgresIngress` creates `simulation_params` and polls it for parameter updates.
 
 Needs a database: `odctl up postgres`. Runs until interrupted with Ctrl + C.

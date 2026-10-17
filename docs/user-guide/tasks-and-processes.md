@@ -121,7 +121,7 @@ A task with a `service` and no `resource` is a **timed step**: work that takes t
 
 ### Arrivals Start Tasks
 
-An arrival starts one task per arrival. The loop draws a gap from the arrival's distribution, waits it, starts a task for the new entity, and repeats; the task runs on its own while the loop waits for the next arrival.
+An arrival starts one task per arrival. The loop draws a gap from the arrival's distribution, waits for that duration, starts a task for the new entity, and repeats; the task runs on its own while the loop waits for the next arrival.
 
 === "YAML"
 
@@ -139,7 +139,7 @@ An arrival starts one task per arrival. The loop draws a gap from the arrival's 
     def orders(context: SimulationContext):
         task_id = 0
         while True:
-            # Draws the next gap, waits it, and returns the new entity, keyed orders-1, ...
+            # Draws the next gap, waits for it, and returns the new entity, keyed orders-1, ...
             order = yield context.wait_for_arrival("orders")
             context.spawn(pack_order(task_id, entity=order))  # the loop goes on at once
             task_id += 1

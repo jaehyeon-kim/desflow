@@ -1,6 +1,6 @@
 # Examples
 
-Runnable examples of one online shop, each written three ways: as a YAML blueprint in `yaml/`, with the builder API in `builder/` and with the low-level API in `low-level/`. They live outside the package, so `pip install desflow` does not carry them and the library declares only what it imports.
+Runnable examples of one shop, each written three ways: as a YAML blueprint in `yaml/`, with the builder API in `builder/` and with the low-level API in `low-level/`. They live outside the package, so `pip install desflow` does not carry them and the library declares only what it imports.
 
 Outside a clone, `desflow examples get <name>` downloads an example at the release you have installed, each version into a folder of its own; `desflow examples` lists them.
 

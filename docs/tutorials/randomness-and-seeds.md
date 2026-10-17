@@ -1,10 +1,10 @@
 # Randomness and Seeds
 
-Run the busy shop twice and the records differ: orders arrive at other times and packing takes other times. That is what a stochastic model does, but it makes a result hard to check or to compare. This page asks: **why does each run differ, and how is one repeated?**
+Run the busy shop twice: orders arrive at different times and packing durations vary. That is what a stochastic model does, but it makes a result hard to check or to compare. This page asks: **why do runs differ, and how can you reproduce one?**
 
 ## What You Add
 
-A seed, then a second arrival. The shop is the busy hour from [Queues and Capacity](queues-and-capacity.md) with its answer, 3 packers, and packing that now varies: 1.5 seconds on average, give or take 0.5, drawn from a `normal` distribution. The run is one minute long.
+A seed, then a second arrival. The model simulates the busy hour from [Queues and Capacity](queues-and-capacity.md), using its answer of 3 packers. Packing times now vary: 1.5 seconds on average, give or take 0.5, drawn from a `normal` distribution. The run is one minute long.
 
 ---
 
@@ -152,7 +152,7 @@ With one shared stream, the returns would take some of the numbers the orders an
 
 ## Result
 
-Why does each run differ, and how is one repeated? Each run differs because each run starts its random number streams from another seed. A run is repeated by giving the same seed: `random_seed: 42` in the blueprint, `random_seed=42` on `SimulationContext`, `Sampler(seed=42)` in the low-level API, or `desflow run --seed 42`. With it, **the twelfth order waits 0.702 seconds** on every run, and still 0.702 seconds after the returns are added.
+Why do runs differ, and how can you reproduce one? Runs differ because they start their random number streams from different seeds. Repeat a run by supplying the same seed: `random_seed: 42` in the blueprint, `random_seed=42` on `SimulationContext`, `Sampler(seed=42)` in the low-level API, or `desflow run --seed 42`. With it, **the twelfth order waits 0.702 seconds** on every run, and still 0.702 seconds after the returns are added.
 
 ## Why It Works
 

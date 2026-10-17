@@ -34,7 +34,7 @@ app.add_arrival("returns", dist="exponential", rate=0.05, key=lambda n: f"ret-{n
 
 
 # --8<-- [start:builder-condition]
-# Rules are tried in order; the first that holds wins, default catches the rest
+# Rules are tried in order; the first match wins. Otherwise, use the default.
 @app.task(
     next={
         "when": [

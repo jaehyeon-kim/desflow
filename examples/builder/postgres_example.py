@@ -1,6 +1,6 @@
 """Relational output, builder API.
 
-`Shop`, an online shop, writes its orders to the PostgreSQL table `orders`.
+The simulation writes order records to the PostgreSQL table `orders`.
 `PostgresEgress` creates the table at start and writes one row per order, and
 `PostgresIngress` creates `simulation_params` and polls it for parameter updates, so
 inserting a row there changes the arrival rate of a running simulation.

@@ -1,6 +1,6 @@
 # Kafka Digital Twin
 
-An online shop that packs orders, takes parameter updates from a Kafka topic and publishes its events and telemetry to Kafka topics. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../user-guide/ways-to-write.md) compares the three.
+This example models a shop packing orders. The simulation reads parameter updates from a Kafka topic and publishes events and telemetry to Kafka topics. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../user-guide/ways-to-write.md) compares the three.
 
 With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simulation runs as a separate service. It reads JSON parameter updates from a topic, and publishes telemetry and typed Pydantic events to other topics.
 
@@ -75,7 +75,7 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
     ```yaml title="examples/yaml/kafka.yaml"
     # Kafka digital twin in YAML.
     #
-    # The YAML version of examples/builder/kafka_example.py, an online shop packing
+    # The YAML version of examples/builder/kafka_example.py, a shop packing
     # orders. KafkaIngress reads parameter updates from sim-config, and KafkaEgress
     # publishes lifecycle events to sim-events and packer metrics to sim-telemetry.
     # KafkaEgress creates its two topics when the run starts.
@@ -186,8 +186,8 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
     ```python title="examples/builder/kafka_example.py"
     """Kafka Digital Twin, builder API.
 
-    Builds `Shop`, an online shop packing orders, with `SimulationContext` and connects it
-    to Kafka in both directions. `KafkaIngress` reads parameter updates from `sim-config`,
+    Models a shop packing orders with `SimulationContext` and connects the simulation
+    to Kafka for input and output. `KafkaIngress` reads parameter updates from `sim-config`,
     so the running simulation can be steered without restarting it. `KafkaEgress`
     publishes lifecycle events to `sim-events` and metrics to `sim-telemetry`, with
     Pydantic models giving the events a declared shape.
@@ -372,7 +372,7 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
     ```python title="examples/low-level/kafka_example.py"
     """Kafka Digital Twin, low-level API.
 
-    The low-level twin of `builder/kafka_example.py`, an online shop packing orders, with
+    The low-level twin of `builder/kafka_example.py`, a shop packing orders, with
     the environment, registry and connectors wired by hand. Like the builder version, it
     creates its topics first with `KafkaAdminConnector`.
 

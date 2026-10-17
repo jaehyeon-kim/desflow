@@ -42,7 +42,7 @@ Releases come in the order shown, without dates: a release ships when it is read
   icon: ':material-clock-outline:'
   key: planned
 - title: Learn section
-  content: 'Finishes the shop tutorial, which grows one online shop page by page and answers a question with a number on each page, and adds concept pages on studies, verification and queueing. 0.21.0 opens the Learn section with the first nine tutorial pages. [#60](https://github.com/jaehyeon-kim/desflow/issues/60)'
+  content: 'Finishes the shop tutorial, which extends one shop model page by page and answers a question with a number on each page, and adds concept pages on studies, verification and queueing. 0.21.0 opens the Learn section with the first nine tutorial pages. [#60](https://github.com/jaehyeon-kim/desflow/issues/60)'
   icon: ':material-clock-outline:'
   key: planned
 ::/timeline::

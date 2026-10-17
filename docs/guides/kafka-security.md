@@ -98,7 +98,7 @@ The same `OAUTHBEARER` setting works with a token provider of your own for Okta,
 
 ## Use It in a Simulation
 
-A connector with security settings is added like any other. This shop publishes its events through the SASL egress above:
+A connector with security settings is added like any other. This simulation publishes its events through the SASL egress above:
 
 ```python title="docs/snippets/guides/kafka_security.py:shop"
 app = (
@@ -142,7 +142,7 @@ Put your broker address and credentials in `egress`, then run `python kafka_secu
     ```python title="docs/snippets/guides/kafka_security.py"
     """The secured Kafka connections of the Secure Kafka page, and a shop that uses one.
 
-    The shop publishes to a cluster that uses SASL PLAIN, such as Confluent Cloud: put your
+    The simulation publishes to a cluster that uses SASL PLAIN, such as Confluent Cloud: put your
     broker address and credentials in the `sasl` section, then run `python
     kafka_security.py`. The mTLS and MSK examples read certificate files or call AWS, so
     they sit in functions this file defines and does not call.

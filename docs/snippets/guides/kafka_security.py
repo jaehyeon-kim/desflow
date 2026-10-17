@@ -1,6 +1,6 @@
 """The secured Kafka connections of the Secure Kafka page, and a shop that uses one.
 
-The shop publishes to a cluster that uses SASL PLAIN, such as Confluent Cloud: put your
+The simulation publishes to a cluster that uses SASL PLAIN, such as Confluent Cloud: put your
 broker address and credentials in the `sasl` section, then run `python
 kafka_security.py`. The mTLS and MSK examples read certificate files or call AWS, so
 they sit in functions this file defines and does not call.

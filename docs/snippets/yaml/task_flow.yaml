@@ -31,7 +31,7 @@ tasks:
   # --8<-- [start:condition]
   check_order:
     payload: {total: 80}
-    # Rules are tried in order; the first that holds wins, default catches the rest
+    # Rules are tried in order; the first match wins. Otherwise, use the default.
     next:
       when:
         - {condition: "level.stock == 0", task: backorder}

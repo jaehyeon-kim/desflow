@@ -6,7 +6,7 @@ An ingress connector brings parameter changes into a running simulation from out
 
 ## What It Is
 
-An ingress connector listens to a source while the run goes on. Every message it reads is one change: a registry `path` and its new `value`, the same two names a scenario step uses. The change reaches the registry, and the simulation follows it, as [Live Parameters](live-parameters.md) describes. Four connectors bring changes in, beside the seven that write records out, on [Egress](egress.md):
+An ingress connector listens to a source while the run goes on. Every message it reads is one change: a registry `path` and its new `value`, the same two names a scenario step uses. The change reaches the registry, and the simulation follows it, as [Live Parameters](live-parameters.md) describes. Four ingress connectors bring changes in. The seven connectors described on [Egress](egress.md) write records out:
 
 ![Parameter changes from outside reach the registry through LocalIngress, KafkaIngress, RedisIngress or PostgresIngress; records from tasks and processes leave through ConsoleEgress, KafkaEgress, ParquetStorageEgress, JsonlStorageEgress, RedisEgress, PostgresEgress or IcebergStorageEgress](../assets/diagrams/connectors-overview.png)
 

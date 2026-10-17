@@ -1,6 +1,6 @@
 # Fast-Forward to Iceberg
 
-A day of an online shop's orders, generated at `factor=0.0` and appended to an Apache Iceberg table through an Iceberg REST catalog. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../user-guide/ways-to-write.md) compares the three.
+A day of a shop's orders, generated at `factor=0.0` and appended to an Apache Iceberg table through an Iceberg REST catalog. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../user-guide/ways-to-write.md) compares the three.
 
 `ParquetStorageEgress` writes files and leaves registering them as a table to you. `IcebergStorageEgress` appends into an Iceberg table instead, so one run ends with a table another engine can query.
 

@@ -57,7 +57,7 @@ def print_label(task_id: int):
 def orders(context: SimulationContext):
     task_id = 0
     while True:
-        # Draws the next gap, waits it, and returns the new entity, keyed orders-1, ...
+        # Draws the next gap, waits for it, and returns the new entity, keyed orders-1, ...
         order = yield context.wait_for_arrival("orders")
         context.spawn(pack_order(task_id, entity=order))  # the loop goes on at once
         task_id += 1

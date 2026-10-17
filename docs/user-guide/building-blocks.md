@@ -23,4 +23,4 @@ An **entity** is the thing that flows through a model: an order, a visitor, a su
 | Statistics | what the run measures about itself | `stats` | `with_stats` | `env.setup_stats`, `env.stats` | [Statistics](statistics.md) |
 | Variable | any other live value, such as a speed | `variables` | `add_variable` | `SimParameter(variables=...)` | [Live Parameters](live-parameters.md) |
 
-[Tutorial: the Shop](../tutorials/first-simulation.md), in the Learn section, puts them together one at a time, in a small online shop.
+[Tutorial: the Shop](../tutorials/first-simulation.md), in the Learn section, puts them together one at a time, in a small shop.

@@ -1,6 +1,6 @@
 """Kafka Digital Twin, low-level API.
 
-The low-level twin of `builder/kafka_example.py`, an online shop packing orders, with
+The low-level twin of `builder/kafka_example.py`, a shop packing orders, with
 the environment, registry and connectors wired by hand. Like the builder version, it
 creates its topics first with `KafkaAdminConnector`.
 

@@ -4,7 +4,7 @@
 
 ## What You Add
 
-A `warmup` on the run. The shop is the busy hour from Measuring a Run, unchanged.
+A `warmup` on the run. The model simulates the same busy hour as Measuring a Run.
 
 ---
 

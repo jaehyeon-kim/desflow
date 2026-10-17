@@ -1,6 +1,6 @@
 # Preemptive Breakdowns
 
-A preemptive breakdown stops a machine in the middle of a job. Here a label printer jams while it prints an order's shipping label. The order stays on the printer while it is repaired, then the rest of its work continues. No other order can start while the printer is down.
+A preemptive breakdown stops a machine in the middle of a job. Here a label printer jams while it prints an order's shipping label. The order remains assigned to the printer during repairs, then labelling resumes. No other order can start while the printer is down.
 
 ![worker_task publishes queued and started; every 12 s chaos_monkey interrupts the order on the printer, which publishes interrupted with the cause, keeps the printer for 10 s of repair, publishes printer_repaired and labels the rest, then publishes finished; with no jam it finishes after 5 s of labelling](../assets/diagrams/breakdown-interrupt.png)
 

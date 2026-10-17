@@ -41,7 +41,7 @@ The connectors are optional extras, for example `uv add "desflow[kafka,parquet]"
 
 ## Run an Example
 
-The local example is an online shop that packs orders and prints its events and telemetry to the terminal. It runs in real time and ends on its own after 30 seconds, in all three versions. Pick the way you write, then follow uv or pip:
+The local example models a shop that receives and packs customer orders. The simulation prints events and telemetry to the terminal. It runs in real time and ends on its own after 30 seconds, in all three versions. Pick the way you write, then follow uv or pip:
 
 === "YAML"
 
@@ -190,5 +190,5 @@ The Postgres database is `odctl`. The object store bucket is `odctl-dev`. Valkey
 
 ## Next Steps
 
-- [First Simulation](tutorials/first-simulation.md), the first page of the shop tutorial in the Learn section, builds an online shop step by step, and the pages after it grow the shop one idea at a time.
+- [First Simulation](tutorials/first-simulation.md), the first page of the shop tutorial in the Learn section, builds a shop model step by step. The following pages extend the model one idea at a time.
 - The [examples](examples/index.md) show each connector, written three ways, with the profile each one needs.

@@ -1,9 +1,9 @@
 """Local simulation, low-level API, no containers.
 
 The low-level twin of `builder/local_example.py`, built on `DynamicRealtimeEnvironment`
-directly. An online shop packs orders and writes to `ConsoleEgress`. A scenario
-process adds packers at 10 seconds and removes one at 20 seconds, and the built-in
-statistics show the effect.
+directly. It models a shop packing orders and uses `ConsoleEgress` to print events
+and telemetry. A scenario process adds packers at 10 seconds and removes one at
+20 seconds. The built-in statistics show the effect.
 
 Needs no containers. Ends on its own after 30 simulation seconds.
 """

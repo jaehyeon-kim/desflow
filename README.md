@@ -20,7 +20,7 @@ Change an arrival rate or a capacity while the simulation runs, from **Kafka**, 
 
 Events and telemetry go to **Kafka**, **Redis**, **PostgreSQL**, **Parquet** or **JSONL** files (on local disk or S3-compatible storage), or **Apache Iceberg** tables. A model is a YAML file, a Python builder, or SimPy code.
 
-**Used for:** testing streaming pipelines with data that behaves like production, training data for ML models that predict delays or load, data for testing AI agents, digital twins that follow live data, and demos and workshops.
+**Used for:** testing streaming pipelines with realistic data, generating training data for ML models that predict delays or load, evaluating AI agents, building digital twins that follow live data, and running demos and workshops.
 
 The control dashboard changes simulation parameters while a run is going, and the telemetry reacts without a restart:
 
@@ -86,7 +86,7 @@ For the builder or low-level version, use `--api builder` or `--api low-level`; 
 
 A simulation can be a YAML blueprint, a script using the builder API (`SimulationContext`), or a script using the low-level API (`DynamicRealtimeEnvironment` and SimPy processes). All three build the same parameters and run on the same environment, so the registry paths, the records and the connectors are the same whichever way you choose.
 
-This blueprint is a small online shop: one packer, an order about every 2 seconds and 1.5 seconds of packing, with every record printed to the terminal:
+This blueprint models a shop that receives and packs customer orders: one packer, an order about every 2 seconds and 1.5 seconds of packing, with every record printed to the terminal:
 
 ```yaml title="docs/snippets/yaml/first_shop.yaml"
 # The First Simulation tutorial: the shop as a blueprint.
@@ -121,7 +121,7 @@ run:
   until: 20
 ```
 
-[First Simulation](https://jaehyeon.me/desflow/latest/tutorials/first-simulation/) builds this shop step by step, with the YAML, builder and low-level code side by side at each step, and the [comparison of the three ways](https://jaehyeon.me/desflow/latest/user-guide/ways-to-write/) explains which to choose.
+[First Simulation](https://jaehyeon.me/desflow/latest/tutorials/first-simulation/) builds this shop model step by step, with the YAML, builder and low-level code side by side at each step, and the [comparison of the three ways](https://jaehyeon.me/desflow/latest/user-guide/ways-to-write/) explains which to choose.
 
 ## Roadmap
 
@@ -131,7 +131,7 @@ Version 0.21.0 adds distributions, stores, flows, statistics and the first pages
 
 The documentation is at [jaehyeon.me/desflow](https://jaehyeon.me/desflow/). Good places to start:
 
-- [Installation](https://jaehyeon.me/desflow/latest/getting-started/) and [First Simulation](https://jaehyeon.me/desflow/latest/tutorials/first-simulation/), which builds one online shop step by step.
+- [Installation](https://jaehyeon.me/desflow/latest/getting-started/) and [First Simulation](https://jaehyeon.me/desflow/latest/tutorials/first-simulation/), which builds a shop model step by step.
 - [Examples](https://jaehyeon.me/desflow/latest/examples/), each in YAML, the builder API and the low-level API.
 - [API Reference](https://jaehyeon.me/desflow/latest/api/), the [roadmap](https://jaehyeon.me/desflow/latest/about/roadmap/) and the [Changelog](https://jaehyeon.me/desflow/latest/about/changelog/).
 

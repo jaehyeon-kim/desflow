@@ -1,6 +1,6 @@
 # Local Simulation
 
-An online shop that packs orders and prints its events and telemetry to the terminal. It needs no container, so it is the place to start. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../user-guide/ways-to-write.md) compares the three.
+This example models a shop packing orders. The simulation prints events and telemetry to the terminal. It needs no container, so it is the place to start. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../user-guide/ways-to-write.md) compares the three.
 
 Local connectors need no Docker, Kafka or other external store, so this example is useful for testing and benchmarking.
 
@@ -66,10 +66,10 @@ Local connectors need no Docker, Kafka or other external store, so this example 
     ```yaml title="examples/yaml/local.yaml"
     # Local simulation in YAML, with no Python and no containers.
     #
-    # The twin of examples/builder/local_example.py. An online shop packs orders, and
-    # Shop writes to ConsoleEgress, so events and telemetry are printed to the
-    # terminal. A scenario adds packers at 10 seconds and removes one at 20 seconds, and
-    # the run ends on its own after 30 simulation seconds.
+    # The twin of examples/builder/local_example.py. This simulation models a shop
+    # packing orders. ConsoleEgress prints events and telemetry to the terminal.
+    # A scenario adds packers at 10 seconds and removes one at 20 seconds.
+    # The run ends on its own after 30 simulation seconds.
     #
     # Run it with: desflow run examples/yaml/local.yaml
 
@@ -152,17 +152,17 @@ Local connectors need no Docker, Kafka or other external store, so this example 
 
     **Full Source Code**
 
-    This script builds the shop, runs it for 30 simulation seconds, and streams events and telemetry directly to your terminal.
+    This script builds the model, runs it for 30 simulation seconds, and streams events and telemetry directly to your terminal.
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
     ```python title="examples/builder/local_example.py"
     """Local simulation, builder API, no containers.
 
-    The smallest complete example. An online shop packs orders: `Shop` is built with
-    `SimulationContext` and writes to `ConsoleEgress`, so events and telemetry are printed
-    to the terminal and nothing external is involved. A scenario adds packers at 10
-    seconds and removes one at 20 seconds, and the built-in statistics show the effect.
+    This example models a shop packing orders with `SimulationContext`.
+    `ConsoleEgress` prints events and telemetry to the terminal, so nothing external is
+    involved. A scenario adds packers at 10 seconds and removes one at 20 seconds.
+    The built-in statistics show the effect.
 
     Start here. It needs no broker, no database and no object store, and it ends on its own
     after 30 simulation seconds.
@@ -279,7 +279,7 @@ Local connectors need no Docker, Kafka or other external store, so this example 
 
     **Full Source Code**
 
-    This script builds the shop and runs it for 30 simulation seconds. The `capacity_changes` process changes the number of packers from 1 to 3 at 10 seconds, then down to 2 at 20 seconds. Events and telemetry stream directly to your terminal, driven by plain SimPy generators.
+    This script builds the model and runs it for 30 simulation seconds. The `capacity_changes` process changes the number of packers from 1 to 3 at 10 seconds, then down to 2 at 20 seconds. Events and telemetry stream directly to your terminal, driven by plain SimPy generators.
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
@@ -287,9 +287,9 @@ Local connectors need no Docker, Kafka or other external store, so this example 
     """Local simulation, low-level API, no containers.
 
     The low-level twin of `builder/local_example.py`, built on `DynamicRealtimeEnvironment`
-    directly. An online shop packs orders and writes to `ConsoleEgress`. A scenario
-    process adds packers at 10 seconds and removes one at 20 seconds, and the built-in
-    statistics show the effect.
+    directly. It models a shop packing orders and uses `ConsoleEgress` to print events
+    and telemetry. A scenario process adds packers at 10 seconds and removes one at
+    20 seconds. The built-in statistics show the effect.
 
     Needs no containers. Ends on its own after 30 simulation seconds.
     """

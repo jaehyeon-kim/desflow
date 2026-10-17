@@ -1,6 +1,6 @@
 # Task Flow: the Next Task by Condition or Probability
 
-An entity rarely does one task and leaves. An order is checked, perhaps wrapped as a gift, packed, sometimes packed again, and shipped. This page shows how a finished task chooses the next one, and what the entity carries from task to task.
+An entity rarely leaves after completing just one task. An order is checked, perhaps wrapped as a gift, packed, sometimes packed again, and shipped. This page shows how a finished task chooses the next one, and what the entity carries from task to task.
 
 ---
 
@@ -19,7 +19,7 @@ A **flow** is the sequence of tasks one entity passes through. Each task names w
 `next` takes one of these forms:
 
 - **A task name**, `next: pack_order`: always that task.
-- **Rules**, `when` with an optional `default`: each rule is a condition and a task. Rules are tried in order, the first whose condition holds wins, and `default` catches the rest; with no default and no rule holding, the flow ends.
+- **Rules**, `when` with an optional `default`: each rule is a condition and a task. Rules are tried in order. The first matching rule wins, and `default` applies if none matches. With no default and no matching rule, the flow ends.
 - **Weights**, below.
 - **In the builder, a function** that takes the `Upstream` and returns a task name or `None`.
 
@@ -28,7 +28,7 @@ A **flow** is the sequence of tasks one entity passes through. Each task names w
     ```yaml title="docs/snippets/yaml/task_flow.yaml:condition"
     check_order:
       payload: {total: 80}
-      # Rules are tried in order; the first that holds wins, default catches the rest
+      # Rules are tried in order; the first match wins. Otherwise, use the default.
       next:
         when:
           - {condition: "level.stock == 0", task: backorder}
@@ -39,7 +39,7 @@ A **flow** is the sequence of tasks one entity passes through. Each task names w
 === "Builder"
 
     ```python title="docs/snippets/pages/task_flow.py:builder-condition"
-    # Rules are tried in order; the first that holds wins, default catches the rest
+    # Rules are tried in order; the first match wins. Otherwise, use the default.
     @app.task(
         next={
             "when": [
@@ -424,7 +424,7 @@ A blueprint is checked when it loads: every condition parses, every task a rule 
 
 **Weights.** The weights are turned into cumulative shares once. Each choice draws one uniform number from the routing task's stream and picks the task whose share it falls in.
 
-**The next task.** When a task finishes, it applies `set`, builds the `Upstream`, asks its rules for the next task and starts it as a new SimPy process, with the same entity and the next instance id from the task's counter. An arrival that spawns the task uses the same counter, so no two runs of a task share an id. In SimPy terms, one process starting the next is the whole mechanism; [SimPy and desflow](../des/simpy-and-desflow.md) describes processes.
+**Starting the Next Task.** When a task finishes, it applies `set`, builds the `Upstream`, asks its rules for the next task and starts it as a new SimPy process, with the same entity and the next instance id from the task's counter. An arrival that spawns the task uses the same counter, so no two runs of a task share an id. In SimPy terms, one process starting the next is the whole mechanism; [SimPy and desflow](../des/simpy-and-desflow.md) describes processes.
 
 ---
 

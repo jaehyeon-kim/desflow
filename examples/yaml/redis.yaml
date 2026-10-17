@@ -1,6 +1,6 @@
 # Redis Streams output with live parameter updates, in YAML.
 #
-# The YAML version of examples/builder/redis_example.py: an online shop that records
+# The YAML version of examples/builder/redis_example.py: a simulation that records
 # each order as it is placed. Each order spawns record_order, a task with no service
 # or resource, which publishes its payload at once. RedisEgress writes it to the
 # order_events stream that the __stream__ key names, while RedisIngress subscribes to

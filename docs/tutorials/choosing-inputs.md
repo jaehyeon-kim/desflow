@@ -4,7 +4,7 @@ Packing takes 1.5 seconds on average. So far the shop has said exactly that: a `
 
 ## What You Add
 
-A packing time chosen from evidence. The shop is the busy hour with 3 packers from [Queues and Capacity](queues-and-capacity.md). It gets four candidates for packing, all with a mean of 1.5 seconds, and runs the hour with each:
+A packing time chosen from evidence. The model simulates the busy hour with 3 packers from [Queues and Capacity](queues-and-capacity.md). It gets four candidates for packing, all with a mean of 1.5 seconds, and runs the hour with each:
 
 - `constant`: the mean alone, as the shop had it;
 - `exponential`: the usual choice when nothing is known;

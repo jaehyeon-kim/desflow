@@ -8,7 +8,7 @@ A YAML blueprint is a simulation written as a file. This page shows how to run o
 
 A blueprint is the builder calls of a Python script, written as data. Each section becomes the builder call of the same name: `resources` is `add_resource`, `tasks` is `@app.task`, `stats` is `with_stats`, and so on. There is no second way of building: `SimulationContext.from_yaml` makes those calls, in the order a script would, and returns an ordinary `SimulationContext`. A blueprint and a script that make the same calls produce the same simulation, and the tests check that the YAML, builder and low-level versions of every example publish the same records.
 
-Logic that a file cannot express is Python, which a blueprint references with `!python`, as [Python in a Blueprint](../guides/yaml-advanced.md) shows.
+Use Python for logic that YAML cannot express. Reference it with `!python`, as [Python in a Blueprint](../guides/yaml-advanced.md) shows.
 
 ---
 
