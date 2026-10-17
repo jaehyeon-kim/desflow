@@ -2413,7 +2413,7 @@
 <ul>
 <li><strong>Field values with logic.</strong> Random or weighted choices, fields derived from other fields and state carried from one event to the next are a payload function or a process.</li>
 <li><strong>More than a task can describe.</strong> A task that holds several resources at once, or a breakdown that interrupts work in progress, is a process. Routing (<code>next</code>), priorities (<code>priority</code> and <code>queue: priority</code>) and stores and containers are plain YAML.</li>
-<li><strong>Readings other than the built-in statistics.</strong> <code>stats: minimal</code> publishes resource, store and container readings, a container's <code>level</code> among them. Variables and derived metrics are a telemetry function.</li>
+<li><strong>Readings other than the built-in statistics.</strong> <code>stats: minimal</code> publishes resource, store and container readings, a container's <code>level</code> among them. Use a telemetry function to publish variables and derived metrics.</li>
 <li><strong>Routing over several destinations, and serializers.</strong> A router or an Avro serializer is a Python object.</li>
 <li><strong>Setup a connector does not do itself</strong>, such as topics that only a router knows about.</li>
 <li><strong>A connector from another package.</strong></li>

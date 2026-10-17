@@ -2387,7 +2387,7 @@
 <h1 id="measuring-a-run">Measuring a Run</h1>
 <p>Most of the last three pages read one number, the mean wait. A run knows much more: how busy the packers were, how long the queue was, how many orders were packed, and how long the slowest one waited. This page asks: <strong>what does a run tell me?</strong></p>
 <h2 id="what-you-add">What You Add</h2>
-<p><code>stats: typical</code>, the built-in statistics at the level that includes waits. The shop is the busy hour with 3 packers and the measured packing times that <a href="../choosing-inputs/">Choosing Inputs</a> chose.</p>
+<p><code>stats: typical</code>, the built-in statistics at the level that includes waits. The model simulates the busy hour with 3 packers and the measured packing times that <a href="../choosing-inputs/">Choosing Inputs</a> chose.</p>
 <hr />
 <h2 id="switch-on-statistics">Switch On Statistics</h2>
 <p>desflow keeps statistics about a run as it goes, and publishes them as telemetry every 10 simulation seconds and once more at the end. They are off by default, because most runs only generate data. A level switches them on, and each level answers one more question:</p>
@@ -2490,7 +2490,7 @@
 </span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>[TEL] {&#39;sim_ts&#39;: 3600.0, &#39;timestamp&#39;: &#39;...&#39;, &#39;path_id&#39;: &#39;Shop.stats.tasks.pack_order.service_max&#39;, &#39;value&#39;: 2.7000000000000455}
 </span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>[TEL] {&#39;sim_ts&#39;: 3600.0, &#39;timestamp&#39;: &#39;...&#39;, &#39;path_id&#39;: &#39;Shop.stats.flows.orders.finished&#39;, &#39;value&#39;: 6250}
 </span></code></pre></div>
-<p><code>tasks.pack_order.finished</code> counts the orders the task finished, and <code>flows.orders.finished</code> counts the orders that left the shop, named by the arrival that started them; with one task the two are equal. The mean wait is 1.38 seconds, not the 1.35 seconds of the empirical candidate in Choosing Inputs, although the times are the same 40. The service is now called <code>packing</code>, so it draws from its own stream, <code>service.packing</code>, and the times come in another order; <a href="../randomness-and-seeds/">Randomness and Seeds</a> explains why.</p>
+<p><code>tasks.pack_order.finished</code> counts the orders the task finished, and <code>flows.orders.finished</code> counts the orders that left the shop, named by the arrival that started them; with one task the two are equal. The mean wait is 1.38 seconds, not the 1.35 seconds of the empirical candidate in Choosing Inputs, although both use the same 40 measured packing times. The service is now called <code>packing</code>, so it draws from its own stream, <code>service.packing</code>, and the times come in another order; <a href="../randomness-and-seeds/">Randomness and Seeds</a> explains why.</p>
 <hr />
 <h2 id="counts-and-averages-over-time">Counts and Averages Over Time</h2>
 <p>The statistics are of two kinds. A <strong>count</strong>, such as <code>finished</code>, adds one for each order. An <strong>average over time</strong>, such as <code>utilization_avg</code> or <code>queue_length_avg</code>, weighs each value by how long it lasted. Look at the area under the number of busy packers:</p>

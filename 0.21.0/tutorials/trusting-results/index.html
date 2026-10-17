@@ -2365,7 +2365,7 @@
 <h1 id="trusting-results">Trusting Results</h1>
 <p><a href="../measuring-a-run/">Measuring a Run</a> read five numbers from one run of the busy hour. The run started with an empty shop: no orders waiting and every packer free. A real shop at that hour is never empty, so the first orders of the run wait less than they would. This page asks: <strong>is one run enough?</strong> It answers the first part of that question: how much of the start to leave out.</p>
 <h2 id="what-you-add">What You Add</h2>
-<p>A <code>warmup</code> on the run. The shop is the busy hour from Measuring a Run, unchanged.</p>
+<p>A <code>warmup</code> on the run. The model simulates the same busy hour as Measuring a Run.</p>
 <hr />
 <h2 id="plot-the-start">Plot the Start</h2>
 <p>Some runs have a natural start and end, such as a shop that opens empty at 9:00 and closes at 17:00; these are <strong>terminating</strong> runs, and the empty start is part of what they measure. Others stand for a system that keeps going, such as the shop in the middle of its busy hour; these are <strong>steady-state</strong> runs, and the empty start is a distortion called <strong>initialisation bias</strong>. The busy hour is a steady-state run.</p>

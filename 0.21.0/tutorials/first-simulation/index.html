@@ -2407,8 +2407,8 @@
 
 
 <h1 id="first-simulation">First Simulation</h1>
-<p>This tutorial builds an online shop that packs orders: one packer, orders arriving about every 2 seconds, and 1.5 seconds of packing per order. It answers one question: <strong>how long does an order wait with one packer?</strong> The pages after it grow the same shop, one idea per page.</p>
-<p>Each step shows the code three ways, in tabs: a <strong>YAML</strong> blueprint, the <strong>Builder</strong> (<code>SimulationContext</code>) and the <strong>Low-level</strong> API (<code>DynamicRealtimeEnvironment</code> and SimPy processes). Pick the tab of the way you write; every tab on the site switches with it. The three build the same simulation and print the same records. <a href="../../user-guide/ways-to-write/">Ways to Write</a> explains how they relate.</p>
+<p>This tutorial models a shop that receives and packs customer orders: one packer, orders arriving about every 2 seconds, and 1.5 seconds of packing per order. It answers one question: <strong>how long does an order wait with one packer?</strong> The following pages extend the same model, one idea per page.</p>
+<p>Each step shows the code three ways, in tabs: a <strong>YAML</strong> blueprint, the <strong>Builder</strong> (<code>SimulationContext</code>) and the <strong>Low-level</strong> API (<code>DynamicRealtimeEnvironment</code> and SimPy processes). Choose the tab for your preferred API; all code tabs on the site switch to that API. The three build the same simulation and print the same records. <a href="../../user-guide/ways-to-write/">Ways to Write</a> explains how they relate.</p>
 <p>Look at the order of the parts: orders arrive, wait in the packer queue, take the packer for 1.5 seconds, and send their records to the console. The arrival loop and the task read their values from the registry.</p>
 <p><img alt="Orders arrive about every 2 seconds, wait in the packer queue, take the packer for 1.5 seconds of packing, and their records go to the console; the arrival loop and the task read their values from the registry" src="../../assets/diagrams/first-shop.png" /></p>
 <hr />

@@ -2415,7 +2415,7 @@
 <p>The same <code>OAUTHBEARER</code> setting works with a token provider of your own for Okta, Auth0 or another single sign-on provider.</p>
 <hr />
 <h2 id="use-it-in-a-simulation">Use It in a Simulation</h2>
-<p>A connector with security settings is added like any other. This shop publishes its events through the SASL egress above:</p>
+<p>A connector with security settings is added like any other. This simulation publishes its events through the SASL egress above:</p>
 <div class="language-python highlight"><span class="filename">docs/snippets/guides/kafka_security.py:shop</span><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="n">app</span> <span class="o">=</span> <span class="p">(</span>
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_id</span><span class="o">=</span><span class="s2">&quot;Shop&quot;</span><span class="p">,</span> <span class="n">factor</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">random_seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
 </span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="o">.</span><span class="n">add_resource</span><span class="p">(</span><span class="s2">&quot;packers&quot;</span><span class="p">,</span> <span class="n">current_cap</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_cap</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
@@ -2451,7 +2451,7 @@
 <p>The complete file. It needs a Kafka cluster that uses SASL PLAIN:</p>
 <div class="language-python highlight"><span class="filename">docs/snippets/guides/kafka_security.py</span><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="sd">&quot;&quot;&quot;The secured Kafka connections of the Secure Kafka page, and a shop that uses one.</span>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="sd">The shop publishes to a cluster that uses SASL PLAIN, such as Confluent Cloud: put your</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="sd">The simulation publishes to a cluster that uses SASL PLAIN, such as Confluent Cloud: put your</span>
 </span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="sd">broker address and credentials in the `sasl` section, then run `python</span>
 </span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="sd">kafka_security.py`. The mTLS and MSK examples read certificate files or call AWS, so</span>
 </span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="sd">they sit in functions this file defines and does not call.</span>

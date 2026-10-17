@@ -6,7 +6,7 @@ ______________________________________________________________________
 
 ## What It Is
 
-An ingress connector listens to a source while the run goes on. Every message it reads is one change: a registry `path` and its new `value`, the same two names a scenario step uses. The change reaches the registry, and the simulation follows it, as [Live Parameters](https://jaehyeon.me/desflow/latest/user-guide/live-parameters/index.md) describes. Four connectors bring changes in, beside the seven that write records out, on [Egress](https://jaehyeon.me/desflow/latest/user-guide/egress/index.md):
+An ingress connector listens to a source while the run goes on. Every message it reads is one change: a registry `path` and its new `value`, the same two names a scenario step uses. The change reaches the registry, and the simulation follows it, as [Live Parameters](https://jaehyeon.me/desflow/latest/user-guide/live-parameters/index.md) describes. Four ingress connectors bring changes in. The seven connectors described on [Egress](https://jaehyeon.me/desflow/latest/user-guide/egress/index.md) write records out:
 
 ______________________________________________________________________
 

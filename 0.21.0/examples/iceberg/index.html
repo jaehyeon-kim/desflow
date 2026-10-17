@@ -2186,7 +2186,7 @@
 
 
 <h1 id="fast-forward-to-iceberg">Fast-Forward to Iceberg</h1>
-<p>A day of an online shop's orders, generated at <code>factor=0.0</code> and appended to an Apache Iceberg table through an Iceberg REST catalog. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. <a href="../../user-guide/ways-to-write/">Ways to write a simulation</a> compares the three.</p>
+<p>A day of a shop's orders, generated at <code>factor=0.0</code> and appended to an Apache Iceberg table through an Iceberg REST catalog. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. <a href="../../user-guide/ways-to-write/">Ways to write a simulation</a> compares the three.</p>
 <p><code>ParquetStorageEgress</code> writes files and leaves registering them as a table to you. <code>IcebergStorageEgress</code> appends into an Iceberg table instead, so one run ends with a table another engine can query.</p>
 <p>Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, a manifest list and a new <code>metadata.json</code>, so query planning slows down as snapshots accumulate. That is why this example gives the provider a large <code>batch_size</code> of its own: a day of events lands in four snapshots.</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:3"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><input id="__tabbed_1_3" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">YAML</label><label for="__tabbed_1_2">Builder</label><label for="__tabbed_1_3">Low-level</label></div>

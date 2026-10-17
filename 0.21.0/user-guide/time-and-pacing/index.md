@@ -1,6 +1,6 @@
 # Time and Pacing
 
-A run has two clocks, and a run can follow the wall clock, ignore it, or switch from one to the other. This page shows the clock settings, the warm-up, how long a run lasts, and what the environment runs on which thread.
+A run has two clocks, and a run can follow the wall clock, ignore it, or switch from one to the other. This page shows the clock settings, the warm-up, how long a run lasts, and which parts of the environment run on each thread.
 
 ______________________________________________________________________
 

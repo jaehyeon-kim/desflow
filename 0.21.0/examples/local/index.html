@@ -2184,7 +2184,7 @@
 
 
 <h1 id="local-simulation">Local Simulation</h1>
-<p>An online shop that packs orders and prints its events and telemetry to the terminal. It needs no container, so it is the place to start. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. <a href="../../user-guide/ways-to-write/">Ways to write a simulation</a> compares the three.</p>
+<p>This example models a shop packing orders. The simulation prints events and telemetry to the terminal. It needs no container, so it is the place to start. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. <a href="../../user-guide/ways-to-write/">Ways to write a simulation</a> compares the three.</p>
 <p>Local connectors need no Docker, Kafka or other external store, so this example is useful for testing and benchmarking.</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:3"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><input id="__tabbed_1_3" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">YAML</label><label for="__tabbed_1_2">Builder</label><label for="__tabbed_1_3">Low-level</label></div>
 <div class="tabbed-content">
@@ -2236,10 +2236,10 @@
 <p>Files live in the <a href="https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml"><code>examples/yaml/</code> folder</a> of the repository, and the label on each block below is its path there.</p>
 <div class="language-yaml highlight"><span class="filename">examples/yaml/local.yaml</span><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Local simulation in YAML, with no Python and no containers.</span>
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="c1">#</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="c1"># The twin of examples/builder/local_example.py. An online shop packs orders, and</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Shop writes to ConsoleEgress, so events and telemetry are printed to the</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1"># terminal. A scenario adds packers at 10 seconds and removes one at 20 seconds, and</span>
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="c1"># the run ends on its own after 30 simulation seconds.</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="c1"># The twin of examples/builder/local_example.py. This simulation models a shop</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># packing orders. ConsoleEgress prints events and telemetry to the terminal.</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1"># A scenario adds packers at 10 seconds and removes one at 20 seconds.</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="c1"># The run ends on its own after 30 simulation seconds.</span>
 </span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="c1">#</span>
 </span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="c1"># Run it with: desflow run examples/yaml/local.yaml</span>
 </span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>
@@ -2316,14 +2316,14 @@
 </div>
 </div>
 <p><strong>Full Source Code</strong></p>
-<p>This script builds the shop, runs it for 30 simulation seconds, and streams events and telemetry directly to your terminal.</p>
+<p>This script builds the model, runs it for 30 simulation seconds, and streams events and telemetry directly to your terminal.</p>
 <p>Scripts live in the <a href="https://github.com/jaehyeon-kim/desflow/tree/main/examples"><code>examples/</code> folder</a> of the repository, and the label on the block below is this one's path there.</p>
 <div class="language-python highlight"><span class="filename">examples/builder/local_example.py</span><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="sd">&quot;&quot;&quot;Local simulation, builder API, no containers.</span>
 </span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="sd">The smallest complete example. An online shop packs orders: `Shop` is built with</span>
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="sd">`SimulationContext` and writes to `ConsoleEgress`, so events and telemetry are printed</span>
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="sd">to the terminal and nothing external is involved. A scenario adds packers at 10</span>
-</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="sd">seconds and removes one at 20 seconds, and the built-in statistics show the effect.</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="sd">This example models a shop packing orders with `SimulationContext`.</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="sd">`ConsoleEgress` prints events and telemetry to the terminal, so nothing external is</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="sd">involved. A scenario adds packers at 10 seconds and removes one at 20 seconds.</span>
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="sd">The built-in statistics show the effect.</span>
 </span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>
 </span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="sd">Start here. It needs no broker, no database and no object store, and it ends on its own</span>
 </span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="sd">after 30 simulation seconds.</span>
@@ -2435,14 +2435,14 @@
 </div>
 </div>
 <p><strong>Full Source Code</strong></p>
-<p>This script builds the shop and runs it for 30 simulation seconds. The <code>capacity_changes</code> process changes the number of packers from 1 to 3 at 10 seconds, then down to 2 at 20 seconds. Events and telemetry stream directly to your terminal, driven by plain SimPy generators.</p>
+<p>This script builds the model and runs it for 30 simulation seconds. The <code>capacity_changes</code> process changes the number of packers from 1 to 3 at 10 seconds, then down to 2 at 20 seconds. Events and telemetry stream directly to your terminal, driven by plain SimPy generators.</p>
 <p>Scripts live in the <a href="https://github.com/jaehyeon-kim/desflow/tree/main/examples"><code>examples/</code> folder</a> of the repository, and the label on the block below is this one's path there.</p>
 <div class="language-python highlight"><span class="filename">examples/low-level/local_example.py</span><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="sd">&quot;&quot;&quot;Local simulation, low-level API, no containers.</span>
 </span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>
 </span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="sd">The low-level twin of `builder/local_example.py`, built on `DynamicRealtimeEnvironment`</span>
-</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="sd">directly. An online shop packs orders and writes to `ConsoleEgress`. A scenario</span>
-</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="sd">process adds packers at 10 seconds and removes one at 20 seconds, and the built-in</span>
-</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="sd">statistics show the effect.</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="sd">directly. It models a shop packing orders and uses `ConsoleEgress` to print events</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="sd">and telemetry. A scenario process adds packers at 10 seconds and removes one at</span>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="sd">20 seconds. The built-in statistics show the effect.</span>
 </span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>
 </span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="sd">Needs no containers. Ends on its own after 30 simulation seconds.</span>
 </span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="sd">&quot;&quot;&quot;</span>

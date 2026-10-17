@@ -2399,7 +2399,7 @@
 <hr />
 <h2 id="what-it-is">What It Is</h2>
 <p>A blueprint is the builder calls of a Python script, written as data. Each section becomes the builder call of the same name: <code>resources</code> is <code>add_resource</code>, <code>tasks</code> is <code>@app.task</code>, <code>stats</code> is <code>with_stats</code>, and so on. There is no second way of building: <code>SimulationContext.from_yaml</code> makes those calls, in the order a script would, and returns an ordinary <code>SimulationContext</code>. A blueprint and a script that make the same calls produce the same simulation, and the tests check that the YAML, builder and low-level versions of every example publish the same records.</p>
-<p>Logic that a file cannot express is Python, which a blueprint references with <code>!python</code>, as <a href="../../guides/yaml-advanced/">Python in a Blueprint</a> shows.</p>
+<p>Use Python for logic that YAML cannot express. Reference it with <code>!python</code>, as <a href="../../guides/yaml-advanced/">Python in a Blueprint</a> shows.</p>
 <hr />
 <h2 id="how-to-use-it">How to Use It</h2>
 <h3 id="run-a-blueprint">Run a Blueprint</h3>

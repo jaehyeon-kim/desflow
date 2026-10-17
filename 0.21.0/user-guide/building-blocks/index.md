@@ -21,4 +21,4 @@ An **entity** is the thing that flows through a model: an order, a visitor, a su
 | Statistics | what the run measures about itself                                | `stats`                     | `with_stats`                       | `env.setup_stats`, `env.stats`                | [Statistics](https://jaehyeon.me/desflow/latest/user-guide/statistics/index.md)                       |
 | Variable   | any other live value, such as a speed                             | `variables`                 | `add_variable`                     | `SimParameter(variables=...)`                 | [Live Parameters](https://jaehyeon.me/desflow/latest/user-guide/live-parameters/index.md)             |
 
-[Tutorial: the Shop](https://jaehyeon.me/desflow/latest/tutorials/first-simulation/index.md), in the Learn section, puts them together one at a time, in a small online shop.
+[Tutorial: the Shop](https://jaehyeon.me/desflow/latest/tutorials/first-simulation/index.md), in the Learn section, puts them together one at a time, in a small shop.

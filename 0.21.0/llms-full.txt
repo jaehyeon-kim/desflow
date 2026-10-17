@@ -16,7 +16,7 @@ Change an arrival rate or a capacity while the simulation runs, from **Kafka**, 
 
 Events and telemetry go to **Kafka**, **Redis**, **PostgreSQL**, **Parquet** or **JSONL** files (on local disk or S3-compatible storage), or **Apache Iceberg** tables. A model is a YAML file, a Python builder, or SimPy code.
 
-**Used for:** testing streaming pipelines with data that behaves like production, demos and workshops, digital twins that follow live data, training data for models that predict delays or load, and evaluating agents and detectors against ground truth: a seeded run plants a fault and records what it planted, so an answer can be scored against the known cause.
+**Used for:** testing streaming pipelines with realistic data, running demos and workshops, building digital twins that follow live data, generating training data for models that predict delays or load, and evaluating agents and detectors against ground truth. A seeded run plants a fault and records what it planted, so an answer can be scored against the known cause.
 
 The control dashboard changes simulation parameters while a run is going, and the telemetry reacts without a restart:
 
@@ -72,7 +72,7 @@ ______________________________________________________________________
 
 ## Run an Example
 
-The local example is an online shop that packs orders and prints its events and telemetry to the terminal. It runs in real time and ends on its own after 30 seconds, in all three versions. Pick the way you write, then follow uv or pip:
+The local example models a shop that receives and packs customer orders. The simulation prints events and telemetry to the terminal. It runs in real time and ends on its own after 30 seconds, in all three versions. Pick the way you write, then follow uv or pip:
 
 **Quick Start**
 
@@ -201,7 +201,7 @@ ______________________________________________________________________
 
 ## Next Steps
 
-- [First Simulation](https://jaehyeon.me/desflow/latest/tutorials/first-simulation/index.md), the first page of the shop tutorial in the Learn section, builds an online shop step by step, and the pages after it grow the shop one idea at a time.
+- [First Simulation](https://jaehyeon.me/desflow/latest/tutorials/first-simulation/index.md), the first page of the shop tutorial in the Learn section, builds a shop model step by step. The following pages extend the model one idea at a time.
 - The [examples](https://jaehyeon.me/desflow/latest/examples/index.md) show each connector, written three ways, with the profile each one needs.
 # Learn
 
@@ -266,9 +266,9 @@ User Guide pages that build on SimPy name the parts they use in their How It Wor
 
 # First Simulation
 
-This tutorial builds an online shop that packs orders: one packer, orders arriving about every 2 seconds, and 1.5 seconds of packing per order. It answers one question: **how long does an order wait with one packer?** The pages after it grow the same shop, one idea per page.
+This tutorial models a shop that receives and packs customer orders: one packer, orders arriving about every 2 seconds, and 1.5 seconds of packing per order. It answers one question: **how long does an order wait with one packer?** The following pages extend the same model, one idea per page.
 
-Each step shows the code three ways, in tabs: a **YAML** blueprint, the **Builder** (`SimulationContext`) and the **Low-level** API (`DynamicRealtimeEnvironment` and SimPy processes). Pick the tab of the way you write; every tab on the site switches with it. The three build the same simulation and print the same records. [Ways to Write](https://jaehyeon.me/desflow/latest/user-guide/ways-to-write/index.md) explains how they relate.
+Each step shows the code three ways, in tabs: a **YAML** blueprint, the **Builder** (`SimulationContext`) and the **Low-level** API (`DynamicRealtimeEnvironment` and SimPy processes). Choose the tab for your preferred API; all code tabs on the site switch to that API. The three build the same simulation and print the same records. [Ways to Write](https://jaehyeon.me/desflow/latest/user-guide/ways-to-write/index.md) explains how they relate.
 
 Look at the order of the parts: orders arrive, wait in the packer queue, take the packer for 1.5 seconds, and send their records to the console. The arrival loop and the task read their values from the registry.
 
@@ -1083,11 +1083,11 @@ Next, [Randomness and Seeds](https://jaehyeon.me/desflow/latest/tutorials/random
 
 # Randomness and Seeds
 
-Run the busy shop twice and the records differ: orders arrive at other times and packing takes other times. That is what a stochastic model does, but it makes a result hard to check or to compare. This page asks: **why does each run differ, and how is one repeated?**
+Run the busy shop twice: orders arrive at different times and packing durations vary. That is what a stochastic model does, but it makes a result hard to check or to compare. This page asks: **why do runs differ, and how can you reproduce one?**
 
 ## What You Add
 
-A seed, then a second arrival. The shop is the busy hour from [Queues and Capacity](https://jaehyeon.me/desflow/latest/tutorials/queues-and-capacity/index.md) with its answer, 3 packers, and packing that now varies: 1.5 seconds on average, give or take 0.5, drawn from a `normal` distribution. The run is one minute long.
+A seed, then a second arrival. The model simulates the busy hour from [Queues and Capacity](https://jaehyeon.me/desflow/latest/tutorials/queues-and-capacity/index.md), using its answer of 3 packers. Packing times now vary: 1.5 seconds on average, give or take 0.5, drawn from a `normal` distribution. The run is one minute long.
 
 ______________________________________________________________________
 
@@ -1224,7 +1224,7 @@ ______________________________________________________________________
 
 ## Result
 
-Why does each run differ, and how is one repeated? Each run differs because each run starts its random number streams from another seed. A run is repeated by giving the same seed: `random_seed: 42` in the blueprint, `random_seed=42` on `SimulationContext`, `Sampler(seed=42)` in the low-level API, or `desflow run --seed 42`. With it, **the twelfth order waits 0.702 seconds** on every run, and still 0.702 seconds after the returns are added.
+Why do runs differ, and how can you reproduce one? Runs differ because they start their random number streams from different seeds. Repeat a run by supplying the same seed: `random_seed: 42` in the blueprint, `random_seed=42` on `SimulationContext`, `Sampler(seed=42)` in the low-level API, or `desflow run --seed 42`. With it, **the twelfth order waits 0.702 seconds** on every run, and still 0.702 seconds after the returns are added.
 
 ## Why It Works
 
@@ -1445,7 +1445,7 @@ Packing takes 1.5 seconds on average. So far the shop has said exactly that: a `
 
 ## What You Add
 
-A packing time chosen from evidence. The shop is the busy hour with 3 packers from [Queues and Capacity](https://jaehyeon.me/desflow/latest/tutorials/queues-and-capacity/index.md). It gets four candidates for packing, all with a mean of 1.5 seconds, and runs the hour with each:
+A packing time chosen from evidence. The model simulates the busy hour with 3 packers from [Queues and Capacity](https://jaehyeon.me/desflow/latest/tutorials/queues-and-capacity/index.md). It gets four candidates for packing, all with a mean of 1.5 seconds, and runs the hour with each:
 
 - `constant`: the mean alone, as the shop had it;
 - `exponential`: the usual choice when nothing is known;
@@ -1814,7 +1814,7 @@ Most of the last three pages read one number, the mean wait. A run knows much mo
 
 ## What You Add
 
-`stats: typical`, the built-in statistics at the level that includes waits. The shop is the busy hour with 3 packers and the measured packing times that [Choosing Inputs](https://jaehyeon.me/desflow/latest/tutorials/choosing-inputs/index.md) chose.
+`stats: typical`, the built-in statistics at the level that includes waits. The model simulates the busy hour with 3 packers and the measured packing times that [Choosing Inputs](https://jaehyeon.me/desflow/latest/tutorials/choosing-inputs/index.md) chose.
 
 ______________________________________________________________________
 
@@ -1902,7 +1902,7 @@ Every name has the same form, `<sim_id>.stats.<kind>.<name>.<statistic>`, such a
 [TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.flows.orders.finished', 'value': 6250}
 ```
 
-`tasks.pack_order.finished` counts the orders the task finished, and `flows.orders.finished` counts the orders that left the shop, named by the arrival that started them; with one task the two are equal. The mean wait is 1.38 seconds, not the 1.35 seconds of the empirical candidate in Choosing Inputs, although the times are the same 40. The service is now called `packing`, so it draws from its own stream, `service.packing`, and the times come in another order; [Randomness and Seeds](https://jaehyeon.me/desflow/latest/tutorials/randomness-and-seeds/index.md) explains why.
+`tasks.pack_order.finished` counts the orders the task finished, and `flows.orders.finished` counts the orders that left the shop, named by the arrival that started them; with one task the two are equal. The mean wait is 1.38 seconds, not the 1.35 seconds of the empirical candidate in Choosing Inputs, although both use the same 40 measured packing times. The service is now called `packing`, so it draws from its own stream, `service.packing`, and the times come in another order; [Randomness and Seeds](https://jaehyeon.me/desflow/latest/tutorials/randomness-and-seeds/index.md) explains why.
 
 ______________________________________________________________________
 
@@ -2141,7 +2141,7 @@ Next, [Trusting Results](https://jaehyeon.me/desflow/latest/tutorials/trusting-r
 
 ## What You Add
 
-A `warmup` on the run. The shop is the busy hour from Measuring a Run, unchanged.
+A `warmup` on the run. The model simulates the same busy hour as Measuring a Run.
 
 ______________________________________________________________________
 
@@ -2651,7 +2651,7 @@ ______________________________________________________________________
 
 What happens when stock runs out? Orders wait for boxes, and when deliveries cannot keep up, the wait grows all hour. The level over the first 30 minutes, for both delivery sizes:
 
-With deliveries of 60, the mean wait for packing is **1.93 seconds**, and stock runs out only once, just before the first delivery. With deliveries of 40, it is **341.89 seconds**, and the shelf is empty for about 40 of every 100 seconds. 40 boxes every 100 seconds packs at most 0.4 orders a second while 0.5 arrive, so the packer queue grows all hour, as with too few packers on [Queues and Capacity](https://jaehyeon.me/desflow/latest/tutorials/queues-and-capacity/index.md). The Builder and Low-level scripts print both:
+With deliveries of 60, the mean wait for packing is **1.93 seconds**, and stock runs out only once, just before the first delivery. With deliveries of 40, it is **341.89 seconds**, and the shelf is empty for about 40 of every 100 seconds. Deliveries of 40 boxes every 100 seconds support packing at most 0.4 orders a second while 0.5 arrive, so the packer queue grows all hour, as with too few packers on [Queues and Capacity](https://jaehyeon.me/desflow/latest/tutorials/queues-and-capacity/index.md). The Builder and Low-level scripts print both:
 
 ```text
 deliveries of 60: mean wait   1.93 s
@@ -3890,7 +3890,7 @@ This is the last page of the tutorial for now. [Task Flow](https://jaehyeon.me/d
 
 # Ways to Write a Simulation
 
-desflow has three ways to write a simulation: a YAML blueprint, the builder API and the low-level API. This page says how they relate and which to choose. If you are new to desflow, start with [First Simulation](https://jaehyeon.me/desflow/latest/tutorials/first-simulation/index.md), which builds one shop in all three side by side, and come back here to look a part up.
+desflow has three ways to write a simulation: a YAML blueprint, the builder API and the low-level API. This page says how they relate and which to choose. If you are new to desflow, start with [First Simulation](https://jaehyeon.me/desflow/latest/tutorials/first-simulation/index.md), which shows the same model in all three APIs side by side. Return here to look up a specific component.
 
 ______________________________________________________________________
 
@@ -3941,7 +3941,7 @@ ______________________________________________________________________
 
 A blueprint is the builder calls of a Python script, written as data. Each section becomes the builder call of the same name: `resources` is `add_resource`, `tasks` is `@app.task`, `stats` is `with_stats`, and so on. There is no second way of building: `SimulationContext.from_yaml` makes those calls, in the order a script would, and returns an ordinary `SimulationContext`. A blueprint and a script that make the same calls produce the same simulation, and the tests check that the YAML, builder and low-level versions of every example publish the same records.
 
-Logic that a file cannot express is Python, which a blueprint references with `!python`, as [Python in a Blueprint](https://jaehyeon.me/desflow/latest/guides/yaml-advanced/index.md) shows.
+Use Python for logic that YAML cannot express. Reference it with `!python`, as [Python in a Blueprint](https://jaehyeon.me/desflow/latest/guides/yaml-advanced/index.md) shows.
 
 ______________________________________________________________________
 
@@ -4742,7 +4742,7 @@ An **entity** is the thing that flows through a model: an order, a visitor, a su
 | Statistics | what the run measures about itself                                | `stats`                     | `with_stats`                       | `env.setup_stats`, `env.stats`                | [Statistics](https://jaehyeon.me/desflow/latest/user-guide/statistics/index.md)                       |
 | Variable   | any other live value, such as a speed                             | `variables`                 | `add_variable`                     | `SimParameter(variables=...)`                 | [Live Parameters](https://jaehyeon.me/desflow/latest/user-guide/live-parameters/index.md)             |
 
-[Tutorial: the Shop](https://jaehyeon.me/desflow/latest/tutorials/first-simulation/index.md), in the Learn section, puts them together one at a time, in a small online shop.
+[Tutorial: the Shop](https://jaehyeon.me/desflow/latest/tutorials/first-simulation/index.md), in the Learn section, puts them together one at a time, in a small shop.
 
 # Arrivals and Services: `Sampler` and the Distributions
 
@@ -5312,7 +5312,7 @@ def print_label_process(env, sampler, key, task_id):
 
 ### Arrivals Start Tasks
 
-An arrival starts one task per arrival. The loop draws a gap from the arrival's distribution, waits it, starts a task for the new entity, and repeats; the task runs on its own while the loop waits for the next arrival.
+An arrival starts one task per arrival. The loop draws a gap from the arrival's distribution, waits for that duration, starts a task for the new entity, and repeats; the task runs on its own while the loop waits for the next arrival.
 
 docs/snippets/yaml/tasks.yaml:arrival
 
@@ -5330,7 +5330,7 @@ docs/snippets/pages/tasks.py:builder-arrival
 def orders(context: SimulationContext):
     task_id = 0
     while True:
-        # Draws the next gap, waits it, and returns the new entity, keyed orders-1, ...
+        # Draws the next gap, waits for it, and returns the new entity, keyed orders-1, ...
         order = yield context.wait_for_arrival("orders")
         context.spawn(pack_order(task_id, entity=order))  # the loop goes on at once
         task_id += 1
@@ -6034,7 +6034,7 @@ ______________________________________________________________________
 
 # Task Flow: the Next Task by Condition or Probability
 
-An entity rarely does one task and leaves. An order is checked, perhaps wrapped as a gift, packed, sometimes packed again, and shipped. This page shows how a finished task chooses the next one, and what the entity carries from task to task.
+An entity rarely leaves after completing just one task. An order is checked, perhaps wrapped as a gift, packed, sometimes packed again, and shipped. This page shows how a finished task chooses the next one, and what the entity carries from task to task.
 
 ______________________________________________________________________
 
@@ -6053,7 +6053,7 @@ ______________________________________________________________________
 `next` takes one of these forms:
 
 - **A task name**, `next: pack_order`: always that task.
-- **Rules**, `when` with an optional `default`: each rule is a condition and a task. Rules are tried in order, the first whose condition holds wins, and `default` catches the rest; with no default and no rule holding, the flow ends.
+- **Rules**, `when` with an optional `default`: each rule is a condition and a task. Rules are tried in order. The first matching rule wins, and `default` applies if none matches. With no default and no matching rule, the flow ends.
 - **Weights**, below.
 - **In the builder, a function** that takes the `Upstream` and returns a task name or `None`.
 
@@ -6062,7 +6062,7 @@ docs/snippets/yaml/task_flow.yaml:condition
 ```yaml
 check_order:
   payload: {total: 80}
-  # Rules are tried in order; the first that holds wins, default catches the rest
+  # Rules are tried in order; the first match wins. Otherwise, use the default.
   next:
     when:
       - {condition: "level.stock == 0", task: backorder}
@@ -6073,7 +6073,7 @@ check_order:
 docs/snippets/pages/task_flow.py:builder-condition
 
 ```python
-# Rules are tried in order; the first that holds wins, default catches the rest
+# Rules are tried in order; the first match wins. Otherwise, use the default.
 @app.task(
     next={
         "when": [
@@ -6446,7 +6446,7 @@ A blueprint is checked when it loads: every condition parses, every task a rule 
 
 **Weights.** The weights are turned into cumulative shares once. Each choice draws one uniform number from the routing task's stream and picks the task whose share it falls in.
 
-**The next task.** When a task finishes, it applies `set`, builds the `Upstream`, asks its rules for the next task and starts it as a new SimPy process, with the same entity and the next instance id from the task's counter. An arrival that spawns the task uses the same counter, so no two runs of a task share an id. In SimPy terms, one process starting the next is the whole mechanism; [SimPy and desflow](https://jaehyeon.me/desflow/latest/des/simpy-and-desflow/index.md) describes processes.
+**Starting the Next Task.** When a task finishes, it applies `set`, builds the `Upstream`, asks its rules for the next task and starts it as a new SimPy process, with the same entity and the next instance id from the task's counter. An arrival that spawns the task uses the same counter, so no two runs of a task share an id. In SimPy terms, one process starting the next is the whole mechanism; [SimPy and desflow](https://jaehyeon.me/desflow/latest/des/simpy-and-desflow/index.md) describes processes.
 
 ______________________________________________________________________
 
@@ -6949,7 +6949,7 @@ ______________________________________________________________________
 - A value equal to the current one changes nothing.
 - Otherwise the value is stored, and the attribute of the configuration object is set too, found by splitting the path at its last dot: `Shop.service.packing.mean` sets `mean` on the object at `Shop.service.packing`. That is why the `Sampler`, which reads that object at every draw, sees the new value.
 
-**The change signal.** Each value has a SimPy `Store` with one slot as its signal. An update puts a token in it if it is empty, and `wait_for_change()` waits for that token, so several changes before a waiter wakes give one signal, and one waiting process takes it. Resources, stores and containers already wait on their own paths, so wait only on paths nothing else waits on, such as variables:
+**Change Signal.** Each value has a SimPy `Store` with one slot as its signal. An update puts a token in it if it is empty, and `wait_for_change()` waits for that token, so several changes before a waiter wakes give one signal, and one waiting process takes it. Resources, stores and containers already wait on their own paths, so wait only on paths nothing else waits on, such as variables:
 
 docs/snippets/pages/registry.py:wait
 
@@ -7005,7 +7005,7 @@ ______________________________________________________________________
 
 # Time and Pacing
 
-A run has two clocks, and a run can follow the wall clock, ignore it, or switch from one to the other. This page shows the clock settings, the warm-up, how long a run lasts, and what the environment runs on which thread.
+A run has two clocks, and a run can follow the wall clock, ignore it, or switch from one to the other. This page shows the clock settings, the warm-up, how long a run lasts, and which parts of the environment run on each thread.
 
 ______________________________________________________________________
 
@@ -7144,7 +7144,7 @@ ______________________________________________________________________
 
 ## What It Is
 
-An ingress connector listens to a source while the run goes on. Every message it reads is one change: a registry `path` and its new `value`, the same two names a scenario step uses. The change reaches the registry, and the simulation follows it, as [Live Parameters](https://jaehyeon.me/desflow/latest/user-guide/live-parameters/index.md) describes. Four connectors bring changes in, beside the seven that write records out, on [Egress](https://jaehyeon.me/desflow/latest/user-guide/egress/index.md):
+An ingress connector listens to a source while the run goes on. Every message it reads is one change: a registry `path` and its new `value`, the same two names a scenario step uses. The change reaches the registry, and the simulation follows it, as [Live Parameters](https://jaehyeon.me/desflow/latest/user-guide/live-parameters/index.md) describes. Four ingress connectors bring changes in. The seven connectors described on [Egress](https://jaehyeon.me/desflow/latest/user-guide/egress/index.md) write records out:
 
 ______________________________________________________________________
 
@@ -7690,7 +7690,7 @@ Use `!python` when a blueprint needs one of these:
 
 - **Field values with logic.** Random or weighted choices, fields derived from other fields and state carried from one event to the next are a payload function or a process.
 - **More than a task can describe.** A task that holds several resources at once, or a breakdown that interrupts work in progress, is a process. Routing (`next`), priorities (`priority` and `queue: priority`) and stores and containers are plain YAML.
-- **Readings other than the built-in statistics.** `stats: minimal` publishes resource, store and container readings, a container's `level` among them. Variables and derived metrics are a telemetry function.
+- **Readings other than the built-in statistics.** `stats: minimal` publishes resource, store and container readings, a container's `level` among them. Use a telemetry function to publish variables and derived metrics.
 - **Routing over several destinations, and serializers.** A router or an Avro serializer is a Python object.
 - **Setup a connector does not do itself**, such as topics that only a router knows about.
 - **A connector from another package.**
@@ -8731,7 +8731,7 @@ ______________________________________________________________________
 
 ## Use It in a Simulation
 
-A connector with security settings is added like any other. This shop publishes its events through the SASL egress above:
+A connector with security settings is added like any other. This simulation publishes its events through the SASL egress above:
 
 docs/snippets/guides/kafka_security.py:shop
 
@@ -8779,7 +8779,7 @@ docs/snippets/guides/kafka_security.py
 ```python
 """The secured Kafka connections of the Secure Kafka page, and a shop that uses one.
 
-The shop publishes to a cluster that uses SASL PLAIN, such as Confluent Cloud: put your
+The simulation publishes to a cluster that uses SASL PLAIN, such as Confluent Cloud: put your
 broker address and credentials in the `sasl` section, then run `python
 kafka_security.py`. The mTLS and MSK examples read certificate files or call AWS, so
 they sit in functions this file defines and does not call.
@@ -8971,7 +8971,7 @@ ______________________________________________________________________
 
 # Preemptive Breakdowns
 
-A preemptive breakdown stops a machine in the middle of a job. Here a label printer jams while it prints an order's shipping label. The order stays on the printer while it is repaired, then the rest of its work continues. No other order can start while the printer is down.
+A preemptive breakdown stops a machine in the middle of a job. Here a label printer jams while it prints an order's shipping label. The order remains assigned to the printer during repairs, then labelling resumes. No other order can start while the printer is down.
 
 `@app.task` waits out the service time inside its own generator, so your code cannot catch a `simpy.Interrupt` there. A breakdown needs a task written as a generator that you start with `context.spawn`, and a process that interrupts it.
 
@@ -9198,7 +9198,7 @@ The last three are shown on the User Guide page of their area, with the same ste
 
 # Local Simulation
 
-An online shop that packs orders and prints its events and telemetry to the terminal. It needs no container, so it is the place to start. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](https://jaehyeon.me/desflow/latest/user-guide/ways-to-write/index.md) compares the three.
+This example models a shop packing orders. The simulation prints events and telemetry to the terminal. It needs no container, so it is the place to start. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](https://jaehyeon.me/desflow/latest/user-guide/ways-to-write/index.md) compares the three.
 
 Local connectors need no Docker, Kafka or other external store, so this example is useful for testing and benchmarking.
 
@@ -9259,10 +9259,10 @@ examples/yaml/local.yaml
 ```yaml
 # Local simulation in YAML, with no Python and no containers.
 #
-# The twin of examples/builder/local_example.py. An online shop packs orders, and
-# Shop writes to ConsoleEgress, so events and telemetry are printed to the
-# terminal. A scenario adds packers at 10 seconds and removes one at 20 seconds, and
-# the run ends on its own after 30 simulation seconds.
+# The twin of examples/builder/local_example.py. This simulation models a shop
+# packing orders. ConsoleEgress prints events and telemetry to the terminal.
+# A scenario adds packers at 10 seconds and removes one at 20 seconds.
+# The run ends on its own after 30 simulation seconds.
 #
 # Run it with: desflow run examples/yaml/local.yaml
 
@@ -9339,7 +9339,7 @@ python local_example.py
 
 **Full Source Code**
 
-This script builds the shop, runs it for 30 simulation seconds, and streams events and telemetry directly to your terminal.
+This script builds the model, runs it for 30 simulation seconds, and streams events and telemetry directly to your terminal.
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
@@ -9348,10 +9348,10 @@ examples/builder/local_example.py
 ```python
 """Local simulation, builder API, no containers.
 
-The smallest complete example. An online shop packs orders: `Shop` is built with
-`SimulationContext` and writes to `ConsoleEgress`, so events and telemetry are printed
-to the terminal and nothing external is involved. A scenario adds packers at 10
-seconds and removes one at 20 seconds, and the built-in statistics show the effect.
+This example models a shop packing orders with `SimulationContext`.
+`ConsoleEgress` prints events and telemetry to the terminal, so nothing external is
+involved. A scenario adds packers at 10 seconds and removes one at 20 seconds.
+The built-in statistics show the effect.
 
 Start here. It needs no broker, no database and no object store, and it ends on its own
 after 30 simulation seconds.
@@ -9462,7 +9462,7 @@ python local_example.py
 
 **Full Source Code**
 
-This script builds the shop and runs it for 30 simulation seconds. The `capacity_changes` process changes the number of packers from 1 to 3 at 10 seconds, then down to 2 at 20 seconds. Events and telemetry stream directly to your terminal, driven by plain SimPy generators.
+This script builds the model and runs it for 30 simulation seconds. The `capacity_changes` process changes the number of packers from 1 to 3 at 10 seconds, then down to 2 at 20 seconds. Events and telemetry stream directly to your terminal, driven by plain SimPy generators.
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
@@ -9472,9 +9472,9 @@ examples/low-level/local_example.py
 """Local simulation, low-level API, no containers.
 
 The low-level twin of `builder/local_example.py`, built on `DynamicRealtimeEnvironment`
-directly. An online shop packs orders and writes to `ConsoleEgress`. A scenario
-process adds packers at 10 seconds and removes one at 20 seconds, and the built-in
-statistics show the effect.
+directly. It models a shop packing orders and uses `ConsoleEgress` to print events
+and telemetry. A scenario process adds packers at 10 seconds and removes one at
+20 seconds. The built-in statistics show the effect.
 
 Needs no containers. Ends on its own after 30 simulation seconds.
 """
@@ -9575,7 +9575,7 @@ if __name__ == "__main__":
 
 # Kafka Digital Twin
 
-An online shop that packs orders, takes parameter updates from a Kafka topic and publishes its events and telemetry to Kafka topics. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](https://jaehyeon.me/desflow/latest/user-guide/ways-to-write/index.md) compares the three.
+This example models a shop packing orders. The simulation reads parameter updates from a Kafka topic and publishes events and telemetry to Kafka topics. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](https://jaehyeon.me/desflow/latest/user-guide/ways-to-write/index.md) compares the three.
 
 With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simulation runs as a separate service. It reads JSON parameter updates from a topic, and publishes telemetry and typed Pydantic events to other topics.
 
@@ -9646,7 +9646,7 @@ examples/yaml/kafka.yaml
 ```yaml
 # Kafka digital twin in YAML.
 #
-# The YAML version of examples/builder/kafka_example.py, an online shop packing
+# The YAML version of examples/builder/kafka_example.py, a shop packing
 # orders. KafkaIngress reads parameter updates from sim-config, and KafkaEgress
 # publishes lifecycle events to sim-events and packer metrics to sim-telemetry.
 # KafkaEgress creates its two topics when the run starts.
@@ -9753,8 +9753,8 @@ examples/builder/kafka_example.py
 ```python
 """Kafka Digital Twin, builder API.
 
-Builds `Shop`, an online shop packing orders, with `SimulationContext` and connects it
-to Kafka in both directions. `KafkaIngress` reads parameter updates from `sim-config`,
+Models a shop packing orders with `SimulationContext` and connects the simulation
+to Kafka for input and output. `KafkaIngress` reads parameter updates from `sim-config`,
 so the running simulation can be steered without restarting it. `KafkaEgress`
 publishes lifecycle events to `sim-events` and metrics to `sim-telemetry`, with
 Pydantic models giving the events a declared shape.
@@ -9935,7 +9935,7 @@ examples/low-level/kafka_example.py
 ```python
 """Kafka Digital Twin, low-level API.
 
-The low-level twin of `builder/kafka_example.py`, an online shop packing orders, with
+The low-level twin of `builder/kafka_example.py`, a shop packing orders, with
 the environment, registry and connectors wired by hand. Like the builder version, it
 creates its topics first with `KafkaAdminConnector`.
 
@@ -10103,7 +10103,7 @@ if __name__ == "__main__":
 
 # Fast-Forward to Parquet
 
-A week of an online shop's orders, generated at `factor=0.0` and written to Parquet files on the local disk or in S3-compatible storage. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](https://jaehyeon.me/desflow/latest/user-guide/ways-to-write/index.md) compares the three.
+A week of a shop's orders, generated at `factor=0.0` and written to Parquet files on the local disk or in S3-compatible storage. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](https://jaehyeon.me/desflow/latest/user-guide/ways-to-write/index.md) compares the three.
 
 desflow is built for real-time digital twins, but the same model can also run faster than real time. With the time factor at 0 and a chosen start time, a run generates a large amount of historical data in seconds, or predicts future states.
 
@@ -10623,7 +10623,7 @@ if __name__ == "__main__":
 
 # Fast-Forward to Iceberg
 
-A day of an online shop's orders, generated at `factor=0.0` and appended to an Apache Iceberg table through an Iceberg REST catalog. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](https://jaehyeon.me/desflow/latest/user-guide/ways-to-write/index.md) compares the three.
+A day of a shop's orders, generated at `factor=0.0` and appended to an Apache Iceberg table through an Iceberg REST catalog. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](https://jaehyeon.me/desflow/latest/user-guide/ways-to-write/index.md) compares the three.
 
 `ParquetStorageEgress` writes files and leaves registering them as a table to you. `IcebergStorageEgress` appends into an Iceberg table instead, so one run ends with a table another engine can query.
 
@@ -11225,7 +11225,7 @@ if __name__ == "__main__":
 
 # PostgreSQL
 
-An online shop that writes its orders to PostgreSQL and takes parameter updates from a PostgreSQL table. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](https://jaehyeon.me/desflow/latest/user-guide/ways-to-write/index.md) compares the three.
+This example models a shop receiving orders. The simulation writes order records to PostgreSQL and reads parameter updates from a PostgreSQL table. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](https://jaehyeon.me/desflow/latest/user-guide/ways-to-write/index.md) compares the three.
 
 With `PostgresEgress` in place of the console egress, the simulation runs as a separate data generator. It writes rows into PostgreSQL with asynchronous bulk inserts through `asyncpg`.
 
@@ -11292,8 +11292,8 @@ examples/yaml/postgres.yaml
 ```yaml
 # Relational output in YAML.
 #
-# The YAML version of examples/builder/postgres_example.py: an online shop that
-# writes its orders to one table. Each order spawns place_order, a task with no
+# The YAML version of examples/builder/postgres_example.py: a simulation that
+# writes order records to one table. Each order spawns place_order, a task with no
 # service or resource, which publishes its payload at once. PostgresEgress creates
 # the orders table at start and writes one row per order. PostgresIngress creates
 # simulation_params and polls it for parameter updates.
@@ -11449,7 +11449,7 @@ examples/builder/postgres_example.py
 ```python
 """Relational output, builder API.
 
-`Shop`, an online shop, writes its orders to the PostgreSQL table `orders`.
+The simulation writes order records to the PostgreSQL table `orders`.
 `PostgresEgress` creates the table at start and writes one row per order, and
 `PostgresIngress` creates `simulation_params` and polls it for parameter updates, so
 inserting a row there changes the arrival rate of a running simulation.
@@ -11627,8 +11627,8 @@ examples/low-level/postgres_example.py
 ```python
 """Relational output, low-level API.
 
-The low-level twin of `builder/postgres_example.py`: an online shop that writes its
-orders to the PostgreSQL table `orders`. `PostgresEgress` creates the table at start,
+The low-level twin of `builder/postgres_example.py`. The simulation writes order
+records to the PostgreSQL table `orders`. `PostgresEgress` creates the table at start,
 and `PostgresIngress` creates `simulation_params` and polls it for parameter updates.
 
 Needs a database: `odctl up postgres`. Runs until interrupted with Ctrl + C.
@@ -11724,7 +11724,7 @@ if __name__ == "__main__":
 
 # Redis
 
-An online shop that writes each order to a Redis Stream as it is placed, and takes parameter updates from a Redis Pub/Sub channel. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](https://jaehyeon.me/desflow/latest/user-guide/ways-to-write/index.md) compares the three.
+This example models a shop receiving orders. The simulation writes each order to a Redis Stream as it is placed and reads parameter updates from a Redis Pub/Sub channel. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](https://jaehyeon.me/desflow/latest/user-guide/ways-to-write/index.md) compares the three.
 
 This example builds the simulation of the builder example in the Builder tab from a YAML blueprint, with no Python. `RedisEgress` writes order records to the `order_events` stream, which each record's `__stream__` key names, and `RedisIngress` subscribes to the `simulation_params` channel.
 
@@ -11789,7 +11789,7 @@ examples/yaml/redis.yaml
 ```yaml
 # Redis Streams output with live parameter updates, in YAML.
 #
-# The YAML version of examples/builder/redis_example.py: an online shop that records
+# The YAML version of examples/builder/redis_example.py: a simulation that records
 # each order as it is placed. Each order spawns record_order, a task with no service
 # or resource, which publishes its payload at once. RedisEgress writes it to the
 # order_events stream that the __stream__ key names, while RedisIngress subscribes to
@@ -11940,7 +11940,7 @@ examples/builder/redis_example.py
 ```python
 """Redis Streams output with live parameter updates, builder API.
 
-`Shop`, an online shop, records each order as it is placed. `RedisEgress` writes the
+The simulation records each order as it is placed. `RedisEgress` writes the
 records to the `order_events` Redis Stream, named by each record's `__stream__` key,
 while `RedisIngress` subscribes to the `simulation_params` channel, so publishing a
 message to that channel changes the arrival rate of a running simulation.
@@ -12071,7 +12071,7 @@ examples/low-level/redis_example.py
 ```python
 """Redis Streams output with live parameter updates, low-level API.
 
-The low-level twin of `builder/redis_example.py`: an online shop that records each
+The low-level twin of `builder/redis_example.py`. The simulation records each
 order as it is placed. `RedisEgress` writes the records to the `order_events` stream,
 named by each record's `__stream__` key, and `RedisIngress` subscribes to the
 `simulation_params` channel.
@@ -19717,7 +19717,7 @@ Shows a simulation as a graph, says whether each part is stable, points to the b
 
 Learn section
 
-Finishes the shop tutorial, which grows one online shop page by page and answers a question with a number on each page, and adds concept pages on studies, verification and queueing. 0.21.0 opens the Learn section with the first nine tutorial pages. [#60](https://github.com/jaehyeon-kim/desflow/issues/60)
+Finishes the shop tutorial, which extends one shop model page by page and answers a question with a number on each page, and adds concept pages on studies, verification and queueing. 0.21.0 opens the Learn section with the first nine tutorial pages. [#60](https://github.com/jaehyeon-kim/desflow/issues/60)
 
 ## Later
 

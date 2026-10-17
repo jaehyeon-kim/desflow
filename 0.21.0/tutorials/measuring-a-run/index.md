@@ -4,7 +4,7 @@ Most of the last three pages read one number, the mean wait. A run knows much mo
 
 ## What You Add
 
-`stats: typical`, the built-in statistics at the level that includes waits. The shop is the busy hour with 3 packers and the measured packing times that [Choosing Inputs](https://jaehyeon.me/desflow/latest/tutorials/choosing-inputs/index.md) chose.
+`stats: typical`, the built-in statistics at the level that includes waits. The model simulates the busy hour with 3 packers and the measured packing times that [Choosing Inputs](https://jaehyeon.me/desflow/latest/tutorials/choosing-inputs/index.md) chose.
 
 ______________________________________________________________________
 
@@ -92,7 +92,7 @@ Every name has the same form, `<sim_id>.stats.<kind>.<name>.<statistic>`, such a
 [TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.flows.orders.finished', 'value': 6250}
 ```
 
-`tasks.pack_order.finished` counts the orders the task finished, and `flows.orders.finished` counts the orders that left the shop, named by the arrival that started them; with one task the two are equal. The mean wait is 1.38 seconds, not the 1.35 seconds of the empirical candidate in Choosing Inputs, although the times are the same 40. The service is now called `packing`, so it draws from its own stream, `service.packing`, and the times come in another order; [Randomness and Seeds](https://jaehyeon.me/desflow/latest/tutorials/randomness-and-seeds/index.md) explains why.
+`tasks.pack_order.finished` counts the orders the task finished, and `flows.orders.finished` counts the orders that left the shop, named by the arrival that started them; with one task the two are equal. The mean wait is 1.38 seconds, not the 1.35 seconds of the empirical candidate in Choosing Inputs, although both use the same 40 measured packing times. The service is now called `packing`, so it draws from its own stream, `service.packing`, and the times come in another order; [Randomness and Seeds](https://jaehyeon.me/desflow/latest/tutorials/randomness-and-seeds/index.md) explains why.
 
 ______________________________________________________________________
 

@@ -1,8 +1,8 @@
 # First Simulation
 
-This tutorial builds an online shop that packs orders: one packer, orders arriving about every 2 seconds, and 1.5 seconds of packing per order. It answers one question: **how long does an order wait with one packer?** The pages after it grow the same shop, one idea per page.
+This tutorial models a shop that receives and packs customer orders: one packer, orders arriving about every 2 seconds, and 1.5 seconds of packing per order. It answers one question: **how long does an order wait with one packer?** The following pages extend the same model, one idea per page.
 
-Each step shows the code three ways, in tabs: a **YAML** blueprint, the **Builder** (`SimulationContext`) and the **Low-level** API (`DynamicRealtimeEnvironment` and SimPy processes). Pick the tab of the way you write; every tab on the site switches with it. The three build the same simulation and print the same records. [Ways to Write](https://jaehyeon.me/desflow/latest/user-guide/ways-to-write/index.md) explains how they relate.
+Each step shows the code three ways, in tabs: a **YAML** blueprint, the **Builder** (`SimulationContext`) and the **Low-level** API (`DynamicRealtimeEnvironment` and SimPy processes). Choose the tab for your preferred API; all code tabs on the site switch to that API. The three build the same simulation and print the same records. [Ways to Write](https://jaehyeon.me/desflow/latest/user-guide/ways-to-write/index.md) explains how they relate.
 
 Look at the order of the parts: orders arrive, wait in the packer queue, take the packer for 1.5 seconds, and send their records to the console. The arrival loop and the task read their values from the registry.
 

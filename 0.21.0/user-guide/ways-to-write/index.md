@@ -1,6 +1,6 @@
 # Ways to Write a Simulation
 
-desflow has three ways to write a simulation: a YAML blueprint, the builder API and the low-level API. This page says how they relate and which to choose. If you are new to desflow, start with [First Simulation](https://jaehyeon.me/desflow/latest/tutorials/first-simulation/index.md), which builds one shop in all three side by side, and come back here to look a part up.
+desflow has three ways to write a simulation: a YAML blueprint, the builder API and the low-level API. This page says how they relate and which to choose. If you are new to desflow, start with [First Simulation](https://jaehyeon.me/desflow/latest/tutorials/first-simulation/index.md), which shows the same model in all three APIs side by side. Return here to look up a specific component.
 
 ______________________________________________________________________
 

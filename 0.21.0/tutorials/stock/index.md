@@ -195,7 +195,7 @@ ______________________________________________________________________
 
 What happens when stock runs out? Orders wait for boxes, and when deliveries cannot keep up, the wait grows all hour. The level over the first 30 minutes, for both delivery sizes:
 
-With deliveries of 60, the mean wait for packing is **1.93 seconds**, and stock runs out only once, just before the first delivery. With deliveries of 40, it is **341.89 seconds**, and the shelf is empty for about 40 of every 100 seconds. 40 boxes every 100 seconds packs at most 0.4 orders a second while 0.5 arrive, so the packer queue grows all hour, as with too few packers on [Queues and Capacity](https://jaehyeon.me/desflow/latest/tutorials/queues-and-capacity/index.md). The Builder and Low-level scripts print both:
+With deliveries of 60, the mean wait for packing is **1.93 seconds**, and stock runs out only once, just before the first delivery. With deliveries of 40, it is **341.89 seconds**, and the shelf is empty for about 40 of every 100 seconds. Deliveries of 40 boxes every 100 seconds support packing at most 0.4 orders a second while 0.5 arrive, so the packer queue grows all hour, as with too few packers on [Queues and Capacity](https://jaehyeon.me/desflow/latest/tutorials/queues-and-capacity/index.md). The Builder and Low-level scripts print both:
 
 ```text
 deliveries of 60: mean wait   1.93 s

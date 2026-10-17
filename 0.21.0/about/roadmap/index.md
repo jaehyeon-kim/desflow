@@ -42,7 +42,7 @@ Shows a simulation as a graph, says whether each part is stable, points to the b
 
 Learn section
 
-Finishes the shop tutorial, which grows one online shop page by page and answers a question with a number on each page, and adds concept pages on studies, verification and queueing. 0.21.0 opens the Learn section with the first nine tutorial pages. [#60](https://github.com/jaehyeon-kim/desflow/issues/60)
+Finishes the shop tutorial, which extends one shop model page by page and answers a question with a number on each page, and adds concept pages on studies, verification and queueing. 0.21.0 opens the Learn section with the first nine tutorial pages. [#60](https://github.com/jaehyeon-kim/desflow/issues/60)
 
 ## Later
 

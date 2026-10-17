@@ -2461,7 +2461,7 @@
 
 
 <h1 id="task-flow-the-next-task-by-condition-or-probability">Task Flow: the Next Task by Condition or Probability</h1>
-<p>An entity rarely does one task and leaves. An order is checked, perhaps wrapped as a gift, packed, sometimes packed again, and shipped. This page shows how a finished task chooses the next one, and what the entity carries from task to task.</p>
+<p>An entity rarely leaves after completing just one task. An order is checked, perhaps wrapped as a gift, packed, sometimes packed again, and shipped. This page shows how a finished task chooses the next one, and what the entity carries from task to task.</p>
 <hr />
 <h2 id="what-it-is">What It Is</h2>
 <p>A <strong>flow</strong> is the sequence of tasks one entity passes through. Each task names what follows it: always the same task, the first of several rules whose condition holds, or a task drawn at random by weight. A rule can send the entity back to a task it has passed, for <strong>rework</strong>. A task that names nothing ends the flow. The entity keeps its key and its <strong>attributes</strong> through the whole flow, and every task can read them.</p>
@@ -2472,7 +2472,7 @@
 <p><code>next</code> takes one of these forms:</p>
 <ul>
 <li><strong>A task name</strong>, <code>next: pack_order</code>: always that task.</li>
-<li><strong>Rules</strong>, <code>when</code> with an optional <code>default</code>: each rule is a condition and a task. Rules are tried in order, the first whose condition holds wins, and <code>default</code> catches the rest; with no default and no rule holding, the flow ends.</li>
+<li><strong>Rules</strong>, <code>when</code> with an optional <code>default</code>: each rule is a condition and a task. Rules are tried in order. The first matching rule wins, and <code>default</code> applies if none matches. With no default and no matching rule, the flow ends.</li>
 <li><strong>Weights</strong>, below.</li>
 <li><strong>In the builder, a function</strong> that takes the <code>Upstream</code> and returns a task name or <code>None</code>.</li>
 </ul>
@@ -2481,7 +2481,7 @@
 <div class="tabbed-block">
 <div class="language-yaml highlight"><span class="filename">docs/snippets/yaml/task_flow.yaml:condition</span><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">check_order</span><span class="p">:</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">payload</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">total</span><span class="p">:</span><span class="w"> </span><span class="nv">80</span><span class="p p-Indicator">}</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="c1"># Rules are tried in order; the first that holds wins, default catches the rest</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="c1"># Rules are tried in order; the first match wins. Otherwise, use the default.</span>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span><span class="nt">next</span><span class="p">:</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="nt">when</span><span class="p">:</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">condition</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;level.stock</span><span class="nv"> </span><span class="s">==</span><span class="nv"> </span><span class="s">0&quot;</span><span class="p p-Indicator">,</span><span class="nt"> task</span><span class="p">:</span><span class="w"> </span><span class="nv">backorder</span><span class="p p-Indicator">}</span>
@@ -2490,7 +2490,7 @@
 </span></code></pre></div>
 </div>
 <div class="tabbed-block">
-<div class="language-python highlight"><span class="filename">docs/snippets/pages/task_flow.py:builder-condition</span><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Rules are tried in order; the first that holds wins, default catches the rest</span>
+<div class="language-python highlight"><span class="filename">docs/snippets/pages/task_flow.py:builder-condition</span><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># Rules are tried in order; the first match wins. Otherwise, use the default.</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nd">@app</span><span class="o">.</span><span class="n">task</span><span class="p">(</span>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="nb">next</span><span class="o">=</span><span class="p">{</span>
 </span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>        <span class="s2">&quot;when&quot;</span><span class="p">:</span> <span class="p">[</span>
@@ -2830,7 +2830,7 @@
 </span></code></pre></div>
 <p>A blueprint is checked when it loads: every condition parses, every task a rule names exists, every <code>level.&lt;name&gt;</code> names a store or container, and every <code>registry["..."]</code> is a path of the model, each with its YAML line. The builder makes the same checks when <code>run()</code> starts. A name that is missing when a condition is evaluated, such as a payload field, raises an error naming the expression.</p>
 <p><strong>Weights.</strong> The weights are turned into cumulative shares once. Each choice draws one uniform number from the routing task's stream and picks the task whose share it falls in.</p>
-<p><strong>The next task.</strong> When a task finishes, it applies <code>set</code>, builds the <code>Upstream</code>, asks its rules for the next task and starts it as a new SimPy process, with the same entity and the next instance id from the task's counter. An arrival that spawns the task uses the same counter, so no two runs of a task share an id. In SimPy terms, one process starting the next is the whole mechanism; <a href="../../des/simpy-and-desflow/">SimPy and desflow</a> describes processes.</p>
+<p><strong>Starting the Next Task.</strong> When a task finishes, it applies <code>set</code>, builds the <code>Upstream</code>, asks its rules for the next task and starts it as a new SimPy process, with the same entity and the next instance id from the task's counter. An arrival that spawns the task uses the same counter, so no two runs of a task share an id. In SimPy terms, one process starting the next is the whole mechanism; <a href="../../des/simpy-and-desflow/">SimPy and desflow</a> describes processes.</p>
 <hr />
 <h2 id="stability-and-limits">Stability and Limits</h2>
 <ul>

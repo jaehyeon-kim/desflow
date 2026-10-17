@@ -1,6 +1,6 @@
 # Fast-Forward to Parquet
 
-A week of an online shop's orders, generated at `factor=0.0` and written to Parquet files on the local disk or in S3-compatible storage. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](https://jaehyeon.me/desflow/latest/user-guide/ways-to-write/index.md) compares the three.
+A week of a shop's orders, generated at `factor=0.0` and written to Parquet files on the local disk or in S3-compatible storage. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](https://jaehyeon.me/desflow/latest/user-guide/ways-to-write/index.md) compares the three.
 
 desflow is built for real-time digital twins, but the same model can also run faster than real time. With the time factor at 0 and a chosen start time, a run generates a large amount of historical data in seconds, or predicts future states.
 

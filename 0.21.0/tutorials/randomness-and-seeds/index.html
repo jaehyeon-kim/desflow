@@ -2385,9 +2385,9 @@
 
 
 <h1 id="randomness-and-seeds">Randomness and Seeds</h1>
-<p>Run the busy shop twice and the records differ: orders arrive at other times and packing takes other times. That is what a stochastic model does, but it makes a result hard to check or to compare. This page asks: <strong>why does each run differ, and how is one repeated?</strong></p>
+<p>Run the busy shop twice: orders arrive at different times and packing durations vary. That is what a stochastic model does, but it makes a result hard to check or to compare. This page asks: <strong>why do runs differ, and how can you reproduce one?</strong></p>
 <h2 id="what-you-add">What You Add</h2>
-<p>A seed, then a second arrival. The shop is the busy hour from <a href="../queues-and-capacity/">Queues and Capacity</a> with its answer, 3 packers, and packing that now varies: 1.5 seconds on average, give or take 0.5, drawn from a <code>normal</code> distribution. The run is one minute long.</p>
+<p>A seed, then a second arrival. The model simulates the busy hour from <a href="../queues-and-capacity/">Queues and Capacity</a>, using its answer of 3 packers. Packing times now vary: 1.5 seconds on average, give or take 0.5, drawn from a <code>normal</code> distribution. The run is one minute long.</p>
 <hr />
 <h2 id="run-twice">Run Twice</h2>
 <p>A simulation draws its random times from a <strong>random number stream</strong>: a long sequence of numbers that looks random but is computed from a starting value, the <strong>seed</strong>. The same seed gives the same sequence, and so the same run. A run without a seed takes a new seed each time, so two runs give two different sets of records.</p>
@@ -2505,7 +2505,7 @@
 <p>With one shared stream, the returns would take some of the numbers the orders and packing used to get, and every later time would shift.</p>
 <hr />
 <h2 id="result">Result</h2>
-<p>Why does each run differ, and how is one repeated? Each run differs because each run starts its random number streams from another seed. A run is repeated by giving the same seed: <code>random_seed: 42</code> in the blueprint, <code>random_seed=42</code> on <code>SimulationContext</code>, <code>Sampler(seed=42)</code> in the low-level API, or <code>desflow run --seed 42</code>. With it, <strong>the twelfth order waits 0.702 seconds</strong> on every run, and still 0.702 seconds after the returns are added.</p>
+<p>Why do runs differ, and how can you reproduce one? Runs differ because they start their random number streams from different seeds. Repeat a run by supplying the same seed: <code>random_seed: 42</code> in the blueprint, <code>random_seed=42</code> on <code>SimulationContext</code>, <code>Sampler(seed=42)</code> in the low-level API, or <code>desflow run --seed 42</code>. With it, <strong>the twelfth order waits 0.702 seconds</strong> on every run, and still 0.702 seconds after the returns are added.</p>
 <h2 id="why-it-works">Why It Works</h2>
 <p>One stream per input means that two versions of a model run with the same seed see the same arrivals and the same service times wherever they share them. A difference between their results then comes from the change, not from different random numbers. This is called <strong>common random numbers</strong>, and it is how two designs are compared fairly. <a href="../../user-guide/arrivals-and-services/">Arrivals and Services</a> describes how each stream is made, and <a href="../../reference/distributions/">Distributions</a> lists every family with its parameters.</p>
 <hr />

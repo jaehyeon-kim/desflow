@@ -2439,7 +2439,7 @@
 
 
 <h1 id="time-and-pacing">Time and Pacing</h1>
-<p>A run has two clocks, and a run can follow the wall clock, ignore it, or switch from one to the other. This page shows the clock settings, the warm-up, how long a run lasts, and what the environment runs on which thread.</p>
+<p>A run has two clocks, and a run can follow the wall clock, ignore it, or switch from one to the other. This page shows the clock settings, the warm-up, how long a run lasts, and which parts of the environment run on each thread.</p>
 <hr />
 <h2 id="what-it-is">What It Is</h2>
 <p><strong>Simulation time</strong> is the number of seconds SimPy has advanced, starting at 0; every record carries it as <code>sim_ts</code>. <strong>Logical time</strong> is the date and time a record carries as <code>timestamp</code>: <code>logical_start_time</code> plus the simulation time. <code>factor</code> sets how simulation time relates to the wall clock, and <code>go_live_at</code> switches that relation once during a run. One hour of simulation time is one hour of logical time, and takes as long on the wall clock as <code>factor</code> says:</p>
