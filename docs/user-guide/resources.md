@@ -109,7 +109,7 @@ The last line is the capacity drop that Under Live Changes describes, below. The
 
 ### Task Priority
 
-Under `queue: priority`, each task gives its requests a priority: a number, the same for every run of the task; an expression, read when the task joins the queue, such as `attr.tier` for the entity's attribute `tier`; or, in the builder, a function of the task id and the entity's attributes. The attributes exist before the request queues, and the task's own payload does not, so a priority cannot read it; an expression can read the previous task's payload as `payload.<field>`.
+Under `queue: priority`, each task gives its requests a priority: a number, the same for every run of the task; an expression, read when the task joins the queue, such as `attr.tier` for the entity's attribute `tier`; or, in the builder, a function of the task id and the entity's attributes. The attributes exist before the request queues, and the task's own payload does not, so a priority cannot read it; an expression can read the previous task's payload as `payload.<field>`. The lowest priority is served first, and equal priorities first in, first out, which is the order of SimPy's `PriorityResource`; the tests check it, ties included, in all three APIs ([SimPy Compatibility](../reference/simpy-compatibility.md)).
 
 === "YAML"
 

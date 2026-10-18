@@ -1,0 +1,22 @@
+# The clock starts at 50 with two packers, 6 boxes and two parcels in the store; a
+# process publishes them at 50, and the first order at 55 carries its attributes.
+simulation:
+  sim_id: C6
+  factor: 0
+  initial_time: 50
+resources:
+  packers: {current_cap: 2, max_cap: 4}
+containers:
+  stock: {current_cap: 10, max_cap: 10, level: 6}
+stores:
+  parcels: {current_cap: 5, max_cap: 5, items: [p1, p2]}
+arrivals:
+  orders: {dist: constant, value: 5, spawn: order, attributes: {size: 3, gift: true}}
+tasks:
+  order:
+    payload: {}
+    attributes: [size, gift]
+processes:
+  - !python tests.conformance.state.snapshot
+run:
+  until: 56

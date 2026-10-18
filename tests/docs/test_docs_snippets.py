@@ -25,7 +25,7 @@ def test_snippet_builds_and_runs(path, monkeypatch, tmp_path):
     sys.modules.pop("shop_logic", None)
     app = SimulationContext.from_yaml(path)
     app.factor = 0.0
-    app.run(until=200)
+    app.run(until=app.initial_time + 200)  # 200 seconds from the clock's start
 
 
 BUILD_ONLY = sorted((ROOT / "docs" / "snippets" / "yaml_build").glob("*.yaml"))

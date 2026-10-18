@@ -120,9 +120,9 @@ class Simulation(_Model):
         now = (info.context or {}).get("now") or datetime.now()
         return _instant(value, now)
 
-    @field_validator("warmup", mode="before")
+    @field_validator("warmup", "initial_time", mode="before")
     @classmethod
-    def _parse_warmup(cls, value: Any) -> Any:
+    def _parse_duration(cls, value: Any) -> Any:
         return None if value is None else _seconds(value)
 
 
@@ -204,11 +204,31 @@ class Resource(_Model):
 
 
 class Store(_Model):
-    """A `stores` entry: how many items it holds, and whether it serves by priority."""
+    """A `stores` entry: how many items it holds, whether it serves by priority, and
+    the items it holds when the run starts.
+
+    `items` are returned in the order given; a priority store's items are
+    `[priority, item]` pairs.
+    """
 
     current_cap: float
     max_cap: float
     priority: bool = False
+    items: List[Any] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _items_fit(self) -> "Store":
+        room = min(self.current_cap, self.max_cap)
+        if len(self.items) > room:
+            raise ValueError(
+                f"the store holds {room:g} items, so it cannot start with "
+                f"{len(self.items)}"
+            )
+        if self.priority and not all(
+            isinstance(item, list) and len(item) == 2 for item in self.items
+        ):
+            raise ValueError("a priority store starts with [priority, item] pairs")
+        return self
 
 
 class Container(_Model):

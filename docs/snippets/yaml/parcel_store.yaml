@@ -1,0 +1,40 @@
+# A priority store that starts with items, for the Stores and Containers page.
+# Run it with: desflow run parcel_store.yaml
+simulation:
+  sim_id: Shop
+  factor: 0
+
+egress:
+  - type: Console
+
+# --8<-- [start:store]
+stores:
+  parcels:
+    current_cap: 10
+    max_cap: 10
+    # A courier takes the lowest priority first, the oldest first among equals
+    priority: true
+    # Left from yesterday: [priority, item] pairs, held before the first put
+    items:
+      - [2, {order: standard-0}]
+      - [1, {order: express-0}]
+# --8<-- [end:store]
+
+arrivals:
+  orders: {dist: constant, value: 1 s, spawn: pack, attributes: {priority: 2}}
+  couriers: {dist: constant, value: 2 s, spawn: collect}
+
+tasks:
+  # --8<-- [start:put]
+  pack:
+    # Each parcel's priority, read when it is put in the store
+    put: {store: parcels, priority: attr.priority}
+    payload: {order: standard}
+    id_field: number
+  # --8<-- [end:put]
+  collect:
+    get: {store: parcels}
+    payload: {event_type: parcel_collected}
+
+run:
+  until: 5 s

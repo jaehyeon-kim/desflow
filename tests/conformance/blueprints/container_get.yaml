@@ -1,0 +1,19 @@
+# A producer adds every 5 s and a consumer takes every 2 s from a container
+# of 4; each waits as long as it must. See test_c5_bounded.py.
+simulation:
+  sim_id: C5
+  factor: 0
+containers:
+  bin: {current_cap: 4, max_cap: 4}
+arrivals:
+  puts: {dist: constant, value: 5, spawn: put}
+  gets: {dist: constant, value: 2, spawn: get}
+tasks:
+  put:
+    put: {container: bin, amount: 2}
+    payload: {event: put}
+  get:
+    get: {container: bin, amount: 3}
+    payload: {event: get}
+run:
+  until: 21

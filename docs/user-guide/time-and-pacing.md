@@ -89,6 +89,36 @@ A sink with `when: history` receives the records stamped before `go_live_at`, an
 
 The warm-up drops early records; `go_live_at` drops nothing and only decides which sink gets each one. [Trusting Results](../tutorials/trusting-results.md) shows how to choose a warm-up length.
 
+### Initial Time
+
+`initial_time` is the reading of the simulation clock when the run starts, 0 when left out, in seconds or as a duration. A model of a shift that starts at 8 in the morning can start its clock at 8 hours, so every event time, every record's `sim_ts` and `until` read that clock; a record's `timestamp` is still `logical_start_time` plus `sim_ts`:
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/initial_time.yaml:initial-time"
+    simulation:
+      sim_id: Shop
+      factor: 0
+      # The clock starts at 8 h, so the first order at 8 h 10 min is at sim_ts 29400
+      initial_time: 8 h
+    ```
+
+=== "Builder"
+
+    ```python title="docs/snippets/pages/pacing.py:initial-time"
+    # The clock starts at 8 hours: event times, sim_ts and until all read it
+    shift = SimulationContext(sim_id="Shop", factor=0.0, initial_time="8 h")
+    ```
+
+=== "Low-level"
+
+    ```python title="docs/snippets/pages/pacing.py:low-level-initial-time"
+    # The clock starts at 8 hours, in seconds, as in SimPy's Environment(initial_time=)
+    morning = DynamicRealtimeEnvironment(factor=0.0, initial_time=8 * 3600)
+    ```
+
+`until` is a clock reading too, so a run with `initial_time: 8 h` and `until: 16 h` lasts 8 hours. The state the run starts with is declared beside it: a resource's `current_cap`, a container's `level`, a store's `items` and an arrival's `attributes` hold from the initial time, before the first arrival, and the tests check each against plain SimPy ([SimPy Compatibility](../reference/simpy-compatibility.md)).
+
 ### Run Length
 
 `until` is in simulation seconds. `run()` and a blueprint's `run.until` also take a duration such as `"10 min"`, `"8 hours"` or `"1 week"`; a month counts as 30 days and a year as 365.
@@ -97,6 +127,8 @@ The warm-up drops early records; `go_live_at` drops nothing and only decides whi
 app.add_resource("packers", current_cap=1, max_cap=1)
 app.run(until="1 week")  # 604,800 simulation seconds; a number is seconds too
 ```
+
+The run stops at `until` before any event due at exactly that time, as SimPy's `run(until=...)` does: an order due at the horizon never arrives, and a task due to finish there stays unfinished. Statistics published at teardown read the model at `until`.
 
 Without `until`, SimPy runs until no events remain, and a run with an arrival never runs out of events. Neither does any run with a sink or an ingress connector, even when its own work is done, because the environment's own processes repeat for as long as the run lasts. Give such a run an `until`, or stop it with Ctrl+C.
 

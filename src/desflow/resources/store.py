@@ -1,6 +1,8 @@
-from typing import Any, Callable, Optional
+import heapq
+import itertools
+from typing import Any, Callable, Iterable, Optional
 
-from simpy import Environment, Event, PriorityStore, Store
+from simpy import Environment, Event, PriorityItem, PriorityStore, Store
 from simpy.resources.store import StoreGet, StorePut
 
 from desflow.resources.base import BaseDynamicResource
@@ -61,7 +63,12 @@ class DynamicStore(BaseDynamicResource):
     """
 
     def __init__(
-        self, env: Environment, sim_id: str, store_id: str, priority: bool = False
+        self,
+        env: Environment,
+        sim_id: str,
+        store_id: str,
+        priority: bool = False,
+        items: Optional[Iterable[Any]] = None,
     ):
         """
         Initializes the DynamicStore and binds its capacity to the registry.
@@ -72,6 +79,14 @@ class DynamicStore(BaseDynamicResource):
             store_id (str): The unique name of this store.
             priority (bool): If True, uses `simpy.PriorityStore` instead of
                 the standard FIFO `simpy.Store`. Defaults to False.
+            items (Iterable, optional): The items it holds when the run starts, in
+                the order a get returns them. A priority store takes `(priority,
+                item)` pairs and holds each as a `PriorityItem`, lowest priority
+                first and in the order given among equal priorities.
+
+        Raises:
+            ValueError: If there are more items than the capacity, or a priority
+                store's item is not a `(priority, item)` pair.
         """
         super().__init__(env, sim_id, store_id, "stores")
 
@@ -81,9 +96,44 @@ class DynamicStore(BaseDynamicResource):
 
         # Dynamically select the underlying SimPy storage engine
         self.priority = priority
+        # A rising number for every priority item, so equal priorities keep the
+        # order they were added in and their items are never compared
+        self._order = itertools.count()
         kind = _PriorityStore if priority else _Store
         self._store = kind(env, self._changed, capacity=initial_capacity)
+        start = list(items or [])
+        if len(start) > initial_capacity:
+            raise ValueError(
+                f"store '{store_id}' holds {initial_capacity} items, so it cannot "
+                f"start with {len(start)}"
+            )
+        for item in start:
+            if priority:
+                if not (isinstance(item, (tuple, list)) and len(item) == 2):
+                    raise ValueError(
+                        f"a priority store starts with (priority, item) pairs, got "
+                        f"{item!r}"
+                    )
+                heapq.heappush(self._store.items, self.wrap(item[1], item[0]))
+            else:
+                self._store.items.append(item)
         self._register()
+
+    def wrap(self, item: Any, priority: float) -> PriorityItem:
+        """
+        Wraps an item for a priority store, ranked by `priority` and then by order.
+
+        The builder and YAML put every item through this, so equal priorities come
+        out first in, first out, which a plain `PriorityItem` does not promise.
+
+        Args:
+            item: The item.
+            priority: Its priority, lowest returned first.
+
+        Returns:
+            PriorityItem: The item, ranked by `(priority, order)`; `.item` is the item.
+        """
+        return PriorityItem((priority, next(self._order)), item)
 
     @property
     def capacity(self) -> int:

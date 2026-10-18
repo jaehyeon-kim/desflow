@@ -33,6 +33,57 @@
     - tests/conformance/test_c4_resources.py::test_c4_ordinary_request_and_release
   page: user-guide/resources.md#declare-a-resource
 
+- id: C4
+  operation: Priority request
+  simpy: "`simpy.resources.resource.PriorityResource`"
+  yaml: "`queue: priority` on the resource and `priority` on a task"
+  builder: "`add_resource(..., queue=\"priority\")` and `@app.task(priority=...)`"
+  low_level: "`DynamicResource(..., queue=\"priority\")` and `request(priority=...)`"
+  checks:
+    - tests/conformance/test_c4_resources.py::test_c4_priority_resource_request
+  page: user-guide/resources.md#task-priority
+  differences: Equal priorities are served first in, first out, as in SimPy; desflow also offers `fifo` and `lifo` queues, under which a request's priority is ignored.
+
+- id: C5
+  operation: Bounded store put
+  simpy: "`simpy.resources.store.Store.put`"
+  yaml: "`put: {store: parcels}` on a task"
+  builder: "`@app.task(put={\"store\": \"parcels\"})`"
+  low_level: "`yield parcels.put(item)`"
+  checks:
+    - tests/conformance/test_c5_bounded.py::test_c5_bounded_store_put
+  page: user-guide/stores-and-containers.md#take-and-add
+
+- id: C5
+  operation: Bounded store get
+  simpy: "`simpy.resources.store.Store.get`"
+  yaml: "`get: {store: parcels}` on a task"
+  builder: "`@app.task(get={\"store\": \"parcels\"})`"
+  low_level: "`item = yield parcels.get()`"
+  checks:
+    - tests/conformance/test_c5_bounded.py::test_c5_bounded_store_get
+  page: user-guide/stores-and-containers.md#take-and-add
+
+- id: C5
+  operation: Bounded quantity put
+  simpy: "`simpy.resources.container.Container.put`"
+  yaml: "`put: {container: stock, amount: 2}` on a task"
+  builder: "`@app.task(put={\"container\": \"stock\", \"amount\": 2})`"
+  low_level: "`yield stock.put(2)`"
+  checks:
+    - tests/conformance/test_c5_bounded.py::test_c5_bounded_quantity_put
+  page: tutorials/stock.md#take-and-restock
+
+- id: C5
+  operation: Bounded quantity get
+  simpy: "`simpy.resources.container.Container.get`"
+  yaml: "`get: {container: stock, amount: 1}` on a task"
+  builder: "`@app.task(get={\"container\": \"stock\", \"amount\": 1})`"
+  low_level: "`yield stock.get(1)`"
+  checks:
+    - tests/conformance/test_c5_bounded.py::test_c5_bounded_quantity_get
+  page: tutorials/stock.md#take-and-restock
+
 - id: C5
   operation: Priority item storage
   simpy: "`simpy.resources.store.PriorityStore`"
@@ -42,7 +93,7 @@
   checks:
     - tests/conformance/test_c5_priority_store.py::test_c5_priority_item_storage
     - tests/conformance/test_c5_priority_store.py::test_c5_priority_item_storage_equal_priorities
-  page: user-guide/stores-and-containers.md#take-and-add
+  page: user-guide/stores-and-containers.md#start-with-items-and-serve-by-priority
   differences: Equal priorities come out in put order in the builder and YAML, which add a rising put order to the priority; a plain SimPy `PriorityStore` gives no order among equal priorities.
 
 - id: C6
@@ -53,7 +104,37 @@
   low_level: "`DynamicRealtimeEnvironment(initial_time=100)`"
   checks:
     - tests/conformance/test_c6_run_control.py::test_c6_initial_time
-  page: user-guide/time-and-pacing.md#run-length
+  page: user-guide/time-and-pacing.md#initial-time
+
+- id: C6
+  operation: Initial resources
+  simpy: "`simpy.resources.resource.Resource(capacity=...)`"
+  yaml: "`resources.<name>.current_cap`"
+  builder: "`add_resource(name, current_cap=2, ...)`"
+  low_level: "`CapacityConfig(current_cap=2, ...)`"
+  checks:
+    - tests/conformance/test_c6_initial_state.py::test_c6_initial_resources
+  page: user-guide/time-and-pacing.md#initial-time
+
+- id: C6
+  operation: Initial inventory
+  simpy: "`Container(init=...)`; items in a `Store`"
+  yaml: "`containers.<name>.level` and `stores.<name>.items`"
+  builder: "`add_container(..., level=6)` and `add_store(..., items=[...])`"
+  low_level: "`ContainerConfig(level=6)` and `DynamicStore(..., items=[...])`"
+  checks:
+    - tests/conformance/test_c6_initial_state.py::test_c6_initial_inventory
+  page: user-guide/stores-and-containers.md#start-with-items-and-serve-by-priority
+
+- id: C6
+  operation: Initial entity state
+  simpy: the attributes a process starts with
+  yaml: "`arrivals.<name>.attributes`"
+  builder: "`add_arrival(..., attributes={...})`"
+  low_level: the values a process is started with
+  checks:
+    - tests/conformance/test_c6_initial_state.py::test_c6_initial_entity_state
+  page: user-guide/task-flow.md#attributes
 
 - id: C6
   operation: Stop at a time

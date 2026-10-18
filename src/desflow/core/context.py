@@ -83,7 +83,7 @@ class SimulationContext:
         logical_start_time: Optional[datetime] = None,
         go_live_at: Optional[datetime] = None,
         warmup: Union[float, str, None] = None,
-        initial_time: float = 0.0,
+        initial_time: Union[float, str] = 0.0,
     ):
         """
         Initializes the context builder with a designated namespace and temporal factor.
@@ -105,8 +105,9 @@ class SimulationContext:
                 such as `"10 min"`. No sink receives a record stamped before it, and
                 the built-in statistics are reset at that time, so they measure the
                 steady state only.
-            initial_time: The simulation clock's starting value, so event times are
-                relative to it. Defaults to 0.
+            initial_time: The simulation clock's starting value, in seconds or as a
+                duration such as `"8 h"`, so event times, `sim_ts` and `until` are
+                readings of a clock that starts there. Defaults to 0.
 
         Raises:
             ValueError: If `warmup` is negative or not a duration.
@@ -116,7 +117,7 @@ class SimulationContext:
         self.random_seed = random_seed
         self.logical_start_time = logical_start_time
         self.go_live_at = go_live_at
-        self.initial_time = float(initial_time)
+        self.initial_time = _seconds(initial_time)
         self.warmup = None if warmup is None else _seconds(warmup)
         if self.warmup is not None and self.warmup < 0:
             raise ValueError(f"warmup must be 0 or more, got {warmup}")
@@ -146,6 +147,7 @@ class SimulationContext:
         self._containers_config: Dict[str, CapacityConfig] = {}
         self._stores_config: Dict[str, CapacityConfig] = {}
         self._store_priority: Dict[str, bool] = {}
+        self._store_items: Dict[str, List[Any]] = {}
         self._services_config: Dict[str, DistributionConfig] = {}
         self._arrivals_config: Dict[str, DistributionConfig] = {}
         # Per arrival: the attributes each entity starts with, and the key function
@@ -165,9 +167,6 @@ class SimulationContext:
         self._containers_map: Dict[str, DynamicContainer] = {}
         self._entity_counters: Dict[str, "itertools.count[int]"] = {}
         self._instance_counters: Dict[str, "itertools.count[int]"] = {}
-        # One rising sequence for priority-store puts, so equal priorities keep
-        # their put order and the payloads are never compared to break a tie.
-        self._store_put_seq = itertools.count()
         self._startup_loops: List[Tuple[Callable, Optional[str]]] = []
 
         # Set by from_yaml from the blueprint's `run` section.
@@ -430,7 +429,12 @@ class SimulationContext:
         return self
 
     def add_store(
-        self, name: str, current_cap: int, max_cap: int, priority: bool = False
+        self,
+        name: str,
+        current_cap: int,
+        max_cap: int,
+        priority: bool = False,
+        items: Optional[List[Any]] = None,
     ) -> "SimulationContext":
         """
         Registers a store: a place that holds items, which tasks put and get.
@@ -447,15 +451,31 @@ class SimulationContext:
             max_cap: The largest capacity a live update can set.
             priority: When True, items are returned by the `priority` each task's
                 `put` gives, lowest first, instead of first in, first out.
+            items: The items it holds when the run starts, in the order a get
+                returns them. A priority store takes `(priority, item)` pairs.
 
         Returns:
             SimulationContext: The current instance for method chaining.
 
         Raises:
-            ValueError: If a container already has this name.
+            ValueError: If a container already has this name, there are more items
+                than `current_cap`, or a priority store's item is not a pair.
         """
         if name in self._containers_config:
             raise ValueError(f"'{name}' is already a container")
+        start = list(items or [])
+        if len(start) > min(current_cap, max_cap):
+            raise ValueError(
+                f"store '{name}' holds {min(current_cap, max_cap)} items, so it "
+                f"cannot start with {len(start)}"
+            )
+        if priority and not all(
+            isinstance(item, (tuple, list)) and len(item) == 2 for item in start
+        ):
+            raise ValueError(
+                f"priority store '{name}' starts with (priority, item) pairs"
+            )
+        self._store_items[name] = start
         self._stores_config[name] = CapacityConfig(
             current_cap=current_cap, max_cap=max_cap
         )
@@ -888,8 +908,7 @@ class SimulationContext:
                     upstream, entity.attributes, self._env, self._levels()
                 )
                 rank = transfer.priority_for(task_id, upstream, scope)
-                order = next(self._store_put_seq)
-                yield store.put(simpy.PriorityItem((rank, order), payload))
+                yield store.put(store.wrap(payload, rank))
             else:
                 yield store.put(payload)
             return None
@@ -1234,6 +1253,7 @@ class SimulationContext:
                 self.sim_id,
                 store_id,
                 priority=self._store_priority.get(store_id, False),
+                items=self._store_items.get(store_id),
             )
         for container_id in self._containers_config:
             self._containers_map[container_id] = DynamicContainer(

@@ -98,6 +98,12 @@ def test_tasks_spawned_from_an_arrival_publish_the_payload(tmp_path):
             "max_cap",
         ),
         ("until: 30", "until: soon", 18, "run.until"),
+        (
+            "services:",
+            "stores:\n  parcels: {current_cap: 1, max_cap: 1, items: [a, b]}\nservices:",
+            8,
+            "cannot start with 2",
+        ),
     ],
 )
 def test_schema_errors_name_the_line(tmp_path, old, new, line, fragment):

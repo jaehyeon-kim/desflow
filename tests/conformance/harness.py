@@ -90,13 +90,14 @@ def run_low_level(
     start: Callable[[DynamicRealtimeEnvironment], Any],
     until: float,
     stats: Optional[str] = None,
+    initial_time: float = 0.0,
 ) -> Tuple[List[Dict[str, Any]], DynamicRealtimeEnvironment]:
     """Runs a low-level model, unpaced, into a recording egress.
 
     `start(env)` builds the resources and starts the processes, after the
     parameters are registered and the egress and statistics are set up.
     """
-    env = DynamicRealtimeEnvironment(factor=0.0)
+    env = DynamicRealtimeEnvironment(initial_time=initial_time, factor=0.0)
     if params is not None:
         env.registry.register_sim_parameter(params)
     rec = RecordingEgress()

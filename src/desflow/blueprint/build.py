@@ -276,7 +276,11 @@ def _build_context(blueprint: Blueprint, source: SourceMap) -> SimulationContext
         )
     for name, store in blueprint.stores.items():
         context.add_store(
-            name, int(store.current_cap), int(store.max_cap), priority=store.priority
+            name,
+            int(store.current_cap),
+            int(store.max_cap),
+            priority=store.priority,
+            items=store.items,
         )
     for name, container in blueprint.containers.items():
         context.add_container(

@@ -352,6 +352,14 @@ def test_a_store_get_rejects_a_priority():
         app.task(name="drain", get={"store": "buffer", "priority": 1})
 
 
+def test_initial_store_items_are_checked_when_the_store_is_added():
+    app = SimulationContext("TestSim", factor=0.0)
+    with pytest.raises(ValueError, match="cannot start with 2"):
+        app.add_store("parcels", current_cap=1, max_cap=1, items=["a", "b"])
+    with pytest.raises(ValueError, match="pairs"):
+        app.add_store("express", current_cap=2, max_cap=2, priority=True, items=["a"])
+
+
 def test_balk_with_an_unknown_level_fails_before_the_run():
     """A balk expression is checked before the clock starts, like a priority."""
     app = (

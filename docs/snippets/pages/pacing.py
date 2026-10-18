@@ -39,6 +39,16 @@ measured = SimulationContext(sim_id="Shop", factor=0.0, warmup="10 min")
 # env.setup_egress(sinks, warmup=600)
 # --8<-- [end:warmup]
 
+# --8<-- [start:initial-time]
+# The clock starts at 8 hours: event times, sim_ts and until all read it
+shift = SimulationContext(sim_id="Shop", factor=0.0, initial_time="8 h")
+# --8<-- [end:initial-time]
+# --8<-- [start:low-level-initial-time]
+# The clock starts at 8 hours, in seconds, as in SimPy's Environment(initial_time=)
+morning = DynamicRealtimeEnvironment(factor=0.0, initial_time=8 * 3600)
+# --8<-- [end:low-level-initial-time]
+assert shift.initial_time == morning.now == 28800
+
 # --8<-- [start:run-length]
 app.add_resource("packers", current_cap=1, max_cap=1)
 app.run(until="1 week")  # 604,800 simulation seconds; a number is seconds too

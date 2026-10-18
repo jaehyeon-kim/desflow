@@ -1,0 +1,23 @@
+# The initial time of the Time and Pacing page: the clock starts at 8 hours.
+# Run it with: desflow run initial_time.yaml
+# --8<-- [start:initial-time]
+simulation:
+  sim_id: Shop
+  factor: 0
+  # The clock starts at 8 h, so the first order at 8 h 10 min is at sim_ts 29400
+  initial_time: 8 h
+# --8<-- [end:initial-time]
+
+egress:
+  - type: Console
+
+arrivals:
+  orders: {dist: constant, value: 10 min, spawn: take_order}
+
+tasks:
+  take_order:
+    payload: {event_type: order_taken}
+
+run:
+  # A run of 8 h ends at 16 h on the clock: until is the clock reading, not a length
+  until: 16 h

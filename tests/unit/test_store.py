@@ -1,6 +1,14 @@
+import pytest
 import simpy
 
+from desflow import CapacityConfig, SimParameter
 from desflow.resources.store import DynamicStore
+
+
+def _second_store():
+    return SimParameter(
+        sim_id="Other", stores={"buffer2": CapacityConfig(current_cap=5, max_cap=5)}
+    )
 
 
 def flush_events(env):
@@ -115,3 +123,37 @@ def test_capacity_shrinkage_paradox(env, registry, sample_params):
 
     # The 3 items left, the pending 4th item finally entered (using the 1 slot)
     assert len(store.items) == 1
+
+
+def test_initial_items_are_held_in_order_and_priority_pairs_by_priority(
+    env, registry, sample_params
+):
+    registry.register_sim_parameter(sample_params)
+    registry.register_sim_parameter(_second_store())
+    plain = DynamicStore(env, "Shop", "buffer1", items=["a", "b"])
+    ranked = DynamicStore(
+        env, "Other", "buffer2", priority=True, items=[(2, "x"), (1, "y"), (2, "z")]
+    )
+    out = []
+
+    def drain():
+        for _ in range(2):
+            out.append((yield plain.get()))
+        for _ in range(3):
+            out.append((yield ranked.get()).item)
+
+    env.process(drain())
+    env.run(until=1)
+    # Equal priorities keep the order they were given in
+    assert out == ["a", "b", "y", "x", "z"]
+
+
+def test_initial_items_above_capacity_or_without_a_priority_are_refused(
+    env, registry, sample_params
+):
+    registry.register_sim_parameter(sample_params)
+    registry.register_sim_parameter(_second_store())
+    with pytest.raises(ValueError, match="cannot start with 6"):
+        DynamicStore(env, "Shop", "buffer1", items=list(range(6)))
+    with pytest.raises(ValueError, match="pairs"):
+        DynamicStore(env, "Other", "buffer2", priority=True, items=["x"])

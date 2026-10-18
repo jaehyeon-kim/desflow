@@ -2,9 +2,10 @@
 
 The low-level twin of `builder/stock_example.py`. Packing an order takes one box from
 the `stock` container and puts the packed parcel in the `parcels` store, where a
-courier collects it. The packers' queue order is `priority`, so express orders
-(priority 1) are served before standard ones (priority 2). The stock runs out, so
-packing waits until a restock at 40 seconds sets the level to 30.
+courier collects it; two parcels packed yesterday are already there. The packers'
+queue order is `priority`, so express orders (priority 1) are served before standard
+ones (priority 2). The stock runs out, so packing waits until a restock at 40 seconds
+sets the level to 30.
 
 Needs no containers. Runs unpaced and ends after 60 simulation seconds.
 """
@@ -46,6 +47,10 @@ PARAMS = SimParameter(
     containers={"stock": ContainerConfig(current_cap=50, max_cap=50, level=15)},
 )
 PRIORITIES = {"orders": 2, "express": 1}
+YESTERDAY = [
+    {"event_type": "order_packed", "order": "yesterday-1"},
+    {"event_type": "order_packed", "order": "yesterday-2"},
+]
 
 
 # --8<-- [start:pack]
@@ -111,7 +116,8 @@ def build(env):
     """Builds the packers, the store and the container, in the builder's order."""
     return {
         "packers": DynamicResource(env, "Shop", "packers", queue="priority"),
-        "parcels": DynamicStore(env, "Shop", "parcels"),
+        # Two parcels packed yesterday are there when the run starts
+        "parcels": DynamicStore(env, "Shop", "parcels", items=YESTERDAY),
         "stock": DynamicContainer(env, "Shop", "stock"),
     }
 

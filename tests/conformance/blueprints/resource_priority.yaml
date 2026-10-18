@@ -1,0 +1,29 @@
+# A holder takes the machine at 100 for 10 seconds; at 101 four orders queue, a and
+# c with priority 2, b and d with priority 1. See test_c4_resources.py.
+simulation:
+  sim_id: C4p
+  factor: 0
+resources:
+  machine: {current_cap: 1, max_cap: 1, queue: priority}
+services:
+  hold: {dist: constant, value: 10}
+  work: {dist: constant, value: 1}
+arrivals:
+  holder: {dist: constant, value: 100, spawn: hold}
+  a: {dist: constant, value: 101, spawn: work, attributes: {p: 2}}
+  b: {dist: constant, value: 101, spawn: work, attributes: {p: 1}}
+  c: {dist: constant, value: 101, spawn: work, attributes: {p: 2}}
+  d: {dist: constant, value: 101, spawn: work, attributes: {p: 1}}
+tasks:
+  hold:
+    service: hold
+    resource: machine
+    priority: 0
+    payload: {event: held}
+  work:
+    service: work
+    resource: machine
+    priority: attr.p
+    payload: {event: done}
+run:
+  until: 114

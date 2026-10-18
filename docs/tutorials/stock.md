@@ -10,7 +10,7 @@ A `stock` container that packing takes one box from, and a `deliveries` arrival 
 
 ## Hold Stock
 
-So far each order needed only a packer, a **resource** that it holds and gives back. Stock is a different thing: a **quantity** that tasks take away and others add, and that is not given back. In SimPy it is a `Container`: a level between 0 and a capacity, with `get(amount)` to take and `put(amount)` to add. A `get` waits while the level is too low, and a `put` waits while there is no room.
+So far each order needed only a packer, a **resource** that it holds and gives back. Stock is a different thing: a **quantity** that tasks take away and others add, and that is not given back. In SimPy it is a `Container`: a level between 0 and a capacity, with `get(amount)` to take and `put(amount)` to add. A `get` waits while the level is too low, and a `put` waits while there is no room. A desflow container behaves the same in all three ways of writing it: the tests compare its waiting gets and puts with a plain SimPy `Container` ([SimPy Compatibility](../reference/simpy-compatibility.md)).
 
 In desflow it is a container in the `containers` section. Its `current_cap` is the capacity, the most it can hold, and `level` is what it holds when the run starts:
 

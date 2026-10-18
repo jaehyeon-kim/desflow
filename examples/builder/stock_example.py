@@ -1,10 +1,10 @@
 """Stock, parcels and express orders, builder API.
 
 Packing an order takes one box from the `stock` container and puts the packed parcel
-in the `parcels` store, where a courier collects it. Express orders have priority 1
-and standard orders 2, and the packers, whose queue order is `priority`, serve the
-lowest priority first. The stock runs out, so packing waits until a restock at 40
-seconds sets the level to 30.
+in the `parcels` store, where a courier collects it; two parcels packed yesterday are
+already there. Express orders have priority 1 and standard orders 2, and the packers,
+whose queue order is `priority`, serve the lowest priority first. The stock runs out,
+so packing waits until a restock at 40 seconds sets the level to 30.
 
 Needs no containers. Runs unpaced and ends after 60 simulation seconds.
 """
@@ -19,13 +19,19 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 
+YESTERDAY = [
+    {"event_type": "order_packed", "order": "yesterday-1"},
+    {"event_type": "order_packed", "order": "yesterday-2"},
+]
+
 app = (
     SimulationContext(sim_id="Shop", factor=0, random_seed=42)
     .add_egress(ConsoleEgress())
     # Waiting orders are served by priority, the oldest first among equal priorities
     .add_resource("packers", current_cap=2, max_cap=4, queue="priority")
-    # Packed parcels wait here for a courier; packing waits when it is full
-    .add_store("parcels", current_cap=10, max_cap=10)
+    # Packed parcels wait here for a courier; packing waits when it is full. Two
+    # parcels packed yesterday are there when the run starts.
+    .add_store("parcels", current_cap=10, max_cap=10, items=YESTERDAY)
     # current_cap is the most it holds; level is what it holds now
     .add_container("stock", current_cap=50, max_cap=50, level=15)
     # An expert's estimate: at least 1 second, usually 2, at most 4

@@ -17,7 +17,7 @@ Both have a capacity. A task that takes waits while there is not enough, and a t
 
 ### Declare Them
 
-A container has a `current_cap`, its capacity, the largest amount it holds; a `max_cap`, the largest capacity a live change can set; and a `level`, the amount it holds when the run starts, 0 when left out. A store has a `current_cap` and a `max_cap`, in whole items, and starts empty. `run()` builds a `DynamicContainer` and a `DynamicStore` for each one the context declares; a store and a container cannot share a name.
+A container has a `current_cap`, its capacity, the largest amount it holds; a `max_cap`, the largest capacity a live change can set; and a `level`, the amount it holds when the run starts, 0 when left out. A store has a `current_cap` and a `max_cap`, in whole items, and starts empty unless it lists `items` ([Start With Items and Serve by Priority](#start-with-items-and-serve-by-priority)). `run()` builds a `DynamicContainer` and a `DynamicStore` for each one the context declares; a store and a container cannot share a name.
 
 === "YAML"
 
@@ -123,6 +123,74 @@ A task takes with `get` and adds with `put`. For a container, each names the con
 
 A task with a resource gets its unit first and then takes its `get`, so it waits for stock while holding the unit. A task adds its `put` after its service time, then publishes the finished event. [Tasks and Processes](tasks-and-processes.md#what-apptask-does) lists every step.
 
+### Start With Items and Serve by Priority
+
+A store can hold items when the run starts, as parcels left from yesterday: `items` lists them in the order a get returns them. A store with `priority` returns the item with the lowest priority first, as SimPy's `PriorityStore` does; its items are `[priority, item]` pairs, and a task's `put` gives each new item its `priority`, a number or an expression such as `attr.priority`. Items of equal priority come out in the order they went in. A store cannot start with more items than its `current_cap`; the blueprint or `add_store` is refused with the reason.
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/parcel_store.yaml:store"
+    stores:
+      parcels:
+        current_cap: 10
+        max_cap: 10
+        # A courier takes the lowest priority first, the oldest first among equals
+        priority: true
+        # Left from yesterday: [priority, item] pairs, held before the first put
+        items:
+          - [2, {order: standard-0}]
+          - [1, {order: express-0}]
+    ```
+
+    ```yaml title="docs/snippets/yaml/parcel_store.yaml:put"
+    pack:
+      # Each parcel's priority, read when it is put in the store
+      put: {store: parcels, priority: attr.priority}
+      payload: {order: standard}
+      id_field: number
+    ```
+
+=== "Builder"
+
+    ```python title="docs/snippets/pages/parcel_store.py:builder-store"
+    app = SimulationContext(sim_id="Shop", factor=0.0)
+    # A courier takes the lowest priority first, the oldest first among equals.
+    # Left from yesterday: (priority, item) pairs, held before the first put.
+    app.add_store(
+        "parcels",
+        current_cap=10,
+        max_cap=10,
+        priority=True,
+        items=[(2, {"order": "standard-0"}), (1, {"order": "express-0"})],
+    )
+    ```
+
+    A task's `put` takes the priority the same way: `put={"store": "parcels", "priority": "attr.priority"}`.
+
+=== "Low-level"
+
+    ```python title="docs/snippets/pages/parcel_store.py:low-level-store"
+    parcels = DynamicStore(
+        env,
+        "Shop",
+        "parcels",
+        priority=True,
+        # Each pair is held as a PriorityItem, ranked by priority and then by order
+        items=[(2, {"order": "standard-0"}), (1, {"order": "express-0"})],
+    )
+
+
+    def courier_process(env):
+        first = yield parcels.get()  # a PriorityItem; .item is the parcel
+        print(f"collected {first.item['order']}")
+        # A put of your own wraps the item the same way, so ties keep their order
+        yield parcels.put(parcels.wrap({"order": "express-1"}, 1))
+    ```
+
+    A low-level priority store holds `simpy.PriorityItem`s. `wrap(item, priority)` makes one ranked by the priority and then by a rising number, which is how the builder and YAML keep equal priorities in order; a plain `PriorityItem(priority, item)` also works, with no order among equal priorities.
+
+A `get` on a priority store takes no `priority` of its own and is refused with one: the item's priority decides the order. [Priorities](../tutorials/priorities.md) compares priority storage with a resource's priority queue.
+
 ### Registry Paths, Readings and Conditions
 
 A container has three registry paths, `<sim_id>.containers.<name>.current_cap`, `.max_cap` and `.level`; a store has `<sim_id>.stores.<name>.current_cap` and `.max_cap`. With statistics at the `minimal` level or above, each publishes four readings, such as `Shop.stats.containers.stock.level`:
@@ -154,7 +222,7 @@ A condition in a task's `next` reads a level as `level.<name>`, so an order can 
 
 ### Example: Stock, Parcels and Express Orders
 
-The `stock` example puts it together: packing takes a box from a container and puts the parcel in a store, a courier collects it, and express orders go first. The stock runs out, so packing waits until a restock at 40 seconds sets the level to 30. It needs no Docker service and ends on its own.
+The `stock` example puts it together: packing takes a box from a container and puts the parcel in a store, which starts with two parcels from yesterday, a courier collects them, and express orders go first. The stock runs out, so packing waits until a restock at 40 seconds sets the level to 30. It needs no Docker service and ends on its own.
 
 === "YAML"
 
@@ -328,7 +396,7 @@ A store keeps a list of items, up to its capacity. A `put` adds an item at the e
 
 ![A DynamicStore called parcels holds items, each a finished payload, up to its current_cap. Putters wait until there is room; getters wait until there is an item, and take the oldest](../assets/diagrams/store-items.png)
 
-**SimPy and desflow.** Underneath are SimPy's `Container` and `Store`, and a `PriorityStore` for a `DynamicStore(..., priority=True)` in the low-level API, which hands out the lowest item first. SimPy's capacities are fixed when they are created; desflow's follow the registry, keep the registry's `level` in step with every put and get, and report each change to the statistics. [SimPy and desflow](../des/simpy-and-desflow.md) compares the two.
+**SimPy and desflow.** Underneath are SimPy's `Container` and `Store`, and a `PriorityStore` for a priority store, which hands out the lowest item first. A full put that waits for room and an empty get that waits for an item or an amount are checked against plain SimPy in all three APIs; [SimPy Compatibility](../reference/simpy-compatibility.md) lists the checks. SimPy's capacities are fixed when they are created; desflow's follow the registry, keep the registry's `level` in step with every put and get, and report each change to the statistics. [SimPy and desflow](../des/simpy-and-desflow.md) compares the two.
 
 ---
 

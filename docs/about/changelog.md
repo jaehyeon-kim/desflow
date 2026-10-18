@@ -8,6 +8,7 @@ desflow matches SimPy operation by operation, in YAML, the builder and the low-l
 
 - A [SimPy Compatibility](../reference/simpy-compatibility.md) page lists every supported SimPy operation with its form in each API and the tests that compare it with SimPy.
 - Patience and balking: a task's `patience` takes a duration such as `30 s`, and orders that leave or refuse to join are counted as `tasks.<task>.reneged` and `.balked`. See [Patience](../tutorials/patience.md) and [Reneging and Balking](../guides/reneging-and-balking.md).
+- A store can start with items: `stores.<name>.items`, `add_store(..., items=[...])` and `DynamicStore(..., items=[...])`; a priority store takes `[priority, item]` pairs. `initial_time` takes a duration such as `8 h`. See [Stores and Containers](../user-guide/stores-and-containers.md#start-with-items-and-serve-by-priority) and [Time and Pacing](../user-guide/time-and-pacing.md#initial-time).
 - A low-level request can be cancelled with `request.cancel()` and given back with `resource.release(request)`, as in SimPy. See [Resources](../user-guide/resources.md#how-it-works).
 
 ### Upgrading
