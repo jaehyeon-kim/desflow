@@ -23,6 +23,112 @@
     - tests/conformance/test_c1_timed_wait.py::test_c1_timed_wait
   page: user-guide/tasks-and-processes.md#a-timed-step
 
+- id: C1
+  operation: Signal event success and value
+  simpy: "`simpy.events.Event.succeed(value)`"
+  yaml: "`signals: [restocked]`, `signal: restocked` on the firing task and `wait: {signal: restocked}`"
+  builder: "`add_signal`, `@app.task(signal=...)`, `wait={\"signal\": ...}`, or `context.signal(name).fire(value)`"
+  low_level: "`Signal(env, name)`: `yield signal.wait()` and `signal.fire(value)`"
+  checks:
+    - tests/conformance/test_c1_process_interaction.py::test_c1_signal_event_success_and_value
+    - tests/conformance/test_c1_process_interaction.py::test_c1_signal_waiter_after_a_firing_waits_for_the_next
+  page: user-guide/tasks-and-processes.md#wait-signals-and-child-flows
+
+- id: C1
+  operation: Signal event failure
+  simpy: "`simpy.events.Event.fail(exception)`"
+  yaml: "a failing task with `signal`; its waiters fail with its reason"
+  builder: "the same, or `context.signal(name).fail(reason)`"
+  low_level: "`signal.fail(reason)`; waiters receive `SignalFailed`"
+  checks:
+    - tests/conformance/test_c1_process_interaction.py::test_c1_signal_event_failure
+  page: user-guide/tasks-and-processes.md#wait-signals-and-child-flows
+
+- id: C1
+  operation: Start and wait for a process
+  simpy: "`yield env.process(child())`"
+  yaml: "`wait: {task: inspect}`"
+  builder: "`wait={\"task\": \"inspect\"}`, or `yield context.call(\"inspect\")`"
+  low_level: "`yield env.process(child())`"
+  checks:
+    - tests/conformance/test_c1_process_interaction.py::test_c1_start_and_wait_for_a_process
+  page: user-guide/tasks-and-processes.md#wait-signals-and-child-flows
+
+- id: C1
+  operation: Process return value
+  simpy: "a process's `return` value"
+  yaml: "`wait.inspect.value.<field>`, the last payload of the child flow"
+  builder: "the same, or the value of `context.call(...)`"
+  low_level: "`value = yield env.process(child())`"
+  checks:
+    - tests/conformance/test_c1_process_interaction.py::test_c1_process_return_value
+  page: user-guide/tasks-and-processes.md#wait-signals-and-child-flows
+
+- id: C1
+  operation: Process failure
+  simpy: "an exception raised in a process reaches the process that waits for it"
+  yaml: "`fail`, `fail_reason` and `on_fail` on a task; a failure no `on_fail` handles fails the waiting task"
+  builder: "the same, and a function that raises fails its task"
+  low_level: "`try: yield env.process(child())` and `except`"
+  checks:
+    - tests/conformance/test_c1_process_interaction.py::test_c1_process_failure
+    - tests/conformance/test_c1_process_interaction.py::test_c1_process_failure_handled_by_on_fail
+  page: user-guide/tasks-and-processes.md#wait-signals-and-child-flows
+  differences: In YAML and the builder a failure no task waits for ends the entity's flow, publishes `failed` and is counted, and the run goes on; in SimPy, and in the low-level API, an exception nobody handles stops the run.
+
+- id: C1
+  operation: Event inspection
+  simpy: "`Event.triggered`, `.processed`, `.ok`, `.value`"
+  yaml: "`signal.<name>.count`, `.ok` and `.value` in a condition"
+  builder: "`context.signal(name).wait()` and its SimPy attributes, or the signal's `count`, `ok` and `value`"
+  low_level: "the same attributes of SimPy events and `Signal`"
+  checks:
+    - tests/conformance/test_c1_process_interaction.py::test_c1_event_inspection
+  page: user-guide/tasks-and-processes.md#wait-signals-and-child-flows
+
+- id: C1
+  operation: Process inspection
+  simpy: "`Process.is_alive`, `.triggered`, `.ok`, `.value`"
+  yaml: "`wait.<branch>.done`, `.ok` and `.value` after the wait"
+  builder: "the process `context.spawn` and `context.call` return"
+  low_level: "the process `env.process` returns"
+  checks:
+    - tests/conformance/test_c1_process_interaction.py::test_c1_process_inspection
+  page: user-guide/tasks-and-processes.md#wait-signals-and-child-flows
+
+- id: C1
+  operation: Wait for a shared condition
+  simpy: "a loop over a fresh \"changed\" event"
+  yaml: "`wait: {condition: level.stock >= 5}`"
+  builder: "`wait={\"condition\": \"level.stock >= 5\"}`"
+  low_level: "`env.watch_changes(check)`, or a SimPy loop"
+  checks:
+    - tests/conformance/test_c1_process_interaction.py::test_c1_wait_for_a_shared_condition
+  page: user-guide/tasks-and-processes.md#wait-signals-and-child-flows
+
+- id: C2
+  operation: Wait for one event
+  simpy: "`simpy.events.AnyOf`, `a | b`"
+  yaml: "`wait: {any: {stock: {signal: restocked}, limit: {timeout: 3}}}`"
+  builder: "`wait={\"any\": {...}}`"
+  low_level: "`yield a | b`"
+  checks:
+    - tests/conformance/test_c2_wait_for_one_or_all.py::test_c2_wait_for_one_event
+    - tests/conformance/test_c2_wait_for_one_or_all.py::test_c2_wait_for_one_event_two_at_one_instant
+  page: guides/wait-for-one-or-all.md#wait-for-the-first
+  differences: Losing signal, timeout and condition branches are dropped when the wait ends; losing child flows keep running, as SimPy leaves processes running.
+
+- id: C2
+  operation: Wait for all events
+  simpy: "`simpy.events.AllOf`, `a & b`"
+  yaml: "`wait: {all: {...}}`"
+  builder: "`wait={\"all\": {...}}`"
+  low_level: "`yield a & b`"
+  checks:
+    - tests/conformance/test_c2_wait_for_one_or_all.py::test_c2_wait_for_all_events
+    - tests/conformance/test_c2_wait_for_one_or_all.py::test_c2_wait_for_all_events_with_a_failing_branch
+  page: guides/wait-for-one-or-all.md#wait-for-all
+
 - id: C4
   operation: Ordinary request and release
   simpy: "`simpy.resources.resource.Resource`"

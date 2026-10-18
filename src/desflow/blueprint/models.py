@@ -37,7 +37,7 @@ from desflow.core.distributions import (
     TIME_PARAMETERS,
 )
 from desflow.core.expressions import Expression
-from desflow.core.flow import Router, Transfer
+from desflow.core.flow import Router, Transfer, Wait
 from desflow.models.params import DistributionConfig
 from desflow.utils import time_to_seconds
 
@@ -326,7 +326,11 @@ class Task(_Model):
 
     `priority` is a number or an expression such as `attr.priority`, for a resource
     whose `queue` is `priority`. `patience` is seconds, a duration such as `30 s` or
-    an expression; `balk` is a condition checked before the task joins the queue. `get` and `put` take from and add to a store or
+    an expression; `balk` is a condition checked before the task joins the queue.
+    `wait` is what the task waits for first: a signal, a child task, a timeout or a
+    condition, or any or all of several. `signal` names a signal the task fires
+    when it finishes. `fail` is a condition checked after the service: when it holds
+    the task publishes `failed` with `fail_reason`, and goes to `on_fail`. `get` and `put` take from and add to a store or
     container. `next` is a task name, `when` rules or `weights`. `set` gives the
     entity attribute values when the task finishes.
     """
@@ -349,6 +353,25 @@ class Task(_Model):
         ]
     ] = None
     set: Dict[str, Any] = Field(default_factory=dict)
+    wait: Optional[Dict[str, Any]] = None
+    signal: Optional[str] = None
+    fail: Optional[str] = None
+    fail_reason: Optional[str] = None
+    on_fail: Optional[str] = None
+
+    @field_validator("wait")
+    @classmethod
+    def _wait_parses(cls, value: Any) -> Any:
+        if value is not None:
+            Wait(value)
+        return value
+
+    @field_validator("fail")
+    @classmethod
+    def _fail_parses(cls, value: Any) -> Any:
+        if value is not None:
+            Expression(value)
+        return value
 
     @field_validator("patience", mode="before")
     @classmethod
@@ -369,10 +392,20 @@ class Task(_Model):
             raise ValueError(
                 "priority orders a resource's queue, so it needs a resource"
             )
-        if self.patience is not None and self.resource is None and self.get is None:
+        if (
+            self.patience is not None
+            and self.resource is None
+            and self.get is None
+            and self.wait is None
+        ):
             raise ValueError(
-                "patience is how long a task waits, so it needs a resource or a get"
+                "patience is how long a task waits, so it needs a wait, a resource "
+                "or a get"
             )
+        if self.fail is None and (
+            self.fail_reason is not None or self.on_fail is not None
+        ):
+            raise ValueError("fail_reason and on_fail need a fail condition")
         if self.put is not None and self.put.filter is not None:
             raise ValueError(
                 "a put takes no filter; a filter picks the item a get takes"
@@ -561,6 +594,7 @@ class Blueprint(_Model):
     services: Dict[str, Distribution] = Field(default_factory=dict)
     arrivals: Dict[str, Arrival] = Field(default_factory=dict)
     variables: Dict[str, Any] = Field(default_factory=dict)
+    signals: List[str] = Field(default_factory=list)
     tasks: Dict[str, Task] = Field(default_factory=dict)
     telemetry: List[Telemetry] = Field(default_factory=list)
     processes: List[Process] = Field(default_factory=list)

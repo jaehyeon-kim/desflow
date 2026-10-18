@@ -47,6 +47,8 @@ from desflow.core.environment import DynamicRealtimeEnvironment
 from desflow.core.flow import Router, Transfer
 from desflow.core.registry import SimulationRegistry
 from desflow.core.sampler import Sampler
+from desflow.core.signals import Signal, SignalFailed
+from desflow.core.task import TaskFailed
 from desflow.models.flow import Entity, Upstream
 from desflow.models.params import (
     CapacityConfig,
@@ -71,6 +73,9 @@ logging.getLogger(__name__).addHandler(logging.NullHandler())
 __all__ = [
     "DynamicRealtimeEnvironment",
     "Sampler",
+    "Signal",
+    "SignalFailed",
+    "TaskFailed",
     "SimulationContext",
     "SimulationRegistry",
     "DynamicResource",

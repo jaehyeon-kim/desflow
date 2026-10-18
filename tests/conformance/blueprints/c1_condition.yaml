@@ -1,0 +1,19 @@
+# Waiters arrive at 4 and 8 and wait until the stock holds at least 5; restocks add
+# 2 at 3, 6 and 9, so both resume at 9. See test_c1_process_interaction.py.
+simulation:
+  sim_id: C1
+  factor: 0
+containers:
+  stock: {current_cap: 20, max_cap: 20}
+arrivals:
+  waiters: {dist: constant, value: 4, spawn: waiter}
+  restocks: {dist: constant, value: 3, spawn: restock}
+tasks:
+  waiter:
+    wait: {condition: level.stock >= 5}
+    payload: {event: resumed}
+  restock:
+    put: {container: stock, amount: 2}
+    payload: {event: restocked}
+run:
+  until: 10

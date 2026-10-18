@@ -1,0 +1,29 @@
+# An order at 3 waits for either of two signals; both fire at 5, so both branches
+# are done when the wait ends. See test_c2_wait_for_one_or_all.py.
+simulation:
+  sim_id: C2
+  factor: 0
+signals: [boxes, labels]
+arrivals:
+  orders: {dist: constant, value: 3, spawn: order}
+  box_deliveries: {dist: constant, value: 5, spawn: deliver_boxes}
+  label_deliveries: {dist: constant, value: 5, spawn: deliver_labels}
+tasks:
+  order:
+    wait:
+      any:
+        boxes: {signal: boxes}
+        labels: {signal: labels}
+    payload: {event: resumed}
+    next:
+      when: [{condition: wait.boxes.done and wait.labels.done, task: both}]
+  both:
+    payload: {event: both}
+  deliver_boxes:
+    payload: {item: boxes}
+    signal: boxes
+  deliver_labels:
+    payload: {item: labels}
+    signal: labels
+run:
+  until: 5.5

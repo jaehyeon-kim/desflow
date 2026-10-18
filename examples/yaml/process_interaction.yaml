@@ -1,0 +1,85 @@
+# Process interaction: a signal, a wait with a time limit, a child flow and a failure, in YAML.
+#
+# The twin of examples/builder/process_interaction_example.py. A packed order is
+# inspected by a child flow it waits for; a gift fails inspection, and on_fail sends
+# it to be wrapped, which ends the child flow. The order then waits for the courier,
+# who leaves every 50 seconds and fires the signal courier_left, taking every order
+# that waits; an order that has waited 40 seconds goes by post instead.
+#
+# Needs no containers. Runs unpaced and ends after 300 simulation seconds.
+# Run it with: desflow run examples/yaml/process_interaction.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+egress:
+  - type: Console
+
+resources:
+  packers: {current_cap: 1, max_cap: 4}
+
+services:
+  packing: {dist: triangular, low: 1 s, mode: 2 s, high: 4 s}
+  inspecting: {dist: constant, value: 2 s}
+  wrapping: {dist: constant, value: 3 s}
+
+signals: [courier_left]
+
+arrivals:
+  orders: {dist: exponential, rate: 0.12, spawn: pack, attributes: {gift: 0}}
+  gifts: {dist: exponential, rate: 0.04, spawn: pack, attributes: {gift: 1}}
+  couriers: {dist: constant, value: 50, spawn: courier}
+
+tasks:
+  pack:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+    next: check
+  # --8<-- [start:check]
+  check:
+    # Starts the child flow inspect and waits for it to end.
+    wait: {task: inspect}
+    payload: {event_type: order_checked}
+    next: dispatch
+  inspect:
+    service: inspecting
+    payload: {event_type: inspected}
+    # A gift fails inspection; on_fail sends it to wrap, and the flow goes on.
+    fail: attr.gift == 1
+    fail_reason: gift needs wrapping
+    on_fail: wrap
+  wrap:
+    service: wrapping
+    payload: {event_type: wrapped}
+  # --8<-- [end:check]
+  # --8<-- [start:dispatch]
+  dispatch:
+    # The courier's departure, or 40 seconds, whichever comes first.
+    wait:
+      any:
+        courier: {signal: courier_left}
+        limit: {timeout: 40 s}
+    payload: {event_type: dispatched}
+    next:
+      when: [{condition: wait.courier.done, task: by_courier}]
+      default: by_post
+  # --8<-- [end:dispatch]
+  by_courier:
+    payload: {event_type: sent_by_courier}
+  by_post:
+    payload: {event_type: sent_by_post}
+  # --8<-- [start:courier]
+  courier:
+    payload: {event_type: courier_left}
+    # Fires courier_left with this payload; every order waiting for it resumes.
+    signal: courier_left
+  # --8<-- [end:courier]
+
+# Every 60 seconds, finished and failed counts so far.
+stats: {level: basic, interval: 60}
+
+run:
+  until: 300

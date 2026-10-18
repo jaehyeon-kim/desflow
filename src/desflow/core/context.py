@@ -1,4 +1,3 @@
-import contextlib
 import functools
 import inspect
 import itertools
@@ -19,8 +18,9 @@ from desflow.config import (
     STATS_LEVELS,
 )
 from desflow.core.environment import DynamicRealtimeEnvironment
-from desflow.core.expressions import Expression
-from desflow.core.flow import NextSpec, Router, Transfer, make_scope
+from desflow.core.flow import NextSpec, Router, Transfer, Wait
+from desflow.core.signals import Signal
+from desflow.core.task import TaskRun, TaskSpec
 from desflow.core.registry import SimulationRegistry
 from desflow.core.sampler import Sampler
 from desflow.models.flow import Entity, Upstream
@@ -157,7 +157,11 @@ class SimulationContext:
         self._variables_config: Dict[str, Any] = {}
         # Tasks by name, with what run() checks before the clock starts
         self._tasks: Dict[str, Callable] = {}
-        self._task_specs: Dict[str, "_TaskSpec"] = {}
+        self._task_specs: Dict[str, TaskSpec] = {}
+        self._signal_names: List[str] = []
+        self._signals: Dict[str, Signal] = {}
+        # The positional arguments a YAML task's function takes after its id
+        self._task_args: Tuple[Any, ...] = ()
 
         # Runtime State (Post-Compilation)
         self._env: Optional[DynamicRealtimeEnvironment] = None
@@ -636,6 +640,11 @@ class SimulationContext:
             float, str, Callable[[Any, Dict[str, Any]], float], None
         ] = None,
         balk: Optional[str] = None,
+        wait: Optional[Mapping[str, Any]] = None,
+        signal: Optional[str] = None,
+        fail: Union[str, Callable[[Any, Any], bool], None] = None,
+        fail_reason: Optional[str] = None,
+        on_fail: Optional[str] = None,
     ) -> Callable:
         """
         Transforms a standard Python function into an event-driven SimPy task.
@@ -644,15 +653,18 @@ class SimulationContext:
         clock synchronization, and standardized telemetry lineage.
 
         Lifecycle Execution:
-        1. Emits a `queued` event, when the task waits for a resource or a `get`.
-        2. Waits for the `resource_id` unit, in the resource's queue order, then for
-           its `get`.
-        3. Emits a `started` event.
-        4. Executes the wrapped user function to extract custom payload data.
-        5. Samples the live `service_id` distribution and yields the timeout.
-        6. Adds its `put`, waiting for room, and emits its finished event with the
-           user's payload.
-        7. Applies `set` to the entity's attributes and starts the `next` task.
+        1. Checks `balk`; when it holds, emits `balked` and stops.
+        2. Emits a `queued` event, when the task waits for anything: its `wait`, a
+           resource or a `get`.
+        3. Waits for its `wait`, then for the `resource_id` unit, in the resource's
+           queue order, then for its `get`; `patience` covers all three.
+        4. Emits a `started` event.
+        5. Executes the wrapped user function to extract custom payload data.
+        6. Samples the live `service_id` distribution and yields the timeout.
+        7. Adds its `put`, waiting for room, and checks `fail`.
+        8. Emits its finished event with the user's payload, or `failed`.
+        9. Fires its `signal` (or fails it), applies `set` to the entity's
+           attributes and starts the `next` task, or `on_fail`.
 
         Every event carries the entity's key as its record key, and the task's name
         and instance id as the record's `task` and `instance` fields.
@@ -668,7 +680,9 @@ class SimulationContext:
         `upstream` (what the previous task handed on, or None) and `item` (what a
         store `get` took) by keyword, each only when it declares that parameter, so
         existing functions keep working. A task started by `next` is called with its
-        own instance id and the same other arguments as the task before it.
+        own instance id and the same other arguments as the task before it. A
+        function that declares `wait` receives the wait's branches, each a mapping
+        of `done`, `ok` and `value`.
 
         Args:
             service_id: The ID of the configured distribution dictating the execution time.
@@ -696,6 +710,22 @@ class SimulationContext:
             balk: A condition, such as `"t >= 3300"`, checked before the task joins
                 the queue; when it holds, the task publishes `balked` and never
                 requests the resource.
+            wait: What the task waits for before it queues for its resource: one
+                branch, `{"signal": name}`, `{"task": name}`, `{"timeout": seconds}`
+                or `{"condition": "..."}`, or `{"any": {...}}` or `{"all": {...}}`
+                of named branches. After it, `wait.<branch>.done`, `.ok` and
+                `.value` are read in `next`, `fail` and amounts.
+            signal: A signal, added with `add_signal`, that the task fires with its
+                finished payload, or fails with its reason when it fails.
+            fail: A condition checked after the service, such as
+                `"payload.defect == 1"`, where `payload` is the task's own payload,
+                or a function of the task id and the payload. When it holds, the
+                task publishes `failed` instead of its payload.
+            fail_reason: The `reason` a failure publishes. Defaults to the `fail`
+                condition's text.
+            on_fail: The task a failed instance goes to. Without it, a failure ends
+                the entity's flow. A function that raises fails the task the same
+                way, with the error as the reason.
 
         Raises:
             ValueError: If a resource is given without a service, a priority without
@@ -720,10 +750,6 @@ class SimulationContext:
             raise ValueError(
                 "priority orders a resource's queue, so it needs a resource"
             )
-        if patience is not None and resource_id is None and get is None:
-            raise ValueError(
-                "patience is how long a task waits, so it needs a resource or a get"
-            )
         if balk is not None and resource_id is None:
             raise ValueError("balking refuses a resource queue, so it needs a resource")
         if isinstance(patience, str):
@@ -731,9 +757,6 @@ class SimulationContext:
                 patience = time_to_seconds(patience)
             except ValueError:
                 pass  # not a duration, so an expression such as "attr.patience"
-        rank_of = Expression(priority) if isinstance(priority, str) else None
-        patience_of = Expression(patience) if isinstance(patience, str) else None
-        balk_of = Expression(balk) if balk is not None else None
         take = None if get is None else Transfer.of(get)
         if take is not None and take.priority != 0.0:
             raise ValueError(
@@ -744,15 +767,35 @@ class SimulationContext:
             raise ValueError(
                 "a put takes no filter; a filter picks the item a get takes"
             )
+        if (
+            patience is not None
+            and resource_id is None
+            and get is None
+            and wait is None
+        ):
+            raise ValueError(
+                "patience is how long a task waits, so it needs a wait, a resource "
+                "or a get"
+            )
+        if fail is None and (fail_reason is not None or on_fail is not None):
+            raise ValueError("fail_reason and on_fail need a fail condition")
+        spec_kwargs = dict(
+            patience=patience,
+            balk=balk,
+            wait=None if wait is None else Wait(wait),
+            signal=signal,
+            fail=fail,
+            fail_reason=fail_reason,
+            on_fail=on_fail,
+            attribute_changes=dict(set or {}),
+        )
         router = Router(next)
-        attribute_changes = dict(set or {})
 
         def decorator(user_func):
             task_name = name or user_func.__name__
             if task_name in self._tasks:
                 raise ValueError(f"a task called '{task_name}' already exists")
-            declared = inspect.signature(user_func).parameters
-            spec = _TaskSpec(
+            spec = TaskSpec(
                 task_name,
                 service_id,
                 resource_id,
@@ -760,11 +803,10 @@ class SimulationContext:
                 take,
                 give,
                 router,
-                patience,
-                balk,
+                **spec_kwargs,
             )
-            waits = resource_id is not None or take is not None
-            timed = service_id is not None or waits
+            spec.user_func = user_func
+            spec.declared = inspect.signature(user_func).parameters
 
             def wrapper(
                 task_id: Any,
@@ -775,181 +817,17 @@ class SimulationContext:
             ):
                 if not self._env or not self.sampler:
                     raise RuntimeError("Simulation has not been built yet.")
-                env = self._env
                 if entity is None:
                     entity = self._new_entity(task_name, None)
-                extra: Dict[str, Any] = {}
-                if "entity" in declared:
-                    extra["entity"] = entity
-                if "upstream" in declared:
-                    extra["upstream"] = upstream
-
-                def publish(value: Any) -> None:
-                    env.publish_event(entity.key, value, task_name, task_id)
-
-                def status(state: str) -> Dict[str, Any]:
-                    if service_id is None:
-                        return {"status": state}
-                    return {
-                        "path_id": f"{self.sim_id}.service.{service_id}",
-                        "status": state,
-                    }
-
-                if balk_of is not None:
-                    scope = make_scope(upstream, entity.attributes, env, self._levels())
-                    if balk_of.evaluate(scope):
-                        publish(status("balked"))
-                        env.stats.task_balked(task_name, task_id)
-                        return
-                # The patience timer starts when the task joins its first queue and
-                # covers every wait after it: the resource, then the get.
-                deadline = None
-                if waits:
-                    publish(status("queued"))
-                    env.stats.task_queued(task_name, task_id)
-                    if patience is not None:
-                        if patience_of is not None:
-                            scope = make_scope(
-                                upstream, entity.attributes, env, self._levels()
-                            )
-                            limit = patience_of.evaluate(scope)
-                        elif callable(patience):
-                            limit = patience(task_id, entity.attributes)
-                        else:
-                            limit = patience
-                        deadline = env.timeout(float(limit))
-
-                def renege() -> None:
-                    publish(status("reneged"))
-                    env.stats.task_reneged(task_name, task_id)
-
-                unit: Any  # a resource request, or no wait at all
-                if resource_id is not None:
-                    holder = self._resources_map[resource_id]
-                    rank: Any = priority
-                    if rank_of is not None:
-                        scope = make_scope(
-                            upstream, entity.attributes, env, self._levels()
-                        )
-                        rank = rank_of.evaluate(scope)
-                    elif callable(priority):
-                        rank = priority(task_id, entity.attributes)
-                    unit = holder.request(1 if rank is None else rank)
-                else:
-                    unit = contextlib.nullcontext()
-                got: Any = None
-                with unit as request:
-                    if request is not None:
-                        if deadline is None:
-                            yield request
-                        else:
-                            yield request | deadline
-                            # The patience ran out before a unit was free: leave the
-                            # queue (the request is cancelled on exit) and renege.
-                            if not request.triggered:
-                                renege()
-                                return
-                    if take is not None:
-                        got = yield from self._transfer(
-                            take, "get", task_id, entity, upstream, None, deadline
-                        )
-                        if got is _RENEGED:
-                            renege()
-                            return
-                        if "item" in declared:
-                            extra["item"] = got
-                    if timed:
-                        publish(status("started"))
-                        env.stats.task_started(task_name, task_id)
-
-                    payload = user_func(task_id, *args, **kwargs, **extra)
-
-                    if service_id is not None:
-                        config = env.registry.get_config(
-                            f"{self.sim_id}.service.{service_id}"
-                        )
-                        yield env.timeout(self.sampler.sample(config))
-                    if give is not None:
-                        yield from self._transfer(
-                            give, "put", task_id, entity, upstream, payload, None, got
-                        )
-                    publish(payload)
-                    env.stats.task_finished(task_name, task_id)
-
-                entity.attributes.update(attribute_changes)
-                handed = Upstream(task_id, entity.key, entity.attributes, payload)
-                following = router.choose(handed, env, self._levels(), item=got)
-                if following is None:
-                    env.stats.flow_finished(entity.arrival)
-                    return
-                if following not in self._tasks:
-                    raise ValueError(
-                        f"task '{task_name}' routes to '{following}', which is not a task"
-                    )
-                env.process(
-                    self._tasks[following](
-                        self.next_instance(following),
-                        *args,
-                        entity=entity,
-                        upstream=handed,
-                        **kwargs,
-                    )
-                )
+                return TaskRun(
+                    self, spec, task_id, entity, upstream, args, kwargs
+                ).run()
 
             self._tasks[task_name] = wrapper
             self._task_specs[task_name] = spec
             return wrapper
 
         return decorator
-
-    def _transfer(
-        self,
-        transfer: Transfer,
-        direction: str,
-        task_id: Any,
-        entity: Entity,
-        upstream: Optional[Upstream],
-        payload: Any,
-        deadline: Any = None,
-        item: Any = None,
-    ):
-        """Gets from or puts into a store or container, waiting as long as it takes.
-
-        A get with a `deadline` waits for whichever comes first; when the deadline
-        does, the get is cancelled, so it takes nothing later, and `_RENEGED` is
-        returned. `item` is what the task's own get took, read as `item.<field>`.
-        """
-        scope = make_scope(
-            upstream, entity.attributes, self._env, self._levels(), item=item
-        )
-        if transfer.store is not None:
-            store = self._stores_map[transfer.store]
-            if direction == "get":
-                event = store.get(transfer.filter_for(scope))
-            elif self._store_priority.get(transfer.store):
-                rank = transfer.priority_for(task_id, upstream, scope)
-                event = store.put(store.wrap(payload, rank))
-            else:
-                event = store.put(payload)
-        else:
-            container = self._containers_map[transfer.target]
-            amount = transfer.amount_for(task_id, upstream, scope)
-            event = (
-                container.get(amount) if direction == "get" else container.put(amount)
-            )
-        if deadline is None:
-            yield event
-        else:
-            yield event | deadline
-            if not event.triggered:
-                event.cancel()
-                return _RENEGED
-        if direction == "get" and transfer.store is not None:
-            # A priority store holds PriorityItem wrappers; the task reads the payload.
-            if self._store_priority.get(transfer.store):
-                return event.value.item
-            return event.value
-        return None
 
     def arrival_loop(self, arrival_id: str) -> Callable:
         """
@@ -1153,16 +1031,134 @@ class SimulationContext:
             raise RuntimeError("Cannot publish telemetry before context is run.")
         self._env.publish_telemetry(f"{self.sim_id}.{metric_name}", value)
 
-    def spawn(self, process: Any) -> None:
+    def spawn(self, process: Any) -> simpy.Process:
         """
-        Registers a new asynchronous generator with the active SimPy event loop.
+        Starts a generator as a SimPy process, such as a task instance.
 
         This acts as the "escape hatch" for complex logic (like physical slab
         tracking) that outgrows the strict abstraction of the `@task` decorator.
+
+        Args:
+            process: A generator, such as `pack_order(task_id, entity=entity)`.
+
+        Returns:
+            simpy.Process: The process. Yield it to wait until it ends; its value is
+                what the generator returns, and `is_alive`, `triggered`, `ok` and
+                `value` inspect it, as in SimPy.
         """
         if not self._env:
             raise RuntimeError("Cannot spawn processes before context is run.")
-        self._env.process(process)
+        return self._env.process(process)
+
+    def call(
+        self,
+        task: str,
+        *args: Any,
+        entity: Optional[Entity] = None,
+        upstream: Optional[Upstream] = None,
+        **kwargs: Any,
+    ) -> simpy.Process:
+        """
+        Starts a task as a child flow and returns its process.
+
+        The task runs with its own instance id, and so do the tasks its `next`
+        leads to. The process ends when that flow ends: its value is the last
+        task's finished payload, and it fails with `TaskFailed` when a task of the
+        flow fails and no `on_fail` handles it. A flow started this way is not
+        counted as the entity's flow finishing.
+
+        Args:
+            task: The task's name.
+            *args: Positional arguments its function takes after the task id.
+            entity: The entity, such as the caller's own; a new one when None.
+            upstream: What the task receives as `upstream`.
+            **kwargs: Keyword arguments its function takes.
+
+        Returns:
+            simpy.Process: The child flow. A failure nobody waits for does not stop
+                the run.
+
+        Raises:
+            RuntimeError: If called before the run starts.
+            ValueError: If no task has that name.
+        """
+        if not self._env:
+            raise RuntimeError("Cannot call tasks before context is run.")
+        if task not in self._task_specs:
+            raise ValueError(f"no task is called '{task}'")
+        if entity is None:
+            entity = self._new_entity(task, None)
+        return self._start(
+            task, entity, upstream, child=True, args=args or None, kwargs=kwargs
+        )
+
+    def _start(
+        self,
+        task: str,
+        entity: Entity,
+        upstream: Optional[Upstream],
+        child: bool = False,
+        args: Optional[Tuple[Any, ...]] = None,
+        kwargs: Optional[Dict[str, Any]] = None,
+    ) -> simpy.Process:
+        """Starts one instance of a task as a process, with its next instance id.
+
+        `args` are the positional arguments after the task id; None gives the ones a
+        YAML task takes, the context, and none for a builder task.
+        """
+        spec = self._task_specs[task]
+        run = TaskRun(
+            self,
+            spec,
+            self.next_instance(task),
+            entity,
+            upstream,
+            self._task_args if args is None else args,
+            kwargs or {},
+            child=child,
+        )
+        process = self.env.process(run.run())
+        if child:
+            # A child flow that fails with no task waiting for it ends that flow,
+            # not the run
+            process.callbacks.append(_defuse)
+        return process
+
+    def add_signal(self, name: str) -> "SimulationContext":
+        """
+        Declares a signal that tasks fire and wait for.
+
+        A task fires it with `signal=name` when it finishes, and fails it when the
+        task fails; a task waits for it with `wait={"signal": name}`; a process
+        reaches it with `context.signal(name)`.
+
+        Args:
+            name: The signal's name.
+
+        Returns:
+            SimulationContext: The current instance for method chaining.
+        """
+        if name not in self._signal_names:
+            self._signal_names.append(name)
+        return self
+
+    def signal(self, name: str) -> Signal:
+        """
+        Returns a declared signal, to fire, fail or wait for from a process.
+
+        Args:
+            name: A name `add_signal` declared.
+
+        Returns:
+            Signal: The signal: `fire(value)`, `fail(reason)`, `wait()`, and its
+                `count`, `ok` and `value`.
+
+        Raises:
+            RuntimeError: If called before the run starts.
+        """
+        if not self._env:
+            raise RuntimeError("Signals are not created until context is run.")
+        return self._signals[name]
 
     # ==========================================
     # ORCHESTRATION (The Compilation Phase)
@@ -1251,6 +1247,7 @@ class SimulationContext:
 
         if self._stats_level != "none":
             self._env.setup_stats(self.sim_id, self._stats_level, self._stats_interval)
+        self._signals = {name: Signal(self._env, name) for name in self._signal_names}
 
         # Compile Master Parameter Object
         self._env.registry.register_sim_parameter(self.compile_parameters())
@@ -1366,29 +1363,40 @@ class SimulationContext:
                     raise ValueError(
                         f"task '{name}' routes to '{target}', which is not a task"
                     )
-            expressions = list(spec.router.conditions)
-            if isinstance(spec.priority, str):
-                expressions.append(Expression(spec.priority))
-            if isinstance(spec.patience, str):
-                expressions.append(Expression(spec.patience))
-            if spec.balk is not None:
-                expressions.append(Expression(spec.balk))
-            for transfer in (spec.get, spec.put):
-                if transfer is not None:
-                    expressions.extend(transfer.expressions)
-            # item.<field> reads what the task's store get took, so it means
-            # nothing before the get, and nothing without one
-            before_get = [
-                Expression(text)
-                for text in (spec.priority, spec.patience, spec.balk)
-                if isinstance(text, str)
-            ]
-            after_get = list(spec.router.conditions)
-            if spec.put is not None:
-                after_get.extend(spec.put.expressions)
-            takes_item = spec.get is not None and spec.get.store is not None
-            for expression in before_get + ([] if takes_item else after_get):
-                if expression.references["item"]:
+            for target in (
+                spec.on_fail,
+                *(spec.wait.targets("task") if spec.wait else ()),
+            ):
+                if target is not None and target not in self._tasks:
+                    raise ValueError(
+                        f"task '{name}' names task '{target}', which is not a task"
+                    )
+            signals = set(spec.wait.targets("signal")) if spec.wait else set()
+            if spec.signal is not None:
+                signals.add(spec.signal)
+            expressions = [expression for _key, expression in spec.expressions]
+            for expression in expressions:
+                signals |= expression.references["signal"]
+            for signal in signals:
+                if signal not in self._signal_names:
+                    raise ValueError(
+                        f"task '{name}' uses signal '{signal}', which is not added; "
+                        f"add it with add_signal('{signal}')"
+                    )
+            branches = set(spec.wait.branches) if spec.wait else set()
+            for key, expression in spec.expressions:
+                unknown = expression.references["wait"] - branches
+                if unknown or (expression.references["wait"] and key == "wait"):
+                    raise ValueError(
+                        f"task '{name}' reads wait.{sorted(unknown or expression.references['wait'])[0]} "
+                        f"in '{expression.text}', which is not a branch of its wait "
+                        f"read after it"
+                    )
+                # item.<field> reads what the task's store get took, so it means
+                # nothing before the get, and nothing without one
+                takes_item = spec.get is not None and spec.get.store is not None
+                after_get = key in ("get", "put", "next", "fail")
+                if expression.references["item"] and not (takes_item and after_get):
                     raise ValueError(
                         f"task '{name}' reads item.<field> in '{expression.text}', "
                         f"but it has no store get before it"
@@ -1414,34 +1422,11 @@ class SimulationContext:
                         ) from None
 
 
-# What a get returns when the task's patience ran out before it took anything
-_RENEGED = object()
-
-
-class _TaskSpec:
-    """What `run()` checks about a task before the clock starts."""
-
-    def __init__(
-        self,
-        name: str,
-        service_id: Optional[str],
-        resource_id: Optional[str],
-        priority: Any,
-        get: Optional[Transfer],
-        put: Optional[Transfer],
-        router: Router,
-        patience: Any = None,
-        balk: Optional[str] = None,
-    ):
-        self.name = name
-        self.service_id = service_id
-        self.resource_id = resource_id
-        self.priority = priority
-        self.get = get
-        self.put = put
-        self.router = router
-        self.patience = patience
-        self.balk = balk
+def _defuse(event: Any) -> None:
+    """Marks a failed child flow as handled, so a failure nobody waits for ends that
+    flow and not the run, as the builder and YAML treat every task failure."""
+    if not event.ok:
+        event.defused = True
 
 
 def _seconds(value: Union[float, str]) -> float:

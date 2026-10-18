@@ -216,9 +216,309 @@ A process runs alongside the tasks. This one sends the packers on a 5-second bre
 
 Setting `current_cap` to 0 stops new work but not the work in progress: [Resources](resources.md) explains what happens to busy units when a capacity drops.
 
+### Wait, Signals and Child Flows
+
+A task can wait for something before it queues for its resource: its `wait`. A wait has one branch, or `any` or `all` of several named branches, as SimPy's `AnyOf` and `AllOf` wait for the first or for every event:
+
+| Branch | Waits for | Its value |
+|---|---|---|
+| `{signal: name}` | the next firing of a signal declared under `signals` (builder `add_signal`) | the firing's value, the payload of the task that fired it |
+| `{task: name}` | a **child flow**: that task, started for the same entity with its own instance id, and the tasks its `next` leads to, until the flow ends | the last task's finished payload |
+| `{timeout: 40 s}` | a time | none |
+| `{condition: level.stock >= 5}` | a condition to hold, checked when the wait starts and again after every store or container change, registry update and signal firing | `True` |
+
+A single branch is named after its signal or task, or `timeout` or `condition`. After the wait, `wait.<branch>.done` says whether the branch happened before the wait ended, `.ok` whether it succeeded, and `.value` (or `.value.<field>`) is its value; `next`, `fail` and amounts read them, and a builder function that declares `wait` receives them as a mapping. A task fires a signal with `signal: name` when it finishes, with its payload as the value, and `signal.<name>.count`, `.ok` and `.value` read the signal in any condition. The `process-interaction` example waits for a child flow, then for the first of a courier's signal and a time limit:
+
+=== "YAML"
+
+    ```yaml title="examples/yaml/process_interaction.yaml:check"
+    check:
+      # Starts the child flow inspect and waits for it to end.
+      wait: {task: inspect}
+      payload: {event_type: order_checked}
+      next: dispatch
+    inspect:
+      service: inspecting
+      payload: {event_type: inspected}
+      # A gift fails inspection; on_fail sends it to wrap, and the flow goes on.
+      fail: attr.gift == 1
+      fail_reason: gift needs wrapping
+      on_fail: wrap
+    wrap:
+      service: wrapping
+      payload: {event_type: wrapped}
+    ```
+
+    ```yaml title="examples/yaml/process_interaction.yaml:dispatch"
+    dispatch:
+      # The courier's departure, or 40 seconds, whichever comes first.
+      wait:
+        any:
+          courier: {signal: courier_left}
+          limit: {timeout: 40 s}
+      payload: {event_type: dispatched}
+      next:
+        when: [{condition: wait.courier.done, task: by_courier}]
+        default: by_post
+    ```
+
+    ```yaml title="examples/yaml/process_interaction.yaml:courier"
+    courier:
+      payload: {event_type: courier_left}
+      # Fires courier_left with this payload; every order waiting for it resumes.
+      signal: courier_left
+    ```
+
+=== "Builder"
+
+    ```python title="examples/builder/process_interaction_example.py:check"
+    # Starts the child flow inspect and waits for it to end
+    @app.task(wait={"task": "inspect"}, next="dispatch")
+    def check(task_id, context):
+        return {"event_type": "order_checked"}
+
+
+    # A gift fails inspection; on_fail sends it to wrap, and the flow goes on
+    @app.task(
+        service_id="inspecting",
+        fail="attr.gift == 1",
+        fail_reason="gift needs wrapping",
+        on_fail="wrap",
+    )
+    def inspect(task_id, context):
+        return {"event_type": "inspected"}
+
+
+    @app.task(service_id="wrapping")
+    def wrap(task_id, context):
+        return {"event_type": "wrapped"}
+    ```
+
+    ```python title="examples/builder/process_interaction_example.py:dispatch"
+    # The courier's departure, or 40 seconds, whichever comes first
+    @app.task(
+        wait={"any": {"courier": {"signal": "courier_left"}, "limit": {"timeout": 40}}},
+        next={
+            "when": [{"condition": "wait.courier.done", "task": "by_courier"}],
+            "default": "by_post",
+        },
+    )
+    def dispatch(task_id, context):
+        return {"event_type": "dispatched"}
+    ```
+
+    ```python title="examples/builder/process_interaction_example.py:courier"
+    # Fires courier_left with this payload; every order waiting for it resumes
+    @app.task(signal="courier_left")
+    def courier(task_id, context):
+        return {"event_type": "courier_left"}
+    ```
+
+    `context.signal(name)` returns the `Signal` a process can fire, fail or wait for, and `context.call(task, entity=...)` starts a child flow from a process and returns its SimPy process, which a process can yield. `context.spawn` returns the process it starts too, so `is_alive`, `triggered`, `ok` and `value` inspect it, as in SimPy.
+
+=== "Low-level"
+
+    ```python title="examples/low-level/process_interaction_example.py:check"
+    def check(shop, key, arrival):
+        """Starts the child process inspect and waits for it to end."""
+        env, stats, task_id = shop.env, shop.env.stats, shop.next_id("check")
+        shop.publish(key, "check", task_id, {"status": "queued"})
+        stats.task_queued("check", task_id)
+        yield env.any_of([env.process(inspect(shop, key, arrival))])
+        shop.publish(key, "check", task_id, {"status": "started"})
+        stats.task_started("check", task_id)
+        shop.publish(key, "check", task_id, {"event_type": "order_checked"})
+        stats.task_finished("check", task_id)
+        env.process(dispatch(shop, key, arrival))
+
+
+    def inspect(shop, key, arrival):
+        """A gift fails inspection and is wrapped instead; returns the last payload."""
+        env, stats, task_id = shop.env, shop.env.stats, shop.next_id("inspect")
+        path_id = "Shop.service.inspecting"
+        shop.publish(key, "inspect", task_id, {"path_id": path_id, "status": "started"})
+        stats.task_started("inspect", task_id)
+        yield env.timeout(shop.service("inspecting")[1])
+        if GIFT[arrival] == 1:
+            failed = {
+                "path_id": path_id,
+                "status": "failed",
+                "reason": "gift needs wrapping",
+            }
+            shop.publish(key, "inspect", task_id, failed)
+            stats.task_failed("inspect", task_id)
+            return (yield env.process(wrap(shop, key)))
+        payload = {"event_type": "inspected"}
+        shop.publish(key, "inspect", task_id, payload)
+        stats.task_finished("inspect", task_id)
+        return payload
+
+
+    def wrap(shop, key):
+        env, stats, task_id = shop.env, shop.env.stats, shop.next_id("wrap")
+        path_id = "Shop.service.wrapping"
+        shop.publish(key, "wrap", task_id, {"path_id": path_id, "status": "started"})
+        stats.task_started("wrap", task_id)
+        yield env.timeout(shop.service("wrapping")[1])
+        payload = {"event_type": "wrapped"}
+        shop.publish(key, "wrap", task_id, payload)
+        stats.task_finished("wrap", task_id)
+        return payload
+    ```
+
+    ```python title="examples/low-level/process_interaction_example.py:dispatch"
+    def dispatch(shop, key, arrival):
+        """The courier's departure, or 40 seconds, whichever comes first."""
+        env, stats, task_id = shop.env, shop.env.stats, shop.next_id("dispatch")
+        shop.publish(key, "dispatch", task_id, {"status": "queued"})
+        stats.task_queued("dispatch", task_id)
+        courier = shop.courier_left.wait()
+        done = yield env.any_of([courier, env.timeout(40)])
+        shop.publish(key, "dispatch", task_id, {"status": "started"})
+        stats.task_started("dispatch", task_id)
+        shop.publish(key, "dispatch", task_id, {"event_type": "dispatched"})
+        stats.task_finished("dispatch", task_id)
+        task = "by_courier" if courier in done else "by_post"
+        env.process(send(shop, key, arrival, task))
+    ```
+
+    ```python title="examples/low-level/process_interaction_example.py:courier"
+    def courier(shop, key):
+        """Fires courier_left; every order waiting for it resumes."""
+        task_id = shop.next_id("courier")
+        payload = {"event_type": "courier_left"}
+        shop.publish(key, "courier", task_id, payload)
+        shop.env.stats.task_finished("courier", task_id)
+        shop.courier_left.fire(payload)
+        shop.env.stats.flow_finished("couriers")
+        yield shop.env.timeout(0)
+    ```
+
+    The low-level API is SimPy: a child is `env.process(...)`, its value is what it returns, and `env.any_of` and `env.all_of` wait for the first or for every event. `Signal(env, name)` is the named event the builder and YAML use; `env.watch_changes(check)` calls `check` after every change a condition can read.
+
+The task publishes `queued` when its wait starts, so the wait counts in its wait statistics, and its `patience` covers the wait as well as its resource and its `get`. When an `any` wait ends, its losing signal, timeout and condition branches are dropped, and its losing child flows keep running, as SimPy leaves processes running; [Wait for One or All](../guides/wait-for-one-or-all.md) shows ties and failures. A wait holds no resource, so waiting for all of several things grants nothing at once.
+
+### Failures
+
+A task fails when its `fail` condition holds after its service, when the wait it needs fails, or, in the builder, when its function raises. `fail` reads the task's own payload as `payload.<field>`, as `next` does. A failed task publishes `failed` with a `reason`, the condition's text or its `fail_reason`, instead of its finished payload; it fails its `signal`, so every waiter of the signal fails too; and it goes to its `on_fail` task. Without `on_fail` the entity's flow ends, and a child flow fails the task waiting for it, with the same reason. Each failure is counted as `tasks.<task>.failed`, and a flow that ends in one as `flows.<arrival>.failed`, at `basic` and above. The `inspect` task of the example above fails a gift and sends it to be wrapped.
+
+In the low-level API a failure is SimPy's: an exception raised in a process reaches the process that yields it, and one nobody handles stops the run. The builder and YAML end only the entity's flow, because a data generator should not stop on one failed order.
+
+### Example: Process Interaction
+
+The `process-interaction` example puts these together: a child flow, a failure that `on_fail` handles, and orders that wait for a courier's signal or a time limit. It needs no Docker service and ends on its own after 300 simulation seconds.
+
+=== "YAML"
+
+    **Quick Start**
+
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+    === "uv"
+
+        ```bash
+        # 1. Install
+        uv tool install desflow
+
+        # 2. Download the example
+        desflow examples get process-interaction --api yaml
+        cd process-interaction/yaml
+
+        # 3. Run it
+        desflow run process_interaction.yaml
+        ```
+
+    === "pip"
+
+        ```bash
+        # 1. Install
+        pip install desflow
+
+        # 2. Download the example
+        desflow examples get process-interaction --api yaml
+        cd process-interaction/yaml
+
+        # 3. Run it
+        desflow run process_interaction.yaml
+        ```
+
+    The whole file is [`examples/yaml/process_interaction.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/yaml/process_interaction.yaml).
+
+=== "Builder"
+
+    **Quick Start**
+
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+    === "uv"
+
+        ```bash
+        # 1. Install
+        uv tool install desflow
+
+        # 2. Download the example
+        desflow examples get process-interaction --api builder
+        cd process-interaction/builder
+
+        # 3. Run it
+        uv run --no-project --with desflow process_interaction_example.py
+        ```
+
+    === "pip"
+
+        ```bash
+        # 1. Install
+        pip install desflow
+
+        # 2. Download the example
+        desflow examples get process-interaction --api builder
+        cd process-interaction/builder
+
+        # 3. Run it
+        python process_interaction_example.py
+        ```
+
+    The whole file is [`examples/builder/process_interaction_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/builder/process_interaction_example.py).
+
+=== "Low-level"
+
+    **Quick Start**
+
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+    === "uv"
+
+        ```bash
+        # 1. Install
+        uv tool install desflow
+
+        # 2. Download the example
+        desflow examples get process-interaction --api low-level
+        cd process-interaction/low-level
+
+        # 3. Run it
+        uv run --no-project --with desflow process_interaction_example.py
+        ```
+
+    === "pip"
+
+        ```bash
+        # 1. Install
+        pip install desflow
+
+        # 2. Download the example
+        desflow examples get process-interaction --api low-level
+        cd process-interaction/low-level
+
+        # 3. Run it
+        python process_interaction_example.py
+        ```
+
+    The whole file is [`examples/low-level/process_interaction_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/process_interaction_example.py).
+
 ### Records of a Task
 
-Every event of a task carries three fields beside its value: `key`, the entity's key; `task`, the task's name; and `instance`, the number of this run of the task, counted from 0 for each task. The first order of the blueprint above, packed and then labelled:
+Every event of a task carries three fields beside its value: `key`, the entity's key; `task`, the task's name; and `instance`, the number of this run of the task, counted from 0 for each task. The first order of the blueprint in [A Task](#a-task), packed and then labelled:
 
 <!-- records: task-events -->
 ```text
@@ -249,14 +549,16 @@ Until `run()` is called nothing exists but the description: `context.env`, `cont
 
 ![pack_order in three steps. queued: orders-1 joins the packers queue, and the record has status queued. started: it gets a packer and the function returns the payload, and the record has status started. finished: after the packing time the payload is published and the packer released](../assets/diagrams/task-life.gif)
 
-1. If it has a resource or a `get`, it publishes `queued` and asks for the resource, in the resource's queue order.
-2. Once it has the resource, it takes its `get` from a store or container, waiting while there is not enough.
-3. It publishes `started`, calls your function, and keeps what it returns as the payload. The payload is computed before the service time, so it can use the state of the simulation at that moment.
-4. It waits the service time, drawn from the live distribution.
-5. It adds its `put` to a store or container, waiting while there is no room, then publishes the payload as the finished event and releases the resource.
-6. It applies `set` to the entity's attributes, and starts the next task its `next` chooses, if any, as a new instance for the same entity.
+1. If its `balk` condition holds, it publishes `balked` and stops.
+2. If it has a `wait`, a resource or a `get`, it publishes `queued`, starts its `patience` timer, and waits for its `wait`.
+3. It asks for the resource, in the resource's queue order, then takes its `get` from a store or container, waiting while there is not enough.
+4. It publishes `started`, calls your function, and keeps what it returns as the payload. The payload is computed before the service time, so it can use the state of the simulation at that moment.
+5. It waits the service time, drawn from the live distribution.
+6. It adds its `put` to a store or container, waiting while there is no room, and checks its `fail` condition.
+7. It publishes the payload as the finished event, or `failed`, and releases the resource.
+8. It fires its `signal` (or fails it), applies `set` to the entity's attributes, and starts the next task its `next` chooses, or its `on_fail` task, as a new instance for the same entity.
 
-A YAML task and its `spawn` make the same task and arrival loop that the builder code above makes. In SimPy terms each task run is one process started with `env.process`, and each arrival loop is another; [SimPy and desflow](../des/simpy-and-desflow.md) describes processes.
+A YAML task and its `spawn` make the same task and arrival loop that the builder code above makes. The code that runs these steps is `TaskRun` in `desflow/core/task.py`. In SimPy terms each task run is one process started with `env.process`, and each arrival loop is another; [SimPy and desflow](../des/simpy-and-desflow.md) describes processes.
 
 ### Processes and the Low-level API
 
@@ -269,4 +571,5 @@ A YAML task and its `spawn` make the same task and arrival loop that the builder
 - **A task holds one resource.** An order that needs a picker and a packing bench at once, or a handover between them, is a process: [Multi-Resource Handoffs](../guides/multi-resource-handoffs.md) shows how.
 - **A task cannot be interrupted.** Breakdowns that stop work in progress, such as a label printer that jams, need a process that catches SimPy's `Interrupt`: [Preemptive Breakdowns](../guides/preemptive-breakdowns.md).
 - **A finished event is exactly the payload.** It has no `status` or `path_id` unless the payload includes them.
-- **Runtime helpers need a running simulation.** `context.spawn`, `context.get_resource`, `context.get_store`, `context.get_container` and `context.env` raise `RuntimeError` before `run()`; call them inside a loop, task or process.
+- **A condition branch checks after every change.** A model with many waits on conditions and many changes does work in proportion to both.
+- **Runtime helpers need a running simulation.** `context.spawn`, `context.call`, `context.signal`, `context.get_resource`, `context.get_store`, `context.get_container` and `context.env` raise `RuntimeError` before `run()`; call them inside a loop, task or process.

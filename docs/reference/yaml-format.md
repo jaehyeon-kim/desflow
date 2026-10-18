@@ -79,6 +79,10 @@ The arguments of `SimulationContext`. [Time and Pacing](../user-guide/time-and-p
 
 A store and a container cannot share a name.
 
+## signals
+
+A list of names, each a signal that tasks fire with `signal` and wait for with `wait: {signal: name}`. [Tasks and Processes](../user-guide/tasks-and-processes.md#wait-signals-and-child-flows) describes them.
+
 ## variables
 
 `name: value` entries, any YAML value, each at the registry path `<sim_id>.variables.<name>`. [Live Parameters](../user-guide/live-parameters.md) describes them.
@@ -107,8 +111,13 @@ An arrival also takes:
 | `item_field` | adds the item the task's store `get` took to a mapping payload under this key |
 | `attributes` | a list of entity attributes added to a mapping payload |
 | `priority` | a number or an expression such as `attr.tier`, for a resource with `queue: priority` |
-| `patience` | seconds, a duration or an expression: how long the task waits for its resource and its `get` before it leaves and publishes `reneged` |
+| `patience` | seconds, a duration or an expression: how long the task waits for its `wait`, its resource and its `get` before it leaves and publishes `reneged` |
 | `balk` | a condition checked before the task joins a queue; when it holds, the task publishes `balked` |
+| `wait` | what the task waits for before its resource: `{signal: name}`, `{task: name}`, `{timeout: ...}`, `{condition: ...}`, or `{any: {name: branch, ...}}` or `{all: {...}}`; read after it as `wait.<branch>.done`, `.ok` and `.value` |
+| `signal` | a signal under `signals` the task fires with its payload when it finishes, and fails when it fails |
+| `fail` | a condition checked after the service, reading the task's own payload; when it holds the task publishes `failed` |
+| `fail_reason` | the `reason` a failure publishes; the `fail` condition's text by default |
+| `on_fail` | the task a failed instance goes to; without it the flow ends |
 | `get` | `{container: name, amount: ...}` or `{store: name}`, with an optional `filter` condition for a store, which reads the item offered as `item.<field>`: taken after the resource, before the work |
 | `put` | the same form, without a filter: added after the work; a store receives the payload, with an optional `priority` for a priority store |
 | `next` | a task name; `{when: [{condition, task}, ...], default: task}`; or `{weights: {task: number, ...}}` |

@@ -129,6 +129,31 @@ def test_schema_errors_name_the_line(tmp_path, old, new, line, fragment):
             17,
             "item.<field> reads the item a store get took",
         ),
+        (
+            "    id_field: order_id",
+            "    id_field: order_id\n    signal: ready",
+            17,
+            "signal 'ready'",
+        ),
+        (
+            "    id_field: order_id",
+            "    id_field: order_id\n    wait: {task: inspect}",
+            17,
+            "task 'inspect'",
+        ),
+        (
+            "    id_field: order_id",
+            "    id_field: order_id\n    wait: {timeout: 5}\n"
+            "    next: {when: [{condition: wait.limit.done, task: part}]}",
+            18,
+            "wait.limit is not a branch",
+        ),
+        (
+            "    id_field: order_id",
+            "    id_field: order_id\n    next: {when: [{condition: signal.ready.ok, task: part}]}",
+            17,
+            "signal.ready names no signal",
+        ),
     ],
 )
 def test_cross_reference_errors_name_the_line(tmp_path, old, new, line, fragment):

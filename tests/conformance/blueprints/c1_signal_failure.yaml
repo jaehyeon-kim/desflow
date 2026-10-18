@@ -1,0 +1,20 @@
+# A waiter waits from 3 for the signal restocked; the restock at 5 fails, so the
+# signal fails and the waiter fails with its reason. See test_c1_process_interaction.py.
+simulation:
+  sim_id: C1
+  factor: 0
+signals: [restocked]
+arrivals:
+  waiters: {dist: constant, value: 3, spawn: waiter}
+  restocks: {dist: constant, value: 5, spawn: restock}
+tasks:
+  waiter:
+    wait: {signal: restocked}
+    payload: {event: resumed}
+  restock:
+    payload: {qty: 3}
+    signal: restocked
+    fail: t >= 0
+    fail_reason: broken delivery
+run:
+  until: 6

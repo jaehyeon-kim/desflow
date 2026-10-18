@@ -788,6 +788,34 @@ class DynamicRealtimeEnvironment(
 
         self.setup_registry()
         self._create_statistics()
+        # Functions called after every change a shared condition can read
+        self._change_watchers: List[Callable[[], None]] = []
+
+    def watch_changes(self, callback: Callable[[], None]) -> None:
+        """
+        Calls `callback` after every change a shared condition can read.
+
+        A change is a store or container level, a resource's capacity or use, a
+        registry update or a signal firing. A wait on a condition, such as
+        `{condition: "level.stock >= 5"}`, watches this way and checks its condition
+        again after each one, as a SimPy loop over a fresh "changed" event would.
+
+        Args:
+            callback: A function of no arguments.
+        """
+        self._change_watchers.append(callback)
+
+    def unwatch_changes(self, callback: Callable[[], None]) -> None:
+        """Stops calling a function `watch_changes` added; does nothing if it is gone."""
+        if callback in self._change_watchers:
+            self._change_watchers.remove(callback)
+
+    def notify_change(self) -> None:
+        """Calls every function `watch_changes` added. Resources, the registry and
+        signals call it after each change."""
+        if self._change_watchers:
+            for callback in list(self._change_watchers):
+                callback()
 
     def _resolve_go_live_time(self, go_live_at: datetime, initial_time: float) -> float:
         """Converts the go-live instant into a simulation time, on the logical clock.

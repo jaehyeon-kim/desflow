@@ -1,0 +1,23 @@
+# Waiters arrive at 3, 6 and 9 and wait for the signal restocked; a restock at 5
+# and 10 fires it with {qty: 3}. The waiter of 3 resumes at 5; those of 6 and 9,
+# which start after the first firing, at 10. See test_c1_process_interaction.py.
+simulation:
+  sim_id: C1
+  factor: 0
+signals: [restocked]
+arrivals:
+  waiters: {dist: constant, value: 3, spawn: waiter}
+  restocks: {dist: constant, value: 5, spawn: restock}
+tasks:
+  waiter:
+    wait: {signal: restocked}
+    payload: {event: resumed}
+    next:
+      when: [{condition: wait.restocked.value.qty == 3, task: noted}]
+  noted:
+    payload: {event: noted}
+  restock:
+    payload: {qty: 3}
+    signal: restocked
+run:
+  until: 11

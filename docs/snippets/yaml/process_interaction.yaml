@@ -1,0 +1,67 @@
+# The Process Interaction tutorial: packed orders wait for the courier, with a limit.
+# Run it with: desflow run process_interaction.yaml
+# With a limit of 8 minutes: LIMIT="8 min" desflow run process_interaction.yaml
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+resources:
+  packers: {current_cap: 1, max_cap: 4}
+
+services:
+  packing: {dist: constant, value: 1.5 s}
+
+# --8<-- [start:signal]
+signals:
+  # Fired by the courier as it leaves with every order that waits for it
+  - courier_left
+# --8<-- [end:signal]
+
+arrivals:
+  orders: {dist: exponential, rate: 0.5, spawn: pack_order}
+  # --8<-- [start:courier]
+  # A courier every 10 minutes
+  couriers: {dist: constant, value: 10 min, spawn: collect}
+  # --8<-- [end:courier]
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+    next: dispatch
+  # --8<-- [start:dispatch]
+  dispatch:
+    # The courier's departure, or the limit, whichever comes first
+    wait:
+      any:
+        courier: {signal: courier_left}
+        limit: {timeout: "${LIMIT:-5 min}"}
+    payload: {event_type: dispatched}
+    # wait.courier.done is true when the courier came before the limit
+    next:
+      when: [{condition: wait.courier.done, task: by_courier}]
+      default: by_post
+  # --8<-- [end:dispatch]
+  by_courier:
+    payload: {event_type: sent_by_courier}
+  by_post:
+    payload: {event_type: sent_by_post}
+  # --8<-- [start:collect]
+  collect:
+    payload: {event_type: courier_left}
+    # Fires courier_left with this payload, so every waiting order resumes
+    signal: courier_left
+  # --8<-- [end:collect]
+
+# --8<-- [start:watch]
+# How many orders went each way, and the mean wait for dispatch, at the end
+stats: {level: typical, interval: 8 h}
+# --8<-- [end:watch]
+
+egress:
+  - type: Console
+
+run:
+  until: 8 h

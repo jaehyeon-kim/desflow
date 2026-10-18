@@ -1,0 +1,29 @@
+# Orders at 3 and 6 wait for a restock or a limit of their own; the restock at 5
+# ends the first wait, and the limit at 9 the second.
+# See test_c2_wait_for_one_or_all.py.
+simulation:
+  sim_id: C2
+  factor: 0
+signals: [restocked]
+arrivals:
+  orders: {dist: constant, value: 3, spawn: order}
+  restocks: {dist: constant, value: 5, spawn: restock}
+tasks:
+  order:
+    wait:
+      any:
+        stock: {signal: restocked}
+        limit: {timeout: 3}
+    payload: {event: resumed}
+    next:
+      when: [{condition: wait.stock.done, task: stocked}]
+      default: gave_up
+  stocked:
+    payload: {event: stocked}
+  gave_up:
+    payload: {event: gave_up}
+  restock:
+    payload: {qty: 3}
+    signal: restocked
+run:
+  until: 9.5

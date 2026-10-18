@@ -404,3 +404,35 @@ def test_filtered_inventory_outcomes(api):
     else:
         counts = _load("filtered_inventory_low_level").outcomes()
     assert dict(counts) == FILTERED_OUTCOMES
+
+
+COURIER_OUTCOMES = {
+    300: {"by_courier": 6952, "by_post": 7020, "wait_mean": 225.3},
+    480: {"by_courier": 11005, "by_post": 2872, "wait_mean": 288.2},
+}
+
+
+def _courier_outcomes(api, limit, monkeypatch):
+    if api == "yaml":
+        monkeypatch.setenv("LIMIT", f"{limit} s")
+        app = SimulationContext.from_yaml(BLUEPRINTS / "process_interaction.yaml")
+        app.run()
+        readings = app.env.stats.readings()
+        name = "Shop.stats.tasks.{}".format
+        result = {
+            "by_courier": readings[name("by_courier.finished")],
+            "by_post": readings[name("by_post.finished")],
+            "wait_mean": readings[name("dispatch.wait_mean")],
+        }
+    else:
+        name = "process_interaction" + ("" if api == "builder" else "_low_level")
+        result = _load(name).outcomes(limit)
+    result["wait_mean"] = round(result["wait_mean"], 1)
+    return result
+
+
+@pytest.mark.parametrize("api", APIS)
+def test_process_interaction_courier_shares(api, monkeypatch):
+    """Half the orders catch the courier with a 5-minute limit, 8 in 10 with 8."""
+    for limit, expected in COURIER_OUTCOMES.items():
+        assert _courier_outcomes(api, limit, monkeypatch) == expected

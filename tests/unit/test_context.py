@@ -372,7 +372,7 @@ def test_filters_and_patience_are_checked_before_the_run():
 
     with pytest.raises(ValueError, match="both ranks and filters"):
         app.run(until=1)
-    with pytest.raises(ValueError, match="needs a resource or a get"):
+    with pytest.raises(ValueError, match="needs a wait, a resource or a get"):
         app.task(name="idle", patience=5)
     with pytest.raises(ValueError, match="a put takes no filter"):
         app.task(name="drop", put={"store": "express", "filter": "item.size == 1"})
@@ -412,6 +412,56 @@ def test_patience_on_a_get_takes_nothing_after_it_runs_out():
     app.run(until=4)
     assert app.get_store("parcels").items == [{"parcel": 1}]
     assert app.env.stats.readings()["TestSim.stats.tasks.collect.reneged"] == 1
+
+
+def test_waits_signals_and_failures_are_checked_before_the_run():
+    """Every signal, waited task, branch read and on_fail target must exist."""
+
+    def run(**task):
+        app = SimulationContext("TestSim", factor=0.0).add_signal("ready")
+
+        @app.task(name="t", **task)
+        def t(task_id):
+            return {}
+
+        app.run(until=1)
+
+    for task, fragment in (
+        ({"signal": "missing"}, "signal 'missing'"),
+        ({"wait": {"signal": "missing"}}, "signal 'missing'"),
+        ({"wait": {"task": "missing"}}, "task 'missing'"),
+        ({"fail": "t > 1", "on_fail": "missing"}, "task 'missing'"),
+        (
+            {
+                "wait": {"timeout": 1},
+                "next": {"when": [{"condition": "wait.x.done", "task": "t"}]},
+            },
+            "wait.x",
+        ),
+    ):
+        with pytest.raises(ValueError, match=fragment):
+            run(**task)
+    with pytest.raises(ValueError, match="need a fail condition"):
+        SimulationContext("TestSim").task(on_fail="t")
+
+
+def test_a_raising_function_fails_the_task_and_ends_the_flow():
+    """The builder treats an error in a task's function as the task failing."""
+    app = SimulationContext("TestSim", factor=0.0).with_stats("basic")
+
+    @app.task(name="t")
+    def t(task_id):
+        raise KeyError("sku")
+
+    def script(context):
+        context.spawn(t(0))
+        yield context.env.timeout(1)
+
+    app.add_process(script)
+    app.run(until=2)
+    readings = app.env.stats.readings()
+    assert readings["TestSim.stats.tasks.t.failed"] == 1
+    assert readings["TestSim.stats.flows.t.failed"] == 1
 
 
 def test_balk_with_an_unknown_level_fails_before_the_run():

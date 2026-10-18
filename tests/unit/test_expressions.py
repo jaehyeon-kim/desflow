@@ -74,6 +74,9 @@ def test_allowed_forms_evaluate(scope, text, expected):
         ("(y := 1)", "NamedExpr"),
         ("None", "the constant None"),
         ("payload.total >", "not a valid expression"),
+        ("wait.restock", "wait.<name>.done, .ok, .value"),
+        ("wait.restock.value.qty.unit", "or .value.<field>"),
+        ("signal.restocked.done", "signal.<name>.count, .ok, .value"),
     ],
 )
 def test_forms_outside_the_whitelist_are_refused(text, fragment):
@@ -85,13 +88,16 @@ def test_forms_outside_the_whitelist_are_refused(text, fragment):
 def test_references_name_each_source():
     expression = Expression(
         "payload.total > 1 and attr.vip == 1 and level.stock > 0 "
-        'and registry["Shop.arrival.orders.rate"] > 0 and item.size == 2'
+        'and registry["Shop.arrival.orders.rate"] > 0 and item.size == 2 '
+        "and wait.restock.value.qty > 0 and signal.restocked.count > 0"
     )
     assert expression.references == {
         "payload": {"total"},
         "attr": {"vip"},
         "level": {"stock"},
         "item": {"size"},
+        "wait": {"restock"},
+        "signal": {"restocked"},
         "registry": {"Shop.arrival.orders.rate"},
     }
 
@@ -103,6 +109,8 @@ def test_references_name_each_source():
         ("attr.missing > 1", "no attribute 'missing'"),
         ("level.shelf > 1", "no store or container is called 'shelf'"),
         ("item.size > 1", "the item has no field 'size'"),
+        ("wait.restock.done", "no wait branch 'restock'"),
+        ("signal.restocked.count > 0", "no signal is called 'restocked'"),
         ("payload.total / (attr.priority - 1)", "division by zero"),
     ],
 )

@@ -199,3 +199,17 @@ def test_reneging_and_balking_ties_and_balance():
     assert module.tie(0, 6) == "reneged"
     outcome = module.balance(str(ROOT / "examples" / "yaml" / "patience.yaml"))
     assert outcome == {"order_packed": 49, "balked": 17, "reneged": 7, "started": 1}
+
+
+def test_wait_for_one_or_all_first_ties_and_failure():
+    """The first branch wins; two signals at one instant are both done; a failed
+    branch of an all fails the order at once while the child flow runs on."""
+    module = _load("wait_for_one_or_all")
+    assert module.first(10) == {"stock": True, "limit": False}
+    assert module.first(50) == {"stock": False, "limit": True}
+    assert module.two_at_once() == {"boxes": True, "labels": True}
+    assert module.all_with_a_failure() == [
+        (0.0, "order", "queued"),
+        (2.0, "order", "failed"),
+        (4.0, "inspect", "finished"),
+    ]

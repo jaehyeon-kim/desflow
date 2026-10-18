@@ -164,6 +164,7 @@ nav:
           - Stock: tutorials/stock.md
           - Priorities: tutorials/priorities.md
           - A Flow of Tasks: tutorials/flow-of-tasks.md
+          - Process Interaction: tutorials/process-interaction.md
           - Patience: tutorials/patience.md
           - Filtered Inventory: tutorials/filtered-inventory.md
   - User Guide:
@@ -191,6 +192,7 @@ nav:
       - Preemptive Breakdowns: guides/preemptive-breakdowns.md
       - Dynamic Topology: guides/dynamic-topology.md
       - Reneging and Balking: guides/reneging-and-balking.md
+      - Wait for One or All: guides/wait-for-one-or-all.md
   - Examples:
       - Overview: examples/index.md
       - Local Simulation: examples/local.md

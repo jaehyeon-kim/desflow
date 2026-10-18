@@ -602,4 +602,4 @@ In a flow, each task's arrival rate follows from the rates into it and the routi
             run()
         ```
 
-Next, [Patience](patience.md) asks which orders leave a queue after waiting too long, and which refuse to join.
+Next, [Process Interaction](process-interaction.md) asks when a waiting order resumes.

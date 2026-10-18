@@ -138,6 +138,12 @@ EXAMPLES: Dict[str, Example] = {
             _three("filtered_inventory.yaml", "filtered_inventory_example.py"),
         ),
         Example(
+            "process-interaction",
+            "Process Interaction",
+            "a child flow, a failure handled by on_fail, and orders waiting for a courier's signal with a time limit",
+            _three("process_interaction.yaml", "process_interaction_example.py"),
+        ),
+        Example(
             "related-records",
             "Generate Related Records",
             "orders and their line items, in two PostgreSQL tables",

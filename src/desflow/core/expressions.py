@@ -12,13 +12,15 @@ compared with `==` or `!=`. Each name carries its source as a prefix:
 | `attr.priority` | the entity's attribute `priority` |
 | `level.stock` | the level of the store or container `stock` |
 | `item.size` | the field `size` of the item a store `get` took, or in a get's `filter` the item it is offered |
+| `wait.restock.done`, `.ok`, `.value`, `.value.qty` | whether the task's `wait` branch `restock` happened before the wait ended, whether it succeeded, and its value or a field of it |
+| `signal.restocked.count`, `.ok`, `.value` | how many times the signal `restocked` has fired, whether its last firing succeeded, and its value |
 | `registry["Shop.arrival.orders.rate"]` | a registry value, by path |
 | `t` | the simulation time in seconds |
 """
 
 import ast
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Mapping, Optional, Set
+from typing import Any, Callable, Dict, List, Mapping, Optional, Set, Tuple
 
 _PREFIXES = ("payload", "attr", "level", "item")
 _ARITHMETIC: Dict[type, Callable[[Any, Any], Any]] = {
@@ -38,6 +40,38 @@ _COMPARISONS: Dict[type, Callable[[Any, Any], bool]] = {
     ast.NotEq: lambda a, b: a != b,
 }
 _EQUALITY = (ast.Eq, ast.NotEq)
+# Names of more than one part, by their first word, with the parts each takes
+_PARTS = {"wait": ("done", "ok", "value"), "signal": ("count", "ok", "value")}
+
+
+def _nested(node: ast.Attribute) -> Optional[Tuple[str, List[str]]]:
+    """`wait.<branch>.<part>` or `signal.<name>.<part>` as its word and parts."""
+    parts: List[str] = []
+    current: ast.AST = node
+    while isinstance(current, ast.Attribute):
+        parts.insert(0, current.attr)
+        current = current.value
+    if isinstance(current, ast.Name) and current.id in _PARTS:
+        return current.id, parts
+    return None
+
+
+def _read_nested(scope: "Scope", source: str, parts: List[str]) -> Any:
+    """The value of a `wait.` or `signal.` name in a scope."""
+    name, part = parts[0], parts[1]
+    if source == "wait":
+        if name not in scope.waits:
+            raise KeyError(f"the task has no wait branch '{name}'")
+        value = scope.waits[name][part]
+    else:
+        if name not in scope.signals:
+            raise KeyError(f"no signal is called '{name}'")
+        value = getattr(scope.signals[name], part)
+    if len(parts) == 3:
+        if not isinstance(value, Mapping) or parts[2] not in value:
+            raise KeyError(f"the value of {source}.{name} has no field '{parts[2]}'")
+        value = value[parts[2]]
+    return value
 
 
 @dataclass
@@ -53,6 +87,9 @@ class Scope:
         now: The simulation time, read as `t`.
         item: The item a store get took, or a filter's candidate, read as
             `item.<field>`.
+        waits: The task's `wait` branches by name, each a mapping of `done`, `ok`
+            and `value`, read as `wait.<branch>.<part>`.
+        signals: Signals by name, read as `signal.<name>.<part>`.
     """
 
     payload: Mapping[str, Any] = field(default_factory=dict)
@@ -61,6 +98,8 @@ class Scope:
     registry: Optional[Any] = None
     now: float = 0.0
     item: Optional[Mapping[str, Any]] = None
+    waits: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
+    signals: Mapping[str, Any] = field(default_factory=dict)
 
 
 class Expression:
@@ -70,8 +109,8 @@ class Expression:
     Attributes:
         text (str): The expression as written.
         references (Dict[str, Set[str]]): The names it reads, by source: `payload`,
-            `attr`, `level`, `item` and `registry`, so a loader can check them in
-            advance.
+            `attr`, `level`, `item`, `wait`, `signal` and `registry`, so a loader
+            can check them in advance.
     """
 
     def __init__(self, text: str):
@@ -97,6 +136,8 @@ class Expression:
             "attr": set(),
             "level": set(),
             "item": set(),
+            "wait": set(),
+            "signal": set(),
             "registry": set(),
         }
         self._check(tree.body, strings=False)
@@ -140,9 +181,25 @@ class Expression:
                 return
             raise self._refuse(
                 f"the name '{node.id}' (write payload.<field>, attr.<name>, "
-                f'level.<name>, item.<field>, registry["<path>"] or t)'
+                f"level.<name>, item.<field>, wait.<branch>.<part>, "
+                f'signal.<name>.<part>, registry["<path>"] or t)'
             )
         if isinstance(node, ast.Attribute):
+            nested = _nested(node)
+            if nested is not None:
+                source, parts = nested
+                parts_allowed = _PARTS[source]
+                if (
+                    len(parts) < 2
+                    or parts[1] not in parts_allowed
+                    or len(parts) > (3 if parts[1] == "value" else 2)
+                ):
+                    raise self._refuse(
+                        f"'{source}.{'.'.join(parts)}' (write {source}.<name>."
+                        f"{', .'.join(parts_allowed)}, or .value.<field>)"
+                    )
+                self.references[source].add(parts[0])
+                return
             if isinstance(node.value, ast.Name) and node.value.id in _PREFIXES:
                 if node.attr.startswith("__"):
                     raise self._refuse(f"the name '{node.attr}'")
@@ -198,6 +255,9 @@ class Expression:
         if isinstance(node, ast.Name):
             return scope.now
         if isinstance(node, ast.Attribute):
+            nested = _nested(node)
+            if nested is not None:
+                return _read_nested(scope, *nested)
             source = node.value.id  # type: ignore[attr-defined]
             if source == "payload":
                 if node.attr not in scope.payload:

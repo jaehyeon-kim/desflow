@@ -223,6 +223,11 @@ class SimulationRegistry:
                 parent_obj[attr] = validated_value
             elif parent_obj is not None:
                 setattr(parent_obj, attr, validated_value)
+
+            # Waits on a shared condition check it again after every change
+            notify = getattr(self.env, "notify_change", None)
+            if notify is not None:
+                notify()
         else:
             logger.warning(f"Attempted to update non-existent path: {path}")
 

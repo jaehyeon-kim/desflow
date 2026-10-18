@@ -400,7 +400,7 @@ The `flow` example: orders are picked, gift orders are wrapped, one parcel in te
 - numbers, `True` and `False`, and the arithmetic `+`, `-`, `*`, `/`, `//` and `%`;
 - the comparisons `<`, `<=`, `>`, `>=`, `==` and `!=`, and strings compared with `==` or `!=`;
 - `and`, `or`, `not`, and the conditional form `a if c else b`;
-- names with their source as a prefix: `payload.<field>`, `attr.<name>`, `level.<name>`, `item.<field>` (the item the task's store `get` took, [Stores and Containers](stores-and-containers.md#pick-an-item-or-give-up-waiting)) and `registry["<path>"]`;
+- names with their source as a prefix: `payload.<field>`, `attr.<name>`, `level.<name>`, `item.<field>` (the item the task's store `get` took, [Stores and Containers](stores-and-containers.md#pick-an-item-or-give-up-waiting)), `wait.<branch>.done`, `.ok` and `.value` (the task's wait) and `signal.<name>.count`, `.ok` and `.value` ([Tasks and Processes](tasks-and-processes.md#wait-signals-and-child-flows)), and `registry["<path>"]`;
 - `t`, the simulation time in seconds.
 
 A name carries its source so that adding a payload field cannot change what an attribute of the same name means, and so registry paths, which contain dots, can be written whole. Anything else is refused with a message that names it:
@@ -416,7 +416,7 @@ for text in ("payload.total ** 2", "x > 1", "open('orders.csv')"):
 <!-- records: refused-expressions -->
 ```text
 'payload.total ** 2' uses the operator Pow, which an expression cannot
-'x > 1' uses the name 'x' (write payload.<field>, attr.<name>, level.<name>, item.<field>, registry["<path>"] or t), which an expression cannot
+'x > 1' uses the name 'x' (write payload.<field>, attr.<name>, level.<name>, item.<field>, wait.<branch>.<part>, signal.<name>.<part>, registry["<path>"] or t), which an expression cannot
 'open('orders.csv')' uses a Call, which an expression cannot
 ```
 

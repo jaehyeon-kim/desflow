@@ -16,6 +16,7 @@ from desflow.blueprint.loader import BlueprintError, SourceMap, read_document
 from desflow.blueprint.models import Blueprint, Run
 from desflow.config import LABELS
 from desflow.core.expressions import Expression
+from desflow.core.flow import Wait
 from desflow.core.context import SimulationContext
 from desflow.core.registry import SimulationRegistry
 
@@ -160,11 +161,45 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                     f"task '{name}' routes to '{target}', which is not defined "
                     f"under tasks",
                 )
+        wait = None if task.wait is None else Wait(task.wait)
+        named = [
+            ("task", "on_fail", task.on_fail),
+            ("signal", "signal", task.signal),
+            *(
+                ("task", "wait", target)
+                for target in sorted(wait.targets("task") if wait else [])
+            ),
+            *(
+                ("signal", "wait", target)
+                for target in sorted(wait.targets("signal") if wait else [])
+            ),
+        ]
+        for kind, key, target in named:
+            defined = blueprint.tasks if kind == "task" else blueprint.signals
+            if target is not None and target not in defined:
+                raise source.error(
+                    ("tasks", name, key),
+                    f"task '{name}' names {kind} '{target}', which is not defined "
+                    f"under {kind}s",
+                )
+        branches = set(wait.branches) if wait else set()
         takes_item = task.get is not None and task.get.store is not None
         for expression, location in _expressions(name, task):
+            for signal in expression.references["signal"]:
+                if signal not in blueprint.signals:
+                    raise source.error(
+                        location, f"signal.{signal} names no signal under signals"
+                    )
+            for branch in expression.references["wait"]:
+                if branch not in branches or location[2] == "wait":
+                    raise source.error(
+                        location,
+                        f"wait.{branch} is not a branch of this task's wait, read "
+                        f"after it",
+                    )
             # item.<field> reads what a store get took: a get's own filter, then
             # the put and next after it
-            reads_item = location[2] in ("put", "next") or location[2:4] == (
+            reads_item = location[2] in ("put", "next", "fail") or location[2:4] == (
                 "get",
                 "filter",
             )
@@ -252,6 +287,13 @@ def _expressions(
         found.append((Expression(task.patience), where + ("patience",)))
     if task.balk is not None:
         found.append((Expression(task.balk), where + ("balk",)))
+    if task.fail is not None:
+        found.append((Expression(task.fail), where + ("fail",)))
+    if task.wait is not None:
+        wait = Wait(task.wait)
+        for branch, (kind, target) in wait.branches.items():
+            if kind == "condition":
+                found.append((target, where + ("wait",)))
     for field in ("get", "put"):
         step = getattr(task, field)
         if step is None:
@@ -313,6 +355,10 @@ def _build_context(blueprint: Blueprint, source: SourceMap) -> SimulationContext
         )
     for name, value in blueprint.variables.items():
         context.add_variable(name, value)
+    for name in blueprint.signals:
+        context.add_signal(name)
+    # A YAML task's function takes the context after its id, also in a child flow
+    context._task_args = (context,)
     for name, dist in blueprint.services.items():
         context.add_service(name, dist.dist, **dist.parameters())
     for name, arrival in blueprint.arrivals.items():
@@ -332,6 +378,11 @@ def _build_context(blueprint: Blueprint, source: SourceMap) -> SimulationContext
             put=None if task.put is None else task.put.transfer(),
             next=task.next_rules(),
             set=task.set,
+            wait=task.wait,
+            signal=task.signal,
+            fail=task.fail,
+            fail_reason=task.fail_reason,
+            on_fail=task.on_fail,
         )(_payload(task.payload, task.id_field, task.attributes, task.item_field))
         for name, task in blueprint.tasks.items()
     }

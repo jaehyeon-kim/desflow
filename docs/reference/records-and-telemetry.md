@@ -85,14 +85,15 @@ def readings(context: SimulationContext):
 | started | `{"path_id": "<sim_id>.service.<service>", "status": "started"}` |
 | finished | exactly what the task returns, or the YAML `payload` |
 
-A run that is not served publishes one other event in place of `started` and finished:
+A run that is not served, or fails, publishes one other event in place of its finished event:
 
 | Event | When | `value` |
 |---|---|---|
 | balked | its `balk` condition held, so it never joined the queue and publishes no `queued` | `{"path_id": ..., "status": "balked"}` |
-| reneged | its `patience` ran out before a unit was granted; it left the queue at that moment | `{"path_id": ..., "status": "reneged"}` |
+| reneged | its `patience` ran out before it was served; it left the queue at that moment | `{"path_id": ..., "status": "reneged"}` |
+| failed | its `fail` condition held, its wait failed, or its function raised | `{"path_id": ..., "status": "failed", "reason": ...}` |
 
-With statistics at `basic` or above, each is counted as `<sim_id>.stats.tasks.<task>.balked` and `.reneged`, published once the first one happens. [Patience](../tutorials/patience.md) shows both.
+With statistics at `basic` or above, each is counted as `<sim_id>.stats.tasks.<task>.balked`, `.reneged` and `.failed`, published once the first one happens, and a flow that ends in a failure as `<sim_id>.stats.flows.<arrival>.failed`. [Patience](../tutorials/patience.md) shows balking and reneging, and [Tasks and Processes](../user-guide/tasks-and-processes.md#failures) failures. A failed task publishes `started` before its failure when it got that far, and a task with a `wait` publishes `queued` when the wait starts.
 
 A task with no service has `{"status": ...}` without `path_id`. A timed step, with a service and no resource, publishes no `queued`. A task with no service, resource or `get` publishes only the finished event, as soon as it starts. The key is the arrival's name and a counter from 1, such as `orders-1`, on every event of every task the entity passes through; [Task Flow](../user-guide/task-flow.md#entity-key) describes it. A low-level process publishes whatever it passes to `env.publish_event(key, value, task=..., instance=...)`.
 

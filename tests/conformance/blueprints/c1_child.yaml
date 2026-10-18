@@ -1,0 +1,29 @@
+# An order at 10 starts the child flow inspect, then label, and waits for it; the
+# flow ends at 14 and its last payload routes the order to ship.
+# See test_c1_process_interaction.py.
+simulation:
+  sim_id: C1
+  factor: 0
+services:
+  inspecting: {dist: constant, value: 4}
+arrivals:
+  orders: {dist: constant, value: 10, spawn: order}
+tasks:
+  order:
+    wait: {task: inspect}
+    payload: {event: inspected}
+    next:
+      when: [{condition: wait.inspect.value.grade == "A", task: ship}]
+      default: rework
+  inspect:
+    service: inspecting
+    payload: {grade: B}
+    next: label
+  label:
+    payload: {grade: A}
+  ship:
+    payload: {event: shipped}
+  rework:
+    payload: {event: reworked}
+run:
+  until: 15

@@ -26,9 +26,13 @@ class BaseDynamicResource:
             self._stats.add(self._category, self.obj_id, self)
 
     def _changed(self):
-        """Tells the statistics that a reading changed, so time averages stay exact."""
+        """Tells the statistics that a reading changed, so time averages stay exact,
+        and the environment, so waits on a shared condition check it again."""
         if self._stats is not None:
             self._stats.changed(self._category, self.obj_id)
+        notify = getattr(self.env, "notify_change", None)
+        if notify is not None:
+            notify()
 
     def _watch_capacity(self):
         while True:

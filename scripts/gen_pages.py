@@ -69,6 +69,8 @@ MEANINGS: Dict[str, str] = {
     "tasks.service_p95": "the service time 95% of instances stay under",
     "tasks.service_p99": "the service time 99% of instances stay under",
     "flows.finished": "entities that left the model, by the arrival that started them",
+    "flows.failed": "entities whose flow ended in a failure no `on_fail` handled; published once one does",
+    "tasks.failed": "instances that failed: their `fail` held, their function raised or their wait failed; published once one does",
 }
 
 
@@ -176,6 +178,9 @@ def statistic_names() -> Dict[str, List[str]]:
         env.stats.task_balked("<task>", 1)
         env.stats.task_queued("<task>", 2)
         env.stats.task_reneged("<task>", 2)
+        env.stats.task_queued("<task>", 3)
+        env.stats.task_failed("<task>", 3)
+        env.stats.flow_failed("<arrival>")
         env.stats.flow_finished("<arrival>")
         names[level] = list(env.stats.readings())
         env.teardown()

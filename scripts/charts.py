@@ -415,6 +415,30 @@ def filtered_outcomes() -> None:
     _save(fig, "filtered-outcomes")
 
 
+def courier_shares() -> None:
+    """Process Interaction: orders sent by courier and by post, for limits of 5 and
+    8 minutes."""
+    import logging
+
+    module = _module("process_interaction")
+    logging.getLogger("desflow").setLevel(logging.WARNING)
+    limits = (300, 480)
+    results = [module.outcomes(limit) for limit in limits]
+    fig, ax = plt.subplots(figsize=(WIDTH, HEIGHT))
+    labels = [f"limit {limit // 60} min" for limit in limits]
+    courier = [r["by_courier"] for r in results]
+    post = [r["by_post"] for r in results]
+    ax.bar(labels, courier, 0.5, color=BLUE, label="by courier")
+    ax.bar(labels, post, 0.5, bottom=courier, color=ORANGE, label="by post")
+    for i, (c, p) in enumerate(zip(courier, post)):
+        ax.text(i, c / 2, str(c), ha="center", color="white")
+        ax.text(i, c + p / 2, str(p), ha="center")
+    ax.set_ylabel("orders in 8 hours")
+    ax.set_title("A courier every 10 minutes")
+    ax.legend(frameon=False, loc="upper left", bbox_to_anchor=(1, 1))
+    _save(fig, "courier-shares")
+
+
 def distribution_shapes() -> None:
     """Arrivals and Services: 200,000 draws from each distribution family, with the
     parameters of the examples on the page."""
@@ -473,6 +497,7 @@ CHARTS: Dict[str, Callable[[], None]] = {
     "priorities-wait": priorities_wait,
     "patience-waits": patience_waits,
     "filtered-outcomes": filtered_outcomes,
+    "courier-shares": courier_shares,
     "stock-level": stock_level,
     "trusting-warmup": trusting_warmup,
     "measuring-queue": measuring_queue,

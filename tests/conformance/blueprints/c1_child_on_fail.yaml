@@ -1,0 +1,24 @@
+# An order at 10 waits for the child flow inspect, which fails at 14 with the
+# reason scratched; repair handles the failure, so the order resumes.
+# See test_c1_process_interaction.py.
+simulation:
+  sim_id: C1
+  factor: 0
+services:
+  inspecting: {dist: constant, value: 4}
+arrivals:
+  orders: {dist: constant, value: 10, spawn: order}
+tasks:
+  order:
+    wait: {task: inspect}
+    payload: {event: inspected}
+  inspect:
+    service: inspecting
+    payload: {grade: B}
+    fail: t >= 0
+    fail_reason: scratched
+    on_fail: repair
+  repair:
+    payload: {event: repaired}
+run:
+  until: 15

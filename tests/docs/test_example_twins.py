@@ -155,6 +155,11 @@ def _patience(m, env, sampler):
     return m.processes(env, sampler, m.build(env))
 
 
+def _interaction(m, env, sampler):
+    env.setup_stats("Shop", "basic", interval=60.0)
+    return m.processes(env, sampler, m.build(env, sampler))
+
+
 def _measuring(m, env, sampler):
     env.setup_stats("Shop", "all", interval=300)
     return _built(m, env, sampler)
@@ -182,6 +187,7 @@ EXAMPLE_CASES = [
     ("measuring", "measuring.yaml", None, 1200, _measuring),
     ("patience", "patience.yaml", None, 120, _patience),
     ("filtered_inventory", "filtered_inventory.yaml", None, 120, _patience),
+    ("process_interaction", "process_interaction.yaml", None, 300, _interaction),
 ]
 
 

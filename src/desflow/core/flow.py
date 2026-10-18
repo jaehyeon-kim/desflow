@@ -22,6 +22,8 @@ def make_scope(
     env: Any = None,
     levels: Optional[Mapping[str, Any]] = None,
     item: Any = None,
+    waits: Optional[Mapping[str, Mapping[str, Any]]] = None,
+    signals: Optional[Mapping[str, Any]] = None,
 ) -> Scope:
     """
     Builds what an expression's names read.
@@ -33,6 +35,8 @@ def make_scope(
         env: The environment, for `registry[...]` and `t`.
         levels: Stores and containers by name, for `level`.
         item: The item a store get took, for `item`.
+        waits: The task's wait branches, for `wait`.
+        signals: Signals by name, for `signal`.
 
     Returns:
         Scope: The scope.
@@ -46,6 +50,8 @@ def make_scope(
         registry=None if env is None else env.registry,
         now=0.0 if env is None else env.now,
         item=item,
+        waits=waits or {},
+        signals=signals or {},
     )
 
 
@@ -146,6 +152,7 @@ class Router:
         env: Any = None,
         levels: Optional[Mapping[str, Any]] = None,
         item: Any = None,
+        scope: Optional[Scope] = None,
     ) -> Optional[str]:
         """
         Returns the next task's name, or None when the flow ends.
@@ -155,6 +162,8 @@ class Router:
             env: The environment, for `registry[...]` and `t` in conditions.
             levels: Stores and containers by name, for `level.<name>`.
             item: The item the finished task's store get took, for `item.<field>`.
+            scope: What the conditions read, when the caller has built it; it
+                replaces the one built from the arguments above.
 
         Returns:
             Optional[str]: The next task, or None.
@@ -170,7 +179,8 @@ class Router:
             index = int(np.searchsorted(self._cumulative, self.rng.random(), "right"))
             return self._names[min(index, len(self._names) - 1)]
         if self._when:
-            scope = make_scope(upstream, env=env, levels=levels, item=item)
+            if scope is None:
+                scope = make_scope(upstream, env=env, levels=levels, item=item)
             for condition, task in self._when:
                 if condition.evaluate(scope):
                     return task
@@ -377,3 +387,96 @@ class Transfer:
         if callable(self.priority):
             return float(self.priority(task_id, payload_of(upstream)))
         return float(self.priority)
+
+
+# The kinds of branch a task's `wait` takes
+WAIT_KINDS = ("signal", "task", "timeout", "condition")
+
+
+class Wait:
+    """
+    What a task waits for before it queues for its resource: one branch, or any or
+    all of several.
+
+    The forms, in every API:
+
+    - one branch: `{"signal": "restocked"}`, `{"task": "inspect"}`,
+      `{"timeout": 30}` or `{"condition": "level.stock >= 5"}`, named after the
+      signal or task, or `timeout` or `condition`;
+    - `{"any": {name: branch, ...}}`: done when the first branch is, as SimPy's
+      `AnyOf`;
+    - `{"all": {name: branch, ...}}`: done when every branch is, as SimPy's `AllOf`.
+
+    A `task` branch starts that task for the same entity and waits for its flow to
+    end; its value is the last task's finished payload. A `timeout` takes seconds or
+    a duration such as `"5 min"`.
+
+    Attributes:
+        mode (str): `any` or `all`.
+        branches (Dict[str, Tuple[str, Any]]): Branch name to its kind and target:
+            a name, seconds, or a parsed `Expression`.
+    """
+
+    def __init__(self, spec: Mapping[str, Any]):
+        """
+        Checks the wait and parses its conditions.
+
+        Args:
+            spec: The wait, in one of the forms above.
+
+        Raises:
+            ValueError: If the form, a branch or a condition is malformed.
+        """
+        if not isinstance(spec, Mapping) or len(spec) != 1:
+            raise ValueError(
+                f"wait takes one branch, or any or all of named branches, got {spec!r}"
+            )
+        ((key, value),) = spec.items()
+        self.branches: Dict[str, Tuple[str, Any]] = {}
+        if key in ("any", "all"):
+            self.mode = key
+            if not isinstance(value, Mapping) or not value:
+                raise ValueError(f"wait.{key} takes a mapping of named branches")
+            for name, branch in value.items():
+                self.branches[str(name)] = _wait_branch(branch)
+        else:
+            self.mode = "any"
+            kind, target = _wait_branch(spec)
+            name = target if kind in ("signal", "task") else kind
+            self.branches[name] = (kind, target)
+
+    def targets(self, kind: str) -> Set[str]:
+        """The signals or tasks the branches name."""
+        return {target for k, target in self.branches.values() if k == kind}
+
+    @property
+    def conditions(self) -> List[Expression]:
+        """The parsed conditions of the `condition` branches."""
+        return [target for k, target in self.branches.values() if k == "condition"]
+
+
+def _wait_branch(branch: Any) -> Tuple[str, Any]:
+    """One branch of a wait, as its kind and its checked target."""
+    from desflow.utils import time_to_seconds
+
+    if not isinstance(branch, Mapping) or len(branch) != 1:
+        raise ValueError(
+            f"a wait branch is one of {', '.join(WAIT_KINDS)}, got {branch!r}"
+        )
+    ((kind, target),) = branch.items()
+    if kind not in WAIT_KINDS:
+        raise ValueError(
+            f"a wait branch is one of {', '.join(WAIT_KINDS)}, got '{kind}'"
+        )
+    if kind == "timeout":
+        seconds = time_to_seconds(target) if isinstance(target, str) else target
+        if isinstance(seconds, bool) or not isinstance(seconds, (int, float)):
+            raise ValueError(f"a wait timeout is seconds or a duration, got {target!r}")
+        if seconds < 0:
+            raise ValueError(f"a wait timeout must be 0 or more, got {target!r}")
+        return kind, float(seconds)
+    if kind == "condition":
+        return kind, Expression(target)
+    if not isinstance(target, str):
+        raise ValueError(f"a wait {kind} branch names a {kind}, got {target!r}")
+    return kind, target

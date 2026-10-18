@@ -10,7 +10,7 @@ and YAML tasks do it for you, and low-level code calls the same three methods.
 | Level | Adds |
 |---|---|
 | `minimal` | resource `capacity`, `in_use`, `queue_length`, `utilization`; store and container `capacity`, `level`, `getters_waiting`, `putters_waiting` |
-| `basic` | task and flow `finished`; task `balked` and `reneged`, once one happens; resource `utilization_avg`, `queue_length_avg`; store and container `level_avg` |
+| `basic` | task and flow `finished`; task `balked`, `reneged` and `failed`, and flow `failed`, once one happens; resource `utilization_avg`, `queue_length_avg`; store and container `level_avg` |
 | `typical` | task `wait_mean`, `wait_max`, `service_mean`, `service_max` |
 | `all` | task `wait_p50`, `wait_p95`, `wait_p99`, `service_p50`, `service_p95`, `service_p99` |
 
@@ -77,6 +77,7 @@ class _Task:
         self.finished = 0
         self.balked = 0
         self.reneged = 0
+        self.failed = 0
         self.wait = _Observations(keep)
         self.service = _Observations(keep)
 
@@ -141,6 +142,7 @@ class Statistics:
         self._averages: Dict[Tuple[str, str], Dict[str, _TimeAverage]] = {}
         self._tasks: Dict[str, _Task] = {}
         self._flows: Dict[str, int] = {}
+        self._failed_flows: Dict[str, int] = {}
         # (task, instance) to the times it was queued and started
         self._in_flight: Dict[Tuple[str, Hashable], List[Optional[float]]] = {}
 
@@ -275,6 +277,32 @@ class Statistics:
         if self._rank >= _BASIC:
             self._task(task).reneged += 1
 
+    def task_failed(self, task: str, instance: Hashable) -> None:
+        """
+        Records that a task instance failed: its `fail` held, its function raised,
+        or its wait failed.
+
+        Its waiting record is cleared, and it adds no service time. It is counted at
+        `basic`.
+
+        Args:
+            task: The task's name.
+            instance: Its instance id.
+        """
+        self._in_flight.pop((task, instance), None)
+        if self._rank >= _BASIC:
+            self._task(task).failed += 1
+
+    def flow_failed(self, flow: str) -> None:
+        """
+        Records that an entity's flow ended in a failure no `on_fail` handled.
+
+        Args:
+            flow: The arrival that started the entity.
+        """
+        if self._rank >= _BASIC:
+            self._failed_flows[flow] = self._failed_flows.get(flow, 0) + 1
+
     def flow_finished(self, flow: str) -> None:
         """
         Records that an entity left the model: its last task had no next task.
@@ -299,6 +327,7 @@ class Statistics:
         keep = self._rank >= _ALL
         self._tasks = {name: _Task(keep) for name in self._tasks}
         self._flows = {name: 0 for name in self._flows}
+        self._failed_flows = {name: 0 for name in self._failed_flows}
 
     def readings(self) -> Dict[str, Any]:
         """
@@ -331,7 +360,7 @@ class Statistics:
             values[f"{base}.finished"] = task.finished
             # Published once one happens, so a task without patience or a balk
             # condition publishes neither
-            for outcome in ("balked", "reneged"):
+            for outcome in ("balked", "reneged", "failed"):
                 if getattr(task, outcome):
                     values[f"{base}.{outcome}"] = getattr(task, outcome)
             for kind, observed in (("wait", task.wait), ("service", task.service)):
@@ -345,6 +374,9 @@ class Statistics:
                         values[f"{base}.{kind}_p{percent}"] = float(point)
         for flow, finished in self._flows.items():
             values[f"{prefix}.flows.{flow}.finished"] = finished
+        for flow, failed in self._failed_flows.items():
+            if failed:
+                values[f"{prefix}.flows.{flow}.failed"] = failed
         return values
 
     def publish(self) -> None:
