@@ -223,12 +223,12 @@ Two designs run with different seeds differ by the design and by chance, and the
     === "Builder"
 
         ```python title="docs/snippets/tutorials/comparing_designs.py"
-        """The Comparing Designs tutorial: does a fourth packer cut the mean wait? builder.
+        """The Comparing Designs tutorial: a fourth packer, builder.
 
         The busy hour of Trusting Results, run 20 times with three packers and 20 times with
         four, with the same seeds, and compared seed by seed. The study writes its artifacts
         and report to results/four-packers, and the script prints the comparison and the
-        check: python comparing_designs.py 2>/dev/null shows only those lines.
+        check.
         """
 
         import logging
@@ -236,9 +236,8 @@ Two designs run with different seeds differ by the design and by chance, and the
         from desflow import run_study
         from trusting_results import shop
 
-        logging.basicConfig(
-            level=logging.WARNING, format="%(levelname)s [%(asctime)s] %(message)s"
-        )
+        # The imported model logs at INFO; a study logs only its warnings
+        logging.getLogger("desflow").setLevel(logging.WARNING)
 
         STUDY = {
             "study": "four-packers",
@@ -288,12 +287,12 @@ Two designs run with different seeds differ by the design and by chance, and the
     === "Low-level"
 
         ```python title="docs/snippets/tutorials/comparing_designs_low_level.py"
-        """The Comparing Designs tutorial: does a fourth packer cut the mean wait? low-level.
+        """The Comparing Designs tutorial: a fourth packer, low-level.
 
         The busy hour of Trusting Results, run 20 times with three packers and 20 times with
         four, with the same seeds, and compared seed by seed. The study writes its artifacts
         and report to results/four-packers, and the script prints the comparison and the
-        check: python comparing_designs_low_level.py 2>/dev/null shows only those lines.
+        check.
         """
 
         import logging
@@ -301,9 +300,8 @@ Two designs run with different seeds differ by the design and by chance, and the
         from desflow import LowLevelModel, run_study
         from trusting_results_low_level import WARMUP, model
 
-        logging.basicConfig(
-            level=logging.WARNING, format="%(levelname)s [%(asctime)s] %(message)s"
-        )
+        # The imported model logs at INFO; a study logs only its warnings
+        logging.getLogger("desflow").setLevel(logging.WARNING)
 
         STUDY = {
             "study": "four-packers",

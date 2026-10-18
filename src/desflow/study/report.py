@@ -201,11 +201,12 @@ def build_report(folder: Union[str, Path]) -> str:
     )
     lines.append("")
     lines += _table(
-        ["Design", "Measure", "Mean", "Half-width", "Interval", "n"],
+        ["Design", "Measure", "Population", "Mean", "Half-width", "Interval", "n"],
         [
             [
                 r["design"],
                 f"`{r['statistic']}`",
+                r.get("population", ""),
                 _number(r["mean"]),
                 _number(r["half_width"]),
                 _interval(r),

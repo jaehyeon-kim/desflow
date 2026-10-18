@@ -12,7 +12,8 @@ import pytest
 from desflow import SimulationContext
 
 ROOT = Path(__file__).resolve().parents[2]
-# Study files sit beside the blueprints they name; they are studies, not models
+# Study files sit beside the blueprints they name; they are studies, not models, and
+# the tutorial tests run them
 STUDIES = sorted((ROOT / "docs" / "snippets" / "yaml").glob("*_study.yaml"))
 SNIPPETS = sorted(
     set((ROOT / "docs" / "snippets" / "yaml").glob("*.yaml")) - set(STUDIES)
@@ -30,14 +31,6 @@ def test_snippet_builds_and_runs(path, monkeypatch, tmp_path):
     app = SimulationContext.from_yaml(path)
     app.factor = 0.0
     app.run(until=200)
-
-
-@pytest.mark.parametrize("path", STUDIES, ids=[p.name for p in STUDIES])
-def test_study_snippet_loads(path):
-    """Each study file is valid; the tutorial tests run them."""
-    from desflow.study import load_study
-
-    load_study(path)
 
 
 BUILD_ONLY = sorted((ROOT / "docs" / "snippets" / "yaml_build").glob("*.yaml"))

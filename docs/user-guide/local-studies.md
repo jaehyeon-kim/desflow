@@ -61,7 +61,7 @@ limits:
 output: results/packers
 ```
 
-In Python the same settings are a mapping, with the model given as a function or a `LowLevelModel` rather than a path. These are every setting:
+In Python the same settings are a mapping, and the model is a blueprint path, a builder factory or a `LowLevelModel`. These are every setting:
 
 | Setting | What it sets | Default |
 |---|---|---|
@@ -169,7 +169,8 @@ A check whose measure is not in `measures` is refused. The study writes every fi
 
 | Statistic | Unit | Population |
 |---|---|---|
-| `wait_*` and `service_*` of a task | `s` | `completed instances` |
+| `wait_*` of a task, recorded when an instance starts work | `s` | `started instances` |
+| `service_*` of a task, recorded when an instance finishes | `s` | `finished instances` |
 | `utilization` and `utilization_avg` | `percent` | `end of run` and `time average` |
 | other `*_avg`, such as `queue_length_avg` | `count`, or `amount` for a container | `time average` |
 | task and flow counts, such as `finished` | `count` | `count over the horizon` |
@@ -184,15 +185,15 @@ A study writes six files to its output folder:
 | File | Holds |
 |---|---|
 | `study.json` | the settings, the question, assumptions, inputs and limits; the model's source and its SHA-256, its sim id and its compiled parameters; desflow, SimPy, NumPy and Python versions; each design's registry values, seeds and the streams each run drew from; the counts' names; the observed comparison |
-| `results.csv` | one row per design, replication and statistic: `design`, `variant`, a column per swept path, `replication`, `seed`, `statistic`, `kind` (`measure` or `count`) and `value` |
-| `summary.csv` | one row per design and statistic: `n`, `mean`, `half_width`, `low`, `high` and `level` |
+| `results.csv` | one row per design, replication and statistic: `design`, `variant`, a column per swept path, `replication`, `seed`, `statistic`, `kind` (`measure` or `count`), `unit`, `population` and `value` |
+| `summary.csv` | one row per design and statistic: `unit`, `population`, `n`, `mean`, `half_width`, `low`, `high` and `level` |
 | `comparisons.csv` | one row per compared pair, sweep point and measure: both means, `difference`, `half_width`, `low`, `high`, and the streams in `streams_both`, `streams_baseline_only` and `streams_variant_only` |
 | `checks.csv` | one row per check, design and bound: `on`, `bound`, `limit`, the checked `value` and `passed` |
 | `report.md` | the report, built from the five files above |
 
 ### Read the Report
 
-`report.md` has these sections, and one with nothing to report says so: Question, Model, Assumptions, Inputs and Provenance (every distribution of the model with its parameters, and its provenance from `inputs` or "not stated"), Run Settings, Counts (the mean of each count the statistics publish, such as finished orders, for each design), Results, Comparisons, Checks, Observed Comparison, Limits and Missing Inputs. Missing Inputs names what the study does not state, such as an input without a provenance, rather than filling it in. This is the middle of the example's report:
+`report.md` has these sections, and one with nothing to report says so: Question, Model, Assumptions, Inputs and Provenance (every distribution of the model with its parameters, and its provenance from `inputs` or "not stated"), Run Settings, Counts (the mean of each count the statistics publish, such as finished orders, for each design), Results (with the population each measure is taken over), Comparisons, Checks, Observed Comparison, Limits and Missing Inputs. Missing Inputs names what the study does not state, such as an input without a provenance, rather than filling it in. This is the middle of the example's report:
 
 <!-- records: study-report -->
 ```text
@@ -200,12 +201,12 @@ A study writes six files to its output folder:
 
 Each measure's mean over the replications, with its 95% confidence interval.
 
-| Design | Measure | Mean | Half-width | Interval | n |
-|---|---|---|---|---|---|
-| two | `tasks.pack.wait_mean` | 4.872 | 0.5493 | 4.323 to 5.422 | 20 |
-| two | `resources.packers.utilization_avg` | 80.56 | 1.034 | 79.53 to 81.59 | 20 |
-| three | `tasks.pack.wait_mean` | 0.5389 | 0.05297 | 0.4859 to 0.5919 | 20 |
-| three | `resources.packers.utilization_avg` | 53.74 | 0.6803 | 53.06 to 54.42 | 20 |
+| Design | Measure | Population | Mean | Half-width | Interval | n |
+|---|---|---|---|---|---|---|
+| two | `tasks.pack.wait_mean` | started instances | 4.872 | 0.5493 | 4.323 to 5.422 | 20 |
+| two | `resources.packers.utilization_avg` | time average | 80.56 | 1.034 | 79.53 to 81.59 | 20 |
+| three | `tasks.pack.wait_mean` | started instances | 0.5389 | 0.05297 | 0.4859 to 0.5919 | 20 |
+| three | `resources.packers.utilization_avg` | time average | 53.74 | 0.6803 | 53.06 to 54.42 | 20 |
 
 ## Comparisons
 

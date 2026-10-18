@@ -420,9 +420,11 @@ def run_study(
         StudyResult: What the study found.
 
     Raises:
-        BlueprintError: If the study file is invalid, naming the file and line.
+        BlueprintError: If the study file is invalid, or the model or observed file
+            it names does not exist, naming the file and line.
         ValueError: If the settings are invalid, a variant sets a path the model
-            does not have, or the observed values do not match the measures.
+            does not have, or the observed values do not match the measures; for
+            settings given as a mapping, also a missing model or observed file.
         CheckFailed: If a check failed and `raise_on_failure` is True.
     """
     from desflow.study import results as found
@@ -446,6 +448,15 @@ def run_study(
     model = settings.model
     if isinstance(model, str):
         model = str((folder / model).resolve())
+        if not Path(model).is_file():
+            raise located(("model",), f"model {settings.model}: no such file")
+    if settings.observed is not None:
+        observed_file = folder / settings.observed.file
+        if not observed_file.is_file():
+            raise located(
+                ("observed", "file"),
+                f"observed file {settings.observed.file}: no such file",
+            )
 
     parameters = inspect_model(model, {})
     for name in settings.inputs:

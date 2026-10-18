@@ -31,9 +31,10 @@ COMPARISONS_FILE = "comparisons.csv"
 CHECKS_FILE = "checks.csv"
 REPORT_FILE = "report.md"
 
-# The unit and the population of each statistic, read from its name. A wait or a
-# service is measured on the instances that completed it; a time average over the
-# horizon; a count over the horizon; any other reading at the end of the run.
+# The unit and the population of each statistic, read from its name. A wait is
+# measured on the instances that started work, a service on those that finished; a
+# time average over the horizon; a count over the horizon; any other reading at the
+# end of the run.
 _DURATION = re.compile(r"\.(wait|service)_(mean|max|p\d+)$")
 _AVERAGE = re.compile(r"_avg$")
 _PERCENT = re.compile(r"\.utilization(_avg)?$")
@@ -63,10 +64,12 @@ def unit_of(measure: str) -> str:
 
 
 def population_of(measure: str) -> str:
-    """What a statistic is measured on: `completed instances`, `time average`,
-    `count over the horizon` or `end of run`."""
+    """What a statistic is measured on: `started instances` for a wait, which is
+    recorded when an instance starts work; `finished instances` for a service,
+    recorded when it finishes; `time average`; `count over the horizon`; or
+    `end of run`."""
     if _DURATION.search(measure):
-        return "completed instances"
+        return "started instances" if ".wait_" in measure else "finished instances"
     if _AVERAGE.search(measure):
         return "time average"
     if measure.split(".")[0] in ("tasks", "flows"):
@@ -167,6 +170,8 @@ def result_rows(
                         "seed": seed,
                         "statistic": name,
                         "kind": "measure" if name in measures else "count",
+                        "unit": unit_of(name),
+                        "population": population_of(name),
                         "value": value,
                     }
                 )
@@ -198,6 +203,8 @@ def summary_rows(
                     "variant": design.variant,
                     **design.point,
                     "statistic": name,
+                    "unit": unit_of(name),
+                    "population": population_of(name),
                     "n": result.n,
                     "mean": result.mean,
                     "half_width": result.half_width,
@@ -412,9 +419,9 @@ def columns(spec_sweep: Sequence[str], kind: str) -> List[str]:
     sweep = list(spec_sweep)
     return {
         RESULTS_FILE: ["design", "variant", *sweep, "replication", "seed"]
-        + ["statistic", "kind", "value"],
-        SUMMARY_FILE: ["design", "variant", *sweep, "statistic", "n", "mean"]
-        + ["half_width", "low", "high", "level"],
+        + ["statistic", "kind", "unit", "population", "value"],
+        SUMMARY_FILE: ["design", "variant", *sweep, "statistic", "unit"]
+        + ["population", "n", "mean", "half_width", "low", "high", "level"],
         COMPARISONS_FILE: ["baseline", "variant", *sweep, "measure", "n"]
         + ["baseline_mean", "variant_mean", "difference", "half_width", "low"]
         + ["high", "level", "streams_both", "streams_baseline_only"]

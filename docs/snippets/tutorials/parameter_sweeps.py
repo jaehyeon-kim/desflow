@@ -1,9 +1,8 @@
-"""The Parameter Sweeps tutorial: how much does the mean wait depend on demand? builder.
+"""The Parameter Sweeps tutorial: the wait at four arrival rates, builder.
 
 The busy hour of Trusting Results with three packers and with four, each at four
 arrival rates, run 20 times with the same seeds. The study writes its artifacts and
-report to results/demand, and the script prints each design's mean wait:
-python parameter_sweeps.py 2>/dev/null shows only those lines.
+report to results/demand, and the script prints each design's mean wait.
 """
 
 import logging
@@ -11,9 +10,8 @@ import logging
 from desflow import run_study
 from trusting_results import shop
 
-logging.basicConfig(
-    level=logging.WARNING, format="%(levelname)s [%(asctime)s] %(message)s"
-)
+# The imported model logs at INFO; a study logs only its warnings
+logging.getLogger("desflow").setLevel(logging.WARNING)
 
 STUDY = {
     "study": "demand",

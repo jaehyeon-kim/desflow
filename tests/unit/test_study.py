@@ -1,6 +1,5 @@
 """Local studies: designs, pairing, comparisons, checks, observed values and the report."""
 
-import shutil
 from pathlib import Path
 from typing import Optional
 
@@ -21,7 +20,6 @@ from desflow.blueprint.cli import app as cli
 from desflow.blueprint.loader import BlueprintError
 from desflow.study import results as found
 from desflow.study.models import RunResult
-from desflow.study.report import build_report
 from desflow.study.spec import StudySpec
 
 SHOP = """\
@@ -214,7 +212,7 @@ def test_a_paired_interval_matches_a_hand_calculation(tmp_path):
     assert row["streams_both"] == "s" and row["streams_variant_only"] == ""
 
 
-def test_stream_alignment_is_reported():
+def test_stream_alignment_is_reported(tmp_path):
     """A variant that draws from a stream the baseline never uses names it."""
     result = run_study(
         _settings(
@@ -222,14 +220,13 @@ def test_stream_alignment_is_reported():
             variants={"base": {}, "wrap": {"Shop.variables.wrap": 1}},
             compare=[{"baseline": "base", "variant": "wrap"}],
             checks=[],
-            output=None,
+            output=str(tmp_path / "o"),
         ),
     )
     row = result.comparisons[0]
     assert row["streams_variant_only"] == "service.wrapping"
     assert row["streams_both"] == "arrival.orders;service.packing"
     assert "only the variant: service.wrapping" in result.report
-    shutil.rmtree(result.output)
 
 
 def test_independent_pairing_spawns_seeds_per_design():
@@ -285,10 +282,10 @@ OBSERVED = "measure,value,unit,population,horizon\n{}\n"
 @pytest.mark.parametrize(
     "row,error",
     [
-        ("tasks.pack.wait_mean,4.5,min,completed instances,27 min", "is in s"),
+        ("tasks.pack.wait_mean,4.5,min,started instances,27 min", "is in s"),
         ("tasks.pack.wait_mean,4.5,s,all orders,27 min", "is measured on"),
-        ("tasks.pack.wait_mean,4.5,s,completed instances,30 min", "horizon is 1800"),
-        ("tasks.pack.service_mean,4,s,completed instances,27 min", "not one of"),
+        ("tasks.pack.wait_mean,4.5,s,started instances,30 min", "horizon is 1800"),
+        ("tasks.pack.service_mean,4,s,finished instances,27 min", "not one of"),
     ],
 )
 def test_observed_values_must_match_the_measure(folder, row, error):
@@ -300,7 +297,7 @@ def test_observed_values_must_match_the_measure(folder, row, error):
 
 def test_an_observed_value_is_placed_against_the_interval(folder):
     rows = (
-        "tasks.pack.wait_mean,4.5,s,completed instances,27 min\n"
+        "tasks.pack.wait_mean,4.5,s,started instances,27 min\n"
         "resources.packers.utilization_avg,95,percent,time average,1620"
     )
     (folder / "observed.csv").write_text(OBSERVED.format(rows))
@@ -312,6 +309,13 @@ def test_an_observed_value_is_placed_against_the_interval(folder):
         "resources.packers.utilization_avg": False,
     }
     assert "No observed values are given" not in result.report
+    row = next(r for r in result.summary if r["statistic"] == "tasks.pack.wait_mean")
+    assert (row["unit"], row["population"]) == ("s", "started instances")
+    assert "| base | `tasks.pack.wait_mean` | started instances |" in result.report
+    header = (folder / "results" / "packers" / "results.csv").read_text().split("\n")[0]
+    assert (
+        header == "design,variant,replication,seed,statistic,kind,unit,population,value"
+    )
 
 
 def test_the_report_names_missing_inputs_and_rebuilds_the_same(folder):
@@ -432,9 +436,22 @@ def test_a_python_reference_names_a_builder_factory(folder):
     }
 
 
-def test_build_report_needs_a_study_folder(tmp_path):
-    with pytest.raises(FileNotFoundError):
-        build_report(tmp_path)
+def test_report_needs_a_study_folder(tmp_path):
+    run = CliRunner().invoke(cli, ["report", str(tmp_path)])
+    assert run.exit_code == 2 and "study.json" in run.output
+
+
+def test_a_missing_model_or_observed_file_is_an_invalid_study(folder):
+    """Both exit 2, the status of an invalid study, naming the line of the key."""
+    study = folder / "study.yaml"
+    study.write_text(STUDY.replace("model: shop.yaml", "model: shops.yaml"))
+    run = CliRunner().invoke(cli, ["study", str(study)])
+    assert run.exit_code == 2
+    assert "study.yaml:3: model shops.yaml: no such file" in run.output
+    study.write_text(STUDY + "observed: {file: observed.csv}\n")
+    run = CliRunner().invoke(cli, ["study", str(study)])
+    assert run.exit_code == 2
+    assert "study.yaml:15: observed file observed.csv: no such file" in run.output
 
 
 SHARED = SimParameter(
