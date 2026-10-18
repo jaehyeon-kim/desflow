@@ -1,0 +1,24 @@
+simulation:
+  sim_id: C4
+  factor: 0
+resources:
+  machine:
+    current_cap: 1
+    max_cap: 1
+services:
+  work:
+    dist: constant
+    value: 5
+arrivals:
+  jobs:
+    dist: constant
+    value: 2
+    spawn: work
+tasks:
+  work:
+    service: work
+    resource: machine
+    payload:
+      event_type: done
+run:
+  until: 13
