@@ -49,9 +49,10 @@ class _Capture(logging.Handler):
         self.lines: List[str] = []
 
     def emit(self, record: logging.LogRecord) -> None:
-        message = record.getMessage()
-        if message[:6] in ("[EVT] ", "[TEL] ", "[LBL] "):
-            self.lines.append(_TIMESTAMP.sub("'timestamp': '...'", message))
+        # ConsoleEgress logs a batch in one call, one line per record
+        for line in record.getMessage().split("\n"):
+            if line[:6] in ("[EVT] ", "[TEL] ", "[LBL] "):
+                self.lines.append(_TIMESTAMP.sub("'timestamp': '...'", line))
 
 
 def _capture(run: Callable[[], object]) -> List[str]:

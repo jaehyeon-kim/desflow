@@ -869,3 +869,27 @@ def test_cli_drain_runs_until_the_model_is_empty(tmp_path):
     assert app.env.now >= 30
     result = CliRunner().invoke(cli, ["run", str(path), "--drain"])
     assert result.exit_code == 0, result.output
+
+
+def test_lag_interval_in_a_blueprint_and_the_builder(tmp_path):
+    """No lag records at factor 0 by default; `simulation.lag_interval` and
+    `SimulationContext(lag_interval=)` publish them at that interval."""
+
+    def lags(app):
+        sink = _Capture()
+        app.add_egress(sink)
+        app.run(until=5)
+        return [
+            r["sim_ts"]
+            for r in sink.records
+            if r.get("path_id") == "system.simulation.lag_seconds"
+        ]
+
+    assert lags(SimulationContext.from_yaml(write(tmp_path, MINIMAL))) == []
+    text = MINIMAL.replace(
+        "  random_seed: 7\n", "  random_seed: 7\n  lag_interval: 2 s\n"
+    )
+    assert lags(SimulationContext.from_yaml(write(tmp_path, text))) == [0.0, 2.0, 4.0]
+    assert lags(SimulationContext("Shop", factor=0, lag_interval=2)) == [0.0, 2.0, 4.0]
+    with pytest.raises(ValueError, match="lag_interval must be 0 or more"):
+        SimulationContext("Shop", lag_interval=-1)

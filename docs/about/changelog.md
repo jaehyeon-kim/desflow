@@ -18,6 +18,8 @@ desflow matches SimPy operation by operation, in YAML, the builder and the low-l
 - Breakdowns: `resources.<name>.breakdown`, `add_breakdown` and `run_breakdowns` make a resource fail at random and be repaired, interrupting the work it was doing or letting it finish; each failure and repair publishes `down` and `repaired`, and the statistics count `resources.<name>.down`, `downtime` and `failures`. The Preemptive Breakdowns guide becomes [Breakdowns](../guides/breakdowns.md). See also [Resources](../user-guide/resources.md#breakdowns).
 - Schedules in every API: the builder's `add_scenario` and `add_step`, and the low-level `run_scenario`, take the same steps as a blueprint's `scenario`. See [Time-varying Arrivals](../guides/time-varying-arrivals.md) and [Changing Demand](../tutorials/changing-demand.md).
 - Replay: an arrival's `replay`, `add_arrival_replay` and the low-level `read_trace` take arrivals from the rows of a CSV or Parquet file, or a list of dicts, at their recorded times, with the row's fields as attributes. See [Local Replay](../tutorials/local-replay.md) and [Arrivals and Services](../user-guide/arrivals-and-services.md#replay).
+- Faster runs at `factor: 0`: SimPy's own step processes each event, a record's timestamp is formatted once per second of the clock, and `ConsoleEgress` logs a batch with one call. A low-level workload runs 1.14 times faster than in 0.21.0, and printing every record costs about a seventh of what it did. See [Performance Tuning](../guides/performance-tuning.md), whose measurements `benchmarks/throughput.py` repeats.
+- `simulation.lag_interval` and `SimulationContext(lag_interval=)` set how often `system.simulation.lag_seconds` is published. See [Time and Pacing](../user-guide/time-and-pacing.md#lag).
 
 ### Upgrading
 
@@ -29,6 +31,9 @@ desflow matches SimPy operation by operation, in YAML, the builder and the low-l
 - The built-in statistics publish new names: `tasks.<task>.in_progress` from `minimal`, and `flows.<arrival>.started` and `in_system` from `basic`. A low-level process that calls `env.stats.task_queued`, `task_started` and `task_finished` publishes `in_progress` too, and one that calls `flow_started` publishes the flow counts.
 - Events with the statuses `balked`, `reneged`, `failed`, `interrupted`, `preempted` and `resumed` reach the sinks, so a consumer that filters on `status` should expect them.
 - A scenario step now applies before every other event at its time, as SimPy applies its own `until`, so an arrival at the step's time draws its next gap from the new value; seeded runs whose steps fall on the time of another event can give other numbers.
+- At `factor: 0`, `system.simulation.lag_seconds` is no longer published unless `lag_interval` (low-level `lag_monitor_interval`) is set; a run that goes live publishes it from the go-live instant. At a `factor` above 0 it is published every simulation second, as before.
+- `ConsoleEgress` logs each batch with one call, one line per record, so the logging format's prefix starts each batch rather than each line. Code that reads the console log record by record splits each message into lines.
+- At `factor: 0`, `strict=True` is no longer checked, as there is no wall clock to fall behind.
 
 ## Version 0.21.0
 

@@ -1,16 +1,16 @@
 # Roadmap
 
-Releases come in the order shown, without dates: a release ships when it is ready. The timeline marks the release that is done, the work that is done in code and ships with the next release, the releases that follow, and the Learn section of the docs. Each links to its GitHub issue.
+Releases come in the order shown, without dates: a release ships when it is ready. The timeline lists released work, marked with a tick, then the work planned for the coming releases, in order, marked with a clock. Each item links to its GitHub issue.
 
 ## Now and next
 
 ::timeline::
 - title: Rename to desflow
-  content: 'Done in 0.20.0: install `desflow`, import `desflow` and run `desflow`.'
+  content: 'Done in 0.20.0: the package, its import name and its command are all `desflow`. The old `dynamic-des` names still work, with a warning, until a later release.'
   icon: ':material-check:'
   key: done
 - title: Distributions and seeds
-  content: 'Done in 0.21.0: more distributions, including one built from values taken from real data, each drawing from its own random stream, so adding an arrival leaves the other draws unchanged. desflow now needs Python 3.11 or later. [#42](https://github.com/jaehyeon-kim/desflow/issues/42)'
+  content: 'Done in 0.21.0: more distributions, including `empirical`, which draws from values measured in a real system. Each distribution draws from its own random stream, so adding an arrival leaves the other draws unchanged. desflow now needs Python 3.11 or later. [#42](https://github.com/jaehyeon-kim/desflow/issues/42)'
   icon: ':material-check:'
   key: done
 - title: Ingress messages
@@ -18,7 +18,7 @@ Releases come in the order shown, without dates: a release ships when it is read
   icon: ':material-check:'
   key: done
 - title: Stores, containers and priority
-  content: 'Done in 0.21.0: stores and containers used by tasks, with a choice of queue order and task priority. [#43](https://github.com/jaehyeon-kim/desflow/issues/43)'
+  content: 'Done in 0.21.0: tasks take items from stores and amounts from containers, and a resource serves its queue oldest first, newest first or by task priority. [#43](https://github.com/jaehyeon-kim/desflow/issues/43)'
   icon: ':material-check:'
   key: done
 - title: Flows
@@ -30,11 +30,11 @@ Releases come in the order shown, without dates: a release ships when it is read
   icon: ':material-check:'
   key: done
 - title: Native core parity
-  content: 'In 0.22.0: SimPy-equivalent modelling in all three ways to write a model, including waiting on events and processes, interrupts and preemption, competing resources, filtered inventory, run control, and reneging and balking. [#64](https://github.com/jaehyeon-kim/desflow/issues/64)'
+  content: 'In 0.22.0: the modelling features of SimPy in YAML, the builder and the low-level API, checked against SimPy: signals, interrupts, tasks needing several resources, filtered store gets, stopping and stepping a run, and customers who give up on a queue or never join it. [#64](https://github.com/jaehyeon-kim/desflow/issues/64)'
   icon: ':material-clock-outline:'
   key: planned
 - title: Breakdowns, changing demand and replay
-  content: 'In 0.22.0: a resource that fails and is repaired, a finite schedule that changes an arrival rate or a capacity, and replay of a local file as arrivals. [#65](https://github.com/jaehyeon-kim/desflow/issues/65)'
+  content: 'In 0.22.0: a resource that fails and is repaired, a schedule of times at which an arrival rate or a capacity changes, and arrivals read from a local CSV or Parquet file. [#65](https://github.com/jaehyeon-kim/desflow/issues/65)'
   icon: ':material-clock-outline:'
   key: planned
 - title: Replications
@@ -42,15 +42,15 @@ Releases come in the order shown, without dates: a release ships when it is read
   icon: ':material-clock-outline:'
   key: planned
 - title: Local studies
-  content: 'In 0.22.0: parameter sweeps, paired comparison, distribution fitting and a report, without a server. [#66](https://github.com/jaehyeon-kim/desflow/issues/66)'
+  content: 'In 0.22.0: compare designs and sweep parameters over replications, fail a study when a result breaks a limit, fit a distribution to measured data, and write a Markdown report, all on one machine. [#66](https://github.com/jaehyeon-kim/desflow/issues/66)'
   icon: ':material-clock-outline:'
   key: planned
 - title: Speed
-  content: 'In 0.22.0: faster runs without changing the published records. [#24](https://github.com/jaehyeon-kim/desflow/issues/24)'
+  content: 'In 0.22.0: faster runs that publish the same records. [#24](https://github.com/jaehyeon-kim/desflow/issues/24)'
   icon: ':material-clock-outline:'
   key: planned
 - title: Record contract
-  content: 'In 0.22.0: every record field documented with its type and format, the new event outcomes and statistics, reserved `__name__` payload keys, a `timezone` setting for timestamps, and `lag_seconds` off when a run is not paced. The format is frozen later, before 1.0. [#51](https://github.com/jaehyeon-kim/desflow/issues/51)'
+  content: 'In 0.22.0: every record field documented with its type and format, payload keys such as `__table__` reserved for desflow, a `timezone` setting for timestamps, and no `lag_seconds` from a run at full speed. The format is frozen before 1.0. [#51](https://github.com/jaehyeon-kim/desflow/issues/51)'
   icon: ':material-clock-outline:'
   key: planned
 - title: Blueprint schema and AI skill
@@ -58,11 +58,11 @@ Releases come in the order shown, without dates: a release ships when it is read
   icon: ':material-clock-outline:'
   key: planned
 - title: Downstream checks
-  content: 'With the blueprint schema: every change is tested against projects that use desflow, the benchtop data generators, before a release, and a test fails when a public name or signature changes. [#67](https://github.com/jaehyeon-kim/desflow/issues/67)'
+  content: 'With the blueprint schema: before a release, the tests of projects that use desflow, the benchtop data generators, run against the new version, and a test fails when a public class, function or argument is removed or changed. [#67](https://github.com/jaehyeon-kim/desflow/issues/67)'
   icon: ':material-clock-outline:'
   key: planned
 - title: desflow explain
-  content: 'Shows a simulation as a graph, says whether each part is stable, points to the bottleneck and suggests changes; and `desflow run --sample` prints a few records from a blueprint. [#47](https://github.com/jaehyeon-kim/desflow/issues/47)'
+  content: 'Shows a simulation as a graph, marks each resource OK, congested or unstable (its queue grows without limit), names the bottleneck and suggests changes. `desflow run --sample` prints a few records from a blueprint. [#47](https://github.com/jaehyeon-kim/desflow/issues/47)'
   icon: ':material-clock-outline:'
   key: planned
 - title: Learn section
@@ -81,7 +81,7 @@ The work after the Learn section, on the way to 1.0, in the order it is planned.
 
     ---
 
-    `desflow serve` runs simulations through a REST API: upload, start, stop, change parameters while a run is going and follow its events. Tools for AI agents (MCP) ship with it, or with the next server release, as an experimental part.
+    `desflow serve` runs simulations through a REST API: upload, start, stop, change parameters while a run is going and follow its events. MCP tools, which let an AI agent do the same, ship as an experimental part, in this release or the next server release.
 
     [#48](https://github.com/jaehyeon-kim/desflow/issues/48)
 
@@ -121,7 +121,7 @@ The work after the Learn section, on the way to 1.0, in the order it is planned.
 
     ---
 
-    A blueprint mapping with a `gen` key is refused, so the value generators planned after 1.0 do not change what a 1.0 blueprint means.
+    Before 1.0, a blueprint refuses a mapping with a `gen` key in a payload, a scenario value, a `record` field, a task's `set` or an arrival's `attributes`. After 1.0, `gen` marks a generated value, such as `{gen: uniform, ...}`, so no 1.0 blueprint can already use the key for something else.
 
     [#53](https://github.com/jaehyeon-kim/desflow/issues/53)
 
@@ -129,7 +129,7 @@ The work after the Learn section, on the way to 1.0, in the order it is planned.
 
     ---
 
-    A final review of the record format against what the server, the AI tools and the `gen` reservation added, then the format marked frozen, so it stays compatible across 1.x.
+    A final check of every record field, including those the server and the AI tools add, then the format is marked frozen: no 1.x release removes a field, renames it or changes its type.
 
     [#51](https://github.com/jaehyeon-kim/desflow/issues/51)
 

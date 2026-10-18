@@ -41,7 +41,7 @@ unpaced = DynamicRealtimeEnvironment(factor=0.0)  # takes no real time at all
 ```
 
 - `factor: 1.0` follows the wall clock: a process that waits 5 simulation seconds waits 5 real seconds. It suits a live twin feeding a dashboard.
-- `factor: 0` does not wait at all: the run goes as fast as the machine allows. It suits history, tests and experiments.
+- `factor: 0` does not wait at all: the run goes as fast as the machine allows. It suits history, tests and experiments. At `factor: 0` each event is processed by SimPy's own `Environment.step`, without the real-time arithmetic, and `strict` is not checked, as there is no wall clock to fall behind.
 
 ### Go Live
 
@@ -62,6 +62,32 @@ A sink with `when: history` receives the records stamped before `go_live_at`, an
 ![From logical_start_time to go_live_at the run writes history at factor 0 to Parquet; from go_live_at to the end it runs at one simulation second per real second and writes to Kafka](../assets/diagrams/backfill-timeline.png)
 
 [Parquet History, Kafka Live](../examples/backfill-live.md) builds such a run.
+
+### Lag
+
+At a `factor` above 0 the run follows the wall clock, and `system.simulation.lag_seconds` says how many seconds it is behind, as telemetry. `lag_interval` sets how often, in simulation seconds or a duration. By default it is every simulation second at a `factor` above 0, and off at `factor: 0`, where the run is meant to be ahead of the wall clock; a run at `factor: 0` that goes live starts it at the go-live instant. 0 turns it off:
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/environment.yaml:lag"
+    # Under simulation: how far the run is behind the wall clock, every 10 s; by
+    # default off at factor 0 and every second otherwise, and 0 turns it off
+    lag_interval: 10 s
+    ```
+
+=== "Builder"
+
+    ```python title="docs/snippets/pages/pacing.py:lag"
+    # system.simulation.lag_seconds every 10 simulation seconds; 0 turns it off
+    paced = SimulationContext(sim_id="Shop", factor=1.0, lag_interval="10 s")
+    ```
+
+=== "Low-level"
+
+    ```python title="docs/snippets/pages/pacing.py:low-level-lag"
+    # The low-level API sets it with the sinks; the default "auto" is off at factor 0
+    # env.setup_egress(sinks, lag_monitor_interval=10)
+    ```
 
 ### Warm-up
 
@@ -335,7 +361,7 @@ The `end-conditions` example: a drain after closing time, a stop when the boxes 
 - The **egress thread** runs the sinks' asyncio code, which drains the queues and writes to Kafka, files or databases, so network waits never stall a simulation step.
 - The **ingress thread** runs the sources, which put `(path, value)` pairs on a queue.
 
-**Processes it starts.** Besides your own, the environment starts an ingress monitor, which applies queued changes every 0.1 simulation seconds; a lag monitor, which publishes `system.simulation.lag_seconds` every simulation second; a timed flush per sink, at a `factor` above 0; the statistics timer; and the warm-up reset.
+**Processes it starts.** Besides your own, the environment starts an ingress monitor, which applies queued changes every 0.1 simulation seconds; a lag monitor, which publishes `system.simulation.lag_seconds` every `lag_interval`, at a `factor` above 0 or after going live; a timed flush per sink, at a `factor` above 0; the statistics timer; and the warm-up reset.
 
 **Pacing and the switch.** Before each event, `step` checks the logical clock. At the first event at or after `go_live_at`, it sets the factor to 1.0 and moves its two anchors, `env_start` and `real_start`, so the go-live instant counts as now; without that, the first paced event would sleep off the whole backfill. The switch happens once and always to 1.0. A `go_live_at` at or before `logical_start_time` paces the whole run, with a warning, and a run that ends before it stays unpaced. `go_live_at` and `logical_start_time` must both be naive or both timezone-aware, or the environment refuses them.
 
@@ -348,6 +374,6 @@ The `end-conditions` example: a drain after closing time, a stop when the boxes 
 ## Stability and Limits
 
 - **A run with a sink or ingress needs `until`**, or Ctrl+C, as Run Length explains.
-- **At `factor: 0`** no timed flush runs, so records leave a buffer when it reaches `batch_size` and at teardown, as [Egress](egress.md) explains. `LocalIngress` follows the wall clock, so its changes can land after an unpaced run has ended; a scenario follows the simulation clock. `system.simulation.lag_seconds` reports 0 while the run is ahead of the wall clock.
+- **At `factor: 0`** no timed flush runs, so records leave a buffer when it reaches `batch_size` and at teardown, as [Egress](egress.md) explains. `LocalIngress` follows the wall clock, so its changes can land after an unpaced run has ended; a scenario follows the simulation clock. No `system.simulation.lag_seconds` is published unless `lag_interval` is set, and it reports 0 while the run is ahead of the wall clock.
 - **`warmup` drops, `go_live_at` routes.** Records before a warm-up are gone; records before `go_live_at` go to the sinks that take history.
 - **A model slower than the wall clock** falls behind at `factor: 1.0` and does not catch up by skipping events; `lag_seconds` shows by how much.

@@ -24,7 +24,7 @@ async def test_local_ingress():
 
 @pytest.mark.asyncio
 async def test_console_egress(caplog):
-    """Verify ConsoleEgress pops from queue and formats to the logger."""
+    """ConsoleEgress logs each batch in one call, a line per record."""
     caplog.set_level(logging.INFO)
     egress_queue = queue.Queue()
     egress = ConsoleEgress()
@@ -44,8 +44,14 @@ async def test_console_egress(caplog):
     except asyncio.CancelledError:
         pass
 
-    assert "[TEL] {'path_id': 'test', 'value': 1}" in caplog.text
-    assert "[EVT] {'key': 'task-1', 'value': {'status': 'ok'}}" in caplog.text
+    # One log call for the batch, one line per record
+    messages = [
+        r.getMessage() for r in caplog.records if r.name.endswith("egress.local")
+    ]
+    assert messages == [
+        "[TEL] {'path_id': 'test', 'value': 1}\n"
+        "[EVT] {'key': 'task-1', 'value': {'status': 'ok'}}"
+    ]
 
     # Every egress provider receives the same dictionaries, so printing must not
     # take stream_type away from another sink attached to the same simulation.

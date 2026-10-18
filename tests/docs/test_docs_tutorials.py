@@ -35,11 +35,13 @@ def _load(name):
 
 
 def _events(caplog):
-    """Every event the console egress printed, as a dict, in order."""
+    """Every event the console egress printed, as a dict, in order; it prints one
+    line per record, a batch of lines per log call."""
     return [
-        ast.literal_eval(r.getMessage()[6:])
+        ast.literal_eval(line[6:])
         for r in caplog.records
-        if r.getMessage().startswith("[EVT] ")
+        for line in r.getMessage().split("\n")
+        if line.startswith("[EVT] ")
     ]
 
 

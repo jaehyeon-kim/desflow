@@ -1,49 +1,53 @@
-"""Throughput benchmark and profile for desflow (issue #5).
+"""Throughput benchmark and profile for desflow (issues #5 and #24).
 
-This is a measurement tool, not a test. It answers one question: for a run at
-``factor=0`` with a fixed seed, how is wall-clock time split between the
-simulation core (SimPy scheduling plus the user's generators) and the egress
-path (``publish_event``, the Pydantic envelope, the timestamp, batching and the
-queue hand-off).
+This is a measurement tool, not a test. It runs one workload at ``factor=0`` with a
+fixed seed and reports records per second for each configuration, so the effect of
+each change in issue #24 is measured on the same events. A configuration marked
+"0.21.0" puts back the code that release had, so the gain of each change is the
+ratio of two lines of the table.
 
-Why ``factor=0``: with any positive factor ``RealtimeEnvironment.step`` sleeps
-until wall-clock time catches up with simulation time, so the run is throttled
-on purpose and a throughput number would measure the throttle, not the code.
+Why ``factor=0``: at any positive factor the run waits for the wall clock on
+purpose, so a throughput number would measure the wait, not the code.
 
-Why a counting sink: the sink has to exercise the real queue hand-off without
-adding its own cost to the number. ``CountingEgress`` pulls a batch and adds
-``len(batch)`` to a counter, so at a batch size of 500 the sink thread wakes up
-about once per 500 records and never dominates. ``ConsoleEgress`` is measured
-separately as its own configuration, because logging a line per record is one
-of the hypotheses in the issue.
+Why a counting sink: the sink must take batches off the real queue without adding
+its own cost. ``CountingEgress`` adds ``len(batch)`` to a counter. The console and
+the real sinks are measured as configurations of their own.
 
 Usage::
 
-    uv run python benchmarks/throughput.py configs   # all configurations
-    uv run python benchmarks/throughput.py profile   # cProfile of the baseline
-    uv run python benchmarks/throughput.py micro     # Pydantic microbenchmarks
-    uv run python benchmarks/throughput.py all
+    uv run --all-extras python benchmarks/throughput.py configs  # the table
+    uv run --all-extras python benchmarks/throughput.py micro    # costs per call
+    uv run --all-extras python benchmarks/throughput.py profile  # where the time goes
+    uv run --all-extras python benchmarks/throughput.py sinks    # Parquet, and Kafka
+    uv run --all-extras python benchmarks/throughput.py all      # configs, micro, profile
+
+``sinks`` writes Parquet to a temporary folder, and to Kafka at ``KAFKA`` (default
+``localhost:9092``) when it answers, such as the odctl ``kafka-lite`` profile.
+Run it with another interpreter to compare them, such as
+``uv run --all-extras --python 3.13 python benchmarks/throughput.py configs``; the
+header of every table names the interpreter.
 """
 
 from __future__ import annotations
 
 import asyncio
-import cProfile
-import io
+import collections
+import gc
 import logging
+import os
 import platform
-import pstats
 import queue
+import random
 import statistics
 import sys
+import tempfile
+import threading
 import time
 from datetime import datetime, timedelta
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-import numpy as np
-import orjson
-from pydantic import BaseModel
 from simpy import Environment
+from simpy.rt import RealtimeEnvironment
 
 from desflow import (
     CapacityConfig,
@@ -54,9 +58,8 @@ from desflow import (
     Sampler,
     SimParameter,
 )
-from desflow.connectors.egress.base import BaseEgress, extract_dict
-from desflow.core.environment import EgressMixIn, IngressMixIn, RegistryMixIn
-from desflow.models.schemas import EventPayload
+from desflow.connectors.egress.base import BaseEgress
+from desflow.connectors.egress.local import _PREFIXES
 
 # --------------------------------------------------------------------------
 # Workload
@@ -68,7 +71,8 @@ ARRIVAL_RATE = 10.0  # tasks per simulation second
 SERVICE_MEAN = 2.0
 SERVICE_STD = 0.4
 CAPACITY = 25  # offered load 10 * 2.0 / 25 = 80 percent utilisation
-REPEATS = 7
+REPEATS = int(os.environ.get("REPEATS", "7"))
+START = datetime(2026, 1, 1)
 
 
 class CountingEgress(BaseEgress):
@@ -76,75 +80,67 @@ class CountingEgress(BaseEgress):
 
     def __init__(self) -> None:
         self.records = 0
-        self.batches = 0
 
     async def run(self, egress_queue: "queue.Queue[Any]") -> None:
         while True:
             try:
-                batch = egress_queue.get_nowait()
-                self.batches += 1
-                self.records += len(batch)
+                self.records += len(egress_queue.get_nowait())
             except queue.Empty:
                 await asyncio.sleep(0.05)
-
-
-class ParkedEgress(BaseEgress):
-    """Sink that never consumes, used for the profile only.
-
-    cProfile records every thread that runs while it is enabled, so a consuming
-    sink puts the asyncio loop of the egress thread into the same table as the
-    simulation and makes the percentages unreadable. This sink parks on an event
-    that is never set, so the egress thread contributes one call. Batches pile up
-    in the queue instead, which is why the profile uses a flush interval that
-    keeps the batch count below ``max_queued_batches``.
-    """
-
-    def __init__(self) -> None:
-        self.records = 0
-        self.batches = 0
-
-    async def run(self, egress_queue: "queue.Queue[Any]") -> None:
-        await asyncio.Event().wait()
 
 
 class CountingConsoleEgress(ConsoleEgress):
-    """``ConsoleEgress`` with a record counter, so every configuration reports a rate."""
+    """``ConsoleEgress`` as shipped, with a record counter."""
 
     def __init__(self) -> None:
         self.records = 0
-        self.batches = 0
 
     async def run(self, egress_queue: "queue.Queue[Any]") -> None:
+        # The wrapper has the two methods the sink calls
+        await super().run(_CountingQueue(egress_queue, self))  # type: ignore[arg-type]
+
+
+class OldConsoleEgress(BaseEgress):
+    """0.21.0's ``ConsoleEgress``: one log call per record."""
+
+    def __init__(self) -> None:
+        self.records = 0
+
+    async def run(self, egress_queue: "queue.Queue[Any]") -> None:
+        log = logging.getLogger("desflow.connectors.egress.local")
         while True:
             try:
                 batch = egress_queue.get_nowait()
-                self.batches += 1
                 self.records += len(batch)
                 for data in batch:
-                    stream = data.pop("stream_type", "unknown")
-                    prefix = "[TEL]" if stream == "telemetry" else "[EVT]"
-                    logging.getLogger("desflow.connectors.egress.local").info(
-                        f"{prefix} {data}"
-                    )
+                    prefix = _PREFIXES.get(data.get("stream_type", "unknown"), "[EVT]")
+                    rest = {k: v for k, v in data.items() if k != "stream_type"}
+                    log.info(f"{prefix} {rest}")
             except queue.Empty:
-                await asyncio.sleep(0.05)
+                await asyncio.sleep(0.1)
 
 
-class PlainEnvironment(Environment, RegistryMixIn, IngressMixIn, EgressMixIn):
-    """Same mixins as ``DynamicRealtimeEnvironment`` on a plain SimPy environment.
+class _CountingQueue:
+    """Wraps a queue so a sink's batches are counted on the way out."""
 
-    Used only to price the real-time bookkeeping that ``RealtimeEnvironment.step``
-    still performs when ``factor=0``.
-    """
+    def __init__(self, inner: "queue.Queue[Any]", sink: Any) -> None:
+        self.inner, self.sink = inner, sink
 
-    def __init__(self, logical_start_time: Optional[datetime] = None) -> None:
-        self.start_datetime = logical_start_time or datetime.now()
-        Environment.__init__(self, initial_time=0)
-        self.setup_registry()
+    def get_nowait(self) -> Any:
+        batch = self.inner.get_nowait()
+        self.sink.records += len(batch)
+        return batch
 
-    def teardown(self) -> None:
-        if hasattr(self, "_event_buffer"):
-            self.teardown_egress()
+    def qsize(self) -> int:
+        return self.inner.qsize()
+
+    def empty(self) -> bool:
+        return self.inner.empty()
+
+
+def _old_timestamp(self: Any, start_time: datetime, sim_now: float) -> str:
+    """0.21.0's timestamp: a datetime and isoformat for every record."""
+    return (start_time + timedelta(seconds=sim_now)).isoformat(timespec="milliseconds")
 
 
 def build_params() -> SimParameter:
@@ -160,43 +156,34 @@ def build_params() -> SimParameter:
     )
 
 
-def attach_workload(env: Any, publish: bool = True, log_events: bool = False) -> None:
-    """Attach the arrival, task and telemetry processes to ``env``.
+def attach_workload(env: Any, publish: bool = True) -> None:
+    """The arrival, task and telemetry processes, as a low-level model writes them.
 
-    The sampled values do not depend on the egress configuration, so every
-    configuration runs exactly the same sequence of events and publishes exactly
-    the same number of records.
+    The draws do not depend on the configuration, so every configuration runs the
+    same events and publishes the same number of records.
     """
     res = DynamicResource(env, "Shop", "packers")
-    sampler = Sampler(rng=np.random.default_rng(SEED))
-    log = logging.getLogger("benchmark.workload")
+    sampler = Sampler(seed=SEED)
 
     def work_task(task_id: int, path_id: str):
-        task_key = f"task-{task_id}"
+        key = f"standard-{task_id + 1}"
         if publish:
-            env.publish_event(task_key, {"path_id": path_id, "status": "queued"})
-        if log_events:
-            log.info("task %s queued", task_key)
+            env.publish_event(key, {"path_id": path_id, "status": "queued"})
         with res.request() as req:
             yield req
             cfg = env.registry.get_config(path_id)
             if publish:
-                env.publish_event(task_key, {"path_id": path_id, "status": "started"})
-            if log_events:
-                log.info("task %s started", task_key)
+                env.publish_event(key, {"path_id": path_id, "status": "started"})
             yield env.timeout(sampler.sample(cfg))
             if publish:
-                env.publish_event(task_key, {"path_id": path_id, "status": "finished"})
-            if log_events:
-                log.info("task %s finished", task_key)
+                env.publish_event(key, {"path_id": path_id, "status": "finished"})
 
     def arrival_process():
         arrival_cfg = env.registry.get_config("Shop.arrival.standard")
-        service_path = "Shop.service.packing"
         task_id = 0
         while True:
             yield env.timeout(sampler.sample(arrival_cfg))
-            env.process(work_task(task_id, service_path))
+            env.process(work_task(task_id, "Shop.service.packing"))
             task_id += 1
 
     def telemetry_monitor():
@@ -207,8 +194,6 @@ def attach_workload(env: Any, publish: bool = True, log_events: bool = False) ->
                 env.publish_telemetry(
                     "Shop.resources.packers.queue_length", len(res.queue.items)
                 )
-                util = (res.in_use / res.capacity) * 100 if res.capacity else 0
-                env.publish_telemetry("Shop.resources.packers.utilization", util)
             yield env.timeout(2.0)
 
     env.process(arrival_process())
@@ -216,82 +201,17 @@ def attach_workload(env: Any, publish: bool = True, log_events: bool = False) ->
 
 
 # --------------------------------------------------------------------------
-# Alternative publish paths, used to price the Pydantic envelope in situ
-# --------------------------------------------------------------------------
-
-
-def publish_event_plain_dict(self, event_key: str, value: Any) -> None:
-    """``publish_event`` with the dict built directly, ISO timestamp unchanged."""
-    buffer = getattr(self, "_event_buffer", None)
-    if buffer is None:
-        return
-    buffer.append(
-        {
-            "stream_type": "event",
-            "sim_ts": round(self.now, 3),
-            "timestamp": (self.start_datetime + timedelta(seconds=self.now)).isoformat(
-                timespec="milliseconds"
-            ),
-            "key": event_key,
-            "value": value,
-        }
-    )
-    if len(buffer) >= self.egress_batch_size:
-        self._flush_buffer()
-
-
-def publish_event_plain_dict_epoch(self, event_key: str, value: Any) -> None:
-    """As above, but the timestamp is an epoch float rather than an ISO string."""
-    buffer = getattr(self, "_event_buffer", None)
-    if buffer is None:
-        return
-    buffer.append(
-        {
-            "stream_type": "event",
-            "sim_ts": round(self.now, 3),
-            "timestamp": self._epoch_start + self.now,
-            "key": event_key,
-            "value": value,
-        }
-    )
-    if len(buffer) >= self.egress_batch_size:
-        self._flush_buffer()
-
-
-def publish_telemetry_plain_dict(self, path_id: str, value: Any) -> None:
-    """``publish_telemetry`` with the dict built directly, ISO timestamp unchanged."""
-    buffer = getattr(self, "_event_buffer", None)
-    if buffer is None:
-        return
-    buffer.append(
-        {
-            "stream_type": "telemetry",
-            "sim_ts": round(self.now, 3),
-            "timestamp": (self.start_datetime + timedelta(seconds=self.now)).isoformat(
-                timespec="milliseconds"
-            ),
-            "path_id": path_id,
-            "value": value,
-        }
-    )
-    if len(buffer) >= self.egress_batch_size:
-        self._flush_buffer()
-
-
-# --------------------------------------------------------------------------
 # Configurations
 # --------------------------------------------------------------------------
 
-
-_DEVNULL = open("/dev/null", "w")
+_DEVNULL = open(os.devnull, "w")
 
 
 def configure_logging(level: int) -> None:
     """Send log records to /dev/null with the format the examples use.
 
-    A terminal is far slower than /dev/null and its speed depends on the
-    emulator, so the INFO configurations below measure record creation plus
-    formatting plus one write, and understate what a demo in a terminal costs.
+    A terminal is slower than /dev/null and its speed depends on the emulator, so
+    the console lines measure formatting and one write, and understate a terminal.
     """
     root = logging.getLogger()
     for handler in list(root.handlers):
@@ -301,143 +221,67 @@ def configure_logging(level: int) -> None:
     root.addHandler(handler)
     root.setLevel(level)
     logging.getLogger("desflow").setLevel(level)
-    logging.getLogger("benchmark.workload").setLevel(level)
-
-
-def _make_env(realtime: bool) -> Any:
-    if realtime:
-        return DynamicRealtimeEnvironment(
-            factor=0, logical_start_time=datetime(2026, 1, 1)
-        )
-    return PlainEnvironment(logical_start_time=datetime(2026, 1, 1))
 
 
 def run_config(
-    name: str,
     *,
     egress: bool = True,
     publish: bool = True,
-    realtime: bool = True,
-    console_sink: bool = False,
-    parked_sink: bool = False,
+    sink: Optional[Callable[[], Any]] = None,
     log_level: int = logging.WARNING,
-    publish_event_override: Optional[Callable] = None,
-    publish_telemetry_override: Optional[Callable] = None,
-    lag_monitor_interval: Optional[float] = 1.0,
-    flush_interval: float = 1.0,
-    drain_stall_seconds: float = 30.0,
-    log_events: bool = False,
-) -> Tuple[float, int, int, int]:
-    """Run one configuration once. Returns (run seconds, records published)."""
+    realtime_step: bool = False,
+    old_timestamp: bool = False,
+    lag: Any = "auto",
+    freeze: bool = False,
+) -> Tuple[float, float, int]:
+    """Runs one configuration once: (run seconds, run and teardown seconds, records)."""
     configure_logging(log_level)
-
-    env = _make_env(realtime)
+    env = DynamicRealtimeEnvironment(factor=0, logical_start_time=START)
     env.registry.register_sim_parameter(build_params())
-
-    sink: Any = None
+    if realtime_step:
+        # 0.21.0 stepped through RealtimeEnvironment at every factor
+        env.step = RealtimeEnvironment.step.__get__(env)  # type: ignore[method-assign]
+    if old_timestamp:
+        env._get_iso_timestamp = _old_timestamp.__get__(env)  # type: ignore[method-assign]
+    provider: Any = None
     if egress:
-        if parked_sink:
-            sink = ParkedEgress()
-        elif console_sink:
-            sink = CountingConsoleEgress()
-        else:
-            sink = CountingEgress()
-        env.setup_egress(
-            [sink],
-            lag_monitor_interval=lag_monitor_interval,
-            flush_interval=flush_interval,
-            drain_stall_seconds=drain_stall_seconds,
-        )
-
-    env._epoch_start = env.start_datetime.timestamp()
-    if publish_event_override is not None:
-        env.publish_event = publish_event_override.__get__(env, type(env))
-    if publish_telemetry_override is not None:
-        env.publish_telemetry = publish_telemetry_override.__get__(env, type(env))
-
-    attach_workload(env, publish=publish, log_events=log_events)
-
+        provider = sink() if sink else CountingEgress()
+        env.setup_egress([provider], lag_monitor_interval=lag)
+    attach_workload(env, publish=publish)
+    # PyPy has no gc.freeze
+    freeze = freeze and hasattr(gc, "freeze")
+    if freeze:
+        gc.collect()
+        gc.freeze()
     started = time.perf_counter()
     try:
         env.run(until=UNTIL)
+        ran = time.perf_counter() - started
     finally:
-        elapsed = time.perf_counter() - started
-        # Batches still queued when the run ends show whether the sink kept up.
-        backlog = sum(q.qsize() for q in getattr(env, "egress_queues", []))
         env.teardown()
-
-    return elapsed, backlog, getattr(sink, "records", 0), getattr(sink, "batches", 0)
+        if freeze:
+            gc.unfreeze()
+    return ran, time.perf_counter() - started, getattr(provider, "records", 0)
 
 
 CONFIGS: List[Tuple[str, Dict[str, Any]]] = [
-    # 1. simulation core alone
-    ("A. core only, workload publishes nothing", dict(egress=False, publish=False)),
-    # 2. core plus the failed hasattr probe, no egress configured
-    ("B. core, publish calls return at the probe", dict(egress=False, publish=True)),
-    # 3. as shipped
-    ("C. baseline, counting sink, WARNING logs", dict()),
-    # 4. prices the real-time bookkeeping that remains at factor=0
-    ("D. baseline on plain simpy.Environment", dict(realtime=False)),
-    # 5. Pydantic removed from the event path only
+    ("A. core only, nothing published", dict(egress=False, publish=False)),
+    ("B. as shipped, counting sink", dict()),
+    ("C. B with 0.21.0's real-time step", dict(realtime_step=True)),
+    ("D. B with 0.21.0's timestamp", dict(old_timestamp=True)),
+    ("E. B with lag every second, 0.21.0's default", dict(lag=1.0)),
     (
-        "E. events as plain dicts, ISO timestamp kept",
-        dict(publish_event_override=publish_event_plain_dict),
+        "F. 0.21.0: C, D and E together",
+        dict(realtime_step=True, old_timestamp=True, lag=1.0),
     ),
-    # 6. Pydantic removed from both paths
+    ("G. B with gc.freeze() after setup", dict(freeze=True)),
     (
-        "F. events and telemetry as plain dicts",
-        dict(
-            publish_event_override=publish_event_plain_dict,
-            publish_telemetry_override=publish_telemetry_plain_dict,
-        ),
+        "H. ConsoleEgress, INFO to /dev/null",
+        dict(sink=CountingConsoleEgress, log_level=logging.INFO),
     ),
-    # 7. also drops the per-event datetime work
     (
-        "G. F plus epoch float instead of ISO string",
-        dict(
-            publish_event_override=publish_event_plain_dict_epoch,
-            publish_telemetry_override=publish_telemetry_plain_dict,
-        ),
-    ),
-    # 8. prices the automatic lag telemetry
-    ("H. baseline with the lag monitor off", dict(lag_monitor_interval=0)),
-    # 9. hypothesis 1 from the issue, logging in the sink thread
-    (
-        "I. ConsoleEgress sink, INFO logs",
-        dict(console_sink=True, log_level=logging.INFO),
-    ),
-    # 10. hypothesis 1 again, logging on the main thread as the examples do
-    (
-        "J. baseline plus INFO logging in the workload",
-        dict(log_level=logging.INFO, log_events=True),
-    ),
-    # 11. flush_interval is in simulation seconds, so at factor=0 it fires
-    #     constantly and batch_size never governs. This removes it.
-    ("K. baseline, flush_interval raised to 1e9", dict(flush_interval=1e9)),
-    # 12. K plus the cheap publish path, the combined best case
-    (
-        "L. K plus plain dicts and epoch timestamps",
-        dict(
-            flush_interval=1e9,
-            publish_event_override=publish_event_plain_dict_epoch,
-            publish_telemetry_override=publish_telemetry_plain_dict,
-        ),
-    ),
-    # 13. egress wired up but nothing published, so this prices the egress
-    #     background SimPy processes on their own
-    (
-        "M. egress configured, nothing published",
-        dict(publish=False, lag_monitor_interval=0),
-    ),
-    # 14. every cheap change together: plain dicts, epoch timestamps and no
-    #     real-time bookkeeping. This is the ceiling without touching SimPy.
-    (
-        "N. G on plain simpy.Environment",
-        dict(
-            realtime=False,
-            publish_event_override=publish_event_plain_dict_epoch,
-            publish_telemetry_override=publish_telemetry_plain_dict,
-        ),
+        "I. 0.21.0's ConsoleEgress, a call per record",
+        dict(sink=OldConsoleEgress, log_level=logging.INFO),
     ),
 ]
 
@@ -447,113 +291,36 @@ def cmd_configs() -> Dict[str, Tuple[float, float, int]]:
     print(
         f"\nWorkload: until={UNTIL:.0f} simulation seconds, arrival rate "
         f"{ARRIVAL_RATE}/s, service normal(mean={SERVICE_MEAN}, std={SERVICE_STD}), "
-        f"capacity {CAPACITY}, seed {SEED}, {REPEATS} repeats per configuration."
+        f"capacity {CAPACITY}, seed {SEED}, median of {REPEATS} runs."
     )
-    print("Times cover env.run() only; teardown and the final drain are excluded.")
-    print("backlog is the batches still queued when the run ends.\n")
     print(
-        f"{'configuration':<46} {'median s':>9} {'min s':>8} {'records':>9}"
-        f" {'rec/s':>9} {'batches':>8} {'backlog':>8}"
+        "run s covers env.run(); total s adds the teardown, which waits for the "
+        "sink to take every batch.\n"
     )
-    print("-" * 102)
+    print(
+        f"{'configuration':<46} {'run s':>7} {'total s':>8} {'records':>8}"
+        f" {'rec/s run':>10} {'rec/s total':>12}"
+    )
+    print("-" * 96)
     results: Dict[str, Tuple[float, float, int]] = {}
     for name, kwargs in CONFIGS:
-        times: List[float] = []
-        records = batches = backlog = 0
-        for _ in range(REPEATS):
-            elapsed, backlog, records, batches = run_config(name, **kwargs)
-            times.append(elapsed)
-        median = statistics.median(times)
-        results[name] = (median, min(times), records)
-        rate = records / median if records else float("nan")
-        print(
-            f"{name:<46} {median:>9.3f} {min(times):>8.3f} {records:>9d}"
-            f" {rate:>9.0f} {batches:>8d} {backlog:>8d}"
-        )
+        runs = [run_config(**kwargs) for _ in range(REPEATS)]
+        ran = statistics.median(r[0] for r in runs)
+        total = statistics.median(r[1] for r in runs)
+        records = runs[0][2]
+        results[name] = (ran, total, records)
+        rate = f"{records / ran:>10.0f}" if records else f"{'':>10}"
+        rate_total = f"{records / total:>12.0f}" if records else f"{'':>12}"
+        print(f"{name:<46} {ran:>7.3f} {total:>8.3f} {records:>8d} {rate} {rate_total}")
     return results
 
 
 # --------------------------------------------------------------------------
-# Profile
+# Costs per call
 # --------------------------------------------------------------------------
 
 
-PROFILE_CONFIG = dict(parked_sink=True, flush_interval=1e9, drain_stall_seconds=0.1)
-
-
-def cmd_profile(top: int = 25) -> None:
-    print(header())
-    print(
-        "\ncProfile of the baseline publish path with a sink that never consumes,"
-        "\nso only the simulation thread appears in the table."
-        "\nAbsolute times are inflated by the profiler; read the shares, not the seconds.\n"
-    )
-    profiler = cProfile.Profile()
-    profiler.enable()
-    # PROFILE_CONFIG is a heterogeneous mapping, so mypy cannot match it against
-    # run_config's typed keyword parameters. The call is correct at runtime.
-    elapsed, backlog, records, _batches = run_config("profile", **PROFILE_CONFIG)  # type: ignore[arg-type]
-    profiler.disable()
-
-    print(
-        f"run seconds under the profiler: {elapsed:.3f}; "
-        f"{backlog} batches of {500} records were buffered and never consumed."
-    )
-    del records
-    for sort_key in ("cumulative", "tottime"):
-        stream = io.StringIO()
-        stats = pstats.Stats(profiler, stream=stream)
-        stats.sort_stats(sort_key).print_stats(top)
-        print(f"\n===== sorted by {sort_key} =====")
-        print(stream.getvalue())
-
-    print("===== core against egress, from cumulative time =====")
-    stats = pstats.Stats(profiler, stream=io.StringIO())
-    by_name: Dict[str, Tuple[int, float, float]] = {}
-    # pstats.Stats exposes `stats` at runtime but does not declare it.
-    for (filename, _lineno, func), (_cc, nc, tt, ct, _cal) in stats.stats.items():  # type: ignore[attr-defined]
-        by_name[f"{filename.rsplit('/', 1)[-1]}:{func}"] = (nc, tt, ct)
-
-    total = by_name.get("core.py:run", (0, 0.0, 0.0))[2]
-    for label in (
-        "core.py:run",
-        "environment.py:publish_event",
-        "environment.py:publish_telemetry",
-        "environment.py:_flush_buffer",
-        "environment.py:_get_iso_timestamp",
-        "main.py:__init__",
-        "main.py:model_dump",
-    ):
-        if label in by_name:
-            nc, tt, ct = by_name[label]
-            share = 100.0 * ct / total if total else 0.0
-            print(
-                f"{label:<40} calls={nc:>8d} tottime={tt:>7.3f} "
-                f"cumtime={ct:>7.3f} ({share:>5.1f}% of env.run)"
-            )
-    egress = sum(
-        by_name.get(label, (0, 0.0, 0.0))[2]
-        for label in (
-            "environment.py:publish_event",
-            "environment.py:publish_telemetry",
-        )
-    )
-    print(
-        f"\negress path (publish_event + publish_telemetry, including the flush "
-        f"they trigger): {100.0 * egress / total:.1f}% of env.run cumulative time."
-    )
-    print(
-        "The remainder is the simulation core: SimPy stepping, event resumption, "
-        "resource handling and sampling."
-    )
-
-
-# --------------------------------------------------------------------------
-# Microbenchmarks
-# --------------------------------------------------------------------------
-
-
-def _time_loop(fn: Callable[[], Any], iterations: int = 200_000) -> float:
+def _ns(fn: Callable[[], Any], iterations: int = 200_000) -> float:
     """Nanoseconds per call, best of five."""
     best = float("inf")
     for _ in range(5):
@@ -565,94 +332,218 @@ def _time_loop(fn: Callable[[], Any], iterations: int = 200_000) -> float:
 
 
 def cmd_micro() -> None:
+    import numpy as np
+
     print(header())
-    print("\nMicrobenchmarks, nanoseconds per call, best of five runs.\n")
-
-    start = datetime(2026, 1, 1)
-    now = 1234.5678
-    key = "task-12345"
-    value = {"path_id": "Shop.service.packing", "status": "finished"}
-    record = {
-        "stream_type": "event",
-        "sim_ts": 1234.568,
-        "timestamp": "2026-01-01T00:20:34.567",
-        "key": key,
-        "value": value,
-    }
-
-    class TaskEvent(BaseModel):
-        """Stands in for the Pydantic value that kafka_example.py publishes."""
-
-        path_id: str
-        status: str
-
-    model_value = TaskEvent(path_id="Shop.service.packing", status="finished")
-
-    def iso() -> str:
-        return (start + timedelta(seconds=now)).isoformat(timespec="milliseconds")
-
+    print("\nCosts per call, nanoseconds, best of five.\n")
+    env = DynamicRealtimeEnvironment(factor=0, logical_start_time=START)
+    env.registry.register_sim_parameter(build_params())
+    sampler = Sampler(seed=SEED)
+    service = env.registry.get_config("Shop.service.packing")
+    arrival = env.registry.get_config("Shop.arrival.standard")
+    rng = np.random.default_rng(SEED)
+    stdlib = random.Random(SEED)
+    clock = iter(x * 0.0137 for x in range(10**9))
     cases: List[Tuple[str, Callable[[], Any]]] = [
+        ("timestamp, cached text", lambda: env._get_iso_timestamp(START, next(clock))),
         (
-            "EventPayload construct only",
-            lambda: EventPayload(
-                key=key,
-                value=value,
-                sim_ts=round(now, 3),
-                timestamp="2026-01-01T00:20:34.567",
-            ),
+            "timestamp, 0.21.0's isoformat",
+            lambda: _old_timestamp(env, START, next(clock)),
         ),
-        (
-            "EventPayload construct plus model_dump(mode=json)",
-            lambda: EventPayload(
-                key=key,
-                value=value,
-                sim_ts=round(now, 3),
-                timestamp="2026-01-01T00:20:34.567",
-            ).model_dump(mode="json"),
-        ),
-        (
-            "plain dict with the same five fields",
-            lambda: {
-                "stream_type": "event",
-                "sim_ts": round(now, 3),
-                "timestamp": "2026-01-01T00:20:34.567",
-                "key": key,
-                "value": value,
-            },
-        ),
-        ("_get_iso_timestamp (datetime + timedelta + isoformat)", iso),
-        ("epoch float timestamp (start + now)", lambda: 1767225600.0 + now),
-        ("hasattr(self, '_event_buffer') probe", lambda: hasattr(sys, "_event_buffer")),
-        ("round(now, 3)", lambda: round(now, 3)),
-        (
-            "extract_dict on a dict (isinstance short circuit)",
-            lambda: extract_dict(record),
-        ),
-        ("orjson.dumps of one finished record", lambda: orjson.dumps(record)),
-        (
-            "EventPayload construct plus dump, value is a model",
-            lambda: EventPayload(
-                key=key,
-                value=model_value,
-                sim_ts=round(now, 3),
-                timestamp="2026-01-01T00:20:34.567",
-            ).model_dump(mode="json"),
-        ),
+        ("sampler.sample, normal service", lambda: sampler.sample(service)),
+        ("sampler.sample, exponential arrival", lambda: sampler.sample(arrival)),
+        ("numpy Generator.normal, one scalar", lambda: rng.normal(2.0, 0.4)),
+        ("random.Random.gauss, one scalar", lambda: stdlib.gauss(2.0, 0.4)),
     ]
-
-    baseline_name = "plain dict with the same five fields"
-    results: Dict[str, float] = {}
     for name, fn in cases:
-        ns = _time_loop(fn)
-        results[name] = ns
-        print(f"{name:<56} {ns:>8.1f} ns")
+        print(f"{name:<44} {_ns(fn):>8.1f} ns")
 
-    full = results["EventPayload construct plus model_dump(mode=json)"]
-    plain = results[baseline_name]
+    # One request granted and released, and one timeout, on a plain simpy loop
+    for label, body in (
+        ("request, grant and release, per task", _request_release),
+        ("timeout and resume, per event", _timeouts),
+    ):
+        print(f"{label:<44} {body():>8.1f} ns")
+
+
+def _request_release(n: int = 100_000) -> float:
+    env = DynamicRealtimeEnvironment(factor=0)
+    env.registry.register_sim_parameter(build_params())
+    res = DynamicResource(env, "Shop", "packers")
+
+    def user():
+        for _ in range(n):
+            with res.request() as req:
+                yield req
+
+    env.process(user())
+    started = time.perf_counter()
+    env.run()
+    return (time.perf_counter() - started) / n * 1e9
+
+
+def _timeouts(n: int = 200_000) -> float:
+    env = Environment()
+
+    def ticker():
+        for _ in range(n):
+            yield env.timeout(1)
+
+    env.process(ticker())
+    started = time.perf_counter()
+    env.run()
+    return (time.perf_counter() - started) / n * 1e9
+
+
+# --------------------------------------------------------------------------
+# Profile
+# --------------------------------------------------------------------------
+
+# Where a sampled stack belongs: the first frame from the innermost outwards whose
+# file and function match decides.
+_GROUPS: List[Tuple[str, str, str]] = [
+    ("publish: timestamp", "environment.py", "_get_iso_timestamp"),
+    ("publish: value to JSON", "environment.py", "_jsonable"),
+    ("publish: buffer and flush", "environment.py", "_append_record"),
+    ("publish: buffer and flush", "environment.py", "_flush_buffer"),
+    ("publish: build the record", "environment.py", "publish_event"),
+    ("publish: build the record", "environment.py", "publish_telemetry"),
+    ("sampling", "sampler.py", ""),
+    ("sampling", "distributions.py", ""),
+    ("resource request and release", "resource.py", ""),
+    ("registry lookups", "registry.py", ""),
+    ("user generators", "throughput.py", "work_task"),
+    ("user generators", "throughput.py", "arrival_process"),
+    ("user generators", "throughput.py", "telemetry_monitor"),
+    ("SimPy scheduler", "core.py", ""),
+    ("SimPy events and processes", "events.py", ""),
+]
+
+
+def cmd_profile(interval: float = 0.0002, runs: int = 10) -> None:
+    """A sampling profile of configuration B, from a thread that reads the main
+    thread's stack every ``interval`` seconds.
+
+    py-spy needs root on macOS, so this samples from inside the process with
+    ``sys._current_frames``, which is what py-spy does from outside. A sample is
+    only taken when the sampling thread holds the GIL, so very short calls can be
+    under-counted; read the shares, not the absolute times.
+    """
+    print(header())
+    counts: "collections.Counter[str]" = collections.Counter()
+    main = threading.main_thread().ident
+    assert main is not None
+    done = threading.Event()
+    running = threading.Event()
+
+    def sample() -> None:
+        while not done.is_set():
+            if not running.wait(0.01):
+                continue
+            frame = sys._current_frames().get(main)
+            group = "other"
+            while frame is not None:
+                code = frame.f_code
+                file = code.co_filename.rsplit("/", 1)[-1]
+                match = next(
+                    (
+                        g
+                        for g, f, fn in _GROUPS
+                        if file == f and (not fn or code.co_name == fn)
+                    ),
+                    None,
+                )
+                if match:
+                    group = match
+                    break
+                frame = frame.f_back
+            counts[group] += 1
+            time.sleep(interval)
+
+    sampler = threading.Thread(target=sample, daemon=True)
+    configure_logging(logging.WARNING)
+    switch = sys.getswitchinterval()
+    sys.setswitchinterval(interval / 4)
+    sampler.start()
+    elapsed = 0.0
+    for _ in range(runs):
+        env = DynamicRealtimeEnvironment(factor=0, logical_start_time=START)
+        env.registry.register_sim_parameter(build_params())
+        env.setup_egress([CountingEgress()])
+        attach_workload(env)
+        started = time.perf_counter()
+        running.set()
+        env.run(until=UNTIL)
+        running.clear()
+        elapsed += time.perf_counter() - started
+        env.teardown()
+    done.set()
+    sampler.join()
+    sys.setswitchinterval(switch)
+    total = sum(counts.values())
     print(
-        f"\nPydantic envelope costs {full - plain:.0f} ns more per event than "
-        f"building the dict directly ({full / plain:.1f}x)."
+        f"\nConfiguration B, {runs} runs, {elapsed:.3f} s under the sampler, "
+        f"{total} samples of env.run().\n"
     )
+    for group, n in counts.most_common():
+        print(f"{group:<36} {100 * n / total:>5.1f} %")
+
+
+# --------------------------------------------------------------------------
+# Real sinks
+# --------------------------------------------------------------------------
+
+
+def cmd_sinks() -> None:
+    from desflow.connectors.egress.storage import ParquetStorageEgress
+
+    print(header())
+    print(f"\nRun and teardown seconds, median of {REPEATS} runs.\n")
+    folder = tempfile.mkdtemp(prefix="desflow-bench-")
+
+    def parquet() -> Any:
+        return _Counted(ParquetStorageEgress(default_path=folder))
+
+    sinks: List[Tuple[str, Callable[[], Any]]] = [
+        ("counting sink", CountingEgress),
+        ("Parquet, local disk", parquet),
+    ]
+    bootstrap = os.environ.get("KAFKA", "localhost:9092")
+    if _kafka_answers(bootstrap):
+        from desflow.connectors.egress.kafka import KafkaEgress
+
+        def kafka() -> Any:
+            return _Counted(KafkaEgress(bootstrap_servers=bootstrap))
+
+        sinks.append((f"Kafka at {bootstrap}, JSON", kafka))
+    else:
+        print(f"No Kafka at {bootstrap}; start the odctl kafka-lite profile for it.\n")
+    for name, make in sinks:
+        runs = [run_config(sink=make) for _ in range(REPEATS)]
+        total = statistics.median(r[1] for r in runs)
+        records = runs[0][2]
+        print(f"{name:<36} {total:>7.3f} s {records / total:>10.0f} records/s")
+
+
+class _Counted(BaseEgress):
+    """Counts the records a real sink is given, and passes each batch on."""
+
+    def __init__(self, inner: BaseEgress) -> None:
+        self.inner, self.records = inner, 0
+
+    async def run(self, egress_queue: "queue.Queue[Any]") -> None:
+        await self.inner.run(_CountingQueue(egress_queue, self))  # type: ignore[arg-type]
+
+
+def _kafka_answers(bootstrap: str) -> bool:
+    import socket
+
+    host, _, port = bootstrap.partition(":")
+    try:
+        with socket.create_connection((host, int(port or 9092)), timeout=1):
+            return True
+    except OSError:
+        return False
 
 
 def header() -> str:
@@ -672,3 +563,5 @@ if __name__ == "__main__":
     if command in ("profile", "all"):
         print()
         cmd_profile()
+    if command == "sinks":
+        cmd_sinks()

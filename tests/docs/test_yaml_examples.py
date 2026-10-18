@@ -432,7 +432,8 @@ async def test_redis():
 
     streams = [call.args[0] for call in pipe.xadd.call_args_list]
     assert streams.count("order_events") == len(finished)
-    assert set(streams) == {"order_events", "events"}
+    # The test runs unpaced, so no lag telemetry goes to the default stream, events
+    assert set(streams) == {"order_events"}
 
 
 def test_backfill_live():

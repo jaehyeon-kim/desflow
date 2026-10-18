@@ -60,10 +60,11 @@ def _events(caplog):
     """(key, value) of every event the console egress logged, in order."""
     events = []
     for record in caplog.records:
-        message = record.getMessage()
-        if message.startswith("[EVT] "):
-            data = ast.literal_eval(message[len("[EVT] ") :])
-            events.append((data["key"], data["value"]))
+        # One log call per batch, one line per record
+        for line in record.getMessage().split("\n"):
+            if line.startswith("[EVT] "):
+                data = ast.literal_eval(line[len("[EVT] ") :])
+                events.append((data["key"], data["value"]))
     return events
 
 
@@ -207,3 +208,12 @@ def test_wait_for_one_or_all_first_ties_and_failure():
         (2.0, "order", "failed"),
         (4.0, "inspect", "finished"),
     ]
+
+
+def test_performance_tuning_counts_the_records():
+    """An hour of the shop publishes 108,688 records at factor 0: no lag readings,
+    which would add 3,600, and a rate above 0."""
+    module = _load("performance_tuning")
+    outcome = module.throughput(module.shop(), until=3600)
+    assert outcome["records"] == 108_688
+    assert outcome["per_second"] > 0

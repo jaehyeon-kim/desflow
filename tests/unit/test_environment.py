@@ -922,3 +922,95 @@ def test_lag_monitor_runs_with_a_start_time_in_a_time_zone():
     ]
     assert len(lags) == 3
     assert all(r["timestamp"].endswith("+00:00") for r in lags)
+
+
+def _lag_times(factor, until, **kwargs):
+    """The simulation times of the lag records of an empty run."""
+    tracker = RecordingEgress()
+    go_live_at = kwargs.pop("go_live_at", None)
+    env = DynamicRealtimeEnvironment(
+        factor=factor, logical_start_time=LOGICAL_START, go_live_at=go_live_at
+    )
+    env.setup_egress(providers=[tracker], batch_size=1, **kwargs)
+    env.process(_tick(env, until))
+    env.run(until=until)
+    env.teardown()
+    return [
+        r["sim_ts"]
+        for r in tracker.records
+        if r["path_id"] == "system.simulation.lag_seconds"
+    ]
+
+
+def _tick(env, until):
+    """An event every 0.25 s, so a run that goes live has events to pace."""
+    while env.now < until:
+        yield env.timeout(0.25)
+
+
+def test_lag_is_off_at_factor_0_and_on_otherwise_by_default():
+    """At factor 0 the clock is detached from the wall clock, so no lag record is
+    published; at factor 1 one is published every simulation second."""
+    assert _lag_times(0, 3) == []
+    assert _lag_times(1, 2) == [0.0, 1.0]
+    # An explicit interval applies at any factor, and 0 or None turns it off
+    assert _lag_times(0, 3, lag_monitor_interval=1.0) == [0.0, 1.0, 2.0]
+    assert _lag_times(1, 1, lag_monitor_interval=0) == []
+
+
+def test_lag_starts_when_a_run_at_factor_0_goes_live():
+    """A backfill at factor 0 has no lag records until it goes live at 1 s."""
+    times = _lag_times(0, 2.5, go_live_at=LOGICAL_START + timedelta(seconds=1))
+    assert times == [1.0, 2.0]
+
+
+def test_cached_timestamp_is_the_isoformat_text():
+    """The cached text equals isoformat for every second of a day and for the
+    milliseconds of an hour, with a start that has microseconds, and with a
+    start in a zone that changes its offset that day."""
+    from zoneinfo import ZoneInfo
+
+    env = DynamicRealtimeEnvironment(factor=0)
+    starts = [
+        datetime(2026, 10, 1, 9, 0, 0, 999_500),
+        datetime(2026, 10, 3, 12, 0, tzinfo=ZoneInfo("Australia/Melbourne")),
+        datetime(2026, 1, 1, tzinfo=timezone.utc),
+    ]
+    times = [float(s) for s in range(86_400)] + [ms / 1000 for ms in range(3_600_000)]
+    times += [s + 0.0005 for s in range(1000)] + [s + 0.9995 for s in range(1000)]
+    for start in starts:
+        for now in times[:: 1 if start.tzinfo is None else 7]:
+            expected = (start + timedelta(seconds=now)).isoformat(
+                timespec="milliseconds"
+            )
+            assert env._get_iso_timestamp(start, now) == expected, (start, now)
+
+
+def test_factor_0_steps_without_the_wall_clock_and_gives_the_same_records():
+    """At factor 0 SimPy's own step runs; the records are those of the real-time
+    step, which waits for nothing at factor 0."""
+    from simpy import RealtimeEnvironment
+
+    from desflow import DistributionConfig, Sampler
+
+    def run(step):
+        env = DynamicRealtimeEnvironment(factor=0, logical_start_time=LOGICAL_START)
+        env.step = step.__get__(env)  # type: ignore[method-assign]
+        tracker = RecordingEgress()
+        env.setup_egress(providers=[tracker], batch_size=10**6)
+        sampler = Sampler(seed=7)
+        gaps = DistributionConfig(dist="exponential", rate=2.0)
+
+        def jobs():
+            for n in range(200):
+                yield env.timeout(sampler.sample(gaps))
+                env.publish_event(f"jobs-{n}", {"n": n})
+
+        env.process(jobs())
+        env.run(until=60)
+        env.teardown()
+        return tracker.records
+
+    fast = run(DynamicRealtimeEnvironment.step)
+    assert fast
+    assert fast == run(RealtimeEnvironment.step)

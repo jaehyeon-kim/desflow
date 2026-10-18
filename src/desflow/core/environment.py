@@ -5,12 +5,12 @@ import queue
 import threading
 import time
 from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from pydantic import TypeAdapter
 from pydantic_core import to_jsonable_python
 
-from simpy import RealtimeEnvironment
+from simpy import Environment, RealtimeEnvironment
 
 from desflow.config import DEFAULT_STATS_INTERVAL
 from desflow.core.registry import SimulationRegistry
@@ -169,7 +169,7 @@ class EgressMixIn:
         providers: List,
         batch_size: int = 500,
         flush_interval: float = 1.0,
-        lag_monitor_interval: Optional[float] = 1.0,
+        lag_monitor_interval: Union[float, str, None] = "auto",
         max_queued_batches: int = 2000,
         drain_stall_seconds: float = 30.0,
         predicates: Optional[List[Optional[Callable[[Dict[str, Any]], bool]]]] = None,
@@ -188,6 +188,11 @@ class EgressMixIn:
                 forcing a flush. Defaults to 1.0. Ignored when `factor` is 0, because
                 simulation time is then detached from the wall clock and the interval
                 bounds nothing, so `batch_size` alone decides when a batch is sent.
+            lag_monitor_interval (float, optional): Simulation seconds between
+                `system.simulation.lag_seconds` records. `"auto"`, the default, is
+                off at `factor` 0, where lag means nothing, and 1.0 otherwise; a
+                run at `factor` 0 that goes live starts it at the go-live instant.
+                None or 0 turns it off.
             max_queued_batches (int, optional): Upper bound on batches waiting for the
                 egress threads. A full queue blocks the producer, so a sink that cannot
                 keep up slows the simulation rather than accumulating a backlog that
@@ -258,7 +263,21 @@ class EgressMixIn:
                 for predicate in self.egress_predicates
             ]
             self.process(self._end_warmup(float(warmup)))  # type: ignore[attr-defined]
-        self.egress_lag_monitor_interval = lag_monitor_interval
+        # "auto": off while the clock is detached from the wall clock, once a second
+        # otherwise; a run that goes live starts it when it does
+        self._lag_on_go_live = False
+        if isinstance(lag_monitor_interval, str):
+            if lag_monitor_interval != "auto":
+                raise ValueError(
+                    "lag_monitor_interval must be a number of seconds, None or "
+                    f"'auto', got {lag_monitor_interval!r}"
+                )
+            if getattr(self, "factor", 1.0):
+                lag_monitor_interval = 1.0
+            else:
+                lag_monitor_interval = None
+                self._lag_on_go_live = True
+        self.egress_lag_monitor_interval: Optional[float] = lag_monitor_interval
         # One buffer per provider. They shared one until batching moved behind the
         # fan-out, which meant a single cadence for every sink and no way to give a
         # stream sink low latency while a lake sink built large files.
@@ -322,8 +341,10 @@ class EgressMixIn:
         """
         return self.egress_queues[0]
 
-    def _lag_monitor(self):
+    def _lag_monitor(self, delay: float = 0.0):
         """Internal: Monitors how far the simulation time has drifted from the real-world clock."""
+        if delay > 0:
+            yield self.timeout(delay)  # type: ignore[attr-defined]
         while True:
             # Real seconds since the start. now() takes the start time's zone, so a
             # start time with a zone does not raise TypeError against a naive now().
@@ -591,10 +612,27 @@ class EgressMixIn:
         )
 
     def _get_iso_timestamp(self, start_time: datetime, sim_now: float) -> str:
-        """Internal: Converts simulation time to a real-world ISO string."""
-        return (start_time + timedelta(seconds=sim_now)).isoformat(
-            timespec="milliseconds"
-        )
+        """Internal: Converts simulation time to a real-world ISO string.
+
+        The text is the same as `(start_time + timedelta(seconds=sim_now))
+        .isoformat(timespec="milliseconds")`, built more cheaply: the date and time up
+        to the second, and the zone offset after it, are formatted once per second of
+        the clock and kept, and only the milliseconds are added for each record.
+        """
+        # timedelta(seconds=x) splits x into whole seconds and a fraction, and rounds
+        # the fraction to microseconds, half to even; this does the same
+        whole = math.trunc(sim_now)
+        micros = whole * 1_000_000 + round((sim_now - whole) * 1_000_000)
+        seconds, micro = divmod(start_time.microsecond + micros, 1_000_000)
+        cache = self.__dict__.get("_timestamp_cache")
+        if cache is None or cache[0] != seconds or cache[1] is not start_time:
+            text = (
+                start_time.replace(microsecond=0) + timedelta(seconds=seconds)
+            ).isoformat(timespec="seconds")
+            # The date and time take the first 19 characters; an offset follows
+            cache = (seconds, start_time, text[:19], text[19:])
+            self._timestamp_cache: Tuple[int, datetime, str, str] = cache
+        return f"{cache[2]}.{micro // 1000:03d}{cache[3]}"
 
     def teardown_egress(self):
         """Flushes final buffer contents and safely stops the egress event loop."""
@@ -868,6 +906,12 @@ class DynamicRealtimeEnvironment(
             for index in range(len(self.egress_queues)):
                 self.process(self._periodic_flush(index))  # type: ignore[attr-defined]
             self._periodic_flush_running = True
+        if hasattr(self, "egress_queues") and self._lag_on_go_live:
+            self.egress_lag_monitor_interval = 1.0
+            # The switch runs just before the first event at or after go-live, so
+            # the first reading waits for the go-live instant itself
+            self.process(self._lag_monitor(go_live_sim_time - self.now))
+            self._lag_on_go_live = False
 
         logger.info(
             "Logical clock reached go-live at %s; pacing switched to real time.",
@@ -886,6 +930,12 @@ class DynamicRealtimeEnvironment(
             next_event_time = self.peek()
             if not math.isinf(next_event_time) and next_event_time >= go_live_sim_time:
                 self._start_live_pacing(go_live_sim_time)
+        elif not self._factor:
+            # At factor 0 there is no wall clock to wait for, so SimPy's own step
+            # runs without the real-time arithmetic (issue #24, fix 4). `strict`
+            # means nothing without a wall clock and is not checked.
+            Environment.step(self)
+            return
         super().step()
 
     def teardown(self):

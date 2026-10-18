@@ -124,7 +124,7 @@ A task with no service has `{"status": ...}` without `path_id`. A timed step, wi
 | the built-in statistics | `<sim_id>.stats.<kind>.<name>.<statistic>`, such as `Shop.stats.resources.packers.in_use`; [Reference, Statistics](statistics.md) lists every name |
 | `context.publish(name, value)` and a YAML `telemetry` function | `<sim_id>.<name>` |
 | `env.publish_telemetry(path_id, value)` | `path_id`, as given |
-| the lag monitor | `system.simulation.lag_seconds`, once per simulation second |
+| the lag monitor | `system.simulation.lag_seconds`, every `lag_interval`: by default every simulation second at a `factor` above 0, and none at `factor: 0` ([Time and Pacing](../user-guide/time-and-pacing.md#lag)) |
 
 ```python title="docs/snippets/pages/records.py:telemetry"
 @app.telemetry_loop(interval=10.0)

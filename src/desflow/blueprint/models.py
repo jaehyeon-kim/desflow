@@ -114,6 +114,8 @@ class Simulation(_Model):
     go_live_at: Optional[datetime] = None
     warmup: Optional[float] = Field(default=None, ge=0)
     initial_time: float = 0.0
+    # Seconds between lag readings; unset is off at factor 0 and 1 s otherwise
+    lag_interval: Optional[float] = Field(default=None, ge=0)
 
     @field_validator("logical_start_time", "go_live_at", mode="before")
     @classmethod
@@ -121,7 +123,7 @@ class Simulation(_Model):
         now = (info.context or {}).get("now") or datetime.now()
         return _instant(value, now)
 
-    @field_validator("warmup", "initial_time", mode="before")
+    @field_validator("warmup", "initial_time", "lag_interval", mode="before")
     @classmethod
     def _parse_duration(cls, value: Any) -> Any:
         return None if value is None else _seconds(value)

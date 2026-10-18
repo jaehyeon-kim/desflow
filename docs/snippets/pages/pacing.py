@@ -32,6 +32,16 @@ env = DynamicRealtimeEnvironment(
 )
 # --8<-- [end:go-live]
 
+# --8<-- [start:lag]
+# system.simulation.lag_seconds every 10 simulation seconds; 0 turns it off
+paced = SimulationContext(sim_id="Shop", factor=1.0, lag_interval="10 s")
+# --8<-- [end:lag]
+# --8<-- [start:low-level-lag]
+# The low-level API sets it with the sinks; the default "auto" is off at factor 0
+# env.setup_egress(sinks, lag_monitor_interval=10)
+# --8<-- [end:low-level-lag]
+assert paced.lag_interval == 10
+
 # --8<-- [start:warmup]
 # No sink receives a record stamped before 10 minutes, and the statistics restart then
 measured = SimulationContext(sim_id="Shop", factor=0.0, warmup="10 min")

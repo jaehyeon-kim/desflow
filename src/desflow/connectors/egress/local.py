@@ -23,11 +23,15 @@ class ConsoleEgress(BaseEgress):
         Continuously polls the egress queue and prints formatted results.
 
         This method implements an asynchronous polling loop. It extracts batches
-        from the internal queue, identifies the data stream type, and formats the
-        output with specific prefixes:
+        from the internal queue and writes each batch with one log call at INFO
+        level, one line per record, each line starting with a prefix:
         - [TEL]: Telemetry data (e.g., resource utilization, queue lengths).
         - [EVT]: Event data (e.g., task lifecycle transitions).
         - [LBL]: Ground-truth records, on a sink added with `when: labels`.
+
+        One call per batch rather than per record costs far less (issue #24), so
+        the logging format's prefix, such as the time and level, appears on the
+        first line of each batch only.
 
         Args:
             egress_queue: A thread-safe queue containing lists of dictionaries
@@ -41,19 +45,19 @@ class ConsoleEgress(BaseEgress):
             try:
                 # Receive a batch (list) of messages
                 batch = egress_queue.get_nowait()
-
-                for data in batch:
-                    # Identify the stream type for the prefix
-                    stream = data.get("stream_type", "unknown")
-                    prefix = _PREFIXES.get(stream, "[EVT]")
-
-                    # Log the remaining data (path_id/key, value, timestamp) without
-                    # altering the record. Every egress provider is handed the same
-                    # dictionary objects, so removing a key here would also remove it
-                    # from what another attached sink writes.
-                    rest = {k: v for k, v in data.items() if k != "stream_type"}
-                    logger.info(f"{prefix} {rest}")
-
             except queue.Empty:
                 # Yield to the event loop
                 await asyncio.sleep(0.1)
+                continue
+            if not batch or not logger.isEnabledFor(logging.INFO):
+                continue
+            # Each line is the record without its stream type, which the prefix
+            # names. The record is not altered: every egress provider is handed the
+            # same dictionary objects, so removing a key here would also remove it
+            # from what another attached sink writes.
+            lines = [
+                f"{_PREFIXES.get(data.get('stream_type', 'unknown'), '[EVT]')} "
+                f"{ {k: v for k, v in data.items() if k != 'stream_type'} }"
+                for data in batch
+            ]
+            logger.info("\n".join(lines))

@@ -90,6 +90,7 @@ class SimulationContext:
         go_live_at: Optional[datetime] = None,
         warmup: Union[float, str, None] = None,
         initial_time: Union[float, str] = 0.0,
+        lag_interval: Union[float, str, None] = None,
     ):
         """
         Initializes the context builder with a designated namespace and temporal factor.
@@ -114,9 +115,14 @@ class SimulationContext:
             initial_time: The simulation clock's starting value, in seconds or as a
                 duration such as `"8 h"`, so event times, `sim_ts` and `until` are
                 readings of a clock that starts there. Defaults to 0.
+            lag_interval: Simulation seconds, or a duration such as `"10 s"`, between
+                `system.simulation.lag_seconds` records, which measure how far the
+                run is behind the wall clock. By default it is off at `factor` 0,
+                where lag means nothing, and every simulation second otherwise; a
+                run that goes live starts it then. 0 turns it off.
 
         Raises:
-            ValueError: If `warmup` is negative or not a duration.
+            ValueError: If `warmup` or `lag_interval` is negative or not a duration.
         """
         self.sim_id = sim_id
         self.factor = factor
@@ -127,6 +133,9 @@ class SimulationContext:
         self.warmup = None if warmup is None else _seconds(warmup)
         if self.warmup is not None and self.warmup < 0:
             raise ValueError(f"warmup must be 0 or more, got {warmup}")
+        self.lag_interval = None if lag_interval is None else _seconds(lag_interval)
+        if self.lag_interval is not None and self.lag_interval < 0:
+            raise ValueError(f"lag_interval must be 0 or more, got {lag_interval}")
 
         # Builder State (Pre-Compilation)
         self._ingress_providers: List[Any] = []
@@ -1632,6 +1641,9 @@ class SimulationContext:
                 flush_intervals=self._egress_flush_intervals,
                 labels=self._egress_labels,
                 warmup=self.warmup,
+                lag_monitor_interval=(
+                    "auto" if self.lag_interval is None else self.lag_interval
+                ),
             )
         elif self.warmup is not None:
             self._env.process(self._end_warmup(self.warmup))

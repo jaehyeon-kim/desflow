@@ -18,7 +18,7 @@ Each sink is attached with `add_egress` in the builder, passed to `env.setup_egr
 
 ### Console
 
-`ConsoleEgress` logs each record at INFO level: `[EVT]` for an event, `[TEL]` for telemetry and `[LBL]` for a label.
+`ConsoleEgress` logs each record at INFO level, one line per record: `[EVT]` for an event, `[TEL]` for telemetry and `[LBL]` for a label. It logs a whole batch with one call, so the logging format's prefix, such as the time and level, starts each batch, and the lines after it start with `[EVT]`, `[TEL]` or `[LBL]`. One call per record cost far more: in the measurements on [Performance Tuning](../guides/performance-tuning.md), a run printing every record took about 50 percent longer.
 
 ```python title="docs/snippets/pages/connectors.py:console-egress"
 app.add_egress(ConsoleEgress())
@@ -272,7 +272,7 @@ env.setup_egress(
 )
 ```
 
-`setup_egress` also takes `lag_monitor_interval`, the simulation seconds between `system.simulation.lag_seconds` records, 1.0 by default; `None` or 0 turns it off.
+`setup_egress` also takes `lag_monitor_interval`, the simulation seconds between `system.simulation.lag_seconds` records. Its default, `"auto"`, is off at `factor` 0 and 1.0 otherwise, and a run that goes live starts it at the go-live instant; `None` or 0 turns it off. The builder and YAML set it with `lag_interval`, as [Time and Pacing](time-and-pacing.md#lag) describes.
 
 ---
 

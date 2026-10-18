@@ -60,6 +60,9 @@ simulation:
   factor: ${SIM_FACTOR:-0}
   # Read against the moment the file is loaded: a day of history up to now
   logical_start_time: -1d
+  # Under simulation: how far the run is behind the wall clock, every 10 s; by
+  # default off at factor 0 and every second otherwise, and 0 turns it off
+  lag_interval: 10 s
 
 egress:
   - type: Console

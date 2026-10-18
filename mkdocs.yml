@@ -201,6 +201,7 @@ nav:
       - Reneging and Balking: guides/reneging-and-balking.md
       - Wait for One or All: guides/wait-for-one-or-all.md
       - Time-varying Arrivals: guides/time-varying-arrivals.md
+      - Performance Tuning: guides/performance-tuning.md
   - Examples:
       - Overview: examples/index.md
       - Local Simulation: examples/local.md
