@@ -915,6 +915,16 @@ def test_cli_drain_runs_until_the_model_is_empty(tmp_path):
     assert result.exit_code == 0, result.output
 
 
+def test_cli_drain_without_until_is_an_error_line(tmp_path):
+    """--drain on a blueprint with no until names the problem in one line and
+    exits 1, as a blueprint error does, instead of a traceback."""
+    path = write(tmp_path, MINIMAL.replace("run:\n  until: 30\n", ""))
+    result = CliRunner().invoke(cli, ["run", str(path), "--drain"])
+    assert result.exit_code == 1
+    assert "Error: a drain starts at until, so it needs until" in result.output
+    assert result.exception is None or isinstance(result.exception, SystemExit)
+
+
 def test_lag_interval_in_a_blueprint_and_the_builder(tmp_path):
     """No lag records at factor 0 by default; `simulation.lag_interval` and
     `SimulationContext(lag_interval=)` publish them at that interval."""

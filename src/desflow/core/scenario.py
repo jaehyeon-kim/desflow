@@ -56,8 +56,9 @@ def run_scenario(
     interrupt: Optional[Callable[..., Any]] = None,
 ):
     """
-    Applies each step at its simulation time, in time order and, at equal times, in
-    the order given.
+    Applies each step at its time, in time order and, at equal times, in the order
+    given. A step's `at` counts from when this process starts, the start of the run
+    when it is started with the model, so it does not depend on `initial_time`.
 
     A step with a `path` and `value` updates the registry; one with a `record`
     publishes a ground-truth record of the change (`env.publish_label`); one with an
@@ -67,16 +68,19 @@ def run_scenario(
     Args:
         env: The environment.
         steps: The steps, each a mapping as `check_step` takes.
-        until: The run's end; steps at or after it are dropped, as an event due at
-            exactly `until` does not run.
+        until: The run's end, a reading of the clock; steps due at or after it are
+            dropped, as an event due at exactly `until` does not run.
         interrupt: What an `interrupt` step calls; such steps need it.
     """
     ordered: List[dict] = sorted(
         (check_step(step) for step in steps), key=lambda step: step["at"]
     )
     registry = env.registry
+    # `at` counts from the start of the run, the moment this process starts, so a
+    # run with an initial_time of 8 h applies a step at 30 min at 8.5 h
+    origin = env.now
     for step in ordered:
-        at = step["at"]
+        at = origin + step["at"]
         if until is not None and at >= until:
             return
         if at > env.now:

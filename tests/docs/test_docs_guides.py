@@ -105,17 +105,41 @@ def test_handoff_holds_the_picker_until_the_bench_is_free(caplog):
     events = _events(caplog)
     assert any(value.get("event_type") == "order_packed" for _, value in events)
 
-    # One order at a time holds the picker: from its pick's start until its pack
-    # starts, so no pick starts in between.
-    with_picker = None
+    # Each order goes through its steps in this order
+    def step(value):
+        if "status" in value:
+            return f"{value['path_id'].rsplit('.', 1)[1]} {value['status']}"
+        return value["event_type"]
+
+    order = [
+        "walking queued",
+        "walking started",
+        "order_picked",
+        "packing queued",
+        "packing started",
+        "order_packed",
+    ]
+    seen: dict = {}
     for key, value in events:
-        task_start = value.get("status") == "started"
-        if task_start and value["path_id"] == "Shop.service.walking":
+        seen.setdefault(key, []).append(step(value))
+    for key, steps in seen.items():
+        assert steps == order[: len(steps)], key
+
+    # One order at a time holds the picker, from its pick's start until its pack
+    # starts, and one at a time is on the bench, from its pack's start until it is
+    # packed
+    with_picker, on_bench = None, None
+    for key, value in events:
+        current = step(value)
+        if current == "walking started":
             assert with_picker is None, f"{key} picked while {with_picker} held it"
             with_picker = key
-        elif task_start and value["path_id"] == "Shop.service.packing":
-            assert with_picker == key
-            with_picker = None
+        elif current == "packing started":
+            assert with_picker == key and on_bench is None
+            with_picker, on_bench = None, key
+        elif current == "order_packed":
+            assert on_bench == key
+            on_bench = None
 
 
 def test_supervisor_adds_the_wrappers_mid_run(caplog):

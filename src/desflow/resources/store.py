@@ -3,7 +3,7 @@ import itertools
 from typing import Any, Callable, Iterable, Optional
 
 from simpy import Environment, Event, FilterStore, PriorityItem, PriorityStore
-from simpy.resources.store import StoreGet, StorePut
+from simpy.resources.store import FilterStoreGet, StoreGet, StorePut
 
 from desflow.resources.base import BaseDynamicResource
 
@@ -28,10 +28,24 @@ class _Notifying:
         return done
 
 
+# The filter a FilterStore get has when it is given none
+_NO_FILTER = FilterStoreGet.__init__.__defaults__[0]  # type: ignore[index]
+
+
 class _Store(_Notifying, FilterStore):
     def __init__(self, env: Environment, on_change: Callable[[], None], **kwargs: Any):
         self._on_change = on_change
         super().__init__(env, **kwargs)
+
+    def _do_get(self, event: StoreGet) -> Optional[bool]:
+        done = super()._do_get(event)
+        # simpy.Store grants one waiting get each time it is triggered, and
+        # FilterStore goes on to the next. While no waiting get has a filter, the
+        # store serves gets exactly as simpy.Store does; a filtered get needs the
+        # next ones looked at, as FilterStore does.
+        if any(get.filter is not _NO_FILTER for get in self.get_queue):  # type: ignore[attr-defined]
+            return done
+        return None
 
 
 class _PriorityStore(_Notifying, PriorityStore):

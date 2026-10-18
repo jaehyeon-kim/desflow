@@ -394,3 +394,51 @@ def test_yaml_flow_errors_name_the_line(tmp_path, old, new, line, fragment):
     message = str(error.value)
     assert message.startswith(f"{path}:{line}:"), message
     assert fragment in message
+
+
+def test_a_child_flow_that_raises_gives_its_unit_back():
+    """A child flow whose payload cannot be published raises; the wait that started
+    it fails, and the unit the child held goes back, as a `with` block gives it
+    back, so the next order is packed."""
+    from desflow import SimulationContext
+
+    import asyncio
+    import queue
+
+    class Sink:
+        async def run(self, egress_queue):
+            while True:
+                try:
+                    egress_queue.get_nowait()
+                except queue.Empty:
+                    await asyncio.sleep(0.01)
+
+    app = SimulationContext("Shop", factor=0).add_egress(Sink())
+    app.add_resource("packers", current_cap=1, max_cap=1)
+    app.add_service("packing", dist="constant", value=1)
+
+    @app.task(service_id="packing", resource_id="packers")
+    def broken(task_id):
+        return {"label": object()}  # not a JSON value, so publishing it raises
+
+    @app.task(wait={"task": "broken"})
+    def order(task_id):
+        return {"event": "ordered"}
+
+    @app.task(service_id="packing", resource_id="packers")
+    def pack(task_id):
+        return {"event": "packed"}
+
+    def script(context):
+        context.spawn(order(0))
+        yield context.env.timeout(5)
+        context.spawn(pack(0))
+
+    app.add_process(script)
+    app.start(until=20)
+    try:
+        app.env.run(until=20)
+        packers = app.get_resource("packers")
+        assert packers.in_use == 0
+    finally:
+        app.close()

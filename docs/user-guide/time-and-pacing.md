@@ -180,7 +180,7 @@ The warm-up drops early records; `go_live_at` drops nothing and only decides whi
     morning = DynamicRealtimeEnvironment(factor=0.0, initial_time=8 * 3600)
     ```
 
-`until` is a clock reading too, so a run with `initial_time: 8 h` and `until: 16 h` lasts 8 hours. The state the run starts with is declared beside it: a resource's `current_cap`, a container's `level`, a store's `items` and an arrival's `attributes` hold from the initial time, before the first arrival, and the tests check each against plain SimPy ([SimPy Compatibility](../reference/simpy-compatibility.md)).
+`until` is a clock reading too, so a run with `initial_time: 8 h` and `until: 16 h` lasts 8 hours. A scenario step's `at` and the `warmup` are lengths of time from the start of the run instead, so with `initial_time: 8 h` a step at `30 min` applies at 8.5 hours, and a warm-up of `10 min` ends at 8 hours 10 minutes. The state the run starts with is declared beside it: a resource's `current_cap`, a container's `level`, a store's `items` and an arrival's `attributes` hold from the initial time, before the first arrival, and the tests check each against plain SimPy ([SimPy Compatibility](../reference/simpy-compatibility.md)).
 
 ### Run Length
 

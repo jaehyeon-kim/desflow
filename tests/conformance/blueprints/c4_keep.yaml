@@ -1,0 +1,26 @@
+# Orders every 2 s: the picker carries each to the bench in 1 s and stays with it
+# until the bench is free; packing takes 4 s. See test_c4_resources.py.
+simulation:
+  sim_id: C4k
+  factor: 0
+resources:
+  picker: {current_cap: 1, max_cap: 1}
+  bench: {current_cap: 1, max_cap: 1}
+services:
+  walking: {dist: constant, value: 1}
+  packing: {dist: constant, value: 4}
+arrivals:
+  orders: {dist: constant, value: 2, spawn: pick}
+tasks:
+  pick:
+    service: walking
+    resource: picker
+    keep: [picker]
+    next: pack
+    payload: {event: picked}
+  pack:
+    service: packing
+    resource: bench
+    payload: {event: packed}
+run:
+  until: 30

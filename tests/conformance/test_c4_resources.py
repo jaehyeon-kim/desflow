@@ -485,3 +485,124 @@ def test_c4_hold_several_resources():
     assert _started_of(records, "orders-1") == []
     yaml_records, yaml_app = run_yaml("c4_several.yaml")
     assert _holdings(yaml_app) == holdings
+
+
+# Keep: the picker carries an order to the bench and stays with it until the bench
+# is free, so the next order waits for the picker as long as the bench is busy. In
+# plain SimPy the picker's request is released only once the bench's is granted.
+
+KEEP_UNTIL = 30
+
+
+def _reference_keep():
+    env = simpy.Environment()
+    picker, bench = simpy.Resource(env, 1), simpy.Resource(env, 1)
+    starts = []
+
+    def order(n):
+        p = picker.request()
+        yield p
+        starts.append((env.now, f"orders-{n}", "pick"))
+        yield env.timeout(1)
+        b = bench.request()
+        yield b
+        picker.release(p)
+        starts.append((env.now, f"orders-{n}", "pack"))
+        yield env.timeout(4)
+        bench.release(b)
+
+    def source():
+        n = 0
+        while True:
+            yield env.timeout(2)
+            n += 1
+            env.process(order(n))
+
+    env.process(source())
+    env.run(until=KEEP_UNTIL)
+    return sorted(starts)
+
+
+def _keep_starts(records):
+    return sorted(
+        (t, key, task)
+        for t, key, task, status in event_trace(records)
+        if status == "started"
+    )
+
+
+def _low_level_keep():
+    def start(env):
+        picker = DynamicResource(env, "C4k", "picker")
+        bench = DynamicResource(env, "C4k", "bench")
+
+        def order(n):
+            key = f"orders-{n}"
+            p = picker.request()
+            yield p
+            env.publish_event(key, {"status": "started"}, task="pick", instance=n)
+            yield env.timeout(1)
+            b = bench.request()
+            yield b
+            picker.release(p)
+            env.publish_event(key, {"status": "started"}, task="pack", instance=n)
+            yield env.timeout(4)
+            bench.release(b)
+
+        def source():
+            n = 0
+            while True:
+                yield env.timeout(2)
+                n += 1
+                env.process(order(n))
+
+        env.process(source())
+
+    params = SimParameter(
+        sim_id="C4k",
+        resources={
+            "picker": CapacityConfig(current_cap=1, max_cap=1),
+            "bench": CapacityConfig(current_cap=1, max_cap=1),
+        },
+    )
+    return run_low_level(params, start, KEEP_UNTIL)[0]
+
+
+def _builder_keep():
+    app = SimulationContext("C4k", factor=0.0)
+    app.add_resource("picker", current_cap=1, max_cap=1)
+    app.add_resource("bench", current_cap=1, max_cap=1)
+    app.add_service("walking", dist="constant", value=1)
+    app.add_service("packing", dist="constant", value=4)
+    app.add_arrival("orders", dist="constant", value=2)
+
+    @app.task(service_id="walking", resource_id="picker", keep=["picker"], next="pack")
+    def pick(task_id):
+        return {"event": "picked"}
+
+    @app.task(service_id="packing", resource_id="bench")
+    def pack(task_id):
+        return {"event": "packed"}
+
+    @app.arrival_loop("orders")
+    def loop(context):
+        while True:
+            order = yield context.wait_for_arrival("orders")
+            context.spawn(pick(context.next_instance("pick"), entity=order))
+
+    return run_builder(app, KEEP_UNTIL)
+
+
+def test_c4_keep_hands_a_unit_to_the_next_task():
+    """Each order's pick and pack start when SimPy's nested requests give them, and
+    no pick starts while the picker waits with an order for the bench."""
+    expected = _reference_keep()
+    assert expected[:4] == [
+        (2, "orders-1", "pick"),
+        (3, "orders-1", "pack"),
+        (4, "orders-2", "pick"),
+        (7, "orders-2", "pack"),
+    ]
+    assert _keep_starts(_low_level_keep()) == expected
+    assert _keep_starts(_builder_keep()) == expected
+    assert _keep_starts(run_yaml("c4_keep.yaml")[0]) == expected

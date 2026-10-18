@@ -212,6 +212,7 @@
   low_level: nested `with` blocks
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_hold_several_resources
+    - tests/conformance/test_c4_resources.py::test_c4_keep_hands_a_unit_to_the_next_task
   page: user-guide/resources.md#several-resources
   differences: A model whose tasks acquire two resources in opposite orders is refused when it is built, because those tasks could each wait for ever; SimPy runs it.
 
@@ -234,6 +235,17 @@
   checks:
     - tests/conformance/test_c5_bounded.py::test_c5_bounded_store_get
   page: user-guide/stores-and-containers.md#take-and-add
+
+- id: C5
+  operation: Equal-time puts and gets
+  simpy: "`simpy.resources.store.Store`, one waiting get granted per trigger"
+  yaml: "`get: {store: parcels}` and `put: {store: parcels}` on tasks"
+  builder: "`@app.task(get={\"store\": \"parcels\"})`"
+  low_level: "`yield parcels.put(item)`, `item = yield parcels.get()`"
+  checks:
+    - tests/conformance/test_c5_store_order.py::test_c5_equal_time_puts_and_gets_follow_simpy_store
+  page: user-guide/stores-and-containers.md#take-and-add
+  differences: "While a get with a filter waits, the store grants as SimPy's `FilterStore` does, looking at every waiting get each time."
 
 - id: C5
   operation: Bounded quantity put

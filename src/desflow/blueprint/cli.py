@@ -113,6 +113,14 @@ def run(
         context.run(until=stop_at, drain=True if drain else None)
     except KeyboardInterrupt:
         logger.info("Simulation stopped by user.")
+    except ValueError as exc:
+        # A run value refused before the run starts, such as --drain without an
+        # until, is reported as a blueprint error is; an error inside the run keeps
+        # its traceback
+        if context.started:
+            raise
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1) from None
 
 
 examples_app = typer.Typer(

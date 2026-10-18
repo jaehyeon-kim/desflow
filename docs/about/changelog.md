@@ -27,8 +27,9 @@ desflow matches SimPy operation by operation, in YAML, the builder and the low-l
 - A `priority` on a store `get` is refused; priority orders a `put` into a priority store.
 - Resources grant units with the same events as SimPy's `Resource`, so requests at the same simulation time are granted in SimPy's order, which can change seeded output where such ties occur.
 - `patience` now covers a task's `get` as well as its resource, so a task with both can renege while it waits for stock. A task with `patience` needs a resource or a `get`.
-- A store without priority is now a SimPy `FilterStore`; it serves a `get` without a filter as before.
-- A builder task whose function raises now fails the task, publishing `failed` with the error as its reason and ending the entity's flow, instead of stopping the run.
+- A store without priority is now a SimPy `FilterStore`, so a `get` can take a filter. While no waiting `get` has a filter, it grants gets as `simpy.Store` does, one waiting `get` each time it is triggered, as before; while a filtered `get` waits, it looks at every waiting `get` each time, as `FilterStore` does, so gets at the same instant can be granted in another order.
+- A builder task whose function raises, or a YAML task whose `!python` payload function raises, now fails the task, publishing `failed` with the error as its reason and ending the entity's flow, instead of stopping the run.
+- `DynamicResource.pool` and `DynamicResourceRequest.cancelled` are gone: the resource grants units as SimPy's `Resource` does. Call `request.cancel()` to leave the queue; `resource.queue.items` holds `(rank, request)` pairs, where it held `PriorityItem`s.
 - The built-in statistics publish new names: `tasks.<task>.in_progress` from `minimal`, and `flows.<arrival>.started` and `in_system` from `basic`. A low-level process that calls `env.stats.task_queued`, `task_started` and `task_finished` publishes `in_progress` too, and one that calls `flow_started` publishes the flow counts.
 - Events with the statuses `balked`, `reneged`, `failed`, `interrupted`, `preempted` and `resumed` reach the sinks, so a consumer that filters on `status` should expect them.
 - A scenario step now applies before every other event at its time, as SimPy applies its own `until`, so an arrival at the step's time draws its next gap from the new value; seeded runs whose steps fall on the time of another event can give other numbers.
@@ -54,7 +55,7 @@ The simulation model grows: more distributions, stores and containers that tasks
 ### Upgrading
 
 - Python 3.11 or later is needed.
-- Ingress messages use `path` and `value`: Kafka's `path_id` and Redis's `param_path` and `param_value` are renamed, and a Kafka message with a null `value` is now refused. Call `send_config(topic, path=..., value=...)` where it was called with `path_id=`.
+- Ingress messages use `path` and `value`: Kafka's `path_id` and Redis's `param_path` and `param_value` are renamed, and a Kafka message, or a PostgreSQL ingress row, with a null `value` is now refused. Call `send_config(topic, path=..., value=...)` where it was called with `path_id=`.
 - For each table the PostgreSQL ingress reads, `simulation_params` by default, rename the columns: `ALTER TABLE simulation_params RENAME COLUMN param_path TO path;` and `ALTER TABLE simulation_params RENAME COLUMN param_value TO value;`
 - An event's key is now the entity's key, the arrival name and a counter from 1 (`orders-1`), not `task-<task id>`, and every event has two new fields after `key`: `task` and `instance`. PostgreSQL rows gain `task` and `instance` columns where the table has them. See [Records and Telemetry](../reference/records-and-telemetry.md).
 - `telemetry` entries in a blueprint no longer take `publish`. Use `stats: minimal`, which publishes the same readings as `Shop.stats.resources.<name>.<reading>`, and `function` for readings of your own.

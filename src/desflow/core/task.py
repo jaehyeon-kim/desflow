@@ -331,6 +331,12 @@ class TaskRun:
                 if self._interrupted(interrupt):
                     continue
                 return (yield from self._abandon(interrupt))
+            except Exception:
+                # Any other error gives the units back before it goes on, as a
+                # `with` block does, so a child flow whose failure is handled
+                # elsewhere does not keep them for the rest of the run
+                self._release(held)
+                raise
             self._release(held)
             break
 

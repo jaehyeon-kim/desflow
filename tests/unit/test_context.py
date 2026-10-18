@@ -602,3 +602,95 @@ def test_balk_with_an_unknown_level_fails_before_the_run():
 
     with pytest.raises(ValueError, match="level.nope"):
         app.run(until=1)
+
+
+class _Sink:
+    """An egress that discards what it receives."""
+
+    async def run(self, egress_queue):
+        while True:
+            try:
+                egress_queue.get_nowait()
+            except queue.Empty:
+                await asyncio.sleep(0.01)
+
+
+def test_a_bad_until_stops_the_run_before_any_connector_starts():
+    """until is read before the egress thread starts, so a bad one leaves none."""
+    app = SimulationContext("Shop", factor=0).add_egress(_Sink())
+    with pytest.raises(ValueError):
+        app.run(until="ten minutes")
+    assert app._env is None
+
+
+def test_a_failed_start_tears_the_connectors_down():
+    """An error after the connectors start stops their thread, as run() would."""
+    app = SimulationContext("Shop", factor=0).add_egress(_Sink())
+    app.add_resource("packers", current_cap=1, max_cap=1)
+    with patch(
+        "desflow.core.context.DynamicResource", side_effect=RuntimeError("broken")
+    ):
+        with pytest.raises(RuntimeError, match="broken"):
+            app.run(until=10)
+    thread = app._env._egress_thread
+    thread.join(timeout=5)
+    assert not thread.is_alive()
+
+
+def test_a_context_runs_twice_with_a_drain():
+    """A second run starts with no entity in the system and no drain under way, so
+    a drain after a run that left orders in the shop ends when its own orders
+    leave."""
+    app = SimulationContext("Shop", factor=0, random_seed=1)
+    app.add_resource("packers", current_cap=1, max_cap=1)
+    app.add_service("packing", dist="constant", value=2)
+    app.add_arrival("orders", dist="constant", value=1)
+
+    @app.task(service_id="packing", resource_id="packers")
+    def pack(task_id):
+        return {"event": "packed"}
+
+    @app.arrival_loop("orders")
+    def loop(context):
+        while True:
+            order = yield context.wait_for_arrival("orders")
+            context.spawn(pack(context.next_instance("pack"), entity=order))
+
+    # The first run ends with orders still in the shop; the second drains them
+    app.run(until=10)
+    app.run(until=10, drain=True)
+    assert app.env.now > 10
+
+
+def test_scenario_steps_and_warmup_count_from_the_start_of_the_run():
+    """With an initial time of 100, a step at 10 applies at 110, and a warm-up of
+    5 drops the records before 105."""
+    records = []
+
+    class Keep:
+        async def run(self, egress_queue):
+            while True:
+                try:
+                    records.extend(egress_queue.get_nowait())
+                except queue.Empty:
+                    await asyncio.sleep(0.01)
+
+    app = SimulationContext("Shop", factor=0, initial_time=100, warmup=5)
+    app.add_egress(Keep())
+    app.add_variable("speed", 1)
+    app.add_step(10, path="Shop.variables.speed", value=2)
+
+    def watch(context):
+        while True:
+            yield context.env.timeout(5)
+            context.publish(
+                "speed", context.env.registry.get("Shop.variables.speed").value
+            )
+
+    app.add_process(watch)
+    app.run(until=130)
+    speeds = [
+        (r["sim_ts"], r["value"]) for r in records if r.get("path_id") == "Shop.speed"
+    ]
+    assert speeds[:2] == [(105.0, 1), (110.0, 2)]
+    assert min(r["sim_ts"] for r in records) >= 105

@@ -197,6 +197,9 @@ class SimulationContext:
 
         # Runtime State (Post-Compilation)
         self._env: Optional[DynamicRealtimeEnvironment] = None
+        # True once start() has built and started everything, so a caller can tell
+        # a value refused before the run from an error inside it
+        self.started = False
         self.sampler: Optional[Sampler] = None
         self._resources_map: Dict[str, DynamicResource] = {}
         self._stores_map: Dict[str, DynamicStore] = {}
@@ -1585,12 +1588,35 @@ class SimulationContext:
             stop = self._default_stop
         if drain is None:
             drain = self._default_drain
+        # Read before any connector starts its thread, so a bad value stops the run
+        # with nothing to tear down
+        if isinstance(until, str):
+            until = time_to_seconds(until)
+        if isinstance(drain, Mapping) and drain.get("limit") is not None:
+            _seconds(drain["limit"])
         _check_end(until, stop, drain, self._signal_names)
         self._check_tasks()
         for setup in self._before_run:
             setup()
+        # A second run of the same context starts with no entity and no task
+        self._in_system = 0
+        self._draining = False
+        self._running = {}
+        self._env = None
+        self.started = False
 
         logger.info(f"Building SimulationContext for '{self.sim_id}'...")
+        try:
+            return self._build(until, stop, drain)
+        except BaseException:
+            # The connectors may have started their threads; stop them, as run()
+            # would, so a failed start leaves no thread behind
+            if self._env is not None:
+                self._env.teardown()
+            raise
+
+    def _build(self, until: Any, stop: Any, drain: Any) -> DynamicRealtimeEnvironment:
+        """The part of `start()` after the checks: builds and starts the run."""
 
         env_kwargs: Dict[str, Any] = {"factor": self.factor}
         if self.initial_time:
@@ -1703,11 +1729,10 @@ class SimulationContext:
                 # Telemetry loops run blindly
                 self._env.process(loop_func())
 
-        if isinstance(until, str):
-            until = time_to_seconds(until)
         self._until = until
         self._end = self._end_event(until, stop, drain)
         self._closed = False
+        self.started = True
         logger.info("Simulation engine started.")
         return self._env
 

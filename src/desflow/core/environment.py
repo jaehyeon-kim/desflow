@@ -250,9 +250,10 @@ class EgressMixIn:
                 True makes it a labels sink, which receives the ground-truth records
                 from `publish_label` and nothing else; every other provider never
                 receives them. Defaults to None, which is no labels sink.
-            warmup (float, optional): The end of the warm-up, in simulation seconds.
-                No provider receives a record stamped before it, and the built-in
-                statistics are reset at that time. Defaults to None, no warm-up.
+            warmup (float, optional): The length of the warm-up, in simulation seconds
+                from now, the start of the run when the egress is set up with the
+                model. No provider receives a record stamped before it ends, and the
+                built-in statistics are reset then. Defaults to None, no warm-up.
 
         Raises:
             ValueError: If a per-provider list has the wrong length.
@@ -293,8 +294,10 @@ class EgressMixIn:
         ]
         self.egress_warmup = warmup
         if warmup is not None:
+            # The warm-up counts from the start of the run, as the statistics reset
+            # below does, so a run with an initial_time drops the right records
             self.egress_predicates = [
-                _after_warmup(float(warmup), predicate)
+                _after_warmup(self.now + float(warmup), predicate)  # type: ignore[attr-defined]
                 for predicate in self.egress_predicates
             ]
             self.process(self._end_warmup(float(warmup)))  # type: ignore[attr-defined]
