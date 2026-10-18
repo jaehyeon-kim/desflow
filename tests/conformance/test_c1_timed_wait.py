@@ -93,7 +93,7 @@ def _yaml_records():
     return rec.records
 
 
-def test_timed_wait_matches_simpy_in_all_three_apis():
+def test_c1_timed_wait():
     assert _reference_times() == EXPECTED_TIMES
 
     for records in (_lowlevel_records(), _builder_records(), _yaml_records()):

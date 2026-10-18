@@ -1,0 +1,26 @@
+# Holder and waiter arrive together at 10, the holder first. The waiter's
+# patience timeout is scheduled before the holder's service timeout, so at 16 the
+# patience wins and the waiter reneges, as in SimPy.
+simulation:
+  sim_id: C7tie
+  factor: 0
+resources:
+  machine: {current_cap: 1, max_cap: 1}
+services:
+  hold: {dist: constant, value: 6}
+  quick: {dist: constant, value: 1}
+arrivals:
+  holders: {dist: constant, value: 10, spawn: holder}
+  waiters: {dist: constant, value: 10, spawn: waiter}
+tasks:
+  holder:
+    service: hold
+    resource: machine
+    payload: {event: held}
+  waiter:
+    service: quick
+    resource: machine
+    patience: 6
+    payload: {event: served}
+run:
+  until: 18

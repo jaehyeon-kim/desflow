@@ -1,4 +1,4 @@
-"""Generate the Reference pages that the code already knows: Distributions and Statistics.
+"""Generate the Reference pages that the code already knows.
 
 mkdocs-gen-files runs this file during every docs build (the `gen-files` plugin in
 mkdocs.yml), so the pages are built from the code and cannot disagree with it. The
@@ -10,9 +10,17 @@ build.
   random generator of one example, computed by the family's own functions.
 - Statistics: every name each level publishes, found by running the statistics on a
   model with one resource, store, container, task and flow.
+- SimPy Compatibility: every operation in `tests/conformance/register.yaml`, with its
+  form in each API, the conformance tests that compare it with SimPy, and its page.
 """
 
-from typing import Dict, List
+from pathlib import Path
+from typing import Any, Dict, List
+
+REGISTER = (
+    Path(__file__).resolve().parents[1] / "tests" / "conformance" / "register.yaml"
+)
+SOURCE_URL = "https://github.com/jaehyeon-kim/desflow/blob/main/"
 
 # One example per family, in the units a blueprint uses. The code does not know a
 # typical value, so these are written here; every number below them is computed.
@@ -48,6 +56,8 @@ MEANINGS: Dict[str, str] = {
     "containers.putters_waiting": "tasks waiting to add an amount",
     "containers.level_avg": "amount held, averaged over time",
     "tasks.finished": "instances finished so far",
+    "tasks.balked": "instances that refused to join the queue; published once one does",
+    "tasks.reneged": "instances that left the queue before they were served; published once one does",
     "tasks.wait_mean": "mean time from `queued` to `started`",
     "tasks.wait_max": "longest time from `queued` to `started`",
     "tasks.service_mean": "mean time from `started` to finished",
@@ -163,6 +173,9 @@ def statistic_names() -> Dict[str, List[str]]:
         env.stats.task_queued("<task>", 0)
         env.stats.task_started("<task>", 0)
         env.stats.task_finished("<task>", 0)
+        env.stats.task_balked("<task>", 1)
+        env.stats.task_queued("<task>", 2)
+        env.stats.task_reneged("<task>", 2)
         env.stats.flow_finished("<arrival>")
         names[level] = list(env.stats.readings())
         env.teardown()
@@ -200,13 +213,90 @@ def statistics_page() -> str:
     return "\n".join(lines) + "\n"
 
 
+def register() -> List[Dict[str, Any]]:
+    """The entries of the compatibility register, in file order."""
+    import yaml
+
+    return yaml.safe_load(REGISTER.read_text(encoding="utf-8"))
+
+
+# The heading of each group of the register.
+GROUPS: Dict[str, str] = {
+    "C1": "Events and Processes",
+    "C2": "Wait for One or All",
+    "C3": "Interrupts and Preemption",
+    "C4": "Resources",
+    "C5": "Stores and Containers",
+    "C6": "Run Control",
+    "C7": "Patience",
+    "S1": "Breakdowns",
+    "S2": "Schedules",
+    "S3": "Replay",
+}
+
+
+def _cell(text: str) -> str:
+    """A table cell: a `|` inside code would end the cell, so it is escaped."""
+    return str(text).replace("|", "\\|")
+
+
+def _check_link(check: str) -> str:
+    path, name = check.split("::")
+    return f"[`{name}`]({SOURCE_URL}{path})"
+
+
+def compatibility_page() -> str:
+    """The SimPy Compatibility reference page, as Markdown."""
+    entries = register()
+    lines: List[str] = [
+        "# SimPy Compatibility",
+        "",
+        "Every SimPy operation desflow supports natively, with its form in YAML, the "
+        "builder and the low-level API. Each is checked by conformance tests that run "
+        "a plain SimPy 4.1.1 model and the same model in all three APIs, and compare "
+        "event times, outcomes and balances. The page is generated from "
+        f"[`tests/conformance/register.yaml`]({SOURCE_URL}tests/conformance/register.yaml), "
+        "the list the tests read, so a row appears here only with its checks.",
+        "",
+        "The low-level API is SimPy with a few classes added, so a SimPy construct "
+        "not listed here still works in it; [SimPy and desflow](../des/simpy-and-desflow.md) "
+        "explains how the two fit together. Where desflow differs from SimPy on "
+        "purpose, the difference is listed under the table.",
+    ]
+    groups: Dict[str, List[Dict[str, Any]]] = {}
+    for entry in entries:
+        groups.setdefault(entry["id"], []).append(entry)
+    for group, rows in groups.items():
+        lines += [
+            "",
+            f"## {group}: {GROUPS[group]}",
+            "",
+            "| Operation | SimPy | YAML | Builder | Low-level | Checks |",
+            "|---|---|---|---|---|---|",
+        ]
+        differences = []
+        for row in rows:
+            operation = f"[{row['operation']}](../{row['page']})"
+            checks = "<br>".join(_check_link(check) for check in row["checks"])
+            lines.append(
+                f"| {operation} | {_cell(row['simpy'])} | {_cell(row['yaml'])} "
+                f"| {_cell(row['builder'])} | {_cell(row['low_level'])} | {checks} |"
+            )
+            if row.get("differences"):
+                differences.append(f"- **{row['operation']}:** {row['differences']}")
+        if differences:
+            lines += ["", *differences]
+    return "\n".join(lines) + "\n"
+
+
 def write() -> None:
-    """Writes both pages into the docs build."""
+    """Writes the generated pages into the docs build."""
     import mkdocs_gen_files
 
     for path, page in (
         ("reference/distributions.md", distributions_page()),
         ("reference/statistics.md", statistics_page()),
+        ("reference/simpy-compatibility.md", compatibility_page()),
     ):
         with mkdocs_gen_files.open(path, "w") as file:
             file.write(page)

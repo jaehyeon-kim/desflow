@@ -97,8 +97,8 @@ plugins:
         tutorials/01-first-factory.md: tutorials/first-simulation.md
         tutorials/02-distributions-resources.md: tutorials/first-simulation.md
         tutorials/03-connecting-kafka.md: examples/kafka.md
-  # The Distributions and Statistic Names reference pages, generated from the code
-  # by scripts/gen_pages.py during the build.
+  # The Distributions, Statistic Names and SimPy Compatibility reference pages,
+  # generated from the code by scripts/gen_pages.py during the build.
   - gen-files:
       scripts:
         - scripts/gen_pages.py
@@ -164,6 +164,7 @@ nav:
           - Stock: tutorials/stock.md
           - Priorities: tutorials/priorities.md
           - A Flow of Tasks: tutorials/flow-of-tasks.md
+          - Patience: tutorials/patience.md
   - User Guide:
       - Ways to Write: user-guide/ways-to-write.md
       - YAML Blueprints: user-guide/blueprints.md
@@ -188,6 +189,7 @@ nav:
       - Multi-Resource Handoffs: guides/multi-resource-handoffs.md
       - Preemptive Breakdowns: guides/preemptive-breakdowns.md
       - Dynamic Topology: guides/dynamic-topology.md
+      - Reneging and Balking: guides/reneging-and-balking.md
   - Examples:
       - Overview: examples/index.md
       - Local Simulation: examples/local.md
@@ -205,6 +207,7 @@ nav:
       - Records and Telemetry: reference/records-and-telemetry.md
       - Distributions: reference/distributions.md
       - Statistics: reference/statistics.md
+      - SimPy Compatibility: reference/simpy-compatibility.md
   - About:
       - Roadmap: about/roadmap.md
       - Changelog: about/changelog.md

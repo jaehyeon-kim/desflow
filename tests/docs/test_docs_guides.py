@@ -188,3 +188,14 @@ def test_predictions_fit_the_avro_schema():
     for record in predictions:
         sent = {k: v for k, v in record.items() if k != "stream_type"}
         assert fastavro.validate(sent, parsed)
+
+
+def test_reneging_and_balking_ties_and_balance():
+    """At a tie, the order scheduled later is served and the one scheduled first
+    reneges, as the page says; and every order of the patience example is packed,
+    reneged, balked or still in the shop."""
+    module = _load("reneging_and_balking")
+    assert module.tie(3, 3) == "served"
+    assert module.tie(0, 6) == "reneged"
+    outcome = module.balance(str(ROOT / "examples" / "yaml" / "patience.yaml"))
+    assert outcome == {"order_packed": 49, "balked": 17, "reneged": 7, "started": 1}

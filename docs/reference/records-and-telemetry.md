@@ -75,7 +75,7 @@ def readings(context: SimulationContext):
 
 ## Task Events
 
-`@app.task` and a YAML task publish three events for each run, all with the entity's key, the task's name and its instance id:
+`@app.task` and a YAML task publish three events for each run that is served, all with the entity's key, the task's name and its instance id:
 
 ![A task publishes queued when it joins the resource queue, started when it gets a unit, and finished after its service time, all with key orders-1, task pack_order and instance 0](../assets/diagrams/task-events.png)
 
@@ -84,6 +84,15 @@ def readings(context: SimulationContext):
 | queued | `{"path_id": "<sim_id>.service.<service>", "status": "queued"}` |
 | started | `{"path_id": "<sim_id>.service.<service>", "status": "started"}` |
 | finished | exactly what the task returns, or the YAML `payload` |
+
+A run that is not served publishes one other event in place of `started` and finished:
+
+| Event | When | `value` |
+|---|---|---|
+| balked | its `balk` condition held, so it never joined the queue and publishes no `queued` | `{"path_id": ..., "status": "balked"}` |
+| reneged | its `patience` ran out before a unit was granted; it left the queue at that moment | `{"path_id": ..., "status": "reneged"}` |
+
+With statistics at `basic` or above, each is counted as `<sim_id>.stats.tasks.<task>.balked` and `.reneged`, published once the first one happens. [Patience](../tutorials/patience.md) shows both.
 
 A task with no service has `{"status": ...}` without `path_id`. A timed step, with a service and no resource, publishes no `queued`. A task with no service, resource or `get` publishes only the finished event, as soon as it starts. The key is the arrival's name and a counter from 1, such as `orders-1`, on every event of every task the entity passes through; [Task Flow](../user-guide/task-flow.md#entity-key) describes it. A low-level process publishes whatever it passes to `env.publish_event(key, value, task=..., instance=...)`.
 

@@ -10,7 +10,7 @@ and YAML tasks do it for you, and low-level code calls the same three methods.
 | Level | Adds |
 |---|---|
 | `minimal` | resource `capacity`, `in_use`, `queue_length`, `utilization`; store and container `capacity`, `level`, `getters_waiting`, `putters_waiting` |
-| `basic` | task and flow `finished`; resource `utilization_avg`, `queue_length_avg`; store and container `level_avg` |
+| `basic` | task and flow `finished`; task `balked` and `reneged`, once one happens; resource `utilization_avg`, `queue_length_avg`; store and container `level_avg` |
 | `typical` | task `wait_mean`, `wait_max`, `service_mean`, `service_max` |
 | `all` | task `wait_p50`, `wait_p95`, `wait_p99`, `service_p50`, `service_p95`, `service_p99` |
 
@@ -75,6 +75,8 @@ class _Observations:
 class _Task:
     def __init__(self, keep: bool):
         self.finished = 0
+        self.balked = 0
+        self.reneged = 0
         self.wait = _Observations(keep)
         self.service = _Observations(keep)
 
@@ -244,13 +246,34 @@ class Statistics:
         if times is not None and times[1] is not None:
             stats.service.add(self.env.now - times[1])
 
-    def task_abandoned(self, task: str, instance: Hashable) -> None:
-        """Drops the waiting record of a task that reneged without being served.
+    def task_balked(self, task: str, instance: Hashable) -> None:
+        """
+        Records that a task instance refused to join its queue.
 
-        It was counted as queued, so its in-flight entry is cleared; it never
-        started or finished, so no wait or service time is recorded.
+        It never queued, so it adds no wait; it is counted at `basic`.
+
+        Args:
+            task: The task's name.
+            instance: Its instance id.
+        """
+        if self._rank >= _BASIC:
+            self._task(task).balked += 1
+
+    def task_reneged(self, task: str, instance: Hashable) -> None:
+        """
+        Records that a task instance left its queue before it was served.
+
+        Its waiting record is cleared, so a long run that reneges does not keep it;
+        it never started, so it adds no wait or service time. It is counted at
+        `basic`.
+
+        Args:
+            task: The task's name.
+            instance: Its instance id.
         """
         self._in_flight.pop((task, instance), None)
+        if self._rank >= _BASIC:
+            self._task(task).reneged += 1
 
     def flow_finished(self, flow: str) -> None:
         """
@@ -306,6 +329,11 @@ class Statistics:
         for name, task in self._tasks.items():
             base = f"{prefix}.tasks.{name}"
             values[f"{base}.finished"] = task.finished
+            # Published once one happens, so a task without patience or a balk
+            # condition publishes neither
+            for outcome in ("balked", "reneged"):
+                if getattr(task, outcome):
+                    values[f"{base}.{outcome}"] = getattr(task, outcome)
             for kind, observed in (("wait", task.wait), ("service", task.service)):
                 if self._rank < _TYPICAL or not observed.count:
                     continue

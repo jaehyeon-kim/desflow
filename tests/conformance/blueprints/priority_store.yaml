@@ -1,3 +1,5 @@
+# A low-priority item is put at 10 and a high-priority one at 11; the store holds
+# the high one first.
 simulation:
   sim_id: C5
   factor: 0
@@ -11,14 +13,18 @@ arrivals:
     dist: constant
     value: 10
     spawn: stash
-    attributes:
-      p: 5
+    attributes: {p: 5, kind: low}
+  highs:
+    dist: constant
+    value: 11
+    spawn: stash
+    attributes: {p: 1, kind: high}
 tasks:
   stash:
     put:
       store: buffer
       priority: attr.p
-    payload:
-      kind: low
+    payload: {}
+    attributes: [kind]
 run:
   until: 12

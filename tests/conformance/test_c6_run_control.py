@@ -92,7 +92,7 @@ def _yaml_records():
     return rec.records
 
 
-def test_initial_time_matches_simpy_in_all_three_apis():
+def test_c6_initial_time():
     assert _reference_times() == EXPECTED_TIMES
 
     for records in (_lowlevel_records(), _builder_records(), _yaml_records()):
@@ -168,7 +168,7 @@ def _stop_yaml_records():
     return rec.records
 
 
-def test_stop_at_a_time_matches_simpy_in_all_three_apis():
+def test_c6_stop_at_a_time():
     assert _stop_reference() == EXPECTED_STOP
 
     for records in (

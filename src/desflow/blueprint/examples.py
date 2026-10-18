@@ -126,6 +126,12 @@ EXAMPLES: Dict[str, Example] = {
             _three("measuring.yaml", "measuring_example.py"),
         ),
         Example(
+            "patience",
+            "Patience",
+            "orders leave a queue after their own patience, and none join after the last collection",
+            _three("patience.yaml", "patience_example.py"),
+        ),
+        Example(
             "related-records",
             "Generate Related Records",
             "orders and their line items, in two PostgreSQL tables",

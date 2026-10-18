@@ -149,6 +149,11 @@ def _built(m, env, sampler):
     return m.processes(env, sampler, m.build(env))
 
 
+def _patience(m, env, sampler):
+    env.setup_stats("Shop", "basic", interval=30.0)
+    return m.processes(env, sampler, m.build(env))
+
+
 def _measuring(m, env, sampler):
     env.setup_stats("Shop", "all", interval=300)
     return _built(m, env, sampler)
@@ -174,6 +179,7 @@ EXAMPLE_CASES = [
     ("stock", "stock.yaml", None, 60, _stock),
     ("flow", "flow.yaml", None, 120, _built),
     ("measuring", "measuring.yaml", None, 1200, _measuring),
+    ("patience", "patience.yaml", None, 120, _patience),
 ]
 
 

@@ -602,4 +602,4 @@ In a flow, each task's arrival rate follows from the rates into it and the routi
             run()
         ```
 
-This is the last page of the tutorial for now. [Task Flow](../user-guide/task-flow.md) and the rest of the [User Guide](../user-guide/ways-to-write.md) describe each part of desflow in full.
+Next, [Patience](patience.md) asks which orders leave a queue after waiting too long, and which refuse to join.

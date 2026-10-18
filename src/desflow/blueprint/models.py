@@ -301,7 +301,8 @@ class Task(_Model):
     neither, and no `get`, emits its payload as soon as it is spawned.
 
     `priority` is a number or an expression such as `attr.priority`, for a resource
-    whose `queue` is `priority`. `get` and `put` take from and add to a store or
+    whose `queue` is `priority`. `patience` is seconds, a duration such as `30 s` or
+    an expression; `balk` is a condition checked before the task joins the queue. `get` and `put` take from and add to a store or
     container. `next` is a task name, `when` rules or `weights`. `set` gives the
     entity attribute values when the task finishes.
     """
@@ -323,6 +324,17 @@ class Task(_Model):
         ]
     ] = None
     set: Dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("patience", mode="before")
+    @classmethod
+    def _patience_duration(cls, value: Any) -> Any:
+        """Reads a duration such as `30 s`; any other text is an expression."""
+        if isinstance(value, str):
+            try:
+                return time_to_seconds(value)
+            except ValueError:
+                return value
+        return value
 
     @model_validator(mode="after")
     def _resource_needs_a_service(self) -> "Task":

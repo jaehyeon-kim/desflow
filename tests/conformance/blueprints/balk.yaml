@@ -23,5 +23,6 @@ tasks:
     balk: attr.skip == 1
     payload:
       event: served
+stats: basic
 run:
   until: 7

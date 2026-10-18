@@ -159,11 +159,13 @@ Each resource has two registry paths, `<sim_id>.resources.<name>.current_cap` an
 
 ## How It Works
 
-A `DynamicResource` is built from SimPy parts. Each request waits in a SimPy `PriorityStore`, ranked by the queue order and a sequence number, so requests that rank the same are served in the order they arrived. Free units are tokens in a SimPy `Container`, the pool, whose size follows the registry. A dispatcher process waits for a request and a token, and gives the token to the first request:
+A `DynamicResource` grants units the way SimPy's `Resource` does, with two lists: `queue`, the waiting requests ranked by the queue order and a sequence number, so requests that rank the same are served in the order they arrived, and `users`, the granted requests. A request is granted when it is made if a unit is free and nothing waits ahead of it. Otherwise it waits, and each release grants the head of the queue when its release event is processed, one event later, as SimPy's `Release` does:
 
-![A task's request waits in the request queue, a PriorityStore ordered by queue order and a sequence number; the dispatcher, a SimPy process, takes the next request and a token from the pool, a Container with one token per free unit whose size follows current_cap and max_cap in the registry, and grants it](../assets/diagrams/resource-dispatch.png)
+![A task's request joins the queue, ranked by queue order and a sequence number; it is granted, moving to users, when a unit is free and it is at the head. A release creates a release event, which grants the head of the queue when it is processed. The registry's current_cap and max_cap set how many users there can be](../assets/diagrams/resource-grant.png)
 
-If the request it takes was cancelled, the dispatcher puts the token back and takes the next. `in_use` counts the units held by tasks: it goes up when a request is granted and down when a unit is released.
+Because each step is the one SimPy takes, two events at the same simulation time are granted in SimPy's order: a waiting order whose patience runs out at the instant a unit is released reneges or is served exactly as it would in plain SimPy. `in_use` counts `users`: it goes up when a request is granted and down when a unit is released.
+
+A waiting request leaves the queue at once when it is cancelled, which a `with` block does when it is left before the grant; `request.cancel()` does the same by hand. `packers.release(request)` gives a granted unit back. Cancelling a granted request releases nothing, and releasing a request twice, or one never granted, does nothing, as in SimPy.
 
 **SimPy and desflow.** SimPy's `Resource` serves requests in the order they arrive, and `PriorityResource` by priority. Both take their capacity when they are created and keep it: `capacity` has no setter, so assigning a new one raises `AttributeError` (SimPy 4.1). desflow builds its own resource so the capacity can follow the registry and the queue order can be chosen; the `request()` call and the `with` block are SimPy's, so code written for SimPy works unchanged. [SimPy and desflow](../des/simpy-and-desflow.md) compares the two.
 
@@ -173,15 +175,15 @@ If the request it takes was cancelled, the dispatcher puts the token back and ta
 
 A change to `current_cap` takes effect at once, without stopping any work:
 
-- **Growing** adds tokens to the pool, and waiting requests start.
-- **Shrinking** removes idle tokens at once. The units still busy above the new capacity are owed: while tokens are owed, each released token is discarded instead of returning to the pool, so no waiting task starts until the busy units are within the new capacity.
-- **Growing again** before the owed tokens arrive first cancels them, then adds any difference to the pool.
+- **Growing** grants waiting requests at once, up to the new capacity.
+- **Shrinking** stops nothing. The units still busy above the new capacity are owed: each one given back brings the busy count down, and no waiting task starts until the busy count is within the new capacity.
+- **Growing again** before the owed units are given back cancels them first, so only the rest of the rise grants waiting requests.
 - A `current_cap` outside 0 to `max_cap` is clamped to that range, with a warning.
-- **Lowering `max_cap`** lowers the pool's limit. A `current_cap` above the new `max_cap` is stored as `max_cap`, with a warning.
+- **Lowering `max_cap`** lowers the capacity with it. A `current_cap` above the new `max_cap` is stored as `max_cap`, with a warning.
 
 The example above takes three of five packers off the floor while four orders are being packed: the capacity is 2 at once, and `in_use` stays 4 until two orders finish. The animation steps through it:
 
-![Capacity drops from 5 to 2 with 4 units busy: the idle token leaves, two tokens are owed and discarded as tasks finish, and only then does a waiting task start](../assets/diagrams/resource-shrink.gif)
+![Capacity drops from 5 to 2 with 4 units busy: the free unit is gone, two units are owed and are not handed on as tasks finish, and only then does a waiting task start](../assets/diagrams/resource-shrink.gif)
 
 ```python title="docs/snippets/pages/resources.py:shrink"
 def breakdown(env):

@@ -669,6 +669,13 @@ class SimulationContext:
                 "task": ...}], "default": ...}`, `{"weights": {name: weight}}`, or a
                 function of the `Upstream` returning a name or None.
             set: Attribute values applied to the entity when the task finishes.
+            patience: How long the task waits for its resource before it leaves the
+                queue and publishes `reneged`: seconds, a duration such as `"30 s"`,
+                an expression such as `"attr.patience"`, or a function of the task id
+                and the entity's attributes.
+            balk: A condition, such as `"t >= 3300"`, checked before the task joins
+                the queue; when it holds, the task publishes `balked` and never
+                requests the resource.
 
         Raises:
             ValueError: If a resource is given without a service, a priority without
@@ -699,6 +706,11 @@ class SimulationContext:
             )
         if balk is not None and resource_id is None:
             raise ValueError("balking refuses a resource queue, so it needs a resource")
+        if isinstance(patience, str):
+            try:
+                patience = time_to_seconds(patience)
+            except ValueError:
+                pass  # not a duration, so an expression such as "attr.patience"
         rank_of = Expression(priority) if isinstance(priority, str) else None
         patience_of = Expression(patience) if isinstance(patience, str) else None
         balk_of = Expression(balk) if balk is not None else None
@@ -763,6 +775,7 @@ class SimulationContext:
                     scope = make_scope(upstream, entity.attributes, env, self._levels())
                     if balk_of.evaluate(scope):
                         publish(status("balked"))
+                        env.stats.task_balked(task_name, task_id)
                         return
                 if waits:
                     publish(status("queued"))
@@ -800,7 +813,7 @@ class SimulationContext:
                             # queue (the request is cancelled on exit) and renege.
                             if not request.triggered:
                                 publish(status("reneged"))
-                                env.stats.task_abandoned(task_name, task_id)
+                                env.stats.task_reneged(task_name, task_id)
                                 return
                     if take is not None:
                         got = yield from self._transfer(

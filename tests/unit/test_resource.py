@@ -3,6 +3,11 @@ import pytest
 from desflow.resources.resource import DynamicResource
 
 
+def _free(res):
+    """Units a new request could take now."""
+    return max(0, res.capacity - res.in_use)
+
+
 def flush_events(env):
     """Process all events scheduled for the current simulation time."""
     while env._queue and env.peek() == env.now:
@@ -16,8 +21,7 @@ def test_resource_initialization(env, registry, sample_params):
 
     # Initial capacity from sample_params: current_cap=2, max_cap=5
     assert res.capacity == 2
-    assert res.pool.level == 2
-    assert res.pool.capacity == 5
+    assert _free(res) == 2
 
 
 def test_basic_request_release(env, registry, sample_params):
@@ -34,10 +38,10 @@ def test_basic_request_release(env, registry, sample_params):
     env.process(user())
 
     env.run(until=1)
-    assert res.pool.level == 1  # 1 token taken
+    assert _free(res) == 1  # 1 token taken
 
     env.run(until=15)
-    assert res.pool.level == 2  # token returned automatically
+    assert _free(res) == 2  # token returned automatically
 
 
 def test_request_cancellation(env, registry, sample_params):
@@ -70,13 +74,12 @@ def test_request_cancellation(env, registry, sample_params):
     env.run(until=6)
 
     # 3. Slow user still has the token. Impatient user left the queue.
-    assert res.pool.level == 0
+    assert _free(res) == 0
 
-    # 4. Slow user finishes at t=10.
-    # The dispatcher will pull the impatient user's ticket, see it is cancelled,
-    # and immediately return the token to the pool.
+    # 4. Slow user finishes at t=10. The impatient user's request left the queue
+    # when it gave up, so the unit stays free.
     env.run(until=12)
-    assert res.pool.level == 1
+    assert _free(res) == 1
     assert res.capacity == 1
 
 
@@ -116,7 +119,7 @@ def test_dynamic_capacity_increase(env, registry, sample_params):
     env.run(until=env.now + 0.1)
 
     assert res.capacity == 4
-    assert res.pool.level == 4
+    assert _free(res) == 4
 
 
 def test_dynamic_capacity_decrease_while_busy(env, registry, sample_params):
@@ -134,7 +137,7 @@ def test_dynamic_capacity_decrease_while_busy(env, registry, sample_params):
     env.run(until=1)
 
     assert res.capacity == 2
-    assert res.pool.level == 0
+    assert _free(res) == 0
 
     # Request drop to 1
     registry.update("Shop.resources.packers.current_cap", 1)
@@ -143,10 +146,10 @@ def test_dynamic_capacity_decrease_while_busy(env, registry, sample_params):
     # Total capacity target is now 1, but level is still 0 because
     # the 1 remaining token is still in use by a worker.
     assert res.capacity == 1
-    assert res.pool.level == 0
+    assert _free(res) == 0
 
     env.run(until=12)
-    assert res.pool.level == 1
+    assert _free(res) == 1
 
 
 def test_max_cap_increase_allows_larger_capacity(env, registry, sample_params):
@@ -159,7 +162,7 @@ def test_max_cap_increase_allows_larger_capacity(env, registry, sample_params):
     env.run(until=env.now + 0.1)
 
     assert res.capacity == 7
-    assert res.pool.level == 7
+    assert _free(res) == 7
 
 
 def test_max_cap_decrease_lowers_capacity(env, registry, sample_params):
@@ -171,7 +174,7 @@ def test_max_cap_decrease_lowers_capacity(env, registry, sample_params):
     env.run(until=env.now + 0.1)
 
     assert res.capacity == 1
-    assert res.pool.level == 1
+    assert _free(res) == 1
 
 
 def _set_cap(registry, value):
@@ -220,7 +223,7 @@ def test_shrink_to_zero_after_queue_drains_blocks_new_request(
             started[name] = env.now
             yield env.timeout(duration)
 
-    # A and B arrive together; C arrives while the dispatcher waits for A's token
+    # A and B arrive together; C queues behind them
     env.process(worker("A", 10))
     env.process(worker("B", 10))
     env.run(until=1)
@@ -248,9 +251,8 @@ def test_request_and_shrink_to_zero_at_same_instant(env, registry, sample_params
 
     def worker():
         yield env.timeout(5)
-        # In the same step: the shrink is signalled, then the request is made. The
-        # dispatcher takes the idle token before the watcher applies the shrink,
-        # so the shrink arrives while that token is being handed over.
+        # In the same step: the shrink is signalled, then the request is made,
+        # before the watcher applies the shrink.
         _set_cap(registry, 0)
         req = res.request()
         yield req
@@ -289,7 +291,7 @@ def test_grow_after_shrink_cancels_pending_shrink(env, registry, sample_params):
     # Capacity is 2 again, so C takes A's slot at 10
     assert started["C"] == 10
     env.run(until=40)
-    assert res.pool.level == 2
+    assert _free(res) == 2
     assert res.in_use == 0
 
 
@@ -317,24 +319,25 @@ def test_in_use_counts_busy_units_above_lowered_capacity(env, registry, sample_p
     assert res.in_use == 1
     env.run(until=25)
     assert res.in_use == 0
-    assert res.pool.level == 1
+    assert _free(res) == 1
 
 
-def test_max_cap_decrease_lowers_pool_capacity(env, registry, sample_params):
-    """Lowering max_cap lowers the token pool capacity with it (defect 9)."""
+def test_max_cap_decrease_lowers_capacity_and_a_rise_restores_it(
+    env, registry, sample_params
+):
+    """Lowering max_cap lowers the capacity, and raising both restores it (defect 9)."""
     registry.register_sim_parameter(sample_params)
     res = DynamicResource(env, "Shop", "packers")  # current 2, max 5
 
     registry.update("Shop.resources.packers.max_cap", 1)
     env.run(until=env.now + 0.1)
-    assert res.pool.capacity == 1, f"pool capacity is {res.pool.capacity}"
+    assert res.capacity == 1
 
     registry.update("Shop.resources.packers.max_cap", 4)
     registry.update("Shop.resources.packers.current_cap", 3)
     env.run(until=env.now + 0.1)
-    assert res.pool.capacity == 4
     assert res.capacity == 3
-    assert res.pool.level == 3
+    assert _free(res) == 3
 
 
 def test_max_cap_decrease_while_busy_keeps_running_tasks(env, registry, sample_params):
@@ -360,8 +363,7 @@ def test_max_cap_decrease_while_busy_keeps_running_tasks(env, registry, sample_p
 
     env.run(until=20)
     assert sorted(finished) == ["A", "B"]
-    assert res.pool.level == 1
-    assert res.pool.capacity == 1
+    assert _free(res) == 1
     assert res.in_use == 0
 
 
@@ -423,3 +425,75 @@ def test_priority_counts_only_under_the_priority_order(env, registry, sample_par
     assert served == ["first", "later", "urgent"]
     with pytest.raises(ValueError, match="queue must be one of"):
         DynamicResource(env, "Shop", "operator", queue="random")
+
+
+def test_cancel_leaves_the_queue_at_once_and_does_nothing_after_a_grant(
+    env, registry, sample_params
+):
+    registry.register_sim_parameter(sample_params)
+    _set_cap(registry, 1)
+    flush_events(env)
+    res = DynamicResource(env, "Shop", "packers")
+    held = res.request()
+    waiting = res.request()
+    assert len(res.queue.items) == 1
+
+    waiting.cancel()
+    assert res.queue.items == []
+
+    held.cancel()  # granted: SimPy's cancel releases nothing either
+    assert res.in_use == 1
+    res.release(held)
+    env.run(until=1)
+    assert res.in_use == 0 and not waiting.triggered
+
+
+def test_a_second_release_or_one_never_granted_does_nothing(
+    env, registry, sample_params
+):
+    registry.register_sim_parameter(sample_params)
+    res = DynamicResource(env, "Shop", "packers")  # capacity 2
+    first, second = res.request(), res.request()
+    third = res.request()  # waits
+    res.release(first)
+    res.release(first)
+    res.release(third)
+    env.run(until=1)
+    # One unit came back, and it went to the waiting request
+    assert res.users == [second, third]
+
+
+def _grant_order(make_resource, env):
+    """Who is granted when: A holds until 5, B waits from 1, and C asks at 5
+    in the same step as A's release, after it."""
+    res = make_resource()
+    order = []
+
+    def user(name, start, hold):
+        yield env.timeout(start)
+        with res.request() as req:
+            yield req
+            order.append((name, env.now))
+            yield env.timeout(hold)
+
+    env.process(user("A", 0, 5))
+    env.process(user("B", 1, 1))
+    env.process(user("C", 5, 1))
+    env.run(until=20)
+    return order
+
+
+def test_grant_order_matches_simpy(env, registry, sample_params):
+    import simpy
+
+    registry.register_sim_parameter(sample_params)
+    _set_cap(registry, 1)
+    flush_events(env)
+    reference_env = simpy.Environment()
+    expected = _grant_order(
+        lambda: simpy.Resource(reference_env, capacity=1), reference_env
+    )
+    assert expected == [("A", 0), ("B", 5), ("C", 6)]
+    assert _grant_order(lambda: DynamicResource(env, "Shop", "packers"), env) == (
+        expected
+    )

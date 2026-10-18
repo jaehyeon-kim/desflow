@@ -1,0 +1,28 @@
+# The holder takes the machine at 8 for 6 seconds; the waiter arrives at 9 with a
+# patience of 2 and leaves the queue at 11. The warm-up resets the statistics at
+# 8, so the mean queue length over 8 to 16 is 2 / 8 = 0.25.
+simulation:
+  sim_id: C7q
+  factor: 0
+  warmup: 8
+resources:
+  machine: {current_cap: 1, max_cap: 1}
+services:
+  hold: {dist: constant, value: 6}
+  quick: {dist: constant, value: 1}
+arrivals:
+  holders: {dist: constant, value: 8, spawn: holder}
+  waiters: {dist: constant, value: 9, spawn: waiter}
+tasks:
+  holder:
+    service: hold
+    resource: machine
+    payload: {event: held}
+  waiter:
+    service: quick
+    resource: machine
+    patience: 2
+    payload: {event: served}
+stats: basic
+run:
+  until: 16

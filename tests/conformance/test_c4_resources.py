@@ -116,7 +116,7 @@ def _yaml_records():
     return rec.records
 
 
-def test_resource_queue_matches_simpy_in_all_three_apis():
+def test_c4_ordinary_request_and_release():
     assert _reference_starts() == EXPECTED_STARTS
 
     for records in (_lowlevel_records(), _builder_records(), _yaml_records()):

@@ -28,6 +28,8 @@ PAGES = {
     "stock": "docs/user-guide/stores-and-containers.md",
     "flow": "docs/user-guide/task-flow.md",
     "measuring": "docs/user-guide/statistics.md",
+    # The 0.22.0 examples are shown on the page that teaches their feature.
+    "patience": "docs/guides/reneging-and-balking.md",
 }
 TABS = {"yaml": "YAML", "builder": "Builder", "low-level": "Low-level"}
 ODCTL = '"odctl>=1.0,<2"'

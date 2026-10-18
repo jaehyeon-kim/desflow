@@ -2,6 +2,20 @@
 
 Each release, newest first: what changed, then under Upgrading what to change in code, commands or installs that use the previous release.
 
+## Version 0.22.0
+
+desflow matches SimPy operation by operation, in YAML, the builder and the low-level API, and each operation is checked against plain SimPy.
+
+- A [SimPy Compatibility](../reference/simpy-compatibility.md) page lists every supported SimPy operation with its form in each API and the tests that compare it with SimPy.
+- Patience and balking: a task's `patience` takes a duration such as `30 s`, and orders that leave or refuse to join are counted as `tasks.<task>.reneged` and `.balked`. See [Patience](../tutorials/patience.md) and [Reneging and Balking](../guides/reneging-and-balking.md).
+- A low-level request can be cancelled with `request.cancel()` and given back with `resource.release(request)`, as in SimPy. See [Resources](../user-guide/resources.md#how-it-works).
+
+### Upgrading
+
+- A `priority` on a store `get` is refused; priority orders a `put` into a priority store.
+- Resources grant units with the same events as SimPy's `Resource`, so requests at the same simulation time are granted in SimPy's order, which can change seeded output where such ties occur.
+- Events with the statuses `balked` and `reneged` reach the sinks, so a consumer that filters on `status` should expect them.
+
 ## Version 0.21.0
 
 The simulation model grows: more distributions, stores and containers that tasks use, flows of tasks, built-in statistics and ground-truth labels. The docs gain a Learn section with a tutorial, the Shop, and a User Guide with one page per part of the library.

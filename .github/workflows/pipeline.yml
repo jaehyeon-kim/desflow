@@ -186,11 +186,11 @@ jobs:
       - name: Fetch Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
 
-      - name: Run Unit Tests
+      - name: Run Unit and Conformance Tests
         # --python is what selects the interpreter. `uv python install` above only
         # downloads it, so without this every leg of the matrix would run the
         # version in .python-version and the other three would test nothing new.
-        run: uv run --python ${{ matrix.python-version }} --with pytest-cov --all-extras pytest tests/unit/ --cov=src/desflow --cov-report=xml
+        run: uv run --python ${{ matrix.python-version }} --with pytest-cov --all-extras pytest tests/unit/ tests/conformance/ --cov=src/desflow --cov-report=xml
 
   integration-test:
     needs: [lint, extras-isolation, core-install]

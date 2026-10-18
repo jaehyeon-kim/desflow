@@ -1,0 +1,89 @@
+# The SimPy compatibility register: every SimPy operation desflow supports natively,
+# its form in each API, the conformance tests that compare it with plain SimPy 4.1.1,
+# and the docs page that teaches it. scripts/gen_pages.py writes the SimPy
+# Compatibility page from this file, and tests/docs/test_gen_pages.py checks that
+# every check names a test function, every test function here is listed, and every
+# page exists.
+#
+# id: the capability group (C1 to C7 core, S1 to S3 bounded support)
+# operation: what a model does
+# simpy: the SimPy construct it corresponds to
+# yaml, builder, low_level: one short form each
+# checks: pytest node ids of the conformance tests
+# page: the docs page and anchor that teaches it, relative to docs/
+# differences: an intentional difference from SimPy, when there is one
+
+- id: C1
+  operation: Timed wait
+  simpy: "`simpy.events.Timeout`"
+  yaml: a task with `service` and no `resource`
+  builder: "`@app.task(service_id=...)` with no resource"
+  low_level: "`yield env.timeout(delay)`"
+  checks:
+    - tests/conformance/test_c1_timed_wait.py::test_c1_timed_wait
+  page: user-guide/tasks-and-processes.md#a-timed-step
+
+- id: C4
+  operation: Ordinary request and release
+  simpy: "`simpy.resources.resource.Resource`"
+  yaml: "`resource: packers` on a task"
+  builder: "`@app.task(resource_id=\"packers\")`"
+  low_level: "`with packers.request() as req: yield req`"
+  checks:
+    - tests/conformance/test_c4_resources.py::test_c4_ordinary_request_and_release
+  page: user-guide/resources.md#declare-a-resource
+
+- id: C5
+  operation: Priority item storage
+  simpy: "`simpy.resources.store.PriorityStore`"
+  yaml: "`stores.<name>.priority: true` and a `put` with `priority`"
+  builder: "`add_store(..., priority=True)` and `put={\"store\": ..., \"priority\": ...}`"
+  low_level: "`DynamicStore(..., priority=True)` with `simpy.PriorityItem`"
+  checks:
+    - tests/conformance/test_c5_priority_store.py::test_c5_priority_item_storage
+    - tests/conformance/test_c5_priority_store.py::test_c5_priority_item_storage_equal_priorities
+  page: user-guide/stores-and-containers.md#take-and-add
+  differences: Equal priorities come out in put order in the builder and YAML, which add a rising put order to the priority; a plain SimPy `PriorityStore` gives no order among equal priorities.
+
+- id: C6
+  operation: Initial time
+  simpy: "`simpy.core.Environment(initial_time=...)`"
+  yaml: "`simulation.initial_time`"
+  builder: "`SimulationContext(..., initial_time=100)`"
+  low_level: "`DynamicRealtimeEnvironment(initial_time=100)`"
+  checks:
+    - tests/conformance/test_c6_run_control.py::test_c6_initial_time
+  page: user-guide/time-and-pacing.md#run-length
+
+- id: C6
+  operation: Stop at a time
+  simpy: "`simpy.core.Environment.run(until=...)`"
+  yaml: "`run.until`"
+  builder: "`app.run(until=...)`"
+  low_level: "`env.run(until=...)`"
+  checks:
+    - tests/conformance/test_c6_run_control.py::test_c6_stop_at_a_time
+  page: user-guide/time-and-pacing.md#run-length
+
+- id: C7
+  operation: Reneging
+  simpy: "`simpy.events.AnyOf` of a request and a timeout"
+  yaml: "`patience: 3 min` on a task"
+  builder: "`@app.task(..., patience=180)`"
+  low_level: "`yield req | env.timeout(patience)`, then `req.triggered`"
+  checks:
+    - tests/conformance/test_c7_patience.py::test_c7_reneging
+    - tests/conformance/test_c7_patience.py::test_c7_reneging_tie_timeout_scheduled_after_the_grant
+    - tests/conformance/test_c7_patience.py::test_c7_reneging_tie_timeout_scheduled_before_the_grant
+    - tests/conformance/test_c7_patience.py::test_c7_reneged_request_leaves_the_queue
+  page: tutorials/patience.md#leave-after-a-wait
+
+- id: C7
+  operation: Balking
+  simpy: "a check before `Resource.request`"
+  yaml: "`balk: <condition>` on a task"
+  builder: "`@app.task(..., balk=\"...\")`"
+  low_level: an `if` before the request
+  checks:
+    - tests/conformance/test_c7_patience.py::test_c7_balking
+  page: tutorials/patience.md#refuse-to-join

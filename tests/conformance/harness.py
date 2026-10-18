@@ -9,7 +9,11 @@ test exercises what a run actually writes.
 
 import asyncio
 import queue
-from typing import Any, Dict, List, Tuple
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Tuple
+
+from desflow import DynamicRealtimeEnvironment, SimParameter
+from desflow.core.context import SimulationContext
 
 # One captured event: simulation time rounded to 3 decimals, entity key, task
 # name, and the status the task published (started, finished and so on).
@@ -54,3 +58,54 @@ def event_trace(records: List[Dict[str, Any]]) -> List[Event]:
             (round(float(record["sim_ts"]), 3), record["key"], record["task"], status)
         )
     return trace
+
+
+BLUEPRINTS = Path(__file__).parent / "blueprints"
+
+
+def at(records: List[Dict[str, Any]], status: Any) -> List[Tuple[float, str]]:
+    """The time and entity key of every event with this status, in order."""
+    return [(t, key) for t, key, _task, s in event_trace(records) if s == status]
+
+
+def run_yaml(name: str) -> Tuple[List[Dict[str, Any]], SimulationContext]:
+    """Runs a blueprint from `blueprints/` into a recording egress."""
+    rec = RecordingEgress()
+    app = SimulationContext.from_yaml(BLUEPRINTS / name)
+    app.add_egress(rec)
+    app.run()
+    return rec.records, app
+
+
+def run_builder(app: SimulationContext, until: float) -> List[Dict[str, Any]]:
+    """Runs a builder model into a recording egress."""
+    rec = RecordingEgress()
+    app.add_egress(rec)
+    app.run(until=until)
+    return rec.records
+
+
+def run_low_level(
+    params: Optional[SimParameter],
+    start: Callable[[DynamicRealtimeEnvironment], Any],
+    until: float,
+    stats: Optional[str] = None,
+) -> Tuple[List[Dict[str, Any]], DynamicRealtimeEnvironment]:
+    """Runs a low-level model, unpaced, into a recording egress.
+
+    `start(env)` builds the resources and starts the processes, after the
+    parameters are registered and the egress and statistics are set up.
+    """
+    env = DynamicRealtimeEnvironment(factor=0.0)
+    if params is not None:
+        env.registry.register_sim_parameter(params)
+    rec = RecordingEgress()
+    env.setup_egress([rec], lag_monitor_interval=None)
+    if stats is not None:
+        env.setup_stats(params.sim_id if params else "Sim", stats)
+    start(env)
+    try:
+        env.run(until=until)
+    finally:
+        env.teardown()
+    return rec.records, env

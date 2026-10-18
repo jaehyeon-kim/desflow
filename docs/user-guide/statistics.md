@@ -20,7 +20,7 @@ A level switches them on. Each level publishes what the levels before it publish
 |---|---|---|
 | `none` | | nothing; the default |
 | `minimal` | What is happening now? | resources: `capacity`, `in_use`, `queue_length`, `utilization`; stores and containers: `capacity`, `level`, `getters_waiting`, `putters_waiting` |
-| `basic` | How much got done, and how busy was it? | tasks and flows: `finished`; resources: `utilization_avg`, `queue_length_avg`; stores and containers: `level_avg` |
+| `basic` | How much got done, and how busy was it? | tasks and flows: `finished`; tasks: `balked` and `reneged`, once one happens; resources: `utilization_avg`, `queue_length_avg`; stores and containers: `level_avg` |
 | `typical` | How long did tasks take? | tasks: `wait_mean`, `wait_max`, `service_mean`, `service_max` |
 | `all` | How long did the slowest take? | tasks: `wait_p50`, `wait_p95`, `wait_p99`, `service_p50`, `service_p95`, `service_p99` |
 
@@ -300,7 +300,7 @@ The environment keeps one `Statistics` object, `env.stats`, which collects nothi
 
 ![Busy packers over 10 seconds: 1 for 2 seconds, 3 for 4 seconds, 2 for 4 seconds; the areas 2, 12 and 8 add up to 22, so the time-weighted average is 2.2 busy packers, while a reading at 10 seconds sees 2](../assets/diagrams/stats-time-weighted.png)
 
-**Counts.** `finished` adds one when a task instance finishes, and a flow's `finished` adds one when an entity's last task has no next task.
+**Counts.** `finished` adds one when a task instance finishes, and a flow's `finished` adds one when an entity's last task has no next task. A task's `balked` adds one when an instance refuses to join its queue, and `reneged` when one leaves the queue after its patience; each is published once it is above 0, and neither instance adds a wait, because neither was served ([Patience](../tutorials/patience.md)). A low-level process counts them with `env.stats.task_balked(task, instance)` and `env.stats.task_reneged(task, instance)`.
 
 **Wait and service.** The wait of a task instance runs from its `queued` step to its `started` step, and its service from `started` to finished; a task that never queues, such as a timed step, waits 0. `typical` keeps a count, a total and a maximum of each, so their cost does not grow with the run. `all` keeps every observation and computes the percentiles exactly with NumPy's `percentile` at each publication, so its memory grows with the number of tasks.
 

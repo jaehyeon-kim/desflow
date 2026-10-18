@@ -1,10 +1,13 @@
-"""The generated Reference pages follow the code: every family and every statistic.
+"""The generated Reference pages follow the code: every family, every statistic and
+every conformance check.
 
-scripts/gen_pages.py builds the Distributions and Statistic Names pages during the
-docs build. These tests check that each page lists everything the code has, so a new
-family or statistic cannot be left off, or published without a meaning.
+scripts/gen_pages.py builds the Distributions, Statistic Names and SimPy
+Compatibility pages during the docs build. These tests check that each page lists
+everything the code has, so a new family, statistic or conformance test cannot be
+left off, or published without a meaning or a page.
 """
 
+import ast
 import importlib.util
 from pathlib import Path
 
@@ -36,3 +39,32 @@ def test_every_statistic_has_a_meaning_and_each_level_adds_to_the_last():
     page = gen_pages.statistics_page()
     for name in names["all"]:
         assert f"`{name}`" in page  # _meaning raises KeyError for a new statistic
+
+
+ROOT = _SCRIPT.parents[1]
+
+
+def _conformance_tests():
+    """Every test function in tests/conformance/, as a pytest node id."""
+    found = set()
+    for path in sorted((ROOT / "tests" / "conformance").glob("test_*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in tree.body:
+            if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
+                found.add(f"{path.relative_to(ROOT)}::{node.name}")
+    return found
+
+
+def test_every_register_check_is_a_test_and_every_test_is_listed():
+    listed = [check for entry in gen_pages.register() for check in entry["checks"]]
+    assert len(listed) == len(set(listed)), "a check is listed twice"
+    assert set(listed) == _conformance_tests()
+
+
+def test_every_register_page_exists_and_every_group_has_a_heading():
+    for entry in gen_pages.register():
+        assert (ROOT / "docs" / entry["page"].split("#")[0]).is_file(), entry["page"]
+        assert entry["id"] in gen_pages.GROUPS
+    page = gen_pages.compatibility_page()
+    for entry in gen_pages.register():
+        assert f"[{entry['operation']}](../{entry['page']})" in page

@@ -347,3 +347,35 @@ def test_flow_of_tasks_one_order(caplog):
         "pack_order",
         "ship_order",
     ]
+
+
+PATIENCE_OUTCOMES = {
+    30: {"finished": 2173, "reneged": 69, "balked": 194, "wait_mean": 14.57},
+    3600: {"finished": 2242, "reneged": 0, "balked": 194, "wait_mean": 72.16},
+}
+
+
+def _patience_outcomes(api, patience, monkeypatch):
+    if api == "yaml":
+        monkeypatch.setenv("PATIENCE", f"{patience} s")
+        app = SimulationContext.from_yaml(BLUEPRINTS / "patience.yaml")
+        app.run()
+        readings = app.env.stats.readings()
+        name = "Shop.stats.tasks.pack_order.{}".format
+        result = {
+            o: readings.get(name(o), 0)
+            for o in ("finished", "reneged", "balked", "wait_mean")
+        }
+    else:
+        module = _load("patience" + ("" if api == "builder" else "_low_level"))
+        result = module.outcomes(patience)
+    result["wait_mean"] = round(result["wait_mean"], 2)
+    return result
+
+
+@pytest.mark.parametrize("api", APIS)
+def test_patience_outcomes(api, monkeypatch):
+    """69 orders renege with a patience of 30 s, and the mean wait falls from 72.16 s
+    to 14.57 s; 194 balk in the last five minutes either way."""
+    for patience, expected in PATIENCE_OUTCOMES.items():
+        assert _patience_outcomes(api, patience, monkeypatch) == expected

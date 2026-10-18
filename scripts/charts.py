@@ -12,7 +12,7 @@ Usage: python scripts/charts.py [name ...]
 import importlib.util
 import sys
 from pathlib import Path
-from typing import Callable, Dict
+from typing import Callable, Dict, List, Tuple
 
 import matplotlib
 
@@ -332,6 +332,62 @@ def priorities_wait() -> None:
     _save(fig, "priorities-wait")
 
 
+def patience_waits() -> None:
+    """Patience: the wait of every packed order over the hour, with a patience of 30
+    seconds and with none."""
+    import logging
+
+    from desflow import SimulationContext
+
+    module = _module("patience")
+    logging.getLogger("desflow").setLevel(logging.WARNING)
+    fig, ax = plt.subplots(figsize=(WIDTH, HEIGHT))
+    for patience, colour, label in (
+        (3600, GREY, "no patience"),
+        (30, BLUE, "a patience of 30 s"),
+    ):
+        app: SimulationContext = module.shop(patience)
+        queued: Dict[str, float] = {}
+        waits: List[Tuple[float, float]] = []
+
+        def watch(record, queued=queued, waits=waits):
+            if record["stream_type"] != "event":
+                return False
+            status = record["value"].get("status")
+            if status == "queued":
+                queued[record["key"]] = record["sim_ts"]
+            elif status == "started":
+                start = queued.pop(record["key"])
+                waits.append((record["sim_ts"] / 60, record["sim_ts"] - start))
+            return False
+
+        app.add_egress(_NullEgress(), when=watch)
+        app.run(until="1 h")
+        ax.scatter(*zip(*waits), s=4, color=colour, label=label)
+    ax.set_xlabel("time packing started (minutes)")
+    ax.set_ylabel("wait before packing (seconds)")
+    ax.set_title("One packer, 0.7 orders a second")
+    ax.legend(frameon=False, loc="upper left", markerscale=3)
+    _save(fig, "patience-waits")
+
+
+class _NullEgress:
+    """An egress that drops what it is given; a chart reads records on the way in."""
+
+    async def run(self, egress_queue) -> None:
+        import asyncio
+        import queue
+
+        try:
+            while True:
+                try:
+                    egress_queue.get_nowait()
+                except queue.Empty:
+                    await asyncio.sleep(0.01)
+        except asyncio.CancelledError:
+            pass
+
+
 def distribution_shapes() -> None:
     """Arrivals and Services: 200,000 draws from each distribution family, with the
     parameters of the examples on the page."""
@@ -388,6 +444,7 @@ def distribution_shapes() -> None:
 CHARTS: Dict[str, Callable[[], None]] = {
     "distribution-shapes": distribution_shapes,
     "priorities-wait": priorities_wait,
+    "patience-waits": patience_waits,
     "stock-level": stock_level,
     "trusting-warmup": trusting_warmup,
     "measuring-queue": measuring_queue,

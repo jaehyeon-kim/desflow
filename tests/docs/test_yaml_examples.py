@@ -120,8 +120,16 @@ async def _drain(egress, records):
 
 def test_every_example_is_plain_yaml():
     """Only the advanced example references Python."""
+    from desflow.blueprint.examples import EXAMPLES as LISTED
+
     plain = sorted(EXAMPLES.glob("*.yaml"))
-    assert len(plain) == 10
+    # Every example's blueprint outside advanced/ is here, and nothing else
+    assert {p.name for p in plain} == {
+        Path(f).name
+        for example in LISTED.values()
+        for f in example.files["yaml"]
+        if f.endswith(".yaml") and f.count("/") == 1
+    }
     for path in plain:
         assert "!python" not in path.read_text(encoding="utf-8"), path.name
     assert not list(EXAMPLES.glob("*.py"))

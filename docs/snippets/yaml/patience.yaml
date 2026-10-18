@@ -1,0 +1,44 @@
+# The Patience tutorial: orders leave after waiting too long, and none join near closing.
+# Run it with: desflow run patience.yaml
+# With no time limit: PATIENCE="1 h" desflow run patience.yaml
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+resources:
+  packers: {current_cap: 1, max_cap: 4}
+
+services:
+  packing: {dist: constant, value: 1.5 s}
+
+arrivals:
+  # 0.7 orders a second: more than one packer can pack
+  orders: {dist: exponential, rate: 0.7, spawn: pack_order}
+
+tasks:
+  # --8<-- [start:task]
+  pack_order:
+    service: packing
+    resource: packers
+    # --8<-- [start:patience]
+    # A customer cancels an order not started within 30 seconds
+    patience: ${PATIENCE:-30 s}
+    # --8<-- [end:patience]
+    # --8<-- [start:balk]
+    # The courier leaves at the hour, so the last 5 minutes take no new orders
+    balk: t >= 3300
+    # --8<-- [end:balk]
+    payload: {event_type: order_packed}
+  # --8<-- [end:task]
+
+# --8<-- [start:watch]
+# Counts of finished, reneged and balked orders, and the mean wait, at the end
+stats: {level: typical, interval: 1 h}
+# --8<-- [end:watch]
+
+egress:
+  - type: Console
+
+run:
+  until: 1 h
