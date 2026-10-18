@@ -225,6 +225,54 @@ def trusting_table() -> List[str]:
     return lines
 
 
+def replications_telemetry() -> List[str]:
+    """Replications: the telemetry a sink receives from three replications."""
+    module = _module("docs/snippets/pages/replications.py")
+    return _capture(module.builder)
+
+
+def replications_summary() -> List[str]:
+    """Replications: the summary of the same three replications."""
+    module = _module("docs/snippets/pages/replications.py")
+    result: List[object] = []
+    _capture(lambda: result.append(module.builder()))
+    return result[0].summary_text().split("\n")  # type: ignore[attr-defined]
+
+
+def study_report() -> List[str]:
+    """Local Studies: the results, comparison, check and observed part of the
+    study example's report."""
+    import tempfile
+
+    module = _module("examples/builder/study_example.py")
+    with tempfile.TemporaryDirectory() as folder:
+        with contextlib.redirect_stdout(open(os.devnull, "w")):
+            report = module.run(output=Path(folder)).report.split("\n")
+    return report[report.index("## Results") : report.index("## Limits") - 1]
+
+
+def fit_table() -> List[str]:
+    """Fit the Inputs: the table of candidates for the 40 packing times."""
+    import io
+
+    module = _module("docs/snippets/tutorials/fit_the_inputs.py")
+    printed = io.StringIO()
+    with contextlib.redirect_stdout(printed):
+        module.fitted()
+    return printed.getvalue().rstrip("\n").split("\n")
+
+
+def fit_gaps() -> List[str]:
+    """Fit a Distribution: the table of candidates for the gaps between orders."""
+    import io
+
+    module = _module("docs/snippets/guides/fit_a_distribution.py")
+    printed = io.StringIO()
+    with contextlib.redirect_stdout(printed):
+        module.fit()
+    return printed.getvalue().rstrip("\n").split("\n")
+
+
 def stock_out() -> List[str]:
     """Stock: the stock's readings around the second stock-out of 40-box deliveries."""
     module = _module("docs/snippets/tutorials/stock.py")
@@ -466,6 +514,11 @@ BLOCKS: Dict[str, Callable[[], List[str]]] = {
     "stock-table": stock_table,
     "stock-out": stock_out,
     "trusting-table": trusting_table,
+    "replications-telemetry": replications_telemetry,
+    "replications-summary": replications_summary,
+    "study-report": study_report,
+    "fit-table": fit_table,
+    "fit-gaps": fit_gaps,
     "measuring-final": measuring_final,
     "choosing-table": choosing_table,
     "first-trace": first_trace,

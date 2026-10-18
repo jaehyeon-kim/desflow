@@ -38,6 +38,9 @@ PAGES = {
     "breakdowns": "docs/guides/breakdowns.md",
     "changing-demand": "docs/guides/time-varying-arrivals.md",
     "local-replay": "docs/user-guide/arrivals-and-services.md",
+    "replications": "docs/user-guide/replications.md",
+    "study": "docs/user-guide/local-studies.md",
+    "fitting": "docs/user-guide/input-fitting.md",
 }
 TABS = {"yaml": "YAML", "builder": "Builder", "low-level": "Low-level"}
 ODCTL = '"odctl>=1.0,<2"'
@@ -50,7 +53,7 @@ def _package(example: Example) -> str:
 def _run(example: Example, api: str, uv: bool) -> str:
     main = Path(example.files[api][0]).name
     if api == "yaml":
-        return f"desflow run {main}"
+        return example.yaml_command or f"desflow run {main}"
     if uv:
         return f"uv run --no-project --with {_package(example)} {main}"
     return f"python {main}"

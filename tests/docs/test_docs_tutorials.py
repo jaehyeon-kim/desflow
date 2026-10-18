@@ -220,6 +220,52 @@ def test_trusting_results_warmup(api, monkeypatch):
     assert round(_trusting_wait(api, "2 min", monkeypatch), 3) == 1.381
 
 
+# (mean, half-width, half-width as a share of the mean in percent) after n runs
+TRUSTING_PRECISION = {
+    ("tasks.pack_order.wait_mean", 5): (2.21, 0.47, 21.2),
+    ("tasks.pack_order.wait_mean", 10): (2.25, 0.25, 11.0),
+    ("tasks.pack_order.wait_mean", 20): (2.48, 0.32, 13.0),
+    ("tasks.pack_order.wait_mean", 40): (2.32, 0.20, 8.4),
+    ("resources.packers.utilization_avg", 5): (89.72, 1.37, 1.5),
+    ("resources.packers.utilization_avg", 10): (90.34, 0.91, 1.0),
+    ("resources.packers.utilization_avg", 20): (90.33, 0.63, 0.7),
+    ("resources.packers.utilization_avg", 40): (90.03, 0.45, 0.5),
+}
+
+
+@pytest.mark.parametrize("api", APIS)
+def test_trusting_results_replications(api, monkeypatch):
+    """The precision table, the range of the 40 waits, and the 10% target: the
+    mean wait meets it at 40 replications and utilisation at 5."""
+    from desflow import replicate
+
+    builder = _load("trusting_results")
+    if api == "yaml":
+        monkeypatch.delenv("WARMUP", raising=False)
+        result = replicate(
+            BLUEPRINTS / "trusting_results.yaml",
+            40,
+            seed=42,
+            until=None,
+            measures=builder.MEASURES,
+        )
+    else:
+        module = builder if api == "builder" else _load("trusting_results_low_level")
+        result = module.replications()
+    table = {
+        key: (
+            round(i.mean, 2),
+            round(i.half_width, 2),
+            round(i.half_width / i.mean * 100, 1),
+        )
+        for key, i in builder.precision(result).items()
+    }
+    assert table == TRUSTING_PRECISION
+    waits = result.values["tasks.pack_order.wait_mean"]
+    assert (round(min(waits), 2), round(max(waits), 2)) == (1.45, 4.39)
+    assert min(waits) > 1.382
+
+
 def _stock_wait(api, delivery, monkeypatch, path=None):
     if api == "yaml":
         monkeypatch.setenv("DELIVERY", str(delivery))
@@ -610,3 +656,138 @@ def test_local_replay_recorded_and_modelled(api, caplog):
         got["wait_max"] = round(got["wait_max"], 2)
         assert got == expected
     assert "Skipped row 501, which has no valid ordered_at: ''" in caplog.text
+
+
+def _study(name, api, tmp_path, monkeypatch):
+    """Runs a tutorial's study in one API, writing its files under tmp_path."""
+    from desflow import run_study
+
+    if api == "yaml":
+        monkeypatch.delenv("WARMUP", raising=False)
+        return run_study(BLUEPRINTS / f"{name}_study.yaml", output=tmp_path)
+    module = _load(name + ("" if api == "builder" else "_low_level"))
+    return module.study(output=tmp_path)
+
+
+def _means(result, statistic):
+    return {
+        r["design"]: (round(r["mean"], 2), round(r["half_width"], 2))
+        for r in result.summary
+        if r["statistic"] == statistic
+    }
+
+
+@pytest.mark.parametrize("api", APIS)
+def test_comparing_designs_fourth_packer(api, tmp_path, monkeypatch):
+    """A fourth packer cuts the mean wait by 2.21 +/- 0.31 s; the paired utilisation
+    difference is narrower than either design's own interval; the check passes."""
+    result = _study("comparing_designs", api, tmp_path, monkeypatch)
+    assert _means(result, "tasks.pack_order.wait_mean") == {
+        "three": (2.48, 0.32),
+        "four": (0.27, 0.01),
+    }
+    assert _means(result, "resources.packers.utilization_avg") == {
+        "three": (90.33, 0.63),
+        "four": (67.70, 0.46),
+    }
+    difference = {
+        r["measure"]: (round(r["difference"], 2), round(r["half_width"], 2))
+        for r in result.comparisons
+    }
+    assert difference == {
+        "tasks.pack_order.wait_mean": (-2.21, 0.31),
+        "resources.packers.utilization_avg": (-22.63, 0.17),
+    }
+    assert {r["streams_both"] for r in result.comparisons} == {
+        "arrival.orders;service.packing"
+    }
+    [check] = result.checks
+    assert check["passed"] and round(check["value"], 3) == 0.286
+    assert "The provenance of `Shop.arrival.orders` is not stated." in result.report
+
+
+@pytest.mark.parametrize("api", APIS)
+def test_parameter_sweeps_demand(api, tmp_path, monkeypatch):
+    """The table of mean waits at four rates, for three packers and for four."""
+    result = _study("parameter_sweeps", api, tmp_path, monkeypatch)
+    rate = "Shop.arrival.orders.rate"
+    assert _means(result, "tasks.pack_order.wait_mean") == {
+        f"three {rate}=1.6": (0.97, 0.07),
+        f"three {rate}=1.7": (1.47, 0.14),
+        f"three {rate}=1.8": (2.48, 0.32),
+        f"three {rate}=1.9": (5.55, 1.01),
+        f"four {rate}=1.6": (0.17, 0.01),
+        f"four {rate}=1.7": (0.21, 0.01),
+        f"four {rate}=1.8": (0.27, 0.01),
+        f"four {rate}=1.9": (0.35, 0.02),
+    }
+
+
+FIT_WAITS = {
+    "triangular": (2.93, 0.25),
+    "gamma": (2.33, 0.19),
+    "empirical": (2.32, 0.20),
+}
+
+
+def _fit_cli(*args):
+    from typer.testing import CliRunner
+
+    from desflow.blueprint.cli import app as cli
+
+    run = CliRunner().invoke(cli, ["fit", *map(str, args)])
+    assert run.exit_code == 0, run.output
+    return run.output
+
+
+@pytest.mark.parametrize("api", APIS)
+def test_fit_the_inputs(api, tmp_path, capsys):
+    """Triangular has the lowest AIC, gamma is 0.11 behind; the triangular raises
+    the mean wait to 2.93 s while the gamma agrees with the 40 times."""
+    pytest.importorskip("scipy")
+    from desflow import replicate
+
+    if api == "yaml":
+        data = BLUEPRINTS / "packing_times.csv"
+        out = tmp_path / "fitted" / "packing.yaml"
+        table = _fit_cli(
+            data, "--column", "packing_seconds", "--lower", "0", "--out", out
+        )
+        assert out.read_text() == (BLUEPRINTS / "fitted" / "packing.yaml").read_text()
+        waits = {}
+        for name, extra in (("triangular", []), ("gamma", ["--candidates", "gamma"])):
+            _fit_cli(
+                data,
+                "--column",
+                "packing_seconds",
+                "--lower",
+                "0",
+                "--out",
+                out,
+                *extra,
+            )
+            blueprint = tmp_path / "fit_the_inputs.yaml"
+            blueprint.write_text((BLUEPRINTS / "fit_the_inputs.yaml").read_text())
+            [row] = replicate(
+                blueprint,
+                40,
+                seed=42,
+                until=None,
+                measures=["tasks.pack_order.wait_mean"],
+            ).summary
+            waits[name] = (round(row["mean"], 2), round(row["half_width"], 2))
+        assert waits == {k: FIT_WAITS[k] for k in waits}
+    else:
+        module = _load("fit_the_inputs" + ("" if api == "builder" else "_low_level"))
+        result = module.fitted()
+        table = capsys.readouterr().out
+        assert round(result.settings("triangular")["mode"], 3) == 1.2
+        waits = {
+            name: (round(row["mean"], 2), round(row["half_width"], 2))
+            for name, row in module.mean_waits(result).items()
+        }
+        assert waits == FIT_WAITS
+    assert "triangular *      fitted            56.68" in table
+    assert "gamma             fitted            56.79" in table
+    assert "exponential       rejected" in table
+    assert "(can draw below the lower bound 0)" in table

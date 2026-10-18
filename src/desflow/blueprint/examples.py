@@ -31,6 +31,8 @@ class Example:
     until_stopped: bool = False  # runs until Ctrl + C rather than ending on its own
     watch: Optional[str] = None  # a shared script run beside it in a second terminal
     watch_needs: str = ""  # the package that script needs beyond desflow
+    # The YAML version's command when it is not `desflow run <file>`
+    yaml_command: Optional[str] = None
 
 
 def _three(yaml: str, python: str, *yaml_helpers: str) -> Dict[str, List[str]]:
@@ -181,6 +183,36 @@ EXAMPLES: Dict[str, Example] = {
             shared=["local_replay_orders.csv"],
         ),
         Example(
+            "replications",
+            "Replications",
+            "one hour of the shop run 20 times, with the mean and interval of each statistic",
+            _three("replications.yaml", "replications_example.py"),
+            yaml_command="desflow run replications.yaml --replications 20",
+        ),
+        Example(
+            "study",
+            "A Local Study",
+            "two designs of the shop compared with paired replications, a check, "
+            "observed waits and a report",
+            {
+                "yaml": ["yaml/study.yaml", "yaml/study_shop.yaml"],
+                "builder": ["builder/study_example.py"],
+                "low-level": ["low-level/study_example.py"],
+            },
+            shared=["observed_waits.csv"],
+            yaml_command="desflow study study.yaml",
+        ),
+        Example(
+            "fitting",
+            "Fitted Inputs",
+            "the packing time fitted from 40 measured times, then loaded into the shop",
+            _three("fitting.yaml", "fitting_example.py", "packing_fit.yaml"),
+            extras="fit",
+            shared=["packing_times.csv"],
+            yaml_command="desflow fit ../packing_times.csv --column packing_seconds "
+            "--lower 0 --out packing_fit.yaml && desflow run fitting.yaml",
+        ),
+        Example(
             "related-records",
             "Generate Related Records",
             "orders and their line items, in two PostgreSQL tables",
@@ -263,5 +295,9 @@ def run_hint(example: Example, api: str) -> str:
     """How to run one API's version once it is downloaded."""
     folder = f"{example.name}/{api}"
     main_file = Path(example.files[api][0]).name
-    command = f"desflow run {main_file}" if api == "yaml" else f"python {main_file}"
+    command = (
+        example.yaml_command or f"desflow run {main_file}"
+        if api == "yaml"
+        else f"python {main_file}"
+    )
     return f"cd {folder} && {command}"

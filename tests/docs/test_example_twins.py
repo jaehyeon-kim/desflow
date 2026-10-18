@@ -202,6 +202,11 @@ def _measuring(m, env, sampler):
     return _built(m, env, sampler)
 
 
+def _typical(m, env, sampler):
+    env.setup_stats("Shop", "typical", interval=600)
+    return _built(m, env, sampler)
+
+
 # Example name, its YAML file, the extra its connectors import, the simulated seconds
 # to compare, and the processes its low-level version starts.
 EXAMPLE_CASES = [
@@ -231,6 +236,9 @@ EXAMPLE_CASES = [
     ("breakdowns", "breakdowns.yaml", None, 300, _every_minute),
     ("changing_demand", "changing_demand.yaml", None, 300, _every_minute_typical),
     ("local_replay", "local_replay.yaml", None, 120, _built),
+    ("replications", "replications.yaml", None, 1200, _typical),
+    ("study", "study_shop.yaml", None, 600, _built),
+    ("fitting", "fitting.yaml", "scipy", 1200, _typical),
 ]
 
 
@@ -242,8 +250,10 @@ def no_catalog():
 
 
 def _builder_records(name, until):
+    """An example's `app`, or a new context from its `shop` factory."""
     builder = _load(EXAMPLES / "builder" / f"{name}_example.py")
-    return _run_builder(builder.app, until, **RUN.get(name, {}))
+    app = builder.app if hasattr(builder, "app") else builder.shop()
+    return _run_builder(app, until, **RUN.get(name, {}))
 
 
 @pytest.mark.parametrize(
@@ -281,3 +291,44 @@ def test_every_example_is_compared():
         p.stem.removesuffix("_example") for p in (EXAMPLES / "builder").glob("*.py")
     }
     assert names == {case[0] for case in EXAMPLE_CASES}
+
+
+def test_study_example_gives_the_same_results_in_every_api(tmp_path):
+    """The study's results and checks are the same whichever way its model is written."""
+    from desflow import run_study
+
+    results = {}
+    for api in ("builder", "low-level"):
+        module = _load(EXAMPLES / api / "study_example.py")
+        result = module.run(output=tmp_path / api)
+        results[api] = (tmp_path / api / "results.csv").read_text()
+        assert [row["passed"] for row in result.checks] == [True]
+    run_study(EXAMPLES / "yaml" / "study.yaml", output=tmp_path / "yaml")
+    results["yaml"] = (tmp_path / "yaml" / "results.csv").read_text()
+    assert results["yaml"] == results["builder"] == results["low-level"]
+
+
+def test_fitting_example_writes_the_file_its_blueprint_loads(tmp_path):
+    """desflow fit on the example's data writes packing_fit.yaml byte for byte, so
+    the blueprint loads what the fit gives today."""
+    pytest.importorskip("scipy")
+    from typer.testing import CliRunner
+
+    from desflow.blueprint.cli import app as cli
+
+    out = tmp_path / "packing_fit.yaml"
+    run = CliRunner().invoke(
+        cli,
+        [
+            "fit",
+            str(EXAMPLES / "packing_times.csv"),
+            "--column",
+            "packing_seconds",
+            "--lower",
+            "0",
+            "--out",
+            str(out),
+        ],
+    )
+    assert run.exit_code == 0, run.output
+    assert out.read_text() == (EXAMPLES / "yaml" / "packing_fit.yaml").read_text()

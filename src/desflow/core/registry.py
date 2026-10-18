@@ -126,6 +126,19 @@ class SimulationRegistry:
             raise KeyError(f"Config path '{path}' not found in Simulation Registry.")
         return self._configs[path]
 
+    def configs(self) -> Dict[str, Any]:
+        """
+        Returns every configuration object by its path, such as `Shop.service.packing`.
+
+        A study records them as the model's compiled parameters. The objects are the
+        live ones, so read them rather than change them.
+
+        Returns:
+            Dict[str, Any]: Path to `DistributionConfig`, `CapacityConfig` or the
+                variables mapping, in the order they were registered.
+        """
+        return dict(self._configs)
+
     def update(self, path: str, new_value: Any):
         """
         Update a value safely and synchronize its parent configuration object.
@@ -230,6 +243,41 @@ class SimulationRegistry:
                 notify()
         else:
             logger.warning(f"Attempted to update non-existent path: {path}")
+
+    def set_exactly(self, path: str, value: Any) -> None:
+        """
+        Sets a path to exactly `value`, raising where `update` would log and go on.
+
+        Replications and studies set their variants' values this way before the
+        clock starts, so a misspelt path or a refused value stops the study rather
+        than leaving the model's own value in place.
+
+        Args:
+            path (str): The dot-notation path.
+            value (Any): The value it must hold.
+
+        Raises:
+            ValueError: If the path does not exist, or the registry refuses, casts to
+                another value or clamps the value, or a `max_cap` would clamp the
+                `current_cap` beside it.
+        """
+        if path not in self._values:
+            raise ValueError(f"'{path}' is not a registry path")
+        sibling = f"{path.rsplit('.', 1)[0]}.current_cap"
+        if path.endswith(".max_cap") and sibling in self._values:
+            current = self._values[sibling].value
+            if value is not None and current is not None and current > value:
+                # update would lower current_cap to it without a word
+                raise ValueError(
+                    f"'{path}' cannot be set to {value!r}: '{sibling}' is "
+                    f"{current!r}; set current_cap first, to {value!r} or less"
+                )
+        self.update(path, value)
+        kept = self._values[path].value
+        if kept != value:
+            raise ValueError(
+                f"'{path}' cannot be set to {value!r}; the registry kept {kept!r}"
+            )
 
     def _clamp_current_cap(
         self, parent_path: str, config: CapacityConfig, max_cap: Any

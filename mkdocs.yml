@@ -164,6 +164,7 @@ nav:
           - Measuring a Run: tutorials/measuring-a-run.md
           - Trusting Results: tutorials/trusting-results.md
           - End Conditions: tutorials/end-conditions.md
+          - Fit the Inputs: tutorials/fit-the-inputs.md
           - Stock: tutorials/stock.md
           - Priorities: tutorials/priorities.md
           - A Flow of Tasks: tutorials/flow-of-tasks.md
@@ -174,6 +175,8 @@ nav:
           - Filtered Inventory: tutorials/filtered-inventory.md
           - Changing Demand: tutorials/changing-demand.md
           - Local Replay: tutorials/local-replay.md
+          - Comparing Designs: tutorials/comparing-designs.md
+          - Parameter Sweeps: tutorials/parameter-sweeps.md
   - User Guide:
       - Ways to Write: user-guide/ways-to-write.md
       - YAML Blueprints: user-guide/blueprints.md
@@ -186,12 +189,16 @@ nav:
       - Stores and Containers: user-guide/stores-and-containers.md
       - Task Flow: user-guide/task-flow.md
       - Statistics: user-guide/statistics.md
+      - Replications: user-guide/replications.md
+      - Local Studies: user-guide/local-studies.md
+      - Input Fitting: user-guide/input-fitting.md
       - Live Parameters: user-guide/live-parameters.md
       - Time and Pacing: user-guide/time-and-pacing.md
       - Ingress: user-guide/ingress.md
       - Egress: user-guide/egress.md
   - How-To:
       - Python in a Blueprint: guides/yaml-advanced.md
+      - Fit a Distribution: guides/fit-a-distribution.md
       - Complex Routing (Kafka): guides/complex-routing.md
       - Avro and Pydantic: guides/avro-and-pydantic.md
       - Secure Kafka: guides/kafka-security.md

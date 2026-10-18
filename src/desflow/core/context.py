@@ -1552,13 +1552,36 @@ class SimulationContext:
                 the context does not define, or `stop` or `drain` is malformed.
         """
         self.start(until, stop, drain)
+        self.finish()
+
+    def finish(self) -> None:
+        """
+        Runs a started run to its end, then closes it, as the rest of `run()` does.
+
+        The end is `until`, the `stop` or the end of the drain that `start()` set
+        up. `close()` runs even when the run stops with an error or Ctrl+C.
+
+        Raises:
+            RuntimeError: If the run has not started.
+        """
+        if self._env is None or not self.started:
+            raise RuntimeError("finish() needs a run that start() has started")
         try:
-            self._env.run(until=self._end if self._end is not None else self._until)  # type: ignore[union-attr]
+            self._env.run(until=self._end if self._end is not None else self._until)
         finally:
             self.close()
 
     def start(
-        self, until: Any = None, stop: Any = None, drain: Any = None
+        self,
+        until: Any = None,
+        stop: Any = None,
+        drain: Any = None,
+        *,
+        seed: Optional[int] = None,
+        overrides: Optional[Mapping[str, Any]] = None,
+        stats: Optional[str] = None,
+        egress: bool = True,
+        ingress: bool = True,
     ) -> DynamicRealtimeEnvironment:
         """
         Builds and starts everything `run()` does before the clock moves.
@@ -1570,17 +1593,33 @@ class SimulationContext:
         the next, as SimPy's `env.step()` and `env.peek()` do; `close()` ends the
         run. A context built by `from_yaml` takes its `run` section's values.
 
+        Replications and studies start each run here too, with the arguments after
+        `drain`, and finish it with `finish()`, so a replication builds and ends
+        exactly as `run()` does, `run.stop` and `run.drain` included.
+
         Args:
             until: As for `run()`. With `step()` it is not enforced: `peek()` tells
                 you when to stop.
             stop: As for `run()`.
             drain: As for `run()`.
+            seed: The run's seed, in place of `random_seed`.
+            overrides: Registry paths and the values they take before the clock
+                starts, applied as a live update is, except that a value the
+                registry would refuse or clamp raises.
+            stats: The lowest statistics level the run keeps; a higher level set
+                with `with_stats` stays.
+            egress: False builds the run without its sinks and without the
+                statistics timer, as a replication runs: nothing receives its
+                records, and its statistics are read at the end.
+            ingress: False builds the run without its ingress, so no connector
+                listens for parameter changes.
 
         Returns:
             DynamicRealtimeEnvironment: The environment, also `context.env`.
 
         Raises:
-            ValueError: As for `run()`.
+            ValueError: As for `run()`; or `stats` is not a level, or an override's
+                path does not exist or its value is refused.
         """
         if until is None:
             until = self._default_until
@@ -1594,6 +1633,10 @@ class SimulationContext:
             until = time_to_seconds(until)
         if isinstance(drain, Mapping) and drain.get("limit") is not None:
             _seconds(drain["limit"])
+        if stats is not None and stats not in STATS_LEVELS:
+            raise ValueError(
+                f"stats must be one of {', '.join(STATS_LEVELS)}, got {stats!r}"
+            )
         _check_end(until, stop, drain, self._signal_names)
         self._check_tasks()
         for setup in self._before_run:
@@ -1607,7 +1650,9 @@ class SimulationContext:
 
         logger.info(f"Building SimulationContext for '{self.sim_id}'...")
         try:
-            return self._build(until, stop, drain)
+            return self._build(
+                until, stop, drain, seed, overrides, stats, egress, ingress
+            )
         except BaseException:
             # The connectors may have started their threads; stop them, as run()
             # would, so a failed start leaves no thread behind
@@ -1615,7 +1660,17 @@ class SimulationContext:
                 self._env.teardown()
             raise
 
-    def _build(self, until: Any, stop: Any, drain: Any) -> DynamicRealtimeEnvironment:
+    def _build(
+        self,
+        until: Any,
+        stop: Any,
+        drain: Any,
+        seed: Optional[int],
+        overrides: Optional[Mapping[str, Any]],
+        stats: Optional[str],
+        egress: bool,
+        ingress: bool,
+    ) -> DynamicRealtimeEnvironment:
         """The part of `start()` after the checks: builds and starts the run."""
 
         env_kwargs: Dict[str, Any] = {"factor": self.factor}
@@ -1630,7 +1685,8 @@ class SimulationContext:
         self._env = DynamicRealtimeEnvironment(**env_kwargs)
 
         # One random sequence per distribution, all from the run's seed
-        seed = self.random_seed
+        if seed is None:
+            seed = self.random_seed
         if seed is None:
             seed = secrets.randbelow(2**32)
             logger.info(
@@ -1646,8 +1702,15 @@ class SimulationContext:
             if spec.router.weighted:
                 spec.router.rng = self.sampler.generator(f"route.{task_name}")
 
-        if self._stats_level != "none":
-            self._env.setup_stats(self.sim_id, self._stats_level, self._stats_interval)
+        level = self._stats_level
+        if stats is not None and STATS_LEVELS.index(stats) > STATS_LEVELS.index(level):
+            level = stats
+        if level != "none" and egress:
+            self._env.setup_stats(self.sim_id, level, self._stats_interval)
+        elif level != "none":
+            # Without sinks nothing receives a publication, so no timer runs and
+            # the statistics are read at the end
+            self._env.stats.configure(self.sim_id, level, self._stats_interval)
         self._signals = {name: Signal(self._env, name) for name in self._signal_names}
         self._replay_rows = {
             name: read_trace(
@@ -1661,12 +1724,14 @@ class SimulationContext:
 
         # Compile Master Parameter Object
         self._env.registry.register_sim_parameter(self.compile_parameters())
+        for path, value in (overrides or {}).items():
+            self._env.registry.set_exactly(path, value)
 
         # Connect External Infrastructure
-        if self._ingress_providers:
+        if self._ingress_providers and ingress:
             self._env.setup_ingress(self._ingress_providers)
 
-        if self._egress_providers:
+        if self._egress_providers and egress:
             self._env.setup_egress(
                 self._egress_providers,
                 batch_size=self._batch_size,

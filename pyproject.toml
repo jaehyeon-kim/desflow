@@ -103,6 +103,10 @@ iceberg = [
 all = [
     "desflow[kafka,redis,postgres,confluent,glue,parquet,iceberg]"
 ]
+fit = [
+    "matplotlib>=3.11.2",
+    "scipy>=1.17.1",
+]
 [build-system]
 requires = ["uv_build>=0.9.16,<0.13.0"]
 build-backend = "uv_build"

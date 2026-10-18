@@ -126,6 +126,7 @@ A task with no service has `{"status": ...}` without `path_id`. A timed step, wi
 | Published by | `path_id` |
 |---|---|
 | the built-in statistics | `<sim_id>.stats.<kind>.<name>.<statistic>`, such as `Shop.stats.resources.packers.in_use`; [Reference, Statistics](statistics.md) lists every name |
+| [replications](../user-guide/replications.md#what-the-sinks-receive), once at the end | `<sim_id>.stats.<measure>.replication.<i>` for each replication from 1, then `<sim_id>.stats.<measure>.mean`, `.half_width` and `.n`, where the measure is a statistic's name without the sim id, such as `tasks.pack.wait_mean` |
 | `context.publish(name, value)` and a YAML `telemetry` function | `<sim_id>.<name>` |
 | `env.publish_telemetry(path_id, value)` | `path_id`, as given |
 | the lag monitor | `system.simulation.lag_seconds`, every `lag_interval`: by default every simulation second at a `factor` above 0, and none at `factor: 0` ([Time and Pacing](../user-guide/time-and-pacing.md#lag)) |

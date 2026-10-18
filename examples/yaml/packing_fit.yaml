@@ -1,0 +1,5 @@
+# Fitted by desflow fit from packing_times.csv, column packing_seconds: triangular, from 40 values in s, written in seconds.
+dist: triangular
+low: 0.546332
+mode: 1.2
+high: 2.83766

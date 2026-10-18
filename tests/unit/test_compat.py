@@ -63,6 +63,11 @@ def test_ddes_warns_then_runs_desflow():
     assert "Download one with: desflow examples get <name>" in result.stdout
 
 
+# Extras desflow added after the last dynamic-des release was published, so no one
+# installs them under the old name.
+_ADDED_AFTER_THE_LAST_RELEASE = {"fit"}
+
+
 def test_last_dynamic_des_release_has_every_desflow_extra():
     """`pip install "dynamic-des[kafka]"` must install what `desflow[kafka]` does."""
     main = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
@@ -74,6 +79,7 @@ def test_last_dynamic_des_release_has_every_desflow_extra():
     assert compat["project"]["optional-dependencies"] == {
         extra: [f"desflow[{extra}]>={version}"]
         for extra in main["project"]["optional-dependencies"]
+        if extra not in _ADDED_AFTER_THE_LAST_RELEASE
     }
 
 

@@ -1,0 +1,31 @@
+# The model of the local study in study.yaml: one hour of the shop.
+#
+# The twin of the shop function in examples/builder/study_example.py. Two packers,
+# orders every 2.5 seconds on average and a packing time of 4 seconds on average.
+# It has no sinks and no statistics level: the study runs it without sinks and
+# keeps the statistics its measures need.
+#
+# Needs no containers.
+# Run the study with: desflow study study.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  # The study gives each run its own seed; 42 is for a run on its own.
+  random_seed: 42
+
+resources:
+  packers: {current_cap: 2, max_cap: 4}
+
+services:
+  # A mean of 4 seconds (shape times scale).
+  packing: {dist: gamma, shape: 4, scale: 1}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.4, spawn: pack}
+
+tasks:
+  pack:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}

@@ -241,3 +241,35 @@ def test_performance_tuning_counts_the_records():
     outcome = module.throughput(module.shop(), until=3600)
     assert outcome["records"] == 108_688
     assert outcome["per_second"] > 0
+
+
+def test_fit_a_distribution_gaps(tmp_path, capsys):
+    """The exponential fits the 299 gaps best, at 0.364 a second; 5 zero gaps skip
+    gamma, weibull and lognormal; the file it writes is the one the blueprint
+    includes; and one packer packs 1,302 orders in the hour, in YAML and Python."""
+    pytest.importorskip("scipy")
+    from desflow import SimulationContext
+
+    module = _load("fit_a_distribution")
+    result = module.fit()
+    capsys.readouterr()
+    assert result.best == "exponential" and result.settings()["rate"] == 0.36388
+    statuses = {row["family"]: (row["status"], row["reason"]) for row in result.table}
+    for family in ("gamma", "weibull", "lognormal"):
+        assert statuses[family] == (
+            "skipped",
+            f"{family} needs every value above 0; 5 are not",
+        )
+    assert statuses["truncated_normal"][0] == "did not fit"
+    assert statuses["uniform"][0] == statuses["triangular"][0] == "rejected"
+    histogram = module.histogram().settings()
+    assert len(histogram["counts"]) == 10 and sum(histogram["counts"]) == 299
+    written = module.write(result, tmp_path)
+    blueprint = ROOT / "docs" / "snippets" / "yaml"
+    assert written.read_text() == (blueprint / "fitted" / "orders.yaml").read_text()
+    app = module.shop(result)
+    app.run(until="1 h")
+    yaml_app = SimulationContext.from_yaml(blueprint / "fit_a_distribution.yaml")
+    yaml_app.run()
+    for run in (app, yaml_app):
+        assert run.env.stats.readings()["Shop.stats.flows.orders.finished"] == 1302

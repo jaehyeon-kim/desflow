@@ -8,8 +8,10 @@ value is then read as YAML reads it, so `port: ${PG_PORT:-5432}` gives the numbe
 
 `!python module.attribute` imports the module and returns the attribute, so a
 blueprint can reference a process, a router or any other Python object. Loading a
-blueprint therefore runs the imports it names. Every other node is constructed by
-`yaml.SafeLoader`, as `yaml.safe_load` would.
+blueprint therefore runs the imports it names. `!include path` reads a YAML mapping
+from another file, relative to the file that names it, such as the settings
+`desflow fit` writes; `!include {file: path, spawn: pack}` adds keys to it. Every
+other node is constructed by `yaml.SafeLoader`, as `yaml.safe_load` would.
 """
 
 import importlib
@@ -29,10 +31,10 @@ class BlueprintError(ValueError):
 
 
 class BlueprintLoader(yaml.SafeLoader):
-    """SafeLoader for blueprint files, with `${VAR}` substitution and one extra tag.
+    """SafeLoader for blueprint files, with `${VAR}` substitution and two extra tags.
 
-    The `!python` tag and the substitution are registered on this subclass only, so
-    `yaml.safe_load` elsewhere in the process is unaffected.
+    The `!python` and `!include` tags and the substitution are registered on this
+    subclass only, so `yaml.safe_load` elsewhere in the process is unaffected.
     """
 
 
@@ -153,7 +155,40 @@ def _construct_python(loader: yaml.SafeLoader, node: yaml.Node) -> Any:
         raise BlueprintError(f"{loader.name}:{line}: !python {reference}: {exc}")
 
 
+def _construct_include(loader: yaml.SafeLoader, node: yaml.Node) -> Any:
+    """`!include path`, or `!include {file: path, ...}` with keys added to the
+    file's mapping, such as the `spawn` of an arrival whose distribution was fitted."""
+    line = node.start_mark.line + 1
+    extra: Dict[Any, Any] = {}
+    if isinstance(node, yaml.MappingNode):
+        extra = dict(loader.construct_mapping(node, deep=True))
+        name = extra.pop("file", None)
+        if not isinstance(name, str):
+            raise BlueprintError(
+                f"{loader.name}:{line}: !include takes a file path, or a mapping "
+                f"with file and the keys to add"
+            )
+    elif isinstance(node, yaml.ScalarNode):
+        name = _substitute_at(loader, node, str(loader.construct_scalar(node)))
+    else:
+        raise BlueprintError(
+            f"{loader.name}:{line}: !include takes a file path such as "
+            f"fitted/packing.yaml"
+        )
+    path = Path(loader.name).parent / name
+    if not path.is_file():
+        raise BlueprintError(f"{loader.name}:{line}: !include {name}: no such file")
+    including = getattr(loader, "including", ())
+    if path.resolve() in including:
+        raise BlueprintError(f"{loader.name}:{line}: !include {name}: includes itself")
+    # Read as a document of its own, so a YAML error in it names its own file and
+    # line, and a file that is not a mapping is refused there
+    data, _ = read_document(path, including=including)
+    return {**data, **extra}
+
+
 BlueprintLoader.add_constructor("!python", _construct_python)
+BlueprintLoader.add_constructor("!include", _construct_include)
 BlueprintLoader.add_constructor("tag:yaml.org,2002:str", _construct_str)
 
 
@@ -198,11 +233,18 @@ def _record_lines(node: yaml.Node, location: Location, lines: Dict[Location, int
             _record_lines(item, location + (index,), lines)
 
 
-def read_document(path: Union[str, Path]) -> Tuple[Dict[str, Any], SourceMap]:
+def read_document(
+    path: Union[str, Path], including: Tuple[Path, ...] = ()
+) -> Tuple[Dict[str, Any], SourceMap]:
     """Parses a blueprint file into a mapping and its source map.
 
     The folder of the file is added to the front of `sys.path` before `!python`
     references are resolved, and stays there so later imports find the same modules.
+
+    Args:
+        path: The file.
+        including: The files whose `!include` led here, so a file that includes
+            itself, directly or through another, is refused.
 
     Raises:
         BlueprintError: If the file is not valid YAML, is not a mapping, or names a
@@ -217,6 +259,8 @@ def read_document(path: Union[str, Path]) -> Tuple[Dict[str, Any], SourceMap]:
 
     loader = BlueprintLoader(path.read_text(encoding="utf-8"))
     loader.name = str(path)
+    # The files being read, so an !include of one of them is refused, not followed
+    loader.including = (*including, path.resolve())  # type: ignore[attr-defined]
     lines: Dict[Location, int] = {}
     try:
         node = loader.get_single_node()
@@ -233,5 +277,10 @@ def read_document(path: Union[str, Path]) -> Tuple[Dict[str, Any], SourceMap]:
 
     source = SourceMap(path, lines)
     if not isinstance(data, dict):
-        raise source.error((), "the top level must be a mapping of sections")
+        raise source.error(
+            (),
+            "an included file must hold a mapping"
+            if including
+            else "the top level must be a mapping of sections",
+        )
     return data, source

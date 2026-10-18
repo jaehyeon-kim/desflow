@@ -329,4 +329,4 @@ A fixed horizon answers a question about a period, such as how many orders the s
                 )
         ```
 
-Next, [Stock](stock.md) asks what happens when the shop runs out of boxes.
+Next, [Fit the Inputs](fit-the-inputs.md) asks which distribution fits the 40 packing times.

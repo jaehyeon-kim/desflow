@@ -1,9 +1,10 @@
 """The Trusting Results tutorial: the busy hour, measured after a warm-up, low-level.
 
 Three packers, orders at 1.8 a second and the measured packing times. Every record is
-printed to the terminal, and the script prints the mean wait without and with the
-warm-up at the end: python trusting_results_low_level.py 2>/dev/null shows only
-those lines.
+printed to the terminal. At the end the script prints the mean wait without and with
+the warm-up, then the mean and half-width of two outputs over 5, 10, 20 and 40
+replications: python trusting_results_low_level.py 2>/dev/null shows only those
+lines.
 """
 
 import logging
@@ -14,9 +15,12 @@ from desflow import (
     DistributionConfig,
     DynamicRealtimeEnvironment,
     DynamicResource,
+    LowLevelModel,
     Sampler,
     SimParameter,
+    replicate,
 )
+from desflow.study import interval
 
 logging.basicConfig(
     level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
@@ -96,6 +100,38 @@ def mean_wait(warmup) -> float:
     return run(warmup).stats.readings()["Shop.stats.tasks.pack_order.wait_mean"]
 
 
+# --8<-- [start:replicate]
+MEASURES = ["tasks.pack_order.wait_mean", "resources.packers.utilization_avg"]
+
+
+def model(env, sampler):
+    """The busy hour in a given environment: replicate sets the statistics."""
+    env.registry.register_sim_parameter(PARAMS)
+    packers = DynamicResource(env, "Shop", "packers")
+    env.process(order_generator(env, sampler, packers))
+
+
+def replications(n=40):
+    """Runs the busy hour n times, each after the warm-up, with seeds spawned from 42."""
+    shop = LowLevelModel(model, sim_id="Shop")
+    return replicate(shop, n, seed=42, until=3600, warmup=WARMUP, measures=MEASURES)
+
+
+# --8<-- [end:replicate]
+def precision(result) -> dict:
+    """Each output's mean and half-width over the first 5, 10, 20 and 40 runs."""
+    return {
+        (measure, n): interval(result.values[measure][:n])
+        for measure in MEASURES
+        for n in (5, 10, 20, 40)
+    }
+
+
 if __name__ == "__main__":
     print(f"without a warm-up: mean wait {mean_wait(None):.3f} s")
     print(f"with a 2 min warm-up: mean wait {mean_wait(WARMUP):.3f} s")
+    for (measure, n), result in precision(replications()).items():
+        share = result.half_width / result.mean
+        print(
+            f"{measure}, {n} runs: {result.mean:.2f} ± {result.half_width:.2f} ({share:.1%})"
+        )

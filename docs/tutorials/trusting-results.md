@@ -1,10 +1,10 @@
 # Trusting Results
 
-[Measuring a Run](measuring-a-run.md) read five numbers from one run of the busy hour. The run started with an empty shop: no orders waiting and every packer free. A real shop at that hour is never empty, so the first orders of the run wait less than they would. This page asks: **is one run enough?** It answers the first part of that question: how much of the start to leave out.
+[Measuring a Run](measuring-a-run.md) read five numbers from one run of the busy hour. The run started with an empty shop: no orders waiting and every packer free. A real shop at that hour is never empty, so the first orders of the run wait less than they would. This page asks: **is one run enough?** It answers in two parts: how much of the start to leave out, and how many runs give an answer precise enough to act on.
 
 ## What You Add
 
-A `warmup` on the run. The model simulates the same busy hour as Measuring a Run.
+A `warmup` on the run, then replications: the same run repeated with other seeds. The model simulates the same busy hour as Measuring a Run.
 
 ---
 
@@ -89,15 +89,82 @@ with a 2 min warm-up: mean wait 1.381 s
 
 ---
 
+## Run It With Other Seeds
+
+The run above used one seed, 42. Another seed draws other arrival gaps and packing times, and gives another mean wait. One run cannot show how far apart those answers are, because the waits of orders in one run follow each other and are not independent samples. **Replications** show it: the same run repeated with other seeds, each giving one independent value of every statistic.
+
+Run the busy hour 40 times. The 40 seeds are spawned from the seed 42, so the set repeats exactly, and each replication leaves out the same 2-minute warm-up:
+
+=== "YAML"
+
+    ```bash
+    desflow run trusting_results.yaml --replications 40 --measure tasks.pack_order.wait_mean --measure resources.packers.utilization_avg
+    ```
+
+=== "Builder"
+
+    ```python title="docs/snippets/tutorials/trusting_results.py:replicate"
+    MEASURES = ["tasks.pack_order.wait_mean", "resources.packers.utilization_avg"]
+
+
+    def replications(n=40):
+        """Runs the busy hour n times, each after the warm-up, with seeds spawned from 42."""
+        return replicate(shop, n, seed=42, until="1 h", measures=MEASURES)
+    ```
+
+=== "Low-level"
+
+    ```python title="docs/snippets/tutorials/trusting_results_low_level.py:replicate"
+    MEASURES = ["tasks.pack_order.wait_mean", "resources.packers.utilization_avg"]
+
+
+    def model(env, sampler):
+        """The busy hour in a given environment: replicate sets the statistics."""
+        env.registry.register_sim_parameter(PARAMS)
+        packers = DynamicResource(env, "Shop", "packers")
+        env.process(order_generator(env, sampler, packers))
+
+
+    def replications(n=40):
+        """Runs the busy hour n times, each after the warm-up, with seeds spawned from 42."""
+        shop = LowLevelModel(model, sim_id="Shop")
+        return replicate(shop, n, seed=42, until=3600, warmup=WARMUP, measures=MEASURES)
+    ```
+
+    `LowLevelModel` names the function that builds the model in an environment it is given, and the warm-up is an argument of `replicate`, because a replication has no sinks.
+
+Each replication runs unpaced with no sinks and reads the built-in statistics at its end. [Replications](../user-guide/replications.md) describes every option.
+
+The mean of the 40 values is the estimate. Its **confidence interval** says how far off it may be: with 95% confidence, the true mean lies within the estimate plus or minus the **half-width**, which is t × s ÷ √n, where s is the spread of the n values and t a quantile of the Student t distribution. The seeds are spawned in order, so the first 10 of the 40 replications are the 10 a run with `--replications 10` makes. The table reads the estimate after the first 5, 10 and 20 replications and after all 40:
+
+| Replications | Mean wait (s) | Half-width (s) | Wait half-width share | Utilisation (%) | Half-width (%) | Utilisation half-width share |
+|---|---|---|---|---|---|---|
+| 5 | 2.21 | 0.47 | 21.2% | 89.72 | 1.37 | 1.5% |
+| 10 | 2.25 | 0.25 | 11.0% | 90.34 | 0.91 | 1.0% |
+| 20 | 2.48 | 0.32 | 13.0% | 90.33 | 0.63 | 0.7% |
+| 40 | 2.32 | 0.20 | 8.4% | 90.03 | 0.45 | 0.5% |
+
+The 40 mean waits range from 1.45 to 4.39 seconds. The run with the seed 42 measured 1.38 seconds, lower than any of them.
+
+---
+
+## Choose the Precision
+
+How many replications are enough depends on the decision, not on a fixed number such as 30. Choose the precision each output needs. Here it is a half-width within 10% of the mean. Utilisation meets it with 5 replications. Of the counts in the table, the mean wait first meets it at 40, because waits vary far more from run to run than how busy the packers are. So each output has its own precision, and the replications must be enough for the least precise output the decision reads.
+
+The half-width shrinks with √n, so 10 replications at 11.0% suggest about 10 × (11.0 ÷ 10)² ≈ 12 for 10%. That is a guide, not a promise: the half-width is itself an estimate, and 20 replications gave 13.0%. Add replications, then read the half-width again.
+
+---
+
 ## Result
 
-Is one run enough? Its start does not distort it: read from the plot, the busy hour needs a **2-minute warm-up**. With it the mean wait is **1.381 seconds**, against 1.382 seconds without it. For this shop and this run, the empty start changes the answer by less than 0.1%: the shop fills within a minute or two, and one hour is long enough that those minutes hardly count. A shorter run, or a start further from the usual state, such as a shop that opens with a backlog of orders, needs the warm-up much more.
-
-So one run of the busy hour is long enough not to be distorted by its start. Whether one run is enough at all, when another seed gives another answer, is the second half of the question, which the next release answers with replications.
+Is one run enough? No. Its start does not distort it: read from the plot, the busy hour needs a **2-minute warm-up**, which moves the mean wait of one run only from 1.382 to 1.381 seconds: the shop fills within a minute or two, and one hour is long enough that those minutes hardly count. A shorter run, or a start further from the usual state, such as a shop that opens with a backlog of orders, needs the warm-up much more. But one run's answer depends on its seed. The run with the seed 42 measured 1.38 seconds, lower than every one of 40 replications. Over 40 replications the mean wait is **2.32 ± 0.20 seconds** with 95% confidence, within the chosen 10% precision, and the packers are busy **90.03 ± 0.45%** of the time.
 
 ## Why It Works
 
 Initialisation bias fades as the model forgets how it started: here the queue that the first orders found empty is full again within a minute. The warmed-up numbers still pass the check from Measuring a Run. 6,024 orders were packed in the 3,480 seconds after the warm-up, 1.73 a second, and 1.73 × 1.381 seconds = 2.39, which is the `queue_length_avg` of 2.40 that the same statistics report. [Statistics](../user-guide/statistics.md) describes how the reset works.
+
+Replications are independent of each other because each has its own seed, so the spread of their values measures how much the answer depends on chance. With few replications the spread itself is uncertain, and the t quantile widens the interval to allow for it: 2.776 for 5 replications, 2.023 for 40.
 
 ---
 
@@ -155,13 +222,15 @@ Initialisation bias fades as the model forgets how it started: here the queue th
         """The Trusting Results tutorial: the busy hour, measured after a warm-up, builder.
 
         Three packers, orders at 1.8 a second and the measured packing times. Every record is
-        printed to the terminal, and the script prints the mean wait without and with the
-        warm-up at the end: python trusting_results.py 2>/dev/null shows only those lines.
+        printed to the terminal. At the end the script prints the mean wait without and with
+        the warm-up, then the mean and half-width of two outputs over 5, 10, 20 and 40
+        replications: python trusting_results.py 2>/dev/null shows only those lines.
         """
 
         import logging
 
-        from desflow import ConsoleEgress, SimulationContext
+        from desflow import ConsoleEgress, SimulationContext, replicate
+        from desflow.study import interval
 
         logging.basicConfig(
             level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
@@ -211,9 +280,31 @@ Initialisation bias fades as the model forgets how it started: here the queue th
             return app.env.stats.readings()["Shop.stats.tasks.pack_order.wait_mean"]
 
 
+        MEASURES = ["tasks.pack_order.wait_mean", "resources.packers.utilization_avg"]
+
+
+        def replications(n=40):
+            """Runs the busy hour n times, each after the warm-up, with seeds spawned from 42."""
+            return replicate(shop, n, seed=42, until="1 h", measures=MEASURES)
+
+
+        def precision(result) -> dict:
+            """Each output's mean and half-width over the first 5, 10, 20 and 40 runs."""
+            return {
+                (measure, n): interval(result.values[measure][:n])
+                for measure in MEASURES
+                for n in (5, 10, 20, 40)
+            }
+
+
         if __name__ == "__main__":
             print(f"without a warm-up: mean wait {mean_wait(None):.3f} s")
             print(f"with a 2 min warm-up: mean wait {mean_wait('2 min'):.3f} s")
+            for (measure, n), result in precision(replications()).items():
+                share = result.half_width / result.mean
+                print(
+                    f"{measure}, {n} runs: {result.mean:.2f} ± {result.half_width:.2f} ({share:.1%})"
+                )
         ```
 
     === "Low-level"
@@ -222,9 +313,10 @@ Initialisation bias fades as the model forgets how it started: here the queue th
         """The Trusting Results tutorial: the busy hour, measured after a warm-up, low-level.
 
         Three packers, orders at 1.8 a second and the measured packing times. Every record is
-        printed to the terminal, and the script prints the mean wait without and with the
-        warm-up at the end: python trusting_results_low_level.py 2>/dev/null shows only
-        those lines.
+        printed to the terminal. At the end the script prints the mean wait without and with
+        the warm-up, then the mean and half-width of two outputs over 5, 10, 20 and 40
+        replications: python trusting_results_low_level.py 2>/dev/null shows only those
+        lines.
         """
 
         import logging
@@ -235,9 +327,12 @@ Initialisation bias fades as the model forgets how it started: here the queue th
             DistributionConfig,
             DynamicRealtimeEnvironment,
             DynamicResource,
+            LowLevelModel,
             Sampler,
             SimParameter,
+            replicate,
         )
+        from desflow.study import interval
 
         logging.basicConfig(
             level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
@@ -313,9 +408,39 @@ Initialisation bias fades as the model forgets how it started: here the queue th
             return run(warmup).stats.readings()["Shop.stats.tasks.pack_order.wait_mean"]
 
 
+        MEASURES = ["tasks.pack_order.wait_mean", "resources.packers.utilization_avg"]
+
+
+        def model(env, sampler):
+            """The busy hour in a given environment: replicate sets the statistics."""
+            env.registry.register_sim_parameter(PARAMS)
+            packers = DynamicResource(env, "Shop", "packers")
+            env.process(order_generator(env, sampler, packers))
+
+
+        def replications(n=40):
+            """Runs the busy hour n times, each after the warm-up, with seeds spawned from 42."""
+            shop = LowLevelModel(model, sim_id="Shop")
+            return replicate(shop, n, seed=42, until=3600, warmup=WARMUP, measures=MEASURES)
+
+
+        def precision(result) -> dict:
+            """Each output's mean and half-width over the first 5, 10, 20 and 40 runs."""
+            return {
+                (measure, n): interval(result.values[measure][:n])
+                for measure in MEASURES
+                for n in (5, 10, 20, 40)
+            }
+
+
         if __name__ == "__main__":
             print(f"without a warm-up: mean wait {mean_wait(None):.3f} s")
             print(f"with a 2 min warm-up: mean wait {mean_wait(WARMUP):.3f} s")
+            for (measure, n), result in precision(replications()).items():
+                share = result.half_width / result.mean
+                print(
+                    f"{measure}, {n} runs: {result.mean:.2f} ± {result.half_width:.2f} ({share:.1%})"
+                )
         ```
 
 Next, [End Conditions](end-conditions.md) asks which orders a run's results describe when it ends.

@@ -394,4 +394,4 @@ A mean rate says how many orders come in an hour, not when they come. Exponentia
                 )
         ```
 
-This is the last page of the tutorial for now. [Arrivals and Services](../user-guide/arrivals-and-services.md#replay) and the rest of the [User Guide](../user-guide/ways-to-write.md) describe each part of desflow in full.
+Next, [Comparing Designs](comparing-designs.md) asks whether a fourth packer cuts the mean wait, and by how much.

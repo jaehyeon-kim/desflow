@@ -1,0 +1,44 @@
+# A local study in YAML: does a third packer keep the mean wait under 2 seconds?
+#
+# The twin of examples/builder/study_example.py. The model is study_shop.yaml. The
+# study runs one hour of it 20 times with two packers and 20 times with three, with
+# the same seeds, after a 3-minute warm-up. It compares the two designs seed by
+# seed, checks the three-packer design against a 2-second bound, and compares the
+# two-packer design with the mean wait observed in the real shop. It writes its
+# artifacts and report to results/packers, and exits 1 if the check fails.
+#
+# Needs no containers.
+# Run it with: desflow study study.yaml
+
+study: packers
+question: Does a third packer keep the mean wait under 2 seconds?
+model: study_shop.yaml
+assumptions:
+  - Orders arrive at random, at a steady rate, through the hour.
+  - Every packer works at the same speed.
+inputs:
+  Shop.service.packing: 40 packing times measured at the bench
+until: 1 h
+warmup: 3 min
+replications: 20
+seed: 42
+# --8<-- [start:compare]
+# Both designs run with the same 20 seeds, so they are compared seed by seed
+pairing: common
+measures: [tasks.pack.wait_mean, resources.packers.utilization_avg]
+variants:
+  two: {}
+  three: {Shop.resources.packers.current_cap: 3}
+compare:
+  - {baseline: two, variant: three}
+checks:
+  # The upper end of the interval must be under 2 seconds
+  - {measure: tasks.pack.wait_mean, variant: three, max: 2}
+observed:
+  # The mean wait measured in the real shop, which has two packers
+  file: ../observed_waits.csv
+  variant: two
+# --8<-- [end:compare]
+limits:
+  - One hour of steady demand; the rest of the day is not modelled.
+output: results/packers

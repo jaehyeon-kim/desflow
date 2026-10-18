@@ -11,7 +11,8 @@ Real-time SimPy simulations whose parameters change while they run, writing even
 | `src/desflow/models/` | `params.py` (`SimParameter`, `DistributionConfig`, `CapacityConfig`, `ContainerConfig`), `flow.py` (`Entity`, `Upstream`), `schemas.py` (`EventPayload`, `TelemetryPayload`, `LabelPayload`: the published record schema) |
 | `src/desflow/resources/` | `DynamicResource`, `DynamicContainer`, `DynamicStore`, with capacities driven by the registry |
 | `src/desflow/connectors/` | `ingress/` (parameter changes in), `egress/` (records out), `admin/` |
-| `src/desflow/blueprint/` | YAML blueprints: `models.py` (Pydantic models), `loader.py` (`!python`), `build.py`, `cli.py` (`desflow`), `examples.py` (what `desflow examples` lists and downloads; a new example file must be added there, or `test_cli_examples.py` fails) |
+| `src/desflow/blueprint/` | YAML blueprints: `models.py` (Pydantic models), `loader.py` (`!python`, `!include`), `build.py`, `cli.py` (`desflow`), `examples.py` (what `desflow examples` lists and downloads; a new example file must be added there, or `test_cli_examples.py` fails) |
+| `src/desflow/study/` | replications and local studies, which run models of all three APIs unpaced: `models.py` (the one adapter for a blueprint path, a builder factory or a `LowLevelModel`), `runner.py` (`replicate`, `run_study`), `intervals.py` (the Student t quantile, without scipy), `spec.py` (the study file), `results.py` (designs, comparisons, checks, the artifact files), `report.py` (`report.md`, built from the artifacts), `fit.py` (`fit_column`, which needs the `fit` extra and imports scipy lazily) |
 | `src/dynamic_des/` | the import name before the rename to desflow in 0.20.0: warns with a `FutureWarning` and aliases every `dynamic_des.<module>` to `desflow.<module>`; `ddes` in `blueprint/cli.py` is the old command, which warns and runs `desflow`. Both are removed in a later release, named in the Changelog (`docs/about/changelog.md`) |
 | `compat/dynamic-des/` | the last `dynamic-des` release: depends on `desflow` with the same extras and declares the `ddes` command, and its sdist copies `src/dynamic_des/__init__.py` and `py.typed` at build time, so a pip upgrade from 0.19.0 keeps both; published by hand with `publish-dynamic-des.yml` |
 | `examples/` | `low-level/` (low-level API), `builder/` (builder), `yaml/` (blueprints) |
@@ -34,6 +35,8 @@ uv run mkdocs serve -a 127.0.0.1:8001             # docs at http://127.0.0.1:800
 
 A plain `uv run` without `--all-extras` removes the extras from the venv, and the connector tests then fail to import.
 
+`tests/docs` is the slowest suite. While working, run only the docs tests for the pages, snippets and examples you changed (`pytest tests/docs -k <name>`), and the full `tests/docs` and the strict build before a merge or a release; CI runs everything on every push.
+
 ## Rules
 
 - **Three APIs.** A feature works in the low-level API, the builder and YAML wherever it can.
@@ -43,7 +46,7 @@ A plain `uv run` without `--all-extras` removes the extras from the venv, and th
 - **Docs code runs.** Every Python block in the docs is a labelled copy of a file that a test runs; `tests/docs/test_docs_code_is_run.py` fails on an unlabelled block, on a script in `docs/snippets/guides/` without a test in `test_docs_guides.py`, and on a snippet folder no test runs. A new How-To page puts its script in `docs/snippets/guides/` and adds a test that checks what its page says the script does.
 - **Generated files follow the code.** The record blocks on the pages are rewritten only when `tests/docs/test_docs_record_blocks.py` fails, and only the blocks it names (`uv run --all-extras python scripts/record_blocks.py`); a rename or a docstring change needs no run. Run `uv run --all-extras python scripts/charts.py` when a tutorial snippet or a distribution changes, and `uv run --all-extras python scripts/diagrams.py <name>` after editing a `.drawio` file. `scripts/gen_pages.py` needs no run: every docs build runs it.
 - **Record contract.** `publish_event`, `publish_telemetry` and `publish_label` build plain dicts with the same keys and order as `EventPayload`, `TelemetryPayload` and `LabelPayload`. Changing a field, its type or the `timestamp` format breaks downstream consumers and needs an upgrade note.
-- **Extras.** Each connector's dependencies are in an extra (`kafka`, `confluent`, `glue`, `redis`, `postgres`, `parquet`, `iceberg`, `all`). The `extras-isolation` CI job installs each extra alone, so import optional packages lazily.
+- **Extras.** Each connector's dependencies are in an extra (`kafka`, `confluent`, `glue`, `redis`, `postgres`, `parquet`, `iceberg`, `all`), and fitting's in `fit` (scipy and matplotlib), which `all` does not include. The `extras-isolation` CI job installs each extra alone, so import optional packages lazily.
 - **Infrastructure comes from odctl** (`odctl>=1.0,<2` in the dev group): `kafka-lite`, `postgres`, `valkey`, `storage`, `catalog`.
 - **Python modules.** Shared settings in `config.py`, models in `models.py`, names used only inside a module start with `_`.
 - **Writing.** Plain English for non-native readers. No em or en dashes. Headings do not start with "The". Markdown paragraphs are one line each, never hard-wrapped.
