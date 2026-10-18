@@ -1,0 +1,14 @@
+simulation:
+  sim_id: C6stop
+  factor: 0
+arrivals:
+  pings:
+    dist: constant
+    value: 10
+    spawn: ping
+tasks:
+  ping:
+    payload:
+      event: ping
+run:
+  until: 20

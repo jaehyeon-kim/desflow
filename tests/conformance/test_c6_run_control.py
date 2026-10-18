@@ -97,3 +97,83 @@ def test_initial_time_matches_simpy_in_all_three_apis():
 
     for records in (_lowlevel_records(), _builder_records(), _yaml_records()):
         assert [sim_ts for sim_ts, *_ in event_trace(records)] == EXPECTED_TIMES
+
+
+# Stop at a time: an event due at exactly `until` does not fire, as SimPy's run
+# stops at that instant. One entity arrives at 10 and emits an event; the next
+# would arrive at 20, the horizon, so it never happens.
+EXPECTED_STOP = [10.0]
+
+
+def _stop_reference():
+    env = simpy.Environment()
+    times = []
+
+    def source():
+        while True:
+            yield env.timeout(10)
+            times.append(env.now)
+
+    env.process(source())
+    env.run(until=20)
+    return times
+
+
+def _stop_lowlevel_records():
+    env = DynamicRealtimeEnvironment(factor=0.0)
+    rec = RecordingEgress()
+    env.setup_egress([rec])
+
+    def source():
+        n = 0
+        while True:
+            yield env.timeout(10.0)
+            n += 1
+            env.publish_event(f"p-{n}", {"event": "ping"}, task="ping", instance=n)
+
+    env.process(source())
+    try:
+        env.run(until=20)
+    finally:
+        env.teardown()
+    return rec.records
+
+
+def _stop_builder_records():
+    rec = RecordingEgress()
+    app = SimulationContext("C6stop", factor=0.0)
+    app.add_arrival("pings", dist="constant", value=10.0)
+    app.add_egress(rec)
+
+    @app.task(name="ping")
+    def ping(task_id):
+        return {"event": "ping"}
+
+    @app.arrival_loop("pings")
+    def pings(context):
+        while True:
+            entity = yield context.wait_for_arrival("pings")
+            context.spawn(ping(context.next_instance("ping"), entity=entity))
+
+    app.run(until=20)
+    return rec.records
+
+
+def _stop_yaml_records():
+    rec = RecordingEgress()
+    path = Path(__file__).parent / "blueprints" / "stop_at_time.yaml"
+    app = SimulationContext.from_yaml(path)
+    app.add_egress(rec)
+    app.run()
+    return rec.records
+
+
+def test_stop_at_a_time_matches_simpy_in_all_three_apis():
+    assert _stop_reference() == EXPECTED_STOP
+
+    for records in (
+        _stop_lowlevel_records(),
+        _stop_builder_records(),
+        _stop_yaml_records(),
+    ):
+        assert [sim_ts for sim_ts, *_ in event_trace(records)] == EXPECTED_STOP
