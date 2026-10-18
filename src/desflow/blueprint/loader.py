@@ -178,9 +178,12 @@ def _construct_include(loader: yaml.SafeLoader, node: yaml.Node) -> Any:
     path = Path(loader.name).parent / name
     if not path.is_file():
         raise BlueprintError(f"{loader.name}:{line}: !include {name}: no such file")
-    # Read as a document of its own, so an error in it names its own file and
+    including = getattr(loader, "including", ())
+    if path.resolve() in including:
+        raise BlueprintError(f"{loader.name}:{line}: !include {name}: includes itself")
+    # Read as a document of its own, so a YAML error in it names its own file and
     # line, and a file that is not a mapping is refused there
-    data, _ = read_document(path)
+    data, _ = read_document(path, including=including)
     return {**data, **extra}
 
 
@@ -230,11 +233,18 @@ def _record_lines(node: yaml.Node, location: Location, lines: Dict[Location, int
             _record_lines(item, location + (index,), lines)
 
 
-def read_document(path: Union[str, Path]) -> Tuple[Dict[str, Any], SourceMap]:
+def read_document(
+    path: Union[str, Path], including: Tuple[Path, ...] = ()
+) -> Tuple[Dict[str, Any], SourceMap]:
     """Parses a blueprint file into a mapping and its source map.
 
     The folder of the file is added to the front of `sys.path` before `!python`
     references are resolved, and stays there so later imports find the same modules.
+
+    Args:
+        path: The file.
+        including: The files whose `!include` led here, so a file that includes
+            itself, directly or through another, is refused.
 
     Raises:
         BlueprintError: If the file is not valid YAML, is not a mapping, or names a
@@ -249,6 +259,8 @@ def read_document(path: Union[str, Path]) -> Tuple[Dict[str, Any], SourceMap]:
 
     loader = BlueprintLoader(path.read_text(encoding="utf-8"))
     loader.name = str(path)
+    # The files being read, so an !include of one of them is refused, not followed
+    loader.including = (*including, path.resolve())  # type: ignore[attr-defined]
     lines: Dict[Location, int] = {}
     try:
         node = loader.get_single_node()

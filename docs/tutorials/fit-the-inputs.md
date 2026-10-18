@@ -61,7 +61,7 @@ empirical         fitted                                       values: 40 number
 
 ## Look at the Fit
 
-`--plot`, or `result.plot("fit.png")`, draws the data against 10,000 values drawn from the best fit with desflow's own sampler:
+`--plot`, or `result.plot("fit.png")`, draws the data against 10,000 values drawn from the best fit through desflow's `Sampler`, as a run draws them:
 
 ![On the left, the histogram of the 40 packing times over the histogram of 10,000 values drawn from the fitted triangular between 0.55 and 2.84 seconds with its mode at 1.2; on the right, a Q-Q plot whose points lie close to the diagonal from 0.7 to 2.7 seconds](../assets/charts/fit-the-inputs.png)
 
@@ -132,7 +132,7 @@ Which supported distribution fits the 40 packing times? The `triangular` has the
 
 ## Why It Works
 
-The triangular's mean is (0.546 + 1.2 + 2.838) ÷ 3 = 1.53 seconds, 2% above the data's 1.50. Its shape fits the 40 points well, but with the packers busy 90% of the time, a 2% longer packing time is a large share of the little time they have spare, and the wait grows far more than 2%. A gamma fitted by maximum likelihood keeps the data's mean exactly, as shape × scale = 9.558 × 0.157 = 1.50. So read the table and the plot, then check the model's answer with each close candidate; [Input Fitting](../user-guide/input-fitting.md) describes every option and outcome.
+The triangular's mean is (0.546 + 1.2 + 2.838) ÷ 3 = 1.53 seconds, 2% above the data's 1.50, while the gamma keeps the data's mean exactly, as shape × scale = 9.558 × 0.157 = 1.50. With the packers busy 90% of the time, 2% more packing is a large share of their spare time, so the wait grows far more than 2%. [Input Fitting](../user-guide/input-fitting.md) describes every option and outcome.
 
 ---
 
@@ -184,7 +184,7 @@ The triangular's mean is (0.546 + 1.2 + 2.838) ÷ 3 = 1.53 seconds, 2% above the
         Fits the 40 packing times measured at the bench to every family, prints the table
         of candidates, then runs the busy hour of Trusting Results 40 times with the best
         fit, with the gamma fit and with the 40 times themselves, and prints the mean wait
-        of each: python fit_the_inputs.py 2>/dev/null shows only those lines.
+        of each.
         """
 
         import logging
@@ -192,9 +192,8 @@ The triangular's mean is (0.546 + 1.2 + 2.838) ÷ 3 = 1.53 seconds, 2% above the
         from desflow import SimulationContext, fit_column, replicate
         from trusting_results import MEASURED
 
-        logging.basicConfig(
-            level=logging.WARNING, format="%(levelname)s [%(asctime)s] %(message)s"
-        )
+        # The imported model logs at INFO; replications log only their warnings
+        logging.getLogger("desflow").setLevel(logging.WARNING)
 
 
         def fitted():
@@ -265,7 +264,7 @@ The triangular's mean is (0.546 + 1.2 + 2.838) ÷ 3 = 1.53 seconds, 2% above the
         Fits the 40 packing times measured at the bench to every family, prints the table
         of candidates, then runs the busy hour of Trusting Results 40 times with the best
         fit, with the gamma fit and with the 40 times themselves, and prints the mean wait
-        of each: python fit_the_inputs_low_level.py 2>/dev/null shows only those lines.
+        of each.
         """
 
         import logging
@@ -281,9 +280,8 @@ The triangular's mean is (0.546 + 1.2 + 2.838) ÷ 3 = 1.53 seconds, 2% above the
         )
         from trusting_results_low_level import MEASURED, WARMUP, order_generator
 
-        logging.basicConfig(
-            level=logging.WARNING, format="%(levelname)s [%(asctime)s] %(message)s"
-        )
+        # The imported model logs at INFO; replications log only their warnings
+        logging.getLogger("desflow").setLevel(logging.WARNING)
 
 
         def fitted():

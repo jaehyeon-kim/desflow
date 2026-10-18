@@ -191,6 +191,12 @@ The arguments of `with_batching`, the defaults for every sink: `batch_size` and 
 
 ---
 
+## Include a File
+
+`!include path` puts a mapping from another YAML file in place, with the path relative to the file that names it, such as the settings `desflow fit` writes: `packing: !include fitted/packing.yaml`. `!include {file: path, spawn: pack}` adds keys to the file's mapping, such as the task an arrival spawns. The file is read with the same loader, so `${VAR}`, `!python` and `!include` work in it, and a file that includes itself, directly or through another, is refused. [Input Fitting](../user-guide/input-fitting.md#load-the-settings) shows it.
+
+---
+
 ## Security
 
-A blueprint with no `!python` references is read entirely by `yaml.SafeLoader`, and loading it imports only the connector modules its `type` entries name. A file that references Python runs the imports it names, so it is as trusted as a Python script: run blueprints from people you would take a script from. [Python in a Blueprint](../guides/yaml-advanced.md#security) explains.
+A blueprint with no `!python` references is read entirely by `yaml.SafeLoader`, and loading it imports only the connector modules its `type` entries name; an `!include` reads another YAML file the same way and imports nothing itself. A file that references Python, directly or in a file it includes, runs the imports it names, so it is as trusted as a Python script: run blueprints from people you would take a script from. [Python in a Blueprint](../guides/yaml-advanced.md#security) explains.

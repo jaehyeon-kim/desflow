@@ -3,7 +3,7 @@
 Fits the 40 packing times measured at the bench to every family, prints the table
 of candidates, then runs the busy hour of Trusting Results 40 times with the best
 fit, with the gamma fit and with the 40 times themselves, and prints the mean wait
-of each: python fit_the_inputs_low_level.py 2>/dev/null shows only those lines.
+of each.
 """
 
 import logging
@@ -19,9 +19,8 @@ from desflow import (
 )
 from trusting_results_low_level import MEASURED, WARMUP, order_generator
 
-logging.basicConfig(
-    level=logging.WARNING, format="%(levelname)s [%(asctime)s] %(message)s"
-)
+# The imported model logs at INFO; replications log only their warnings
+logging.getLogger("desflow").setLevel(logging.WARNING)
 
 
 def fitted():

@@ -18,14 +18,13 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 import numpy as np
 
 from desflow.core.distributions import DISTRIBUTIONS, get_distribution
+from desflow.core.sampler import Sampler
 from desflow.models.params import DistributionConfig
 
 # Seconds in one unit of the data; desflow's times are seconds.
-UNITS = {"ms": 0.001, "s": 1.0, "min": 60.0, "h": 3600.0}
+_UNITS = {"ms": 0.001, "s": 1.0, "min": 60.0, "h": 3600.0}
 # Families defined for positive values only; zeros or negatives skip them.
 _POSITIVE_ONLY = ("gamma", "weibull", "lognormal")
-# Families whose location scipy would otherwise fit too; desflow's start at 0.
-_FIXED_AT_ZERO = ("exponential", "gamma", "weibull", "lognormal")
 _FIT_EXTRA = (
     "fitting needs the fit extra, which installs scipy and matplotlib: "
     "pip install 'desflow[fit]'"
@@ -92,6 +91,8 @@ class FitResult:
         missing (int): Empty cells, left out.
         invalid (int): Values that are not numbers, not finite, or outside the
             bounds; left out with `drop_invalid`.
+        lower (Optional[float]): The lowest plausible value, in seconds, or None.
+        upper (Optional[float]): The highest plausible value, in seconds, or None.
     """
 
     candidates: List[Candidate]
@@ -216,6 +217,10 @@ class FitResult:
         Args:
             kind: The family; None takes the best.
             source: Where the data came from, for the comment at the top.
+
+        Returns:
+            str: A comment line, then `dist` and each parameter, one per line, with
+                the numbers `settings` returns.
         """
         settings = self.settings(kind)
         lines = [
@@ -238,7 +243,7 @@ class FitResult:
         The left panel puts the histogram of the data over the histogram of
         generated values; the right is a Q-Q plot, each sorted data value against
         the generated value at the same quantile. The generated values come from
-        desflow's own sampler, so they are what a run would draw.
+        desflow's `Sampler`, as a run draws them, with the same smallest delay.
 
         Args:
             path: The image to write.
@@ -295,16 +300,23 @@ def _number(value: Optional[float]) -> str:
 
 
 def _generate(settings: Dict[str, Any], n: int) -> np.ndarray:
-    """Draws n values with desflow's own family, seeded so a plot repeats."""
+    """Draws n values as a run draws them, through a `Sampler`, seeded so a plot
+    repeats: the same family and the same smallest delay a run applies."""
     config = DistributionConfig(**settings)
-    family = get_distribution(config.dist)
-    rng = np.random.default_rng(0)
-    return np.array([family.draw(config, rng) for _ in range(n)])
+    sampler = Sampler(seed=0)
+    return np.array([sampler.sample(config) for _ in range(n)])
 
 
 def read_column(path: Union[str, Path], column: str) -> List[str]:
     """
     Reads one column of a CSV file, as text, in row order.
+
+    Args:
+        path: A CSV file with a header row.
+        column: The column's name in the header.
+
+    Returns:
+        List[str]: Each row's cell, empty where the cell is empty, for `fit_column`.
 
     Raises:
         ValueError: If the file has no such column.
@@ -398,8 +410,8 @@ def fit_column(
             and `drop_invalid` is False.
         ImportError: If the fit extra is not installed.
     """
-    if unit not in UNITS:
-        raise ValueError(f"unit must be one of {', '.join(UNITS)}, got {unit!r}")
+    if unit not in _UNITS:
+        raise ValueError(f"unit must be one of {', '.join(_UNITS)}, got {unit!r}")
     names = list(candidates) if candidates is not None else list(DISTRIBUTIONS)
     unknown = [n for n in names if n not in DISTRIBUTIONS]
     if unknown:
@@ -407,7 +419,7 @@ def fit_column(
             f"no family called {', '.join(unknown)}; choose from "
             f"{', '.join(DISTRIBUTIONS)}"
         )
-    scale = UNITS[unit]
+    scale = _UNITS[unit]
     data, missing, invalid = _clean(values, scale, lower, upper, drop_invalid)
     low = None if lower is None else lower * scale
     high = None if upper is None else upper * scale

@@ -15,6 +15,7 @@ from desflow import (
 )
 from desflow.blueprint.cli import app as cli
 from desflow.blueprint.loader import BlueprintError
+from desflow.core.distributions import get_distribution
 from desflow.study import fit as fitting
 
 pytest.importorskip("scipy")
@@ -51,8 +52,10 @@ def test_parameters_are_desflow_s_and_match_the_data():
     assert gamma["shape"] * gamma["scale"] == pytest.approx(1.5, rel=0.01)
     lognormal = _row(result, "lognormal")["parameters"]
     config = DistributionConfig(dist="lognormal", **lognormal)
-    draws = [Sampler(seed=1).sample(config) for _ in range(1)]
-    assert draws and lognormal["mean"] == pytest.approx(1.5, rel=0.02)
+    family = get_distribution("lognormal")
+    # desflow's lognormal takes the variable's mean and std, which the fit kept
+    assert family.mean(config) == pytest.approx(np.mean(PACKING), rel=0.01)
+    assert family.variance(config) ** 0.5 == pytest.approx(np.std(PACKING), rel=0.1)
     assert _row(result, "exponential")["status"] == "rejected"  # std far too large
     assert "std is 1.5, the data's is 0.4832" in _row(result, "exponential")["reason"]
 
@@ -285,10 +288,29 @@ def test_cli_writes_the_settings_and_the_plot(tmp_path):
     assert missing.exit_code == 2 and "has no column 'seconds'" in missing.output
 
 
-def test_generated_values_come_from_desflow_s_sampler():
-    settings = {"dist": "gamma", "shape": 4.0, "scale": 0.5}
-    values = fitting._generate(settings, 20000)
-    assert np.mean(values) == pytest.approx(2.0, rel=0.02)
+def test_plotted_values_are_drawn_as_a_run_draws_them():
+    """The plot's values come through a Sampler, so a run's smallest delay applies:
+    a normal centred on 0 gives no value below it."""
+    settings = {"dist": "normal", "mean": 0.0, "std": 1.0}
+    values = fitting._generate(settings, 2000)
+    sampler = Sampler(seed=0)
+    config = DistributionConfig(**settings)
+    assert list(values) == [sampler.sample(config) for _ in range(2000)]
+    assert values.min() == 0.00001 and np.mean(values == 0.00001) > 0.4
+
+
+def test_an_include_of_itself_is_refused(tmp_path):
+    (tmp_path / "a.yaml").write_text("dist: gamma\nshape: !include b.yaml\n")
+    (tmp_path / "b.yaml").write_text("scale: !include a.yaml\n")
+    with pytest.raises(
+        BlueprintError, match=r"b.yaml:1: !include a.yaml: includes itself"
+    ):
+        SimulationContext.from_yaml(_shop_yaml(tmp_path, "!include a.yaml"))
+    (tmp_path / "c.yaml").write_text("dist: gamma\nshape: !include c.yaml\n")
+    with pytest.raises(
+        BlueprintError, match=r"c.yaml:2: !include c.yaml: includes itself"
+    ):
+        SimulationContext.from_yaml(_shop_yaml(tmp_path, "!include c.yaml"))
 
 
 def test_include_adds_keys_to_the_file(tmp_path):
