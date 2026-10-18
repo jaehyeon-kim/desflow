@@ -1,0 +1,47 @@
+# The Filtered Inventory tutorial: each order waits for a shirt of its own size.
+# Run it with: desflow run filtered_inventory.yaml
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+# --8<-- [start:shelf]
+stores:
+  # Shirts of every size on one shelf, each item a mapping such as {size: M}
+  shelf: {current_cap: 1000, max_cap: 1000}
+# --8<-- [end:shelf]
+
+arrivals:
+  # --8<-- [start:arrivals]
+  # A shirt every 10 seconds: 3 in 10 small, 4 medium, 3 large
+  shirts_s: {dist: exponential, rate: 0.03, spawn: restock, attributes: {size: S}}
+  shirts_m: {dist: exponential, rate: 0.04, spawn: restock, attributes: {size: M}}
+  shirts_l: {dist: exponential, rate: 0.03, spawn: restock, attributes: {size: L}}
+  # An order every 10 seconds: a quarter small, half medium, a quarter large
+  orders_s: {dist: exponential, rate: 0.025, spawn: take_shirt, attributes: {size: S}}
+  orders_m: {dist: exponential, rate: 0.05, spawn: take_shirt, attributes: {size: M}}
+  orders_l: {dist: exponential, rate: 0.025, spawn: take_shirt, attributes: {size: L}}
+  # --8<-- [end:arrivals]
+
+tasks:
+  restock:
+    # The shirt goes on the shelf, as a mapping with its size
+    put: {store: shelf}
+    payload: {}
+    attributes: [size]
+  # --8<-- [start:take]
+  take_shirt:
+    # Takes the oldest shirt of the order's own size; waits while there is none
+    get: {store: shelf, filter: item.size == attr.size}
+    # A customer cancels an order not filled within 10 minutes
+    patience: 10 min
+    # The shirt the get took, in the finished event
+    item_field: shirt
+    payload: {event_type: order_filled}
+  # --8<-- [end:take]
+
+egress:
+  - type: Console
+
+run:
+  until: 8 h

@@ -11,6 +11,7 @@ compared with `==` or `!=`. Each name carries its source as a prefix:
 | `payload.total` | the field `total` of the upstream payload |
 | `attr.priority` | the entity's attribute `priority` |
 | `level.stock` | the level of the store or container `stock` |
+| `item.size` | the field `size` of the item a store `get` took, or in a get's `filter` the item it is offered |
 | `registry["Shop.arrival.orders.rate"]` | a registry value, by path |
 | `t` | the simulation time in seconds |
 """
@@ -19,7 +20,7 @@ import ast
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Mapping, Optional, Set
 
-_PREFIXES = ("payload", "attr", "level")
+_PREFIXES = ("payload", "attr", "level", "item")
 _ARITHMETIC: Dict[type, Callable[[Any, Any], Any]] = {
     ast.Add: lambda a, b: a + b,
     ast.Sub: lambda a, b: a - b,
@@ -50,6 +51,8 @@ class Scope:
         levels: Stores and containers by name, read as `level.<name>`.
         registry: The simulation registry, read as `registry["<path>"]`.
         now: The simulation time, read as `t`.
+        item: The item a store get took, or a filter's candidate, read as
+            `item.<field>`.
     """
 
     payload: Mapping[str, Any] = field(default_factory=dict)
@@ -57,6 +60,7 @@ class Scope:
     levels: Mapping[str, Any] = field(default_factory=dict)
     registry: Optional[Any] = None
     now: float = 0.0
+    item: Optional[Mapping[str, Any]] = None
 
 
 class Expression:
@@ -66,7 +70,8 @@ class Expression:
     Attributes:
         text (str): The expression as written.
         references (Dict[str, Set[str]]): The names it reads, by source: `payload`,
-            `attr`, `level` and `registry`, so a loader can check them in advance.
+            `attr`, `level`, `item` and `registry`, so a loader can check them in
+            advance.
     """
 
     def __init__(self, text: str):
@@ -91,6 +96,7 @@ class Expression:
             "payload": set(),
             "attr": set(),
             "level": set(),
+            "item": set(),
             "registry": set(),
         }
         self._check(tree.body, strings=False)
@@ -134,7 +140,7 @@ class Expression:
                 return
             raise self._refuse(
                 f"the name '{node.id}' (write payload.<field>, attr.<name>, "
-                f'level.<name>, registry["<path>"] or t)'
+                f'level.<name>, item.<field>, registry["<path>"] or t)'
             )
         if isinstance(node, ast.Attribute):
             if isinstance(node.value, ast.Name) and node.value.id in _PREFIXES:
@@ -142,7 +148,9 @@ class Expression:
                     raise self._refuse(f"the name '{node.attr}'")
                 self.references[node.value.id].add(node.attr)
                 return
-            raise self._refuse("an attribute that is not payload., attr. or level.")
+            raise self._refuse(
+                "an attribute that is not payload., attr., level. or item."
+            )
         if isinstance(node, ast.Subscript):
             index = node.slice
             if (
@@ -199,6 +207,10 @@ class Expression:
                 if node.attr not in scope.attributes:
                     raise KeyError(f"the entity has no attribute '{node.attr}'")
                 return scope.attributes[node.attr]
+            if source == "item":
+                if not isinstance(scope.item, Mapping) or node.attr not in scope.item:
+                    raise KeyError(f"the item has no field '{node.attr}'")
+                return scope.item[node.attr]
             if node.attr not in scope.levels:
                 raise KeyError(f"no store or container is called '{node.attr}'")
             return scope.levels[node.attr].level

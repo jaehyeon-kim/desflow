@@ -150,6 +150,7 @@ def _built(m, env, sampler):
 
 
 def _patience(m, env, sampler):
+    """An example that publishes the basic statistics every 30 seconds."""
     env.setup_stats("Shop", "basic", interval=30.0)
     return m.processes(env, sampler, m.build(env))
 
@@ -180,6 +181,7 @@ EXAMPLE_CASES = [
     ("flow", "flow.yaml", None, 120, _built),
     ("measuring", "measuring.yaml", None, 1200, _measuring),
     ("patience", "patience.yaml", None, 120, _patience),
+    ("filtered_inventory", "filtered_inventory.yaml", None, 120, _patience),
 ]
 
 

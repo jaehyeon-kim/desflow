@@ -360,6 +360,60 @@ def test_initial_store_items_are_checked_when_the_store_is_added():
         app.add_store("express", current_cap=2, max_cap=2, priority=True, items=["a"])
 
 
+def test_filters_and_patience_are_checked_before_the_run():
+    """A filter needs a store without priority; patience needs something to wait
+    for; item.<field> needs a store get before it."""
+    app = SimulationContext("TestSim", factor=0.0)
+    app.add_store("express", current_cap=2, max_cap=2, priority=True)
+
+    @app.task(name="pick", get={"store": "express", "filter": "item.size == 1"})
+    def pick(task_id):
+        return {}
+
+    with pytest.raises(ValueError, match="both ranks and filters"):
+        app.run(until=1)
+    with pytest.raises(ValueError, match="needs a resource or a get"):
+        app.task(name="idle", patience=5)
+    with pytest.raises(ValueError, match="a put takes no filter"):
+        app.task(name="drop", put={"store": "express", "filter": "item.size == 1"})
+
+    other = SimulationContext("TestSim", factor=0.0)
+
+    @other.task(
+        name="ship", next={"when": [{"condition": "item.size > 1", "task": "ship"}]}
+    )
+    def ship(task_id):
+        return {}
+
+    with pytest.raises(ValueError, match="no store get before it"):
+        other.run(until=1)
+
+
+def test_patience_on_a_get_takes_nothing_after_it_runs_out():
+    """The get leaves at 2; the parcel put at 3 stays in the store."""
+    app = SimulationContext("TestSim", factor=0.0)
+    app.add_store("parcels", current_cap=1, max_cap=1)
+    app.with_stats("basic")
+
+    @app.task(name="collect", get={"store": "parcels"}, patience=2)
+    def collect(task_id):
+        return {}
+
+    @app.task(name="drop", put={"store": "parcels"})
+    def drop(task_id):
+        return {"parcel": 1}
+
+    def script(context):
+        context.spawn(collect(0))
+        yield context.env.timeout(3)
+        context.spawn(drop(0))
+
+    app.add_process(script)
+    app.run(until=4)
+    assert app.get_store("parcels").items == [{"parcel": 1}]
+    assert app.env.stats.readings()["TestSim.stats.tasks.collect.reneged"] == 1
+
+
 def test_balk_with_an_unknown_level_fails_before_the_run():
     """A balk expression is checked before the clock starts, like a priority."""
     app = (

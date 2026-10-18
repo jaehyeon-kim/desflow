@@ -50,7 +50,11 @@ Releases come in the order shown, without dates: a release ships when it is read
   icon: ':material-clock-outline:'
   key: planned
 - title: Record contract
-  content: 'In 0.22.0: the record format that 1.0 keeps stable, including a `timezone` setting for timestamps. [#51](https://github.com/jaehyeon-kim/desflow/issues/51)'
+  content: 'In 0.22.0: every record field documented with its type and format, the new event outcomes and statistics, reserved `__name__` payload keys, a `timezone` setting for timestamps, and `lag_seconds` off when a run is not paced. The format is frozen later, before 1.0. [#51](https://github.com/jaehyeon-kim/desflow/issues/51)'
+  icon: ':material-clock-outline:'
+  key: planned
+- title: Blueprint schema and AI skill
+  content: 'A JSON Schema for blueprints, shipped in the package, so editors complete keys and flag mistakes as you type, and a skill that teaches an AI assistant to write and check blueprints. [#41](https://github.com/jaehyeon-kim/desflow/issues/41)'
   icon: ':material-clock-outline:'
   key: planned
 - title: desflow explain
@@ -68,14 +72,6 @@ Releases come in the order shown, without dates: a release ships when it is read
 The work after the Learn section, on the way to 1.0, in the order it is planned.
 
 <div class="grid cards" markdown>
-
--   __Blueprint schema and AI skill__
-
-    ---
-
-    A JSON Schema for blueprints, shipped in the package, and a skill that teaches an AI assistant to write and check blueprints.
-
-    [#41](https://github.com/jaehyeon-kim/desflow/issues/41)
 
 -   __Server: API and MCP tools__
 
@@ -125,11 +121,19 @@ The work after the Learn section, on the way to 1.0, in the order it is planned.
 
     [#53](https://github.com/jaehyeon-kim/desflow/issues/53)
 
+-   __Record contract freeze__
+
+    ---
+
+    A final review of the record format against what the server, the AI tools and the `gen` reservation added, then the format marked frozen, so it stays compatible across 1.x.
+
+    [#51](https://github.com/jaehyeon-kim/desflow/issues/51)
+
 -   __1.0__
 
     ---
 
-    The generated YAML key reference, a command-line page, the record format marked frozen, a compatibility policy and upgrade notes.
+    The generated YAML key reference, a command-line page, a compatibility policy and upgrade notes.
 
     [#54](https://github.com/jaehyeon-kim/desflow/issues/54)
 
@@ -165,6 +169,7 @@ From 1.0, the YAML blueprint format, the `desflow` command, the public Python AP
 - **Generated values in blueprints:** random values, IDs and timestamps in YAML, then entities, relations between records, states and ramps.
 - **Preview loop:** run a blueprint again each time the file changes, and check a file without running it.
 - **Example gallery and visual builder.**
+- **Conversion:** turn a YAML blueprint into builder code, and builder code into YAML with no Python, with an error that names each part that cannot be converted and how to rewrite it.
 
 ### Connectors
 

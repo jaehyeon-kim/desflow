@@ -388,6 +388,33 @@ class _NullEgress:
             pass
 
 
+def filtered_outcomes() -> None:
+    """Filtered Inventory: filled and cancelled orders of each size over 8 hours."""
+    import logging
+
+    module = _module("filtered_inventory")
+    logging.getLogger("desflow").setLevel(logging.WARNING)
+    counts = module.outcomes()
+    sizes = list(module.ORDERS)
+    fig, ax = plt.subplots(figsize=(WIDTH, HEIGHT))
+    width = 0.38
+    for offset, outcome, colour in (
+        (-width / 2, "filled", BLUE),
+        (width / 2, "cancelled", ORANGE),
+    ):
+        values = [counts[(size, outcome)] for size in sizes]
+        xs = [i + offset for i in range(len(sizes))]
+        ax.bar(xs, values, width, color=colour, label=f"orders {outcome}")
+        for x, value in zip(xs, values):
+            ax.text(x, value + 15, str(value), ha="center")
+    ax.set_xticks(range(len(sizes)), [f"size {size}" for size in sizes])
+    ax.set_ylabel("orders in 8 hours")
+    ax.set_ylim(0, max(counts.values()) * 1.15)
+    ax.set_title("One shelf, each order waiting for its own size")
+    ax.legend(frameon=False, loc="upper left")
+    _save(fig, "filtered-outcomes")
+
+
 def distribution_shapes() -> None:
     """Arrivals and Services: 200,000 draws from each distribution family, with the
     parameters of the examples on the page."""
@@ -445,6 +472,7 @@ CHARTS: Dict[str, Callable[[], None]] = {
     "distribution-shapes": distribution_shapes,
     "priorities-wait": priorities_wait,
     "patience-waits": patience_waits,
+    "filtered-outcomes": filtered_outcomes,
     "stock-level": stock_level,
     "trusting-warmup": trusting_warmup,
     "measuring-queue": measuring_queue,

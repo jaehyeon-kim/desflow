@@ -85,12 +85,13 @@ def test_forms_outside_the_whitelist_are_refused(text, fragment):
 def test_references_name_each_source():
     expression = Expression(
         "payload.total > 1 and attr.vip == 1 and level.stock > 0 "
-        'and registry["Shop.arrival.orders.rate"] > 0'
+        'and registry["Shop.arrival.orders.rate"] > 0 and item.size == 2'
     )
     assert expression.references == {
         "payload": {"total"},
         "attr": {"vip"},
         "level": {"stock"},
+        "item": {"size"},
         "registry": {"Shop.arrival.orders.rate"},
     }
 
@@ -101,6 +102,7 @@ def test_references_name_each_source():
         ("payload.missing > 1", "no field 'missing'"),
         ("attr.missing > 1", "no attribute 'missing'"),
         ("level.shelf > 1", "no store or container is called 'shelf'"),
+        ("item.size > 1", "the item has no field 'size'"),
         ("payload.total / (attr.priority - 1)", "division by zero"),
     ],
 )

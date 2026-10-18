@@ -1,0 +1,58 @@
+# Filtered inventory: couriers take only parcels for their own area, in YAML.
+#
+# The twin of examples/builder/filtered_inventory_example.py. Packed orders go on
+# one shelf as parcels, each with the area it is going to. A courier for the north
+# or the south takes the oldest parcel for its own area, with a filter, and leaves
+# without one if none comes within 20 seconds.
+#
+# Needs no containers. Runs unpaced and ends after 120 simulation seconds.
+# Run it with: desflow run examples/yaml/filtered_inventory.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+egress:
+  - type: Console
+
+resources:
+  packers: {current_cap: 2, max_cap: 4}
+
+stores:
+  # Parcels for every area on one shelf, each a mapping with its area.
+  parcels: {current_cap: 20, max_cap: 20}
+
+services:
+  packing: {dist: triangular, low: 1 s, mode: 2 s, high: 4 s}
+
+arrivals:
+  north_orders: {dist: exponential, rate: 0.3, spawn: pack, attributes: {area: north}}
+  south_orders: {dist: exponential, rate: 0.1, spawn: pack, attributes: {area: south}}
+  north_couriers: {dist: constant, value: 4, spawn: collect, attributes: {area: north}}
+  south_couriers: {dist: constant, value: 6, spawn: collect, attributes: {area: south}}
+
+# --8<-- [start:collect]
+tasks:
+  pack:
+    service: packing
+    resource: packers
+    # The parcel goes on the shelf as the payload, with its area.
+    put: {store: parcels}
+    payload: {event_type: order_packed}
+    attributes: [area]
+  collect:
+    # The oldest parcel for the courier's own area.
+    get: {store: parcels, filter: item.area == attr.area}
+    # A courier leaves without a parcel after 20 seconds.
+    patience: 20 s
+    # The parcel the courier took, in the finished event.
+    item_field: parcel
+    payload: {event_type: parcel_collected}
+# --8<-- [end:collect]
+
+# Every 30 seconds, the shelf's readings and how many couriers left empty-handed.
+stats: {level: basic, interval: 30}
+
+run:
+  until: 120

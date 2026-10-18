@@ -21,6 +21,7 @@ def make_scope(
     attributes: Optional[Mapping[str, Any]] = None,
     env: Any = None,
     levels: Optional[Mapping[str, Any]] = None,
+    item: Any = None,
 ) -> Scope:
     """
     Builds what an expression's names read.
@@ -31,6 +32,7 @@ def make_scope(
             upstream's.
         env: The environment, for `registry[...]` and `t`.
         levels: Stores and containers by name, for `level`.
+        item: The item a store get took, for `item`.
 
     Returns:
         Scope: The scope.
@@ -43,6 +45,7 @@ def make_scope(
         levels=levels or {},
         registry=None if env is None else env.registry,
         now=0.0 if env is None else env.now,
+        item=item,
     )
 
 
@@ -142,6 +145,7 @@ class Router:
         upstream: Upstream,
         env: Any = None,
         levels: Optional[Mapping[str, Any]] = None,
+        item: Any = None,
     ) -> Optional[str]:
         """
         Returns the next task's name, or None when the flow ends.
@@ -150,6 +154,7 @@ class Router:
             upstream: What the finished task hands on.
             env: The environment, for `registry[...]` and `t` in conditions.
             levels: Stores and containers by name, for `level.<name>`.
+            item: The item the finished task's store get took, for `item.<field>`.
 
         Returns:
             Optional[str]: The next task, or None.
@@ -165,7 +170,7 @@ class Router:
             index = int(np.searchsorted(self._cumulative, self.rng.random(), "right"))
             return self._names[min(index, len(self._names) - 1)]
         if self._when:
-            scope = make_scope(upstream, env=env, levels=levels)
+            scope = make_scope(upstream, env=env, levels=levels, item=item)
             for condition, task in self._when:
                 if condition.evaluate(scope):
                     return task
@@ -210,6 +215,7 @@ class Transfer:
         store: Optional[str] = None,
         amount: Amount = 1.0,
         priority: Amount = 0.0,
+        filter: Union[str, Callable[[Any], bool], None] = None,
     ):
         """
         Checks the transfer.
@@ -220,6 +226,10 @@ class Transfer:
             amount: For a container, a number, an expression or a function.
             priority: For a put into a priority store, a number, an expression
                 or a function, lowest served first. Ignored by a `fifo` store.
+            filter: For a store get, which item it takes: a condition such as
+                `"item.size == attr.size"`, where `item.<field>` reads the item
+                offered, or a function of the item returning True. The get takes
+                the oldest item that matches and waits while none does.
 
         Raises:
             ValueError: If not exactly one of container and store is given, an
@@ -232,6 +242,8 @@ class Transfer:
             raise ValueError("a store moves one item, so it takes no amount")
         if container is not None and priority != 0.0:
             raise ValueError("priority orders a store's items, so it needs a store")
+        if container is not None and filter is not None:
+            raise ValueError("a filter picks a store's item, so it needs a store")
         self.container = container
         self.store = store
         self.amount = amount
@@ -244,6 +256,14 @@ class Transfer:
         ):
             raise ValueError(
                 f"amount must be a number or an expression, got {amount!r}"
+            )
+        self.filter = filter
+        self._filter_expression: Optional[Expression] = None
+        if isinstance(filter, str):
+            self._filter_expression = Expression(filter)
+        elif filter is not None and not callable(filter):
+            raise ValueError(
+                f"filter must be a condition or a function, got {filter!r}"
             )
         self._priority_expression: Optional[Expression] = None
         if isinstance(priority, str):
@@ -274,7 +294,7 @@ class Transfer:
             return spec
         if not isinstance(spec, Mapping):
             raise ValueError(f"a get or put is a mapping, got {spec!r}")
-        unknown = set(spec) - {"container", "store", "amount", "priority"}
+        unknown = set(spec) - {"container", "store", "amount", "priority", "filter"}
         if unknown:
             raise ValueError(f"a get or put does not take {', '.join(sorted(unknown))}")
         return cls(**spec)
@@ -303,6 +323,40 @@ class Transfer:
         if callable(self.amount):
             return float(self.amount(task_id, payload_of(upstream)))
         return float(self.amount)
+
+    @property
+    def expressions(self) -> List[Expression]:
+        """Every expression the transfer holds, so a loader can check its names."""
+        return [
+            expression
+            for expression in (
+                self._expression,
+                self._priority_expression,
+                self._filter_expression,
+            )
+            if expression is not None
+        ]
+
+    def filter_for(self, scope: Scope) -> Optional[Callable[[Any], bool]]:
+        """
+        Returns the function a store get offers each item to, or None for any item.
+
+        Args:
+            scope: What the condition's other names read, taken when the get is made;
+                `item` is set to each item offered.
+
+        Returns:
+            Optional[Callable[[Any], bool]]: True for an item the get may take.
+        """
+        if self._filter_expression is not None:
+            condition = self._filter_expression
+
+            def matches(item: Any) -> bool:
+                scope.item = item
+                return bool(condition.evaluate(scope))
+
+            return matches
+        return None if isinstance(self.filter, str) else self.filter
 
     def priority_for(
         self, task_id: Any, upstream: Optional[Upstream], scope: Scope

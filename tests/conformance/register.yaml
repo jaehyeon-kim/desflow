@@ -96,6 +96,57 @@
   page: user-guide/stores-and-containers.md#start-with-items-and-serve-by-priority
   differences: Equal priorities come out in put order in the builder and YAML, which add a rising put order to the priority; a plain SimPy `PriorityStore` gives no order among equal priorities.
 
+- id: C5
+  operation: Filtered retrieval
+  simpy: "`simpy.resources.store.FilterStore.get(filter)`"
+  yaml: "`get: {store: parcels, filter: item.area == attr.area}`"
+  builder: "`get={\"store\": \"parcels\", \"filter\": ...}`, a condition or a function of the item"
+  low_level: "`parcels.get(filter=lambda item: ...)`"
+  checks:
+    - tests/conformance/test_c5_inventory.py::test_c5_filtered_retrieval
+  page: user-guide/stores-and-containers.md#pick-an-item-or-give-up-waiting
+  differences: A priority store takes no filter, because SimPy has no store that both ranks and filters.
+
+- id: C5
+  operation: Cancel store get
+  simpy: "`simpy.resources.base.Get.cancel()`"
+  yaml: "`patience` on a task with a store `get`"
+  builder: "`@app.task(get={\"store\": ...}, patience=...)`"
+  low_level: "`get.cancel()`"
+  checks:
+    - tests/conformance/test_c5_inventory.py::test_c5_cancel_store_get
+  page: user-guide/stores-and-containers.md#pick-an-item-or-give-up-waiting
+
+- id: C5
+  operation: Cancel quantity get
+  simpy: "`simpy.resources.base.Get.cancel()`"
+  yaml: "`patience` on a task with a container `get`"
+  builder: "`@app.task(get={\"container\": ...}, patience=...)`"
+  low_level: "`get.cancel()`"
+  checks:
+    - tests/conformance/test_c5_inventory.py::test_c5_cancel_quantity_get
+  page: user-guide/stores-and-containers.md#pick-an-item-or-give-up-waiting
+
+- id: C5
+  operation: Cancel store put
+  simpy: "`simpy.resources.base.Put.cancel()`"
+  yaml: none yet
+  builder: none yet
+  low_level: "`put.cancel()`"
+  checks:
+    - tests/conformance/test_c5_inventory.py::test_c5_cancel_store_put
+  page: user-guide/stores-and-containers.md#pick-an-item-or-give-up-waiting
+
+- id: C5
+  operation: Cancel quantity put
+  simpy: "`simpy.resources.base.Put.cancel()`"
+  yaml: none yet
+  builder: none yet
+  low_level: "`put.cancel()`"
+  checks:
+    - tests/conformance/test_c5_inventory.py::test_c5_cancel_quantity_put
+  page: user-guide/stores-and-containers.md#pick-an-item-or-give-up-waiting
+
 - id: C6
   operation: Initial time
   simpy: "`simpy.core.Environment(initial_time=...)`"

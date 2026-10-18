@@ -147,6 +147,12 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                     f"task '{name}' uses {kind} '{target}', which is not defined "
                     f"under {kind}s",
                 )
+            if step.filter is not None and blueprint.stores[target].priority:
+                raise source.error(
+                    ("tasks", name, field, "filter"),
+                    f"store '{target}' serves by priority, and SimPy has no store "
+                    f"that both ranks and filters its items",
+                )
         for target, location in _routes(name, task):
             if target not in blueprint.tasks:
                 raise source.error(
@@ -154,7 +160,20 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                     f"task '{name}' routes to '{target}', which is not defined "
                     f"under tasks",
                 )
+        takes_item = task.get is not None and task.get.store is not None
         for expression, location in _expressions(name, task):
+            # item.<field> reads what a store get took: a get's own filter, then
+            # the put and next after it
+            reads_item = location[2] in ("put", "next") or location[2:4] == (
+                "get",
+                "filter",
+            )
+            if expression.references["item"] and not (takes_item and reads_item):
+                raise source.error(
+                    location,
+                    "item.<field> reads the item a store get took, so it is "
+                    "read in the get's filter, the put and next of a task with one",
+                )
             for level in expression.references["level"]:
                 if level not in blueprint.stores and level not in blueprint.containers:
                     raise source.error(
@@ -229,6 +248,10 @@ def _expressions(
     found = []
     if isinstance(task.priority, str):
         found.append((Expression(task.priority), where + ("priority",)))
+    if isinstance(task.patience, str):
+        found.append((Expression(task.patience), where + ("patience",)))
+    if task.balk is not None:
+        found.append((Expression(task.balk), where + ("balk",)))
     for field in ("get", "put"):
         step = getattr(task, field)
         if step is None:
@@ -237,6 +260,8 @@ def _expressions(
             found.append((Expression(step.amount), where + (field, "amount")))
         if isinstance(step.priority, str):
             found.append((Expression(step.priority), where + (field, "priority")))
+        if step.filter is not None:
+            found.append((Expression(step.filter), where + (field, "filter")))
     if task.next is not None and not isinstance(task.next, str):
         for index, rule in enumerate(task.next.when):
             found.append(
@@ -307,7 +332,7 @@ def _build_context(blueprint: Blueprint, source: SourceMap) -> SimulationContext
             put=None if task.put is None else task.put.transfer(),
             next=task.next_rules(),
             set=task.set,
-        )(_payload(task.payload, task.id_field, task.attributes))
+        )(_payload(task.payload, task.id_field, task.attributes, task.item_field))
         for name, task in blueprint.tasks.items()
     }
 
@@ -503,19 +528,25 @@ def _payload(
     payload: Union[Dict[str, Any], Callable[..., Any]],
     id_field: Union[str, None],
     attributes: List[str],
+    item_field: Union[str, None] = None,
 ) -> Callable:
     """The task body: a `!python` payload function, or a copy of a mapping payload.
 
-    A mapping payload gains the task id under `id_field`, and the entity attributes
-    `attributes` names, each under its own name.
+    A mapping payload gains the task id under `id_field`, the item its store get
+    took under `item_field`, and the entity attributes `attributes` names, each
+    under its own name.
     """
     if callable(payload):
         return payload
 
-    def body(task_id: int, context: SimulationContext, entity: Any) -> Dict[str, Any]:
+    def body(
+        task_id: int, context: SimulationContext, entity: Any, item: Any = None
+    ) -> Dict[str, Any]:
         event = dict(payload)
         if id_field is not None:
             event[id_field] = task_id
+        if item_field is not None:
+            event[item_field] = item
         for name in attributes:
             event[name] = entity.attributes.get(name)
         return event

@@ -1,12 +1,14 @@
 # Reneging and Balking
 
+**Level:** Intermediate
+
 Give a task a time limit on its wait, a condition that stops it joining at all, or both, and account for every entity afterwards. It builds on [Patience](../tutorials/patience.md), which explains both ideas, and on [Resources](../user-guide/resources.md#how-it-works), which explains how a request is granted.
 
 ---
 
 ## Leave After a Wait and Refuse to Join
 
-A task's `patience` is how long it waits for its resource before it leaves the queue and publishes `reneged`. Its `balk` is a condition checked before it joins the queue; when it holds, the task publishes `balked` and never asks for the resource. Here each order brings its own patience as an attribute, and no order joins after the courier's last collection at 100 seconds:
+A task's `patience` is how long it waits, for its resource and then for its `get`, before it leaves the queue and publishes `reneged`; a get that gives up is cancelled, so it takes nothing later. Its `balk` is a condition checked before it joins the queue; when it holds, the task publishes `balked` and never asks for the resource. Here each order brings its own patience as an attribute, and no order joins after the courier's last collection at 100 seconds:
 
 === "YAML"
 

@@ -379,3 +379,28 @@ def test_patience_outcomes(api, monkeypatch):
     to 14.57 s; 194 balk in the last five minutes either way."""
     for patience, expected in PATIENCE_OUTCOMES.items():
         assert _patience_outcomes(api, patience, monkeypatch) == expected
+
+
+FILTERED_OUTCOMES = {
+    ("S", "filled"): 732,
+    ("M", "filled"): 1110,
+    ("M", "cancelled"): 315,
+    ("L", "filled"): 679,
+}
+
+
+@pytest.mark.parametrize("api", APIS)
+def test_filtered_inventory_outcomes(api):
+    """315 medium orders are cancelled in 8 hours, and no small or large one."""
+    builder = _load("filtered_inventory")
+    if api == "yaml":
+        app = SimulationContext.from_yaml(BLUEPRINTS / "filtered_inventory.yaml")
+        outcome = builder._Outcomes()
+        app.add_egress(outcome)
+        app.run()
+        counts = outcome.counts
+    elif api == "builder":
+        counts = builder.outcomes()
+    else:
+        counts = _load("filtered_inventory_low_level").outcomes()
+    assert dict(counts) == FILTERED_OUTCOMES

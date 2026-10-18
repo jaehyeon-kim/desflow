@@ -1,0 +1,23 @@
+# A large order waits for a large parcel from 10, a small one for a small parcel
+# from 11; a small parcel is put at 12 and a large one at 13. See test_c5_inventory.py.
+simulation:
+  sim_id: C5f
+  factor: 0
+stores:
+  parcels: {current_cap: 5, max_cap: 5}
+arrivals:
+  large: {dist: constant, value: 10, spawn: take, attributes: {size: L}}
+  small: {dist: constant, value: 11, spawn: take, attributes: {size: S}}
+  parcel12: {dist: constant, value: 12, spawn: drop, attributes: {size: S}}
+  parcel13: {dist: constant, value: 13, spawn: drop, attributes: {size: L}}
+tasks:
+  take:
+    get: {store: parcels, filter: item.size == attr.size}
+    payload: {}
+    item_field: parcel
+  drop:
+    put: {store: parcels}
+    payload: {}
+    attributes: [size]
+run:
+  until: 14

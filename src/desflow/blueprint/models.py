@@ -244,13 +244,16 @@ class TransferStep(_Model):
 
     `amount` is a number or an expression such as `payload.quantity`, and 1 when it
     is left out. `priority` is a number or an expression for a put into a priority
-    store, lowest served first, and 0 when it is left out.
+    store, lowest served first, and 0 when it is left out. `filter` is a condition
+    for a store get, such as `item.size == attr.size`, where `item.<field>` reads
+    the item offered: the get takes the oldest item that matches.
     """
 
     container: Optional[str] = None
     store: Optional[str] = None
     amount: Union[float, str] = 1.0
     priority: Union[float, str] = 0.0
+    filter: Optional[str] = None
 
     @model_validator(mode="after")
     def _one_target(self) -> "TransferStep":
@@ -264,6 +267,7 @@ class TransferStep(_Model):
             store=self.store,
             amount=self.amount,
             priority=self.priority,
+            filter=self.filter,
         )
 
 
@@ -316,8 +320,8 @@ class Task(_Model):
 
     `payload` is the value of the `finished` event: a mapping, or a `!python`
     function called as `payload(task_id, context)`. `id_field` adds the task id to a
-    mapping payload under that key, and `attributes` adds the named entity
-    attributes. A task with a `service` and no `resource` is a timed step; one with
+    mapping payload under that key, `item_field` adds the item its store `get` took,
+    and `attributes` adds the named entity attributes. A task with a `service` and no `resource` is a timed step; one with
     neither, and no `get`, emits its payload as soon as it is spawned.
 
     `priority` is a number or an expression such as `attr.priority`, for a resource
@@ -331,6 +335,7 @@ class Task(_Model):
     resource: Optional[str] = None
     payload: Union[Dict[str, Any], Callable[..., Any]]
     id_field: Optional[str] = None
+    item_field: Optional[str] = None
     attributes: List[str] = Field(default_factory=list)
     priority: Optional[Union[float, str]] = None
     patience: Optional[Union[float, str]] = None
@@ -364,9 +369,17 @@ class Task(_Model):
             raise ValueError(
                 "priority orders a resource's queue, so it needs a resource"
             )
-        if self.patience is not None and self.resource is None:
+        if self.patience is not None and self.resource is None and self.get is None:
             raise ValueError(
-                "patience is how long a task waits for a resource, so it needs one"
+                "patience is how long a task waits, so it needs a resource or a get"
+            )
+        if self.put is not None and self.put.filter is not None:
+            raise ValueError(
+                "a put takes no filter; a filter picks the item a get takes"
+            )
+        if self.item_field is not None and (self.get is None or self.get.store is None):
+            raise ValueError(
+                "item_field adds the item a store get took, so it needs one"
             )
         if self.balk is not None and self.resource is None:
             raise ValueError("balking refuses a resource queue, so it needs a resource")
@@ -392,6 +405,8 @@ class Task(_Model):
     def _id_field_needs_a_mapping(self) -> "Task":
         if self.id_field is not None and not isinstance(self.payload, dict):
             raise ValueError("id_field applies only to a mapping payload")
+        if self.item_field is not None and not isinstance(self.payload, dict):
+            raise ValueError("item_field applies only to a mapping payload")
         return self
 
 

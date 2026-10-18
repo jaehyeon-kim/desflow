@@ -1,5 +1,7 @@
 # Patience
 
+**Level:** Intermediate
+
 The shop now takes 0.7 orders a second, and its one packer packs one every 1.5 seconds, so orders arrive faster than they can be packed. A real customer does not wait for ever: one whose order has not started within 30 seconds cancels it. And the courier leaves at the hour, so the shop takes no new orders in the last five minutes. This page asks: **which orders leave or refuse to join, and what does that do to the wait of the others?** It measures the hour with a patience of 30 seconds and without one.
 
 ## What You Add
@@ -10,7 +12,7 @@ A `patience` and a `balk` condition on the packing task. The shop is the one fro
 
 ## Leave After a Wait
 
-An entity that leaves a queue after waiting too long **reneges**. In SimPy it waits for whichever comes first, the unit or a timeout, with the `|` of two events (an `AnyOf`), then checks which one happened. In desflow it is the task's `patience`: how long the task waits for its resource before it leaves the queue and publishes `reneged`:
+An entity that leaves a queue after waiting too long **reneges**. In SimPy it waits for whichever comes first, the unit or a timeout, with the `|` of two events (an `AnyOf`), then checks which one happened. In desflow it is the task's `patience`: how long the task waits, for its resource and then for its `get` from a store or container, before it leaves the queue and publishes `reneged`:
 
 === "YAML"
 
@@ -363,4 +365,4 @@ Orders arrive at 0.7 a second and bring 1.05 seconds of packing each second, mor
                 )
         ```
 
-Next, [Reneging and Balking](../guides/reneging-and-balking.md) shows the same two decisions in a shop example, with ties and how to check that every order is accounted for. This is the last page of the tutorial for now. [Task Flow](../user-guide/task-flow.md) and the rest of the [User Guide](../user-guide/ways-to-write.md) describe each part of desflow in full.
+[Reneging and Balking](../guides/reneging-and-balking.md) shows the same two decisions in a shop example, with ties and how to check that every order is accounted for. Next, [Filtered Inventory](filtered-inventory.md) asks which waiting order can use the item that arrives.

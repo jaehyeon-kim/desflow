@@ -2,7 +2,7 @@ import heapq
 import itertools
 from typing import Any, Callable, Iterable, Optional
 
-from simpy import Environment, Event, PriorityItem, PriorityStore, Store
+from simpy import Environment, Event, FilterStore, PriorityItem, PriorityStore
 from simpy.resources.store import StoreGet, StorePut
 
 from desflow.resources.base import BaseDynamicResource
@@ -28,7 +28,7 @@ class _Notifying:
         return done
 
 
-class _Store(_Notifying, Store):
+class _Store(_Notifying, FilterStore):
     def __init__(self, env: Environment, on_change: Callable[[], None], **kwargs: Any):
         self._on_change = on_change
         super().__init__(env, **kwargs)
@@ -42,7 +42,7 @@ class _PriorityStore(_Notifying, PriorityStore):
 
 class DynamicStore(BaseDynamicResource):
     """
-    A wrapper for SimPy Store and PriorityStore with dynamic capacity updates.
+    A wrapper for SimPy FilterStore and PriorityStore with dynamic capacity updates.
 
     Useful for modeling buffers, queues, or staging areas that hold discrete,
     heterogeneous items. By setting `priority=True`, the store will automatically
@@ -78,7 +78,8 @@ class DynamicStore(BaseDynamicResource):
             sim_id (str): The parent simulation ID.
             store_id (str): The unique name of this store.
             priority (bool): If True, uses `simpy.PriorityStore` instead of
-                the standard FIFO `simpy.Store`. Defaults to False.
+                `simpy.FilterStore`, which serves first in, first out as
+                `simpy.Store` does and also takes a filter. Defaults to False.
             items (Iterable, optional): The items it holds when the run starts, in
                 the order a get returns them. A priority store takes `(priority,
                 item)` pairs and holds each as a `PriorityItem`, lowest priority
@@ -178,15 +179,34 @@ class DynamicStore(BaseDynamicResource):
         """
         return self._store.put(item)
 
-    def get(self) -> StoreGet:
+    def get(self, filter: Optional[Callable[[Any], bool]] = None) -> StoreGet:
         """
         Request to get the next available item from the store.
 
+        Args:
+            filter: For a store without priority, a function of an item that
+                returns True for an item this get may take, as SimPy's
+                `FilterStore.get` takes. The get takes the oldest matching item and
+                waits while none matches; a waiting get that matches nothing does
+                not stop a later one from taking an item that matches it.
+
         Returns:
             simpy.resources.store.StoreGet: A SimPy event that yields the
-                requested item object when available.
+                requested item object when available. Its `cancel()` takes a
+                waiting get out of the queue.
+
+        Raises:
+            ValueError: If a priority store is given a filter: SimPy has no store
+                that both ranks and filters.
         """
-        return self._store.get()
+        if filter is None:
+            return self._store.get()
+        if self.priority:
+            raise ValueError(
+                "a priority store takes no filter: SimPy has no store that both "
+                "ranks and filters its items"
+            )
+        return self._store.get(filter)
 
     def _handle_capacity_change(self, new_target: float):
         """

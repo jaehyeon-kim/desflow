@@ -123,6 +123,12 @@ def test_schema_errors_name_the_line(tmp_path, old, new, line, fragment):
         ("    resource: packers", "    resource: press", 14, "resource 'press'"),
         ("spawn: part", "spawn: widget", 10, "task 'widget'"),
         ("current_cap: 2,", "current_cap: 2.5,", 6, "whole number"),
+        (
+            "    id_field: order_id",
+            "    id_field: order_id\n    next: {when: [{condition: item.size > 1, task: part}]}",
+            17,
+            "item.<field> reads the item a store get took",
+        ),
     ],
 )
 def test_cross_reference_errors_name_the_line(tmp_path, old, new, line, fragment):

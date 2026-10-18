@@ -65,6 +65,7 @@ The arguments of `SimulationContext`. [Time and Pacing](../user-guide/time-and-p
 | `logical_start_time` | the instant simulation time 0 maps to; the load time by default |
 | `go_live_at` | the instant from which the run is paced in real time |
 | `warmup` | a time, 0 or more, before which no sink receives a record and at which the statistics restart |
+| `initial_time` | the simulation clock's reading when the run starts, in seconds or a duration; 0 by default |
 
 ## resources, stores and containers
 
@@ -73,7 +74,7 @@ The arguments of `SimulationContext`. [Time and Pacing](../user-guide/time-and-p
 | Section | Keys |
 |---|---|
 | `resources` | `current_cap` and `max_cap`, whole numbers; `queue`: `fifo` (the default), `lifo` or `priority` |
-| `stores` | `current_cap` and `max_cap`, whole numbers of items |
+| `stores` | `current_cap` and `max_cap`, whole numbers of items; `priority: true` to return the lowest priority first; `items`, the items held at the start, `[priority, item]` pairs for a priority store |
 | `containers` | `current_cap` and `max_cap`, the largest amount; `level`, the amount at the start, 0 by default |
 
 A store and a container cannot share a name.
@@ -103,10 +104,13 @@ An arrival also takes:
 | `resource` | the resource the task holds while it works |
 | `payload` | required: the finished event's value, a mapping, or a `!python` function called as `function(task_id, context)` |
 | `id_field` | adds the task id to a mapping payload under this key |
+| `item_field` | adds the item the task's store `get` took to a mapping payload under this key |
 | `attributes` | a list of entity attributes added to a mapping payload |
 | `priority` | a number or an expression such as `attr.tier`, for a resource with `queue: priority` |
-| `get` | `{container: name, amount: ...}` or `{store: name}`: taken after the resource, before the work |
-| `put` | the same form: added after the work; a store receives the payload |
+| `patience` | seconds, a duration or an expression: how long the task waits for its resource and its `get` before it leaves and publishes `reneged` |
+| `balk` | a condition checked before the task joins a queue; when it holds, the task publishes `balked` |
+| `get` | `{container: name, amount: ...}` or `{store: name}`, with an optional `filter` condition for a store, which reads the item offered as `item.<field>`: taken after the resource, before the work |
+| `put` | the same form, without a filter: added after the work; a store receives the payload, with an optional `priority` for a priority store |
 | `next` | a task name; `{when: [{condition, task}, ...], default: task}`; or `{weights: {task: number, ...}}` |
 | `set` | a mapping applied to the entity's attributes when the task finishes |
 

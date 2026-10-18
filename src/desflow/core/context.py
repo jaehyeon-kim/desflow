@@ -720,9 +720,9 @@ class SimulationContext:
             raise ValueError(
                 "priority orders a resource's queue, so it needs a resource"
             )
-        if patience is not None and resource_id is None:
+        if patience is not None and resource_id is None and get is None:
             raise ValueError(
-                "patience is how long a task waits for a resource, so it needs one"
+                "patience is how long a task waits, so it needs a resource or a get"
             )
         if balk is not None and resource_id is None:
             raise ValueError("balking refuses a resource queue, so it needs a resource")
@@ -740,6 +740,10 @@ class SimulationContext:
                 "a get takes no priority; priority orders a put into a priority store"
             )
         give = None if put is None else Transfer.of(put)
+        if give is not None and give.filter is not None:
+            raise ValueError(
+                "a put takes no filter; a filter picks the item a get takes"
+            )
         router = Router(next)
         attribute_changes = dict(set or {})
 
@@ -797,9 +801,28 @@ class SimulationContext:
                         publish(status("balked"))
                         env.stats.task_balked(task_name, task_id)
                         return
+                # The patience timer starts when the task joins its first queue and
+                # covers every wait after it: the resource, then the get.
+                deadline = None
                 if waits:
                     publish(status("queued"))
                     env.stats.task_queued(task_name, task_id)
+                    if patience is not None:
+                        if patience_of is not None:
+                            scope = make_scope(
+                                upstream, entity.attributes, env, self._levels()
+                            )
+                            limit = patience_of.evaluate(scope)
+                        elif callable(patience):
+                            limit = patience(task_id, entity.attributes)
+                        else:
+                            limit = patience
+                        deadline = env.timeout(float(limit))
+
+                def renege() -> None:
+                    publish(status("reneged"))
+                    env.stats.task_reneged(task_name, task_id)
+
                 unit: Any  # a resource request, or no wait at all
                 if resource_id is not None:
                     holder = self._resources_map[resource_id]
@@ -814,31 +837,25 @@ class SimulationContext:
                     unit = holder.request(1 if rank is None else rank)
                 else:
                     unit = contextlib.nullcontext()
+                got: Any = None
                 with unit as request:
                     if request is not None:
-                        if patience is None:
+                        if deadline is None:
                             yield request
                         else:
-                            if patience_of is not None:
-                                scope = make_scope(
-                                    upstream, entity.attributes, env, self._levels()
-                                )
-                                wait = patience_of.evaluate(scope)
-                            elif callable(patience):
-                                wait = patience(task_id, entity.attributes)
-                            else:
-                                wait = patience
-                            yield request | env.timeout(float(wait))
+                            yield request | deadline
                             # The patience ran out before a unit was free: leave the
                             # queue (the request is cancelled on exit) and renege.
                             if not request.triggered:
-                                publish(status("reneged"))
-                                env.stats.task_reneged(task_name, task_id)
+                                renege()
                                 return
                     if take is not None:
                         got = yield from self._transfer(
-                            take, "get", task_id, entity, upstream, None
+                            take, "get", task_id, entity, upstream, None, deadline
                         )
+                        if got is _RENEGED:
+                            renege()
+                            return
                         if "item" in declared:
                             extra["item"] = got
                     if timed:
@@ -854,14 +871,14 @@ class SimulationContext:
                         yield env.timeout(self.sampler.sample(config))
                     if give is not None:
                         yield from self._transfer(
-                            give, "put", task_id, entity, upstream, payload
+                            give, "put", task_id, entity, upstream, payload, None, got
                         )
                     publish(payload)
                     env.stats.task_finished(task_name, task_id)
 
                 entity.attributes.update(attribute_changes)
                 handed = Upstream(task_id, entity.key, entity.attributes, payload)
-                following = router.choose(handed, env, self._levels())
+                following = router.choose(handed, env, self._levels(), item=got)
                 if following is None:
                     env.stats.flow_finished(entity.arrival)
                     return
@@ -893,29 +910,45 @@ class SimulationContext:
         entity: Entity,
         upstream: Optional[Upstream],
         payload: Any,
+        deadline: Any = None,
+        item: Any = None,
     ):
-        """Gets from or puts into a store or container, waiting as long as it takes."""
+        """Gets from or puts into a store or container, waiting as long as it takes.
+
+        A get with a `deadline` waits for whichever comes first; when the deadline
+        does, the get is cancelled, so it takes nothing later, and `_RENEGED` is
+        returned. `item` is what the task's own get took, read as `item.<field>`.
+        """
+        scope = make_scope(
+            upstream, entity.attributes, self._env, self._levels(), item=item
+        )
         if transfer.store is not None:
             store = self._stores_map[transfer.store]
             if direction == "get":
-                item = yield store.get()
-                # A priority store holds PriorityItem wrappers; the task reads the payload.
-                if self._store_priority.get(transfer.store):
-                    return item.item
-                return item
-            if self._store_priority.get(transfer.store):
-                scope = make_scope(
-                    upstream, entity.attributes, self._env, self._levels()
-                )
+                event = store.get(transfer.filter_for(scope))
+            elif self._store_priority.get(transfer.store):
                 rank = transfer.priority_for(task_id, upstream, scope)
-                yield store.put(store.wrap(payload, rank))
+                event = store.put(store.wrap(payload, rank))
             else:
-                yield store.put(payload)
-            return None
-        container = self._containers_map[transfer.target]
-        scope = make_scope(upstream, entity.attributes, self._env, self._levels())
-        amount = transfer.amount_for(task_id, upstream, scope)
-        yield container.get(amount) if direction == "get" else container.put(amount)
+                event = store.put(payload)
+        else:
+            container = self._containers_map[transfer.target]
+            amount = transfer.amount_for(task_id, upstream, scope)
+            event = (
+                container.get(amount) if direction == "get" else container.put(amount)
+            )
+        if deadline is None:
+            yield event
+        else:
+            yield event | deadline
+            if not event.triggered:
+                event.cancel()
+                return _RENEGED
+        if direction == "get" and transfer.store is not None:
+            # A priority store holds PriorityItem wrappers; the task reads the payload.
+            if self._store_priority.get(transfer.store):
+                return event.value.item
+            return event.value
         return None
 
     def arrival_loop(self, arrival_id: str) -> Callable:
@@ -1321,6 +1354,13 @@ class SimulationContext:
                     raise ValueError(
                         f"task '{name}' uses {kind} '{transfer.target}', which is not added"
                     )
+                if transfer.filter is not None and self._store_priority.get(
+                    transfer.target
+                ):
+                    raise ValueError(
+                        f"task '{name}' filters priority store '{transfer.target}'; "
+                        f"SimPy has no store that both ranks and filters its items"
+                    )
             for target in spec.router.tasks or ():
                 if target not in self._tasks:
                     raise ValueError(
@@ -1334,12 +1374,25 @@ class SimulationContext:
             if spec.balk is not None:
                 expressions.append(Expression(spec.balk))
             for transfer in (spec.get, spec.put):
-                if transfer is None:
-                    continue
-                if isinstance(transfer.amount, str):
-                    expressions.append(Expression(transfer.amount))
-                if isinstance(transfer.priority, str):
-                    expressions.append(Expression(transfer.priority))
+                if transfer is not None:
+                    expressions.extend(transfer.expressions)
+            # item.<field> reads what the task's store get took, so it means
+            # nothing before the get, and nothing without one
+            before_get = [
+                Expression(text)
+                for text in (spec.priority, spec.patience, spec.balk)
+                if isinstance(text, str)
+            ]
+            after_get = list(spec.router.conditions)
+            if spec.put is not None:
+                after_get.extend(spec.put.expressions)
+            takes_item = spec.get is not None and spec.get.store is not None
+            for expression in before_get + ([] if takes_item else after_get):
+                if expression.references["item"]:
+                    raise ValueError(
+                        f"task '{name}' reads item.<field> in '{expression.text}', "
+                        f"but it has no store get before it"
+                    )
             for expression in expressions:
                 for level in expression.references["level"]:
                     if level not in holders:
@@ -1359,6 +1412,10 @@ class SimulationContext:
                             f"task '{name}' reads registry[\"{path}\"], which is "
                             f"not a registry path"
                         ) from None
+
+
+# What a get returns when the task's patience ran out before it took anything
+_RENEGED = object()
 
 
 class _TaskSpec:
