@@ -238,6 +238,18 @@ def replications_summary() -> List[str]:
     return result[0].summary_text().split("\n")  # type: ignore[attr-defined]
 
 
+def study_report() -> List[str]:
+    """Local Studies: the results, comparison, check and observed part of the
+    study example's report."""
+    import tempfile
+
+    module = _module("examples/builder/study_example.py")
+    with tempfile.TemporaryDirectory() as folder:
+        with contextlib.redirect_stdout(open(os.devnull, "w")):
+            report = module.run(output=Path(folder)).report.split("\n")
+    return report[report.index("## Results") : report.index("## Limits") - 1]
+
+
 def stock_out() -> List[str]:
     """Stock: the stock's readings around the second stock-out of 40-box deliveries."""
     module = _module("docs/snippets/tutorials/stock.py")
@@ -481,6 +493,7 @@ BLOCKS: Dict[str, Callable[[], List[str]]] = {
     "trusting-table": trusting_table,
     "replications-telemetry": replications_telemetry,
     "replications-summary": replications_summary,
+    "study-report": study_report,
     "measuring-final": measuring_final,
     "choosing-table": choosing_table,
     "first-trace": first_trace,

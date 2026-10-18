@@ -425,3 +425,68 @@ def test_patience_outcomes(api, monkeypatch):
     to 14.57 s; 194 balk in the last five minutes either way."""
     for patience, expected in PATIENCE_OUTCOMES.items():
         assert _patience_outcomes(api, patience, monkeypatch) == expected
+
+
+def _study(name, api, tmp_path, monkeypatch):
+    """Runs a tutorial's study in one API, writing its files under tmp_path."""
+    from desflow import run_study
+
+    if api == "yaml":
+        monkeypatch.delenv("WARMUP", raising=False)
+        return run_study(BLUEPRINTS / f"{name}_study.yaml", output=tmp_path)
+    module = _load(name + ("" if api == "builder" else "_low_level"))
+    return module.study(output=tmp_path)
+
+
+def _means(result, statistic):
+    return {
+        r["design"]: (round(r["mean"], 2), round(r["half_width"], 2))
+        for r in result.summary
+        if r["statistic"] == statistic
+    }
+
+
+@pytest.mark.parametrize("api", APIS)
+def test_comparing_designs_fourth_packer(api, tmp_path, monkeypatch):
+    """A fourth packer cuts the mean wait by 2.21 +/- 0.31 s; the paired utilisation
+    difference is narrower than either design's own interval; the check passes."""
+    result = _study("comparing_designs", api, tmp_path, monkeypatch)
+    assert _means(result, "tasks.pack_order.wait_mean") == {
+        "three": (2.48, 0.32),
+        "four": (0.27, 0.01),
+    }
+    assert _means(result, "resources.packers.utilization_avg") == {
+        "three": (90.33, 0.63),
+        "four": (67.70, 0.46),
+    }
+    difference = {
+        r["measure"]: (round(r["difference"], 2), round(r["half_width"], 2))
+        for r in result.comparisons
+    }
+    assert difference == {
+        "tasks.pack_order.wait_mean": (-2.21, 0.31),
+        "resources.packers.utilization_avg": (-22.63, 0.17),
+    }
+    assert {r["streams_both"] for r in result.comparisons} == {
+        "arrival.orders;service.packing"
+    }
+    [check] = result.checks
+    assert check["passed"] and round(check["value"], 3) == 0.286
+    assert "The provenance of `Shop.arrival.orders` is not stated." in result.report
+
+
+@pytest.mark.parametrize("api", APIS)
+def test_parameter_sweeps_demand(api, tmp_path, monkeypatch):
+    """The table of mean waits at four rates, for three packers and for four."""
+    result = _study("parameter_sweeps", api, tmp_path, monkeypatch)
+    rate = "Shop.arrival.orders.rate"
+    assert _means(result, "tasks.pack_order.wait_mean") == {
+        f"three {rate}=1.6": (0.97, 0.07),
+        f"three {rate}=1.7": (1.47, 0.14),
+        f"three {rate}=1.8": (2.48, 0.32),
+        f"three {rate}=1.9": (5.55, 1.01),
+        f"four {rate}=1.6": (0.17, 0.01),
+        f"four {rate}=1.7": (0.21, 0.01),
+        f"four {rate}=1.8": (0.27, 0.01),
+        f"four {rate}=1.9": (0.35, 0.02),
+    }

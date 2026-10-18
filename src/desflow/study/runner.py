@@ -1,16 +1,21 @@
-"""Replications: one model run with many seeds, and its statistics summarised.
+"""Replications and local studies: one model run with many seeds, and summarised.
 
 `replicate` runs a model N times with seeds spawned from one seed, each unpaced with
 no ingress and no egress, and reads the built-in statistics at the end of each run.
 It returns every value with its seed, and the mean and Student t half-width of each
-measure. Studies use `run_replications` to run each variant the same way.
+measure. `run_study` runs each design of a study the same way, then compares and
+checks them and writes the study's artifacts.
 """
 
+import hashlib
+import inspect
 import logging
+import platform
 import re
 import secrets
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Union
 
 import numpy as np
@@ -24,6 +29,8 @@ from desflow.study.models import (
     check_importable,
     context_of,
     default_until,
+    describe,
+    inspect_model,
     run_once,
     seconds,
 )
@@ -382,3 +389,209 @@ def _publish(model: Model, replications: Replications, until: Any) -> None:
             context.env.publish_telemetry(path_id, value)
     finally:
         context.env.teardown()
+
+
+def run_study(
+    spec: Union[str, Path, Mapping[str, Any], Any],
+    *,
+    raise_on_failure: bool = True,
+    output: Union[str, Path, None] = None,
+) -> Any:
+    """
+    Runs a local study: its variants and sweep, replications, comparisons and checks.
+
+    Every artifact is written to the study's `output` folder before anything is
+    raised: `study.json` (settings and evidence), `results.csv`, `summary.csv`,
+    `comparisons.csv`, `checks.csv` and `report.md`.
+
+    Args:
+        spec: A study file, a mapping of the same settings, or a `StudySpec`.
+            Relative paths in a file are read from the file's folder, and in a
+            mapping from the working directory.
+        raise_on_failure: When True, a failed check raises `CheckFailed`, which
+            carries the result.
+        output: The folder to write the artifacts to, in place of the study's
+            `output`.
+
+    Returns:
+        StudyResult: What the study found.
+
+    Raises:
+        BlueprintError: If the study file is invalid, naming the file and line.
+        ValueError: If the settings are invalid, a variant sets a path the model
+            does not have, or the observed values do not match the measures.
+        CheckFailed: If a check failed and `raise_on_failure` is True.
+    """
+    from desflow.study import results as found
+    from desflow.study.report import build_report
+    from desflow.study.spec import StudySpec, load_study
+
+    source = None
+    if isinstance(spec, (str, Path)):
+        path = Path(spec)
+        settings, source = load_study(path)
+        folder = path.resolve().parent
+    else:
+        settings = (
+            spec if isinstance(spec, StudySpec) else StudySpec.model_validate(spec)
+        )
+        folder = Path.cwd()
+
+    def located(where: tuple, message: str) -> Exception:
+        return source.error(where, message) if source else ValueError(message)
+
+    model = settings.model
+    if isinstance(model, str):
+        model = str((folder / model).resolve())
+
+    parameters = inspect_model(model, {})
+    for name in settings.inputs:
+        if name not in parameters or "dist" not in parameters[name]:
+            raise located(
+                ("inputs", name), f"inputs names {name}, which is not a distribution"
+            )
+    all_designs = found.designs(settings)
+    for design in all_designs:
+        try:
+            inspect_model(model, design.overrides)
+        except ValueError as exc:
+            bad = next((p for p in design.overrides if f"'{p}'" in str(exc)), None)
+            where = (
+                ("sweep", bad)
+                if bad in settings.sweep
+                else ("variants", design.variant, bad or "")
+            )
+            raise located(where, f"{design.name}: {exc}") from None
+    if settings.warmup is None:
+        # The model's own warm-up, so the measured horizon is stated correctly
+        context = context_of(model)
+        settings = settings.model_copy(
+            update={"warmup": context.warmup if context is not None else None}
+        )
+    observed = found.read_observed(settings, folder)
+
+    stats = level_for(settings.measures)
+    for design in all_designs:
+        design.runs = run_replications(
+            model,
+            design.seeds,
+            until=settings.until,
+            warmup=settings.warmup,
+            stats=stats,
+            workers=settings.workers,
+            overrides=design.overrides,
+        )
+    runs = [run for design in all_designs for run in design.runs]
+    select_measures(runs, settings.measures)
+    counts = found.count_names(runs)
+    rows = found.result_rows(all_designs, settings.measures, counts)
+    summary = found.summary_rows(
+        all_designs, rows, [*settings.measures, *counts], settings.level
+    )
+    comparisons = found.comparison_rows(settings, all_designs, rows)
+    checks = found.check_rows(settings, summary)
+    observed_rows = found.observed_rows(settings, observed, summary)
+
+    if output is None:
+        output = folder / (settings.output or f"results/{settings.study}")
+    output = Path(output)
+    output.mkdir(parents=True, exist_ok=True)
+    found.write_json(
+        output / found.STUDY_FILE,
+        _evidence(settings, model, runs[0].sim_id, parameters, all_designs)
+        | {"counts": counts, "observed": observed_rows},
+    )
+    sweep = list(settings.sweep)
+    for name, data in (
+        (found.RESULTS_FILE, rows),
+        (found.SUMMARY_FILE, summary),
+        (found.COMPARISONS_FILE, comparisons),
+        (found.CHECKS_FILE, checks),
+    ):
+        found.write_csv(output / name, data, found.columns(sweep, name))
+    report = build_report(output)
+    (output / found.REPORT_FILE).write_text(report, encoding="utf-8")
+
+    result = found.StudyResult(
+        spec=settings,
+        output=output,
+        designs=all_designs,
+        results=rows,
+        summary=summary,
+        comparisons=comparisons,
+        checks=checks,
+        observed=observed_rows,
+        report=report,
+    )
+    if result.failed and raise_on_failure:
+        raise found.CheckFailed(result)
+    return result
+
+
+def _evidence(
+    settings: Any,
+    model: Model,
+    sim_id: str,
+    parameters: Dict[str, Any],
+    all_designs: Sequence[Any],
+) -> Dict[str, Any]:
+    """The settings and evidence `study.json` holds, apart from the results."""
+    from importlib.metadata import version
+
+    import desflow
+
+    source_file: Optional[Path]
+    if isinstance(model, str):
+        form, source_file = "yaml", Path(model)
+        source = str(settings.model)
+    else:
+        form = "low-level" if isinstance(model, LowLevelModel) else "builder"
+        source = describe(model)
+        target = model.function if isinstance(model, LowLevelModel) else model
+        name = inspect.getsourcefile(target) if callable(target) else None
+        source_file = Path(name) if name else None
+    digest = (
+        hashlib.sha256(source_file.read_bytes()).hexdigest()
+        if source_file is not None and source_file.is_file()
+        else None
+    )
+    return {
+        "study": settings.study,
+        "question": settings.question,
+        "assumptions": settings.assumptions,
+        "inputs": settings.inputs,
+        "limits": settings.limits,
+        "model": {"form": form, "source": source, "sha256": digest, "sim_id": sim_id},
+        "versions": {
+            "desflow": desflow.__version__,
+            "simpy": version("simpy"),
+            "numpy": version("numpy"),
+            "python": platform.python_version(),
+        },
+        "settings": {
+            "until": settings.until,
+            "warmup": settings.warmup,
+            "replications": settings.replications,
+            "seed": settings.seed,
+            "level": settings.level,
+            "pairing": settings.pairing,
+            "measures": settings.measures,
+            "workers": settings.workers,
+        },
+        "variants": settings.variants,
+        "sweep": settings.sweep,
+        "compare": [entry.model_dump() for entry in settings.compare],
+        "checks": [check.model_dump() for check in settings.checks],
+        "parameters": parameters,
+        "designs": [
+            {
+                "name": d.name,
+                "variant": d.variant,
+                "point": d.point,
+                "overrides": d.overrides,
+                "seeds": d.seeds,
+                "streams": [run.streams for run in d.runs],
+            }
+            for d in all_designs
+        ],
+    }

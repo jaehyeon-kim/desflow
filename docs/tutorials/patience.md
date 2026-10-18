@@ -363,4 +363,4 @@ Orders arrive at 0.7 a second and bring 1.05 seconds of packing each second, mor
                 )
         ```
 
-Next, [Reneging and Balking](../guides/reneging-and-balking.md) shows the same two decisions in a shop example, with ties and how to check that every order is accounted for. This is the last page of the tutorial for now. [Task Flow](../user-guide/task-flow.md) and the rest of the [User Guide](../user-guide/ways-to-write.md) describe each part of desflow in full.
+Next, [Reneging and Balking](../guides/reneging-and-balking.md) shows the same two decisions in a shop example, with ties and how to check that every order is accounted for. Then [Comparing Designs](comparing-designs.md) compares two designs of the shop with a local study.

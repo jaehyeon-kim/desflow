@@ -59,7 +59,9 @@ from desflow.resources.container import DynamicContainer
 from desflow.resources.resource import DynamicResource
 from desflow.resources.store import DynamicStore
 from desflow.study.models import LowLevelModel
-from desflow.study.runner import Replications, replicate
+from desflow.study.results import CheckFailed, StudyResult
+from desflow.study.runner import Replications, replicate, run_study
+from desflow.study.spec import StudySpec
 from desflow.utils import time_to_seconds
 
 try:
@@ -95,6 +97,10 @@ __all__ = [
     "replicate",
     "Replications",
     "LowLevelModel",
+    "run_study",
+    "StudySpec",
+    "StudyResult",
+    "CheckFailed",
 ]
 
 # ---------------------------------------------------------

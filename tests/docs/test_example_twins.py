@@ -186,6 +186,7 @@ EXAMPLE_CASES = [
     ("measuring", "measuring.yaml", None, 1200, _measuring),
     ("patience", "patience.yaml", None, 120, _patience),
     ("replications", "replications.yaml", None, 1200, _typical),
+    ("study", "study_shop.yaml", None, 600, _built),
 ]
 
 
@@ -238,3 +239,18 @@ def test_every_example_is_compared():
         p.stem.removesuffix("_example") for p in (EXAMPLES / "builder").glob("*.py")
     }
     assert names == {case[0] for case in EXAMPLE_CASES}
+
+
+def test_study_example_gives_the_same_results_in_every_api(tmp_path):
+    """The study's results and checks are the same whichever way its model is written."""
+    from desflow import run_study
+
+    results = {}
+    for api in ("builder", "low-level"):
+        module = _load(EXAMPLES / api / "study_example.py")
+        result = module.run(output=tmp_path / api)
+        results[api] = (tmp_path / api / "results.csv").read_text()
+        assert [row["passed"] for row in result.checks] == [True]
+    run_study(EXAMPLES / "yaml" / "study.yaml", output=tmp_path / "yaml")
+    results["yaml"] = (tmp_path / "yaml" / "results.csv").read_text()
+    assert results["yaml"] == results["builder"] == results["low-level"]

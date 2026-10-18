@@ -7,10 +7,12 @@ the model in a given environment with a given sampler, and the model's `sim_id`.
 statistics it measured.
 """
 
+import copy
+import dataclasses
 import pickle
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Mapping, Optional, Union
+from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, Union
 
 from desflow.core.context import SimulationContext
 from desflow.core.environment import DynamicRealtimeEnvironment
@@ -48,11 +50,14 @@ class RunResult:
         readings (Dict[str, Any]): Every statistic, by its published name.
         streams (List[str]): The names of the random streams the run drew from.
         sim_id (str): The model's sim id.
+        parameters (Dict[str, Any]): Every distribution and capacity by registry
+            path, as the run started, after its overrides.
     """
 
     readings: Dict[str, Any]
     streams: List[str]
     sim_id: str
+    parameters: Dict[str, Any] = field(default_factory=dict)
 
 
 def seconds(value: Union[float, str, None]) -> Optional[float]:
@@ -120,6 +125,91 @@ def default_until(model: Model) -> Optional[float]:
     return None
 
 
+def _build(
+    model: Model,
+    seed: int,
+    warmup: Optional[float],
+    stats: str,
+    overrides: Optional[Mapping[str, Any]],
+) -> Tuple[DynamicRealtimeEnvironment, Sampler, str, Callable[[], None]]:
+    """Builds one run of a model up to the moment its clock starts.
+
+    Also returns what restores the model's parameters after the run.
+    """
+    context = context_of(model)
+    if context is not None:
+        context.factor = 0.0
+        context.go_live_at = None
+        if warmup is not None:
+            context.warmup = warmup
+        context._prepare(seed=seed, overrides=overrides, stats=stats, egress=False)
+        assert context.sampler is not None
+        # A new context per run, so nothing is shared with the next run
+        return context.env, context.sampler, context.sim_id, lambda: None
+    assert isinstance(model, LowLevelModel)
+    env = DynamicRealtimeEnvironment(factor=0.0)
+    env.stats.configure(model.sim_id, stats)
+    sampler = Sampler(seed=seed)
+    model.function(env, sampler)
+    restore = _keep(env)
+    try:
+        for path, value in (overrides or {}).items():
+            env.registry.set_exactly(path, value)
+    except ValueError:
+        restore()
+        raise
+    if warmup is not None:
+        env.process(_end_warmup(env, warmup))
+    return env, sampler, model.sim_id, restore
+
+
+def _keep(env: DynamicRealtimeEnvironment) -> Callable[[], None]:
+    """Returns what puts every registered config back as it is now.
+
+    The registry writes each change through to the config objects it was given, and
+    a low-level model usually registers objects that live in its module. Without
+    this, a variant's value or a live change in one run would be where the next run
+    starts.
+    """
+    saved = [
+        (
+            config,
+            copy.deepcopy(vars(config) if not isinstance(config, dict) else config),
+        )
+        for config in env.registry.configs().values()
+    ]
+
+    def restore() -> None:
+        for config, values in saved:
+            if isinstance(config, dict):
+                config.clear()
+                config.update(values)
+            else:
+                vars(config).update(values)
+
+    return restore
+
+
+def inspect_model(model: Model, overrides: Mapping[str, Any]) -> Dict[str, Any]:
+    """
+    Builds the model with `overrides` without running it, and returns its parameters.
+
+    A study calls it for each design before running anything, so a bad path fails
+    at once rather than after other designs have run.
+
+    Returns:
+        Dict[str, Any]: Every distribution and capacity by registry path.
+
+    Raises:
+        ValueError: If a path does not exist or its value is refused.
+    """
+    env, _, _, restore = _build(model, 0, None, "none", overrides)
+    parameters = _parameters(env)
+    env.teardown()
+    restore()
+    return parameters
+
+
 def run_once(
     model: Model,
     *,
@@ -142,40 +232,38 @@ def run_once(
         overrides: Registry paths and the values they take before the clock starts.
 
     Returns:
-        RunResult: The statistics at the end of the run, and the random streams used.
+        RunResult: The statistics at the end of the run, the random streams used and
+            the parameters it started with.
 
     Raises:
         ValueError: If an override's path does not exist or its value is refused.
     """
-    context = context_of(model)
-    if context is not None:
-        context.factor = 0.0
-        context.go_live_at = None
-        if warmup is not None:
-            context.warmup = warmup
-        context._prepare(seed=seed, overrides=overrides, stats=stats, egress=False)
-        env = context.env
-        sampler = context.sampler
-        sim_id = context.sim_id
-    else:
-        assert isinstance(model, LowLevelModel)
-        env = DynamicRealtimeEnvironment(factor=0.0)
-        env.stats.configure(model.sim_id, stats)
-        sampler = Sampler(seed=seed)
-        model.function(env, sampler)
-        for path, value in (overrides or {}).items():
-            env.registry.set_exactly(path, value)
-        if warmup is not None:
-            env.process(_end_warmup(env, warmup))
-        sim_id = model.sim_id
+    env, sampler, sim_id, restore = _build(model, seed, warmup, stats, overrides)
+    parameters = _parameters(env)
     try:
         env.run(until=until)
     finally:
         env.teardown()
-    assert sampler is not None
+        restore()
     return RunResult(
-        readings=env.stats.readings(), streams=sampler.streams, sim_id=sim_id
+        readings=env.stats.readings(),
+        streams=sampler.streams,
+        sim_id=sim_id,
+        parameters=parameters,
     )
+
+
+def _parameters(env: DynamicRealtimeEnvironment) -> Dict[str, Any]:
+    """Every distribution and capacity by path, as plain values."""
+    found: Dict[str, Any] = {}
+    for path, config in env.registry.configs().items():
+        if dataclasses.is_dataclass(config) and not isinstance(config, type):
+            values = dataclasses.asdict(config)
+            values.pop("stream", None)
+            found[path] = {k: v for k, v in values.items() if v is not None}
+        elif config:
+            found[path] = dict(config)
+    return found
 
 
 def _end_warmup(env: DynamicRealtimeEnvironment, warmup: float):

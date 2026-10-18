@@ -180,6 +180,73 @@ def _replicate(
     typer.echo(f"Repeat one replication with: desflow run {file} --seed <its seed>")
 
 
+@app.command()
+def study(
+    file: Annotated[
+        Path,
+        typer.Argument(
+            help="The study file.",
+            metavar="FILE",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+        ),
+    ],
+    output: Annotated[
+        Optional[Path],
+        typer.Option(
+            metavar="FOLDER",
+            help="Where to write the artifacts. Overrides output in the file.",
+        ),
+    ] = None,
+) -> None:
+    """Run the study in FILE, write its artifacts and report, and exit 1 if a check fails."""
+    from desflow.study.runner import run_study
+
+    logging.basicConfig(
+        level=logging.WARNING,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
+    try:
+        result = run_study(file, raise_on_failure=False, output=output)
+    except (BlueprintError, ValueError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=2) from None
+    typer.echo(f"Wrote the artifacts and report.md to {result.output}")
+    for row in result.checks:
+        state = "passed" if row["passed"] else "FAILED"
+        typer.echo(
+            f"{state}: {row['design']}: {row['measure']} {row['bound']} "
+            f"{row['limit']:g}, checked {row['value']:.4g}"
+        )
+    if result.failed:
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def report(
+    folder: Annotated[
+        Path,
+        typer.Argument(
+            help="A study's output folder, with its study.json.",
+            metavar="FOLDER",
+            exists=True,
+            file_okay=False,
+        ),
+    ],
+) -> None:
+    """Build the report of a study again from the artifacts in FOLDER."""
+    from desflow.study.report import write_report
+
+    try:
+        path = write_report(folder)
+    except FileNotFoundError as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=2) from None
+    typer.echo(f"Wrote {path}")
+
+
 examples_app = typer.Typer(
     help="List the examples, or download one at the version you have installed.",
     invoke_without_command=True,

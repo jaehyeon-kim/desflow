@@ -126,6 +126,19 @@ class SimulationRegistry:
             raise KeyError(f"Config path '{path}' not found in Simulation Registry.")
         return self._configs[path]
 
+    def configs(self) -> Dict[str, Any]:
+        """
+        Returns every configuration object by its path, such as `Shop.service.packing`.
+
+        A study records them as the model's compiled parameters. The objects are the
+        live ones, so read them rather than change them.
+
+        Returns:
+            Dict[str, Any]: Path to `DistributionConfig`, `CapacityConfig` or the
+                variables mapping, in the order they were registered.
+        """
+        return dict(self._configs)
+
     def update(self, path: str, new_value: Any):
         """
         Update a value safely and synchronize its parent configuration object.

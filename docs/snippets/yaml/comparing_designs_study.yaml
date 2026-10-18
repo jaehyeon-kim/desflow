@@ -1,0 +1,37 @@
+# The Comparing Designs tutorial: does a fourth packer cut the busy hour's mean wait?
+# Run it with: desflow study comparing_designs_study.yaml
+# Each design separately: change pairing to independent and remove compare.
+study: four-packers
+question: Does a fourth packer cut the mean wait of the busy hour, and by how much?
+# --8<-- [start:model]
+# The busy hour of Trusting Results, with its 2-minute warm-up
+model: trusting_results.yaml
+until: 1 h
+replications: 20
+seed: 42
+# --8<-- [end:model]
+# --8<-- [start:compare]
+# Every design runs with the same 20 seeds, so they are compared seed by seed
+pairing: common
+measures: [tasks.pack_order.wait_mean, resources.packers.utilization_avg]
+variants:
+  three: {}
+  four: {Shop.resources.packers.current_cap: 4}
+compare:
+  - {baseline: three, variant: four}
+# --8<-- [end:compare]
+# --8<-- [start:checks]
+checks:
+  # The upper end of the interval must be under half a second
+  - {measure: tasks.pack_order.wait_mean, variant: four, max: 0.5}
+# --8<-- [end:checks]
+# --8<-- [start:report]
+assumptions:
+  - Orders arrive at random, at a steady 1.8 a second, through the busy hour.
+  - The 40 packing times measured at the bench stand for every packer.
+inputs:
+  Shop.service.packing: 40 packing times measured at the bench, in seconds
+limits:
+  - One busy hour only; the rest of the day is not modelled.
+output: results/four-packers
+# --8<-- [end:report]

@@ -1,0 +1,19 @@
+# The Parameter Sweeps tutorial: how much does the mean wait depend on the demand?
+# Run it with: desflow study parameter_sweeps_study.yaml
+study: demand
+question: How sensitive is the busy hour's mean wait to the arrival rate?
+# The busy hour of Trusting Results, with its 2-minute warm-up
+model: trusting_results.yaml
+until: 1 h
+replications: 20
+seed: 42
+measures: [tasks.pack_order.wait_mean]
+# --8<-- [start:sweep]
+variants:
+  three: {}
+  four: {Shop.resources.packers.current_cap: 4}
+# Each variant at each rate: 8 designs, all run with the same 20 seeds
+sweep:
+  Shop.arrival.orders.rate: [1.6, 1.7, 1.8, 1.9]
+# --8<-- [end:sweep]
+output: results/demand
