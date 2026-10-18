@@ -31,6 +31,8 @@ class Example:
     until_stopped: bool = False  # runs until Ctrl + C rather than ending on its own
     watch: Optional[str] = None  # a shared script run beside it in a second terminal
     watch_needs: str = ""  # the package that script needs beyond desflow
+    # The YAML version's command when it is not `desflow run <file>`
+    yaml_command: Optional[str] = None
 
 
 def _three(yaml: str, python: str, *yaml_helpers: str) -> Dict[str, List[str]]:
@@ -132,6 +134,13 @@ EXAMPLES: Dict[str, Example] = {
             _three("patience.yaml", "patience_example.py"),
         ),
         Example(
+            "replications",
+            "Replications",
+            "one hour of the shop run 20 times, with the mean and interval of each statistic",
+            _three("replications.yaml", "replications_example.py"),
+            yaml_command="desflow run replications.yaml --replications 20",
+        ),
+        Example(
             "related-records",
             "Generate Related Records",
             "orders and their line items, in two PostgreSQL tables",
@@ -214,5 +223,9 @@ def run_hint(example: Example, api: str) -> str:
     """How to run one API's version once it is downloaded."""
     folder = f"{example.name}/{api}"
     main_file = Path(example.files[api][0]).name
-    command = f"desflow run {main_file}" if api == "yaml" else f"python {main_file}"
+    command = (
+        example.yaml_command or f"desflow run {main_file}"
+        if api == "yaml"
+        else f"python {main_file}"
+    )
     return f"cd {folder} && {command}"

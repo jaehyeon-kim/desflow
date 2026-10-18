@@ -159,6 +159,11 @@ def _measuring(m, env, sampler):
     return _built(m, env, sampler)
 
 
+def _typical(m, env, sampler):
+    env.setup_stats("Shop", "typical", interval=600)
+    return _built(m, env, sampler)
+
+
 # Example name, its YAML file, the extra its connectors import, the simulated seconds
 # to compare, and the processes its low-level version starts.
 EXAMPLE_CASES = [
@@ -180,6 +185,7 @@ EXAMPLE_CASES = [
     ("flow", "flow.yaml", None, 120, _built),
     ("measuring", "measuring.yaml", None, 1200, _measuring),
     ("patience", "patience.yaml", None, 120, _patience),
+    ("replications", "replications.yaml", None, 1200, _typical),
 ]
 
 
@@ -191,8 +197,10 @@ def no_catalog():
 
 
 def _builder_records(name, until):
+    """An example's `app`, or a new context from its `shop` factory."""
     builder = _load(EXAMPLES / "builder" / f"{name}_example.py")
-    return _run_builder(builder.app, until)
+    app = builder.app if hasattr(builder, "app") else builder.shop()
+    return _run_builder(app, until)
 
 
 @pytest.mark.parametrize(

@@ -30,6 +30,7 @@ PAGES = {
     "measuring": "docs/user-guide/statistics.md",
     # The 0.22.0 examples are shown on the page that teaches their feature.
     "patience": "docs/guides/reneging-and-balking.md",
+    "replications": "docs/user-guide/replications.md",
 }
 TABS = {"yaml": "YAML", "builder": "Builder", "low-level": "Low-level"}
 ODCTL = '"odctl>=1.0,<2"'
@@ -42,7 +43,7 @@ def _package(example: Example) -> str:
 def _run(example: Example, api: str, uv: bool) -> str:
     main = Path(example.files[api][0]).name
     if api == "yaml":
-        return f"desflow run {main}"
+        return example.yaml_command or f"desflow run {main}"
     if uv:
         return f"uv run --no-project --with {_package(example)} {main}"
     return f"python {main}"

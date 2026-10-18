@@ -1,8 +1,9 @@
 """The `desflow` command."""
 
 import logging
+import secrets
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import Annotated, List, Optional
 
 import typer
 
@@ -83,8 +84,40 @@ def run(
             "run without one logs the seed it drew, with the command that repeats it.",
         ),
     ] = None,
+    replications: Annotated[
+        Optional[int],
+        typer.Option(
+            metavar="N",
+            min=2,
+            help="Run N replications unpaced, with seeds spawned from the seed, and "
+            "print the mean and confidence interval of each statistic.",
+        ),
+    ] = None,
+    level: Annotated[
+        float,
+        typer.Option(
+            help="The confidence level of the replications' intervals, between 0 "
+            "and 1.",
+        ),
+    ] = 0.95,
+    measure: Annotated[
+        Optional[List[str]],
+        typer.Option(
+            metavar="NAME",
+            help="A statistic to summarise, such as tasks.pack.wait_mean; repeat it "
+            "for more. Defaults to every statistic up to the typical level.",
+        ),
+    ] = None,
+    workers: Annotated[
+        int,
+        typer.Option(
+            metavar="N",
+            min=1,
+            help="Replications run at once, each in its own process.",
+        ),
+    ] = 1,
 ) -> None:
-    """Build the simulation in FILE and run it."""
+    """Build the simulation in FILE and run it, or run replications of it."""
     stop_at = _parse_until(until)
 
     logging.basicConfig(
@@ -92,6 +125,9 @@ def run(
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         datefmt="%H:%M:%S",
     )
+    if replications is not None:
+        # Each replication would log its build and teardown; the sinks still log
+        logging.getLogger("desflow.core").setLevel(logging.WARNING)
 
     try:
         context = SimulationContext.from_yaml(file)
@@ -101,10 +137,47 @@ def run(
 
     if seed is not None:
         context.random_seed = seed
+    if replications is not None:
+        _replicate(
+            file, replications, context.random_seed, stop_at, level, measure, workers
+        )
+        return
     try:
         context.run(until=stop_at)
     except KeyboardInterrupt:
         logger.info("Simulation stopped by user.")
+
+
+def _replicate(
+    file: Path,
+    n: int,
+    seed: Optional[int],
+    until: Optional[float],
+    level: float,
+    measures: Optional[List[str]],
+    workers: int,
+) -> None:
+    """Runs the replications and prints their summary."""
+    from desflow.study.runner import replicate
+
+    if seed is None:
+        seed = secrets.randbelow(2**32)
+    try:
+        result = replicate(
+            file,
+            n,
+            seed=seed,
+            until=until,
+            measures=measures,
+            level=level,
+            workers=workers,
+        )
+    except ValueError as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1) from None
+    typer.echo(result.summary_text())
+    typer.echo(f"\nSeed {seed}; replication seeds: {', '.join(map(str, result.seeds))}")
+    typer.echo(f"Repeat one replication with: desflow run {file} --seed <its seed>")
 
 
 examples_app = typer.Typer(

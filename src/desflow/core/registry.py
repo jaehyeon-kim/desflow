@@ -226,6 +226,31 @@ class SimulationRegistry:
         else:
             logger.warning(f"Attempted to update non-existent path: {path}")
 
+    def set_exactly(self, path: str, value: Any) -> None:
+        """
+        Sets a path to exactly `value`, raising where `update` would log and go on.
+
+        Replications and studies set their variants' values this way before the
+        clock starts, so a misspelt path or a refused value stops the study rather
+        than leaving the model's own value in place.
+
+        Args:
+            path (str): The dot-notation path.
+            value (Any): The value it must hold.
+
+        Raises:
+            ValueError: If the path does not exist, or the registry refuses, casts to
+                another value or clamps the value.
+        """
+        if path not in self._values:
+            raise ValueError(f"'{path}' is not a registry path")
+        self.update(path, value)
+        kept = self._values[path].value
+        if kept != value:
+            raise ValueError(
+                f"'{path}' cannot be set to {value!r}; the registry kept {kept!r}"
+            )
+
     def _clamp_current_cap(
         self, parent_path: str, config: CapacityConfig, max_cap: Any
     ) -> None:

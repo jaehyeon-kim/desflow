@@ -177,6 +177,7 @@ nav:
       - Stores and Containers: user-guide/stores-and-containers.md
       - Task Flow: user-guide/task-flow.md
       - Statistics: user-guide/statistics.md
+      - Replications: user-guide/replications.md
       - Live Parameters: user-guide/live-parameters.md
       - Time and Pacing: user-guide/time-and-pacing.md
       - Ingress: user-guide/ingress.md

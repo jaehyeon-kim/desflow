@@ -1,5 +1,5 @@
 import zlib
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import numpy as np
 
@@ -93,6 +93,16 @@ class Sampler:
             generator = np.random.default_rng(sequence)
             self._generators[name] = generator
         return generator
+
+    @property
+    def streams(self) -> List[str]:
+        """
+        The names of the random sequences drawn from so far, sorted.
+
+        Two runs that compare designs with common random numbers should list the
+        same names; a name only one lists is a sequence the other never used.
+        """
+        return sorted(self._generators)
 
     def sample(self, config: DistributionConfig, min_delay: float = 0.00001) -> float:
         """

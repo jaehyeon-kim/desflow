@@ -218,6 +218,52 @@ def test_trusting_results_warmup(api, monkeypatch):
     assert round(_trusting_wait(api, "2 min", monkeypatch), 3) == 1.381
 
 
+# (mean, half-width, half-width as a share of the mean in percent) after n runs
+TRUSTING_PRECISION = {
+    ("tasks.pack_order.wait_mean", 5): (2.21, 0.47, 21.2),
+    ("tasks.pack_order.wait_mean", 10): (2.25, 0.25, 11.0),
+    ("tasks.pack_order.wait_mean", 20): (2.48, 0.32, 13.0),
+    ("tasks.pack_order.wait_mean", 40): (2.32, 0.20, 8.4),
+    ("resources.packers.utilization_avg", 5): (89.72, 1.37, 1.5),
+    ("resources.packers.utilization_avg", 10): (90.34, 0.91, 1.0),
+    ("resources.packers.utilization_avg", 20): (90.33, 0.63, 0.7),
+    ("resources.packers.utilization_avg", 40): (90.03, 0.45, 0.5),
+}
+
+
+@pytest.mark.parametrize("api", APIS)
+def test_trusting_results_replications(api, monkeypatch):
+    """The precision table, the range of the 40 waits, and the 10% target: the
+    mean wait meets it at 40 replications and utilisation at 5."""
+    from desflow import replicate
+
+    builder = _load("trusting_results")
+    if api == "yaml":
+        monkeypatch.delenv("WARMUP", raising=False)
+        result = replicate(
+            BLUEPRINTS / "trusting_results.yaml",
+            40,
+            seed=42,
+            until=None,
+            measures=builder.MEASURES,
+        )
+    else:
+        module = builder if api == "builder" else _load("trusting_results_low_level")
+        result = module.replications()
+    table = {
+        key: (
+            round(i.mean, 2),
+            round(i.half_width, 2),
+            round(i.half_width / i.mean * 100, 1),
+        )
+        for key, i in builder.precision(result).items()
+    }
+    assert table == TRUSTING_PRECISION
+    waits = result.values["tasks.pack_order.wait_mean"]
+    assert (round(min(waits), 2), round(max(waits), 2)) == (1.45, 4.39)
+    assert min(waits) > 1.382
+
+
 def _stock_wait(api, delivery, monkeypatch, path=None):
     if api == "yaml":
         monkeypatch.setenv("DELIVERY", str(delivery))

@@ -224,6 +224,20 @@ def trusting_table() -> List[str]:
     return lines
 
 
+def replications_telemetry() -> List[str]:
+    """Replications: the telemetry a sink receives from three replications."""
+    module = _module("docs/snippets/pages/replications.py")
+    return _capture(module.builder)
+
+
+def replications_summary() -> List[str]:
+    """Replications: the summary of the same three replications."""
+    module = _module("docs/snippets/pages/replications.py")
+    result: List[object] = []
+    _capture(lambda: result.append(module.builder()))
+    return result[0].summary_text().split("\n")  # type: ignore[attr-defined]
+
+
 def stock_out() -> List[str]:
     """Stock: the stock's readings around the second stock-out of 40-box deliveries."""
     module = _module("docs/snippets/tutorials/stock.py")
@@ -465,6 +479,8 @@ BLOCKS: Dict[str, Callable[[], List[str]]] = {
     "stock-table": stock_table,
     "stock-out": stock_out,
     "trusting-table": trusting_table,
+    "replications-telemetry": replications_telemetry,
+    "replications-summary": replications_summary,
     "measuring-final": measuring_final,
     "choosing-table": choosing_table,
     "first-trace": first_trace,

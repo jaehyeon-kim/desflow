@@ -1165,6 +1165,44 @@ class SimulationContext:
         """
         if until is None:
             until = self._default_until
+        self._prepare()
+
+        try:
+            logger.info("Simulation engine started.")
+            if isinstance(until, str):
+                until = time_to_seconds(until)
+
+            self.env.run(until=until)
+        finally:
+            self.env.teardown()
+
+    def _prepare(
+        self,
+        seed: Optional[int] = None,
+        overrides: Optional[Mapping[str, Any]] = None,
+        stats: Optional[str] = None,
+        egress: bool = True,
+    ) -> None:
+        """Builds the run up to the moment its clock starts, as `run()` does.
+
+        Replications and studies call it too, so a replication builds exactly what
+        `run()` builds.
+
+        Args:
+            seed: The run's seed, in place of `random_seed`.
+            overrides: Registry paths and the values they take before the clock
+                starts, applied as a live update is, so a value the registry would
+                refuse or clamp raises instead.
+            stats: The lowest statistics level the run keeps; a higher level set
+                with `with_stats` stays.
+            egress: False builds the run without its ingress and egress and without
+                the statistics timer, as a replication runs: nothing receives its
+                records, and its statistics are read at the end.
+
+        Raises:
+            ValueError: If a task names something the context does not define, or an
+                override's path does not exist or its value is refused.
+        """
         self._check_tasks()
         for setup in self._before_run:
             setup()
@@ -1181,7 +1219,8 @@ class SimulationContext:
         self._env = DynamicRealtimeEnvironment(**env_kwargs)
 
         # One random sequence per distribution, all from the run's seed
-        seed = self.random_seed
+        if seed is None:
+            seed = self.random_seed
         if seed is None:
             seed = secrets.randbelow(2**32)
             logger.info(
@@ -1197,17 +1236,24 @@ class SimulationContext:
             if spec.router.weighted:
                 spec.router.rng = self.sampler.generator(f"route.{task_name}")
 
-        if self._stats_level != "none":
-            self._env.setup_stats(self.sim_id, self._stats_level, self._stats_interval)
+        level = self._stats_level
+        if stats is not None and STATS_LEVELS.index(stats) > STATS_LEVELS.index(level):
+            level = stats
+        if level != "none" and egress:
+            self._env.setup_stats(self.sim_id, level, self._stats_interval)
+        elif level != "none":
+            self._env.stats.configure(self.sim_id, level, self._stats_interval)
 
         # Compile Master Parameter Object
         self._env.registry.register_sim_parameter(self.compile_parameters())
+        for path, value in (overrides or {}).items():
+            self._env.registry.set_exactly(path, value)
 
         # Connect External Infrastructure
-        if self._ingress_providers:
+        if self._ingress_providers and egress:
             self._env.setup_ingress(self._ingress_providers)
 
-        if self._egress_providers:
+        if self._egress_providers and egress:
             self._env.setup_egress(
                 self._egress_providers,
                 batch_size=self._batch_size,
@@ -1248,15 +1294,6 @@ class SimulationContext:
             else:
                 # Telemetry loops run blindly
                 self._env.process(loop_func())
-
-        try:
-            logger.info("Simulation engine started.")
-            if isinstance(until, str):
-                until = time_to_seconds(until)
-
-            self._env.run(until=until)
-        finally:
-            self._env.teardown()
 
     def _end_warmup(self, warmup: float):
         """Resets the statistics at the end of the warm-up, for a run with no sink."""

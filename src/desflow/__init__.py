@@ -58,6 +58,8 @@ from desflow.models.schemas import EventPayload, LabelPayload, TelemetryPayload
 from desflow.resources.container import DynamicContainer
 from desflow.resources.resource import DynamicResource
 from desflow.resources.store import DynamicStore
+from desflow.study.models import LowLevelModel
+from desflow.study.runner import Replications, replicate
 from desflow.utils import time_to_seconds
 
 try:
@@ -90,6 +92,9 @@ __all__ = [
     "TelemetryPayload",
     "LabelPayload",
     "time_to_seconds",
+    "replicate",
+    "Replications",
+    "LowLevelModel",
 ]
 
 # ---------------------------------------------------------
