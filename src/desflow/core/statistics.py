@@ -244,6 +244,14 @@ class Statistics:
         if times is not None and times[1] is not None:
             stats.service.add(self.env.now - times[1])
 
+    def task_abandoned(self, task: str, instance: Hashable) -> None:
+        """Drops the waiting record of a task that reneged without being served.
+
+        It was counted as queued, so its in-flight entry is cleared; it never
+        started or finished, so no wait or service time is recorded.
+        """
+        self._in_flight.pop((task, instance), None)
+
     def flow_finished(self, flow: str) -> None:
         """
         Records that an entity left the model: its last task had no next task.

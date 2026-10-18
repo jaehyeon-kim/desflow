@@ -1,0 +1,27 @@
+simulation:
+  sim_id: C7balk
+  factor: 0
+resources:
+  machine:
+    current_cap: 1
+    max_cap: 1
+services:
+  quick:
+    dist: constant
+    value: 1
+arrivals:
+  skippers:
+    dist: constant
+    value: 5
+    spawn: maybe
+    attributes:
+      skip: 1
+tasks:
+  maybe:
+    service: quick
+    resource: machine
+    balk: attr.skip == 1
+    payload:
+      event: served
+run:
+  until: 7

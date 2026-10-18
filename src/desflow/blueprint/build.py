@@ -297,6 +297,8 @@ def _build_context(blueprint: Blueprint, source: SourceMap) -> SimulationContext
             resource_id=task.resource,
             name=name,
             priority=task.priority,
+            patience=task.patience,
+            balk=task.balk,
             get=None if task.get is None else task.get.transfer(),
             put=None if task.put is None else task.put.transfer(),
             next=task.next_rules(),

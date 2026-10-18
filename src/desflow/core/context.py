@@ -612,6 +612,10 @@ class SimulationContext:
         put: Union[Transfer, Mapping[str, Any], None] = None,
         next: NextSpec = None,
         set: Optional[Mapping[str, Any]] = None,
+        patience: Union[
+            float, str, Callable[[Any, Dict[str, Any]], float], None
+        ] = None,
+        balk: Optional[str] = None,
     ) -> Callable:
         """
         Transforms a standard Python function into an event-driven SimPy task.
@@ -689,7 +693,15 @@ class SimulationContext:
             raise ValueError(
                 "priority orders a resource's queue, so it needs a resource"
             )
+        if patience is not None and resource_id is None:
+            raise ValueError(
+                "patience is how long a task waits for a resource, so it needs one"
+            )
+        if balk is not None and resource_id is None:
+            raise ValueError("balking refuses a resource queue, so it needs a resource")
         rank_of = Expression(priority) if isinstance(priority, str) else None
+        patience_of = Expression(patience) if isinstance(patience, str) else None
+        balk_of = Expression(balk) if balk is not None else None
         take = None if get is None else Transfer.of(get)
         if take is not None and take.priority != 0.0:
             raise ValueError(
@@ -705,7 +717,15 @@ class SimulationContext:
                 raise ValueError(f"a task called '{task_name}' already exists")
             declared = inspect.signature(user_func).parameters
             spec = _TaskSpec(
-                task_name, service_id, resource_id, priority, take, give, router
+                task_name,
+                service_id,
+                resource_id,
+                priority,
+                take,
+                give,
+                router,
+                patience,
+                balk,
             )
             waits = resource_id is not None or take is not None
             timed = service_id is not None or waits
@@ -739,6 +759,11 @@ class SimulationContext:
                         "status": state,
                     }
 
+                if balk_of is not None:
+                    scope = make_scope(upstream, entity.attributes, env, self._levels())
+                    if balk_of.evaluate(scope):
+                        publish(status("balked"))
+                        return
                 if waits:
                     publish(status("queued"))
                     env.stats.task_queued(task_name, task_id)
@@ -758,7 +783,25 @@ class SimulationContext:
                     unit = contextlib.nullcontext()
                 with unit as request:
                     if request is not None:
-                        yield request
+                        if patience is None:
+                            yield request
+                        else:
+                            if patience_of is not None:
+                                scope = make_scope(
+                                    upstream, entity.attributes, env, self._levels()
+                                )
+                                wait = patience_of.evaluate(scope)
+                            elif callable(patience):
+                                wait = patience(task_id, entity.attributes)
+                            else:
+                                wait = patience
+                            yield request | env.timeout(float(wait))
+                            # The patience ran out before a unit was free: leave the
+                            # queue (the request is cancelled on exit) and renege.
+                            if not request.triggered:
+                                publish(status("reneged"))
+                                env.stats.task_abandoned(task_name, task_id)
+                                return
                     if take is not None:
                         got = yield from self._transfer(
                             take, "get", task_id, entity, upstream, None
@@ -1253,6 +1296,10 @@ class SimulationContext:
             expressions = list(spec.router.conditions)
             if isinstance(spec.priority, str):
                 expressions.append(Expression(spec.priority))
+            if isinstance(spec.patience, str):
+                expressions.append(Expression(spec.patience))
+            if spec.balk is not None:
+                expressions.append(Expression(spec.balk))
             for transfer in (spec.get, spec.put):
                 if transfer is None:
                     continue
@@ -1293,6 +1340,8 @@ class _TaskSpec:
         get: Optional[Transfer],
         put: Optional[Transfer],
         router: Router,
+        patience: Any = None,
+        balk: Optional[str] = None,
     ):
         self.name = name
         self.service_id = service_id
@@ -1301,6 +1350,8 @@ class _TaskSpec:
         self.get = get
         self.put = put
         self.router = router
+        self.patience = patience
+        self.balk = balk
 
 
 def _seconds(value: Union[float, str]) -> float:

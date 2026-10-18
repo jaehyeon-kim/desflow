@@ -350,3 +350,19 @@ def test_a_store_get_rejects_a_priority():
     )
     with pytest.raises(ValueError, match="a get takes no priority"):
         app.task(name="drain", get={"store": "buffer", "priority": 1})
+
+
+def test_balk_with_an_unknown_level_fails_before_the_run():
+    """A balk expression is checked before the clock starts, like a priority."""
+    app = (
+        SimulationContext("TestSim", factor=0.0)
+        .add_resource("m", current_cap=1, max_cap=1)
+        .add_service("s", "constant", value=1.0)
+    )
+
+    @app.task(service_id="s", resource_id="m", name="t", balk="level.nope > 0")
+    def t(task_id):
+        return {}
+
+    with pytest.raises(ValueError, match="level.nope"):
+        app.run(until=1)

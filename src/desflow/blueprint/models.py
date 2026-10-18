@@ -312,6 +312,8 @@ class Task(_Model):
     id_field: Optional[str] = None
     attributes: List[str] = Field(default_factory=list)
     priority: Optional[Union[float, str]] = None
+    patience: Optional[Union[float, str]] = None
+    balk: Optional[str] = None
     get: Optional[TransferStep] = None
     put: Optional[TransferStep] = None
     next: Optional[
@@ -330,8 +332,18 @@ class Task(_Model):
             raise ValueError(
                 "priority orders a resource's queue, so it needs a resource"
             )
+        if self.patience is not None and self.resource is None:
+            raise ValueError(
+                "patience is how long a task waits for a resource, so it needs one"
+            )
+        if self.balk is not None and self.resource is None:
+            raise ValueError("balking refuses a resource queue, so it needs a resource")
         if isinstance(self.priority, str):
             Expression(self.priority)
+        if isinstance(self.patience, str):
+            Expression(self.patience)
+        if self.balk is not None:
+            Expression(self.balk)
         return self
 
     @model_validator(mode="after")
