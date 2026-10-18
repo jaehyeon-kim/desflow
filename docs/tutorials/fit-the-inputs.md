@@ -36,7 +36,7 @@ Fit the times, which are in seconds and cannot be below 0:
     print(result.text())  # every candidate, its status and diagnostics
     ```
 
-Each family is fitted by maximum likelihood, checked, and given one row:
+Each family is fitted by maximum likelihood, which chooses the parameters under which the measured values are most probable, then checked and given one row:
 
 <!-- records: fit-table -->
 ```text

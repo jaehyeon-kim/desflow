@@ -377,7 +377,11 @@ def test_workers_refuse_a_function_from_an_interactive_session(monkeypatch):
     def typed_in():
         return shop()
 
+    # A top-level function of the session: it pickles by name, so only the
+    # check for a session without a file refuses it
     typed_in.__module__ = "__main__"
+    typed_in.__qualname__ = "typed_in"
+    session.typed_in = typed_in
     with pytest.raises(ValueError, match="Put the function in a file"):
         replicate(typed_in, 2, seed=1, until=100, workers=2)
     with pytest.raises(ValueError, match="Put the function in a file"):

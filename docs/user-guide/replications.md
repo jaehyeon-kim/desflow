@@ -66,7 +66,7 @@ Give the model, the number of replications, the seed they are spawned from and t
 | `measures` | the statistics to summarise | every statistic the run publishes, at least up to `typical` |
 | `level` | the confidence level of the half-widths | 0.95 |
 | `workers` | replications run at once, each in its own process | 1 |
-| `overrides` | registry paths and the values every replication starts with, such as `{"Shop.resources.packers.current_cap": 3}` | none |
+| `overrides` | registry paths and the values every replication starts with, such as `{"Shop.resources.packers.current_cap": 3}`, set in the order given; a value the registry would refuse or clamp is refused, so a `max_cap` below the current `current_cap` needs `current_cap` set first | none |
 
 ### Choose the Measures
 

@@ -277,5 +277,10 @@ def read_document(
 
     source = SourceMap(path, lines)
     if not isinstance(data, dict):
-        raise source.error((), "the top level must be a mapping of sections")
+        raise source.error(
+            (),
+            "an included file must hold a mapping"
+            if including
+            else "the top level must be a mapping of sections",
+        )
     return data, source

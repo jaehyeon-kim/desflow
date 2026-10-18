@@ -237,7 +237,7 @@ def test_include_errors_name_the_file_and_line(tmp_path):
         SimulationContext.from_yaml(_shop_yaml(tmp_path, "!include broken.yaml"))
     (tmp_path / "list.yaml").write_text("- 1\n- 2\n")
     with pytest.raises(
-        BlueprintError, match=r"list.yaml:1: the top level must be a mapping"
+        BlueprintError, match=r"list.yaml:1: an included file must hold a mapping"
     ):
         SimulationContext.from_yaml(_shop_yaml(tmp_path, "!include list.yaml"))
     (tmp_path / "bad.yaml").write_text("dist: gamma\nshape: -1\nscale: 1\n")

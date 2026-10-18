@@ -209,8 +209,8 @@ def replicate(
             duration such as `"1 h"`. None uses a blueprint's `run.until`.
         warmup: The end of each replication's warm-up; None keeps the model's own.
         measures: Statistic names without the sim id, such as
-            `tasks.pack.wait_mean`. None summarises every statistic the run publishes, at least up to
-            `typical`.
+            `tasks.pack.wait_mean`. None summarises every statistic the run
+            publishes, at least up to `typical`.
         level: The confidence level of the half-widths. Defaults to 0.95.
         workers: Replications run at once, each in its own process. Above 1 the
             model must be a path or a function defined at the top of a module.
