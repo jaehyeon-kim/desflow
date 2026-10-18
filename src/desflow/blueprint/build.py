@@ -256,6 +256,14 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                 f"defined under tasks",
             )
 
+    stop = blueprint.run.stop or {}
+    if "signal" in stop and stop["signal"] not in blueprint.signals:
+        raise source.error(
+            ("run", "stop"),
+            f"run.stop names signal '{stop['signal']}', which is not defined under "
+            f"signals",
+        )
+
     for index, step in enumerate(blueprint.scenario):
         if step.interrupt is not None and step.interrupt.task not in blueprint.tasks:
             raise source.error(

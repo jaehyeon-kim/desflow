@@ -485,6 +485,33 @@ def handoff_waits() -> None:
     _save(fig, "handoff-waits")
 
 
+def end_counts() -> None:
+    """End Conditions: orders finished and left in the shop, with a fixed horizon
+    and with a drain."""
+    import logging
+
+    module = _module("end_conditions")
+    logging.getLogger("desflow").setLevel(logging.WARNING)
+    results = [module.outcomes(drain) for drain in (False, True)]
+    labels = [
+        f"fixed horizon, ends at {results[0]['end']:.0f} s",
+        f"drain, ends at {results[1]['end']:.1f} s",
+    ]
+    finished = [r["finished"] for r in results]
+    left = [r["in_system"] for r in results]
+    fig, ax = plt.subplots(figsize=(WIDTH, HEIGHT))
+    ax.bar(labels, finished, 0.5, color=BLUE, label="finished")
+    ax.bar(labels, left, 0.5, bottom=finished, color=ORANGE, label="still in the shop")
+    for i in range(2):
+        ax.text(i, finished[i] / 2, str(finished[i]), ha="center", color="white")
+        ax.text(i, finished[i] + left[i] + 30, f"{left[i]} left", ha="center")
+    ax.set_ylabel("orders that started in the hour")
+    ax.set_ylim(0, max(f + x for f, x in zip(finished, left)) * 1.3)
+    ax.set_title("One packer, 0.7 orders a second")
+    ax.legend(frameon=False, loc="upper center", ncol=2)
+    _save(fig, "end-counts")
+
+
 def distribution_shapes() -> None:
     """Arrivals and Services: 200,000 draws from each distribution family, with the
     parameters of the examples on the page."""
@@ -546,6 +573,7 @@ CHARTS: Dict[str, Callable[[], None]] = {
     "courier-shares": courier_shares,
     "interruption-policies": interruption_policies,
     "handoff-waits": handoff_waits,
+    "end-counts": end_counts,
     "stock-level": stock_level,
     "trusting-warmup": trusting_warmup,
     "measuring-queue": measuring_queue,

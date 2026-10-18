@@ -47,14 +47,17 @@ def pack_order(env, sampler, packers, key, task_id):
         env.publish_event(key, value, task="pack_order", instance=task_id)
 
     publish({"path_id": path_id, "status": "queued"})
+    env.stats.task_queued("pack_order", task_id)  # counted as in progress
     with packers.request() as req:
         yield req
         publish({"path_id": path_id, "status": "started"})
+        env.stats.task_started("pack_order", task_id)
         # Late binding: the service time is read when the work starts
         yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
         publish(
             {"event_type": "order_packed", "shipping": "standard", "order_id": task_id}
         )
+        env.stats.task_finished("pack_order", task_id)
 
 
 def arrival_generator(env, sampler, packers):

@@ -243,6 +243,8 @@ A task's `patience` covers its whole wait, for a resource and then for its `get`
         def publish(value):
             env.publish_event(key, value, task="collect", instance=task_id)
 
+        flow = key.rsplit("-", 1)[0]
+        env.stats.flow_started(flow)  # the courier enters the shop
         publish({"status": "queued"})
         env.stats.task_queued("collect", task_id)
         get = shop["parcels"].get(filter=lambda parcel: parcel["area"] == area)
@@ -251,12 +253,13 @@ A task's `patience` covers its whole wait, for a resource and then for its `get`
             get.cancel()  # out of the queue, so it takes no parcel later
             publish({"status": "reneged"})
             env.stats.task_reneged("collect", task_id)
+            env.stats.flow_ended(flow)
             return
         publish({"status": "started"})
         env.stats.task_started("collect", task_id)
         publish({"event_type": "parcel_collected", "parcel": get.value})
         env.stats.task_finished("collect", task_id)
-        env.stats.flow_finished(key.rsplit("-", 1)[0])
+        env.stats.flow_finished(flow)
     ```
 
 `item.<field>` can also be read in the task's `put` and `next`, after its get. [Filtered Inventory](../tutorials/filtered-inventory.md) uses a filter and patience on a shelf of shirts.
@@ -440,16 +443,19 @@ The `stock` example puts it together: packing takes a box from a container and p
             env.publish_event(key, value, task="pack", instance=task_id)
 
         publish({"path_id": path_id, "status": "queued"})
+        env.stats.task_queued("pack", task_id)  # counted as in progress
         with shop["packers"].request(priority=priority) as req:
             yield req
             # Waits while the stock is empty
             yield shop["stock"].get(1)
             publish({"path_id": path_id, "status": "started"})
+            env.stats.task_started("pack", task_id)
             payload = {"event_type": "order_packed", "priority": priority}
             yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
             # Waits while the store is full
             yield shop["parcels"].put(payload)
             publish(payload)
+            env.stats.task_finished("pack", task_id)
     ```
 
     The whole file is [`examples/low-level/stock_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/stock_example.py).

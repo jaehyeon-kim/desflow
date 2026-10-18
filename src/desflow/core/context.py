@@ -20,7 +20,7 @@ from desflow.config import (
 )
 from desflow.core.environment import DynamicRealtimeEnvironment
 from desflow.core.expressions import Expression
-from desflow.core.flow import NextSpec, Router, Transfer, Wait
+from desflow.core.flow import NextSpec, Router, Transfer, Wait, make_scope
 from desflow.core.signals import Signal
 from desflow.core.task import TaskRun, TaskSpec, check_acquisition_order
 from desflow.core.registry import SimulationRegistry
@@ -180,6 +180,16 @@ class SimulationContext:
 
         # Set by from_yaml from the blueprint's `run` section.
         self._default_until: Any = None
+        self._default_stop: Any = None
+        self._default_drain: Any = None
+        # The run's end, entities in the model, and the drain state, set by start()
+        self._until: Any = None
+        self._end: Optional[simpy.Event] = None
+        self._closed = True
+        self._in_system = 0
+        self._draining = False
+        self._finish_run: Optional[Callable[..., None]] = None
+        self._arrival_processes: List[simpy.Process] = []
         self._before_run: List[Callable[[], Any]] = []
         # How the log tells a run without a seed to repeat itself, with `{seed}`
         self._repeat_hint: Optional[str] = None
@@ -214,6 +224,8 @@ class SimulationContext:
 
         context, run = build(path)
         context._default_until = run.until
+        context._default_stop = run.stop
+        context._default_drain = run.drain_setting()
         context._before_run = list(run.before)
         context._repeat_hint = f"Repeat it with: desflow run {path} --seed {{seed}}"
         return context
@@ -1297,35 +1309,70 @@ class SimulationContext:
             variables=self._variables_config,
         )
 
-    def run(self, until: Any = None) -> None:
+    def run(self, until: Any = None, stop: Any = None, drain: Any = None) -> None:
         """
         Compiles the defined infrastructure architecture and triggers the simulation loop.
 
-        Before Phase 1, a context built by `from_yaml` calls the blueprint's
-        `run.before` functions.
-
-        Phase 1: Instantiates the foundational `DynamicRealtimeEnvironment` and `Sampler`.
-        Phase 2: Compiles all builder dictionaries into a monolithic `SimParameter`
-                 object and registers it with the registry.
-        Phase 3: Connects and boots the asynchronous Kafka/Redis background threads.
-        Phase 4: Hydrates physical SimPy limits based on the registry boundaries.
-        Phase 5: Spawns all registered `@arrival_loop`, `@telemetry_loop` and
-                 `add_process` generators.
-        Phase 6: Relinquishes the main thread to the SimPy environment execution clock.
+        `run()` is `start()`, then SimPy's `env.run` until the end, then `close()`,
+        which runs even when the run stops with an error or Ctrl+C.
 
         Args:
             until: The absolute simulation termination time. Can be a numeric float
                 (representing base seconds) or a human-readable string parsed by
                 the utility module (e.g., "1 week", "8 hours"). If None, a context
                 built by `from_yaml` uses the blueprint's `run.until`, and otherwise
-                the simulation runs infinitely.
+                the simulation runs infinitely. An event due at exactly `until` does
+                not run, as in SimPy.
+            stop: Ends the run before `until` when it happens: `{"signal": name}`
+                for the next firing of a signal, `{"condition": "..."}` for the
+                first moment a condition holds, a `Signal`, or a SimPy event. When
+                it happens at the same time as `until`, `until` ends the run.
+            drain: At `until`, stop the arrivals and keep running until no entity
+                is in the model: True, or `{"limit": duration}` to stop at the
+                latest that long after `until`. Needs `until`.
 
         Raises:
             ValueError: If a task's `next`, `priority`, `get` or `put` names something
-                the context does not define.
+                the context does not define, or `stop` or `drain` is malformed.
+        """
+        self.start(until, stop, drain)
+        try:
+            self._env.run(until=self._end if self._end is not None else self._until)  # type: ignore[union-attr]
+        finally:
+            self.close()
+
+    def start(
+        self, until: Any = None, stop: Any = None, drain: Any = None
+    ) -> DynamicRealtimeEnvironment:
+        """
+        Builds and starts everything `run()` does before the clock moves.
+
+        It checks the tasks, calls the blueprint's `run.before` functions, builds the
+        environment, the sampler, the statistics, the parameters, the connectors,
+        the resources, stores and containers, and starts every loop and process.
+        Then `step()` processes one event at a time and `peek()` reads the time of
+        the next, as SimPy's `env.step()` and `env.peek()` do; `close()` ends the
+        run. A context built by `from_yaml` takes its `run` section's values.
+
+        Args:
+            until: As for `run()`. With `step()` it is not enforced: `peek()` tells
+                you when to stop.
+            stop: As for `run()`.
+            drain: As for `run()`.
+
+        Returns:
+            DynamicRealtimeEnvironment: The environment, also `context.env`.
+
+        Raises:
+            ValueError: As for `run()`.
         """
         if until is None:
             until = self._default_until
+        if stop is None:
+            stop = self._default_stop
+        if drain is None:
+            drain = self._default_drain
+        _check_end(until, stop, drain, self._signal_names)
         self._check_tasks()
         for setup in self._before_run:
             setup()
@@ -1408,22 +1455,158 @@ class SimulationContext:
             )
 
         # Boot Registered Daemon Generators
+        self._arrival_processes = []
         for loop_func, meta in self._startup_loops:
             if meta:
                 # Arrival loops require context injection
-                self._env.process(loop_func(self))
+                process = self._env.process(loop_func(self))
+                # Stopped by an interrupt when a drain starts, which ends the loop
+                process.callbacks.append(_defuse)
+                self._arrival_processes.append(process)
             else:
                 # Telemetry loops run blindly
                 self._env.process(loop_func())
 
-        try:
-            logger.info("Simulation engine started.")
-            if isinstance(until, str):
-                until = time_to_seconds(until)
+        if isinstance(until, str):
+            until = time_to_seconds(until)
+        self._until = until
+        self._end = self._end_event(until, stop, drain)
+        self._closed = False
+        logger.info("Simulation engine started.")
+        return self._env
 
-            self._env.run(until=until)
-        finally:
+    def step(self) -> None:
+        """
+        Processes the next event of a started run, as SimPy's `env.step()` does.
+
+        Raises:
+            RuntimeError: If the run has not started.
+            simpy.core.EmptySchedule: If no event is left.
+        """
+        self.env.step()
+
+    def peek(self) -> float:
+        """
+        Returns the time of the next event of a started run, or infinity if none.
+
+        Raises:
+            RuntimeError: If the run has not started.
+        """
+        return self.env.peek()
+
+    def close(self) -> None:
+        """
+        Ends a started run: publishes the last statistics, flushes and stops the
+        egress connectors, then stops the ingress connectors. Closing twice does
+        nothing.
+        """
+        if self._env is not None and not self._closed:
+            self._closed = True
             self._env.teardown()
+
+    def stop_arrivals(self) -> None:
+        """
+        Stops every arrival loop, so no new entity arrives; the entities already in
+        the model carry on. A drain calls it at `until`.
+        """
+        for process in getattr(self, "_arrival_processes", []):
+            if process.is_alive:
+                process.interrupt("arrivals stopped")
+
+    def _end_event(self, until: Any, stop: Any, drain: Any) -> Optional[simpy.Event]:
+        """The event that ends the run when `stop` or `drain` is given, else None.
+
+        It is scheduled urgent, like SimPy's own `until`, so no other event at that
+        time runs after it.
+        """
+        if stop is None and not drain:
+            return None
+        env = self.env
+        end = env.event()
+
+        def finish(_event: Any = None) -> None:
+            if not end.triggered:
+                end._ok, end._value = True, None
+                env.schedule(end, simpy.events.URGENT)
+
+        self._finish_run = finish
+        limit = None
+        if drain:
+            if until is None:
+                raise ValueError("a drain starts at until, so it needs until")
+            if isinstance(drain, Mapping):
+                unknown = {*drain} - {"limit"}
+                if unknown:
+                    raise ValueError(
+                        f"drain takes a limit, not {', '.join(sorted(unknown))}"
+                    )
+                if drain.get("limit") is not None:
+                    limit = _seconds(drain["limit"])
+        if until is not None:
+            horizon = env.event()
+            horizon._ok, horizon._value = True, None
+            env.schedule(horizon, simpy.events.URGENT, float(until) - env.now)
+            if drain:
+
+                def begin_drain(_event: Any) -> None:
+                    self.stop_arrivals()
+                    self._draining = True
+                    if self._in_system == 0:
+                        finish()
+                    elif limit is not None:
+                        timer = env.event()
+                        timer._ok, timer._value = True, None
+                        timer.callbacks.append(finish)
+                        env.schedule(timer, simpy.events.URGENT, limit)
+
+                horizon.callbacks.append(begin_drain)
+            else:
+                horizon.callbacks.append(finish)
+        if stop is not None:
+            self._stop_event(stop).callbacks.append(finish)
+        return end
+
+    def _stop_event(self, stop: Any) -> simpy.Event:
+        """The event a `stop` names: a signal's next firing, a condition, or an event."""
+        if isinstance(stop, Signal):
+            return stop.wait()
+        if isinstance(stop, simpy.Event):
+            return stop
+        if not isinstance(stop, Mapping) or len(stop) != 1:
+            raise ValueError(
+                f"stop takes {{'signal': name}} or {{'condition': '...'}}, got {stop!r}"
+            )
+        ((kind, target),) = stop.items()
+        if kind == "signal":
+            if target not in self._signals:
+                raise ValueError(f"stop names signal '{target}', which is not added")
+            return self._signals[target].wait()
+        if kind != "condition":
+            raise ValueError(f"stop takes a signal or a condition, not '{kind}'")
+        condition = Expression(target)
+        env, event = self.env, self.env.event()
+
+        def check() -> None:
+            scope = make_scope(None, {}, env, self._levels(), signals=self._signals)
+            if not event.triggered and condition.evaluate(scope):
+                event.succeed(True)
+                env.unwatch_changes(check)
+
+        check()
+        if not event.triggered:
+            env.watch_changes(check)
+        return event
+
+    def _entity_entered(self, entity: Entity) -> None:
+        """Counts an entity whose first task started as in the model."""
+        self._in_system += 1
+        self.env.stats.flow_started(entity.arrival)
+
+    def _entity_left(self, entity: Entity) -> None:
+        """Counts an entity out; a drain ends when the last one leaves."""
+        self._in_system -= 1
+        if self._draining and self._in_system == 0 and self._finish_run is not None:
+            self._finish_run()
 
     def _end_warmup(self, warmup: float):
         """Resets the statistics at the end of the warm-up, for a run with no sink."""
@@ -1542,6 +1725,30 @@ class SimulationContext:
                             f"task '{name}' reads registry[\"{path}\"], which is "
                             f"not a registry path"
                         ) from None
+
+
+def _check_end(until: Any, stop: Any, drain: Any, signals: List[str]) -> None:
+    """Checks `stop` and `drain` before anything is built."""
+    if drain and until is None:
+        raise ValueError("a drain starts at until, so it needs until")
+    if isinstance(drain, Mapping) and {*drain} - {"limit"}:
+        raise ValueError(
+            f"drain takes a limit, not {', '.join(sorted({*drain} - {'limit'}))}"
+        )
+    if stop is None or isinstance(stop, (Signal, simpy.Event)):
+        return
+    if not isinstance(stop, Mapping) or len(stop) != 1:
+        raise ValueError(
+            f"stop takes {{'signal': name}} or {{'condition': '...'}}, got {stop!r}"
+        )
+    ((kind, target),) = stop.items()
+    if kind == "signal":
+        if target not in signals:
+            raise ValueError(f"stop names signal '{target}', which is not added")
+    elif kind == "condition":
+        Expression(target)
+    else:
+        raise ValueError(f"stop takes a signal or a condition, not '{kind}'")
 
 
 def _defuse(event: Any) -> None:

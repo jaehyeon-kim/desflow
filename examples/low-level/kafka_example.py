@@ -71,6 +71,7 @@ def pack_order(env, sampler, packers, key, task_id):
         task="pack_order",
         instance=task_id,
     )
+    env.stats.task_queued("pack_order", task_id)  # counted as in progress
 
     with packers.request() as req:
         yield req
@@ -82,6 +83,7 @@ def pack_order(env, sampler, packers, key, task_id):
             task="pack_order",
             instance=task_id,
         )
+        env.stats.task_started("pack_order", task_id)
 
         # Use the latest service config from the registry
         yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
@@ -92,6 +94,7 @@ def pack_order(env, sampler, packers, key, task_id):
             task="pack_order",
             instance=task_id,
         )
+        env.stats.task_finished("pack_order", task_id)
 
 
 def arrival_generator(env, sampler, packers):

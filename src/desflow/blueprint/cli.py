@@ -83,6 +83,14 @@ def run(
             "run without one logs the seed it drew, with the command that repeats it.",
         ),
     ] = None,
+    drain: Annotated[
+        bool,
+        typer.Option(
+            "--drain",
+            help="At the end time, stop the arrivals and keep running until every "
+            "entity in the model has left. Sets run.drain in the file to true.",
+        ),
+    ] = False,
 ) -> None:
     """Build the simulation in FILE and run it."""
     stop_at = _parse_until(until)
@@ -102,7 +110,7 @@ def run(
     if seed is not None:
         context.random_seed = seed
     try:
-        context.run(until=stop_at)
+        context.run(until=stop_at, drain=True if drain else None)
     except KeyboardInterrupt:
         logger.info("Simulation stopped by user.")
 

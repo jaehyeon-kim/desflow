@@ -208,6 +208,9 @@ class TaskRun:
         self.process = self.env.active_process
         running = self.context._running.setdefault(self.spec.name, [])
         running.append(self)
+        if not self.child and not self.entity.entered:
+            self.entity.entered = True
+            self.context._entity_entered(self.entity)
         try:
             return (yield from self._run())
         finally:
@@ -223,6 +226,7 @@ class TaskRun:
         if spec.balk_of is not None and spec.balk_of.evaluate(self.scope()):
             self.publish(self.status("balked"))
             stats.task_balked(spec.name, self.task_id)
+            self._end_flow("ended")
             return None
         # The patience timer starts when the task joins its first queue and covers
         # every wait after it: the wait, the resources, then the get.
@@ -344,7 +348,7 @@ class TaskRun:
                 return (yield from self._follow(spec.on_fail, failed))
             if self.child:
                 raise TaskFailed(spec.name, failure)
-            stats.flow_failed(self.entity.arrival)
+            self._end_flow("failed")
             return None
 
         if spec.signal is not None:
@@ -369,7 +373,7 @@ class TaskRun:
         if following is None:
             if self.child:
                 return payload
-            stats.flow_finished(self.entity.arrival)
+            self._end_flow("finished")
             return None
         return (yield from self._follow(following, handed))
 
@@ -430,6 +434,7 @@ class TaskRun:
             return (yield from self._follow(spec.on_interrupt_next, handed))
         if self.child:
             raise TaskFailed(spec.name, f"interrupted: {_cause(interrupt)}")
+        self._end_flow("ended")
         return None
 
     # ----------------------------------------------------------------- helpers
@@ -467,6 +472,21 @@ class TaskRun:
     def _renege(self) -> None:
         self.publish(self.status("reneged"))
         self.env.stats.task_reneged(self.spec.name, self.task_id)
+        self._end_flow("ended")
+
+    def _end_flow(self, how: str) -> None:
+        """Records the end of the entity's flow: `finished`, `failed`, or `ended`
+        for a balk, a renege or an abandon. A child flow's end is its parent's."""
+        if self.child:
+            return
+        stats, arrival = self.env.stats, self.entity.arrival
+        if how == "finished":
+            stats.flow_finished(arrival)
+        elif how == "failed":
+            stats.flow_failed(arrival)
+        else:
+            stats.flow_ended(arrival)
+        self.context._entity_left(self.entity)
 
     def _failure(self, payload: Any) -> Any:
         """The reason the task fails after its service, or None when it does not."""

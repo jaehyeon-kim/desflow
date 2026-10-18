@@ -82,6 +82,7 @@ def pack_order(env, sampler, packers, key, task_id):
         task="pack_order",
         instance=task_id,
     )
+    env.stats.task_queued("pack_order", task_id)  # counted as in progress
     with packers.request() as request:
         yield request
         env.publish_event(
@@ -90,6 +91,7 @@ def pack_order(env, sampler, packers, key, task_id):
             task="pack_order",
             instance=task_id,
         )
+        env.stats.task_started("pack_order", task_id)
         yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
         env.publish_event(
             key,
@@ -97,6 +99,7 @@ def pack_order(env, sampler, packers, key, task_id):
             task="pack_order",
             instance=task_id,
         )
+        env.stats.task_finished("pack_order", task_id)
 
 
 def arrival_generator(env, sampler, packers):

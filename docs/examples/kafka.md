@@ -443,6 +443,7 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
             task="pack_order",
             instance=task_id,
         )
+        env.stats.task_queued("pack_order", task_id)  # counted as in progress
 
         with packers.request() as req:
             yield req
@@ -454,6 +455,7 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
                 task="pack_order",
                 instance=task_id,
             )
+            env.stats.task_started("pack_order", task_id)
 
             # Use the latest service config from the registry
             yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
@@ -464,6 +466,7 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
                 task="pack_order",
                 instance=task_id,
             )
+            env.stats.task_finished("pack_order", task_id)
 
 
     def arrival_generator(env, sampler, packers):

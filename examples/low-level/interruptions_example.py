@@ -53,6 +53,7 @@ def pack(env, sampler, shop, key, priority, task_id):
     def publish(value):
         env.publish_event(key, value, task="pack", instance=task_id)
 
+    env.stats.flow_started(key.rsplit("-", 1)[0])  # the order enters the shop
     publish({"path_id": path_id, "status": "queued"})
     env.stats.task_queued("pack", task_id)
     remaining, started = None, False

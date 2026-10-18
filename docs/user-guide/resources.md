@@ -204,6 +204,7 @@ On a resource with `preempt: true`, which needs `queue: priority`, a request tha
         def publish(value):
             env.publish_event(key, value, task="pack", instance=task_id)
 
+        env.stats.flow_started(key.rsplit("-", 1)[0])  # the order enters the shop
         publish({"path_id": path_id, "status": "queued"})
         env.stats.task_queued("pack", task_id)
         remaining, started = None, False
@@ -325,6 +326,7 @@ A task can also hand a unit to the next task of its flow with `keep`: the next t
         """Picks an order and keeps the picker for pack, which gives it back."""
         env, stats = shop.env, shop.env.stats
         task_id, publish, status, duration = shop.step(key, "pick", "picking")
+        stats.flow_started("orders")  # the order enters the shop
         status("queued")
         stats.task_queued("pick", task_id)
         picker = shop.picker.request()
@@ -357,6 +359,7 @@ A task can also hand a unit to the next task of its flow with `keep`: the next t
         """Holds the picker, then the bench too: acquired in this order."""
         env, stats = shop.env, shop.env.stats
         task_id, publish, status, duration = shop.step(key, "wrap", "wrapping")
+        stats.flow_started("gifts")
         status("queued")
         stats.task_queued("wrap", task_id)
         with shop.picker.request() as picker:

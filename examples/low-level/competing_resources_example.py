@@ -77,6 +77,7 @@ def pick(shop, key):
     """Picks an order and keeps the picker for pack, which gives it back."""
     env, stats = shop.env, shop.env.stats
     task_id, publish, status, duration = shop.step(key, "pick", "picking")
+    stats.flow_started("orders")  # the order enters the shop
     status("queued")
     stats.task_queued("pick", task_id)
     picker = shop.picker.request()
@@ -109,6 +110,7 @@ def wrap(shop, key):
     """Holds the picker, then the bench too: acquired in this order."""
     env, stats = shop.env, shop.env.stats
     task_id, publish, status, duration = shop.step(key, "wrap", "wrapping")
+    stats.flow_started("gifts")
     status("queued")
     stats.task_queued("wrap", task_id)
     with shop.picker.request() as picker:

@@ -1,0 +1,13 @@
+# Pings every 10 s and statistics every 10 s, stepped one event at a time.
+# See test_c6_end_conditions.py.
+simulation:
+  sim_id: C6
+  factor: 0
+arrivals:
+  pings: {dist: constant, value: 10, spawn: ping}
+tasks:
+  ping:
+    payload: {event: ping}
+stats: {level: basic, interval: 10}
+run:
+  until: 40

@@ -1,0 +1,19 @@
+# Restocks add 2 every 3 s, and pings arrive every 4 s; the run stops when the stock
+# first holds 5, at 9, with no ping after it. See test_c6_end_conditions.py.
+simulation:
+  sim_id: C6
+  factor: 0
+containers:
+  stock: {current_cap: 20, max_cap: 20}
+arrivals:
+  restocks: {dist: constant, value: 3, spawn: restock}
+  pings: {dist: constant, value: 4, spawn: ping}
+tasks:
+  restock:
+    put: {container: stock, amount: 2}
+    payload: {event: restocked}
+  ping:
+    payload: {event: ping}
+run:
+  until: 100
+  stop: {condition: level.stock >= 5}

@@ -56,6 +56,7 @@ def pack(env, sampler, shop, key, area, task_id):
     def publish(value):
         env.publish_event(key, value, task="pack", instance=task_id)
 
+    env.stats.flow_started(key.rsplit("-", 1)[0])  # the order enters the shop
     publish({"path_id": path_id, "status": "queued"})
     env.stats.task_queued("pack", task_id)
     with shop["packers"].request() as req:
@@ -77,6 +78,8 @@ def collect(env, sampler, shop, key, area, task_id):
     def publish(value):
         env.publish_event(key, value, task="collect", instance=task_id)
 
+    flow = key.rsplit("-", 1)[0]
+    env.stats.flow_started(flow)  # the courier enters the shop
     publish({"status": "queued"})
     env.stats.task_queued("collect", task_id)
     get = shop["parcels"].get(filter=lambda parcel: parcel["area"] == area)
@@ -85,12 +88,13 @@ def collect(env, sampler, shop, key, area, task_id):
         get.cancel()  # out of the queue, so it takes no parcel later
         publish({"status": "reneged"})
         env.stats.task_reneged("collect", task_id)
+        env.stats.flow_ended(flow)
         return
     publish({"status": "started"})
     env.stats.task_started("collect", task_id)
     publish({"event_type": "parcel_collected", "parcel": get.value})
     env.stats.task_finished("collect", task_id)
-    env.stats.flow_finished(key.rsplit("-", 1)[0])
+    env.stats.flow_finished(flow)
 
 
 # --8<-- [end:collect]

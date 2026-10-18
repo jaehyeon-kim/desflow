@@ -56,6 +56,7 @@ MEANINGS: Dict[str, str] = {
     "containers.putters_waiting": "tasks waiting to add an amount",
     "containers.level_avg": "amount held, averaged over time",
     "tasks.finished": "instances finished so far",
+    "tasks.in_progress": "instances queued or started and not yet ended, now",
     "tasks.balked": "instances that refused to join the queue; published once one does",
     "tasks.reneged": "instances that left the queue before they were served; published once one does",
     "tasks.wait_mean": "mean time from `queued` to `started`",
@@ -69,6 +70,8 @@ MEANINGS: Dict[str, str] = {
     "tasks.service_p95": "the service time 95% of instances stay under",
     "tasks.service_p99": "the service time 99% of instances stay under",
     "flows.finished": "entities that left the model, by the arrival that started them",
+    "flows.started": "entities whose first task has started, by the arrival that started them",
+    "flows.in_system": "entities in the model now: started, and not yet finished, failed or gone",
     "flows.failed": "entities whose flow ended in a failure no `on_fail` handled; published once one does",
     "tasks.interrupted": "interrupts delivered to instances, preemptions not included; published once one is",
     "tasks.preempted": "times a higher-priority request took an instance's unit; published once one does",
@@ -178,6 +181,7 @@ def statistic_names() -> Dict[str, List[str]]:
         env.stats.task_queued("<task>", 0)
         env.stats.task_started("<task>", 0)
         env.stats.task_finished("<task>", 0)
+        env.stats.flow_started("<arrival>")
         env.stats.task_balked("<task>", 1)
         env.stats.task_queued("<task>", 2)
         env.stats.task_reneged("<task>", 2)
@@ -189,6 +193,7 @@ def statistic_names() -> Dict[str, List[str]]:
         env.stats.task_interrupted("<task>", 4)
         env.stats.task_interrupted("<task>", 4, preempted=True)
         env.stats.task_resumed("<task>", 4)
+        env.stats.task_queued("<task>", 5)
         env.stats.flow_finished("<arrival>")
         names[level] = list(env.stats.readings())
         env.teardown()

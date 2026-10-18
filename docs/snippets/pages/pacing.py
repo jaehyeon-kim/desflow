@@ -58,3 +58,19 @@ assert measured.warmup == 600
 
 for e in (live, twice_as_fast, unpaced, env):
     e.teardown()
+
+
+# --8<-- [start:step]
+def every_ten(context):
+    while True:
+        yield context.env.timeout(10)
+
+
+stepped = SimulationContext(sim_id="Shop", factor=0.0).add_process(every_ten)
+stepped.start()  # builds everything run() builds; the clock is still at 0
+while stepped.peek() < 30:  # the time of the next event
+    stepped.step()  # processes exactly one event
+print(f"stopped before {stepped.peek()} at {stepped.env.now}")
+stepped.close()  # the teardown run() does at its end
+# --8<-- [end:step]
+assert stepped.env.now == 20 and stepped.peek() == 30

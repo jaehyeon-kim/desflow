@@ -386,6 +386,7 @@ A single branch is named after its signal or task, or `timeout` or `condition`. 
     def courier(shop, key):
         """Fires courier_left; every order waiting for it resumes."""
         task_id = shop.next_id("courier")
+        shop.env.stats.flow_started("couriers")
         payload = {"event_type": "courier_left"}
         shop.publish(key, "courier", task_id, payload)
         shop.env.stats.task_finished("courier", task_id)

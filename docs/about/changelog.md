@@ -13,6 +13,7 @@ desflow matches SimPy operation by operation, in YAML, the builder and the low-l
 - Tasks interact as SimPy processes do: `signals` that tasks fire and wait for, a `wait` for one or all of signals, child flows, timeouts and conditions, and `fail`, `fail_reason` and `on_fail` for a task that fails. `context.spawn` returns the process it starts, and `context.call` starts a child flow. See [Process Interaction](../tutorials/process-interaction.md), [Tasks and Processes](../user-guide/tasks-and-processes.md#wait-signals-and-child-flows) and [Wait for One or All](../guides/wait-for-one-or-all.md).
 - Interrupts and preemption: an `interrupt` on a task or scenario step, or `context.interrupt`, interrupts running task instances; `on_interrupt: resume`, `restart` or `abandon` says what each does; `preempt: true` on a priority resource lets a lower priority value take a busy unit. See [Interruptions](../tutorials/interruptions.md) and [Resources](../user-guide/resources.md#preemption).
 - A task can hold several resources, `resource: [picker, bench]`, acquired in that order, and hand a unit to the next task with `keep`; a model that acquires resources in opposite orders is refused. See [Competing Resources](../tutorials/competing-resources.md) and [Resources](../user-guide/resources.md#several-resources).
+- End conditions: `run.stop` ends a run at a signal or a condition, and `run.drain` (or `desflow run --drain`) stops the arrivals at `until` and finishes the entities already in the model; `start()`, `step()`, `peek()` and `close()` step a builder or YAML run one event at a time. The statistics count `flows.<arrival>.started` and `in_system`, and `tasks.<task>.in_progress`. See [End Conditions](../tutorials/end-conditions.md) and [Time and Pacing](../user-guide/time-and-pacing.md#stop-early).
 - A low-level request can be cancelled with `request.cancel()` and given back with `resource.release(request)`, as in SimPy. See [Resources](../user-guide/resources.md#how-it-works).
 
 ### Upgrading
@@ -22,6 +23,7 @@ desflow matches SimPy operation by operation, in YAML, the builder and the low-l
 - `patience` now covers a task's `get` as well as its resource, so a task with both can renege while it waits for stock. A task with `patience` needs a resource or a `get`.
 - A store without priority is now a SimPy `FilterStore`; it serves a `get` without a filter as before.
 - A builder task whose function raises now fails the task, publishing `failed` with the error as its reason and ending the entity's flow, instead of stopping the run.
+- The built-in statistics publish new names: `tasks.<task>.in_progress` from `minimal`, and `flows.<arrival>.started` and `in_system` from `basic`. A low-level process that calls `env.stats.task_queued`, `task_started` and `task_finished` publishes `in_progress` too, and one that calls `flow_started` publishes the flow counts.
 - Events with the statuses `balked`, `reneged`, `failed`, `interrupted`, `preempted` and `resumed` reach the sinks, so a consumer that filters on `status` should expect them.
 
 ## Version 0.21.0

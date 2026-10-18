@@ -19,8 +19,8 @@ A level switches them on. Each level publishes what the levels before it publish
 | Level | Question | Adds |
 |---|---|---|
 | `none` | | nothing; the default |
-| `minimal` | What is happening now? | resources: `capacity`, `in_use`, `queue_length`, `utilization`; stores and containers: `capacity`, `level`, `getters_waiting`, `putters_waiting` |
-| `basic` | How much got done, and how busy was it? | tasks and flows: `finished`; tasks: `balked`, `reneged`, `failed`, `interrupted`, `preempted` and `resumed`, and flows: `failed`, once one happens; resources: `utilization_avg`, `queue_length_avg`; stores and containers: `level_avg` |
+| `minimal` | What is happening now? | resources: `capacity`, `in_use`, `queue_length`, `utilization`; stores and containers: `capacity`, `level`, `getters_waiting`, `putters_waiting`; tasks: `in_progress` |
+| `basic` | How much got done, and how busy was it? | tasks and flows: `finished`; flows: `started` and `in_system`; tasks: `balked`, `reneged`, `failed`, `interrupted`, `preempted` and `resumed`, and flows: `failed`, once one happens; resources: `utilization_avg`, `queue_length_avg`; stores and containers: `level_avg` |
 | `typical` | How long did tasks take? | tasks: `wait_mean`, `wait_max`, `service_mean`, `service_max` |
 | `all` | How long did the slowest take? | tasks: `wait_p50`, `wait_p95`, `wait_p99`, `service_p50`, `service_p95`, `service_p99` |
 
@@ -75,12 +75,15 @@ Every statistic is published as telemetry named `<sim_id>.stats.<kind>.<name>.<s
 [TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.utilization', 'value': 100.0}
 [TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.utilization_avg', 'value': 90.79208653095155}
 [TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.queue_length_avg', 'value': 1.9083531344309013}
+[TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.in_progress', 'value': 8}
 [TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.finished', 'value': 70}
 [TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.wait_mean', 'value': 2.7959715976263215}
 [TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.wait_max', 'value': 11.22214686679115}
 [TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.service_mean', 'value': 3.0335617388528364}
 [TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.service_max', 'value': 6.357944038555676}
 [TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.flows.orders.finished', 'value': 70}
+[TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.flows.orders.started', 'value': 78}
+[TEL] {'sim_ts': 120.0, 'timestamp': '...', 'path_id': 'Shop.stats.flows.orders.in_system', 'value': 8}
 ```
 
 In Python the same values are in `env.stats.readings()`, by name, during or after the run:
@@ -300,7 +303,7 @@ The environment keeps one `Statistics` object, `env.stats`, which collects nothi
 
 ![Busy packers over 10 seconds: 1 for 2 seconds, 3 for 4 seconds, 2 for 4 seconds; the areas 2, 12 and 8 add up to 22, so the time-weighted average is 2.2 busy packers, while a reading at 10 seconds sees 2](../assets/diagrams/stats-time-weighted.png)
 
-**Counts.** `finished` adds one when a task instance finishes, and a flow's `finished` adds one when an entity's last task has no next task. A task's `balked` adds one when an instance refuses to join its queue, `reneged` when one leaves the queue after its patience, and `failed` when one fails ([Failures](tasks-and-processes.md#failures)); a flow's `failed` adds one when an entity's flow ends in a failure no `on_fail` handles. `interrupted` and `preempted` add one for each interrupt or preemption an instance receives, and `resumed` when it is served again. Each is published once it is above 0. A balked, reneged or failed instance adds no wait or service time. An interrupted instance that resumes adds one wait, the sum of all its waits, and one service time, the time it was served. A low-level process counts them with `env.stats.task_balked(task, instance)`, `env.stats.task_reneged(task, instance)`, `env.stats.task_failed(task, instance)`, `env.stats.flow_failed(arrival)`, `env.stats.task_interrupted(task, instance, preempted=...)` and `env.stats.task_resumed(task, instance)`.
+**Counts.** `finished` adds one when a task instance finishes, and a flow's `finished` adds one when an entity's last task has no next task. A flow's `started` adds one when an entity's first task starts, and `in_system` is the number of its entities in the model now, started and not yet finished, failed or gone; so `started` is `finished` plus `in_system` plus the entities that balked, reneged, failed or were abandoned. A task's `in_progress` is the number of its instances queued or started and not yet ended, now. A low-level process reports entities with `env.stats.flow_started(arrival)` and, for one that leaves without finishing or failing, `env.stats.flow_ended(arrival)`. A task's `balked` adds one when an instance refuses to join its queue, `reneged` when one leaves the queue after its patience, and `failed` when one fails ([Failures](tasks-and-processes.md#failures)); a flow's `failed` adds one when an entity's flow ends in a failure no `on_fail` handles. `interrupted` and `preempted` add one for each interrupt or preemption an instance receives, and `resumed` when it is served again. Each is published once it is above 0. A balked, reneged or failed instance adds no wait or service time. An interrupted instance that resumes adds one wait, the sum of all its waits, and one service time, the time it was served. A low-level process counts them with `env.stats.task_balked(task, instance)`, `env.stats.task_reneged(task, instance)`, `env.stats.task_failed(task, instance)`, `env.stats.flow_failed(arrival)`, `env.stats.task_interrupted(task, instance, preempted=...)` and `env.stats.task_resumed(task, instance)`.
 
 **Wait and service.** The wait of a task instance runs from its `queued` step to its `started` step, and its service from `started` to finished; a task that never queues, such as a timed step, waits 0. `typical` keeps a count, a total and a maximum of each, so their cost does not grow with the run. `all` keeps every observation and computes the percentiles exactly with NumPy's `percentile` at each publication, so its memory grows with the number of tasks.
 

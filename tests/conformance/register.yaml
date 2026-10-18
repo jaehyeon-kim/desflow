@@ -390,3 +390,57 @@
   checks:
     - tests/conformance/test_c7_patience.py::test_c7_balking
   page: tutorials/patience.md#refuse-to-join
+
+- id: C6
+  operation: Stop at an event
+  simpy: "`simpy.core.Environment.run(until=event)`"
+  yaml: "`run.stop: {signal: closing}` beside `run.until`"
+  builder: "`app.run(until=..., stop={\"signal\": \"closing\"})`, or a `Signal` or SimPy event"
+  low_level: "`env.run(until=event)`"
+  checks:
+    - tests/conformance/test_c6_end_conditions.py::test_c6_stop_at_an_event
+    - tests/conformance/test_c6_end_conditions.py::test_c6_stop_at_an_event_at_the_same_instant_as_until
+  page: user-guide/time-and-pacing.md#stop-early
+  differences: When the stop and `until` fall at the same time, `until` ends the run first, as SimPy's own `until` would.
+
+- id: C6
+  operation: Explicit stop condition
+  simpy: "`env.run(until=event)` with a process that succeeds the event when the condition holds"
+  yaml: "`run.stop: {condition: level.stock >= 5}`"
+  builder: "`app.run(until=..., stop={\"condition\": \"...\"})`"
+  low_level: "`env.watch_changes(check)` and `env.run(until=event)`"
+  checks:
+    - tests/conformance/test_c6_end_conditions.py::test_c6_explicit_stop_condition
+  page: user-guide/time-and-pacing.md#stop-early
+
+- id: C6
+  operation: Stop arrivals and drain
+  simpy: "interrupt the source, then `env.run(until=env.all_of(entities))`"
+  yaml: "`run.drain: true` or `{limit: 1 h}`; `desflow run --drain`"
+  builder: "`app.run(until=..., drain=True)`, or `context.stop_arrivals()`"
+  low_level: "`source.interrupt()`, then `env.run(until=env.all_of(processes))`"
+  checks:
+    - tests/conformance/test_c6_end_conditions.py::test_c6_stop_arrivals_and_drain
+    - tests/conformance/test_c6_end_conditions.py::test_c6_stop_arrivals_and_drain_with_a_limit
+  page: user-guide/time-and-pacing.md#drain
+
+- id: C6
+  operation: Step one event
+  simpy: "`simpy.core.Environment.step()`"
+  yaml: "`SimulationContext.from_yaml(path).start()`, then `.step()`"
+  builder: "`app.start()`, `app.step()`, `app.close()`"
+  low_level: "`env.step()`"
+  checks:
+    - tests/conformance/test_c6_end_conditions.py::test_c6_step_one_event
+  page: user-guide/time-and-pacing.md#step-and-peek
+  differences: A blueprint has no stepping key; its context, from `from_yaml`, steps as a builder context does.
+
+- id: C6
+  operation: Inspect next event time
+  simpy: "`simpy.core.Environment.peek()`"
+  yaml: "`SimulationContext.from_yaml(path).start()`, then `.peek()`"
+  builder: "`app.peek()`"
+  low_level: "`env.peek()`"
+  checks:
+    - tests/conformance/test_c6_end_conditions.py::test_c6_inspect_next_event_time
+  page: user-guide/time-and-pacing.md#step-and-peek

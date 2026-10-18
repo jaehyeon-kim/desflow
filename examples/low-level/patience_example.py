@@ -48,10 +48,13 @@ def pack(env, sampler, packers, key, patience, task_id):
     def publish(value):
         env.publish_event(key, value, task="pack", instance=task_id)
 
+    flow = key.rsplit("-", 1)[0]
+    env.stats.flow_started(flow)  # the order enters the shop
     # No new orders once the courier has made its last collection
     if env.now >= 100:
         publish({"path_id": path_id, "status": "balked"})
         env.stats.task_balked("pack", task_id)
+        env.stats.flow_ended(flow)
         return
     publish({"path_id": path_id, "status": "queued"})
     env.stats.task_queued("pack", task_id)
@@ -61,13 +64,14 @@ def pack(env, sampler, packers, key, patience, task_id):
         if not req.triggered:
             publish({"path_id": path_id, "status": "reneged"})
             env.stats.task_reneged("pack", task_id)
+            env.stats.flow_ended(flow)
             return
         publish({"path_id": path_id, "status": "started"})
         env.stats.task_started("pack", task_id)
         yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
         publish({"event_type": "order_packed"})
     env.stats.task_finished("pack", task_id)
-    env.stats.flow_finished(key.rsplit("-", 1)[0])
+    env.stats.flow_finished(flow)
 
 
 # --8<-- [end:pack]

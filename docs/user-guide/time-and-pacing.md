@@ -130,7 +130,196 @@ app.run(until="1 week")  # 604,800 simulation seconds; a number is seconds too
 
 The run stops at `until` before any event due at exactly that time, as SimPy's `run(until=...)` does: an order due at the horizon never arrives, and a task due to finish there stays unfinished. Statistics published at teardown read the model at `until`.
 
-Without `until`, SimPy runs until no events remain, and a run with an arrival never runs out of events. Neither does any run with a sink or an ingress connector, even when its own work is done, because the environment's own processes repeat for as long as the run lasts. Give such a run an `until`, or stop it with Ctrl+C.
+Without `until`, SimPy runs until no events remain, and a run with an arrival never runs out of events. Neither does any run with a sink or an ingress connector, even when its own work is done, because the environment's own processes repeat for as long as the run lasts. Give such a run an `until`, a `stop` or a drain, or stop it with Ctrl+C.
+
+### Stop Early
+
+`stop` ends the run before `until` when something happens: `{signal: name}`, the next firing of a signal, or `{condition: ...}`, the first moment a condition holds, checked after every change of a level, a capacity, a registry value or a signal, and after every finished task. The builder's `run(stop=...)` also takes a `Signal` or any SimPy event. The run ends at whichever comes first, `stop` or `until`, and no other event at that moment runs after it; when both fall at the same moment, `until` ends the run, as SimPy's own `until` would. In the low-level API it is SimPy's `env.run(until=event)`.
+
+### Drain
+
+A fixed horizon cuts the run at `until` with orders still in the shop. A **drain** stops the arrivals at `until` and keeps running until every entity in the model has left: `drain: true`, or `drain: {limit: 1 h}` to stop at the latest that long after `until`; `desflow run --drain` sets it from the command line. The environment's own processes, such as the statistics timer, never hold a drain open. The `end-conditions` example closes the shop at 120 seconds, drains for at most a minute, and stops at once if the boxes run out:
+
+=== "YAML"
+
+    ```yaml title="examples/yaml/end_conditions.yaml:run"
+    run:
+      # No new orders after closing time.
+      until: 120
+      # Then pack the orders in the shop, for at most 60 seconds.
+      drain: {limit: 60}
+      # Stop at once when the last box is taken.
+      stop: {condition: level.boxes == 0}
+    ```
+
+=== "Builder"
+
+    ```python title="examples/builder/end_conditions_example.py:run"
+    app.run(
+        # No new orders after closing time
+        until=120,
+        # Then pack the orders in the shop, for at most 60 seconds
+        drain={"limit": 60},
+        # Stop at once when the last box is taken
+        stop={"condition": "level.boxes == 0"},
+    )
+    ```
+
+    `context.stop_arrivals()` stops the arrival loops by hand, as a drain does at `until`.
+
+=== "Low-level"
+
+    ```python title="examples/low-level/end_conditions_example.py:run"
+    def run_to_end(env, shop, source):
+        """Runs to closing time, then drains for at most 60 s, or until no boxes are left."""
+        out_of_boxes = env.event()
+
+        def check():
+            if shop["boxes"].level == 0 and not out_of_boxes.triggered:
+                out_of_boxes.succeed()
+
+        env.watch_changes(check)
+        env.run(until=120)  # no new orders after closing time
+        source.interrupt()
+        packed = env.all_of([p for p in shop["orders"] if p.is_alive])
+        env.run(until=packed | env.timeout(60) | out_of_boxes)
+    ```
+
+    The low-level API writes a drain as SimPy does: interrupt the source process, then run until all the admitted processes end.
+
+With statistics at `basic` or above, `flows.<arrival>.started`, `finished` and `in_system` say how many entities entered, left and are still in the model, and from `minimal`, `tasks.<task>.in_progress` how many instances of each task are queued or being served; [End Conditions](../tutorials/end-conditions.md) compares a fixed horizon with a drain.
+
+### Step and Peek
+
+`start()` builds everything `run()` builds and starts every process, with the clock still at its start. `step()` then processes one event, and `peek()` gives the time of the next one, infinity when none is left, as SimPy's `env.step()` and `env.peek()` do; `close()` ends the run, which `run()` does in a `finally` block. A context from `from_yaml` steps the same way:
+
+```python title="docs/snippets/pages/pacing.py:step"
+def every_ten(context):
+    while True:
+        yield context.env.timeout(10)
+
+
+stepped = SimulationContext(sim_id="Shop", factor=0.0).add_process(every_ten)
+stepped.start()  # builds everything run() builds; the clock is still at 0
+while stepped.peek() < 30:  # the time of the next event
+    stepped.step()  # processes exactly one event
+print(f"stopped before {stepped.peek()} at {stepped.env.now}")
+stepped.close()  # the teardown run() does at its end
+```
+
+It prints `stopped before 30 at 20`. Stepping does not stop at `until`: compare `peek()` with the time you want to stop at.
+
+### Example: End Conditions
+
+The `end-conditions` example: a drain after closing time, a stop when the boxes run out, and the counts of orders still in the shop. It needs no Docker service and ends on its own.
+
+=== "YAML"
+
+    **Quick Start**
+
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+    === "uv"
+
+        ```bash
+        # 1. Install
+        uv tool install desflow
+
+        # 2. Download the example
+        desflow examples get end-conditions --api yaml
+        cd end-conditions/yaml
+
+        # 3. Run it
+        desflow run end_conditions.yaml
+        ```
+
+    === "pip"
+
+        ```bash
+        # 1. Install
+        pip install desflow
+
+        # 2. Download the example
+        desflow examples get end-conditions --api yaml
+        cd end-conditions/yaml
+
+        # 3. Run it
+        desflow run end_conditions.yaml
+        ```
+
+    The whole file is [`examples/yaml/end_conditions.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/yaml/end_conditions.yaml).
+
+=== "Builder"
+
+    **Quick Start**
+
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+    === "uv"
+
+        ```bash
+        # 1. Install
+        uv tool install desflow
+
+        # 2. Download the example
+        desflow examples get end-conditions --api builder
+        cd end-conditions/builder
+
+        # 3. Run it
+        uv run --no-project --with desflow end_conditions_example.py
+        ```
+
+    === "pip"
+
+        ```bash
+        # 1. Install
+        pip install desflow
+
+        # 2. Download the example
+        desflow examples get end-conditions --api builder
+        cd end-conditions/builder
+
+        # 3. Run it
+        python end_conditions_example.py
+        ```
+
+    The whole file is [`examples/builder/end_conditions_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/builder/end_conditions_example.py).
+
+=== "Low-level"
+
+    **Quick Start**
+
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+    === "uv"
+
+        ```bash
+        # 1. Install
+        uv tool install desflow
+
+        # 2. Download the example
+        desflow examples get end-conditions --api low-level
+        cd end-conditions/low-level
+
+        # 3. Run it
+        uv run --no-project --with desflow end_conditions_example.py
+        ```
+
+    === "pip"
+
+        ```bash
+        # 1. Install
+        pip install desflow
+
+        # 2. Download the example
+        desflow examples get end-conditions --api low-level
+        cd end-conditions/low-level
+
+        # 3. Run it
+        python end_conditions_example.py
+        ```
+
+    The whole file is [`examples/low-level/end_conditions_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/end_conditions_example.py).
 
 ---
 
@@ -150,7 +339,7 @@ Without `until`, SimPy runs until no events remain, and a run with an arrival ne
 
 **Pacing and the switch.** Before each event, `step` checks the logical clock. At the first event at or after `go_live_at`, it sets the factor to 1.0 and moves its two anchors, `env_start` and `real_start`, so the go-live instant counts as now; without that, the first paced event would sleep off the whole backfill. The switch happens once and always to 1.0. A `go_live_at` at or before `logical_start_time` paces the whole run, with a warning, and a run that ends before it stays unpaced. `go_live_at` and `logical_start_time` must both be naive or both timezone-aware, or the environment refuses them.
 
-**Teardown.** `teardown()`, which `run()` calls in a `finally` block, publishes the last statistics, flushes and stops the egress connectors, then stops the ingress connectors.
+**The end of the model and the end of the run.** The model ends when the clock stops: at `until`, at a `stop`, or when a drain empties the model. The run ends after that, at `close()`, which `run()` calls in a `finally` block: it publishes the last statistics, still at the time the model ended, flushes and stops the egress connectors, then stops the ingress connectors. A sink may take a while to drain its queue, but no record it receives is later than the model's end.
 
 **SimPy and desflow.** SimPy's `RealtimeEnvironment` takes one `factor` for the whole run and, with `strict=True`, raises an error when the model falls behind the wall clock. desflow runs without waiting at `factor: 0`, switches to real time at `go_live_at`, stamps every record with a logical time, and reports falling behind as telemetry instead of raising. [SimPy and desflow](../des/simpy-and-desflow.md) compares the two.
 

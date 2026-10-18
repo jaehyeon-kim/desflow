@@ -161,6 +161,7 @@ nav:
           - Choosing Inputs: tutorials/choosing-inputs.md
           - Measuring a Run: tutorials/measuring-a-run.md
           - Trusting Results: tutorials/trusting-results.md
+          - End Conditions: tutorials/end-conditions.md
           - Stock: tutorials/stock.md
           - Priorities: tutorials/priorities.md
           - A Flow of Tasks: tutorials/flow-of-tasks.md

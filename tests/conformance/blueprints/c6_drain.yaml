@@ -1,0 +1,21 @@
+# Orders arrive every 2 s at one machine with 5 s of service. At until, 10, the
+# arrivals stop and the run drains: the four orders admitted are all served, the
+# last at 22. See test_c6_end_conditions.py.
+simulation:
+  sim_id: C6
+  factor: 0
+resources:
+  machine: {current_cap: 1, max_cap: 1}
+services:
+  work: {dist: constant, value: 5}
+arrivals:
+  orders: {dist: constant, value: 2, spawn: work}
+tasks:
+  work:
+    service: work
+    resource: machine
+    payload: {event: done}
+stats: basic
+run:
+  until: 10
+  drain: true

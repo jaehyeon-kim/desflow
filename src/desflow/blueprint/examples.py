@@ -156,6 +156,12 @@ EXAMPLES: Dict[str, Example] = {
             _three("competing_resources.yaml", "competing_resources_example.py"),
         ),
         Example(
+            "end-conditions",
+            "End Conditions",
+            "a drain after closing time, a stop when the boxes run out, and the counts of orders still in the shop",
+            _three("end_conditions.yaml", "end_conditions_example.py"),
+        ),
+        Example(
             "related-records",
             "Generate Related Records",
             "orders and their line items, in two PostgreSQL tables",

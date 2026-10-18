@@ -495,3 +495,52 @@ def test_competing_resources_handoff(api):
             round(r["pick_wait"] + r["pack_wait"], 2),
         )
         assert got == expected[keep]
+
+
+END_OUTCOMES = {
+    False: {
+        "end": 3600.0,
+        "started": 2436,
+        "finished": 2398,
+        "in_system": 38,
+        "wait_mean": 71.70,
+    },
+    True: {
+        "end": 3656.4,
+        "started": 2436,
+        "finished": 2436,
+        "in_system": 0,
+        "wait_mean": 71.51,
+    },
+}
+
+
+@pytest.mark.parametrize("api", APIS)
+def test_end_conditions_horizon_and_drain(api, monkeypatch):
+    """The fixed horizon leaves 38 orders in the shop; the drain packs them by
+    3,656.4 s."""
+    for drain, expected in END_OUTCOMES.items():
+        if api == "yaml":
+            monkeypatch.setenv("DRAIN", "true" if drain else "false")
+            app = SimulationContext.from_yaml(BLUEPRINTS / "end_conditions.yaml")
+            app.run()
+            r = app.env.stats.readings()
+            n = "Shop.stats.{}".format
+            got = {
+                "end": app.env.now,
+                "started": r[n("flows.orders.started")],
+                "finished": r[n("flows.orders.finished")],
+                "in_system": r[n("flows.orders.in_system")],
+                "wait_mean": r[n("tasks.pack_order.wait_mean")],
+            }
+            if not drain:
+                # one being packed and 37 waiting
+                assert r[n("tasks.pack_order.in_progress")] == 38
+                assert r[n("resources.packers.in_use")] == 1
+        else:
+            module = _load(
+                "end_conditions" + ("" if api == "builder" else "_low_level")
+            )
+            got = module.outcomes(drain)
+        got["end"], got["wait_mean"] = round(got["end"], 1), round(got["wait_mean"], 2)
+        assert got == expected

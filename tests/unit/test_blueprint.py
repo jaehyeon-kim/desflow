@@ -855,3 +855,17 @@ def test_resources_in_opposite_orders_name_the_tasks_line(tmp_path):
     with pytest.raises(BlueprintError, match="in one order everywhere") as error:
         SimulationContext.from_yaml(write(tmp_path, text))
     assert ":12:" in str(error.value)  # the tasks section
+
+
+def test_cli_drain_runs_until_the_model_is_empty(tmp_path):
+    """--drain stops the arrivals at the end time and finishes the orders in the
+    shop: every order that started also finished."""
+    text = MINIMAL.replace("run:\n  until: 30", "stats: basic\nrun:\n  until: 30")
+    path = write(tmp_path, text)
+    app = SimulationContext.from_yaml(path)
+    app.run(drain=True)
+    readings = app.env.stats.readings()
+    assert readings["Shop.stats.flows.standard.in_system"] == 0
+    assert app.env.now >= 30
+    result = CliRunner().invoke(cli, ["run", str(path), "--drain"])
+    assert result.exit_code == 0, result.output

@@ -154,13 +154,24 @@ def test_each_level_adds_its_statistics():
         "resources.packers.in_use",
         "resources.packers.queue_length",
         "resources.packers.utilization",
+        "tasks.pack.in_progress",
     }
     assert names["basic"] - names["minimal"] == {
         "resources.packers.utilization_avg",
         "resources.packers.queue_length_avg",
         "tasks.pack.finished",
         "flows.orders.finished",
+        "flows.orders.started",
+        "flows.orders.in_system",
     }
+    # Every order that started is finished or still in the shop
+    r = readings["basic"]
+    assert r["Shop.stats.flows.orders.started"] == (
+        r["Shop.stats.flows.orders.finished"] + r["Shop.stats.flows.orders.in_system"]
+    )
+    assert (
+        r["Shop.stats.flows.orders.in_system"] == r["Shop.stats.tasks.pack.in_progress"]
+    )
     assert names["typical"] - names["basic"] == {
         f"tasks.pack.{kind}_{stat}"
         for kind in ("wait", "service")

@@ -1,0 +1,38 @@
+# The End Conditions tutorial: a fixed horizon against a drain.
+# Run it with: desflow run end_conditions.yaml
+# With a drain after the hour: DRAIN=true desflow run end_conditions.yaml
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+resources:
+  packers: {current_cap: 1, max_cap: 4}
+
+services:
+  packing: {dist: constant, value: 1.5 s}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.7, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+
+# --8<-- [start:watch]
+# Orders started, finished and still in the shop, and the mean wait, at the end
+stats: {level: typical, interval: 2 h}
+# --8<-- [end:watch]
+
+egress:
+  - type: Console
+
+# --8<-- [start:run]
+run:
+  # No new orders after one hour
+  until: 1 h
+  # true: pack every order already in the shop before the run ends
+  drain: ${DRAIN:-false}
+# --8<-- [end:run]

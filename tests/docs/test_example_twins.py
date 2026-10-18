@@ -60,8 +60,11 @@ def _records(records):
     ]
 
 
-def _run_builder(app, until):
-    """Runs a builder or YAML version into two captures: data, then ground truth."""
+def _run_builder(app, until, **run):
+    """Runs a builder or YAML version into two captures: data, then ground truth.
+
+    `run` holds `stop` and `drain` for a version whose run ends by its own rules.
+    """
     app.factor = 0.0
     app.go_live_at = None  # the backfill example stays unpaced for the comparison
     capture, labels = _Capture(), _Capture()
@@ -71,14 +74,16 @@ def _run_builder(app, until):
     app._egress_batch_sizes = [None, None]
     app._egress_flush_intervals = [None, None]
     app._egress_labels = [False, True]
-    app.run(until=until)
+    app.run(until=until, **run)
     return _records(capture.records + labels.records)
 
 
 def _run_low_level(module, until, processes):
     """Runs the low-level version's processes, built by `processes(env, sampler)`.
 
-    A module's `WARMUP` is passed to the egress, as its own `run` does.
+    A module's `WARMUP` is passed to the egress, as its own `run` does. A module
+    whose run ends by its own rules, `run_to_end(env, shop, source)`, runs that
+    instead of a fixed `until`.
     """
     env = DynamicRealtimeEnvironment(factor=0.0)
     env.registry.register_sim_parameter(module.PARAMS)
@@ -89,10 +94,12 @@ def _run_low_level(module, until, processes):
         labels=[False, True],
         warmup=getattr(module, "WARMUP", None),
     )
-    for process in processes(env, sampler):
-        env.process(process)
+    started = [env.process(process) for process in processes(env, sampler)]
     try:
-        env.run(until=until)
+        if hasattr(module, "run_to_end"):
+            module.run_to_end(env, env.example_shop, started[0])
+        else:
+            env.run(until=until)
     finally:
         env.teardown()
     return _records(capture.records + labels.records)
@@ -165,6 +172,21 @@ def _competing(m, env, sampler):
     return m.processes(env, sampler, m.build(env, sampler))
 
 
+def _ending(m, env, sampler):
+    env.setup_stats("Shop", "basic", interval=30.0)
+    env.example_shop = m.build(env)
+    return m.processes(env, sampler, env.example_shop)
+
+
+# How the builder version of an example that ends by its own rules is run
+RUN = {
+    "end_conditions": {
+        "drain": {"limit": 60},
+        "stop": {"condition": "level.boxes == 0"},
+    }
+}
+
+
 def _measuring(m, env, sampler):
     env.setup_stats("Shop", "all", interval=300)
     return _built(m, env, sampler)
@@ -195,6 +217,7 @@ EXAMPLE_CASES = [
     ("process_interaction", "process_interaction.yaml", None, 300, _interaction),
     ("interruptions", "interruptions.yaml", None, 120, _patience),
     ("competing_resources", "competing_resources.yaml", None, 120, _competing),
+    ("end_conditions", "end_conditions.yaml", None, 120, _ending),
 ]
 
 
@@ -207,7 +230,7 @@ def no_catalog():
 
 def _builder_records(name, until):
     builder = _load(EXAMPLES / "builder" / f"{name}_example.py")
-    return _run_builder(builder.app, until)
+    return _run_builder(builder.app, until, **RUN.get(name, {}))
 
 
 @pytest.mark.parametrize(

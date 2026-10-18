@@ -9,8 +9,8 @@ and YAML tasks do it for you, and low-level code calls the same three methods.
 
 | Level | Adds |
 |---|---|
-| `minimal` | resource `capacity`, `in_use`, `queue_length`, `utilization`; store and container `capacity`, `level`, `getters_waiting`, `putters_waiting` |
-| `basic` | task and flow `finished`; task `balked`, `reneged`, `failed`, `interrupted`, `preempted` and `resumed`, and flow `failed`, once one happens; resource `utilization_avg`, `queue_length_avg`; store and container `level_avg` |
+| `minimal` | resource `capacity`, `in_use`, `queue_length`, `utilization`; store and container `capacity`, `level`, `getters_waiting`, `putters_waiting`; task `in_progress` |
+| `basic` | task and flow `finished`; flow `started` and `in_system`; task `balked`, `reneged`, `failed`, `interrupted`, `preempted` and `resumed`, and flow `failed`, once one happens; resource `utilization_avg`, `queue_length_avg`; store and container `level_avg` |
 | `typical` | task `wait_mean`, `wait_max`, `service_mean`, `service_max` |
 | `all` | task `wait_p50`, `wait_p95`, `wait_p99`, `service_p50`, `service_p95`, `service_p99` |
 
@@ -18,7 +18,7 @@ Each is published as telemetry named `<sim_id>.stats.<category>.<name>.<statisti
 where the category is `resources`, `stores`, `containers`, `tasks` or `flows`.
 """
 
-from typing import Any, Dict, Hashable, List, Optional, Tuple
+from typing import Any, Dict, Hashable, List, Optional, Set, Tuple
 
 import numpy as np
 
@@ -170,6 +170,12 @@ class Statistics:
         self._tasks: Dict[str, _Task] = {}
         self._flows: Dict[str, int] = {}
         self._failed_flows: Dict[str, int] = {}
+        # Flows started since the last reset, and entities in the model now
+        self._started_flows: Dict[str, int] = {}
+        self._in_system: Dict[str, int] = {}
+        # Task instances queued or started and not yet ended, and how many per task
+        self._active: Set[Tuple[str, Hashable]] = set()
+        self._in_progress: Dict[str, int] = {}
         # (task, instance) to the times it was queued and started
         self._in_flight: Dict[Tuple[str, Hashable], _InFlight] = {}
 
@@ -240,8 +246,21 @@ class Statistics:
             task: The task's name.
             instance: Its instance id.
         """
+        self._enter(task, instance)
         if self._rank >= _TYPICAL:
             self._in_flight[(task, instance)] = _InFlight(self.env.now)
+
+    def _enter(self, task: str, instance: Hashable) -> None:
+        """Counts an instance as in progress, once, at `minimal` and above."""
+        if self._rank >= _MINIMAL and (task, instance) not in self._active:
+            self._active.add((task, instance))
+            self._in_progress[task] = self._in_progress.get(task, 0) + 1
+
+    def _leave(self, task: str, instance: Hashable) -> None:
+        """Stops counting an instance as in progress."""
+        if (task, instance) in self._active:
+            self._active.discard((task, instance))
+            self._in_progress[task] -= 1
 
     def task_started(self, task: str, instance: Hashable) -> None:
         """
@@ -251,6 +270,7 @@ class Statistics:
             task: The task's name.
             instance: Its instance id.
         """
+        self._enter(task, instance)
         if self._rank < _TYPICAL:
             return
         now = self.env.now
@@ -295,6 +315,7 @@ class Statistics:
         """Clears the waiting record of an instance an interrupt ended, which
         `task_interrupted` counted already; it adds no wait or service time."""
         self._in_flight.pop((task, instance), None)
+        self._leave(task, instance)
 
     def task_resumed(self, task: str, instance: Hashable) -> None:
         """
@@ -330,6 +351,7 @@ class Statistics:
             task: The task's name.
             instance: Its instance id.
         """
+        self._leave(task, instance)
         if self._rank < _BASIC:
             return
         stats = self._task(task)
@@ -367,6 +389,7 @@ class Statistics:
             instance: Its instance id.
         """
         self._in_flight.pop((task, instance), None)
+        self._leave(task, instance)
         if self._rank >= _BASIC:
             self._task(task).reneged += 1
 
@@ -383,6 +406,7 @@ class Statistics:
             instance: Its instance id.
         """
         self._in_flight.pop((task, instance), None)
+        self._leave(task, instance)
         if self._rank >= _BASIC:
             self._task(task).failed += 1
 
@@ -395,6 +419,30 @@ class Statistics:
         """
         if self._rank >= _BASIC:
             self._failed_flows[flow] = self._failed_flows.get(flow, 0) + 1
+            if flow in self._in_system:
+                self._in_system[flow] -= 1
+
+    def flow_started(self, flow: str) -> None:
+        """
+        Records that an entity entered the model: its first task started.
+
+        Args:
+            flow: The arrival that started the entity.
+        """
+        if self._rank >= _BASIC:
+            self._started_flows[flow] = self._started_flows.get(flow, 0) + 1
+            self._in_system[flow] = self._in_system.get(flow, 0) + 1
+
+    def flow_ended(self, flow: str) -> None:
+        """
+        Records that an entity left the model without finishing or failing: it
+        balked, reneged or was abandoned after an interrupt.
+
+        Args:
+            flow: The arrival that started the entity.
+        """
+        if self._rank >= _BASIC and flow in self._in_system:
+            self._in_system[flow] -= 1
 
     def flow_finished(self, flow: str) -> None:
         """
@@ -405,6 +453,8 @@ class Statistics:
         """
         if self._rank >= _BASIC:
             self._flows[flow] = self._flows.get(flow, 0) + 1
+            if flow in self._in_system:
+                self._in_system[flow] -= 1
 
     def reset(self) -> None:
         """
@@ -421,6 +471,7 @@ class Statistics:
         self._tasks = {name: _Task(keep) for name in self._tasks}
         self._flows = {name: 0 for name in self._flows}
         self._failed_flows = {name: 0 for name in self._failed_flows}
+        self._started_flows = {name: 0 for name in self._started_flows}
 
     def readings(self) -> Dict[str, Any]:
         """
@@ -448,6 +499,8 @@ class Statistics:
                 values[f"{base}.{stat}"] = value
             for stat, average in self._averages.get((category, name), {}).items():
                 values[f"{base}.{stat}"] = average.average(now)
+        for name, count in self._in_progress.items():
+            values[f"{prefix}.tasks.{name}.in_progress"] = count
         for name, task in self._tasks.items():
             base = f"{prefix}.tasks.{name}"
             values[f"{base}.finished"] = task.finished
@@ -474,6 +527,9 @@ class Statistics:
                         values[f"{base}.{kind}_p{percent}"] = float(point)
         for flow, finished in self._flows.items():
             values[f"{prefix}.flows.{flow}.finished"] = finished
+        for flow, started in self._started_flows.items():
+            values[f"{prefix}.flows.{flow}.started"] = started
+            values[f"{prefix}.flows.{flow}.in_system"] = self._in_system[flow]
         for flow, failed in self._failed_flows.items():
             if failed:
                 values[f"{prefix}.flows.{flow}.failed"] = failed

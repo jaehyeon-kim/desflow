@@ -62,16 +62,19 @@ def pack(env, sampler, shop, key, priority, task_id):
         env.publish_event(key, value, task="pack", instance=task_id)
 
     publish({"path_id": path_id, "status": "queued"})
+    env.stats.task_queued("pack", task_id)  # counted as in progress
     with shop["packers"].request(priority=priority) as req:
         yield req
         # Waits while the stock is empty
         yield shop["stock"].get(1)
         publish({"path_id": path_id, "status": "started"})
+        env.stats.task_started("pack", task_id)
         payload = {"event_type": "order_packed", "priority": priority}
         yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
         # Waits while the store is full
         yield shop["parcels"].put(payload)
         publish(payload)
+        env.stats.task_finished("pack", task_id)
 
 
 # --8<-- [end:pack]
@@ -83,10 +86,13 @@ def collect(env, sampler, shop, key, task_id):
         env.publish_event(key, value, task="collect", instance=task_id)
 
     publish({"path_id": path_id, "status": "queued"})
+    env.stats.task_queued("collect", task_id)
     yield shop["parcels"].get()
     publish({"path_id": path_id, "status": "started"})
+    env.stats.task_started("collect", task_id)
     yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
     publish({"event_type": "parcel_collected"})
+    env.stats.task_finished("collect", task_id)
 
 
 def order_generator(env, sampler, shop, arrival, pack_ids):

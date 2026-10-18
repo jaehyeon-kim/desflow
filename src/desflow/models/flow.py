@@ -29,6 +29,8 @@ class Entity:
     attributes: Dict[str, Any] = field(default_factory=dict)
     # Units a task kept for the next task of the flow, by resource name
     held: Dict[str, Any] = field(default_factory=dict, repr=False, compare=False)
+    # Whether its first task has started, so it counts as in the model
+    entered: bool = field(default=False, repr=False, compare=False)
 
 
 @dataclass

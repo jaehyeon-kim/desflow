@@ -318,4 +318,4 @@ Initialisation bias fades as the model forgets how it started: here the queue th
             print(f"with a 2 min warm-up: mean wait {mean_wait(WARMUP):.3f} s")
         ```
 
-Next, [Stock](stock.md) asks what happens when the shop runs out of boxes.
+Next, [End Conditions](end-conditions.md) asks which orders a run's results describe when it ends.

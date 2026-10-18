@@ -1,0 +1,18 @@
+# Pings every 10 s; the shop closes at 25, firing the signal closing, and the run
+# stops there although until is 100. See test_c6_end_conditions.py.
+simulation:
+  sim_id: C6
+  factor: 0
+signals: [closing]
+arrivals:
+  pings: {dist: constant, value: 10, spawn: ping}
+  closings: {dist: constant, value: 25, spawn: close}
+tasks:
+  ping:
+    payload: {event: ping}
+  close:
+    payload: {event: closed}
+    signal: closing
+run:
+  until: 100
+  stop: {signal: closing}

@@ -50,10 +50,13 @@ A task's `patience` is how long it waits, for its resource and then for its `get
         def publish(value):
             env.publish_event(key, value, task="pack", instance=task_id)
 
+        flow = key.rsplit("-", 1)[0]
+        env.stats.flow_started(flow)  # the order enters the shop
         # No new orders once the courier has made its last collection
         if env.now >= 100:
             publish({"path_id": path_id, "status": "balked"})
             env.stats.task_balked("pack", task_id)
+            env.stats.flow_ended(flow)
             return
         publish({"path_id": path_id, "status": "queued"})
         env.stats.task_queued("pack", task_id)
@@ -63,13 +66,14 @@ A task's `patience` is how long it waits, for its resource and then for its `get
             if not req.triggered:
                 publish({"path_id": path_id, "status": "reneged"})
                 env.stats.task_reneged("pack", task_id)
+                env.stats.flow_ended(flow)
                 return
             publish({"path_id": path_id, "status": "started"})
             env.stats.task_started("pack", task_id)
             yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
             publish({"event_type": "order_packed"})
         env.stats.task_finished("pack", task_id)
-        env.stats.flow_finished(key.rsplit("-", 1)[0])
+        env.stats.flow_finished(flow)
     ```
 
     A low-level process writes both by hand: an `if` before the request, and SimPy's `request | env.timeout(patience)`, which happens when either event does. Leaving the `with` block takes a waiting request out of the queue at once, so it is never granted later.

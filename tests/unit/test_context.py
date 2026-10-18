@@ -576,6 +576,18 @@ def test_preemption_settings_are_checked():
         SimulationContext("TestSim").task("s", "m", keep=["bench"])
 
 
+def test_stop_and_drain_are_checked_when_the_run_starts():
+    app = SimulationContext("TestSim", factor=0.0)
+    with pytest.raises(ValueError, match="needs until"):
+        app.run(drain=True)
+    with pytest.raises(ValueError, match="signal 'closing', which is not added"):
+        SimulationContext("TestSim", factor=0.0).run(
+            until=1, stop={"signal": "closing"}
+        )
+    with pytest.raises(ValueError, match="stop takes a signal or a condition"):
+        SimulationContext("TestSim", factor=0.0).run(until=1, stop={"event": "x"})
+
+
 def test_balk_with_an_unknown_level_fails_before_the_run():
     """A balk expression is checked before the clock starts, like a priority."""
     app = (

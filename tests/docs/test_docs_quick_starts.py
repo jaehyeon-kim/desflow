@@ -34,6 +34,7 @@ PAGES = {
     "process-interaction": "docs/user-guide/tasks-and-processes.md",
     "interruptions": "docs/user-guide/resources.md",
     "competing-resources": "docs/user-guide/resources.md",
+    "end-conditions": "docs/user-guide/time-and-pacing.md",
 }
 TABS = {"yaml": "YAML", "builder": "Builder", "low-level": "Low-level"}
 ODCTL = '"odctl>=1.0,<2"'

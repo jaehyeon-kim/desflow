@@ -638,15 +638,54 @@ class ScenarioStep(_Model):
         return self
 
 
+class Drain(_Model):
+    """A `run.drain` mapping: the longest a drain may run after `until`."""
+
+    limit: Optional[float] = Field(default=None, gt=0)
+
+    @field_validator("limit", mode="before")
+    @classmethod
+    def _parse_limit(cls, value: Any) -> Any:
+        return None if value is None else _seconds(value)
+
+
 class Run(_Model):
     """The `run` section.
 
     `before` lists `!python` functions called with no arguments before the run
-    starts, for setup such as creating topics or tables.
+    starts, for setup such as creating topics or tables. `stop` ends the run before
+    `until` at the next firing of a signal, `{signal: name}`, or when a condition
+    first holds, `{condition: ...}`. `drain`, `true` or `{limit: 1 h}`, stops the
+    arrivals at `until` and runs on until no entity is left in the model.
     """
 
     until: Optional[float] = Field(default=None, gt=0)
     before: List[Callable[[], Any]] = Field(default_factory=list)
+    stop: Optional[Dict[str, str]] = None
+    drain: Union[bool, Drain] = False
+
+    @field_validator("stop")
+    @classmethod
+    def _one_stop(cls, value: Any) -> Any:
+        if value is None:
+            return value
+        if len(value) != 1 or not set(value) <= {"signal", "condition"}:
+            raise ValueError("stop takes {signal: name} or {condition: ...}")
+        if "condition" in value:
+            Expression(value["condition"])
+        return value
+
+    @model_validator(mode="after")
+    def _drain_needs_until(self) -> "Run":
+        if self.drain is not False and self.until is None:
+            raise ValueError("drain starts at until, so it needs until")
+        return self
+
+    def drain_setting(self) -> Any:
+        """`drain` in the form `SimulationContext.run` takes."""
+        if isinstance(self.drain, Drain):
+            return {"limit": self.drain.limit}
+        return self.drain or None
 
     @field_validator("until", mode="before")
     @classmethod

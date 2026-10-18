@@ -67,6 +67,7 @@ class Shop:
 def pack(shop, key, arrival):
     env, stats, task_id = shop.env, shop.env.stats, shop.next_id("pack")
     path_id = "Shop.service.packing"
+    stats.flow_started(arrival)  # the order enters the shop
     shop.publish(key, "pack", task_id, {"path_id": path_id, "status": "queued"})
     stats.task_queued("pack", task_id)
     with shop.packers.request() as req:
@@ -158,6 +159,7 @@ def send(shop, key, arrival, task):
 def courier(shop, key):
     """Fires courier_left; every order waiting for it resumes."""
     task_id = shop.next_id("courier")
+    shop.env.stats.flow_started("couriers")
     payload = {"event_type": "courier_left"}
     shop.publish(key, "courier", task_id, payload)
     shop.env.stats.task_finished("courier", task_id)
