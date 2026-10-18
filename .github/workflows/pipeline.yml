@@ -21,7 +21,7 @@ concurrency:
 jobs:
   # Stages, each starting only when the one before it passes:
   # 1. checks, in parallel: lint, extras-isolation and core-install;
-  # 2. tests, in parallel: unit-test, integration-test and blueprint;
+  # 2. tests, in parallel: unit-test, integration-test, blueprint and simpy-range;
   # 3. docs-build;
   # 4. docs, on main only.
   # Linting is not version specific, so it runs once rather than in all five
@@ -203,6 +203,40 @@ jobs:
         # version in .python-version and the other three would test nothing new.
         run: uv run --python ${{ matrix.python-version }} --with pytest-cov --all-extras pytest tests/unit/ tests/conformance/ --cov=src/desflow --cov-report=xml
 
+  # SimPy is what desflow is checked against, so the conformance tests run at both
+  # ends of the `simpy` requirement: the floor in pyproject.toml and the newest
+  # release, which may be newer than uv.lock until Dependabot updates it. Only
+  # SimPy moves; every other package stays at its locked version.
+  simpy-range:
+    name: Conformance at the ${{ matrix.bound }} SimPy
+    needs: [lint, extras-isolation, core-install]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        bound: [lowest, newest]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Choose the SimPy version
+        run: |
+          if [ "${{ matrix.bound }}" = "lowest" ]; then
+            floor=$(python3 -c "import re, tomllib; deps = tomllib.load(open('pyproject.toml', 'rb'))['project']['dependencies']; print(next(re.fullmatch(r'simpy>=([0-9.]+)', d).group(1) for d in deps if d.startswith('simpy')))")
+            echo "SIMPY=simpy==$floor" >> "$GITHUB_ENV"
+          else
+            echo "SIMPY=simpy" >> "$GITHUB_ENV"
+          fi
+
+      - name: Run the conformance tests
+        run: |
+          uv run --all-extras --with "$SIMPY" python -c "import simpy; print('SimPy', simpy.__version__)"
+          uv run --all-extras --with "$SIMPY" pytest tests/conformance/ -q
+
   integration-test:
     needs: [lint, extras-isolation, core-install]
     runs-on: ubuntu-latest
@@ -267,7 +301,7 @@ jobs:
   # deployed from code that passed them. Material prints a notice about MkDocs 2.0
   # that strict mode counts as a warning; the variable turns that notice off.
   docs-build:
-    needs: [unit-test, integration-test, blueprint]
+    needs: [unit-test, integration-test, blueprint, simpy-range]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

@@ -30,7 +30,7 @@ Releases come in the order shown, without dates: a release ships when it is read
   icon: ':material-check:'
   key: done
 - title: Native core parity
-  content: 'In 0.22.0: the modelling features of SimPy in YAML, the builder and the low-level API, checked against SimPy: signals, interrupts, tasks needing several resources, filtered store gets, stopping and stepping a run, and customers who give up on a queue or never join it. [#64](https://github.com/jaehyeon-kim/desflow/issues/64)'
+  content: 'In 0.22.0: the operations on the SimPy Compatibility page, natively in YAML, the builder and the low-level API, each checked against SimPy: signals, interrupts, tasks needing several resources, filtered store gets, stopping and stepping a run, and customers who give up on a queue or never join it. [#64](https://github.com/jaehyeon-kim/desflow/issues/64)'
   icon: ':material-clock-outline:'
   key: planned
 - title: Breakdowns, changing demand and replay
@@ -51,6 +51,10 @@ Releases come in the order shown, without dates: a release ships when it is read
   key: planned
 - title: Record contract
   content: 'In 0.22.0: every record field documented with its type and format, payload keys such as `__table__` reserved for desflow, a `timezone` setting for timestamps, and no `lag_seconds` from a run at full speed. The format is frozen before 1.0. [#51](https://github.com/jaehyeon-kim/desflow/issues/51)'
+  icon: ':material-clock-outline:'
+  key: planned
+- title: SimPy parity
+  content: 'In 0.23.0: every SimPy 4.1.2 feature natively in YAML, the builder and the low-level API, each checked against SimPy, such as nested conditions, event callbacks, unlimited stores and custom resource types. The SimPy Compatibility page lists each one, and the two differences kept by design. [#ISSUE](https://github.com/jaehyeon-kim/desflow/issues/ISSUE)'
   icon: ':material-clock-outline:'
   key: planned
 - title: Blueprint schema and AI skill

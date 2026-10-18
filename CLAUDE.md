@@ -18,7 +18,7 @@ Real-time SimPy simulations whose parameters change while they run, writing even
 | `examples/` | `low-level/` (low-level API), `builder/` (builder), `yaml/` (blueprints) |
 | `docs/` | MkDocs Material site, versioned with mike, deployed from `main`: `des/` and `tutorials/` (the Learn section), `user-guide/` (Ways to Write, YAML Blueprints, Builder API, Low-level API, then the parts), `guides/` (the How-To section), `examples/`, `reference/`, `about/` |
 | `tests/unit/`, `tests/docs/`, `tests/integration/` | the library's own tests; tests of the docs, snippets, examples and scripts; integration tests against containers started with odctl |
-| `tests/conformance/` | each operation checked against plain SimPy 4.1.1 in the low-level, builder and YAML APIs (`harness.py`, blueprints in `blueprints/`); `register.yaml` lists every operation with its forms, checks and docs page, and `scripts/gen_pages.py` turns it into the SimPy Compatibility page. A new `test_*` function there must be listed in `register.yaml` |
+| `tests/conformance/` | each operation checked against plain SimPy, the version in `uv.lock`, in the low-level, builder and YAML APIs (`harness.py`, blueprints in `blueprints/`); `register.yaml` lists every operation with its forms, checks and docs page, and `scripts/gen_pages.py` turns it into the SimPy Compatibility page. A new `test_*` function there must be listed in `register.yaml` |
 | `scripts/` | `gen_pages.py` (the generated Reference pages, run by every docs build: Distributions, Statistic Names, SimPy Compatibility), `record_blocks.py` (the record blocks on pages), `charts.py` (the charts), `diagrams.py` (the diagram images), `release_notes.py` |
 | `benchmarks/` | `throughput.py` (see issue #24) |
 
@@ -54,9 +54,10 @@ A plain `uv run` without `--all-extras` removes the extras from the venv, and th
 
 ## Release
 
-1. Bump `version` in `pyproject.toml` and add the release to `docs/about/changelog.md`, with an Upgrading line for any rename or behaviour change; when it reaches `main`, the pipeline deploys the docs as that version, aliased `latest`, and copies its `404.html` to the site root.
-2. Once the `main` pipeline for that commit is green, tag `vX.Y.Z` on it and publish a GitHub release whose text is that version's Changelog section, so the two never differ: `python scripts/release_notes.py X.Y.Z > /tmp/notes.md`, then `gh release create vX.Y.Z --title vX.Y.Z --notes-file /tmp/notes.md`. `publish.yml` runs on the published release and uploads to PyPI through the `pypi` environment.
-3. Python 3.15 is not in the CI matrix yet: confluent-kafka has no 3.15 wheel (issue #40).
+1. Read SimPy's changelog (`CHANGES.rst` in its sdist) for every release since the version in `uv.lock` at the last desflow release. For each behaviour change, add a conformance check that compares desflow with the new SimPy, and move `uv.lock` to it; the tests must pass at both ends of the `simpy` requirement.
+2. Bump `version` in `pyproject.toml` and add the release to `docs/about/changelog.md`, with an Upgrading line for any rename or behaviour change; when it reaches `main`, the pipeline deploys the docs as that version, aliased `latest`, and copies its `404.html` to the site root.
+3. Once the `main` pipeline for that commit is green, tag `vX.Y.Z` on it and publish a GitHub release whose text is that version's Changelog section, so the two never differ: `python scripts/release_notes.py X.Y.Z > /tmp/notes.md`, then `gh release create vX.Y.Z --title vX.Y.Z --notes-file /tmp/notes.md`. `publish.yml` runs on the published release and uploads to PyPI through the `pypi` environment.
+4. Python 3.15 is not in the CI matrix yet: confluent-kafka has no 3.15 wheel (issue #40).
 
 ## Git
 

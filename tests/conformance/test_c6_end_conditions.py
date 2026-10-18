@@ -471,11 +471,13 @@ def test_c6_step_one_event():
 
 
 def test_c6_inspect_next_event_time():
-    """peek gives the next event's time, and infinity when none is left."""
+    """peek gives the time of the next event SimPy would process, stepping the same
+    model in the same way."""
     env = simpy.Environment()
     env.process(_periodic(env, 10, lambda: iter(())))
-    env.run(until=5)
-    assert env.peek() == 10
+    while env.peek() < 5:
+        env.step()
+    expected = env.peek()
 
     app = SimulationContext("C6", factor=0.0)
     app.add_arrival("pings", dist="constant", value=10)
@@ -493,8 +495,48 @@ def test_c6_inspect_next_event_time():
     app.start()
     while app.peek() < 5:
         app.step()
-    assert app.peek() == 10
+    assert app.peek() == expected == 10
     app.close()
+
+
+def _stopped_and_resumed(env):
+    """A run stopped at an event that a process waits for, then run on.
+
+    The stop is asked for before the process waits, so the process's callback comes
+    after SimPy's stop on the event: what happens to it when the run resumes is
+    the version's rule (4.1.2 keeps it and runs it on resume).
+    """
+    trace = []
+    gate = env.event()
+
+    def opener():
+        yield env.timeout(5)
+        gate.succeed("open")
+
+    def waiter():
+        yield env.timeout(3)
+        value = yield gate
+        trace.append((env.now, "through", value))
+
+    env.process(opener())
+    env.process(waiter())
+    # `run(until=gate)` adds its stop callback to the gate before the waiter does
+    env.run(until=2)
+    stop_value = env.run(until=gate)
+    trace.append((env.now, "stopped", stop_value))
+    env.run(until=10)
+    return trace
+
+
+def test_c6_stopped_and_resumed_run():
+    """A low-level run stopped at an event and run on gives SimPy's trace: on
+    SimPy 4.1.2 the waiter, whose callback came after the stop, goes through when
+    the run resumes."""
+    expected = _stopped_and_resumed(simpy.Environment())
+    assert expected[0] == (5, "stopped", "open")
+    env = DynamicRealtimeEnvironment(factor=0.0)
+    assert _stopped_and_resumed(env) == expected
+    env.teardown()
 
     empty = DynamicRealtimeEnvironment(factor=0.0)
     assert empty.peek() == float("inf")

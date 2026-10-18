@@ -68,3 +68,13 @@ def test_every_register_page_exists_and_every_group_has_a_heading():
     page = gen_pages.compatibility_page()
     for entry in gen_pages.register():
         assert f"[{entry['operation']}](../{entry['page']})" in page
+
+
+def test_the_simpy_version_is_read_from_the_lock():
+    """The page names the SimPy version in uv.lock, the one the tests run on."""
+    import tomllib
+
+    lock = tomllib.loads((ROOT / "uv.lock").read_text(encoding="utf-8"))
+    version = next(p["version"] for p in lock["package"] if p["name"] == "simpy")
+    assert gen_pages.simpy_version() == version
+    assert f"a plain SimPy {version} model" in gen_pages.compatibility_page()

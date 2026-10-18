@@ -14,12 +14,13 @@ build.
   form in each API, the conformance tests that compare it with SimPy, and its page.
 """
 
+import tomllib
 from pathlib import Path
 from typing import Any, Dict, List
 
-REGISTER = (
-    Path(__file__).resolve().parents[1] / "tests" / "conformance" / "register.yaml"
-)
+ROOT = Path(__file__).resolve().parents[1]
+REGISTER = ROOT / "tests" / "conformance" / "register.yaml"
+LOCK = ROOT / "uv.lock"
 SOURCE_URL = "https://github.com/jaehyeon-kim/desflow/blob/main/"
 
 # One example per family, in the units a blueprint uses. The code does not know a
@@ -267,6 +268,16 @@ def _check_link(check: str) -> str:
     return f"[`{name}`]({SOURCE_URL}{path})"
 
 
+def simpy_version() -> str:
+    """The SimPy version in `uv.lock`, the one the conformance tests run against.
+
+    It is named here once, read from the lock, so a Dependabot update of the lock
+    changes the page with no edit.
+    """
+    lock = tomllib.loads(LOCK.read_text(encoding="utf-8"))
+    return next(p["version"] for p in lock["package"] if p["name"] == "simpy")
+
+
 def compatibility_page() -> str:
     """The SimPy Compatibility reference page, as Markdown."""
     entries = register()
@@ -275,7 +286,8 @@ def compatibility_page() -> str:
         "",
         "Every SimPy operation desflow supports natively, with its form in YAML, the "
         "builder and the low-level API. Each is checked by conformance tests that run "
-        "a plain SimPy 4.1.1 model and the same model in all three APIs, and compare "
+        f"a plain SimPy {simpy_version()} model and the same model in all three APIs, "
+        "and compare "
         "event times, outcomes and balances. The page is generated from "
         f"[`tests/conformance/register.yaml`]({SOURCE_URL}tests/conformance/register.yaml), "
         "the list the tests read, so a row appears here only with its checks.",

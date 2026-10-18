@@ -1,5 +1,6 @@
 # The SimPy compatibility register: every SimPy operation desflow supports natively,
-# its form in each API, the conformance tests that compare it with plain SimPy 4.1.1,
+# its form in each API, the conformance tests that compare it with plain SimPy (the
+# version in uv.lock, which scripts/gen_pages.py names on the page),
 # and the docs page that teaches it. scripts/gen_pages.py writes the SimPy
 # Compatibility page from this file, and tests/docs/test_gen_pages.py checks that
 # every check names a test function, every test function here is listed, and every
@@ -412,6 +413,7 @@
   checks:
     - tests/conformance/test_c6_end_conditions.py::test_c6_stop_at_an_event
     - tests/conformance/test_c6_end_conditions.py::test_c6_stop_at_an_event_at_the_same_instant_as_until
+    - tests/conformance/test_c6_end_conditions.py::test_c6_stopped_and_resumed_run
   page: user-guide/time-and-pacing.md#stop-early
   differences: When the stop and `until` fall at the same time, `until` ends the run first, as SimPy's own `until` would.
 

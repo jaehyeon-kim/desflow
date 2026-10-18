@@ -6,8 +6,11 @@ updates:
     schedule:
       interval: "weekly"
 
-  # Automate Python dependency updates via pyproject.toml
-  - package-ecosystem: "pip"
+  # Python dependencies: the uv ecosystem updates uv.lock, so the versions CI tests,
+  # SimPy above all, follow new releases. The pip ecosystem left the lower bounds
+  # in pyproject.toml alone and never touched uv.lock, so CI kept testing SimPy
+  # 4.1.1 after 4.1.2 was what users installed.
+  - package-ecosystem: "uv"
     directory: "/"
     schedule:
       interval: "weekly"

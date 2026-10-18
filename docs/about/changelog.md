@@ -27,6 +27,7 @@ desflow matches SimPy operation by operation, in YAML, the builder and the low-l
 
 ### Upgrading
 
+- desflow needs SimPy 4.1.0 or later, where it accepted 4.0.0: SimPy 4.0 imports `pkg_resources`, which a new Python environment does not have. It is tested against SimPy 4.1.2, the newest release, and against 4.1.0.
 - A `priority` on a store `get` is refused; priority orders a `put` into a priority store.
 - Resources grant units with the same events as SimPy's `Resource`, so requests at the same simulation time are granted in SimPy's order, which can change seeded output where such ties occur.
 - `patience` now covers a task's `get` as well as its resource, so a task with both can renege while it waits for stock. A task with `patience` needs a resource or a `get`.
