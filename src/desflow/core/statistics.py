@@ -10,7 +10,7 @@ and YAML tasks do it for you, and low-level code calls the same three methods.
 | Level | Adds |
 |---|---|
 | `minimal` | resource `capacity`, `in_use`, `queue_length`, `utilization`; store and container `capacity`, `level`, `getters_waiting`, `putters_waiting` |
-| `basic` | task and flow `finished`; task `balked`, `reneged` and `failed`, and flow `failed`, once one happens; resource `utilization_avg`, `queue_length_avg`; store and container `level_avg` |
+| `basic` | task and flow `finished`; task `balked`, `reneged`, `failed`, `interrupted`, `preempted` and `resumed`, and flow `failed`, once one happens; resource `utilization_avg`, `queue_length_avg`; store and container `level_avg` |
 | `typical` | task `wait_mean`, `wait_max`, `service_mean`, `service_max` |
 | `all` | task `wait_p50`, `wait_p95`, `wait_p99`, `service_p50`, `service_p95`, `service_p99` |
 
@@ -64,12 +64,36 @@ class _Observations:
         self.max = 0.0
         self.values: Optional[List[float]] = [] if keep else None
 
-    def add(self, value: float) -> None:
+    def add(self, value: float) -> int:
+        """Adds one observation and returns its position, for `extend`."""
         self.count += 1
         self.total += value
         self.max = max(self.max, value)
         if self.values is not None:
             self.values.append(value)
+            return len(self.values) - 1
+        return self.count - 1
+
+    def extend(self, position: int, before: float, more: float) -> None:
+        """Adds `more` to an observation that was `before`, without counting a new
+        one, as an interrupted task's second wait adds to its first."""
+        self.total += more
+        self.max = max(self.max, before + more)
+        if self.values is not None:
+            self.values[position] = before + more
+
+
+class _InFlight:
+    """One task instance between `queued` and its end: when it last queued and
+    started, its wait so far and the time it has been served."""
+
+    def __init__(self, queued: float):
+        self.queued: Optional[float] = queued
+        self.started: Optional[float] = None
+        self.waited = 0.0
+        self.served = 0.0
+        # The task statistics and position of its wait observation
+        self.observation: Optional[Tuple[Any, int]] = None
 
 
 class _Task:
@@ -78,6 +102,9 @@ class _Task:
         self.balked = 0
         self.reneged = 0
         self.failed = 0
+        self.interrupted = 0
+        self.preempted = 0
+        self.resumed = 0
         self.wait = _Observations(keep)
         self.service = _Observations(keep)
 
@@ -144,7 +171,7 @@ class Statistics:
         self._flows: Dict[str, int] = {}
         self._failed_flows: Dict[str, int] = {}
         # (task, instance) to the times it was queued and started
-        self._in_flight: Dict[Tuple[str, Hashable], List[Optional[float]]] = {}
+        self._in_flight: Dict[Tuple[str, Hashable], _InFlight] = {}
 
     def configure(
         self, sim_id: str, level: str, interval: float = DEFAULT_STATS_INTERVAL
@@ -214,7 +241,7 @@ class Statistics:
             instance: Its instance id.
         """
         if self._rank >= _TYPICAL:
-            self._in_flight[(task, instance)] = [self.env.now, None]
+            self._in_flight[(task, instance)] = _InFlight(self.env.now)
 
     def task_started(self, task: str, instance: Hashable) -> None:
         """
@@ -227,14 +254,77 @@ class Statistics:
         if self._rank < _TYPICAL:
             return
         now = self.env.now
-        times = self._in_flight.setdefault((task, instance), [now, None])
-        queued_at = times[0] if times[0] is not None else now
-        times[1] = now
-        self._task(task).wait.add(now - queued_at)
+        flight = self._in_flight.setdefault((task, instance), _InFlight(now))
+        queued_at = flight.queued if flight.queued is not None else now
+        flight.waited = now - queued_at
+        flight.started, flight.queued = now, None
+        stats = self._task(task)
+        flight.observation = (stats, stats.wait.add(flight.waited))
+
+    def task_interrupted(
+        self, task: str, instance: Hashable, preempted: bool = False
+    ) -> None:
+        """
+        Records that a task instance was interrupted or preempted, and waits again.
+
+        The time it was served so far is kept, and its wait starts again from now.
+        It is counted at `basic`, as `interrupted` or as `preempted`.
+
+        Args:
+            task: The task's name.
+            instance: Its instance id.
+            preempted: True when a higher-priority request took its unit.
+        """
+        if self._rank >= _BASIC:
+            stats = self._task(task)
+            if preempted:
+                stats.preempted += 1
+            else:
+                stats.interrupted += 1
+        flight = self._in_flight.get((task, instance))
+        if flight is None:
+            return
+        now = self.env.now
+        if flight.started is not None:
+            flight.served += now - flight.started
+            flight.started = None
+        if flight.queued is None:
+            flight.queued = now
+
+    def task_dropped(self, task: str, instance: Hashable) -> None:
+        """Clears the waiting record of an instance an interrupt ended, which
+        `task_interrupted` counted already; it adds no wait or service time."""
+        self._in_flight.pop((task, instance), None)
+
+    def task_resumed(self, task: str, instance: Hashable) -> None:
+        """
+        Records that an interrupted task instance has its units again and is served.
+
+        Its wait since the interruption is added to its first wait, so the wait of
+        the instance sums every wait, and it is counted at `basic` as `resumed`.
+
+        Args:
+            task: The task's name.
+            instance: Its instance id.
+        """
+        if self._rank >= _BASIC:
+            self._task(task).resumed += 1
+        flight = self._in_flight.get((task, instance))
+        if flight is None:
+            return
+        now = self.env.now
+        more = now - flight.queued if flight.queued is not None else 0.0
+        if flight.observation is not None:
+            stats, position = flight.observation
+            # A reset since the first wait started new statistics; leave them
+            if stats is self._tasks.get(task):
+                stats.wait.extend(position, flight.waited, more)
+        flight.waited += more
+        flight.started, flight.queued = now, None
 
     def task_finished(self, task: str, instance: Hashable) -> None:
         """
-        Records that a task instance finished, with its service time if it started.
+        Records that a task instance finished, with the time it was served.
 
         Args:
             task: The task's name.
@@ -244,9 +334,12 @@ class Statistics:
             return
         stats = self._task(task)
         stats.finished += 1
-        times = self._in_flight.pop((task, instance), None)
-        if times is not None and times[1] is not None:
-            stats.service.add(self.env.now - times[1])
+        flight = self._in_flight.pop((task, instance), None)
+        if flight is not None and (flight.started is not None or flight.served):
+            served = flight.served
+            if flight.started is not None:
+                served += self.env.now - flight.started
+            stats.service.add(served)
 
     def task_balked(self, task: str, instance: Hashable) -> None:
         """
@@ -360,7 +453,14 @@ class Statistics:
             values[f"{base}.finished"] = task.finished
             # Published once one happens, so a task without patience or a balk
             # condition publishes neither
-            for outcome in ("balked", "reneged", "failed"):
+            for outcome in (
+                "balked",
+                "reneged",
+                "failed",
+                "interrupted",
+                "preempted",
+                "resumed",
+            ):
                 if getattr(task, outcome):
                     values[f"{base}.{outcome}"] = getattr(task, outcome)
             for kind, observed in (("wait", task.wait), ("service", task.service)):

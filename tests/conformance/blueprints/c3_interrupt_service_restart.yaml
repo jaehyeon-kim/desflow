@@ -1,0 +1,22 @@
+# A worker starts at 10 with an exponential service and is interrupted at 12 with
+# on_interrupt: restart. See test_c3_interrupts.py.
+simulation:
+  sim_id: C3
+  factor: 0
+  random_seed: 7
+resources:
+  machine: {current_cap: 1, max_cap: 1}
+services:
+  work: {dist: exponential, rate: 0.2}
+arrivals:
+  workers: {dist: constant, value: 10, spawn: worker}
+tasks:
+  worker:
+    service: work
+    resource: machine
+    on_interrupt: restart
+    payload: {event: worked}
+scenario:
+  - {at: 12, interrupt: {task: worker, cause: recall}}
+run:
+  until: 19.9

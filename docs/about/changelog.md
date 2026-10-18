@@ -11,6 +11,8 @@ desflow matches SimPy operation by operation, in YAML, the builder and the low-l
 - A store can start with items: `stores.<name>.items`, `add_store(..., items=[...])` and `DynamicStore(..., items=[...])`; a priority store takes `[priority, item]` pairs. `initial_time` takes a duration such as `8 h`. See [Stores and Containers](../user-guide/stores-and-containers.md#start-with-items-and-serve-by-priority) and [Time and Pacing](../user-guide/time-and-pacing.md#initial-time).
 - A store `get` can take a `filter`, such as `item.area == attr.area`, and `patience` covers the wait for a `get` as well as for a resource; `item_field` adds the item a YAML get took to the payload. See [Stores and Containers](../user-guide/stores-and-containers.md#pick-an-item-or-give-up-waiting) and [Filtered Inventory](../tutorials/filtered-inventory.md).
 - Tasks interact as SimPy processes do: `signals` that tasks fire and wait for, a `wait` for one or all of signals, child flows, timeouts and conditions, and `fail`, `fail_reason` and `on_fail` for a task that fails. `context.spawn` returns the process it starts, and `context.call` starts a child flow. See [Process Interaction](../tutorials/process-interaction.md), [Tasks and Processes](../user-guide/tasks-and-processes.md#wait-signals-and-child-flows) and [Wait for One or All](../guides/wait-for-one-or-all.md).
+- Interrupts and preemption: an `interrupt` on a task or scenario step, or `context.interrupt`, interrupts running task instances; `on_interrupt: resume`, `restart` or `abandon` says what each does; `preempt: true` on a priority resource lets a lower priority value take a busy unit. See [Interruptions](../tutorials/interruptions.md) and [Resources](../user-guide/resources.md#preemption).
+- A task can hold several resources, `resource: [picker, bench]`, acquired in that order, and hand a unit to the next task with `keep`; a model that acquires resources in opposite orders is refused. See [Competing Resources](../tutorials/competing-resources.md) and [Resources](../user-guide/resources.md#several-resources).
 - A low-level request can be cancelled with `request.cancel()` and given back with `resource.release(request)`, as in SimPy. See [Resources](../user-guide/resources.md#how-it-works).
 
 ### Upgrading
@@ -20,7 +22,7 @@ desflow matches SimPy operation by operation, in YAML, the builder and the low-l
 - `patience` now covers a task's `get` as well as its resource, so a task with both can renege while it waits for stock. A task with `patience` needs a resource or a `get`.
 - A store without priority is now a SimPy `FilterStore`; it serves a `get` without a filter as before.
 - A builder task whose function raises now fails the task, publishing `failed` with the error as its reason and ending the entity's flow, instead of stopping the run.
-- Events with the statuses `balked`, `reneged` and `failed` reach the sinks, so a consumer that filters on `status` should expect them.
+- Events with the statuses `balked`, `reneged`, `failed`, `interrupted`, `preempted` and `resumed` reach the sinks, so a consumer that filters on `status` should expect them.
 
 ## Version 0.21.0
 

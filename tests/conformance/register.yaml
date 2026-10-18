@@ -129,6 +129,40 @@
     - tests/conformance/test_c2_wait_for_one_or_all.py::test_c2_wait_for_all_events_with_a_failing_branch
   page: guides/wait-for-one-or-all.md#wait-for-all
 
+- id: C3
+  operation: Interrupt while waiting
+  simpy: "`simpy.Process.interrupt` while the process waits for a request"
+  yaml: "`interrupt: {task: waiter}` on a scenario step or a task; `on_interrupt` on the task"
+  builder: "`context.interrupt(\"waiter\")`; `@app.task(on_interrupt=...)`"
+  low_level: "`process.interrupt(cause)`, caught as `simpy.Interrupt`"
+  checks:
+    - tests/conformance/test_c3_interrupts.py::test_c3_interrupt_while_waiting
+  page: tutorials/interruptions.md#interrupt-a-task
+
+- id: C3
+  operation: Interrupt during service
+  simpy: "`simpy.Process.interrupt` while the process holds a unit"
+  yaml: "`on_interrupt: resume`, `restart` or `abandon`"
+  builder: "`@app.task(on_interrupt=...)`"
+  low_level: "`except simpy.Interrupt`, then request again"
+  checks:
+    - tests/conformance/test_c3_interrupts.py::test_c3_interrupt_during_service
+    - tests/conformance/test_c3_interrupts.py::test_c3_two_interrupts_at_one_instant
+  page: tutorials/interruptions.md#resume-restart-or-abandon
+
+- id: C3
+  operation: Priority preemption
+  simpy: "`simpy.resources.resource.PreemptiveResource`"
+  yaml: "`resources.<name>.preempt: true` with `queue: priority`; `preempt: false` on a task opts out"
+  builder: "`add_resource(..., queue=\"priority\", preempt=True)`"
+  low_level: "`DynamicResource(..., queue=\"priority\", preempt=True)` and `request(priority, preempt=True)`"
+  checks:
+    - tests/conformance/test_c3_interrupts.py::test_c3_priority_preemption
+    - tests/conformance/test_c3_interrupts.py::test_c3_priority_preemption_equal_priorities
+    - tests/conformance/test_c3_interrupts.py::test_c3_two_preemptions_at_one_instant
+    - tests/conformance/test_c3_interrupts.py::test_c3_priority_preemption_low_level
+  page: user-guide/resources.md#preemption
+
 - id: C4
   operation: Ordinary request and release
   simpy: "`simpy.resources.resource.Resource`"
@@ -149,6 +183,37 @@
     - tests/conformance/test_c4_resources.py::test_c4_priority_resource_request
   page: user-guide/resources.md#task-priority
   differences: Equal priorities are served first in, first out, as in SimPy; desflow also offers `fifo` and `lifo` queues, under which a request's priority is ignored.
+
+- id: C4
+  operation: Cancel before a grant
+  simpy: "`Request.cancel()` before it is granted"
+  yaml: "`patience`, or an interrupt with `on_interrupt: abandon`"
+  builder: the same
+  low_level: "`request.cancel()`, or leaving the `with` block"
+  checks:
+    - tests/conformance/test_c4_resources.py::test_c4_cancel_before_a_grant
+  page: user-guide/resources.md#cancel-and-release
+
+- id: C4
+  operation: Cancel after a grant
+  simpy: "`Request.cancel()` after the grant releases nothing; `Resource.release(request)` does"
+  yaml: "an interrupt with `on_interrupt: abandon` gives the unit back"
+  builder: the same
+  low_level: "`request.cancel()` releases nothing; `resource.release(request)`"
+  checks:
+    - tests/conformance/test_c4_resources.py::test_c4_cancel_after_a_grant
+  page: user-guide/resources.md#cancel-and-release
+
+- id: C4
+  operation: Hold several resources
+  simpy: nested requests, each held while the next is awaited
+  yaml: "`resource: [picker, bench]`, acquired in that order; `keep` hands units to the next task"
+  builder: "`@app.task(resource_id=[\"picker\", \"bench\"], keep=[...])`"
+  low_level: nested `with` blocks
+  checks:
+    - tests/conformance/test_c4_resources.py::test_c4_hold_several_resources
+  page: user-guide/resources.md#several-resources
+  differences: A model whose tasks acquire two resources in opposite orders is refused when it is built, because those tasks could each wait for ever; SimPy runs it.
 
 - id: C5
   operation: Bounded store put
@@ -236,8 +301,8 @@
 - id: C5
   operation: Cancel store put
   simpy: "`simpy.resources.base.Put.cancel()`"
-  yaml: none yet
-  builder: none yet
+  yaml: "an interrupt with `on_interrupt: abandon` while the put waits"
+  builder: the same
   low_level: "`put.cancel()`"
   checks:
     - tests/conformance/test_c5_inventory.py::test_c5_cancel_store_put
@@ -246,8 +311,8 @@
 - id: C5
   operation: Cancel quantity put
   simpy: "`simpy.resources.base.Put.cancel()`"
-  yaml: none yet
-  builder: none yet
+  yaml: "an interrupt with `on_interrupt: abandon` while the put waits"
+  builder: the same
   low_level: "`put.cancel()`"
   checks:
     - tests/conformance/test_c5_inventory.py::test_c5_cancel_quantity_put

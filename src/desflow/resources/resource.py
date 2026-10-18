@@ -5,6 +5,7 @@ import itertools
 from typing import Any, List, Optional, Tuple
 
 from simpy import Environment, Event
+from simpy.resources.resource import Preempted
 
 from desflow.config import DEFAULT_QUEUE_ORDER, QUEUE_ORDERS
 from desflow.resources.base import BaseDynamicResource
@@ -21,14 +22,24 @@ class DynamicResourceRequest(Event):
     Attributes:
         resource (DynamicResource): The resource it asks.
         priority (float): Its rank under the `priority` queue order, lowest first.
+        preempt (bool): Whether it may take a unit from a user of a higher priority
+            value, on a resource built with `preempt=True`.
+        key (tuple): `(priority, time, not preempt)`, the order SimPy ranks users by.
         usage_since (Optional[float]): The simulation time of the grant, or None.
         proc: The process that made the request, the one an interrupt would reach.
     """
 
-    def __init__(self, resource: DynamicResource, priority: float):
+    def __init__(
+        self, resource: DynamicResource, priority: float, preempt: bool = True
+    ):
         super().__init__(resource.env)
         self.resource = resource
         self.priority = priority
+        self.preempt = preempt
+        self.time = resource.env.now
+        # SimPy's PreemptiveResource ranks users by this key: a lower priority
+        # value, then an earlier request, then one that may preempt
+        self.key = (priority, self.time, not preempt)
         self.usage_since: Optional[float] = None
         self.proc = resource.env.active_process
         resource._enqueue(self)
@@ -116,6 +127,7 @@ class DynamicResource(BaseDynamicResource):
         sim_id: str,
         resource_id: str,
         queue: str = DEFAULT_QUEUE_ORDER,
+        preempt: bool = False,
     ):
         """
         Initializes the DynamicResource and binds it to the registry.
@@ -126,14 +138,25 @@ class DynamicResource(BaseDynamicResource):
             resource_id (str): The name of the resource.
             queue (str): The queue order: `fifo`, `lifo` or `priority`. Defaults to
                 `fifo`. A request's `priority` counts only under `priority`.
+            preempt (bool): When True, a request that finds every unit busy takes
+                one from the user SimPy's `PreemptiveResource` would choose: the one
+                whose key `(priority, request time, not preempt)` sorts last, if that
+                key sorts after the request's. That user's process receives
+                `simpy.Interrupt` with a `Preempted` cause. Needs `queue="priority"`.
 
         Raises:
-            ValueError: If `queue` is not one of the three orders.
+            ValueError: If `queue` is not one of the three orders, or `preempt` is
+                set without `queue="priority"`.
         """
         if queue not in QUEUE_ORDERS:
             raise ValueError(
                 f"queue must be one of {', '.join(QUEUE_ORDERS)}, got '{queue}'"
             )
+        if preempt and queue != "priority":
+            raise ValueError(
+                "preempt ranks users by priority, so it needs queue='priority'"
+            )
+        self.preempt = preempt
         self.queue_order = queue
         # Counts requests, so equal ranks keep their arrival order
         self._sequence = itertools.count()
@@ -164,18 +187,23 @@ class DynamicResource(BaseDynamicResource):
         """Units busy above a lowered capacity, given back as their tasks finish."""
         return max(0, len(self.users) - self._capacity)
 
-    def request(self, priority: float = 1) -> DynamicResourceRequest:
+    def request(
+        self, priority: float = 1, preempt: bool = True
+    ) -> DynamicResourceRequest:
         """
         Returns a context-manager enabled request.
 
         Args:
             priority: Lower values are served first when the queue order is
                 `priority`; ignored under `fifo` and `lifo`.
+            preempt: On a resource built with `preempt=True`, whether this request
+                may take a unit from a user of a higher priority value. Ignored
+                otherwise. Defaults to True, as in SimPy.
 
         Returns:
             DynamicResourceRequest: An event that succeeds when a unit is granted.
         """
-        return DynamicResourceRequest(self, priority)
+        return DynamicResourceRequest(self, priority, preempt)
 
     def release(self, request: Optional[DynamicResourceRequest] = None) -> Event:
         """
@@ -204,9 +232,13 @@ class DynamicResource(BaseDynamicResource):
         released.succeed()
         return released
 
-    def _rank(self, priority: float) -> Tuple[float, int]:
+    def _rank(self, request: DynamicResourceRequest) -> Tuple[Any, ...]:
         """The sort key of a new request under this resource's queue order."""
         sequence = next(self._sequence)
+        priority = request.priority
+        if self.preempt:
+            # SimPy's PreemptiveResource sorts its queue by the request's key
+            return (*request.key, sequence)
         if self.queue_order == "priority":
             return (priority, sequence)
         if self.queue_order == "lifo":
@@ -215,7 +247,7 @@ class DynamicResource(BaseDynamicResource):
 
     def _enqueue(self, request: DynamicResourceRequest) -> None:
         """Queues a new request, then grants the head if a unit is free, as SimPy does."""
-        self.queue.push(self._rank(request.priority), request)
+        self.queue.push(self._rank(request), request)
         self._changed()
         self._grant(limit=1)
 
@@ -238,8 +270,12 @@ class DynamicResource(BaseDynamicResource):
         # one set earlier in this same step, so a grant always reads it.
         self._capacity = self._target()
         granted = 0
-        while self.queue.items and len(self.users) < self._capacity:
+        while self.queue.items:
             if limit is not None and granted >= limit:
+                return
+            if len(self.users) >= self._capacity and not self._preempt_for(
+                self.queue.head()
+            ):
                 return
             request = self.queue.pop()
             self.users.append(request)
@@ -247,6 +283,30 @@ class DynamicResource(BaseDynamicResource):
             request.succeed()
             self._changed()
             granted += 1
+
+    def _preempt_for(self, request: Optional[DynamicResourceRequest]) -> bool:
+        """Takes a unit for `request` from the user SimPy would preempt, if any.
+
+        Returns:
+            bool: True when a unit was freed for it.
+        """
+        if not (self.preempt and request is not None and request.preempt):
+            return False
+        if not self.users or len(self.users) > self._capacity:
+            # Busy units above a lowered capacity are owed, not preemptible
+            return False
+        victim = sorted(self.users, key=lambda user: user.key)[-1]
+        if not victim.key > request.key:
+            return False
+        self.users.remove(victim)
+        self._changed()
+        if victim.proc is not None and victim.proc.is_alive:
+            victim.proc.interrupt(
+                Preempted(
+                    by=request.proc, usage_since=victim.usage_since, resource=self
+                )
+            )
+        return True
 
     def _target(self) -> int:
         """The registry's capacity, bound to [0, max_cap]."""

@@ -10,8 +10,10 @@ and the checks made before the clock starts.
 
 from __future__ import annotations
 
-import contextlib
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
+
+from simpy import Interrupt
+from simpy.resources.resource import Preempted
 
 from desflow.core.expressions import Expression, Scope
 from desflow.core.flow import Router, Transfer, Wait, make_scope
@@ -69,10 +71,30 @@ class TaskSpec:
         fail_reason: Optional[str] = None,
         on_fail: Optional[str] = None,
         attribute_changes: Optional[Dict[str, Any]] = None,
+        resources: Optional[List[str]] = None,
+        keep: Optional[List[str]] = None,
+        preempt: bool = True,
+        on_interrupt: str = "resume",
+        on_interrupt_next: Optional[str] = None,
+        interrupt: Optional[Dict[str, Any]] = None,
     ):
         self.name = name
         self.service_id = service_id
-        self.resource_id = resource_id
+        # Every resource it holds, acquired in this order; resource_id is the first
+        self.resources: List[str] = list(
+            resources or ([resource_id] if resource_id else [])
+        )
+        self.resource_id = self.resources[0] if self.resources else None
+        self.keep: List[str] = list(keep or [])
+        self.preempt = preempt
+        self.on_interrupt = on_interrupt
+        self.on_interrupt_next = on_interrupt_next
+        self.interrupt = interrupt
+        self.interrupt_where = (
+            Expression(interrupt["where"])
+            if interrupt is not None and interrupt.get("where") is not None
+            else None
+        )
         self.priority = priority
         self.get = get
         self.put = put
@@ -90,7 +112,7 @@ class TaskSpec:
         self.balk_of = Expression(balk) if balk is not None else None
         self.fail_of = Expression(fail) if isinstance(fail, str) else None
         # Waits for a unit or an item, so it queues
-        self.queues = resource_id is not None or get is not None or wait is not None
+        self.queues = bool(self.resources) or get is not None or wait is not None
         # Publishes started before its work
         self.timed = service_id is not None or self.queues
         # Set when the function is decorated
@@ -113,6 +135,8 @@ class TaskSpec:
             if transfer is not None:
                 found.extend((key, e) for e in transfer.expressions)
         found.extend(("next", e) for e in self.router.conditions)
+        if self.interrupt_where is not None:
+            found.append(("interrupt", self.interrupt_where))
         if self.wait is not None:
             found.extend(("wait", e) for e in self.wait.conditions)
         return found
@@ -144,6 +168,9 @@ class TaskRun:
         self.env = context.env
         self.item: Any = None
         self.waits: Dict[str, Dict[str, Any]] = {}
+        self.process: Any = None
+        # The put or get the task is waiting for, cancelled by an interrupt
+        self._pending: Any = None
 
     # ------------------------------------------------------------------ records
 
@@ -173,14 +200,32 @@ class TaskRun:
     # --------------------------------------------------------------------- run
 
     def run(self):
-        """The task's process: everything from the balk check to the next task."""
+        """The task's process: everything from the balk check to the next task.
+
+        While it runs, the instance is listed with its task, so `interrupt` can
+        reach it.
+        """
+        self.process = self.env.active_process
+        running = self.context._running.setdefault(self.spec.name, [])
+        running.append(self)
+        try:
+            return (yield from self._run())
+        finally:
+            self._stop_running()
+
+    def _stop_running(self) -> None:
+        running = self.context._running.get(self.spec.name, [])
+        if self in running:
+            running.remove(self)
+
+    def _run(self):
         spec, env, stats = self.spec, self.env, self.env.stats
         if spec.balk_of is not None and spec.balk_of.evaluate(self.scope()):
             self.publish(self.status("balked"))
             stats.task_balked(spec.name, self.task_id)
             return None
         # The patience timer starts when the task joins its first queue and covers
-        # every wait after it: the wait, the resource, then the get.
+        # every wait after it: the wait, the resources, then the get.
         deadline = None
         if spec.queues:
             self.publish(self.status("queued"))
@@ -189,51 +234,81 @@ class TaskRun:
                 deadline = env.timeout(float(self._patience()))
 
         failure: Any = None
-        if spec.wait is not None:
-            outcome = yield from self._wait(deadline)
+        while spec.wait is not None:
+            try:
+                outcome = yield from self._wait(deadline)
+            except Interrupt as interrupt:
+                if self._interrupted(interrupt):
+                    continue  # resume or restart: wait again
+                return (yield from self._abandon(interrupt))
             if outcome is _RENEGED:
                 self._renege()
                 return None
             failure = outcome
+            if failure is not None:
+                self.publish(self.status("failed", reason=failure))
+                stats.task_failed(spec.name, self.task_id)
+            break
 
         payload: Any = None
-        if failure is None:
-            unit: Any = contextlib.nullcontext()
-            if spec.resource_id is not None:
-                holder = self.context._resources_map[spec.resource_id]
-                unit = holder.request(self._rank())
-            with unit as request:
-                if request is not None:
+        rank = self._rank() if self.spec.resources else None
+        remaining: Optional[float] = None  # service still owed, when interrupted
+        started = got_item = put_done = False
+        while failure is None:
+            held: List[Any] = []
+            service_from: Optional[float] = None
+            try:
+                for resource in spec.resources:
+                    request = self.context._resources_map[resource].request(
+                        rank, preempt=spec.preempt
+                    )
+                    held.append(request)
                     if deadline is None:
                         yield request
                     else:
                         yield request | deadline
                         # The patience ran out before a unit was free: leave the
-                        # queue (the request is cancelled on exit) and renege.
+                        # queue, give back the units held so far, and renege.
                         if not request.triggered:
+                            self._release(held)
                             self._renege()
                             return None
-                if spec.get is not None:
+                if spec.get is not None and not got_item:
                     got = yield from self._transfer(spec.get, "get", None, deadline)
                     if got is _RENEGED:
+                        self._release(held)
                         self._renege()
                         return None
-                    self.item = got
-                if spec.timed:
-                    self.publish(self.status("started"))
-                    stats.task_started(spec.name, self.task_id)
-                try:
-                    payload = spec.user_func(self.task_id, *self.args, **self._extra())
-                except Exception as error:  # noqa: BLE001: a task's failure, not a crash
-                    failure = f"{type(error).__name__}: {error}"
-                if failure is None:
-                    if spec.service_id is not None:
-                        config = env.registry.get_config(
-                            f"{self.context.sim_id}.service.{spec.service_id}"
+                    self.item, got_item = got, True
+                if not started:
+                    started = True
+                    if spec.timed:
+                        self.publish(self.status("started"))
+                        stats.task_started(spec.name, self.task_id)
+                    # Units the task before kept for this one go back once it starts
+                    self._release_kept()
+                    try:
+                        payload = spec.user_func(
+                            self.task_id, *self.args, **self._extra()
                         )
-                        yield env.timeout(self.context.sampler.sample(config))
-                    if spec.put is not None:
+                    except Exception as error:  # noqa: BLE001: a task's failure
+                        failure = f"{type(error).__name__}: {error}"
+                else:
+                    self.publish(self.status("resumed"))
+                    stats.task_resumed(spec.name, self.task_id)
+                if failure is None:
+                    if spec.service_id is not None and remaining != 0:
+                        if remaining is None:
+                            config = env.registry.get_config(
+                                f"{self.context.sim_id}.service.{spec.service_id}"
+                            )
+                            remaining = float(self.context.sampler.sample(config))
+                        service_from = env.now
+                        yield env.timeout(remaining)
+                        remaining, service_from = 0.0, None
+                    if spec.put is not None and not put_done:
                         yield from self._transfer(spec.put, "put", payload, None)
+                        put_done = True
                     failure = self._failure(payload)
                 if failure is None:
                     self.publish(payload)
@@ -241,10 +316,21 @@ class TaskRun:
                 else:
                     self.publish(self.status("failed", reason=failure))
                     stats.task_failed(spec.name, self.task_id)
-        else:
-            self.publish(self.status("failed", reason=failure))
-            stats.task_failed(spec.name, self.task_id)
+            except Interrupt as interrupt:
+                self._release(held)
+                if service_from is not None and remaining is not None:
+                    # resume serves what is left; restart draws a new service time
+                    if spec.on_interrupt == "resume":
+                        remaining -= env.now - service_from
+                    else:
+                        remaining = None
+                if self._interrupted(interrupt):
+                    continue
+                return (yield from self._abandon(interrupt))
+            self._release(held)
+            break
 
+        self._stop_running()
         if failure is not None:
             if spec.signal is not None:
                 self.context._signals[spec.signal].fail(failure)
@@ -263,6 +349,12 @@ class TaskRun:
 
         if spec.signal is not None:
             self.context._signals[spec.signal].fire(payload)
+        if spec.interrupt is not None:
+            self.context.interrupt(
+                spec.interrupt["task"],
+                where=spec.interrupt_where,
+                cause=spec.interrupt.get("cause"),
+            )
         self.entity.attributes.update(spec.attribute_changes)
         handed = Upstream(
             self.task_id, self.entity.key, self.entity.attributes, payload
@@ -280,6 +372,65 @@ class TaskRun:
             stats.flow_finished(self.entity.arrival)
             return None
         return (yield from self._follow(following, handed))
+
+    def _release(self, held: List[Any]) -> None:
+        """Cancels requests still waiting and gives back granted units, last first,
+        as nested `with` blocks do; units the task keeps for the next one stay."""
+        for request in reversed(held):
+            request.cancel()
+            name = request.resource.obj_id
+            if (
+                name in self.spec.keep
+                and request.triggered
+                and request in request.resource.users
+            ):
+                self.entity.held[name] = request
+                continue
+            request.resource.release(request)
+        held.clear()
+        if self._pending is not None:
+            self._pending.cancel()
+            self._pending = None
+
+    def _release_kept(self) -> None:
+        """Gives back the units the task before kept for this one."""
+        for name in list(self.entity.held):
+            request = self.entity.held.pop(name)
+            request.resource.release(request)
+
+    def _interrupted(self, interrupt: Interrupt) -> bool:
+        """Publishes an interrupt or a preemption; True when the task goes on.
+
+        The task has already given back its units and cancelled its waits.
+        """
+        spec, stats = self.spec, self.env.stats
+        self._release_kept()
+        cause = interrupt.cause
+        preempted = isinstance(cause, Preempted)
+        if preempted:
+            value = self.status("preempted", resource=cause.resource.obj_id)
+        else:
+            value = self.status("interrupted", cause=cause)
+        self.publish(value)
+        stats.task_interrupted(spec.name, self.task_id, preempted=preempted)
+        return spec.on_interrupt != "abandon"
+
+    def _abandon(self, interrupt: Interrupt):
+        """Ends the task after an interrupt with `on_interrupt: abandon`."""
+        spec, stats = self.spec, self.env.stats
+        stats.task_dropped(spec.name, self.task_id)
+        self._stop_running()
+        if spec.on_interrupt_next is not None:
+            handed = Upstream(
+                self.task_id,
+                self.entity.key,
+                self.entity.attributes,
+                self.status("interrupted", cause=_cause(interrupt)),
+            )
+            return (yield from self._follow(spec.on_interrupt_next, handed))
+        if self.child:
+            raise TaskFailed(spec.name, f"interrupted: {_cause(interrupt)}")
+        return None
 
     # ----------------------------------------------------------------- helpers
 
@@ -389,13 +540,16 @@ class TaskRun:
             event = (
                 container.get(amount) if direction == "get" else container.put(amount)
             )
+        self._pending = event
         if deadline is None:
             yield event
         else:
             yield event | deadline
             if not event.triggered:
                 event.cancel()
+                self._pending = None
                 return _RENEGED
+        self._pending = None
         if direction == "get" and transfer.store is not None:
             # A priority store holds PriorityItem wrappers; the task reads the payload.
             if context._store_priority.get(transfer.store):
@@ -436,12 +590,15 @@ class TaskRun:
         failure: Any = None
         try:
             yield joined if deadline is None else joined | deadline
+        except Interrupt:
+            raise
         except Exception as error:  # noqa: BLE001: a branch failed
             failure = getattr(error, "reason", None) or str(error)
-        # Losing condition branches stop checking; losing child flows keep running,
-        # as SimPy leaves processes running.
-        for stop in stop_watching:
-            stop()
+        finally:
+            # Losing condition branches stop checking; losing child flows keep
+            # running, as SimPy leaves processes running.
+            for stop in stop_watching:
+                stop()
         if failure is None and not joined.triggered:
             return _RENEGED
         for name, event in events.items():
@@ -472,8 +629,60 @@ class TaskRun:
         return event, stop
 
 
+def _cause(interrupt: Interrupt) -> Any:
+    """An interrupt's cause as a record holds it: a preemption by its resource."""
+    cause = interrupt.cause
+    if isinstance(cause, Preempted):
+        return f"preempted on {cause.resource.obj_id}"
+    return cause
+
+
 def _branch_value(event: Any) -> Any:
     """A finished branch's value; a failed one's is its reason."""
     if event.ok:
         return event.value
     return getattr(event.value, "reason", str(event.value))
+
+
+def check_acquisition_order(
+    resources: Dict[str, List[str]],
+    handoffs: Dict[str, Tuple[List[str], Any]],
+) -> None:
+    """
+    Refuses tasks that acquire shared resources in opposite orders.
+
+    Two tasks that each hold one resource while they wait for the other can each
+    wait for ever. A task that lists `[picker, bench]` acquires the picker first; a
+    task that keeps the picker for its next task acquires it before every resource
+    that task lists. If one resource comes before another in one place and after it
+    in another, the model is refused, so every task acquires in one order.
+
+    Args:
+        resources: Each task's resources, in the order it acquires them.
+        handoffs: Each task's `keep` list and the tasks its `next` can lead to.
+
+    Raises:
+        ValueError: If two resources are acquired in opposite orders, naming them.
+    """
+    before: Dict[Tuple[str, str], str] = {}
+
+    def note(first: str, second: str, where: str) -> None:
+        if (second, first) in before:
+            raise ValueError(
+                f"{before[(second, first)]} acquires '{second}' before '{first}', "
+                f"but {where} acquires '{first}' before '{second}'; acquire shared "
+                f"resources in one order everywhere, so no two tasks can wait for "
+                f"each other"
+            )
+        before.setdefault((first, second), where)
+
+    for task, listed in resources.items():
+        for i, first in enumerate(listed):
+            for second in listed[i + 1 :]:
+                note(first, second, f"task '{task}'")
+    for task, (keep, following) in handoffs.items():
+        for kept in keep:
+            for after in following:
+                for second in resources.get(after, []):
+                    if second != kept:
+                        note(kept, second, f"task '{task}' keeping it for '{after}'")

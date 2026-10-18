@@ -10,6 +10,11 @@ changes only with an Upgrading line in the Changelog.
 QUEUE_ORDERS = ("fifo", "lifo", "priority")
 DEFAULT_QUEUE_ORDER = "fifo"
 
+# What a task does when it is interrupted or preempted: `resume` queues again and
+# serves the remaining time, `restart` queues again with a new service time, and
+# `abandon` ends the task.
+INTERRUPT_POLICIES = ("resume", "restart", "abandon")
+
 # The built-in statistics levels, from none to every statistic. Each level publishes
 # what the levels before it publish, and more.
 STATS_LEVELS = ("none", "minimal", "basic", "typical", "all")

@@ -151,9 +151,457 @@ Under `queue: priority`, each task gives its requests a priority: a number, the 
 
 A `priority` on a task whose resource does not have `queue: priority` is refused: when the blueprint loads, or when `run()` starts. [Priorities](../tutorials/priorities.md) shows what priority does to waits.
 
+### Preemption
+
+On a resource with `preempt: true`, which needs `queue: priority`, a request that finds every unit busy takes a unit from a task of a higher priority value, as SimPy's `PreemptiveResource` does. The task that loses the unit is chosen by SimPy's rule: the user whose `(priority, request time, may not preempt)` sorts last, and only when that sorts after the new request, so equal priorities never preempt. The task publishes `preempted` with the resource's name and follows its `on_interrupt`, as an interrupt would ([Interruptions](../tutorials/interruptions.md)); a task with `preempt: false` never takes a unit this way. The `interruptions` example lets express orders preempt regular ones:
+
+=== "YAML"
+
+    ```yaml title="examples/yaml/interruptions.yaml:packers"
+    # A lower priority value takes the packer from a higher one.
+    packers: {current_cap: 1, max_cap: 4, queue: priority, preempt: true}
+    ```
+
+    ```yaml title="examples/yaml/interruptions.yaml:pack"
+    tasks:
+      pack:
+        service: packing
+        resource: packers
+        priority: attr.priority
+        # A preempted or interrupted order queues again and serves what it had left.
+        on_interrupt: resume
+        payload: {event_type: order_packed}
+        attributes: [priority]
+    ```
+
+=== "Builder"
+
+    ```python title="examples/builder/interruptions_example.py:packers"
+    # A lower priority value takes the packer from a higher one
+    .add_resource("packers", current_cap=1, max_cap=4, queue="priority", preempt=True)
+    ```
+
+    ```python title="examples/builder/interruptions_example.py:pack"
+    @app.task(
+        service_id="packing",
+        resource_id="packers",
+        priority="attr.priority",
+        # A preempted or interrupted order queues again and serves what it had left
+        on_interrupt="resume",
+    )
+    def pack(task_id, context, entity):
+        return {"event_type": "order_packed", "priority": entity.attributes["priority"]}
+    ```
+
+=== "Low-level"
+
+    ```python title="examples/low-level/interruptions_example.py:pack"
+    def pack(env, sampler, shop, key, priority, task_id):
+        """Packs one order; a preemption or an interrupt sends it back to the queue
+        with the packing time it had left."""
+        path_id = "Shop.service.packing"
+
+        def publish(value):
+            env.publish_event(key, value, task="pack", instance=task_id)
+
+        publish({"path_id": path_id, "status": "queued"})
+        env.stats.task_queued("pack", task_id)
+        remaining, started = None, False
+        shop["packing"].append(env.active_process)
+        while True:
+            request = shop["packers"].request(priority=priority)
+            since = None
+            try:
+                yield request
+                if not started:
+                    started = True
+                    publish({"path_id": path_id, "status": "started"})
+                    env.stats.task_started("pack", task_id)
+                else:
+                    publish({"path_id": path_id, "status": "resumed"})
+                    env.stats.task_resumed("pack", task_id)
+                if remaining is None:
+                    remaining = sampler.sample(env.registry.get_config(path_id))
+                since = env.now
+                yield env.timeout(remaining)
+                payload = {"event_type": "order_packed", "priority": priority}
+                publish(payload)
+                env.stats.task_finished("pack", task_id)
+                shop["packers"].release(request)
+                break
+            except simpy.Interrupt as interrupt:
+                request.cancel()
+                shop["packers"].release(request)  # nothing to give back if preempted
+                if since is not None:
+                    remaining -= env.now - since
+                if isinstance(interrupt.cause, Preempted):
+                    value = {
+                        "path_id": path_id,
+                        "status": "preempted",
+                        "resource": "packers",
+                    }
+                    publish(value)
+                    env.stats.task_interrupted("pack", task_id, preempted=True)
+                else:
+                    value = {"path_id": path_id, "status": "interrupted"}
+                    publish({**value, "cause": interrupt.cause})
+                    env.stats.task_interrupted("pack", task_id)
+        shop["packing"].remove(env.active_process)
+        env.stats.flow_finished(key.rsplit("-", 1)[0])
+    ```
+
+    `DynamicResource(env, "Shop", "packers", queue="priority", preempt=True)` builds the resource, and `request(priority, preempt=True)` asks for a unit; the process that loses its unit receives `simpy.Interrupt` with a SimPy `Preempted` cause, whose `resource`, `by` and `usage_since` say what happened.
+
+### Cancel and Release
+
+A task that leaves a queue cancels its request, so the request is never granted later: patience that runs out, an interrupt, and an `on_interrupt: abandon` all do. Once a unit is granted, the task gives it back when it finishes, when it is interrupted, and when it is preempted (the preempting task has it then). In the low-level API these are SimPy's calls:
+
+```python title="docs/snippets/pages/resource_cancel.py:cancel"
+held = packers.request()  # granted at once: the packer was free
+waiting = packers.request()  # waits behind it
+
+waiting.cancel()  # leaves the queue at once; it is never granted
+held.cancel()  # granted already, so this releases nothing, as in SimPy
+assert packers.in_use == 1 and packers.queue.items == []
+
+packers.release(held)  # gives the packer back
+packers.release(held)  # a second release does nothing
+```
+
+`request.cancel()` takes a waiting request out of the queue and does nothing to a granted one, and `packers.release(request)` gives a granted unit back once; releasing it again, or releasing a request that was never granted, does nothing. A `with` block does both on its way out, as in SimPy.
+
+### Several Resources
+
+A task can hold several resources at once: `resource: [picker, bench]` asks for a picker, then, while it holds the picker, for the bench. The task is served once it holds all of them, and it releases all of them when it finishes. While it waits for the bench it holds the picker: the holding is partial, and nothing is granted to several resources at once. `patience` covers the whole acquisition, and an interrupt gives back every unit held.
+
+A task can also hand a unit to the next task of its flow with `keep`: the next task holds it from the start and gives it back once it publishes `started`, so an order keeps the picker until it is on the packing bench. The `competing-resources` example does both:
+
+=== "YAML"
+
+    ```yaml title="examples/yaml/competing_resources.yaml:tasks"
+    tasks:
+      pick:
+        service: picking
+        resource: picker
+        # The picker stays with the order until pack has started.
+        keep: [picker]
+        payload: {event_type: order_picked}
+        next: pack
+      pack:
+        service: packing
+        resource: bench
+        payload: {event_type: order_packed}
+      wrap:
+        service: wrapping
+        # Holds the picker, then the bench too: acquired in this order.
+        resource: [picker, bench]
+        payload: {event_type: gift_wrapped}
+    ```
+
+=== "Builder"
+
+    ```python title="examples/builder/competing_resources_example.py:tasks"
+    # The picker stays with the order until pack has started
+    @app.task(service_id="picking", resource_id="picker", keep=["picker"], next="pack")
+    def pick(task_id, context):
+        return {"event_type": "order_picked"}
+
+
+    @app.task(service_id="packing", resource_id="bench")
+    def pack(task_id, context):
+        return {"event_type": "order_packed"}
+
+
+    # Holds the picker, then the bench too: acquired in this order
+    @app.task(service_id="wrapping", resource_id=["picker", "bench"])
+    def wrap(task_id, context):
+        return {"event_type": "gift_wrapped"}
+    ```
+
+=== "Low-level"
+
+    ```python title="examples/low-level/competing_resources_example.py:tasks"
+    def pick(shop, key):
+        """Picks an order and keeps the picker for pack, which gives it back."""
+        env, stats = shop.env, shop.env.stats
+        task_id, publish, status, duration = shop.step(key, "pick", "picking")
+        status("queued")
+        stats.task_queued("pick", task_id)
+        picker = shop.picker.request()
+        yield picker
+        status("started")
+        stats.task_started("pick", task_id)
+        yield env.timeout(duration())
+        publish({"event_type": "order_picked"})
+        stats.task_finished("pick", task_id)
+        env.process(pack(shop, key, picker))
+
+
+    def pack(shop, key, picker):
+        env, stats = shop.env, shop.env.stats
+        task_id, publish, status, duration = shop.step(key, "pack", "packing")
+        status("queued")
+        stats.task_queued("pack", task_id)
+        with shop.bench.request() as bench:
+            yield bench
+            status("started")
+            stats.task_started("pack", task_id)
+            shop.picker.release(picker)  # the order is on the bench
+            yield env.timeout(duration())
+            publish({"event_type": "order_packed"})
+            stats.task_finished("pack", task_id)
+        stats.flow_finished("orders")
+
+
+    def wrap(shop, key):
+        """Holds the picker, then the bench too: acquired in this order."""
+        env, stats = shop.env, shop.env.stats
+        task_id, publish, status, duration = shop.step(key, "wrap", "wrapping")
+        status("queued")
+        stats.task_queued("wrap", task_id)
+        with shop.picker.request() as picker:
+            yield picker
+            with shop.bench.request() as bench:
+                yield bench
+                status("started")
+                stats.task_started("wrap", task_id)
+                yield env.timeout(duration())
+                publish({"event_type": "gift_wrapped"})
+                stats.task_finished("wrap", task_id)
+        stats.flow_finished("gifts")
+    ```
+
+    In the low-level API several resources are nested requests, and a handoff is a request released by the next process.
+
+**One order of acquisition.** Two tasks that acquire the same two resources in opposite orders can each hold one and wait for ever for the other. desflow refuses such a model when it is built, naming both tasks: every task, `keep` handoffs included, must acquire shared resources in one order. [Competing Resources](../tutorials/competing-resources.md) shows what a partial holding costs.
+
 ### Registry Paths and Readings
 
 Each resource has two registry paths, `<sim_id>.resources.<name>.current_cap` and `.max_cap`, which a scenario, an ingress message or a process can change; [Live Parameters](live-parameters.md) explains how. With statistics at the `minimal` level or above, each resource publishes four readings, such as `Shop.stats.resources.packers.utilization`: `capacity`, `in_use`, `queue_length` and `utilization`, the busy units as a percentage of the capacity. [Statistics](statistics.md) lists what the other levels add.
+
+### Example: Interruptions
+
+The `interruptions` example: express orders preempt regular ones, and a fire drill at 60 seconds interrupts the order being packed; each resumes with the packing time it had left. It needs no Docker service and ends on its own after 120 simulation seconds.
+
+=== "YAML"
+
+    **Quick Start**
+
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+    === "uv"
+
+        ```bash
+        # 1. Install
+        uv tool install desflow
+
+        # 2. Download the example
+        desflow examples get interruptions --api yaml
+        cd interruptions/yaml
+
+        # 3. Run it
+        desflow run interruptions.yaml
+        ```
+
+    === "pip"
+
+        ```bash
+        # 1. Install
+        pip install desflow
+
+        # 2. Download the example
+        desflow examples get interruptions --api yaml
+        cd interruptions/yaml
+
+        # 3. Run it
+        desflow run interruptions.yaml
+        ```
+
+    The whole file is [`examples/yaml/interruptions.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/yaml/interruptions.yaml).
+
+=== "Builder"
+
+    **Quick Start**
+
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+    === "uv"
+
+        ```bash
+        # 1. Install
+        uv tool install desflow
+
+        # 2. Download the example
+        desflow examples get interruptions --api builder
+        cd interruptions/builder
+
+        # 3. Run it
+        uv run --no-project --with desflow interruptions_example.py
+        ```
+
+    === "pip"
+
+        ```bash
+        # 1. Install
+        pip install desflow
+
+        # 2. Download the example
+        desflow examples get interruptions --api builder
+        cd interruptions/builder
+
+        # 3. Run it
+        python interruptions_example.py
+        ```
+
+    The whole file is [`examples/builder/interruptions_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/builder/interruptions_example.py).
+
+=== "Low-level"
+
+    **Quick Start**
+
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+    === "uv"
+
+        ```bash
+        # 1. Install
+        uv tool install desflow
+
+        # 2. Download the example
+        desflow examples get interruptions --api low-level
+        cd interruptions/low-level
+
+        # 3. Run it
+        uv run --no-project --with desflow interruptions_example.py
+        ```
+
+    === "pip"
+
+        ```bash
+        # 1. Install
+        pip install desflow
+
+        # 2. Download the example
+        desflow examples get interruptions --api low-level
+        cd interruptions/low-level
+
+        # 3. Run it
+        python interruptions_example.py
+        ```
+
+    The whole file is [`examples/low-level/interruptions_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/interruptions_example.py).
+
+### Example: Competing Resources
+
+The `competing-resources` example: orders keep the picker until they are on the bench, and gifts hold the picker and the bench together. It needs no Docker service and ends on its own after 120 simulation seconds.
+
+=== "YAML"
+
+    **Quick Start**
+
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+    === "uv"
+
+        ```bash
+        # 1. Install
+        uv tool install desflow
+
+        # 2. Download the example
+        desflow examples get competing-resources --api yaml
+        cd competing-resources/yaml
+
+        # 3. Run it
+        desflow run competing_resources.yaml
+        ```
+
+    === "pip"
+
+        ```bash
+        # 1. Install
+        pip install desflow
+
+        # 2. Download the example
+        desflow examples get competing-resources --api yaml
+        cd competing-resources/yaml
+
+        # 3. Run it
+        desflow run competing_resources.yaml
+        ```
+
+    The whole file is [`examples/yaml/competing_resources.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/yaml/competing_resources.yaml).
+
+=== "Builder"
+
+    **Quick Start**
+
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+    === "uv"
+
+        ```bash
+        # 1. Install
+        uv tool install desflow
+
+        # 2. Download the example
+        desflow examples get competing-resources --api builder
+        cd competing-resources/builder
+
+        # 3. Run it
+        uv run --no-project --with desflow competing_resources_example.py
+        ```
+
+    === "pip"
+
+        ```bash
+        # 1. Install
+        pip install desflow
+
+        # 2. Download the example
+        desflow examples get competing-resources --api builder
+        cd competing-resources/builder
+
+        # 3. Run it
+        python competing_resources_example.py
+        ```
+
+    The whole file is [`examples/builder/competing_resources_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/builder/competing_resources_example.py).
+
+=== "Low-level"
+
+    **Quick Start**
+
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+    === "uv"
+
+        ```bash
+        # 1. Install
+        uv tool install desflow
+
+        # 2. Download the example
+        desflow examples get competing-resources --api low-level
+        cd competing-resources/low-level
+
+        # 3. Run it
+        uv run --no-project --with desflow competing_resources_example.py
+        ```
+
+    === "pip"
+
+        ```bash
+        # 1. Install
+        pip install desflow
+
+        # 2. Download the example
+        desflow examples get competing-resources --api low-level
+        cd competing-resources/low-level
+
+        # 3. Run it
+        python competing_resources_example.py
+        ```
+
+    The whole file is [`examples/low-level/competing_resources_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/competing_resources_example.py).
 
 ---
 
@@ -204,7 +652,8 @@ Until the owed units finish, `in_use` is above `capacity`, and the `utilization`
 - **Utilisation decides waits.** A resource whose load is at or above its capacity has a queue that grows for as long as the run lasts; [Queues and Capacity](../tutorials/queues-and-capacity.md) shows how to work it out.
 - **Priority needs `queue: priority`.** A task priority on a resource of another order is a load error, while a low-level request's priority is ignored under `fifo` and `lifo`.
 - **Priority can starve.** Under `priority`, a request with a high number is served only when no lower number is waiting; if the low numbers alone keep the resource busy, it is never served.
-- **One resource per task.** A task that needs two resources at once is a process: [Multi-Resource Handoffs](../guides/multi-resource-handoffs.md).
-- **A shrink never stops work.** A resource that must stop work in progress, such as a breakdown, needs a process: [Preemptive Breakdowns](../guides/preemptive-breakdowns.md).
+- **One order of acquisition.** A model whose tasks acquire two resources in opposite orders is refused; [Several Resources](#several-resources) explains why.
+- **A shrink never stops work.** Lowering `current_cap` lets busy units finish. Work in progress stops only for an interrupt or a preemption: [Interruptions](../tutorials/interruptions.md), and [Preemptive Breakdowns](../guides/preemptive-breakdowns.md) for a machine that breaks down.
+- **A preempted task queues again.** With `resume` or `restart` it joins the back of its priority among the waiting requests, as a new SimPy request does; the time it waited before counts in its wait.
 
 Amounts and items that tasks take and add, rather than hold, are [Stores and Containers](stores-and-containers.md).

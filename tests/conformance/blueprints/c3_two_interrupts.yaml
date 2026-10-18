@@ -1,0 +1,21 @@
+# A worker starts at 10 with 5 seconds of service and is interrupted twice at 12;
+# it resumes once and ends at 15. See test_c3_interrupts.py.
+simulation:
+  sim_id: C3
+  factor: 0
+resources:
+  machine: {current_cap: 1, max_cap: 1}
+services:
+  work: {dist: constant, value: 5}
+arrivals:
+  workers: {dist: constant, value: 10, spawn: worker}
+tasks:
+  worker:
+    service: work
+    resource: machine
+    payload: {event: worked}
+scenario:
+  - {at: 12, interrupt: {task: worker, cause: first}}
+  - {at: 12, interrupt: {task: worker, cause: second}}
+run:
+  until: 19.9

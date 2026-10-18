@@ -2,7 +2,7 @@
 
 This page writes a simulation with SimPy and the environment directly: a packing team with a stock of boxes and a store of packed orders, every step written by hand. It builds on [SimPy and desflow](../des/simpy-and-desflow.md), which describes the SimPy constructs, and on [Builder API](builder-api.md), which writes the same kind of model for you.
 
-Use the low-level API when you need what the builder does not do: several resources held at once, as in [Multi-Resource Handoffs](../guides/multi-resource-handoffs.md); resources created while the run goes on, as in [Dynamic Topology](../guides/dynamic-topology.md); or events of your own shape. A builder or blueprint model can also start a low-level process with `add_process`, as [Tasks and Processes](tasks-and-processes.md#processes-and-the-low-level-api) shows.
+Use the low-level API when you need what the builder does not do: resources created while the run goes on, as in [Dynamic Topology](../guides/dynamic-topology.md), or events and interactions of your own shape. A builder or blueprint model can also start a low-level process with `add_process`, as [Tasks and Processes](tasks-and-processes.md#processes-and-the-low-level-api) shows.
 
 A low-level script takes these steps, in this order:
 

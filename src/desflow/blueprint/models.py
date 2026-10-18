@@ -27,6 +27,7 @@ from pydantic import (
 from desflow.config import (
     DEFAULT_QUEUE_ORDER,
     DEFAULT_STATS_INTERVAL,
+    INTERRUPT_POLICIES,
     LABELS,
     QUEUE_ORDERS,
     STATS_LEVELS,
@@ -189,11 +190,21 @@ class Arrival(Distribution):
 
 
 class Resource(_Model):
-    """A `resources` entry: its capacity and the order its queue is served in."""
+    """A `resources` entry: its capacity, the order its queue is served in, and
+    whether a request of a lower priority value preempts a user."""
 
     current_cap: float
     max_cap: float
     queue: str = DEFAULT_QUEUE_ORDER
+    preempt: bool = False
+
+    @model_validator(mode="after")
+    def _preempt_needs_priority(self) -> "Resource":
+        if self.preempt and self.queue != "priority":
+            raise ValueError(
+                "preempt ranks users by priority, so it needs queue: priority"
+            )
+        return self
 
     @field_validator("queue")
     @classmethod
@@ -315,6 +326,26 @@ def _next_form(value: Any) -> str:
     return "name" if isinstance(value, str) else "rules"
 
 
+class InterruptAction(_Model):
+    """An `interrupt` on a task or a scenario step: interrupt every running instance
+    of `task` whose `where` condition holds, with `cause`."""
+
+    task: str
+    where: Optional[str] = None
+    cause: Any = None
+
+    @field_validator("where")
+    @classmethod
+    def _where_parses(cls, value: Any) -> Any:
+        if value is not None:
+            Expression(value)
+        return value
+
+    def action(self) -> Dict[str, Any]:
+        """The mapping the builder's `interrupt` takes."""
+        return {"task": self.task, "where": self.where, "cause": self.cause}
+
+
 class Task(_Model):
     """A `tasks` entry, built with `SimulationContext.task`.
 
@@ -327,6 +358,9 @@ class Task(_Model):
     `priority` is a number or an expression such as `attr.priority`, for a resource
     whose `queue` is `priority`. `patience` is seconds, a duration such as `30 s` or
     an expression; `balk` is a condition checked before the task joins the queue.
+    `resource` is one resource or a list, acquired in the order listed; `keep` hands
+    units to the next task. `on_interrupt` is `resume`, `restart` or `abandon`, and
+    `interrupt` interrupts the running instances of a task when this one finishes.
     `wait` is what the task waits for first: a signal, a child task, a timeout or a
     condition, or any or all of several. `signal` names a signal the task fires
     when it finishes. `fail` is a condition checked after the service: when it holds
@@ -336,7 +370,7 @@ class Task(_Model):
     """
 
     service: Optional[str] = None
-    resource: Optional[str] = None
+    resource: Optional[Union[str, List[str]]] = None
     payload: Union[Dict[str, Any], Callable[..., Any]]
     id_field: Optional[str] = None
     item_field: Optional[str] = None
@@ -358,6 +392,38 @@ class Task(_Model):
     fail: Optional[str] = None
     fail_reason: Optional[str] = None
     on_fail: Optional[str] = None
+    keep: List[str] = Field(default_factory=list)
+    preempt: bool = True
+    on_interrupt: str = "resume"
+    on_interrupt_next: Optional[str] = None
+    interrupt: Optional[InterruptAction] = None
+
+    def resources(self) -> List[str]:
+        """The resources the task holds, in the order it acquires them."""
+        if self.resource is None:
+            return []
+        return (
+            [self.resource] if isinstance(self.resource, str) else list(self.resource)
+        )
+
+    @field_validator("on_interrupt")
+    @classmethod
+    def _known_policy(cls, value: str) -> str:
+        if value not in INTERRUPT_POLICIES:
+            raise ValueError(
+                f"on_interrupt must be one of {', '.join(INTERRUPT_POLICIES)}"
+            )
+        return value
+
+    @model_validator(mode="after")
+    def _keep_and_policy(self) -> "Task":
+        if not set(self.keep) <= set(self.resources()):
+            raise ValueError("keep names resources the task holds")
+        if len(set(self.resources())) != len(self.resources()):
+            raise ValueError("a task lists each resource once")
+        if self.on_interrupt_next is not None and self.on_interrupt != "abandon":
+            raise ValueError("on_interrupt_next needs on_interrupt: abandon")
+        return self
 
     @field_validator("wait")
     @classmethod
@@ -544,13 +610,15 @@ class ScenarioStep(_Model):
     `at` is seconds from the start of the run, or a duration such as `"10 min"`. A
     step with a `record` publishes a ground-truth record, `stream_type: label`, with
     the path, the value before and after, and the `record` mapping, to the sinks
-    with `when: labels` only.
+    with `when: labels` only. A step with an `interrupt` interrupts the running
+    instances of a task, as a task's `interrupt` does.
     """
 
     at: float
     path: Optional[str] = None
     value: Any = None
     record: Optional[Dict[str, Any]] = None
+    interrupt: Optional[InterruptAction] = None
 
     @field_validator("at", mode="before")
     @classmethod
@@ -559,8 +627,10 @@ class ScenarioStep(_Model):
 
     @model_validator(mode="after")
     def _something_to_do(self) -> "ScenarioStep":
-        if self.path is None and self.record is None:
-            raise ValueError("a step needs a path and value, a record, or both")
+        if self.path is None and self.record is None and self.interrupt is None:
+            raise ValueError(
+                "a step needs a path and value, a record, an interrupt, or more than one"
+            )
         if self.path is None and "value" in self.model_fields_set:
             raise ValueError("a value needs a path")
         if self.path is not None and "value" not in self.model_fields_set:

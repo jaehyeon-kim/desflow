@@ -568,8 +568,8 @@ A YAML task and its `spawn` make the same task and arrival loop that the builder
 
 ## Stability and Limits
 
-- **A task holds one resource.** An order that needs a picker and a packing bench at once, or a handover between them, is a process: [Multi-Resource Handoffs](../guides/multi-resource-handoffs.md) shows how.
-- **A task cannot be interrupted.** Breakdowns that stop work in progress, such as a label printer that jams, need a process that catches SimPy's `Interrupt`: [Preemptive Breakdowns](../guides/preemptive-breakdowns.md).
+- **Resources are acquired in one order.** A task can hold several resources and hand one to the next task, but tasks that acquire two resources in opposite orders are refused: [Resources](resources.md#several-resources).
+- **An interrupt gives back everything.** An interrupted task cancels its waits and releases every unit it holds before it follows its `on_interrupt`, so a resumed task queues again behind the requests already waiting: [Interruptions](../tutorials/interruptions.md).
 - **A finished event is exactly the payload.** It has no `status` or `path_id` unless the payload includes them.
 - **A condition branch checks after every change.** A model with many waits on conditions and many changes does work in proportion to both.
 - **Runtime helpers need a running simulation.** `context.spawn`, `context.call`, `context.signal`, `context.get_resource`, `context.get_store`, `context.get_container` and `context.env` raise `RuntimeError` before `run()`; call them inside a loop, task or process.

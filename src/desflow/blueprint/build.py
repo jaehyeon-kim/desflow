@@ -17,6 +17,7 @@ from desflow.blueprint.models import Blueprint, Run
 from desflow.config import LABELS
 from desflow.core.expressions import Expression
 from desflow.core.flow import Wait
+from desflow.core.task import check_acquisition_order
 from desflow.core.context import SimulationContext
 from desflow.core.registry import SimulationRegistry
 
@@ -117,21 +118,32 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                 f"task '{name}' uses service '{task.service}', which is not "
                 f"defined under services",
             )
-        if task.resource is not None and task.resource not in blueprint.resources:
-            raise source.error(
-                ("tasks", name, "resource"),
-                f"task '{name}' uses resource '{task.resource}', which is not "
-                f"defined under resources",
-            )
-        if (
-            task.priority is not None
-            and blueprint.resources[task.resource or ""].queue != "priority"
+        for resource in task.resources():
+            if resource not in blueprint.resources:
+                raise source.error(
+                    ("tasks", name, "resource"),
+                    f"task '{name}' uses resource '{resource}', which is not "
+                    f"defined under resources",
+                )
+            if (
+                task.priority is not None
+                and blueprint.resources[resource].queue != "priority"
+            ):
+                raise source.error(
+                    ("tasks", name, "priority"),
+                    f"task '{name}' has a priority, but resource '{resource}' "
+                    f"does not set queue: priority",
+                )
+        for key, target in (
+            ("on_interrupt_next", task.on_interrupt_next),
+            ("interrupt", task.interrupt.task if task.interrupt else None),
         ):
-            raise source.error(
-                ("tasks", name, "priority"),
-                f"task '{name}' has a priority, but resource '{task.resource}' "
-                f"does not set queue: priority",
-            )
+            if target is not None and target not in blueprint.tasks:
+                raise source.error(
+                    ("tasks", name, key),
+                    f"task '{name}' names task '{target}', which is not defined "
+                    f"under tasks",
+                )
         for field in ("get", "put"):
             step = getattr(task, field)
             if step is None:
@@ -216,6 +228,17 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                         f"level.{level} names no store or container",
                     )
 
+    try:
+        check_acquisition_order(
+            {name: task.resources() for name, task in blueprint.tasks.items()},
+            {
+                name: (task.keep, {target for target, _ in _routes(name, task)})
+                for name, task in blueprint.tasks.items()
+            },
+        )
+    except ValueError as exc:
+        raise source.error(("tasks",), str(exc)) from None
+
     for kind in ("resources", "stores"):
         for name, capacity in getattr(blueprint, kind).items():
             for field in ("current_cap", "max_cap"):
@@ -230,6 +253,14 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
             raise source.error(
                 ("arrivals", name, "spawn"),
                 f"arrival '{name}' spawns task '{arrival.spawn}', which is not "
+                f"defined under tasks",
+            )
+
+    for index, step in enumerate(blueprint.scenario):
+        if step.interrupt is not None and step.interrupt.task not in blueprint.tasks:
+            raise source.error(
+                ("scenario", index, "interrupt"),
+                f"the step interrupts task '{step.interrupt.task}', which is not "
                 f"defined under tasks",
             )
 
@@ -289,6 +320,8 @@ def _expressions(
         found.append((Expression(task.balk), where + ("balk",)))
     if task.fail is not None:
         found.append((Expression(task.fail), where + ("fail",)))
+    if task.interrupt is not None and task.interrupt.where is not None:
+        found.append((Expression(task.interrupt.where), where + ("interrupt", "where")))
     if task.wait is not None:
         wait = Wait(task.wait)
         for branch, (kind, target) in wait.branches.items():
@@ -339,7 +372,11 @@ def _build_context(blueprint: Blueprint, source: SourceMap) -> SimulationContext
 
     for name, resource in blueprint.resources.items():
         context.add_resource(
-            name, int(resource.current_cap), int(resource.max_cap), queue=resource.queue
+            name,
+            int(resource.current_cap),
+            int(resource.max_cap),
+            queue=resource.queue,
+            preempt=resource.preempt,
         )
     for name, store in blueprint.stores.items():
         context.add_store(
@@ -370,6 +407,11 @@ def _build_context(blueprint: Blueprint, source: SourceMap) -> SimulationContext
         name: context.task(
             service_id=task.service,
             resource_id=task.resource,
+            keep=task.keep,
+            preempt=task.preempt,
+            on_interrupt=task.on_interrupt,
+            on_interrupt_next=task.on_interrupt_next,
+            interrupt=None if task.interrupt is None else task.interrupt.action(),
             name=name,
             priority=task.priority,
             patience=task.patience,
@@ -402,7 +444,13 @@ def _build_context(blueprint: Blueprint, source: SourceMap) -> SimulationContext
     if blueprint.scenario:
         steps = sorted(
             (
-                (step.at, step.path, step.value, step.record)
+                (
+                    step.at,
+                    step.path,
+                    step.value,
+                    step.record,
+                    None if step.interrupt is None else step.interrupt.action(),
+                )
                 for step in blueprint.scenario
             ),
             key=lambda step: step[0],
@@ -469,16 +517,17 @@ def _check_registry_reads(
 
 def _run_scenario(
     context: SimulationContext,
-    steps: List[Tuple[float, Optional[str], Any, Optional[Dict[str, Any]]]],
+    steps: List[Tuple[float, Optional[str], Any, Optional[Dict[str, Any]], Any]],
 ) -> Generator:
     """Applies each scenario step at its simulation time.
 
     It waits on the simulation clock, so a scenario repeats exactly and works at
     `factor=0`, where `LocalIngress`, which waits on the wall clock, would not. A
-    step with a `record` publishes a ground-truth record of the change.
+    step with a `record` publishes a ground-truth record of the change, and one with
+    an `interrupt` interrupts the running instances of a task.
     """
     registry = context.env.registry
-    for at, path, value, record in steps:
+    for at, path, value, record, interrupt in steps:
         if at > context.env.now:
             yield context.env.timeout(at - context.env.now)
         old = new = None
@@ -488,6 +537,12 @@ def _run_scenario(
             new = registry.get(path).value
         if record is not None:
             context.env.publish_label(record, path=path, old=old, new=new)
+        if interrupt is not None:
+            context.interrupt(
+                interrupt["task"],
+                where=interrupt.get("where"),
+                cause=interrupt.get("cause"),
+            )
 
 
 def _when(

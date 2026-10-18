@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from desflow import SimulationContext
+from desflow import Entity, SimulationContext
 
 
 def test_builder_state_management():
@@ -462,6 +462,118 @@ def test_a_raising_function_fails_the_task_and_ends_the_flow():
     readings = app.env.stats.readings()
     assert readings["TestSim.stats.tasks.t.failed"] == 1
     assert readings["TestSim.stats.flows.t.failed"] == 1
+
+
+def _two_resources():
+    return (
+        SimulationContext("TestSim", factor=0.0)
+        .add_resource("picker", current_cap=1, max_cap=1)
+        .add_resource("bench", current_cap=1, max_cap=1)
+        .add_service("s", "constant", value=1.0)
+    )
+
+
+def test_resources_acquired_in_opposite_orders_are_refused():
+    """Two tasks that each hold one resource while waiting for the other could wait
+    for ever, so the model is refused, also through a keep handoff."""
+    app = _two_resources()
+
+    @app.task(service_id="s", resource_id=["picker", "bench"], name="a")
+    def a(task_id):
+        return {}
+
+    @app.task(service_id="s", resource_id=["bench", "picker"], name="b")
+    def b(task_id):
+        return {}
+
+    with pytest.raises(ValueError, match="in one order everywhere"):
+        app.run(until=1)
+
+    handoff = _two_resources()
+
+    @handoff.task(
+        service_id="s", resource_id="bench", keep=["bench"], next="c", name="d"
+    )
+    def d(task_id):
+        return {}
+
+    @handoff.task(service_id="s", resource_id="picker", name="c")
+    def c(task_id):
+        return {}
+
+    @handoff.task(service_id="s", resource_id=["picker", "bench"], name="e")
+    def e(task_id):
+        return {}
+
+    with pytest.raises(ValueError, match="keeping it for 'c'"):
+        handoff.run(until=1)
+
+
+def test_a_kept_unit_is_released_once_the_next_task_starts():
+    """pick keeps the picker for pack, which releases it when it starts; a second
+    order's pick waits for it until then."""
+    app = _two_resources()
+    starts = []
+
+    @app.task(
+        service_id="s", resource_id="picker", keep=["picker"], next="pack", name="pick"
+    )
+    def pick(task_id):
+        starts.append(("pick", task_id, app.env.now))
+        return {}
+
+    @app.task(service_id="s", resource_id="bench", name="pack")
+    def pack(task_id):
+        starts.append(("pack", task_id, app.env.now))
+        return {}
+
+    def script(context):
+        context.spawn(pick(0))
+        context.spawn(pick(1))
+        yield context.env.timeout(0)
+
+    app.add_process(script)
+    app.run(until=10)
+    # pick 0 runs 0-1 and keeps the picker; pack 0 starts at 1 and releases it, so
+    # pick 1 starts at 1 too
+    assert starts == [
+        ("pick", 0, 0.0),
+        ("pack", 0, 1.0),
+        ("pick", 1, 1.0),
+        ("pack", 1, 2.0),
+    ]
+
+
+def test_interrupt_reaches_only_the_running_instances_its_condition_names():
+    app = SimulationContext("TestSim", factor=0.0)
+    app.add_service("s", "constant", value=10.0)
+
+    @app.task(service_id="s", name="work", on_interrupt="abandon")
+    def work(task_id, entity):
+        return {}
+
+    counts = []
+
+    def script(context):
+        for n in range(3):
+            context.spawn(work(n, entity=Entity(f"o-{n}", "o", {"n": n})))
+        yield context.env.timeout(1)
+        counts.append(context.interrupt("work", where="attr.n >= 1", cause="recall"))
+        yield context.env.timeout(1)
+        counts.append(context.interrupt("work"))
+
+    app.add_process(script)
+    app.run(until=20)
+    assert counts == [2, 1]
+
+
+def test_preemption_settings_are_checked():
+    with pytest.raises(ValueError, match="needs queue='priority'"):
+        SimulationContext("TestSim").add_resource("m", 1, 1, preempt=True)
+    with pytest.raises(ValueError, match="on_interrupt must be one of"):
+        SimulationContext("TestSim").task(on_interrupt="pause")
+    with pytest.raises(ValueError, match="keep names resources"):
+        SimulationContext("TestSim").task("s", "m", keep=["bench"])
 
 
 def test_balk_with_an_unknown_level_fails_before_the_run():

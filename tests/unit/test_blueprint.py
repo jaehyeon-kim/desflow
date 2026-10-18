@@ -834,3 +834,24 @@ def test_mixed_time_zones_name_the_line(tmp_path, times):
     message = str(error.value)
     assert message.startswith(f"{path}:"), message
     assert "both have a time zone or both have none" in message
+
+
+def test_resources_in_opposite_orders_name_the_tasks_line(tmp_path):
+    text = (
+        MINIMAL.replace(
+            "  packers: {current_cap: 2, max_cap: 5}",
+            "  packers: {current_cap: 2, max_cap: 5}\n  bench: {current_cap: 1, max_cap: 1}",
+        )
+        .replace(
+            "    resource: packers\n",
+            "    resource: [packers, bench]\n",
+        )
+        .replace(
+            "run:",
+            "  other:\n    service: packing\n    resource: [bench, packers]\n"
+            "    payload: {status: done}\nrun:",
+        )
+    )
+    with pytest.raises(BlueprintError, match="in one order everywhere") as error:
+        SimulationContext.from_yaml(write(tmp_path, text))
+    assert ":12:" in str(error.value)  # the tasks section

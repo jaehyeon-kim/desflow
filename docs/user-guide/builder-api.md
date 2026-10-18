@@ -178,11 +178,10 @@ if __name__ == "__main__":
 
 ## Errors and Limits
 
-A mistake stops the script before the clock starts. A method raises `ValueError` when it is called with a value it cannot take: a distribution parameter out of range or one its family does not take, an unknown queue order, a task with a resource but no service, a priority without a resource, or a second task with the same name. `run()` then checks what each task names, before the clock or any connector starts, and raises `ValueError` for a resource, service, store, container or next task that was not added, a priority on a resource that does not queue by priority, and a `level.<name>` or `registry["..."]` that an expression reads but that does not exist.
+A mistake stops the script before the clock starts. A method raises `ValueError` when it is called with a value it cannot take: a distribution parameter out of range or one its family does not take, an unknown queue order, a task with a resource but no service, a priority without a resource, an unknown `on_interrupt`, or a second task with the same name. `run()` then checks what each task names, before the clock or any connector starts, and raises `ValueError` for a resource, service, store, container, signal or task that was not added, a priority on a resource that does not queue by priority, two tasks that acquire resources in opposite orders, and a `level.<name>`, `signal.<name>`, `wait.<branch>` or `registry["..."]` that an expression reads but that does not exist.
 
 The builder's limits are those of its tasks and its resources:
 
-- **A task holds one resource and cannot be interrupted.** [Tasks and Processes](tasks-and-processes.md#stability-and-limits) names the process that does each.
 - **Resources are fixed when the run starts.** `run()` creates every resource, store and container before the clock starts, and has no call to add one later; [Dynamic Topology](../guides/dynamic-topology.md) adds one with the low-level API.
 
 ---

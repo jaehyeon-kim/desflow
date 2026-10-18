@@ -146,7 +146,7 @@ def all_with_a_failure() -> list:
 
 `all_with_a_failure()` returns `[(0.0, "order", "queued"), (2.0, "order", "failed"), (4.0, "inspect", "finished")]`. The order's failure goes to its `on_fail` task when it has one, and otherwise ends its flow.
 
-A wait never holds a resource. Waiting for all of several things that each free up a resource does not grant the resources together: the task asks for its resource only after the wait, and another task can take the unit in between. Holding several resources at once is described in [Multi-Resource Handoffs](multi-resource-handoffs.md).
+A wait never holds a resource. Waiting for all of several things that each free up a resource does not grant the resources together: the task asks for its resource only after the wait, and another task can take the unit in between. To hold several resources at once, list them on the task, `resource: [picker, bench]`, as [Resources](../user-guide/resources.md#several-resources) describes.
 
 ---
 

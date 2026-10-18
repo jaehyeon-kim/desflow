@@ -1,0 +1,23 @@
+# A store of 1 starts full; a put waits from 10 and is interrupted at 12 with
+# abandon; a get at 14 takes the first item, and the late one never goes in.
+# See test_c5_inventory.py.
+simulation:
+  sim_id: C5c
+  factor: 0
+stores:
+  bin: {current_cap: 1, max_cap: 1, items: [first]}
+arrivals:
+  fillers: {dist: constant, value: 10, spawn: fill}
+  takers: {dist: constant, value: 14, spawn: take}
+tasks:
+  fill:
+    put: {store: bin}
+    on_interrupt: abandon
+    payload: {event: late}
+  take:
+    get: {store: bin}
+    payload: {event: taken}
+scenario:
+  - {at: 12, interrupt: {task: fill, cause: recall}}
+run:
+  until: 15

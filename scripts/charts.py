@@ -439,6 +439,52 @@ def courier_shares() -> None:
     _save(fig, "courier-shares")
 
 
+def interruption_policies() -> None:
+    """Interruptions: the mean wait of regular orders, and how many were packed,
+    under each policy."""
+    import logging
+
+    module = _module("interruptions")
+    logging.getLogger("desflow").setLevel(logging.WARNING)
+    policies = ("resume", "restart", "abandon")
+    results = [module.outcomes(policy) for policy in policies]
+    fig, ax = plt.subplots(figsize=(WIDTH, HEIGHT))
+    waits = [r["wait_mean"] for r in results]
+    ax.bar(policies, waits, 0.5, color=[BLUE, ORANGE, GREY])
+    for i, r in enumerate(results):
+        ax.text(
+            i, waits[i] + 0.5, f"{waits[i]:.2f} s, {r['finished']} packed", ha="center"
+        )
+    ax.set_ylabel("mean wait of regular orders (s)")
+    ax.set_ylim(0, max(waits) * 1.2)
+    ax.set_title("Express orders preempt regular ones: one hour")
+    _save(fig, "interruption-policies")
+
+
+def handoff_waits() -> None:
+    """Competing Resources: where orders wait, with and without the picker handoff."""
+    import logging
+
+    module = _module("competing_resources")
+    logging.getLogger("desflow").setLevel(logging.WARNING)
+    results = {keep: module.outcomes(keep) for keep in (False, True)}
+    labels = ["frees the picker", "keeps the picker"]
+    pick = [results[k]["pick_wait"] for k in (False, True)]
+    pack = [results[k]["pack_wait"] for k in (False, True)]
+    fig, ax = plt.subplots(figsize=(WIDTH, HEIGHT))
+    ax.bar(labels, pick, 0.5, color=BLUE, label="wait for the picker")
+    ax.bar(labels, pack, 0.5, bottom=pick, color=ORANGE, label="wait for the bench")
+    for i in range(2):
+        ax.text(
+            i, pick[i] + pack[i] + 0.2, f"{pick[i] + pack[i]:.2f} s in all", ha="center"
+        )
+    ax.set_ylabel("mean wait of an order (s)")
+    ax.set_ylim(0, max(a + b for a, b in zip(pick, pack)) * 1.2)
+    ax.set_title("One picker, one bench, an order every 2.5 s")
+    ax.legend(frameon=False, loc="upper left")
+    _save(fig, "handoff-waits")
+
+
 def distribution_shapes() -> None:
     """Arrivals and Services: 200,000 draws from each distribution family, with the
     parameters of the examples on the page."""
@@ -498,6 +544,8 @@ CHARTS: Dict[str, Callable[[], None]] = {
     "patience-waits": patience_waits,
     "filtered-outcomes": filtered_outcomes,
     "courier-shares": courier_shares,
+    "interruption-policies": interruption_policies,
+    "handoff-waits": handoff_waits,
     "stock-level": stock_level,
     "trusting-warmup": trusting_warmup,
     "measuring-queue": measuring_queue,

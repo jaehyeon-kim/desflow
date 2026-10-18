@@ -70,6 +70,9 @@ MEANINGS: Dict[str, str] = {
     "tasks.service_p99": "the service time 99% of instances stay under",
     "flows.finished": "entities that left the model, by the arrival that started them",
     "flows.failed": "entities whose flow ended in a failure no `on_fail` handled; published once one does",
+    "tasks.interrupted": "interrupts delivered to instances, preemptions not included; published once one is",
+    "tasks.preempted": "times a higher-priority request took an instance's unit; published once one does",
+    "tasks.resumed": "times an interrupted instance got its units back and was served again; published once one does",
     "tasks.failed": "instances that failed: their `fail` held, their function raised or their wait failed; published once one does",
 }
 
@@ -181,6 +184,11 @@ def statistic_names() -> Dict[str, List[str]]:
         env.stats.task_queued("<task>", 3)
         env.stats.task_failed("<task>", 3)
         env.stats.flow_failed("<arrival>")
+        env.stats.task_queued("<task>", 4)
+        env.stats.task_started("<task>", 4)
+        env.stats.task_interrupted("<task>", 4)
+        env.stats.task_interrupted("<task>", 4, preempted=True)
+        env.stats.task_resumed("<task>", 4)
         env.stats.flow_finished("<arrival>")
         names[level] = list(env.stats.readings())
         env.teardown()

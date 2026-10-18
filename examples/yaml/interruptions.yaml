@@ -1,0 +1,55 @@
+# Interruptions: express orders preempt regular ones, and a fire drill interrupts packing, in YAML.
+#
+# The twin of examples/builder/interruptions_example.py. One packer serves express
+# orders (priority 0) before regular ones (priority 1), and an express order takes
+# the packer from a regular order being packed. The regular order is preempted,
+# queues again and resumes with the packing time it had left. At 60 seconds a fire
+# drill interrupts the order being packed, which resumes when it gets the packer back.
+#
+# Needs no containers. Runs unpaced and ends after 120 simulation seconds.
+# Run it with: desflow run examples/yaml/interruptions.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+egress:
+  - type: Console
+
+resources:
+  # --8<-- [start:packers]
+  # A lower priority value takes the packer from a higher one.
+  packers: {current_cap: 1, max_cap: 4, queue: priority, preempt: true}
+  # --8<-- [end:packers]
+
+services:
+  packing: {dist: triangular, low: 1 s, mode: 2 s, high: 4 s}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.3, spawn: pack, attributes: {priority: 1}}
+  express: {dist: exponential, rate: 0.1, spawn: pack, attributes: {priority: 0}}
+
+# --8<-- [start:pack]
+tasks:
+  pack:
+    service: packing
+    resource: packers
+    priority: attr.priority
+    # A preempted or interrupted order queues again and serves what it had left.
+    on_interrupt: resume
+    payload: {event_type: order_packed}
+    attributes: [priority]
+# --8<-- [end:pack]
+
+# --8<-- [start:drill]
+scenario:
+  # Interrupts every order being packed; each follows its on_interrupt.
+  - {at: 60, interrupt: {task: pack, cause: fire drill}}
+# --8<-- [end:drill]
+
+# Every 30 seconds, how many orders were preempted, interrupted and resumed.
+stats: {level: basic, interval: 30}
+
+run:
+  until: 120

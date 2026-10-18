@@ -1,10 +1,18 @@
 # Preemptive Breakdowns
 
-A preemptive breakdown stops a machine in the middle of a job. Here a label printer jams while it prints an order's shipping label. The order remains assigned to the printer during repairs, then labelling resumes. No other order can start while the printer is down.
+**Level:** Advanced
 
-![worker_task publishes queued and started; every 12 s chaos_monkey interrupts the order on the printer, which publishes interrupted with the cause, keeps the printer for 10 s of repair, publishes printer_repaired and labels the rest, then publishes finished; with no jam it finishes after 5 s of labelling](../assets/diagrams/breakdown-interrupt.png)
+A preemptive breakdown stops a machine in the middle of a job. Here a label printer jams every 12 seconds while it prints orders' shipping labels. The jam takes the printer from the order being labelled for 10 seconds of repair; the order queues again and, once the printer is repaired, labels what it had left. It builds on [Interruptions](../tutorials/interruptions.md), which explains preemption and `on_interrupt`.
 
-`@app.task` waits out the service time inside its own generator, so your code cannot catch a `simpy.Interrupt` there. A breakdown needs a task written as a generator that you start with `context.spawn`, and a process that interrupts it.
+---
+
+## Steps
+
+1. Make the printer preemptive: `queue: priority` and `preempt: true`, so a request with a lower priority value takes it from the order being labelled.
+2. Model a jam as a task of priority 0 that holds the printer for the repair time. While it holds the printer, no order is labelled.
+3. Give the labelling task `on_interrupt: resume`, the default, so a preempted order keeps the time it had left; `restart` would print the label again from the start.
+
+The order publishes `preempted` when the jam takes the printer and `resumed` when it has it back. A preempted order queues again behind the orders that were already waiting, as a new SimPy request does.
 
 ---
 
@@ -13,86 +21,58 @@ A preemptive breakdown stops a machine in the middle of a job. Here a label prin
 ```python title="docs/snippets/guides/preemptive_breakdowns.py"
 import logging
 
-import simpy
-
 from desflow import ConsoleEgress, SimulationContext
 
 logging.basicConfig(level=logging.INFO)
 
-LABELLING = 5.0  # seconds to print and attach the shipping label of one order
-REPAIR = 10.0  # seconds the printer is down after a jam
-JAM_EVERY = 12.0  # seconds between jams
-
 app = (
     SimulationContext(sim_id="Shop", factor=1.0)
-    .add_resource("printer", current_cap=1, max_cap=1)
+    # A jam takes the printer from the order being labelled: priority 0 preempts 1
+    .add_resource("printer", current_cap=1, max_cap=1, queue="priority", preempt=True)
+    # 5 s to print and attach the shipping label of one order
+    .add_service("labelling", dist="constant", value=5.0)
+    # 10 s of repair after a jam
+    .add_service("repair", dist="constant", value=10.0)
     .add_arrival("orders", dist="exponential", rate=0.2)
+    # A jam every 12 s
+    .add_arrival("jams", dist="constant", value=12.0)
     .add_egress(ConsoleEgress())
 )
 
-# The process of the order being labelled, if any, so a jam can interrupt it.
-on_printer = []
+
+# An interrupted order gives the printer back, queues again, and labels what was
+# left once it has the printer back
+@app.task(
+    service_id="labelling", resource_id="printer", priority=1, on_interrupt="resume"
+)
+def label(task_id: int):
+    return {"event_type": "label_printed"}
 
 
-def worker_task(context: SimulationContext, order, task_id: int):
-    printer = context.get_resource("printer")
-
-    def publish(value):
-        # Keyed by the order, orders-1 and so on, with the task and its instance id
-        context.env.publish_event(order.key, value, task="label", instance=task_id)
-
-    publish({"status": "queued"})
-
-    with printer.request() as req:
-        yield req
-        publish({"status": "started"})
-        remaining = LABELLING
-        while remaining > 0:
-            on_printer.append(context.env.active_process)
-            began = context.env.now
-            try:
-                yield context.env.timeout(remaining)
-                remaining = 0
-            except simpy.Interrupt as interrupt:
-                remaining -= context.env.now - began
-                publish({"status": "interrupted", "cause": interrupt.cause})
-            on_printer.remove(context.env.active_process)
-            if remaining > 0:
-                # The order stays on the printer, so no other order can start, and a
-                # printer under repair cannot jam again.
-                yield context.env.timeout(REPAIR)
-                publish({"status": "printer_repaired"})
-        publish({"status": "finished"})
-
-
-def chaos_monkey(context: SimulationContext):
-    while True:
-        yield context.env.timeout(JAM_EVERY)
-        if on_printer:  # an idle printer has nothing to interrupt
-            on_printer[0].interrupt("paper_jam")
+# A jam holds the printer for the repair, so no order is labelled meanwhile
+@app.task(service_id="repair", resource_id="printer", priority=0)
+def jam(task_id: int):
+    return {"event_type": "printer_repaired"}
 
 
 @app.arrival_loop("orders")
-def arrival_loop(context: SimulationContext):
-    context.spawn(chaos_monkey(context))
-    task_id = 0
+def order_loop(context: SimulationContext):
     while True:
         order = yield context.wait_for_arrival("orders")
-        context.spawn(worker_task(context, order, task_id))
-        task_id += 1
+        context.spawn(label(context.next_instance("label"), entity=order))
+
+
+@app.arrival_loop("jams")
+def jam_loop(context: SimulationContext):
+    while True:
+        breakdown = yield context.wait_for_arrival("jams")
+        context.spawn(jam(context.next_instance("jam"), entity=breakdown))
 
 
 if __name__ == "__main__":
     app.run(until=40.0)
 ```
 
-Save it as `preemptive_breakdowns.py` and run `python preemptive_breakdowns.py`. It runs for 40 seconds in real time (`factor=1.0`) and prints each event.
+Save it as `preemptive_breakdowns.py` and run `python preemptive_breakdowns.py`. It runs for 40 seconds in real time (`factor=1.0`) and prints each event. Each jam stops the printer for 10 seconds, the first from 12 to 22: an order being labelled at that moment publishes `preempted`, and `resumed` once it has the printer again.
 
----
-
-## How It Works
-
-- **`on_printer`** holds the process of the order being labelled, so the breakdown process knows what to interrupt.
-- **`worker_task`** publishes each event with the order's key, `orders-1` and so on, and with the task name `label` and its instance id. It takes the printer and labels for `LABELLING` seconds. When it is interrupted, it subtracts the time already worked, publishes `interrupted` with the cause, keeps the printer for `REPAIR` seconds, publishes `printer_repaired` and labels the rest. It publishes `finished` when the work is done.
-- **`chaos_monkey`** interrupts the order on the printer every `JAM_EVERY` seconds. An idle printer, or one under repair, has nothing to interrupt, so it does not jam. For jams at random times, replace the fixed wait with a random draw such as `random.expovariate(1 / JAM_EVERY)`.
-- **`arrival_loop`** starts `chaos_monkey` once, then starts a `worker_task` for each arriving order.
+A jam here happens on a fixed clock, whether or not the printer is busy. For jams at random times, give the `jams` arrival a distribution such as `exponential`.

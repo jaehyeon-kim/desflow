@@ -144,6 +144,18 @@ EXAMPLES: Dict[str, Example] = {
             _three("process_interaction.yaml", "process_interaction_example.py"),
         ),
         Example(
+            "interruptions",
+            "Interruptions",
+            "express orders preempt regular ones, and a fire drill interrupts packing; each resumes",
+            _three("interruptions.yaml", "interruptions_example.py"),
+        ),
+        Example(
+            "competing-resources",
+            "Competing Resources",
+            "orders keep the picker until they are on the bench, and gifts hold both in one order",
+            _three("competing_resources.yaml", "competing_resources_example.py"),
+        ),
+        Example(
             "related-records",
             "Generate Related Records",
             "orders and their line items, in two PostgreSQL tables",

@@ -166,6 +166,8 @@ nav:
           - A Flow of Tasks: tutorials/flow-of-tasks.md
           - Process Interaction: tutorials/process-interaction.md
           - Patience: tutorials/patience.md
+          - Interruptions: tutorials/interruptions.md
+          - Competing Resources: tutorials/competing-resources.md
           - Filtered Inventory: tutorials/filtered-inventory.md
   - User Guide:
       - Ways to Write: user-guide/ways-to-write.md

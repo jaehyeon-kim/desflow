@@ -73,23 +73,22 @@ def test_jams_stop_the_printer_until_repaired(caplog):
     with caplog.at_level(logging.INFO, logger="desflow"):
         module.app.run(until=200)
     events = _events(caplog)
-    statuses = [value["status"] for _, value in events]
-    assert "interrupted" in statuses
-    assert "printer_repaired" in statuses
-    assert "finished" in statuses
+    statuses = [value.get("status") for _, value in events]
+    assert "preempted" in statuses and "resumed" in statuses
+    assert any(value.get("event_type") == "label_printed" for _, value in events)
 
-    # Between a jam and its repair, no other order starts on the printer, and the
-    # interrupted order finishes after the repair.
-    down = None
+    # Between a jam taking the printer and its repair, no order is labelled.
+    down = False
     for key, value in events:
-        if value["status"] == "interrupted":
-            down = key
-            assert value["cause"] == "paper_jam"
-        elif value["status"] == "printer_repaired":
-            assert key == down
-            down = None
-        elif value["status"] == "started":
-            assert down is None
+        if key.startswith("jams-") and value.get("status") == "started":
+            down = True
+        elif value.get("event_type") == "printer_repaired":
+            down = False
+        elif key.startswith("orders-") and value.get("status") in (
+            "started",
+            "resumed",
+        ):
+            assert not down, f"{key} was labelled while the printer was down"
 
 
 def test_handoff_holds_the_picker_until_the_bench_is_free(caplog):
@@ -98,29 +97,19 @@ def test_handoff_holds_the_picker_until_the_bench_is_free(caplog):
     with caplog.at_level(logging.INFO, logger="desflow"):
         module.app.run(until=60)
     events = _events(caplog)
-    assert any(value["status"] == "finished" for _, value in events)
+    assert any(value.get("event_type") == "order_packed" for _, value in events)
 
-    # Each order goes queued, picked, at_bench, finished, in that order.
-    seen = {}
+    # One order at a time holds the picker: from its pick's start until its pack
+    # starts, so no pick starts in between.
+    with_picker = None
     for key, value in events:
-        seen.setdefault(key, []).append(value["status"])
-    order = ["queued", "picked", "at_bench", "finished"]
-    for statuses in seen.values():
-        assert statuses == order[: len(statuses)]
-
-    # One order at a time holds the picker (from picked to at_bench) and the bench
-    # (from at_bench to finished).
-    with_picker, on_bench = None, None
-    for key, value in events:
-        if value["status"] == "picked":
-            assert with_picker is None
+        task_start = value.get("status") == "started"
+        if task_start and value["path_id"] == "Shop.service.walking":
+            assert with_picker is None, f"{key} picked while {with_picker} held it"
             with_picker = key
-        elif value["status"] == "at_bench":
-            assert with_picker == key and on_bench is None
-            with_picker, on_bench = None, key
-        elif value["status"] == "finished":
-            assert on_bench == key
-            on_bench = None
+        elif task_start and value["path_id"] == "Shop.service.packing":
+            assert with_picker == key
+            with_picker = None
 
 
 def test_supervisor_adds_the_wrappers_mid_run(caplog):

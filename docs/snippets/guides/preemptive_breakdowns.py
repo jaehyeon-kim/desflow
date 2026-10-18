@@ -1,80 +1,57 @@
 import logging
 
-import simpy
-
 from desflow import ConsoleEgress, SimulationContext
 
 logging.basicConfig(level=logging.INFO)
 
-LABELLING = 5.0  # seconds to print and attach the shipping label of one order
-REPAIR = 10.0  # seconds the printer is down after a jam
-JAM_EVERY = 12.0  # seconds between jams
-
 app = (
     SimulationContext(sim_id="Shop", factor=1.0)
-    .add_resource("printer", current_cap=1, max_cap=1)
+    # --8<-- [start:printer]
+    # A jam takes the printer from the order being labelled: priority 0 preempts 1
+    .add_resource("printer", current_cap=1, max_cap=1, queue="priority", preempt=True)
+    # --8<-- [end:printer]
+    # 5 s to print and attach the shipping label of one order
+    .add_service("labelling", dist="constant", value=5.0)
+    # 10 s of repair after a jam
+    .add_service("repair", dist="constant", value=10.0)
     .add_arrival("orders", dist="exponential", rate=0.2)
+    # A jam every 12 s
+    .add_arrival("jams", dist="constant", value=12.0)
     .add_egress(ConsoleEgress())
 )
 
-# The process of the order being labelled, if any, so a jam can interrupt it.
-on_printer = []
+
+# --8<-- [start:tasks]
+# An interrupted order gives the printer back, queues again, and labels what was
+# left once it has the printer back
+@app.task(
+    service_id="labelling", resource_id="printer", priority=1, on_interrupt="resume"
+)
+def label(task_id: int):
+    return {"event_type": "label_printed"}
 
 
-# --8<-- [start:worker]
-def worker_task(context: SimulationContext, order, task_id: int):
-    printer = context.get_resource("printer")
-
-    def publish(value):
-        # Keyed by the order, orders-1 and so on, with the task and its instance id
-        context.env.publish_event(order.key, value, task="label", instance=task_id)
-
-    publish({"status": "queued"})
-
-    with printer.request() as req:
-        yield req
-        publish({"status": "started"})
-        remaining = LABELLING
-        while remaining > 0:
-            on_printer.append(context.env.active_process)
-            began = context.env.now
-            try:
-                yield context.env.timeout(remaining)
-                remaining = 0
-            except simpy.Interrupt as interrupt:
-                remaining -= context.env.now - began
-                publish({"status": "interrupted", "cause": interrupt.cause})
-            on_printer.remove(context.env.active_process)
-            if remaining > 0:
-                # The order stays on the printer, so no other order can start, and a
-                # printer under repair cannot jam again.
-                yield context.env.timeout(REPAIR)
-                publish({"status": "printer_repaired"})
-        publish({"status": "finished"})
+# A jam holds the printer for the repair, so no order is labelled meanwhile
+@app.task(service_id="repair", resource_id="printer", priority=0)
+def jam(task_id: int):
+    return {"event_type": "printer_repaired"}
 
 
-# --8<-- [end:worker]
-
-
-# --8<-- [start:breakdowns]
-def chaos_monkey(context: SimulationContext):
-    while True:
-        yield context.env.timeout(JAM_EVERY)
-        if on_printer:  # an idle printer has nothing to interrupt
-            on_printer[0].interrupt("paper_jam")
-
-
-# --8<-- [end:breakdowns]
+# --8<-- [end:tasks]
 
 
 @app.arrival_loop("orders")
-def arrival_loop(context: SimulationContext):
-    context.spawn(chaos_monkey(context))
-    task_id = 0
+def order_loop(context: SimulationContext):
     while True:
         order = yield context.wait_for_arrival("orders")
-        context.spawn(worker_task(context, order, task_id))
-        task_id += 1
+        context.spawn(label(context.next_instance("label"), entity=order))
+
+
+@app.arrival_loop("jams")
+def jam_loop(context: SimulationContext):
+    while True:
+        breakdown = yield context.wait_for_arrival("jams")
+        context.spawn(jam(context.next_instance("jam"), entity=breakdown))
 
 
 if __name__ == "__main__":

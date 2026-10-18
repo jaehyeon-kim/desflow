@@ -1,0 +1,43 @@
+# The Competing Resources tutorial: an order keeps the picker until it is on the bench.
+# Run it with: desflow run competing_resources.yaml
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+resources:
+  picker: {current_cap: 1, max_cap: 2}
+  bench: {current_cap: 1, max_cap: 2}
+
+services:
+  picking: {dist: constant, value: 1 s}
+  packing: {dist: exponential, rate: 0.5}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.4, spawn: pick_order}
+
+tasks:
+  # --8<-- [start:handoff]
+  pick_order:
+    service: picking
+    resource: picker
+    # The picker carries the order and stays with it until it is on the bench
+    keep: [picker]
+    payload: {event_type: order_picked}
+    next: pack_order
+  pack_order:
+    service: packing
+    resource: bench
+    payload: {event_type: order_packed}
+  # --8<-- [end:handoff]
+
+# --8<-- [start:watch]
+# The mean wait of each task and the picker's busy share, at the end
+stats: {level: typical, interval: 1 h}
+# --8<-- [end:watch]
+
+egress:
+  - type: Console
+
+run:
+  until: 1 h

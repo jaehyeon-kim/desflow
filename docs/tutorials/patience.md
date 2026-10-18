@@ -365,4 +365,4 @@ Orders arrive at 0.7 a second and bring 1.05 seconds of packing each second, mor
                 )
         ```
 
-[Reneging and Balking](../guides/reneging-and-balking.md) shows the same two decisions in a shop example, with ties and how to check that every order is accounted for. Next, [Filtered Inventory](filtered-inventory.md) asks which waiting order can use the item that arrives.
+[Reneging and Balking](../guides/reneging-and-balking.md) shows the same two decisions in a shop example, with ties and how to check that every order is accounted for. Next, [Interruptions](interruptions.md) asks what remains of an order's packing when an express order takes its packer.

@@ -32,6 +32,8 @@ PAGES = {
     "patience": "docs/guides/reneging-and-balking.md",
     "filtered-inventory": "docs/user-guide/stores-and-containers.md",
     "process-interaction": "docs/user-guide/tasks-and-processes.md",
+    "interruptions": "docs/user-guide/resources.md",
+    "competing-resources": "docs/user-guide/resources.md",
 }
 TABS = {"yaml": "YAML", "builder": "Builder", "low-level": "Low-level"}
 ODCTL = '"odctl>=1.0,<2"'

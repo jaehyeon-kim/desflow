@@ -1,0 +1,54 @@
+# The Interruptions tutorial: express orders take the packer from regular ones.
+# Run it with: desflow run interruptions.yaml
+# With restart instead of resume: POLICY=restart desflow run interruptions.yaml
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+# --8<-- [start:packers]
+resources:
+  # An express order takes the packer from a regular one being packed
+  packers: {current_cap: 1, max_cap: 4, queue: priority, preempt: true}
+# --8<-- [end:packers]
+
+services:
+  packing: {dist: constant, value: 1.5 s}
+
+arrivals:
+  # 0.6 orders a second in all, one in four of them express
+  orders: {dist: exponential, rate: 0.45, spawn: pack_order}
+  express: {dist: exponential, rate: 0.15, spawn: pack_express}
+
+tasks:
+  # --8<-- [start:policy]
+  pack_order:
+    service: packing
+    resource: packers
+    priority: 1
+    # What a regular order does when it loses the packer
+    on_interrupt: ${POLICY:-resume}
+    payload: {event_type: order_packed}
+  # --8<-- [end:policy]
+  pack_express:
+    service: packing
+    resource: packers
+    priority: 0
+    payload: {event_type: express_packed}
+
+# --8<-- [start:interrupt]
+scenario:
+  # The packer is called away at 30 minutes: the order being packed is interrupted
+  - {at: 30 min, interrupt: {task: pack_order, cause: called away}}
+# --8<-- [end:interrupt]
+
+# --8<-- [start:watch]
+# Counts of preemptions and resumptions, and the mean wait and service, at the end
+stats: {level: typical, interval: 1 h}
+# --8<-- [end:watch]
+
+egress:
+  - type: Console
+
+run:
+  until: 1 h

@@ -1,0 +1,28 @@
+# A holder takes the machine at 10 for 10 s and is interrupted at 13 with
+# on_interrupt: abandon; the waiter queued at 11 starts at 13. See test_c4_resources.py.
+simulation:
+  sim_id: C4c
+  factor: 0
+resources:
+  machine: {current_cap: 1, max_cap: 1}
+services:
+  hold: {dist: constant, value: 10}
+  work: {dist: constant, value: 1}
+arrivals:
+  holders: {dist: constant, value: 10, spawn: holder}
+  waiters: {dist: constant, value: 11, spawn: waiter}
+tasks:
+  holder:
+    service: hold
+    resource: machine
+    on_interrupt: abandon
+    payload: {event: held}
+  waiter:
+    service: work
+    resource: machine
+    on_interrupt: abandon
+    payload: {event: worked}
+scenario:
+  - {at: 13, interrupt: {task: holder, cause: recall}}
+run:
+  until: 19.9

@@ -73,7 +73,7 @@ The arguments of `SimulationContext`. [Time and Pacing](../user-guide/time-and-p
 
 | Section | Keys |
 |---|---|
-| `resources` | `current_cap` and `max_cap`, whole numbers; `queue`: `fifo` (the default), `lifo` or `priority` |
+| `resources` | `current_cap` and `max_cap`, whole numbers; `queue`: `fifo` (the default), `lifo` or `priority`; `preempt: true` lets a lower priority value take a busy unit, with `queue: priority` |
 | `stores` | `current_cap` and `max_cap`, whole numbers of items; `priority: true` to return the lowest priority first; `items`, the items held at the start, `[priority, item]` pairs for a priority store |
 | `containers` | `current_cap` and `max_cap`, the largest amount; `level`, the amount at the start, 0 by default |
 
@@ -105,7 +105,8 @@ An arrival also takes:
 | Key | Value |
 |---|---|
 | `service` | the service whose time the task takes; needed with a `resource` |
-| `resource` | the resource the task holds while it works |
+| `resource` | the resource the task holds while it works, or a list of them, acquired in the order listed |
+| `keep` | resources in `resource` handed to the next task, which releases them once it starts |
 | `payload` | required: the finished event's value, a mapping, or a `!python` function called as `function(task_id, context)` |
 | `id_field` | adds the task id to a mapping payload under this key |
 | `item_field` | adds the item the task's store `get` took to a mapping payload under this key |
@@ -118,6 +119,10 @@ An arrival also takes:
 | `fail` | a condition checked after the service, reading the task's own payload; when it holds the task publishes `failed` |
 | `fail_reason` | the `reason` a failure publishes; the `fail` condition's text by default |
 | `on_fail` | the task a failed instance goes to; without it the flow ends |
+| `on_interrupt` | `resume` (the default), `restart` or `abandon`: what an interrupt or a preemption does |
+| `on_interrupt_next` | the task an abandoned instance goes to |
+| `preempt` | `false` keeps the task's requests from preempting; `true` by default |
+| `interrupt` | `{task, where, cause}`: when the task finishes, interrupts every running instance of `task` whose `where` holds |
 | `get` | `{container: name, amount: ...}` or `{store: name}`, with an optional `filter` condition for a store, which reads the item offered as `item.<field>`: taken after the resource, before the work |
 | `put` | the same form, without a filter: added after the work; a store receives the payload, with an optional `priority` for a priority store |
 | `next` | a task name; `{when: [{condition, task}, ...], default: task}`; or `{weights: {task: number, ...}}` |
@@ -155,8 +160,9 @@ A list of steps, applied in time order on the simulation clock:
 | `path` | a registry path, checked when the file loads; needs a `value` |
 | `value` | the new value, which must convert to the type the path holds |
 | `record` | a mapping, published as a ground-truth label to the `when: labels` sinks |
+| `interrupt` | `{task, where, cause}`: interrupts every running instance of `task` whose `where` holds |
 
-A step needs a `path` and `value`, a `record`, or both. [Live Parameters](../user-guide/live-parameters.md) shows scenarios and labels.
+A step needs a `path` and `value`, a `record`, an `interrupt`, or more than one. [Live Parameters](../user-guide/live-parameters.md) shows scenarios and labels.
 
 ## ingress and egress
 

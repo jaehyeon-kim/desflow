@@ -436,3 +436,62 @@ def test_process_interaction_courier_shares(api, monkeypatch):
     """Half the orders catch the courier with a 5-minute limit, 8 in 10 with 8."""
     for limit, expected in COURIER_OUTCOMES.items():
         assert _courier_outcomes(api, limit, monkeypatch) == expected
+
+
+INTERRUPTION_OUTCOMES = {
+    "resume": (344, 1607, 8.12, 1.50),
+    "restart": (393, 1606, 25.03, 1.69),
+    "abandon": (313, 1294, 3.60, 1.50),
+}
+
+
+@pytest.mark.parametrize("api", APIS)
+def test_interruptions_policies(api, monkeypatch):
+    """Restart triples the regular wait, abandon loses 313 orders."""
+    for policy, expected in INTERRUPTION_OUTCOMES.items():
+        if api == "yaml":
+            monkeypatch.setenv("POLICY", policy)
+            app = SimulationContext.from_yaml(BLUEPRINTS / "interruptions.yaml")
+            app.run()
+            r = app.env.stats.readings()
+            name = "Shop.stats.tasks.pack_order.{}".format
+            got = (
+                r[name("preempted")],
+                r[name("finished")],
+                r[name("wait_mean")],
+                r[name("service_mean")],
+            )
+        else:
+            module = _load("interruptions" + ("" if api == "builder" else "_low_level"))
+            o = module.outcomes(policy)
+            got = (o["preempted"], o["finished"], o["wait_mean"], o["service_mean"])
+        assert (got[0], got[1], round(got[2], 2), round(got[3], 2)) == expected
+
+
+@pytest.mark.parametrize("api", APIS)
+def test_competing_resources_handoff(api):
+    """Keeping the picker moves the wait to the picker: 9.85 s in all, not 6.21."""
+    if api == "yaml":
+        app = SimulationContext.from_yaml(BLUEPRINTS / "competing_resources.yaml")
+        app.run()
+        r = app.env.stats.readings()
+        kept = {
+            "pick_wait": r["Shop.stats.tasks.pick_order.wait_mean"],
+            "pack_wait": r["Shop.stats.tasks.pack_order.wait_mean"],
+            "picker_busy": r["Shop.stats.resources.picker.utilization_avg"],
+        }
+        runs = {True: kept}
+    else:
+        module = _load(
+            "competing_resources" + ("" if api == "builder" else "_low_level")
+        )
+        runs = {keep: module.outcomes(keep) for keep in (False, True)}
+    expected = {False: (0.32, 5.89, 39.8, 6.21), True: (8.77, 1.09, 82.7, 9.85)}
+    for keep, r in runs.items():
+        got = (
+            round(r["pick_wait"], 2),
+            round(r["pack_wait"], 2),
+            round(r["picker_busy"], 1),
+            round(r["pick_wait"] + r["pack_wait"], 2),
+        )
+        assert got == expected[keep]

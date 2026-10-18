@@ -1,0 +1,26 @@
+# Users of priorities [2] hold a preemptive machine of 1 from 10; requests of
+# priority [1] arrive at 13. See test_c3_interrupts.py.
+simulation:
+  sim_id: C3
+  factor: 0
+resources:
+  machine: {current_cap: 1, max_cap: 1, queue: priority, preempt: true}
+services:
+  long: {dist: constant, value: 10}
+  short: {dist: constant, value: 5}
+arrivals:
+  low0: {dist: constant, value: 10.0, spawn: low, attributes: {p: 2}}
+  high0: {dist: constant, value: 13, spawn: high, attributes: {p: 1}}
+tasks:
+  low:
+    service: long
+    resource: machine
+    priority: attr.p
+    payload: {event: low_done}
+  high:
+    service: short
+    resource: machine
+    priority: attr.p
+    payload: {event: high_done}
+run:
+  until: 19.9

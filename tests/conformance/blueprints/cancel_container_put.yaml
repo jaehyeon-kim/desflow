@@ -1,0 +1,23 @@
+# A container of 4 starts holding 2; a put of 3 waits from 10 and is interrupted
+# at 12 with abandon; a get of 2 at 14 leaves the level at 0.
+# See test_c5_inventory.py.
+simulation:
+  sim_id: C5c
+  factor: 0
+containers:
+  bin: {current_cap: 4, max_cap: 4, level: 2}
+arrivals:
+  fillers: {dist: constant, value: 10, spawn: fill}
+  takers: {dist: constant, value: 14, spawn: take}
+tasks:
+  fill:
+    put: {container: bin, amount: 3}
+    on_interrupt: abandon
+    payload: {event: late}
+  take:
+    get: {container: bin, amount: 2}
+    payload: {event: taken}
+scenario:
+  - {at: 12, interrupt: {task: fill, cause: recall}}
+run:
+  until: 15

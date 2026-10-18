@@ -8,7 +8,8 @@ because the first does not match, and a large one at 13 to the first, as in SimP
 Cancellation: a get that gives up before it is served takes nothing later, and a
 put that gives up adds nothing; the store's items and the container's level are
 unchanged by it, as SimPy's `Get.cancel()` and `Put.cancel()` promise. The builder
-and YAML cancel a get through `patience`.
+and YAML cancel a get through `patience`, and a put through an interrupt with
+`on_interrupt: abandon`.
 """
 
 import simpy
@@ -272,11 +273,53 @@ def test_c5_cancel_quantity_get():
         assert level == 2
 
 
+def _builder_cancel_put(kind):
+    """A put that waits from 1 for room, interrupted at 3 with abandon; a get at 5
+    makes room the cancelled put never takes."""
+    app = SimulationContext("C5c", factor=0.0)
+    if kind == "store":
+        app.add_store("bin", current_cap=1, max_cap=1, items=["first"])
+        give, take = {"store": "bin"}, {"store": "bin"}
+    else:
+        app.add_container("bin", current_cap=4, max_cap=4, level=2)
+        give = {"container": "bin", "amount": 3}
+        take = {"container": "bin", "amount": 2}
+
+    @app.task(name="fill", put=give, on_interrupt="abandon")
+    def fill(task_id):
+        return {"event": "late"}
+
+    @app.task(name="take", get=take)
+    def take_task(task_id):
+        return {"event": "taken"}
+
+    def script(context):
+        yield context.env.timeout(1)
+        context.spawn(fill(0))
+        yield context.env.timeout(2)
+        context.interrupt("fill", cause="recall")
+        yield context.env.timeout(2)
+        context.spawn(take_task(0))
+
+    app.add_process(script)
+    run_builder(app, 6)
+    holder = app.get_store("bin") if kind == "store" else app.get_container("bin")
+    return list(holder.items) if kind == "store" else holder.level
+
+
+def _yaml_cancel_put(kind):
+    _records, app = run_yaml(f"cancel_{kind}_put.yaml")
+    holder = app.get_store("bin") if kind == "store" else app.get_container("bin")
+    return list(holder.items) if kind == "store" else holder.level
+
+
 def test_c5_cancel_store_put():
     """The put into a full store gives up at 3; a get at 5 takes the first item,
     and the late one never goes in."""
     assert _reference_cancel("store", "put") == []
     assert _low_level_cancel("store", "put") == []
+    assert _builder_cancel_put("store") == []
+    assert _yaml_cancel_put("store") == []
 
 
 def test_c5_cancel_quantity_put():
@@ -284,3 +327,5 @@ def test_c5_cancel_quantity_put():
     2 at 5 the level is 0, not 3."""
     assert _reference_cancel("container", "put") == 0
     assert _low_level_cancel("container", "put") == 0
+    assert _builder_cancel_put("container") == 0
+    assert _yaml_cancel_put("container") == 0

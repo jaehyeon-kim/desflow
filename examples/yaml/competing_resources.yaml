@@ -1,0 +1,57 @@
+# Competing resources: tasks that hold several resources, and a handoff, in YAML.
+#
+# The twin of examples/builder/competing_resources_example.py. A picker collects an
+# order and carries it to a packing bench; the order keeps the picker until it is
+# on the bench, then the picker is free for the next order. A gift needs the picker
+# and the bench together for its wrapping, acquired in that order, the same order
+# every task uses, so no two orders can wait for each other.
+#
+# Needs no containers. Runs unpaced and ends after 120 simulation seconds.
+# Run it with: desflow run examples/yaml/competing_resources.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+egress:
+  - type: Console
+
+resources:
+  picker: {current_cap: 1, max_cap: 2}
+  bench: {current_cap: 1, max_cap: 2}
+
+services:
+  picking: {dist: uniform, low: 1 s, high: 2 s}
+  packing: {dist: triangular, low: 1 s, mode: 2 s, high: 4 s}
+  wrapping: {dist: constant, value: 3 s}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.25, spawn: pick}
+  gifts: {dist: exponential, rate: 0.05, spawn: wrap}
+
+# --8<-- [start:tasks]
+tasks:
+  pick:
+    service: picking
+    resource: picker
+    # The picker stays with the order until pack has started.
+    keep: [picker]
+    payload: {event_type: order_picked}
+    next: pack
+  pack:
+    service: packing
+    resource: bench
+    payload: {event_type: order_packed}
+  wrap:
+    service: wrapping
+    # Holds the picker, then the bench too: acquired in this order.
+    resource: [picker, bench]
+    payload: {event_type: gift_wrapped}
+# --8<-- [end:tasks]
+
+# Every 30 seconds, each resource's readings and the tasks finished so far.
+stats: {level: basic, interval: 30}
+
+run:
+  until: 120

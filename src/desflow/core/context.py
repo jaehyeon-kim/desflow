@@ -11,6 +11,7 @@ import simpy
 
 from desflow.config import (
     DEFAULT_QUEUE_ORDER,
+    INTERRUPT_POLICIES,
     DEFAULT_STATS_INTERVAL,
     DEFAULT_STATS_LEVEL,
     LABELS,
@@ -18,9 +19,10 @@ from desflow.config import (
     STATS_LEVELS,
 )
 from desflow.core.environment import DynamicRealtimeEnvironment
+from desflow.core.expressions import Expression
 from desflow.core.flow import NextSpec, Router, Transfer, Wait
 from desflow.core.signals import Signal
-from desflow.core.task import TaskRun, TaskSpec
+from desflow.core.task import TaskRun, TaskSpec, check_acquisition_order
 from desflow.core.registry import SimulationRegistry
 from desflow.core.sampler import Sampler
 from desflow.models.flow import Entity, Upstream
@@ -144,6 +146,7 @@ class SimulationContext:
 
         self._resources_config: Dict[str, CapacityConfig] = {}
         self._resource_queues: Dict[str, str] = {}
+        self._resource_preempt: Dict[str, bool] = {}
         self._containers_config: Dict[str, CapacityConfig] = {}
         self._stores_config: Dict[str, CapacityConfig] = {}
         self._store_priority: Dict[str, bool] = {}
@@ -160,6 +163,8 @@ class SimulationContext:
         self._task_specs: Dict[str, TaskSpec] = {}
         self._signal_names: List[str] = []
         self._signals: Dict[str, Signal] = {}
+        # Task instances running now, by task, which interrupt() reaches
+        self._running: Dict[str, List[TaskRun]] = {}
         # The positional arguments a YAML task's function takes after its id
         self._task_args: Tuple[Any, ...] = ()
 
@@ -369,6 +374,7 @@ class SimulationContext:
         current_cap: int,
         max_cap: int,
         queue: str = DEFAULT_QUEUE_ORDER,
+        preempt: bool = False,
     ) -> "SimulationContext":
         """
         Registers a discrete logical resource capable of processing tasks.
@@ -384,17 +390,27 @@ class SimulationContext:
             queue: The order waiting tasks are served in: `fifo` (the default),
                 `lifo` or `priority`, which serves the lowest task priority first and
                 the oldest first among equal priorities.
+            preempt: When True, a task of a lower priority value takes a unit from
+                a task of a higher one when every unit is busy, as SimPy's
+                `PreemptiveResource` does; the task that loses it follows its
+                `on_interrupt`. Needs `queue="priority"`.
 
         Returns:
             SimulationContext: The current instance for method chaining.
 
         Raises:
-            ValueError: If `queue` is not one of the three orders.
+            ValueError: If `queue` is not one of the three orders, or `preempt` is
+                set without `queue="priority"`.
         """
         if queue not in QUEUE_ORDERS:
             raise ValueError(
                 f"queue must be one of {', '.join(QUEUE_ORDERS)}, got '{queue}'"
             )
+        if preempt and queue != "priority":
+            raise ValueError(
+                "preempt ranks users by priority, so it needs queue='priority'"
+            )
+        self._resource_preempt[name] = preempt
         self._resources_config[name] = CapacityConfig(
             current_cap=current_cap, max_cap=max_cap
         )
@@ -626,7 +642,7 @@ class SimulationContext:
     def task(
         self,
         service_id: Optional[str] = None,
-        resource_id: Optional[str] = None,
+        resource_id: Union[str, List[str], None] = None,
         *,
         name: Optional[str] = None,
         priority: Union[
@@ -645,6 +661,11 @@ class SimulationContext:
         fail: Union[str, Callable[[Any, Any], bool], None] = None,
         fail_reason: Optional[str] = None,
         on_fail: Optional[str] = None,
+        keep: Optional[List[str]] = None,
+        preempt: bool = True,
+        on_interrupt: str = "resume",
+        on_interrupt_next: Optional[str] = None,
+        interrupt: Optional[Mapping[str, Any]] = None,
     ) -> Callable:
         """
         Transforms a standard Python function into an event-driven SimPy task.
@@ -656,8 +677,9 @@ class SimulationContext:
         1. Checks `balk`; when it holds, emits `balked` and stops.
         2. Emits a `queued` event, when the task waits for anything: its `wait`, a
            resource or a `get`.
-        3. Waits for its `wait`, then for the `resource_id` unit, in the resource's
-           queue order, then for its `get`; `patience` covers all three.
+        3. Waits for its `wait`, then for a unit of each resource in `resource_id`,
+           in the order listed and each in its queue order, then for its `get`;
+           `patience` covers all three.
         4. Emits a `started` event.
         5. Executes the wrapped user function to extract custom payload data.
         6. Samples the live `service_id` distribution and yields the timeout.
@@ -686,7 +708,8 @@ class SimulationContext:
 
         Args:
             service_id: The ID of the configured distribution dictating the execution time.
-            resource_id: The ID of the configured resource this task exclusively requires.
+            resource_id: The resource the task holds while it works, or a list of
+                them, acquired in the order listed while the earlier ones are held.
             name: The task's name in records, statistics and `next` rules. Defaults
                 to the function's name.
             priority: For a resource whose queue order is `priority`, lowest first: a
@@ -726,6 +749,19 @@ class SimulationContext:
             on_fail: The task a failed instance goes to. Without it, a failure ends
                 the entity's flow. A function that raises fails the task the same
                 way, with the error as the reason.
+            keep: Resources in `resource_id` whose units the task hands to the next
+                task of the flow instead of releasing them; that task releases them
+                once it publishes `started`.
+            preempt: On a resource added with `preempt=True`, whether the task's
+                requests may take a unit from a task of a higher priority value.
+            on_interrupt: What an interrupt or a preemption does: `resume` (the
+                default) gives back every unit, queues again and serves the
+                remaining time; `restart` does the same with a new service time;
+                `abandon` ends the flow, or goes to `on_interrupt_next`.
+            on_interrupt_next: The task an abandoned instance goes to.
+            interrupt: An action applied when the task finishes:
+                `{"task": name, "where": condition, "cause": value}` interrupts every
+                running instance of that task whose condition holds.
 
         Raises:
             ValueError: If a resource is given without a service, a priority without
@@ -742,6 +778,35 @@ class SimulationContext:
                 return {"status": "packed"}
             ```
         """
+        resources = (
+            []
+            if resource_id is None
+            else [resource_id]
+            if isinstance(resource_id, str)
+            else list(resource_id)
+        )
+        # `set` is a parameter here, so the sets are written as literals
+        if len({*resources}) != len(resources):
+            raise ValueError("a task lists each resource once")
+        if not {*(keep or [])} <= {*resources}:
+            raise ValueError("keep names resources the task holds")
+        if on_interrupt not in INTERRUPT_POLICIES:
+            raise ValueError(
+                f"on_interrupt must be one of {', '.join(INTERRUPT_POLICIES)}, "
+                f"got '{on_interrupt}'"
+            )
+        if on_interrupt_next is not None and on_interrupt != "abandon":
+            raise ValueError("on_interrupt_next needs on_interrupt='abandon'")
+        if interrupt is not None:
+            interrupt = dict(interrupt)
+            unknown = {*interrupt} - {"task", "where", "cause"}
+            if "task" not in interrupt or unknown:
+                raise ValueError(
+                    "interrupt takes a task, and an optional where and cause"
+                )
+            if interrupt.get("where") is not None:
+                Expression(interrupt["where"])
+        resource_id = resources[0] if resources else None
         if resource_id is not None and service_id is None:
             raise ValueError(
                 "a task with a resource needs a service; give service_id too"
@@ -788,6 +853,12 @@ class SimulationContext:
             fail_reason=fail_reason,
             on_fail=on_fail,
             attribute_changes=dict(set or {}),
+            resources=resources,
+            keep=keep,
+            preempt=preempt,
+            on_interrupt=on_interrupt,
+            on_interrupt_next=on_interrupt_next,
+            interrupt=interrupt,
         )
         router = Router(next)
 
@@ -1160,6 +1231,48 @@ class SimulationContext:
             raise RuntimeError("Signals are not created until context is run.")
         return self._signals[name]
 
+    def interrupt(
+        self,
+        task: str,
+        where: Union[str, Expression, None] = None,
+        cause: Any = None,
+    ) -> int:
+        """
+        Interrupts every running instance of a task whose condition holds.
+
+        Each instance receives SimPy's `Interrupt` with `cause`, publishes
+        `interrupted` and follows its task's `on_interrupt`. The caller's own
+        instance is never interrupted, and an instance that has finished is not
+        running.
+
+        Args:
+            task: The task's name.
+            where: A condition read for each instance, such as `"attr.order == 3"`;
+                None interrupts every instance.
+            cause: What the instances receive as the interrupt's cause, published
+                as the record's `cause`.
+
+        Returns:
+            int: How many instances were interrupted.
+
+        Raises:
+            RuntimeError: If called before the run starts.
+        """
+        if not self._env:
+            raise RuntimeError("Cannot interrupt tasks before context is run.")
+        condition = Expression(where) if isinstance(where, str) else where
+        active = self._env.active_process
+        count = 0
+        for run in list(self._running.get(task, [])):
+            process = run.process
+            if process is None or process is active or not process.is_alive:
+                continue
+            if condition is not None and not condition.evaluate(run.scope()):
+                continue
+            process.interrupt(cause)
+            count += 1
+        return count
+
     # ==========================================
     # ORCHESTRATION (The Compilation Phase)
     # ==========================================
@@ -1275,7 +1388,11 @@ class SimulationContext:
         # Hydrate Physical SimPy Resources
         for res_id in self._resources_config.keys():
             self._resources_map[res_id] = DynamicResource(
-                self._env, self.sim_id, res_id, queue=self._resource_queues[res_id]
+                self._env,
+                self.sim_id,
+                res_id,
+                queue=self._resource_queues[res_id],
+                preempt=self._resource_preempt.get(res_id, False),
             )
         for store_id in self._stores_config:
             self._stores_map[store_id] = DynamicStore(
@@ -1315,16 +1432,21 @@ class SimulationContext:
 
     def _check_tasks(self) -> None:
         """Checks what each task names, before the clock or any connector starts."""
+        check_acquisition_order(
+            {name: spec.resources for name, spec in self._task_specs.items()},
+            {
+                name: (spec.keep, spec.router.tasks or set())
+                for name, spec in self._task_specs.items()
+            },
+        )
         holders = {**self._stores_config, **self._containers_config}
         registry: Optional[SimulationRegistry] = None
         for name, spec in self._task_specs.items():
-            if (
-                spec.resource_id is not None
-                and spec.resource_id not in self._resources_config
-            ):
-                raise ValueError(
-                    f"task '{name}' uses resource '{spec.resource_id}', which is not added"
-                )
+            for resource in spec.resources:
+                if resource not in self._resources_config:
+                    raise ValueError(
+                        f"task '{name}' uses resource '{resource}', which is not added"
+                    )
             if (
                 spec.service_id is not None
                 and spec.service_id not in self._services_config
@@ -1332,14 +1454,12 @@ class SimulationContext:
                 raise ValueError(
                     f"task '{name}' uses service '{spec.service_id}', which is not added"
                 )
-            if (
-                spec.priority is not None
-                and self._resource_queues.get(spec.resource_id or "") != "priority"
-            ):
-                raise ValueError(
-                    f"task '{name}' has a priority, but resource '{spec.resource_id}' "
-                    f"does not queue by priority; add it with queue='priority'"
-                )
+            for resource in spec.resources if spec.priority is not None else ():
+                if self._resource_queues.get(resource) != "priority":
+                    raise ValueError(
+                        f"task '{name}' has a priority, but resource '{resource}' "
+                        f"does not queue by priority; add it with queue='priority'"
+                    )
             for transfer in (spec.get, spec.put):
                 if transfer is None:
                     continue
@@ -1365,6 +1485,8 @@ class SimulationContext:
                     )
             for target in (
                 spec.on_fail,
+                spec.on_interrupt_next,
+                spec.interrupt["task"] if spec.interrupt else None,
                 *(spec.wait.targets("task") if spec.wait else ()),
             ):
                 if target is not None and target not in self._tasks:
