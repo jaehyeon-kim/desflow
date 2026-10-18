@@ -39,13 +39,21 @@ _PATTERN = re.compile(
 
 
 def time_to_seconds(time_str: str) -> float:
-    """
-    Convert a human-readable duration into seconds.
+    """Converts a human-readable duration into seconds.
 
     Examples:
         "1 week"     -> 604800.0
         "2.5 hours"  -> 9000.0
         "30 mins"    -> 1800.0
+
+    Args:
+        time_str: A number and a unit, such as `10 min`, `2.5 hours` or `90 s`.
+
+    Returns:
+        float: The seconds.
+
+    Raises:
+        ValueError: If the text is not a number and a known unit.
     """
     match = _PATTERN.fullmatch(time_str)
     if not match:

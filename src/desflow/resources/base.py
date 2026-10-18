@@ -4,6 +4,19 @@ from desflow.core.registry import DynamicValue
 
 
 class BaseDynamicResource:
+    """A resource, store or container whose capacity follows the registry.
+
+    It reads `<sim_id>.<category>.<obj_id>.current_cap` and `.max_cap`, and a
+    process applies every change to them; each subclass says how. `DynamicResource`,
+    `DynamicStore` and `DynamicContainer` build on it.
+
+    Args:
+        env: The environment, which has a registry.
+        sim_id: The simulation's id.
+        obj_id: The object's name.
+        category: `resources`, `stores` or `containers`.
+    """
+
     def __init__(self, env: simpy.Environment, sim_id: str, obj_id: str, category: str):
         self.env = env
         self.sim_id = sim_id

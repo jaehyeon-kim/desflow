@@ -59,7 +59,7 @@ def _distributions(study: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
     }
 
 
-def missing_inputs(study: Dict[str, Any]) -> List[str]:
+def _missing_inputs(study: Dict[str, Any]) -> List[str]:
     """What the study does not state: each is named, never filled in."""
     missing = []
     if not study.get("question"):
@@ -314,7 +314,7 @@ def build_report(folder: Union[str, Path]) -> str:
     lines += _items(study.get("limits", []), "None stated.")
 
     lines += ["", "## Missing Inputs", ""]
-    lines += _items(missing_inputs(study), "None.")
+    lines += _items(_missing_inputs(study), "None.")
     return "\n".join(lines) + "\n"
 
 

@@ -175,9 +175,25 @@ class TaskRun:
     # ------------------------------------------------------------------ records
 
     def publish(self, value: Any) -> None:
+        """Publishes an event of this instance, keyed by its entity.
+
+        Args:
+            value: The event's value: a status such as `status("queued")`, or the
+                task's payload.
+        """
         self.env.publish_event(self.entity.key, value, self.spec.name, self.task_id)
 
     def status(self, state: str, **extra: Any) -> Dict[str, Any]:
+        """Returns the value of a status event of this task.
+
+        Args:
+            state: The status, such as `queued`, `started` or `failed`.
+            **extra: Fields added after `status`, such as `reason` or `cause`.
+
+        Returns:
+            Dict[str, Any]: `path_id` when the task has a service, then `status` and
+                the extra fields.
+        """
         value: Dict[str, Any] = {}
         if self.spec.service_id is not None:
             value["path_id"] = f"{self.context.sim_id}.service.{self.spec.service_id}"
@@ -186,7 +202,16 @@ class TaskRun:
         return value
 
     def scope(self, payload_upstream: Optional[Upstream] = None) -> Scope:
-        """What the task's expressions read now."""
+        """Returns what the task's expressions read now.
+
+        Args:
+            payload_upstream: The finished payload, for a `next` condition read after
+                the task ends; None before it.
+
+        Returns:
+            Scope: The names an expression reads: the entity's attributes, the levels,
+                the waits, the signals and the item.
+        """
         return make_scope(
             payload_upstream if payload_upstream is not None else self.upstream,
             self.entity.attributes,

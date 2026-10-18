@@ -1311,19 +1311,30 @@ class SimulationContext:
         return self._containers_map[container_id]
 
     def get_resource(self, resource_id: str) -> DynamicResource:
-        """
-        Retrieves an active SimPy `DynamicResource` instance for raw lock management.
+        """Returns the `DynamicResource` a running model built for a resource.
+
+        Args:
+            resource_id: The resource's name, as given to `add_resource`.
+
+        Returns:
+            DynamicResource: The resource, for raw requests and readings.
 
         Raises:
-            RuntimeError: If called during the Builder Phase.
+            RuntimeError: If called before the run has started.
         """
         if not self._env:
             raise RuntimeError("Resources are not instantiated until context is run.")
         return self._resources_map[resource_id]
 
     def publish(self, metric_name: str, value: Any) -> None:
-        """
-        Publishes a scalar telemetry metric to the non-blocking egress buffer.
+        """Publishes a telemetry value, named `<sim_id>.<metric_name>`, to the sinks.
+
+        Args:
+            metric_name: The value's name, after the sim id, such as `packers_free`.
+            value: The value, which must be a JSON value.
+
+        Raises:
+            RuntimeError: If called before the run has started.
         """
         if not self._env:
             raise RuntimeError("Cannot publish telemetry before context is run.")

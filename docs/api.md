@@ -8,6 +8,52 @@
       heading_level: 3
       show_root_heading: true
 
+## Task Flow
+
+The classes a task's flow is built from, and the signals and failures tasks share.
+
+<!-- prettier-ignore -->
+::: desflow.core.signals.Signal
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.core.signals.SignalFailed
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.core.task.TaskFailed
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.models.flow.Entity
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.models.flow.Upstream
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.core.flow.Router
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.core.flow.Transfer
+    options:
+      heading_level: 3
+      show_root_heading: true
+
 ## YAML Blueprints
 
 `SimulationContext.from_yaml` is the usual entry point. `build` is what it calls, and returns the `run` section as well.
@@ -56,6 +102,12 @@
       heading_level: 3
       show_root_heading: true
 
+<!-- prettier-ignore -->
+::: desflow.study.intervals.t_quantile
+    options:
+      heading_level: 3
+      show_root_heading: true
+
 ## Local Studies
 
 <!-- prettier-ignore -->
@@ -66,6 +118,12 @@
 
 <!-- prettier-ignore -->
 ::: desflow.study.spec.StudySpec
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.study.spec.load_study
     options:
       heading_level: 3
       show_root_heading: true
@@ -141,6 +199,16 @@
     options:
       heading_level: 3
 
+<!-- prettier-ignore -->
+::: desflow.models.params.ContainerConfig
+    options:
+      heading_level: 3
+
+<!-- prettier-ignore -->
+::: desflow.models.params.BreakdownConfig
+    options:
+      heading_level: 3
+
 ## Data Payloads
 
 <!-- prettier-ignore -->
@@ -150,6 +218,11 @@
 
 <!-- prettier-ignore -->
 ::: desflow.models.schemas.EventPayload
+    options:
+      heading_level: 3
+
+<!-- prettier-ignore -->
+::: desflow.models.schemas.LabelPayload
     options:
       heading_level: 3
 
@@ -204,6 +277,28 @@
         - get
         - items
         - capacity
+
+## Breakdowns, Schedules and Replay
+
+SimPy processes and readers the builder and YAML use, which low-level code starts itself.
+
+<!-- prettier-ignore -->
+::: desflow.core.breakdowns.run_breakdowns
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.core.scenario.run_scenario
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.core.replay.read_trace
+    options:
+      heading_level: 3
+      show_root_heading: true
 
 ## Admin & Infrastructure
 

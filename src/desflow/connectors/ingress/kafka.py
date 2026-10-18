@@ -220,9 +220,14 @@ class KafkaIngress(BaseIngress):
         self.kwargs = kwargs
 
     async def run(self, ingress_queue: queue.Queue) -> None:
-        """
-        Main execution loop that consumes Kafka messages, deserializes them,
-        and populates the ingress queue.
+        """Consumes parameter changes from Kafka and puts each on the ingress queue.
+
+        Each message is read as JSON with `path` and `value`; a message that cannot be
+        read is logged and skipped.
+
+        Args:
+            ingress_queue: The queue the environment applies changes from, as
+                `(path, value)` pairs.
         """
         backoff = 1.0
         while True:

@@ -57,7 +57,15 @@ def resolve_zone(name: Optional[str], start: Optional[datetime] = None) -> tzinf
 
 
 def in_zone(moment: datetime, zone: tzinfo) -> datetime:
-    """A datetime without an offset, read in `zone`; one with an offset, as given."""
+    """Returns a datetime without an offset read in `zone`; one with an offset as given.
+
+    Args:
+        moment: The datetime.
+        zone: The zone a datetime without an offset is read in.
+
+    Returns:
+        datetime: A datetime with a time zone.
+    """
     return moment.replace(tzinfo=zone) if moment.tzinfo is None else moment
 
 
@@ -539,11 +547,15 @@ class EgressMixIn:
                 self._flush_buffer(index)
 
     def publish_telemetry(self, path_id: str, value: Any):
-        """
-        Publishes a low-volume telemetry metric (e.g., utilization, queue length).
+        """Publishes a low-volume telemetry metric (e.g., utilization, queue length).
 
         Telemetry shares the main event buffer to ensure efficient batching for
-        high-throughput file storage (like Parquet or S3).
+        high-throughput file storage (like Parquet or S3). Nothing happens when no
+        egress is set up.
+
+        Args:
+            path_id: The value's name, written as the record's `path_id`.
+            value: The value, made a JSON value on the way out, as an event's is.
         """
         if not hasattr(self, "egress_queues"):
             return  # Fail silently if no egress is configured
@@ -913,7 +925,11 @@ class DynamicRealtimeEnvironment(
         self._change_watchers.append(callback)
 
     def unwatch_changes(self, callback: Callable[[], None]) -> None:
-        """Stops calling a function `watch_changes` added; does nothing if it is gone."""
+        """Stops calling a function that `watch_changes` added; does nothing if it is gone.
+
+        Args:
+            callback: The function `watch_changes` was given.
+        """
         if callback in self._change_watchers:
             self._change_watchers.remove(callback)
 

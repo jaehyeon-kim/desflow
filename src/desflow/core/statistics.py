@@ -315,8 +315,14 @@ class Statistics:
             flight.queued = now
 
     def task_dropped(self, task: str, instance: Hashable) -> None:
-        """Clears the waiting record of an instance an interrupt ended, which
-        `task_interrupted` counted already; it adds no wait or service time."""
+        """Clears the waiting record of an instance that an interrupt ended.
+
+        `task_interrupted` has counted it already; this adds no wait or service time.
+
+        Args:
+            task: The task's name.
+            instance: The instance's id.
+        """
         self._in_flight.pop((task, instance), None)
         self._leave(task, instance)
 

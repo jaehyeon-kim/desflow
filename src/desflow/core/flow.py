@@ -446,7 +446,14 @@ class Wait:
             self.branches[name] = (kind, target)
 
     def targets(self, kind: str) -> Set[str]:
-        """The signals or tasks the branches name."""
+        """Returns the signals or the tasks the wait's branches name.
+
+        Args:
+            kind: `signal` or `task`.
+
+        Returns:
+            Set[str]: The names the branches of that kind name.
+        """
         return {target for k, target in self.branches.values() if k == kind}
 
     @property

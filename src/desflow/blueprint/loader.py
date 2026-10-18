@@ -47,6 +47,12 @@ def substitute(text: str) -> str:
     `${VAR:-default}` uses the default when the variable is unset or empty. `$${` is
     a literal `${`.
 
+    Args:
+        text: The text of a blueprint.
+
+    Returns:
+        str: The text with every reference replaced.
+
     Raises:
         ValueError: If a variable without a default is unset.
     """
@@ -102,6 +108,12 @@ def resolve(reference: str) -> Any:
 
     `pkg.module.func` imports `pkg.module` and returns its `func`. `module.Class.attr`
     falls back to importing `module` and reading `Class.attr`.
+
+    Args:
+        reference: A dotted name, such as `shop_logic.pack_payload`.
+
+    Returns:
+        Any: The object the name refers to.
 
     Raises:
         ValueError: If no prefix is a module, or the attribute is missing.
@@ -204,7 +216,15 @@ class SourceMap:
         self._lines = lines
 
     def line(self, location: Iterable[Union[str, int]]) -> int:
-        """Line of the deepest part of `location` the document has, or 1."""
+        """Returns the line of the deepest part of `location` the document has.
+
+        Args:
+            location: The keys and list positions from the document's root, such as
+                `("tasks", "pack", "service")`.
+
+        Returns:
+            int: The line, counting from 1; 1 when no part of the location is found.
+        """
         location = tuple(location)
         for end in range(len(location), -1, -1):
             if location[:end] in self._lines:
@@ -214,7 +234,15 @@ class SourceMap:
     def error(
         self, location: Iterable[Union[str, int]], message: str
     ) -> BlueprintError:
-        """Builds a `BlueprintError` pointing at `location`."""
+        """Builds a `BlueprintError` pointing at `location`.
+
+        Args:
+            location: The keys and list positions from the document's root.
+            message: What is wrong, and how to fix it.
+
+        Returns:
+            BlueprintError: An error whose text starts with the file and line.
+        """
         return BlueprintError(f"{self.path}:{self.line(location)}: {message}")
 
 

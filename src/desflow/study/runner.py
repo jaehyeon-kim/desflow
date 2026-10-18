@@ -341,11 +341,17 @@ def select_measures(
 
 
 def values_of(results: Sequence[RunResult], measure: str) -> List[float]:
-    """
-    Returns one measure's value in each run.
+    """Returns one measure's value in each run.
 
     A count that is published once it is above 0, such as `reneged`, is 0 in a run
     that did not publish it.
+
+    Args:
+        results: The runs.
+        measure: The statistic's name without the sim id.
+
+    Returns:
+        List[float]: The values, in run order.
 
     Raises:
         ValueError: If another statistic is missing from a run, such as a mean wait

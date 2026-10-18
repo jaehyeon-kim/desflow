@@ -52,7 +52,7 @@ _UNITS = {
 }
 
 
-def unit_of(measure: str) -> str:
+def _unit_of(measure: str) -> str:
     """The unit of a statistic: `s`, `percent`, `amount` or `count`."""
     if _DURATION.search(measure):
         return "s"
@@ -63,7 +63,7 @@ def unit_of(measure: str) -> str:
     return "count"
 
 
-def population_of(measure: str) -> str:
+def _population_of(measure: str) -> str:
     """What a statistic is measured on: `started instances` for a wait, which is
     recorded when an instance starts work; `finished instances` for a service,
     recorded when it finishes; `time average`; `count over the horizon`; or
@@ -105,12 +105,18 @@ class Design:
 
 
 def designs(spec: StudySpec) -> List[Design]:
-    """
-    Every design of a study: each variant at each point of the sweep.
+    """Returns every design of a study: each variant at each point of the sweep.
 
     With common pairing every design uses the same seeds, spawned from the study's
     seed; with independent pairing each design's seeds are spawned from a seed of
     its own.
+
+    Args:
+        spec: The study's settings.
+
+    Returns:
+        List[Design]: The designs, variants in order and the sweep's points within
+            each.
     """
     paths = list(spec.sweep)
     points = [
@@ -139,7 +145,14 @@ def designs(spec: StudySpec) -> List[Design]:
 
 
 def count_names(runs: Sequence[RunResult]) -> List[str]:
-    """Every count the runs published: whole-number statistics of tasks and flows."""
+    """Returns every count the runs published: whole-number statistics of tasks and flows.
+
+    Args:
+        runs: The runs of every design.
+
+    Returns:
+        List[str]: The statistics' names without the sim id, in the order first seen.
+    """
     names: Dict[str, None] = {}
     for run in runs:
         prefix = f"{run.sim_id}.stats."
@@ -158,7 +171,16 @@ def _count(run: RunResult, name: str) -> int:
 def result_rows(
     all_designs: Sequence[Design], measures: Sequence[str], counts: Sequence[str]
 ) -> List[Dict[str, Any]]:
-    """One row per design, replication and statistic: the measures, then the counts."""
+    """Returns one row per design, replication and statistic: the measures, then the counts.
+
+    Args:
+        all_designs: The designs, with their runs.
+        measures: The study's measures.
+        counts: The counts to add, from `count_names`.
+
+    Returns:
+        List[Dict[str, Any]]: The rows of `results.csv`.
+    """
     rows = []
     for design in all_designs:
         values = {m: values_of(design.runs, m) for m in measures}
@@ -174,8 +196,8 @@ def result_rows(
                         "seed": seed,
                         "statistic": name,
                         "kind": "measure" if name in measures else "count",
-                        "unit": unit_of(name),
-                        "population": population_of(name),
+                        "unit": _unit_of(name),
+                        "population": _population_of(name),
                         "value": value,
                     }
                 )
@@ -196,7 +218,17 @@ def summary_rows(
     names: Sequence[str],
     level: float,
 ) -> List[Dict[str, Any]]:
-    """One row per design and statistic: n, mean, half-width and bounds."""
+    """Returns one row per design and statistic: n, mean, half-width and bounds.
+
+    Args:
+        all_designs: The designs.
+        rows: The rows from `result_rows`.
+        names: The statistics to summarise.
+        level: The confidence level of the intervals, between 0 and 1.
+
+    Returns:
+        List[Dict[str, Any]]: The rows of `summary.csv`.
+    """
     found = []
     for design in all_designs:
         for name in names:
@@ -207,8 +239,8 @@ def summary_rows(
                     "variant": design.variant,
                     **design.point,
                     "statistic": name,
-                    "unit": unit_of(name),
-                    "population": population_of(name),
+                    "unit": _unit_of(name),
+                    "population": _population_of(name),
                     "n": result.n,
                     "mean": result.mean,
                     "half_width": result.half_width,
@@ -225,13 +257,20 @@ def comparison_rows(
     all_designs: Sequence[Design],
     rows: Sequence[Dict[str, Any]],
 ) -> List[Dict[str, Any]]:
-    """
-    One row per compared pair, sweep point and measure.
+    """Returns one row per compared pair, sweep point and measure.
 
     The difference is the variant's value minus the baseline's, seed by seed, and
     its interval is a Student t interval on those differences. The random streams
     each side drew from are listed, so a reader sees whether the two used the same
     ones.
+
+    Args:
+        spec: The study's settings, with its `compare` pairs.
+        all_designs: The designs, with their runs.
+        rows: The rows from `result_rows`.
+
+    Returns:
+        List[Dict[str, Any]]: The rows of `comparisons.csv`.
     """
     found = []
     by_key = {(d.variant, tuple(d.point.items())): d for d in all_designs}
@@ -273,11 +312,17 @@ def comparison_rows(
 def check_rows(
     spec: StudySpec, summary: Sequence[Dict[str, Any]]
 ) -> List[Dict[str, Any]]:
-    """
-    One row per check, design and bound.
+    """Returns one row per check, design and bound.
 
     `on: interval` compares the far end of the interval with the bound: the upper
     end with `max`, the lower end with `min`. `on: mean` compares the mean.
+
+    Args:
+        spec: The study's settings, with its checks.
+        summary: The rows from `summary_rows`.
+
+    Returns:
+        List[Dict[str, Any]]: The rows of `checks.csv`, each with `passed`.
     """
     found = []
     for check in spec.checks:
@@ -311,8 +356,14 @@ def check_rows(
 
 
 def read_observed(spec: StudySpec, folder: Path) -> List[Dict[str, Any]]:
-    """
-    Reads the observed CSV and checks each row against the measure it names.
+    """Reads the observed CSV and checks each row against the measure it names.
+
+    Args:
+        spec: The study's settings, which name the file.
+        folder: The folder a relative path is read from.
+
+    Returns:
+        List[Dict[str, Any]]: The observed rows, checked.
 
     Raises:
         ValueError: If a column is missing, a measure is not one of the study's,
@@ -335,15 +386,15 @@ def read_observed(spec: StudySpec, folder: Path) -> List[Dict[str, Any]]:
         if measure not in spec.measures:
             raise ValueError(f"{where}: {measure} is not one of the study's measures")
         unit = _UNITS.get(row["unit"].strip().lower())
-        if unit != unit_of(measure):
+        if unit != _unit_of(measure):
             raise ValueError(
-                f"{where}: {measure} is in {unit_of(measure)}, not {row['unit']!r}; "
+                f"{where}: {measure} is in {_unit_of(measure)}, not {row['unit']!r}; "
                 f"convert the observed value"
             )
         population = row["population"].strip()
-        if population != population_of(measure):
+        if population != _population_of(measure):
             raise ValueError(
-                f"{where}: {measure} is measured on {population_of(measure)!r}, not "
+                f"{where}: {measure} is measured on {_population_of(measure)!r}, not "
                 f"{population!r}"
             )
         text = row["horizon"].strip()
@@ -368,7 +419,17 @@ def read_observed(spec: StudySpec, folder: Path) -> List[Dict[str, Any]]:
 def observed_rows(
     spec: StudySpec, observed: Sequence[Dict[str, Any]], summary: Sequence[Dict]
 ) -> List[Dict[str, Any]]:
-    """Each observed value beside the simulated interval of the observed variant."""
+    """Returns each observed value beside the simulated interval of the observed variant.
+
+    Args:
+        spec: The study's settings.
+        observed: The rows from `read_observed`.
+        summary: The rows from `summary_rows`.
+
+    Returns:
+        List[Dict[str, Any]]: One row per observed value, with the simulated mean
+            and interval and whether the value is inside it.
+    """
     if spec.observed is None:
         return []
     variant = spec.observed.variant or next(iter(spec.variants))
@@ -392,7 +453,13 @@ def observed_rows(
 
 
 def write_csv(path: Path, rows: Sequence[Dict[str, Any]], columns: Sequence[str]):
-    """Writes rows with these columns, in this order."""
+    """Writes rows with these columns, in this order.
+
+    Args:
+        path: The file.
+        rows: The rows.
+        columns: The columns, in order.
+    """
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(columns))
         writer.writeheader()
@@ -401,7 +468,14 @@ def write_csv(path: Path, rows: Sequence[Dict[str, Any]], columns: Sequence[str]
 
 
 def read_csv(path: Path) -> List[Dict[str, str]]:
-    """Reads a CSV the study wrote; a missing file has no rows."""
+    """Reads a CSV the study wrote; a missing file has no rows.
+
+    Args:
+        path: The file.
+
+    Returns:
+        List[Dict[str, str]]: The rows, values as text.
+    """
     if not path.exists():
         return []
     with path.open(newline="", encoding="utf-8") as handle:
@@ -409,17 +483,38 @@ def read_csv(path: Path) -> List[Dict[str, str]]:
 
 
 def write_json(path: Path, data: Dict[str, Any]) -> None:
-    """Writes the study's settings and evidence, indented, keys in order."""
+    """Writes the study's settings and evidence, indented, keys in order.
+
+    Args:
+        path: The file.
+        data: The settings and evidence.
+    """
     path.write_text(json.dumps(data, indent=2, default=str) + "\n", encoding="utf-8")
 
 
 def read_json(path: Path) -> Dict[str, Any]:
-    """Reads `study.json`."""
+    """Reads `study.json`.
+
+    Args:
+        path: The file.
+
+    Returns:
+        Dict[str, Any]: The settings and evidence.
+    """
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 def columns(spec_sweep: Sequence[str], kind: str) -> List[str]:
-    """The columns of one artifact file, with the swept paths after the variant."""
+    """Returns the columns of one artifact file, with the swept paths after the variant.
+
+    Args:
+        spec_sweep: The registry paths the study sweeps.
+        kind: The file's name: `results.csv`, `summary.csv`, `comparisons.csv` or
+            `checks.csv`.
+
+    Returns:
+        List[str]: The columns, in order.
+    """
     sweep = list(spec_sweep)
     return {
         RESULTS_FILE: ["design", "variant", *sweep, "replication", "seed"]

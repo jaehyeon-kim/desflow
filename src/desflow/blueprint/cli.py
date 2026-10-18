@@ -29,7 +29,7 @@ def _show_version(value: bool) -> None:
 
 
 @app.callback()
-def main(
+def _main(
     version: Annotated[
         bool,
         typer.Option(
@@ -56,8 +56,10 @@ def _parse_until(value: Optional[str]) -> Optional[float]:
         raise typer.BadParameter(str(exc)) from None
 
 
-@app.command()
-def run(
+# Each command is private: typer shows its docstring as the help text, so it
+# carries no Args section, and the command name is given here
+@app.command("run")
+def _run(
     file: Annotated[
         Path,
         typer.Argument(
@@ -203,8 +205,8 @@ def _replicate(
     typer.echo(f"Repeat one replication with: desflow run {file} --seed <its seed>")
 
 
-@app.command()
-def study(
+@app.command("study")
+def _study(
     file: Annotated[
         Path,
         typer.Argument(
@@ -247,8 +249,8 @@ def study(
         raise typer.Exit(code=1)
 
 
-@app.command()
-def report(
+@app.command("report")
+def _report(
     folder: Annotated[
         Path,
         typer.Argument(
@@ -270,8 +272,8 @@ def report(
     typer.echo(f"Wrote {path}")
 
 
-@app.command()
-def fit(
+@app.command("fit")
+def _fit(
     file: Annotated[
         Path,
         typer.Argument(
@@ -376,7 +378,7 @@ app.add_typer(examples_app, name="examples")
 
 
 @examples_app.callback()
-def examples_list(ctx: typer.Context) -> None:
+def _examples_list(ctx: typer.Context) -> None:
     """List the examples, with what each shows and what it needs."""
     if ctx.invoked_subcommand is not None:
         return
@@ -389,7 +391,7 @@ def examples_list(ctx: typer.Context) -> None:
 
 
 @examples_app.command("get")
-def examples_get(
+def _examples_get(
     name: Annotated[
         str, typer.Argument(help="The example, as `desflow examples` lists it.")
     ],

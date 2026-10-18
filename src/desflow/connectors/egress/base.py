@@ -26,8 +26,16 @@ def extract_dict(data: Any) -> dict:
 
 
 def is_reserved(key: Any) -> bool:
-    """True for a payload key that starts and ends with two underscores, such as
-    `__table__`: such keys belong to desflow, not to the data."""
+    """Returns True for a payload key that starts and ends with two underscores.
+
+    Such keys, such as `__table__`, belong to desflow, not to the data.
+
+    Args:
+        key: A key of an event's `value`.
+
+    Returns:
+        bool: True when the key is reserved.
+    """
     return type(key) is str and len(key) > 4 and key[:2] == "__" and key[-2:] == "__"
 
 

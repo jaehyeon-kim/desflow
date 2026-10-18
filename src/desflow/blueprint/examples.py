@@ -233,7 +233,14 @@ EXAMPLES: Dict[str, Example] = {
 
 
 def release_ref(version: str) -> str:
-    """The git ref an installed version's examples live at: its tag, or `main`."""
+    """Returns the git ref an installed version's examples live at.
+
+    Args:
+        version: The installed version, such as `0.22.0`.
+
+    Returns:
+        str: The version's tag, such as `v0.22.0`, or `main` for a development build.
+    """
     if not version or "dev" in version or version.startswith("0.0.0"):
         return "main"
     return f"v{version}"
@@ -248,6 +255,16 @@ def download(
     example: Example, apis: List[str], dest: Path, ref: str, force: bool = False
 ) -> List[Path]:
     """Writes each API's files to `dest/<example>/<api>/`, and shared files beside them.
+
+    Args:
+        example: The example to download.
+        apis: The versions to download: `yaml`, `builder` or `low-level`.
+        dest: The folder to download into.
+        ref: The git tag or branch to download from.
+        force: True replaces files that are already there.
+
+    Returns:
+        List[Path]: The files written.
 
     Raises:
         FileExistsError: If a file is already there and `force` is not set.
@@ -292,7 +309,15 @@ def download(
 
 
 def run_hint(example: Example, api: str) -> str:
-    """How to run one API's version once it is downloaded."""
+    """Returns how to run one API's version of an example once it is downloaded.
+
+    Args:
+        example: The example.
+        api: The version: `yaml`, `builder` or `low-level`.
+
+    Returns:
+        str: The command to run, in the folder the version was downloaded to.
+    """
     folder = f"{example.name}/{api}"
     main_file = Path(example.files[api][0]).name
     command = (

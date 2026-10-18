@@ -62,14 +62,28 @@ class RunResult:
 
 
 def seconds(value: Union[float, str, None]) -> Optional[float]:
-    """Reads seconds, or a duration such as `"8 h"`; None stays None."""
+    """Reads seconds, or a duration such as `"8 h"`; None stays None.
+
+    Args:
+        value: A number of seconds, a duration, or None.
+
+    Returns:
+        Optional[float]: The seconds, or None.
+    """
     if value is None:
         return None
     return time_to_seconds(value) if isinstance(value, str) else float(value)
 
 
 def describe(model: Model) -> str:
-    """A short name for the model, for messages and study evidence."""
+    """Returns a short name for the model, for messages and study evidence.
+
+    Args:
+        model: A blueprint path, a builder factory or a `LowLevelModel`.
+
+    Returns:
+        str: The path, or the function's module and name.
+    """
     if isinstance(model, (str, Path)):
         return str(model)
     target: Any = model.function if isinstance(model, LowLevelModel) else model
@@ -79,8 +93,10 @@ def describe(model: Model) -> str:
 
 
 def check_importable(model: Model) -> None:
-    """
-    Checks that another process can run the model, as `workers` above 1 needs.
+    """Checks that another process can run the model, as `workers` above 1 needs.
+
+    Args:
+        model: A blueprint path, a builder factory or a `LowLevelModel`.
 
     Raises:
         ValueError: If the model cannot be sent to another process, such as a
@@ -113,7 +129,14 @@ def check_importable(model: Model) -> None:
 
 
 def context_of(model: Model) -> Optional[SimulationContext]:
-    """A new context for a YAML path or a builder factory; None for a low-level model.
+    """Returns a new context for a blueprint path or a builder factory.
+
+    Args:
+        model: A blueprint path, a builder factory or a `LowLevelModel`.
+
+    Returns:
+        Optional[SimulationContext]: A context built for this run alone, or None for
+            a low-level model.
 
     Raises:
         TypeError: If a factory returns something other than a `SimulationContext`.
@@ -133,7 +156,15 @@ def context_of(model: Model) -> Optional[SimulationContext]:
 
 
 def default_until(model: Model) -> Optional[float]:
-    """The blueprint's `run.until` for a YAML path, else None."""
+    """Returns the blueprint's `run.until` for a blueprint path.
+
+    Args:
+        model: A blueprint path, a builder factory or a `LowLevelModel`.
+
+    Returns:
+        Optional[float]: The until in seconds, or None for another model or a
+            blueprint without one.
+    """
     if isinstance(model, (str, Path)):
         from desflow.blueprint.build import build
 
@@ -224,11 +255,14 @@ def _keep(env: DynamicRealtimeEnvironment) -> Callable[[], None]:
 
 
 def inspect_model(model: Model, overrides: Mapping[str, Any]) -> Dict[str, Any]:
-    """
-    Builds the model with `overrides` without running it, and returns its parameters.
+    """Builds the model with `overrides` without running it, and returns its parameters.
 
     A study calls it for each design before running anything, so a bad path fails
     at once rather than after other designs have run.
+
+    Args:
+        model: A blueprint path, a builder factory or a `LowLevelModel`.
+        overrides: Registry paths and the values they take.
 
     Returns:
         Dict[str, Any]: Every distribution and capacity by registry path.
