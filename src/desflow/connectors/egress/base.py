@@ -1,6 +1,9 @@
+import logging
 import queue
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 
 def extract_dict(data: Any) -> dict:
@@ -20,6 +23,55 @@ def extract_dict(data: Any) -> dict:
     if hasattr(data, "dict"):
         return data.dict()
     return data
+
+
+def is_reserved(key: Any) -> bool:
+    """True for a payload key that starts and ends with two underscores, such as
+    `__table__`: such keys belong to desflow, not to the data."""
+    return type(key) is str and len(key) > 4 and key[:2] == "__" and key[-2:] == "__"
+
+
+def drop_reserved_keys(batch: list, sink: Any) -> list:
+    """
+    Returns the batch with reserved keys taken out of each record's `value`.
+
+    A sink that does not route by a reserved key writes none of them. The first
+    time a sink meets a key, it logs a warning naming the key and the fix. Records
+    without one are passed on as they are; a record with one is copied, because
+    every egress provider receives the same dictionary objects.
+
+    Args:
+        batch (list): The published records.
+        sink (Any): The sink, which remembers the keys it has warned about.
+
+    Returns:
+        list: The batch itself when no record has a reserved key, else a copy.
+    """
+    result = batch
+    for index, record in enumerate(batch):
+        value = record.get("value") if type(record) is dict else None
+        if type(value) is not dict:
+            continue
+        reserved = [key for key in value if is_reserved(key)]
+        if not reserved:
+            continue
+        if result is batch:
+            result = list(batch)
+        warned = sink.__dict__.setdefault("_reserved_warned", set())
+        for key in reserved:
+            if key not in warned:
+                warned.add(key)
+                logger.warning(
+                    "%s drops the payload key %r: keys that start and end with two "
+                    "underscores are reserved for desflow, and only a sink that "
+                    "routes by one, such as PostgreSQL's __table__ or Redis's "
+                    "__stream__, uses it. Rename the key to keep it as data.",
+                    type(sink).__name__,
+                    key,
+                )
+        kept = {key: item for key, item in value.items() if not is_reserved(key)}
+        result[index] = {**record, "value": kept}
+    return result
 
 
 def flatten_record(record: dict) -> dict:

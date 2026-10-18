@@ -8,7 +8,11 @@ from aiokafka import AIOKafkaProducer
 from kafka.admin import KafkaAdminClient
 
 from desflow.connectors.admin.kafka import KafkaAdminConnector
-from desflow.connectors.egress.base import BaseEgress, extract_dict
+from desflow.connectors.egress.base import (
+    BaseEgress,
+    drop_reserved_keys,
+    extract_dict,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -363,6 +367,8 @@ class KafkaEgress(BaseEgress):
                         try:
                             # 'batch' is a list of dictionaries from the EgressMixIn
                             batch = egress_queue.get_nowait()
+                            # Kafka routes by no reserved key, so it writes none
+                            batch = drop_reserved_keys(batch, self)
 
                             for data in batch:
                                 if self.topic_router:

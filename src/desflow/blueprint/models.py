@@ -38,6 +38,7 @@ from desflow.core.distributions import (
     TIME_PARAMETERS,
 )
 from desflow.core.expressions import Expression
+from desflow.core.environment import in_zone, resolve_zone
 from desflow.core.flow import Router, Transfer, Wait
 from desflow.models.params import DistributionConfig
 from desflow.utils import time_to_seconds
@@ -104,12 +105,15 @@ class Simulation(_Model):
     `logical_start_time` and `go_live_at` take `now`, a signed duration from now such
     as `-1d` or `-10m`, an ISO datetime, or a `!python` datetime. Both read the same
     `now`, the moment the file is validated, so `-10m` and `now` are exactly ten
-    minutes apart.
+    minutes apart. `now` and a time without an offset are read in `timezone`, an IANA
+    name, UTC by default.
     """
 
     sim_id: str
     factor: float = 1.0
     random_seed: Optional[int] = None
+    # Before the times, so `now` and times without an offset can be read in it
+    timezone: Optional[str] = None
     logical_start_time: Optional[datetime] = None
     go_live_at: Optional[datetime] = None
     warmup: Optional[float] = Field(default=None, ge=0)
@@ -120,8 +124,17 @@ class Simulation(_Model):
     @field_validator("logical_start_time", "go_live_at", mode="before")
     @classmethod
     def _parse_instant(cls, value: Any, info: ValidationInfo) -> Any:
-        now = (info.context or {}).get("now") or datetime.now()
+        zone = resolve_zone(info.data.get("timezone"))
+        now = (info.context or {}).get("now") or datetime.now(zone)
+        # `now` and relative times are read in the run's zone
+        now = in_zone(now, zone).astimezone(zone)
         return _instant(value, now)
+
+    @field_validator("timezone")
+    @classmethod
+    def _check_zone(cls, value: Optional[str]) -> Optional[str]:
+        resolve_zone(value)
+        return value
 
     @field_validator("warmup", "initial_time", "lag_interval", mode="before")
     @classmethod

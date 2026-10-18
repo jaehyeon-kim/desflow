@@ -96,6 +96,21 @@ print(f"mean wait {readings['Shop.stats.tasks.pack_order.wait_mean']:.2f} s")
 
 `app.env.stats.readings()` gives the same from a builder or YAML run.
 
+### Which Entities a Count Covers
+
+Every entity that arrives belongs to one population when the statistics are read, and each population has its counts, from `basic` unless noted. A mean wait or service time covers only the instances that reached that step, so report the counts beside it:
+
+| Population | Which entities | Counts |
+|---|---|---|
+| completed | left the model after their last task | `flows.<arrival>.finished`; `tasks.<task>.finished` per task |
+| still present | started and not yet ended when the statistics are read | `flows.<arrival>.in_system`; `tasks.<task>.in_progress`, the instances queued or started, from `minimal` |
+| rejected | refused to join a queue, as their `balk` held | `tasks.<task>.balked` |
+| abandoned | left a queue when their `patience` ran out, or ended by an interrupt under `on_interrupt: abandon` | `tasks.<task>.reneged`; an abandoned flow leaves `in_system` without adding to `finished` or `failed`, and `tasks.<task>.interrupted` counts the interrupts |
+| failed | ended in a failure that no `on_fail` handled | `flows.<arrival>.failed`; `tasks.<task>.failed` counts failed instances |
+| warm-up-crossing | started before the warm-up ended and ended after it | in `finished`, and in the wait and service times with their whole wait, but not in `started` |
+
+Without a warm-up, `started` is `finished` plus `in_system` plus the entities that balked, reneged, failed or were abandoned. A warm-up starts `started`, `finished`, `failed` and the outcome counts again from zero and leaves `in_system` and `in_progress` as they are, so after it `finished` also counts the warm-up-crossing entities and can be larger than `started`. [End Conditions](../tutorials/end-conditions.md) counts each population of a run.
+
 ### Add Readings of Your Own
 
 Anything else is a custom reading: a function called at an interval of simulation time, which publishes with `context.publish(name, value)` as `<sim_id>.<name>`. It can read resources, stores, containers or any registry value.

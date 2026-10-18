@@ -326,3 +326,37 @@ def test_a_folder_that_cannot_be_created_does_not_stop_the_write():
     egress._write_batch([EVENT])
 
     store.open_output_stream.assert_called_once()
+
+
+def test_storage_sinks_drop_reserved_keys(tmp_path: Path, caplog):
+    """Parquet and JSONL write no reserved payload key, and warn once per key."""
+    record: dict = {
+        "stream_type": "event",
+        "sim_ts": 1.0,
+        "timestamp": "2026-01-01T00:00:01.000+00:00",
+        "key": "orders-1",
+        "value": {"__stream__": "orders", "status": "placed"},
+    }
+    parquet = ParquetStorageEgress(default_path=str(tmp_path / "events.parquet"))
+    parquet.filesystem = fs.LocalFileSystem()
+    parquet._write_batch([record, record], pa, pq)
+    jsonl = JsonlStorageEgress(default_path=str(tmp_path / "events.jsonl"))
+    jsonl.filesystem = fs.LocalFileSystem()
+    jsonl._write_batch([record, record])
+
+    [chunk] = tmp_path.glob("events_*.parquet")
+    assert "__stream__" not in pq.read_table(chunk).column_names
+    [lines] = tmp_path.glob("events_*.jsonl")
+    assert all(
+        "__stream__" not in json.loads(line) for line in lines.read_text().splitlines()
+    )
+    warnings = [
+        r.getMessage()
+        for r in caplog.records
+        if "drops the payload key" in r.getMessage()
+    ]
+    assert [w.split(" drops")[0] for w in warnings] == [
+        "ParquetStorageEgress",
+        "JsonlStorageEgress",
+    ]
+    assert record["value"]["__stream__"] == "orders"

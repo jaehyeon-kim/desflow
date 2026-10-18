@@ -32,6 +32,29 @@ env = DynamicRealtimeEnvironment(
 )
 # --8<-- [end:go-live]
 
+# --8<-- [start:timezone]
+# Timestamps in Melbourne time, with their offset: 2026-10-03T12:00:00.000+10:00
+melbourne = SimulationContext(
+    sim_id="Shop",
+    factor=0.0,
+    timezone="Australia/Melbourne",
+    logical_start_time=datetime(2026, 10, 3, 12, 0),  # read in Melbourne time
+)
+# --8<-- [end:timezone]
+# --8<-- [start:low-level-timezone]
+zoned = DynamicRealtimeEnvironment(
+    factor=0.0,
+    timezone="Australia/Melbourne",
+    logical_start_time=datetime(2026, 10, 3, 12, 0),
+)
+print(zoned.start_datetime)  # 2026-10-03 12:00:00+10:00
+# --8<-- [end:low-level-timezone]
+# 24 simulation hours later, after the clocks went forward an hour
+assert zoned._get_iso_timestamp(zoned.start_datetime, 86_400) == (
+    "2026-10-04T13:00:00.000+11:00"
+)
+assert str(zoned.start_datetime) == "2026-10-03 12:00:00+10:00"
+
 # --8<-- [start:lag]
 # system.simulation.lag_seconds every 10 simulation seconds; 0 turns it off
 paced = SimulationContext(sim_id="Shop", factor=1.0, lag_interval="10 s")
@@ -66,7 +89,7 @@ app.run(until="1 week")  # 604,800 simulation seconds; a number is seconds too
 
 assert measured.warmup == 600
 
-for e in (live, twice_as_fast, unpaced, env):
+for e in (live, twice_as_fast, unpaced, env, zoned):
     e.teardown()
 
 

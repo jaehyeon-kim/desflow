@@ -20,6 +20,7 @@ desflow matches SimPy operation by operation, in YAML, the builder and the low-l
 - Replay: an arrival's `replay`, `add_arrival_replay` and the low-level `read_trace` take arrivals from the rows of a CSV or Parquet file, or a list of dicts, at their recorded times, with the row's fields as attributes. See [Local Replay](../tutorials/local-replay.md) and [Arrivals and Services](../user-guide/arrivals-and-services.md#replay).
 - Faster runs at `factor: 0`: SimPy's own step processes each event, a record's timestamp is formatted once per second of the clock, and `ConsoleEgress` logs a batch with one call. A low-level workload runs 1.14 times faster than in 0.21.0, and printing every record costs about a seventh of what it did. See [Performance Tuning](../guides/performance-tuning.md), whose measurements `benchmarks/throughput.py` repeats.
 - `simulation.lag_interval` and `SimulationContext(lag_interval=)` set how often `system.simulation.lag_seconds` is published. See [Time and Pacing](../user-guide/time-and-pacing.md#lag).
+- The record contract: [Records and Telemetry](../reference/records-and-telemetry.md) gives every field its type, and a docs test fails when the page and the payload models differ. `simulation.timezone`, `SimulationContext(timezone=)` and `DynamicRealtimeEnvironment(timezone=)` name the zone timestamps are written in, and [Statistics](../user-guide/statistics.md#which-entities-a-count-covers) defines which entities each count covers.
 
 ### Upgrading
 
@@ -34,6 +35,8 @@ desflow matches SimPy operation by operation, in YAML, the builder and the low-l
 - At `factor: 0`, `system.simulation.lag_seconds` is no longer published unless `lag_interval` (low-level `lag_monitor_interval`) is set; a run that goes live publishes it from the go-live instant. At a `factor` above 0 it is published every simulation second, as before.
 - `ConsoleEgress` logs each batch with one call, one line per record, so the logging format's prefix starts each batch rather than each line. Code that reads the console log record by record splits each message into lines.
 - At `factor: 0`, `strict=True` is no longer checked, as there is no wall clock to fall behind.
+- Every `timestamp` now carries a time zone offset, such as `2026-10-03T12:00:00.000+10:00`. By default timestamps are in UTC, `+00:00`, where they were in the machine's local time with no offset; set `timezone` to an IANA name to write them in a zone. A `logical_start_time` or `go_live_at` without an offset, `now` and the default start are read in the zone, so a start and a go-live, one with an offset and one without, no longer fail. The clock runs in UTC, so a daylight-saving change no longer adds or drops simulation time. A consumer that parses `timestamp` as a time without a zone reads the offset now.
+- A payload key that starts and ends with two underscores, such as `__table__`, is reserved: Kafka, Parquet, JSON Lines, Iceberg and the console drop it, with a warning, where they wrote it as data. Rename such a key, such as `__source__` to `source`, to keep it. PostgreSQL and Redis still route by `__table__` and `__stream__`.
 
 ## Version 0.21.0
 

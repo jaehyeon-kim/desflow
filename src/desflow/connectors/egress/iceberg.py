@@ -6,6 +6,7 @@ from typing import Any, Callable, Dict, Optional
 
 from desflow.connectors.egress.base import (
     BaseEgress,
+    drop_reserved_keys,
     group_rows,
     parse_iso_columns,
 )
@@ -329,6 +330,8 @@ class IcebergStorageEgress(BaseEgress):
         Raises:
             ValueError: If a record for an upserted table lacks a key column.
         """
+        # A table routes by no reserved key, so it writes none
+        batch = drop_reserved_keys(batch, self)
         grouped_batches = group_rows(batch, self.table_router, self.default_table)
 
         for identifier, records in grouped_batches.items():

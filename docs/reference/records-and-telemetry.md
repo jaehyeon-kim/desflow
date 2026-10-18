@@ -10,21 +10,22 @@ All three share `stream_type`, `sim_ts` and `timestamp`. Telemetry names its val
 
 ## Record Shape
 
-Every sink, router and `when` predicate receives records as plain dictionaries, with these keys in this order:
+Every sink, router and `when` predicate receives records as plain dictionaries, with these keys in this order. The type is the Python type a sink receives, and the JSON type a JSON sink writes:
 
-| Field | Telemetry | Event | Label |
-|---|---|---|---|
-| `stream_type` | `"telemetry"` | `"event"` | `"label"` |
-| `sim_ts` | simulation seconds | simulation seconds | simulation seconds |
-| `timestamp` | logical time | logical time | logical time |
-| `path_id` | the name of the value | | |
-| `key` | | the entity's key, such as `orders-1` | |
-| `task` | | the task's name, or `None` | |
-| `instance` | | the task's instance id, or `None` | |
-| `path` | | | the registry path the step changed, or `None` |
-| `old`, `new` | | | the value before and after, or `None` |
-| `label` | | | the step's `record` mapping |
-| `value` | a single value | the event's value | |
+| Field | Type | Telemetry | Event | Label |
+|---|---|---|---|---|
+| `stream_type` | string | `"telemetry"` | `"event"` | `"label"` |
+| `sim_ts` | float | simulation seconds | simulation seconds | simulation seconds |
+| `timestamp` | string | logical time | logical time | logical time |
+| `path_id` | string | the name of the value | | |
+| `key` | string | | the entity's key, such as `orders-1` | |
+| `task` | string or null | | the task's name, or `None` | |
+| `instance` | any JSON value or null | | the task's instance id, or `None` | |
+| `path` | string or null | | | the registry path the step changed, or `None` |
+| `old` | any JSON value or null | | | the value before the step, or `None` |
+| `new` | any JSON value or null | | | the value after the step, or `None` |
+| `label` | object | | | the step's `record` mapping |
+| `value` | any JSON value | a single value | the event's value | |
 
 As `ConsoleEgress` prints them, a statistic and the three events of one task:
 
@@ -44,7 +45,7 @@ And two labels, as a JSON Lines sink writes them:
 {"stream_type":"label","sim_ts":45.0,"timestamp":"...","path":null,"old":null,"new":null,"label":{"fault":"label_printer_offline"}}
 ```
 
-`sim_ts` is simulation seconds. `timestamp` is `logical_start_time` plus `sim_ts`, as an ISO string with milliseconds, with no time zone unless `logical_start_time` has one.
+`sim_ts` is simulation seconds. `timestamp` is `logical_start_time` plus `sim_ts`, as an ISO 8601 string with milliseconds and the offset of the run's time zone, such as `2026-10-03T12:00:00.000+10:00`, or `+00:00` in UTC, the default; [Time and Pacing](../user-guide/time-and-pacing.md#time-zone) describes the zone.
 
 ---
 
@@ -52,6 +53,7 @@ And two labels, as a JSON Lines sink writes them:
 
 - `sim_ts` is rounded to three decimal places and is always a float, so simulation time 0 is `0.0`.
 - `key` and `path_id` are strings. `bytes` and `bytearray` are decoded to strings; any other type, such as an `int`, raises a Pydantic `ValidationError` at the call.
+- `task` is the name of a builder or YAML task; `instance` is its instance id, an integer from 0 for a builder or YAML task, or what a low-level process passes.
 - `value`, `old`, `new` and `label` are converted to plain JSON values before any sink sees them. A Pydantic V2 model becomes a dictionary, a datetime an ISO string, and a NaN or an infinity `None`, in a model at any depth as in a plain dictionary.
 
 ```python title="docs/snippets/pages/records.py:values"
@@ -102,6 +104,8 @@ An interrupted run publishes these as well, and its finished event when it ends:
 | preempted | a request of a lower priority value took its unit | `{"path_id": ..., "status": "preempted", "resource": ...}` |
 | resumed | after an interrupt or a preemption, it holds its units again and is served | `{"path_id": ..., "status": "resumed"}` |
 
+`status` and `path_id` are strings; `reason` is a string, `cause` any JSON value the interrupt was given, or `None`, and `resource` the name of the resource that was taken.
+
 With statistics at `basic` or above, entities that enter and leave are counted as `<sim_id>.stats.flows.<arrival>.started`, `.finished` and `.in_system`, and from `minimal` each task's `<sim_id>.stats.tasks.<task>.in_progress`; each of the outcomes above is counted as `<sim_id>.stats.tasks.<task>.balked`, `.reneged`, `.failed`, `.interrupted`, `.preempted` and `.resumed`, published once the first one happens, and a flow that ends in a failure as `<sim_id>.stats.flows.<arrival>.failed`. [Patience](../tutorials/patience.md) shows balking and reneging, and [Tasks and Processes](../user-guide/tasks-and-processes.md#failures) failures, and [Interruptions](../tutorials/interruptions.md) interrupts and preemption. A failed task publishes `started` before its failure when it got that far, and a task with a `wait` publishes `queued` when the wait starts.
 
 A resource with a `breakdown` publishes an event at each failure and each repair. Its key is the resource's name, and it has no task or instance:
@@ -146,14 +150,24 @@ env.publish_label({"fault": "slow_packing"}, path="Shop.service.packing.scale")
 
 ---
 
+## Reserved Payload Keys
+
+A key of an event's `value` that starts and ends with two underscores, such as `__table__` or `__stream__`, belongs to desflow, not to the data. A sink that routes by one uses it and removes it: `PostgresEgress` writes the record to the table its `__table__` names, and `RedisEgress` to the stream its `__stream__` names. Every other sink, `KafkaEgress`, the Parquet, JSON Lines and Iceberg sinks and `ConsoleEgress`, drops every such key and logs one warning per key the first time it meets it:
+
+```text
+KafkaEgress drops the payload key '__table__': keys that start and end with two underscores are reserved for desflow, and only a sink that routes by one, such as PostgreSQL's __table__ or Redis's __stream__, uses it. Rename the key to keep it as data.
+```
+
+The record itself is not changed, so a PostgreSQL sink on the same run still finds its `__table__`. Rename a key such as `__source__` to `source` to keep it as data.
+
 ## What Each Sink Writes
 
 Every sink receives the events and telemetry above, and a `when: labels` sink receives the labels instead. What each writes differs:
 
 | Sink | Writes |
 |---|---|
-| `ConsoleEgress` | one log line per record, `[TEL]`, `[EVT]` or `[LBL]` followed by the record without `stream_type` |
+| `ConsoleEgress` | one log line per record, `[TEL]`, `[EVT]` or `[LBL]` followed by the record without `stream_type`; one log call per batch |
 | `KafkaEgress` | the record as JSON, without `stream_type` unless `include_stream_type=True`; the message key is `path_id` for telemetry and `key` for an event. A label goes to `event_topic` with no key |
 | `RedisEgress` | the record as JSON in one `payload` field, with any `__stream__` key removed |
 | `ParquetStorageEgress`, `JsonlStorageEgress`, `IcebergStorageEgress` | without a router, one flat row per event or label, with an event's `value` mapping unpacked into columns, and no telemetry; with a router, each record as the router leaves it |
-| `PostgresEgress` | an event or telemetry record whose value is a mapping, with `sim_ts`, `timestamp`, `key` as `event_id`, `task` and `instance`, or `path_id`, added to it, as [Egress](../user-guide/egress.md#postgresql) describes; a label as the columns `sim_ts`, `timestamp`, `path`, `old`, `new` and `label`, the last three as JSON text |
+| `PostgresEgress` | an event or telemetry record whose value is a mapping, routed by its `__table__` key, which is removed, with `sim_ts`, `timestamp`, `key` as `event_id`, `task` and `instance`, or `path_id`, added to it, as [Egress](../user-guide/egress.md#postgresql) describes; a label as the columns `sim_ts`, `timestamp`, `path`, `old`, `new` and `label`, the last three as JSON text |

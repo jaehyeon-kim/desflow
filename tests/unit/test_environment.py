@@ -369,15 +369,32 @@ def test_go_live_does_not_hold_the_schedule_open():
     assert elapsed < 2.0
 
 
-def test_go_live_rejects_a_clock_it_cannot_compare():
-    """A naive start and an aware go-live have no measurable interval between them."""
-    with pytest.raises(ValueError, match="both be naive"):
-        DynamicRealtimeEnvironment(
-            factor=0.0,
-            strict=False,
-            logical_start_time=LOGICAL_START,
-            go_live_at=datetime.now(tz=timezone.utc),
-        )
+def test_go_live_without_an_offset_is_read_in_the_zone():
+    """A naive start and an aware go-live are compared in the run's zone, UTC by
+    default, so they are ten seconds apart."""
+    env = DynamicRealtimeEnvironment(
+        factor=0.0,
+        logical_start_time=LOGICAL_START,
+        go_live_at=LOGICAL_START.replace(tzinfo=timezone.utc) + timedelta(seconds=10),
+    )
+    assert env._go_live_sim_time == 10.0
+    assert env.start_datetime.tzinfo is timezone.utc
+
+
+def test_the_clock_runs_in_utc_across_a_daylight_saving_change():
+    """12:00 on 3 Oct 2026 in Melbourne plus 24 hours of simulation is 13:00 the
+    next day, as the clocks went forward an hour on 4 Oct; timestamps carry the
+    offset of their moment."""
+    env = DynamicRealtimeEnvironment(
+        factor=0,
+        logical_start_time=datetime(2026, 10, 3, 12, 0),
+        timezone="Australia/Melbourne",
+    )
+    start = env.start_datetime
+    assert env._get_iso_timestamp(start, 0) == "2026-10-03T12:00:00.000+10:00"
+    assert env._get_iso_timestamp(start, 86_400) == "2026-10-04T13:00:00.000+11:00"
+    with pytest.raises(ValueError, match="not an IANA time zone name"):
+        DynamicRealtimeEnvironment(timezone="Mars/Base")
 
 
 def test_batch_size_governs_when_unpaced():
@@ -965,8 +982,8 @@ def test_lag_starts_when_a_run_at_factor_0_goes_live():
 
 
 def test_cached_timestamp_is_the_isoformat_text():
-    """The cached text equals isoformat for every second of a day and for the
-    milliseconds of an hour, with a start that has microseconds, and with a
+    """The cached text equals isoformat of the moment for every second of a day and
+    for the milliseconds of an hour, with a start that has microseconds, and with a
     start in a zone that changes its offset that day."""
     from zoneinfo import ZoneInfo
 
@@ -979,10 +996,15 @@ def test_cached_timestamp_is_the_isoformat_text():
     times = [float(s) for s in range(86_400)] + [ms / 1000 for ms in range(3_600_000)]
     times += [s + 0.0005 for s in range(1000)] + [s + 0.9995 for s in range(1000)]
     for start in starts:
+        env.zone = start.tzinfo
         for now in times[:: 1 if start.tzinfo is None else 7]:
-            expected = (start + timedelta(seconds=now)).isoformat(
-                timespec="milliseconds"
-            )
+            if start.tzinfo is None:
+                moment = start + timedelta(seconds=now)
+            else:
+                # The clock runs in UTC and the text is written in the zone
+                utc = start.astimezone(timezone.utc) + timedelta(seconds=now)
+                moment = utc.astimezone(start.tzinfo)
+            expected = moment.isoformat(timespec="milliseconds")
             assert env._get_iso_timestamp(start, now) == expected, (start, now)
 
 

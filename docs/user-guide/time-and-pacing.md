@@ -28,7 +28,44 @@ app = SimulationContext(
 )
 ```
 
-A naive datetime gives timestamps with no time zone, and a timezone-aware one gives timestamps with its offset. In a blueprint it takes `now`, a signed duration such as `-7d`, or an ISO datetime, as [YAML Blueprints](blueprints.md#times-and-durations) describes.
+A datetime without an offset is read in the run's time zone, described next. In a blueprint it takes `now`, a signed duration such as `-7d`, or an ISO datetime, as [YAML Blueprints](blueprints.md#times-and-durations) describes.
+
+### Time Zone
+
+`timezone` names the zone that record timestamps are written in, as an IANA name such as `Australia/Melbourne`. Every `timestamp` carries the offset of its moment, such as `2026-10-03T12:00:00.000+10:00`, or `+00:00` in UTC. By default the zone is that of `logical_start_time` when it has one, and UTC otherwise. A `logical_start_time` or `go_live_at` without an offset, `now`, and the default start are read in it:
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/environment.yaml:timezone"
+    # Under simulation: timestamps written in Melbourne time, with its offset; the
+    # start and now are read in it. UTC by default
+    timezone: ${SIM_TIMEZONE:-Australia/Melbourne}
+    ```
+
+=== "Builder"
+
+    ```python title="docs/snippets/pages/pacing.py:timezone"
+    # Timestamps in Melbourne time, with their offset: 2026-10-03T12:00:00.000+10:00
+    melbourne = SimulationContext(
+        sim_id="Shop",
+        factor=0.0,
+        timezone="Australia/Melbourne",
+        logical_start_time=datetime(2026, 10, 3, 12, 0),  # read in Melbourne time
+    )
+    ```
+
+=== "Low-level"
+
+    ```python title="docs/snippets/pages/pacing.py:low-level-timezone"
+    zoned = DynamicRealtimeEnvironment(
+        factor=0.0,
+        timezone="Australia/Melbourne",
+        logical_start_time=datetime(2026, 10, 3, 12, 0),
+    )
+    print(zoned.start_datetime)  # 2026-10-03 12:00:00+10:00
+    ```
+
+The clock runs in UTC, so a daylight-saving change in the zone never adds or drops simulation time: in Melbourne, where the clocks went forward an hour on 4 October 2026, 24 hours of simulation from 12:00 on 3 October end at 13:00 on 4 October, `2026-10-04T13:00:00.000+11:00`. A replayed timestamp without an offset is read in the zone too.
 
 ### Factor
 
@@ -363,7 +400,7 @@ The `end-conditions` example: a drain after closing time, a stop when the boxes 
 
 **Processes it starts.** Besides your own, the environment starts an ingress monitor, which applies queued changes every 0.1 simulation seconds; a lag monitor, which publishes `system.simulation.lag_seconds` every `lag_interval`, at a `factor` above 0 or after going live; a timed flush per sink, at a `factor` above 0; the statistics timer; and the warm-up reset.
 
-**Pacing and the switch.** Before each event, `step` checks the logical clock. At the first event at or after `go_live_at`, it sets the factor to 1.0 and moves its two anchors, `env_start` and `real_start`, so the go-live instant counts as now; without that, the first paced event would sleep off the whole backfill. The switch happens once and always to 1.0. A `go_live_at` at or before `logical_start_time` paces the whole run, with a warning, and a run that ends before it stays unpaced. `go_live_at` and `logical_start_time` must both be naive or both timezone-aware, or the environment refuses them.
+**Pacing and the switch.** Before each event, `step` checks the logical clock. At the first event at or after `go_live_at`, it sets the factor to 1.0 and moves its two anchors, `env_start` and `real_start`, so the go-live instant counts as now; without that, the first paced event would sleep off the whole backfill. The switch happens once and always to 1.0. A `go_live_at` at or before `logical_start_time` paces the whole run, with a warning, and a run that ends before it stays unpaced. A `go_live_at` or `logical_start_time` without an offset is read in the run's time zone, so the two can be compared whichever way each is written.
 
 **The end of the model and the end of the run.** The model ends when the clock stops: at `until`, at a `stop`, or when a drain empties the model. The run ends after that, at `close()`, which `run()` calls in a `finally` block: it publishes the last statistics, still at the time the model ended, flushes and stops the egress connectors, then stops the ingress connectors. A sink may take a while to drain its queue, but no record it receives is later than the model's end.
 

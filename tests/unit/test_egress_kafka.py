@@ -511,3 +511,31 @@ async def test_a_failed_start_closes_the_producer(MockProducer, run_until):
     await run_until(egress.run(queue.Queue()), lambda: failed.stop.await_count == 1)
 
     failed.stop.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.egress.kafka.AIOKafkaProducer")
+async def test_kafka_egress_drops_reserved_keys(MockProducer, run_until, caplog):
+    """A payload key such as __table__ belongs to desflow: Kafka writes it nowhere,
+    warns once per key, and leaves the shared record as it was."""
+    mock_producer_instance = AsyncMock()
+    MockProducer.return_value = mock_producer_instance
+    mock_egress_queue = queue.Queue()
+    value = {"__table__": "orders", "status": "placed"}
+    records = [
+        {"stream_type": "event", "key": f"orders-{n}", "value": value} for n in (1, 2)
+    ]
+    mock_egress_queue.put(records)
+    egress = KafkaEgress(bootstrap_servers="localhost:9092")
+
+    await run_until(
+        egress.run(mock_egress_queue),
+        lambda: mock_producer_instance.send.call_count == 2,
+    )
+
+    for call in mock_producer_instance.send.call_args_list:
+        assert orjson.loads(call.kwargs["value"])["value"] == {"status": "placed"}
+    warnings = [r for r in caplog.records if "drops the payload key" in r.getMessage()]
+    assert len(warnings) == 1
+    assert "KafkaEgress drops the payload key '__table__'" in warnings[0].getMessage()
+    assert records[0]["value"] == {"__table__": "orders", "status": "placed"}

@@ -5,7 +5,7 @@ script that make the same calls produce the same simulation.
 """
 
 import importlib
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -19,6 +19,7 @@ from desflow.core.expressions import Expression
 from desflow.core.flow import Wait
 from desflow.core.task import check_acquisition_order
 from desflow.core.context import SimulationContext
+from desflow.core.environment import in_zone, resolve_zone
 from desflow.core.registry import SimulationRegistry
 
 # Short connector names, mapped to the module, the class and the extra that installs
@@ -71,8 +72,10 @@ def build(path: Union[str, Path]) -> Tuple[SimulationContext, Run]:
     """
     data, source = read_document(path)
     try:
-        # One `now` for the whole file, so relative times agree with each other.
-        blueprint = Blueprint.model_validate(data, context={"now": datetime.now()})
+        # One `now` for the whole file, so relative times agree with each other;
+        # an instant, read in the run's zone
+        now = datetime.now(timezone.utc)
+        blueprint = Blueprint.model_validate(data, context={"now": now})
     except ValidationError as exc:
         raise _validation_error(exc, source) from None
 
@@ -271,18 +274,6 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                 f"the step interrupts task '{step.interrupt.task}', which is not "
                 f"defined under tasks",
             )
-
-    go_live_at = blueprint.simulation.go_live_at
-    start = blueprint.simulation.logical_start_time
-    # The run starts at datetime.now(), which is naive, when no start time is given
-    if go_live_at is not None and (go_live_at.tzinfo is None) != (
-        start is None or start.tzinfo is None
-    ):
-        raise source.error(
-            ("simulation", "go_live_at"),
-            "go_live_at and logical_start_time must both have a time zone or both "
-            "have none, and a run with no logical_start_time starts without one",
-        )
 
     for index, egress in enumerate(blueprint.egress):
         if (
@@ -567,29 +558,32 @@ def _when(
 ) -> Optional[Callable[[dict], bool]]:
     """The egress predicate: a `!python` function, or one for `history` or `live`.
 
-    Records carry their logical time as an ISO string in one layout, so comparing the
-    text compares the times. The go-live instant is formatted in the same layout and,
-    when both times carry a time zone, in the zone of `logical_start_time`.
+    Each record's timestamp is read as a time and compared with the go-live
+    instant, so the offset of each, which a daylight-saving change can alter during
+    a run, is taken into account. A go-live instant without an offset is read in
+    the run's zone, as the environment reads it.
     """
     if not isinstance(when, str):
         return when
 
-    go_live_at = blueprint.simulation.go_live_at
-    start = blueprint.simulation.logical_start_time
-    assert go_live_at is not None  # checked in _check_references
-    if go_live_at.tzinfo is not None and start is not None and start.tzinfo:
-        go_live_at = go_live_at.astimezone(start.tzinfo)
-    go_live_iso = go_live_at.isoformat(timespec="milliseconds")
+    simulation = blueprint.simulation
+    assert simulation.go_live_at is not None  # checked in _check_references
+    zone = resolve_zone(simulation.timezone, simulation.logical_start_time)
+    go_live_at = in_zone(simulation.go_live_at, zone)
+    # Timestamps carry milliseconds, so the go-live instant is cut to them too, and a
+    # record stamped in the millisecond of going live is live, as it always was
+    go_live_at = go_live_at.replace(microsecond=go_live_at.microsecond // 1000 * 1000)
+    read = datetime.fromisoformat
 
     if when == "history":
 
         def is_history(record: dict) -> bool:
-            return record["timestamp"] < go_live_iso
+            return read(record["timestamp"]) < go_live_at
 
         return is_history
 
     def is_live(record: dict) -> bool:
-        return record["timestamp"] >= go_live_iso
+        return read(record["timestamp"]) >= go_live_at
 
     return is_live
 

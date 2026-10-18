@@ -2,7 +2,7 @@ import asyncio
 import logging
 import queue
 
-from desflow.connectors.egress.base import BaseEgress
+from desflow.connectors.egress.base import BaseEgress, drop_reserved_keys
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +51,7 @@ class ConsoleEgress(BaseEgress):
                 continue
             if not batch or not logger.isEnabledFor(logging.INFO):
                 continue
+            batch = drop_reserved_keys(batch, self)
             # Each line is the record without its stream type, which the prefix
             # names. The record is not altered: every egress provider is handed the
             # same dictionary objects, so removing a key here would also remove it

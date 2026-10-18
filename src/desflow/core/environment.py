@@ -4,8 +4,10 @@ import math
 import queue
 import threading
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, tzinfo
+from datetime import timezone as dt_timezone
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import TypeAdapter
 from pydantic_core import to_jsonable_python
@@ -24,6 +26,39 @@ logger = logging.getLogger(__name__)
 # key reach the sinks. This is the validator those fields used, so it agrees by
 # construction rather than by imitation.
 _KEY_ADAPTER = TypeAdapter(str)
+
+
+def resolve_zone(name: Optional[str], start: Optional[datetime] = None) -> tzinfo:
+    """
+    The time zone a run writes its timestamps in.
+
+    Args:
+        name: An IANA time zone name, such as `UTC` or `Australia/Melbourne`.
+        start: The run's `logical_start_time`, whose zone applies when no name is
+            given.
+
+    Returns:
+        tzinfo: The named zone; else the zone of `start` if it has one; else UTC.
+
+    Raises:
+        ValueError: If `name` is not an IANA time zone name.
+    """
+    if name:
+        try:
+            return ZoneInfo(name)
+        except (ZoneInfoNotFoundError, ValueError):
+            raise ValueError(
+                f"timezone {name!r} is not an IANA time zone name; use a name such "
+                f"as UTC, Europe/London or Australia/Melbourne"
+            ) from None
+    if start is not None and start.tzinfo is not None:
+        return start.tzinfo
+    return dt_timezone.utc
+
+
+def in_zone(moment: datetime, zone: tzinfo) -> datetime:
+    """A datetime without an offset, read in `zone`; one with an offset, as given."""
+    return moment.replace(tzinfo=zone) if moment.tzinfo is None else moment
 
 
 def _jsonable(value: Any) -> Any:
@@ -349,7 +384,12 @@ class EgressMixIn:
             # Real seconds since the start. now() takes the start time's zone, so a
             # start time with a zone does not raise TypeError against a naive now().
             start = self.start_datetime  # type: ignore[attr-defined]
-            real_elapsed = (datetime.now(start.tzinfo) - start).total_seconds()
+            if start.tzinfo is None:
+                real_elapsed = (datetime.now() - start).total_seconds()
+            else:
+                real_elapsed = (
+                    datetime.now(dt_timezone.utc) - start.astimezone(dt_timezone.utc)
+                ).total_seconds()
             lag = max(0.0, real_elapsed - self.now)  # type: ignore[attr-defined]
 
             # Publish this system health metric automatically
@@ -614,10 +654,15 @@ class EgressMixIn:
     def _get_iso_timestamp(self, start_time: datetime, sim_now: float) -> str:
         """Internal: Converts simulation time to a real-world ISO string.
 
-        The text is the same as `(start_time + timedelta(seconds=sim_now))
-        .isoformat(timespec="milliseconds")`, built more cheaply: the date and time up
-        to the second, and the zone offset after it, are formatted once per second of
-        the clock and kept, and only the milliseconds are added for each record.
+        For a start with a time zone the clock runs in UTC, so a daylight-saving
+        change never adds or drops simulation time, and the text is written in the
+        run's zone (`self.zone`) with its offset: `(start_time.astimezone(UTC) +
+        timedelta(seconds=sim_now)).astimezone(zone).isoformat(timespec=
+        "milliseconds")`. A start without one gives `(start_time + timedelta(...))
+        .isoformat(...)`, with no offset. The text is built cheaply: the date and
+        time up to the second, and the offset after it, are formatted once per
+        second of the clock and kept, and only the milliseconds are added for each
+        record.
         """
         # timedelta(seconds=x) splits x into whole seconds and a fraction, and rounds
         # the fraction to microseconds, half to even; this does the same
@@ -626,9 +671,14 @@ class EgressMixIn:
         seconds, micro = divmod(start_time.microsecond + micros, 1_000_000)
         cache = self.__dict__.get("_timestamp_cache")
         if cache is None or cache[0] != seconds or cache[1] is not start_time:
-            text = (
-                start_time.replace(microsecond=0) + timedelta(seconds=seconds)
-            ).isoformat(timespec="seconds")
+            base = start_time.replace(microsecond=0)
+            if base.tzinfo is None:
+                moment = base + timedelta(seconds=seconds)
+            else:
+                zone = self.__dict__.get("zone") or base.tzinfo
+                utc = base.astimezone(dt_timezone.utc) + timedelta(seconds=seconds)
+                moment = utc.astimezone(zone)
+            text = moment.isoformat(timespec="seconds")
             # The date and time take the first 19 characters; an offset follows
             cache = (seconds, start_time, text[:19], text[19:])
             self._timestamp_cache: Tuple[int, datetime, str, str] = cache
@@ -783,7 +833,9 @@ class DynamicRealtimeEnvironment(
     for managing high-throughput asynchronous I/O with external systems.
 
     Attributes:
-        start_datetime (datetime): The real-world clock time when the simulation started.
+        start_datetime (datetime): The real-world clock time when the simulation
+            started, with its time zone.
+        zone (tzinfo): The time zone timestamps are written in.
     """
 
     def __init__(
@@ -793,6 +845,7 @@ class DynamicRealtimeEnvironment(
         strict=False,
         logical_start_time: Optional[datetime] = None,
         go_live_at: Optional[datetime] = None,
+        timezone: Optional[str] = None,
     ):
         """
         Initializes the real-time simulation environment.
@@ -808,20 +861,33 @@ class DynamicRealtimeEnvironment(
                 backdated history is produced as fast as the machine allows. From that
                 instant one simulated second takes one real second, so a backfill and a
                 live tail run in one process instead of two.
+            timezone (str, optional): An IANA time zone name, such as
+                `Australia/Melbourne`, that timestamps are written in, with their
+                offset. By default the zone of `logical_start_time`, or UTC. A
+                `logical_start_time` or `go_live_at` without an offset is read in it,
+                and the default start is now in it.
 
-        `go_live_at` is read against the same clock as `logical_start_time`, so both must
-        be naive or both timezone-aware. An instant at or before the start of the run
-        makes the whole run real time, which is the degenerate case of the same rule.
+        The clock runs in UTC, so a daylight-saving change in the zone never adds or
+        drops simulation time. An instant at or before the start of the run makes the
+        whole run real time, which is the degenerate case of the same rule.
+
+        Raises:
+            ValueError: If `timezone` is not an IANA time zone name.
         """
-        # Inject the custom time, or default to the exact moment the script executes
-        self.start_datetime = logical_start_time or datetime.now()
+        self.zone: tzinfo = resolve_zone(timezone, logical_start_time)
+        # The custom time, or the moment the script runs, in the run's zone
+        self.start_datetime = (
+            in_zone(logical_start_time, self.zone)
+            if logical_start_time is not None
+            else datetime.now(self.zone)
+        )
 
         super().__init__(initial_time=initial_time, factor=factor, strict=strict)
 
         self._go_live_sim_time: Optional[float] = None
         if go_live_at is not None:
             self._go_live_sim_time = self._resolve_go_live_time(
-                go_live_at, float(initial_time)
+                in_zone(go_live_at, self.zone), float(initial_time)
             )
 
         self.setup_registry()
@@ -862,13 +928,12 @@ class DynamicRealtimeEnvironment(
         stamps every published record, so the switch lands on the timestamps the sink
         receives rather than on however long the run has been executing.
         """
-        if (go_live_at.tzinfo is None) != (self.start_datetime.tzinfo is None):
-            raise ValueError(
-                "go_live_at and the simulation start time must both be naive or both "
-                "be timezone-aware, otherwise the interval between them is undefined."
-            )
-
-        offset = (go_live_at - self.start_datetime).total_seconds()
+        # Both have a zone; in UTC, as the clock runs, so a daylight-saving change
+        # between them counts as the real time it is
+        offset = (
+            go_live_at.astimezone(dt_timezone.utc)
+            - self.start_datetime.astimezone(dt_timezone.utc)
+        ).total_seconds()
         if offset < initial_time:
             logger.warning(
                 "go_live_at (%s) is before the start of the run (%s), so the whole run "

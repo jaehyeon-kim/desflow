@@ -9,7 +9,7 @@ loops over its rows itself.
 import csv
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Union
 
@@ -60,7 +60,8 @@ def read_trace(
         on_invalid: `error` refuses a row whose time is missing or not a time;
             `skip` leaves it out, with a warning naming it.
         start: The date and time simulation time `initial_time` stands for, needed
-            with `unit="timestamp"`.
+            with `unit="timestamp"`, such as `env.start_datetime`. When it has a
+            time zone, a timestamp without an offset is read in that zone.
         initial_time: The simulation clock's start.
 
     Returns:
@@ -143,10 +144,17 @@ def _time(
         if not isinstance(value, datetime):
             return None
         assert start is not None
-        if (value.tzinfo is None) != (start.tzinfo is None):
+        if start.tzinfo is not None:
+            # A time without an offset is read in the run's zone, and the clock
+            # runs in UTC, so a daylight-saving change counts as real time
+            if value.tzinfo is None:
+                value = value.replace(tzinfo=start.tzinfo)
+            value = value.astimezone(timezone.utc)
+            start = start.astimezone(timezone.utc)
+        elif value.tzinfo is not None:
             raise ValueError(
-                "a timestamp and logical_start_time must both have a time zone or "
-                "both have none"
+                "a timestamp has a time zone but logical_start_time has none; give "
+                "logical_start_time a time zone, or a timezone setting"
             )
         return initial_time + (value - start).total_seconds()
     try:

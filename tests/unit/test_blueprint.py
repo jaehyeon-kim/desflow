@@ -1,6 +1,7 @@
 """YAML blueprints: validation, error lines and the builder calls they make."""
 
 import textwrap
+from datetime import datetime
 
 import pytest
 from typer.testing import CliRunner
@@ -606,11 +607,13 @@ def _with_times(start, live):
     ],
 )
 def test_relative_times_read_one_now(tmp_path, start, live, start_offset, live_offset):
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
-    before = datetime.now()
+    # `now` is an instant, read in the run's zone, UTC by default
+    before = datetime.now(timezone.utc)
     app = SimulationContext.from_yaml(write(tmp_path, _with_times(start, live)))
-    after = datetime.now()
+    after = datetime.now(timezone.utc)
+    assert app.logical_start_time.tzinfo is timezone.utc
 
     assert app.go_live_at - app.logical_start_time == timedelta(
         seconds=live_offset - start_offset
@@ -817,23 +820,64 @@ def test_a_connector_value_error_names_the_line(tmp_path):
 @pytest.mark.parametrize(
     "times",
     [
-        "  go_live_at: 2026-01-01T00:00:10+00:00\n",
         "  logical_start_time: 2026-01-01T00:00:00\n"
         "  go_live_at: 2026-01-01T00:00:10+00:00\n",
         "  logical_start_time: 2026-01-01T00:00:00+00:00\n"
         "  go_live_at: 2026-01-01T00:00:10\n",
     ],
 )
-def test_mixed_time_zones_name_the_line(tmp_path, times):
+def test_a_time_without_an_offset_is_read_in_the_zone(tmp_path, times):
+    """A start and a go-live, one with an offset and one without, are ten seconds
+    apart: the one without is read in the run's zone, UTC by default."""
     path = write(
         tmp_path, MINIMAL.replace("  random_seed: 7\n", "  random_seed: 7\n" + times)
     )
+    app = SimulationContext.from_yaml(path)
+    app.run(until=1)
+    assert app.env._go_live_sim_time == 10.0
+
+
+def test_an_unknown_timezone_names_the_line(tmp_path):
+    text = MINIMAL.replace(
+        "  random_seed: 7\n", "  random_seed: 7\n  timezone: Mars/Base\n"
+    )
+    path = write(tmp_path, text)
     with pytest.raises(BlueprintError) as error:
         SimulationContext.from_yaml(path)
-
     message = str(error.value)
     assert message.startswith(f"{path}:"), message
-    assert "both have a time zone or both have none" in message
+    assert "'Mars/Base' is not an IANA time zone name" in message
+
+
+def test_timezone_in_a_blueprint_and_the_builder(tmp_path):
+    """Timestamps carry the zone's offset; a start without one is read in it."""
+    text = MINIMAL.replace(
+        "  random_seed: 7\n",
+        "  random_seed: 7\n  timezone: Australia/Melbourne\n"
+        "  logical_start_time: 2026-10-03T12:00:00\n",
+    )
+
+    def first_timestamp(app):
+        sink = _Capture()
+        app.add_egress(sink)
+        app.run(until=5)
+        return sink.records[0]["timestamp"]
+
+    app = SimulationContext.from_yaml(write(tmp_path, text))
+    assert first_timestamp(app).endswith("+10:00")
+    assert first_timestamp(app).startswith("2026-10-03T12:00:")
+    builder = SimulationContext(
+        "Shop",
+        factor=0,
+        timezone="Australia/Melbourne",
+        logical_start_time=datetime(2026, 10, 3, 12, 0),
+    )
+    builder.add_resource("packers", current_cap=1, max_cap=1)
+    builder.with_stats("minimal", interval=1)
+    stamp = first_timestamp(builder)
+    assert stamp.startswith("2026-10-03T12:00:") and stamp.endswith("+10:00")
+    with pytest.raises(ValueError, match="not an IANA time zone name"):
+        SimulationContext("Shop", timezone="Mars/Base")
 
 
 def test_resources_in_opposite_orders_name_the_tasks_line(tmp_path):

@@ -18,7 +18,7 @@ from desflow.config import (
     QUEUE_ORDERS,
     STATS_LEVELS,
 )
-from desflow.core.environment import DynamicRealtimeEnvironment
+from desflow.core.environment import DynamicRealtimeEnvironment, resolve_zone
 from desflow.core.expressions import Expression
 from desflow.core.flow import NextSpec, Router, Transfer, Wait, make_scope
 from desflow.core.signals import Signal
@@ -91,6 +91,7 @@ class SimulationContext:
         warmup: Union[float, str, None] = None,
         initial_time: Union[float, str] = 0.0,
         lag_interval: Union[float, str, None] = None,
+        timezone: Optional[str] = None,
     ):
         """
         Initializes the context builder with a designated namespace and temporal factor.
@@ -120,9 +121,14 @@ class SimulationContext:
                 run is behind the wall clock. By default it is off at `factor` 0,
                 where lag means nothing, and every simulation second otherwise; a
                 run that goes live starts it then. 0 turns it off.
+            timezone: An IANA time zone name, such as `"Australia/Melbourne"`, that
+                record timestamps are written in, with their offset. By default the
+                zone of `logical_start_time`, or UTC. A `logical_start_time` or
+                `go_live_at` without an offset is read in it.
 
         Raises:
-            ValueError: If `warmup` or `lag_interval` is negative or not a duration.
+            ValueError: If `warmup` or `lag_interval` is negative or not a duration,
+                or `timezone` is not an IANA time zone name.
         """
         self.sim_id = sim_id
         self.factor = factor
@@ -133,6 +139,8 @@ class SimulationContext:
         self.warmup = None if warmup is None else _seconds(warmup)
         if self.warmup is not None and self.warmup < 0:
             raise ValueError(f"warmup must be 0 or more, got {warmup}")
+        resolve_zone(timezone)  # an unknown name is refused here, not at run()
+        self.timezone = timezone
         self.lag_interval = None if lag_interval is None else _seconds(lag_interval)
         if self.lag_interval is not None and self.lag_interval < 0:
             raise ValueError(f"lag_interval must be 0 or more, got {lag_interval}")
@@ -1591,6 +1599,8 @@ class SimulationContext:
             env_kwargs["logical_start_time"] = self.logical_start_time
         if self.go_live_at is not None:
             env_kwargs["go_live_at"] = self.go_live_at
+        if self.timezone is not None:
+            env_kwargs["timezone"] = self.timezone
         self._env = DynamicRealtimeEnvironment(**env_kwargs)
 
         # One random sequence per distribution, all from the run's seed
@@ -1613,10 +1623,11 @@ class SimulationContext:
         if self._stats_level != "none":
             self._env.setup_stats(self.sim_id, self._stats_level, self._stats_interval)
         self._signals = {name: Signal(self._env, name) for name in self._signal_names}
-        start_time = self.logical_start_time or self._env.start_datetime
         self._replay_rows = {
             name: read_trace(
-                **spec, start=start_time, initial_time=float(self.initial_time)
+                **spec,
+                start=self._env.start_datetime,
+                initial_time=float(self.initial_time),
             )
             for name, spec in self._replays.items()
         }

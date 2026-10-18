@@ -448,3 +448,20 @@ def test_unknown_type_name_is_refused_at_construction():
             default_table="sim.events",
             schemas={"sim.events": {"when": "datetime"}},
         )
+
+
+def test_reserved_keys_are_dropped(caplog):
+    """An Iceberg table gets no column for a reserved payload key."""
+    catalog = FakeCatalog()
+    egress = IcebergStorageEgress(catalog=catalog, default_table="sim.events")
+    event = {
+        "stream_type": "event",
+        "key": "orders-1",
+        "value": {"__table__": "t", "n": 1},
+    }
+
+    egress._write_batch([event], pa)
+
+    rows = catalog.tables["sim.events"].appended[0].to_pylist()
+    assert rows == [{"stream_type": "event", "key": "orders-1", "n": 1}]
+    assert "IcebergStorageEgress drops the payload key '__table__'" in caplog.text

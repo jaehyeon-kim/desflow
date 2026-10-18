@@ -9,7 +9,7 @@ from typing import Any, Callable, Dict, Optional
 
 import orjson
 
-from desflow.connectors.egress.base import BaseEgress, group_rows
+from desflow.connectors.egress.base import BaseEgress, drop_reserved_keys, group_rows
 
 logger = logging.getLogger(__name__)
 
@@ -248,6 +248,8 @@ class JsonlStorageEgress(BaseEgress):
             logger.error("Filesystem not initialized. Batch dropped.")
             return
 
+        # A file routes by no reserved key, so it writes none
+        batch = drop_reserved_keys(batch, self)
         grouped_batches = group_rows(batch, self.path_router, self.default_path)
 
         for target_path, records in grouped_batches.items():
@@ -403,6 +405,8 @@ class ParquetStorageEgress(BaseEgress):
             pa (Any): Injected reference to the `pyarrow` module.
             pq (Any): Injected reference to the `pyarrow.parquet` module.
         """
+        # A file routes by no reserved key, so it writes none
+        batch = drop_reserved_keys(batch, self)
         grouped_batches = group_rows(batch, self.path_router, self.default_path)
 
         for target_path, records in grouped_batches.items():

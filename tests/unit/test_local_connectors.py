@@ -57,3 +57,21 @@ async def test_console_egress(caplog):
     # take stream_type away from another sink attached to the same simulation.
     assert batch[0]["stream_type"] == "telemetry"
     assert batch[1]["stream_type"] == "event"
+
+
+@pytest.mark.asyncio
+async def test_console_egress_drops_reserved_keys(caplog):
+    """The console prints no reserved payload key, and warns once per key."""
+    caplog.set_level(logging.INFO)
+    egress_queue = queue.Queue()
+    record = {"stream_type": "event", "key": "orders-1", "value": {"__x__": 1, "n": 2}}
+    egress_queue.put([record, record])
+    task = asyncio.create_task(ConsoleEgress().run(egress_queue))
+    await asyncio.sleep(0.05)
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+    assert "[EVT] {'key': 'orders-1', 'value': {'n': 2}}" in caplog.text
+    assert caplog.text.count("drops the payload key '__x__'") == 1

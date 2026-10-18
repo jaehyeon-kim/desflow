@@ -183,7 +183,7 @@ From 1.0, the YAML blueprint format, the `desflow` command, the public Python AP
 
 ### Platform
 
-- **More speed:** larger changes for faster runs, and a faster runtime for YAML-only blueprints if measurements show the need.
+- **More speed:** cheaper record publishing, which takes about 40 percent of a run, with the same published records ([#69](https://github.com/jaehyeon-kim/desflow/issues/69)), and a faster runtime for YAML-only blueprints if measurements show the need.
 
 ### Docs
 

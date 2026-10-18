@@ -6,6 +6,11 @@ simulation:
   factor: ${SIM_FACTOR:-0}
   # Read against the moment the file is loaded: a day of history up to now
   logical_start_time: -1d
+  # --8<-- [start:timezone]
+  # Under simulation: timestamps written in Melbourne time, with its offset; the
+  # start and now are read in it. UTC by default
+  timezone: ${SIM_TIMEZONE:-Australia/Melbourne}
+  # --8<-- [end:timezone]
   # --8<-- [start:lag]
   # Under simulation: how far the run is behind the wall clock, every 10 s; by
   # default off at factor 0 and every second otherwise, and 0 turns it off
