@@ -1,0 +1,46 @@
+# Local replay: the orders of a recorded morning, at their recorded times, in YAML.
+#
+# The twin of examples/builder/local_replay_example.py. Each row of
+# ../local_replay_orders.csv is one order, arriving at its time in seconds from the
+# start of the run and carrying its order_id and items as attributes. The last
+# row is at 73 seconds; after it the arrival stops, and the run ends at 120.
+#
+# Needs no containers. Runs unpaced and ends after 120 simulation seconds.
+# Run it with: desflow run examples/yaml/local_replay.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+egress:
+  - type: Console
+
+resources:
+  packers: {current_cap: 1, max_cap: 2}
+
+services:
+  packing: {dist: triangular, low: 1 s, mode: 2 s, high: 3 s}
+
+# --8<-- [start:replay]
+arrivals:
+  orders:
+    replay:
+      # A CSV or Parquet file, relative to this blueprint
+      path: ../local_replay_orders.csv
+      time: time
+      unit: s
+      fields: [order_id, items]
+    spawn: pack
+# --8<-- [end:replay]
+
+tasks:
+  pack:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+    # The recorded fields, carried by each order
+    attributes: [order_id, items]
+
+run:
+  until: 120

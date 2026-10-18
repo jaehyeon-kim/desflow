@@ -292,6 +292,14 @@ class SimulationRegistry:
             self._configs[path] = cap_config
             self._register_cap(path, cap_config)
 
+        # Register Breakdowns: each resource's time to failure and repair time
+        for name, breakdown in param.breakdowns.items():
+            for part in ("time_to_failure", "repair"):
+                path = f"{prefix}.breakdown.{name}.{part}"
+                dist_config = getattr(breakdown, part)
+                self._configs[path] = dist_config
+                self._register_dist(path, dist_config)
+
         # Register Custom Variables
         self._configs[f"{prefix}.variables"] = param.variables
         for name, value in param.variables.items():

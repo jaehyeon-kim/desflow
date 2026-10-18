@@ -5,7 +5,7 @@ import logging
 import secrets
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple, Union
 
 import simpy
 
@@ -26,7 +26,11 @@ from desflow.core.task import TaskRun, TaskSpec, check_acquisition_order
 from desflow.core.registry import SimulationRegistry
 from desflow.core.sampler import Sampler
 from desflow.models.flow import Entity, Upstream
+from desflow.core.breakdowns import run_breakdowns
+from desflow.core.replay import UNITS, Row, read_trace
+from desflow.core.scenario import check_step, run_scenario
 from desflow.models.params import (
+    BreakdownConfig,
     CapacityConfig,
     ContainerConfig,
     DistributionConfig,
@@ -147,6 +151,12 @@ class SimulationContext:
         self._resources_config: Dict[str, CapacityConfig] = {}
         self._resource_queues: Dict[str, str] = {}
         self._resource_preempt: Dict[str, bool] = {}
+        self._breakdowns_config: Dict[str, BreakdownConfig] = {}
+        self._scenario_steps: List[Dict[str, Any]] = []
+        # Replayed arrivals: how to read each, and the rows left once read
+        self._replays: Dict[str, Dict[str, Any]] = {}
+        self._replay_rows: Dict[str, List[Row]] = {}
+        self._replays_done: set = set()
         self._containers_config: Dict[str, CapacityConfig] = {}
         self._stores_config: Dict[str, CapacityConfig] = {}
         self._store_priority: Dict[str, bool] = {}
@@ -512,6 +522,113 @@ class SimulationContext:
             current_cap=current_cap, max_cap=max_cap
         )
         self._store_priority[name] = priority
+        return self
+
+    def add_scenario(self, steps: List[Mapping[str, Any]]) -> "SimulationContext":
+        """
+        Adds scenario steps: changes and records at set simulation times.
+
+        Each step is a mapping: `at`, seconds or a duration from the start of the
+        run, and a `path` and `value` to set in the registry, a `record` to publish
+        as a ground-truth label, an `interrupt` (`{"task": ..., "where": ...,
+        "cause": ...}`), or more than one. A step applies before every other event
+        at its time, so an arrival gap drawn at that moment uses a new rate; a step
+        at or after `until` never applies. Steps at equal times apply in the order
+        given.
+
+        Args:
+            steps: The steps.
+
+        Returns:
+            SimulationContext: The current instance for method chaining.
+
+        Raises:
+            ValueError: If a step is malformed. A path the model does not have is
+                refused when the run starts.
+        """
+        checked = [check_step(step) for step in steps]
+        if not self._scenario_steps:
+            self.add_process(self._run_scenario)
+        self._scenario_steps.extend(checked)
+        return self
+
+    def add_step(
+        self,
+        at: Union[float, str],
+        path: Optional[str] = None,
+        value: Any = None,
+        record: Optional[Mapping[str, Any]] = None,
+        interrupt: Optional[Mapping[str, Any]] = None,
+    ) -> "SimulationContext":
+        """
+        Adds one scenario step; `add_scenario` describes the steps.
+
+        Args:
+            at: Seconds, or a duration such as `"10 min"`, from the start of the run.
+            path: A registry path to set, with `value`.
+            value: The value to set.
+            record: A ground-truth record to publish.
+            interrupt: `{"task": ..., "where": ..., "cause": ...}` to interrupt.
+
+        Returns:
+            SimulationContext: The current instance for method chaining.
+        """
+        step: Dict[str, Any] = {"at": at}
+        if path is not None:
+            step.update(path=path, value=value)
+        if record is not None:
+            step["record"] = record
+        if interrupt is not None:
+            step["interrupt"] = interrupt
+        return self.add_scenario([step])
+
+    def _run_scenario(self, context: "SimulationContext"):
+        """The scenario process: `run_scenario` with this run's until."""
+        return run_scenario(
+            self.env,
+            self._scenario_steps,
+            until=self._until,
+            interrupt=self.interrupt,
+        )
+
+    def add_breakdown(
+        self,
+        resource: str,
+        time_to_failure: Mapping[str, Any],
+        repair: Mapping[str, Any],
+        work: str = "interrupt",
+    ) -> "SimulationContext":
+        """
+        Makes a resource break down at random and be repaired.
+
+        The failure clock runs on calendar time: after each repair, or the start,
+        the time to the next failure is drawn, busy or idle. While the resource is
+        down its capacity is 0, its `current_cap` keeps the planned value, and a
+        change to it during the repair sets the capacity the resource returns to.
+        Each failure and repair publishes an event keyed by the resource's name,
+        `{"status": "down", "reason": "failure"}` and `{"status": "repaired", ...}`.
+        The two distributions are registry paths,
+        `<sim_id>.breakdown.<resource>.time_to_failure` and `.repair`.
+
+        Args:
+            resource: The resource's name.
+            time_to_failure: A distribution, such as
+                `{"dist": "weibull", "shape": 1.5, "scale": 3600}`.
+            repair: A distribution, such as `{"dist": "exponential", "rate": 0.01}`.
+            work: `interrupt` (the default) interrupts the tasks being served, which
+                follow their `on_interrupt`; `finish` lets them finish.
+
+        Returns:
+            SimulationContext: The current instance for method chaining.
+
+        Raises:
+            ValueError: If a distribution or `work` is invalid.
+        """
+        self._breakdowns_config[resource] = BreakdownConfig(
+            time_to_failure=_distribution_of(time_to_failure),
+            repair=_distribution_of(repair),
+            work=work,
+        )
         return self
 
     def add_variable(self, name: str, value: Any) -> "SimulationContext":
@@ -1021,9 +1138,87 @@ class SimulationContext:
         if not self._env or not self.sampler:
             raise RuntimeError("Cannot sample arrival before context is run.")
 
+        if arrival_id in self._replays:
+            return self._next_replayed(arrival_id)
         cfg = self._env.registry.get_config(f"{self.sim_id}.arrival.{arrival_id}")
         entity = self._new_entity(arrival_id, self._arrival_entities.get(arrival_id))
         return self._env.timeout(self.sampler.sample(cfg), value=entity)
+
+    def _next_replayed(self, arrival_id: str) -> simpy.Event:
+        """The wait for the next row of a replayed arrival; it never ends after the
+        last row, so the arrival stops."""
+        rows = self._replay_rows[arrival_id]
+        if not rows:
+            if arrival_id not in self._replays_done:
+                self._replays_done.add(arrival_id)
+                logger.info(
+                    f"Arrival '{arrival_id}' replayed its last row at "
+                    f"{self.env.now:g} s; it stops."
+                )
+            return self.env.event()
+        row = rows.pop(0)
+        attributes = {
+            **self._arrival_entities.get(arrival_id, ({}, None))[0],
+            **row.fields,
+        }
+        entity = self._new_entity(
+            arrival_id, (attributes, self._arrival_entities[arrival_id][1])
+        )
+        return self.env.timeout(max(0.0, row.time - self.env.now), value=entity)
+
+    def add_arrival_replay(
+        self,
+        name: str,
+        source: Union[str, Path, Iterable[Mapping[str, Any]]],
+        *,
+        time: str = "time",
+        unit: str = "s",
+        fields: Union[str, List[str]] = "all",
+        on_invalid: str = "error",
+        attributes: Optional[Mapping[str, Any]] = None,
+        key: Optional[Callable[[int], str]] = None,
+    ) -> "SimulationContext":
+        """
+        Registers an arrival taken from recorded rows instead of a distribution.
+
+        Each row becomes one arrival at its recorded time, in the order given, and
+        its fields become the entity's attributes. `wait_for_arrival(name)` returns
+        the wait for the next row, so an arrival loop is written as for any other
+        arrival. Rows at equal times arrive at that time in their order; rows at or
+        after `until` never arrive; after the last row the arrival stops, with one
+        INFO line. The rows are read and checked when the run starts.
+
+        Args:
+            name: The arrival's name.
+            source: A CSV or Parquet file (Parquet needs the `parquet` extra), or
+                an iterable of mappings.
+            time: The column of each row's time.
+            unit: `ms`, `s`, `min` or `h` from the start of the run, or `timestamp`
+                for a date and time read from `logical_start_time`.
+            fields: The columns each entity carries, or `all`.
+            on_invalid: `error` refuses a row with no valid time; `skip` leaves it
+                out with a warning.
+            attributes: Attributes every entity starts with; a row's fields of the
+                same name replace them.
+            key: A function of the entity's counter, from 1, returning its key.
+
+        Returns:
+            SimulationContext: The current instance for method chaining.
+
+        Raises:
+            ValueError: If `unit` or `on_invalid` is unknown.
+        """
+        if unit not in UNITS and unit != "timestamp":
+            raise ValueError(
+                f"unit must be one of {', '.join([*UNITS, 'timestamp'])}, got '{unit}'"
+            )
+        if on_invalid not in ("error", "skip"):
+            raise ValueError(f"on_invalid must be error or skip, got '{on_invalid}'")
+        self._replays[name] = dict(
+            source=source, time=time, unit=unit, fields=fields, on_invalid=on_invalid
+        )
+        self._arrival_entities[name] = (dict(attributes or {}), key)
+        return self
 
     def next_instance(self, task: str) -> int:
         """
@@ -1304,6 +1499,7 @@ class SimulationContext:
             resources=self._resources_config,
             containers=self._containers_config,
             stores=self._stores_config,
+            breakdowns=self._breakdowns_config,
             service=self._services_config,
             arrival=self._arrivals_config,
             variables=self._variables_config,
@@ -1408,6 +1604,14 @@ class SimulationContext:
         if self._stats_level != "none":
             self._env.setup_stats(self.sim_id, self._stats_level, self._stats_interval)
         self._signals = {name: Signal(self._env, name) for name in self._signal_names}
+        start_time = self.logical_start_time or self._env.start_datetime
+        self._replay_rows = {
+            name: read_trace(
+                **spec, start=start_time, initial_time=float(self.initial_time)
+            )
+            for name, spec in self._replays.items()
+        }
+        self._replays_done = set()
 
         # Compile Master Parameter Object
         self._env.registry.register_sim_parameter(self.compile_parameters())
@@ -1452,6 +1656,15 @@ class SimulationContext:
         for container_id in self._containers_config:
             self._containers_map[container_id] = DynamicContainer(
                 self._env, self.sim_id, container_id
+            )
+        for res_id, breakdown in self._breakdowns_config.items():
+            self._env.process(
+                run_breakdowns(
+                    self._env,
+                    self._resources_map[res_id],
+                    self.sampler,
+                    work=breakdown.work,
+                )
             )
 
         # Boot Registered Daemon Generators
@@ -1615,6 +1828,29 @@ class SimulationContext:
 
     def _check_tasks(self) -> None:
         """Checks what each task names, before the clock or any connector starts."""
+        if self._scenario_steps:
+            known = SimulationRegistry(simpy.Environment())
+            known.register_sim_parameter(self.compile_parameters())
+            for step in self._scenario_steps:
+                if step.get("path") is not None:
+                    try:
+                        known.get(step["path"])
+                    except KeyError:
+                        raise ValueError(
+                            f"scenario step at {step['at']:g} s sets '{step['path']}', "
+                            f"which is not a registry path"
+                        ) from None
+                action = step.get("interrupt")
+                if action is not None and action["task"] not in self._tasks:
+                    raise ValueError(
+                        f"scenario step at {step['at']:g} s interrupts task "
+                        f"'{action['task']}', which is not a task"
+                    )
+        for resource in self._breakdowns_config:
+            if resource not in self._resources_config:
+                raise ValueError(
+                    f"a breakdown names resource '{resource}', which is not added"
+                )
         check_acquisition_order(
             {name: spec.resources for name, spec in self._task_specs.items()},
             {
@@ -1761,6 +1997,14 @@ def _defuse(event: Any) -> None:
 def _seconds(value: Union[float, str]) -> float:
     """Reads seconds, or a duration such as `"10 min"`."""
     return time_to_seconds(value) if isinstance(value, str) else float(value)
+
+
+def _distribution_of(spec: Mapping[str, Any]) -> DistributionConfig:
+    """Builds a config from a mapping such as `{"dist": "exponential", "rate": 1}`."""
+    if not isinstance(spec, Mapping) or "dist" not in spec:
+        raise ValueError(f"a distribution is a mapping with a dist, got {spec!r}")
+    given = {key: value for key, value in spec.items() if key != "dist"}
+    return DistributionConfig(dist=spec["dist"], **given)
 
 
 def _distribution(dist: str, params: Mapping[str, Any]) -> DistributionConfig:

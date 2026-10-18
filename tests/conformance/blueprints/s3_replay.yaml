@@ -1,0 +1,21 @@
+# Orders replayed from s3_orders.csv: two at 5 in file order, a row with no valid
+# time skipped, and a row at 12, after until, that never arrives.
+# See test_s3_replay.py.
+simulation:
+  sim_id: S3
+  factor: 0
+arrivals:
+  orders:
+    replay:
+      path: s3_orders.csv
+      time: time
+      unit: s
+      fields: [order, sku]
+      on_invalid: skip
+    spawn: take
+tasks:
+  take:
+    payload: {event: arrived}
+    attributes: [order, sku]
+run:
+  until: 12

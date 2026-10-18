@@ -7,7 +7,7 @@ script that make the same calls produce the same simulation.
 import importlib
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, Generator, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import simpy
 from pydantic import ValidationError
@@ -386,6 +386,19 @@ def _build_context(blueprint: Blueprint, source: SourceMap) -> SimulationContext
             queue=resource.queue,
             preempt=resource.preempt,
         )
+        if resource.breakdown is not None:
+            context.add_breakdown(
+                name,
+                time_to_failure={
+                    "dist": resource.breakdown.time_to_failure.dist,
+                    **resource.breakdown.time_to_failure.parameters(),
+                },
+                repair={
+                    "dist": resource.breakdown.repair.dist,
+                    **resource.breakdown.repair.parameters(),
+                },
+                work=resource.breakdown.work,
+            )
     for name, store in blueprint.stores.items():
         context.add_store(
             name,
@@ -407,6 +420,19 @@ def _build_context(blueprint: Blueprint, source: SourceMap) -> SimulationContext
     for name, dist in blueprint.services.items():
         context.add_service(name, dist.dist, **dist.parameters())
     for name, arrival in blueprint.arrivals.items():
+        if arrival.replay is not None:
+            replay = arrival.replay
+            context.add_arrival_replay(
+                name,
+                _relative(replay.path, source),
+                time=replay.time,
+                unit=replay.unit,
+                fields=replay.fields,
+                on_invalid=replay.on_invalid,
+                attributes=arrival.attributes,
+            )
+            continue
+        assert arrival.dist is not None  # the model needs dist or replay
         context.add_arrival(
             name, arrival.dist, attributes=arrival.attributes, **arrival.parameters()
         )
@@ -450,20 +476,25 @@ def _build_context(blueprint: Blueprint, source: SourceMap) -> SimulationContext
         context.telemetry_loop(entry.interval)(entry.function)
 
     if blueprint.scenario:
-        steps = sorted(
-            (
-                (
-                    step.at,
-                    step.path,
-                    step.value,
-                    step.record,
-                    None if step.interrupt is None else step.interrupt.action(),
-                )
+        context.add_scenario(
+            [
+                {
+                    key: value
+                    for key, value in (
+                        ("at", step.at),
+                        ("path", step.path),
+                        ("value", step.value),
+                        ("record", step.record),
+                        (
+                            "interrupt",
+                            None if step.interrupt is None else step.interrupt.action(),
+                        ),
+                    )
+                    if value is not None or (key == "value" and step.path is not None)
+                }
                 for step in blueprint.scenario
-            ),
-            key=lambda step: step[0],
+            ]
         )
-        context.add_process(_run_scenario, steps=steps)
 
     return context
 
@@ -523,34 +554,12 @@ def _check_registry_reads(
                     ) from None
 
 
-def _run_scenario(
-    context: SimulationContext,
-    steps: List[Tuple[float, Optional[str], Any, Optional[Dict[str, Any]], Any]],
-) -> Generator:
-    """Applies each scenario step at its simulation time.
-
-    It waits on the simulation clock, so a scenario repeats exactly and works at
-    `factor=0`, where `LocalIngress`, which waits on the wall clock, would not. A
-    step with a `record` publishes a ground-truth record of the change, and one with
-    an `interrupt` interrupts the running instances of a task.
-    """
-    registry = context.env.registry
-    for at, path, value, record, interrupt in steps:
-        if at > context.env.now:
-            yield context.env.timeout(at - context.env.now)
-        old = new = None
-        if path is not None:
-            old = registry.get(path).value
-            registry.update(path, value)
-            new = registry.get(path).value
-        if record is not None:
-            context.env.publish_label(record, path=path, old=old, new=new)
-        if interrupt is not None:
-            context.interrupt(
-                interrupt["task"],
-                where=interrupt.get("where"),
-                cause=interrupt.get("cause"),
-            )
+def _relative(path: str, source: SourceMap) -> Path:
+    """A path in the blueprint, read relative to the blueprint's folder."""
+    candidate = Path(path)
+    if candidate.is_absolute():
+        return candidate
+    return Path(source.path).parent / candidate
 
 
 def _when(

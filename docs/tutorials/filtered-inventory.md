@@ -457,4 +457,4 @@ A filtered store is one shelf with a queue per kind of item. Medium orders arriv
                 )
         ```
 
-This is the last page of the tutorial for now. [Stores and Containers](../user-guide/stores-and-containers.md) and the rest of the [User Guide](../user-guide/ways-to-write.md) describe each part of desflow in full.
+Next, [Changing Demand](changing-demand.md) asks what a rush of orders does to waits.

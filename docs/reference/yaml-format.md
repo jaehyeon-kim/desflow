@@ -73,7 +73,7 @@ The arguments of `SimulationContext`. [Time and Pacing](../user-guide/time-and-p
 
 | Section | Keys |
 |---|---|
-| `resources` | `current_cap` and `max_cap`, whole numbers; `queue`: `fifo` (the default), `lifo` or `priority`; `preempt: true` lets a lower priority value take a busy unit, with `queue: priority` |
+| `resources` | `current_cap` and `max_cap`, whole numbers; `queue`: `fifo` (the default), `lifo` or `priority`; `preempt: true` lets a lower priority value take a busy unit, with `queue: priority`; `breakdown`: `{time_to_failure, repair, work}`, two distributions and `interrupt` (the default) or `finish`, makes it fail and be repaired |
 | `stores` | `current_cap` and `max_cap`, whole numbers of items; `priority: true` to return the lowest priority first; `items`, the items held at the start, `[priority, item]` pairs for a priority store |
 | `containers` | `current_cap` and `max_cap`, the largest amount; `level`, the amount at the start, 0 by default |
 
@@ -97,6 +97,7 @@ An arrival also takes:
 |---|---|
 | `spawn` | the task each arrival starts |
 | `attributes` | a mapping each new entity starts with, read as `attr.<name>` |
+| `replay` | in place of a distribution: `{path, time, unit, fields, on_invalid}`, a CSV or Parquet file relative to the blueprint whose rows arrive at their times; `unit` is `ms`, `s` (the default), `min`, `h` or `timestamp`, `fields` a list of columns or `all` (the default), `on_invalid` `error` (the default) or `skip`. [Arrivals and Services](../user-guide/arrivals-and-services.md#replay) describes it |
 
 ## tasks
 
@@ -162,7 +163,7 @@ A list of steps, applied in time order on the simulation clock:
 | `record` | a mapping, published as a ground-truth label to the `when: labels` sinks |
 | `interrupt` | `{task, where, cause}`: interrupts every running instance of `task` whose `where` holds |
 
-A step needs a `path` and `value`, a `record`, an `interrupt`, or more than one. [Live Parameters](../user-guide/live-parameters.md) shows scenarios and labels.
+A step needs a `path` and `value`, a `record`, an `interrupt`, or more than one. A step applies before every other event at its time; steps at the same time apply in the order written; a step at or after `until` never applies. [Live Parameters](../user-guide/live-parameters.md) shows scenarios and labels, and [Time-varying Arrivals](../guides/time-varying-arrivals.md#boundaries) the boundaries.
 
 ## ingress and egress
 

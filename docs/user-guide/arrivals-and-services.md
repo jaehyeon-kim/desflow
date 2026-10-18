@@ -340,6 +340,157 @@ No random_seed was given, so this run uses 3166812249. Pass random_seed=31668122
 
 A low-level `Sampler()` with no seed draws nothing at random, as How It Works explains. [Randomness and Seeds](../tutorials/randomness-and-seeds.md) shows seeds in use.
 
+### Replay
+
+An arrival can take its times from recorded rows instead of a distribution: each row of a CSV or Parquet file, or of a list of dicts, becomes one entity at the row's time, and the fields named in `fields` become its attributes. Here each row of `local_replay_orders.csv` is an order, at its time in seconds from the start of the run:
+
+=== "YAML"
+
+    ```yaml title="examples/yaml/local_replay.yaml:replay"
+    arrivals:
+      orders:
+        replay:
+          # A CSV or Parquet file, relative to this blueprint
+          path: ../local_replay_orders.csv
+          time: time
+          unit: s
+          fields: [order_id, items]
+        spawn: pack
+    ```
+
+=== "Builder"
+
+    ```python title="examples/builder/local_replay_example.py:replay"
+    # A CSV or Parquet file, or a list of dicts
+    .add_arrival_replay(
+        "orders", TRACE, time="time", unit="s", fields=["order_id", "items"]
+    )
+    ```
+
+    `wait_for_arrival("orders")` then waits for the next row, so the arrival loop is written as for any other arrival.
+
+=== "Low-level"
+
+    ```python title="examples/low-level/local_replay_example.py:replay"
+    def replay(env, sampler, packers):
+        """Starts one order at each row's time, carrying the row's fields."""
+        rows = read_trace(TRACE, time="time", unit="s", fields=["order_id", "items"])
+        for number, row in enumerate(rows, start=1):
+            yield env.timeout(row.time - env.now)
+            key = f"orders-{number}"
+            env.process(pack(env, sampler, packers, key, number - 1, row.fields))
+    ```
+
+    `read_trace` reads and checks the rows, and returns each with its simulation `time`, row `number` and `fields`.
+
+`unit` is `ms`, `s`, `min` or `h` from the start of the run, or `timestamp` for a date and time read from `logical_start_time`. The rows must be in time order; rows at equal times arrive at that time in the order of the file; a row before the start stops the run; rows at or after `until` never arrive; after the last row the arrival stops, with one INFO line. A row without a valid time stops the run, unless `on_invalid` is `skip`, which leaves it out with a warning. A Parquet file needs the `parquet` extra. A replayed arrival has no registry path. [Local Replay](../tutorials/local-replay.md) compares a recorded morning with a model of it.
+
+### Example: Local Replay
+
+The `local-replay` example: one packer and the 40 orders of a recorded morning, replayed from a CSV file at their times. The last order arrives at 73 seconds. It needs no Docker service and ends on its own after 120 simulation seconds.
+
+=== "YAML"
+
+    **Quick Start**
+
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+    === "uv"
+
+        ```bash
+        # 1. Install
+        uv tool install desflow
+
+        # 2. Download the example
+        desflow examples get local-replay --api yaml
+        cd local-replay/yaml
+
+        # 3. Run it
+        desflow run local_replay.yaml
+        ```
+
+    === "pip"
+
+        ```bash
+        # 1. Install
+        pip install desflow
+
+        # 2. Download the example
+        desflow examples get local-replay --api yaml
+        cd local-replay/yaml
+
+        # 3. Run it
+        desflow run local_replay.yaml
+        ```
+
+=== "Builder"
+
+    **Quick Start**
+
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+    === "uv"
+
+        ```bash
+        # 1. Install
+        uv tool install desflow
+
+        # 2. Download the example
+        desflow examples get local-replay --api builder
+        cd local-replay/builder
+
+        # 3. Run it
+        uv run --no-project --with desflow local_replay_example.py
+        ```
+
+    === "pip"
+
+        ```bash
+        # 1. Install
+        pip install desflow
+
+        # 2. Download the example
+        desflow examples get local-replay --api builder
+        cd local-replay/builder
+
+        # 3. Run it
+        python local_replay_example.py
+        ```
+
+=== "Low-level"
+
+    **Quick Start**
+
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+    === "uv"
+
+        ```bash
+        # 1. Install
+        uv tool install desflow
+
+        # 2. Download the example
+        desflow examples get local-replay --api low-level
+        cd local-replay/low-level
+
+        # 3. Run it
+        uv run --no-project --with desflow local_replay_example.py
+        ```
+
+    === "pip"
+
+        ```bash
+        # 1. Install
+        pip install desflow
+
+        # 2. Download the example
+        desflow examples get local-replay --api low-level
+        cd local-replay/low-level
+
+        # 3. Run it
+        python local_replay_example.py
+        ```
+
 ---
 
 ## How It Works

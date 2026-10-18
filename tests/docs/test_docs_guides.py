@@ -67,28 +67,33 @@ def _events(caplog):
     return events
 
 
-def test_jams_stop_the_printer_until_repaired(caplog):
-    module = _load("preemptive_breakdowns")
-    module.app.factor = 0.0
-    with caplog.at_level(logging.INFO, logger="desflow"):
-        module.app.run(until=200)
-    events = _events(caplog)
-    statuses = [value.get("status") for _, value in events]
-    assert "preempted" in statuses and "resumed" in statuses
-    assert any(value.get("event_type") == "label_printed" for _, value in events)
+def test_breakdowns_downtime_matches_the_events():
+    """The station of the breakdowns example fails five times and is down 52.5 s of
+    300; eight orders are interrupted and all eight resume, as the page says."""
+    module = _load("breakdowns")
+    outcome = module.availability(str(ROOT / "examples" / "yaml" / "breakdowns.yaml"))
+    assert outcome == {
+        "periods": [
+            (84.6, 98.5),
+            (150.1, 157.3),
+            (238.9, 253.5),
+            (272.7, 282.6),
+            (285.0, 291.8),
+        ],
+        "downtime": 52.5,
+        "share_down": 0.175,
+        "interrupted": 8,
+        "resumed": 8,
+        "order_packed": 184,
+    }
 
-    # Between a jam taking the printer and its repair, no order is labelled.
-    down = False
-    for key, value in events:
-        if key.startswith("jams-") and value.get("status") == "started":
-            down = True
-        elif value.get("event_type") == "printer_repaired":
-            down = False
-        elif key.startswith("orders-") and value.get("status") in (
-            "started",
-            "resumed",
-        ):
-            assert not down, f"{key} was labelled while the printer was down"
+
+def test_time_varying_arrivals_boundaries():
+    """The gap drawn at the step's time uses the new value; a step at until never
+    applies."""
+    module = _load("time_varying_arrivals")
+    assert module.arrivals(50) == ([10.0, 20.0, 30.0, 35.0, 40.0, 45.0], 5.0)
+    assert module.arrivals(30) == ([10.0, 20.0], 10.0)
 
 
 def test_handoff_holds_the_picker_until_the_bench_is_free(caplog):

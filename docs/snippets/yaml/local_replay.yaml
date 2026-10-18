@@ -1,0 +1,43 @@
+# The Local Replay tutorial: a recorded morning of orders, at their recorded times.
+# Run it with: desflow run local_replay.yaml
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+  # Simulation time 0 is 09:00 on the recorded day
+  logical_start_time: 2026-10-01T09:00:00
+
+resources:
+  packers: {current_cap: 1, max_cap: 2}
+
+services:
+  packing: {dist: constant, value: 1.5 s}
+
+# --8<-- [start:replay]
+arrivals:
+  orders:
+    # Each row is one order, at its recorded time, carrying its order_id and items
+    replay:
+      path: ../tutorials/local_replay_orders.csv
+      time: ordered_at
+      unit: timestamp
+      fields: [order_id, items]
+      # A row without a valid time is left out, with a warning naming it
+      on_invalid: skip
+    spawn: pack_order
+# --8<-- [end:replay]
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+
+# Orders packed, and the mean and longest wait, at the end
+stats: {level: typical, interval: 2 h}
+
+egress:
+  - type: Console
+
+run:
+  until: 1 h

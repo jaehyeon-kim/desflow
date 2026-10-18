@@ -104,6 +104,15 @@ An interrupted run publishes these as well, and its finished event when it ends:
 
 With statistics at `basic` or above, entities that enter and leave are counted as `<sim_id>.stats.flows.<arrival>.started`, `.finished` and `.in_system`, and from `minimal` each task's `<sim_id>.stats.tasks.<task>.in_progress`; each of the outcomes above is counted as `<sim_id>.stats.tasks.<task>.balked`, `.reneged`, `.failed`, `.interrupted`, `.preempted` and `.resumed`, published once the first one happens, and a flow that ends in a failure as `<sim_id>.stats.flows.<arrival>.failed`. [Patience](../tutorials/patience.md) shows balking and reneging, and [Tasks and Processes](../user-guide/tasks-and-processes.md#failures) failures, and [Interruptions](../tutorials/interruptions.md) interrupts and preemption. A failed task publishes `started` before its failure when it got that far, and a task with a `wait` publishes `queued` when the wait starts.
 
+A resource with a `breakdown` publishes an event at each failure and each repair. Its key is the resource's name, and it has no task or instance:
+
+| Event | When | `value` |
+|---|---|---|
+| down | the resource failed; its capacity is 0 until the repair | `{"status": "down", "reason": "failure"}` |
+| repaired | the repair ended; its capacity is `current_cap` again | `{"status": "repaired", "reason": "failure"}` |
+
+With statistics at `minimal` or above, such a resource publishes `<sim_id>.stats.resources.<name>.down`, 1 while it is down, and from `basic` `.downtime`, the seconds it has been down, and `.failures`; [Breakdowns](../guides/breakdowns.md) checks them against the events.
+
 A task with no service has `{"status": ...}` without `path_id`. A timed step, with a service and no resource, publishes no `queued`. A task with no service, resource or `get` publishes only the finished event, as soon as it starts. The key is the arrival's name and a counter from 1, such as `orders-1`, on every event of every task the entity passes through; [Task Flow](../user-guide/task-flow.md#entity-key) describes it. A low-level process publishes whatever it passes to `env.publish_event(key, value, task=..., instance=...)`.
 
 ---

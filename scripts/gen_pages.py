@@ -45,6 +45,9 @@ MEANINGS: Dict[str, str] = {
     "resources.utilization": "`in_use` as a percentage of `capacity`, now",
     "resources.utilization_avg": "utilisation averaged over time, in percent",
     "resources.queue_length_avg": "requests waiting, averaged over time",
+    "resources.down": "1 while a resource with a `breakdown` is down, 0 otherwise",
+    "resources.downtime": "seconds a resource with a `breakdown` has been down so far",
+    "resources.failures": "failures of a resource with a `breakdown` so far",
     "stores.capacity": "items it can hold now",
     "stores.level": "items held now",
     "stores.getters_waiting": "tasks waiting to get an item",
@@ -175,7 +178,8 @@ def statistic_names() -> Dict[str, List[str]]:
             )
         )
         env.setup_stats("<sim_id>", level)
-        DynamicResource(env, "<sim_id>", "<name>")
+        # A resource with a breakdown, as run_breakdowns marks it, adds its readings
+        DynamicResource(env, "<sim_id>", "<name>").has_breakdowns = True
         DynamicStore(env, "<sim_id>", "<name>")
         DynamicContainer(env, "<sim_id>", "<name>")
         env.stats.task_queued("<task>", 0)

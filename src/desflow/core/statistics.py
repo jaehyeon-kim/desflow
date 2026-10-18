@@ -9,8 +9,8 @@ and YAML tasks do it for you, and low-level code calls the same three methods.
 
 | Level | Adds |
 |---|---|
-| `minimal` | resource `capacity`, `in_use`, `queue_length`, `utilization`; store and container `capacity`, `level`, `getters_waiting`, `putters_waiting`; task `in_progress` |
-| `basic` | task and flow `finished`; flow `started` and `in_system`; task `balked`, `reneged`, `failed`, `interrupted`, `preempted` and `resumed`, and flow `failed`, once one happens; resource `utilization_avg`, `queue_length_avg`; store and container `level_avg` |
+| `minimal` | resource `capacity`, `in_use`, `queue_length`, `utilization`, and `down` for one that breaks down; store and container `capacity`, `level`, `getters_waiting`, `putters_waiting`; task `in_progress` |
+| `basic` | task and flow `finished`; flow `started` and `in_system`; resource `downtime` and `failures` for one that breaks down; task `balked`, `reneged`, `failed`, `interrupted`, `preempted` and `resumed`, and flow `failed`, once one happens; resource `utilization_avg`, `queue_length_avg`; store and container `level_avg` |
 | `typical` | task `wait_mean`, `wait_max`, `service_mean`, `service_max` |
 | `all` | task `wait_p50`, `wait_p95`, `wait_p99`, `service_p50`, `service_p95`, `service_p99` |
 
@@ -112,13 +112,16 @@ class _Task:
 def _resource_readings(resource: Any) -> Dict[str, Any]:
     capacity = resource.capacity
     in_use = resource.in_use
-    return {
+    readings = {
         "capacity": capacity,
         "in_use": in_use,
         "queue_length": len(resource.queue.items),
         # Busy units, so a capacity lowered below them shows over 100 until they finish
         "utilization": in_use / capacity * 100 if capacity > 0 else 0.0,
     }
+    if getattr(resource, "has_breakdowns", False):
+        readings["down"] = 1 if resource.down else 0
+    return readings
 
 
 def _holder_readings(holder: Any) -> Dict[str, Any]:
@@ -499,6 +502,9 @@ class Statistics:
                 values[f"{base}.{stat}"] = value
             for stat, average in self._averages.get((category, name), {}).items():
                 values[f"{base}.{stat}"] = average.average(now)
+            if self._rank >= _BASIC and getattr(obj, "has_breakdowns", False):
+                values[f"{base}.downtime"] = obj.downtime
+                values[f"{base}.failures"] = obj.failures
         for name, count in self._in_progress.items():
             values[f"{prefix}.tasks.{name}.in_progress"] = count
         for name, task in self._tasks.items():

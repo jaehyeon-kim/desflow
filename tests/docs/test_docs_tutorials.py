@@ -544,3 +544,67 @@ def test_end_conditions_horizon_and_drain(api, monkeypatch):
             got = module.outcomes(drain)
         got["end"], got["wait_mean"] = round(got["end"], 1), round(got["wait_mean"], 2)
         assert got == expected
+
+
+RUSH_OUTCOMES = {
+    1: {"finished": 1978, "wait_mean": 147.74, "wait_max": 416.75},
+    2: {"finished": 1978, "wait_mean": 0.74, "wait_max": 6.06},
+}
+
+
+@pytest.mark.parametrize("api", APIS)
+def test_changing_demand_rush(api, monkeypatch):
+    """With one packer through the rush the mean wait is 147.74 s; with a second
+    packer for it, 0.74 s. Both pack the same 1,978 orders."""
+    for packers, expected in RUSH_OUTCOMES.items():
+        if api == "yaml":
+            monkeypatch.setenv("RUSH_PACKERS", str(packers))
+            app = SimulationContext.from_yaml(BLUEPRINTS / "changing_demand.yaml")
+            app.run()
+            r = app.env.stats.readings()
+            n = "Shop.stats.tasks.pack_order.{}".format
+            got = {
+                "finished": r[n("finished")],
+                "wait_mean": r[n("wait_mean")],
+                "wait_max": r[n("wait_max")],
+            }
+        else:
+            module = _load(
+                "changing_demand" + ("" if api == "builder" else "_low_level")
+            )
+            got = module.outcomes(packers)
+        got["wait_mean"] = round(got["wait_mean"], 2)
+        got["wait_max"] = round(got["wait_max"], 2)
+        assert got == expected
+
+
+REPLAY_OUTCOMES = {
+    True: {"finished": 1962, "wait_mean": 91.31, "wait_max": 295.40},
+    False: {"finished": 1905, "wait_mean": 2.57, "wait_max": 14.34},
+}
+
+
+@pytest.mark.parametrize("api", APIS)
+def test_local_replay_recorded_and_modelled(api, caplog):
+    """The recorded morning waits 91.31 s on average, the model of it at the same
+    mean rate 2.57 s; the row without a time is skipped with a warning."""
+    for replay, expected in REPLAY_OUTCOMES.items():
+        if api == "yaml":
+            if not replay:
+                continue  # the blueprint replays the recorded orders only
+            app = SimulationContext.from_yaml(BLUEPRINTS / "local_replay.yaml")
+            app.run()
+            r = app.env.stats.readings()
+            n = "Shop.stats.tasks.pack_order.{}".format
+            got = {
+                "finished": r[n("finished")],
+                "wait_mean": r[n("wait_mean")],
+                "wait_max": r[n("wait_max")],
+            }
+        else:
+            module = _load("local_replay" + ("" if api == "builder" else "_low_level"))
+            got = module.outcomes(replay)
+        got["wait_mean"] = round(got["wait_mean"], 2)
+        got["wait_max"] = round(got["wait_max"], 2)
+        assert got == expected
+    assert "Skipped row 501, which has no valid ordered_at: ''" in caplog.text

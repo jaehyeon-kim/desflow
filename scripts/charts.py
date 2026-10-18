@@ -512,6 +512,91 @@ def end_counts() -> None:
     _save(fig, "end-counts")
 
 
+def rush_waits() -> None:
+    """Changing Demand: the wait of every packed order over the hour, with one
+    packer through the rush and with a second packer for it."""
+    import logging
+
+    from desflow import SimulationContext
+
+    module = _module("changing_demand")
+    logging.getLogger("desflow").setLevel(logging.WARNING)
+    fig, ax = plt.subplots(figsize=(WIDTH, HEIGHT))
+    ax.axvspan(20, 40, color=GREY, alpha=0.15, label="rush, 0.9 orders a second")
+    for packers, colour, label in (
+        (1, ORANGE, "one packer in the rush"),
+        (2, BLUE, "two packers in the rush"),
+    ):
+        app: SimulationContext = module.shop(packers)
+        queued: Dict[str, float] = {}
+        waits: List[Tuple[float, float]] = []
+
+        def watch(record, queued=queued, waits=waits):
+            if record["stream_type"] != "event":
+                return False
+            status = record["value"].get("status")
+            if status == "queued":
+                queued[record["key"]] = record["sim_ts"]
+            elif status == "started":
+                start = queued.pop(record["key"])
+                waits.append((record["sim_ts"] / 60, record["sim_ts"] - start))
+            return False
+
+        app.add_egress(_NullEgress(), when=watch)
+        app.run(until="1 h")
+        ax.scatter(*zip(*waits), s=4, color=colour, label=label)
+    ax.set_xlim(0, 60)
+    # Room above the longest wait for the legend, so it covers no data
+    ax.set_ylim(-20, 640)
+    ax.set_xlabel("time packing started (minutes)")
+    ax.set_ylabel("wait before packing (seconds)")
+    ax.set_title("1.5 s of packing, 0.4 orders a second outside the rush")
+    ax.legend(frameon=False, loc="upper left", markerscale=3)
+    _save(fig, "rush-waits")
+
+
+def replay_waits() -> None:
+    """Local Replay: the wait of every packed order over the hour, with the recorded
+    orders and with a model of them at the same mean rate."""
+    import logging
+
+    from desflow import SimulationContext
+
+    module = _module("local_replay")
+    logging.getLogger("desflow").setLevel(logging.ERROR)
+    fig, ax = plt.subplots(figsize=(WIDTH, HEIGHT))
+    for replay, colour, label in (
+        (True, ORANGE, "recorded orders"),
+        (False, BLUE, "exponential gaps, same mean rate"),
+    ):
+        app: SimulationContext = module.shop(replay)
+        queued: Dict[str, float] = {}
+        waits: List[Tuple[float, float]] = []
+
+        def watch(record, queued=queued, waits=waits):
+            if record["stream_type"] != "event":
+                return False
+            status = record["value"].get("status")
+            if status == "queued":
+                queued[record["key"]] = record["sim_ts"]
+            elif status == "started":
+                start = queued.pop(record["key"])
+                waits.append((record["sim_ts"] / 60, record["sim_ts"] - start))
+            return False
+
+        app.add_egress(_NullEgress(), when=watch)
+        app.run(until="1 h")
+        ax.scatter(*zip(*waits), s=4, color=colour, label=label)
+    ax.set_xlim(0, 60)
+    # Room above the longest wait for the legend, so it covers no data
+    ax.set_ylim(-15, 450)
+    ax.set_xlabel("minutes after 09:00, when packing started")
+    ax.set_ylabel("wait before packing (seconds)")
+    ax.set_title("One packer, 0.545 orders a second on average")
+    ax.legend(frameon=False, loc="upper left", markerscale=3)
+    _save(fig, "replay-waits")
+
+
 def distribution_shapes() -> None:
     """Arrivals and Services: 200,000 draws from each distribution family, with the
     parameters of the examples on the page."""
@@ -574,6 +659,8 @@ CHARTS: Dict[str, Callable[[], None]] = {
     "interruption-policies": interruption_policies,
     "handoff-waits": handoff_waits,
     "end-counts": end_counts,
+    "rush-waits": rush_waits,
+    "replay-waits": replay_waits,
     "stock-level": stock_level,
     "trusting-warmup": trusting_warmup,
     "measuring-queue": measuring_queue,

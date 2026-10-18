@@ -1,0 +1,20 @@
+# Orders arrive every 10 s until a step at 10 changes the gap to 20; two steps at
+# 25 set the packers to 3, then 2; a step at the end, 40, never applies.
+# See test_s2_schedules.py.
+simulation:
+  sim_id: S2
+  factor: 0
+resources:
+  packers: {current_cap: 1, max_cap: 4}
+arrivals:
+  orders: {dist: constant, value: 10, spawn: take}
+tasks:
+  take:
+    payload: {event: arrived}
+scenario:
+  - {at: 10, path: S2.arrival.orders.value, value: 20}
+  - {at: 25, path: S2.resources.packers.current_cap, value: 3}
+  - {at: 25, path: S2.resources.packers.current_cap, value: 2}
+  - {at: 40, path: S2.resources.packers.current_cap, value: 4}
+run:
+  until: 40

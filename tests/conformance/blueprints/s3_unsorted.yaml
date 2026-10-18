@@ -1,0 +1,20 @@
+# A trace whose third row, at 5, comes after a row at 7: refused, naming the row.
+# See test_s3_replay.py.
+simulation:
+  sim_id: S3
+  factor: 0
+arrivals:
+  orders:
+    replay:
+      path: s3_unsorted.csv
+      time: time
+      unit: s
+      fields: [order]
+      on_invalid: error
+    spawn: take
+tasks:
+  take:
+    payload: {event: arrived}
+    attributes: [order]
+run:
+  until: 12

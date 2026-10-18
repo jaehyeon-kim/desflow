@@ -187,6 +187,16 @@ RUN = {
 }
 
 
+def _every_minute(m, env, sampler):
+    env.setup_stats("Shop", "basic", interval=60.0)
+    return m.processes(env, sampler, m.build(env))
+
+
+def _every_minute_typical(m, env, sampler):
+    env.setup_stats("Shop", "typical", interval=60.0)
+    return m.processes(env, sampler, m.build(env))
+
+
 def _measuring(m, env, sampler):
     env.setup_stats("Shop", "all", interval=300)
     return _built(m, env, sampler)
@@ -218,6 +228,9 @@ EXAMPLE_CASES = [
     ("interruptions", "interruptions.yaml", None, 120, _patience),
     ("competing_resources", "competing_resources.yaml", None, 120, _competing),
     ("end_conditions", "end_conditions.yaml", None, 120, _ending),
+    ("breakdowns", "breakdowns.yaml", None, 300, _every_minute),
+    ("changing_demand", "changing_demand.yaml", None, 300, _every_minute_typical),
+    ("local_replay", "local_replay.yaml", None, 120, _built),
 ]
 
 

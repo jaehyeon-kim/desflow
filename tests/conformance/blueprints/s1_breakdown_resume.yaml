@@ -1,0 +1,25 @@
+# Work every 3 s from 3, 5 s each, on a machine that fails at 15 and is repaired
+# at 19; the work in service follows on_interrupt: resume. See test_s1_breakdowns.py.
+simulation:
+  sim_id: S1
+  factor: 0
+resources:
+  machine:
+    current_cap: 1
+    max_cap: 2
+    breakdown:
+      time_to_failure: {dist: constant, value: 15}
+      repair: {dist: constant, value: 4}
+services:
+  work: {dist: constant, value: 5}
+arrivals:
+  jobs: {dist: constant, value: 3, spawn: work}
+tasks:
+  work:
+    service: work
+    resource: machine
+    on_interrupt: resume
+    payload: {event: done}
+stats: basic
+run:
+  until: 30

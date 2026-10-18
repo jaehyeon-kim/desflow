@@ -19,8 +19,8 @@ A level switches them on. Each level publishes what the levels before it publish
 | Level | Question | Adds |
 |---|---|---|
 | `none` | | nothing; the default |
-| `minimal` | What is happening now? | resources: `capacity`, `in_use`, `queue_length`, `utilization`; stores and containers: `capacity`, `level`, `getters_waiting`, `putters_waiting`; tasks: `in_progress` |
-| `basic` | How much got done, and how busy was it? | tasks and flows: `finished`; flows: `started` and `in_system`; tasks: `balked`, `reneged`, `failed`, `interrupted`, `preempted` and `resumed`, and flows: `failed`, once one happens; resources: `utilization_avg`, `queue_length_avg`; stores and containers: `level_avg` |
+| `minimal` | What is happening now? | resources: `capacity`, `in_use`, `queue_length`, `utilization`, and `down` for one that breaks down; stores and containers: `capacity`, `level`, `getters_waiting`, `putters_waiting`; tasks: `in_progress` |
+| `basic` | How much got done, and how busy was it? | tasks and flows: `finished`; flows: `started` and `in_system`; tasks: `balked`, `reneged`, `failed`, `interrupted`, `preempted` and `resumed`, and flows: `failed`, once one happens; resources: `utilization_avg`, `queue_length_avg`, and `downtime` and `failures` for one that breaks down; stores and containers: `level_avg` |
 | `typical` | How long did tasks take? | tasks: `wait_mean`, `wait_max`, `service_mean`, `service_max` |
 | `all` | How long did the slowest take? | tasks: `wait_p50`, `wait_p95`, `wait_p99`, `service_p50`, `service_p95`, `service_p99` |
 
@@ -298,6 +298,8 @@ The `measuring` example publishes every statistic of the packers and the pack ta
 The environment keeps one `Statistics` object, `env.stats`, which collects nothing until a level above `none` is set. Its timer publishes every value at each interval, and the teardown publishes them once more.
 
 **Readings now.** `capacity`, `in_use`, `queue_length` and `level` are read from the object at the moment of publishing. `in_use` counts the units held by tasks, so after a capacity drop it can be above `capacity`, and `utilization`, `in_use ÷ capacity × 100`, above 100.
+
+**Breakdowns.** A resource with a `breakdown` reads `down` now: 1 while it is down, 0 otherwise. `downtime` adds the length of each down period, and of one still going on, and `failures` adds one at each failure; [Breakdowns](../guides/breakdowns.md) checks both against the events.
 
 **Averages over time.** `utilization_avg`, `queue_length_avg` and `level_avg` weigh each value by how long it lasted. Each resource, store and container reports every change, and the statistics add the area under the value since the last change, so the average is exact at any moment rather than sampled:
 

@@ -162,6 +162,25 @@ EXAMPLES: Dict[str, Example] = {
             _three("end_conditions.yaml", "end_conditions_example.py"),
         ),
         Example(
+            "breakdowns",
+            "Breakdowns",
+            "a packing station fails about once a minute, and the orders it stops resume after the repair",
+            _three("breakdowns.yaml", "breakdowns_example.py"),
+        ),
+        Example(
+            "changing-demand",
+            "Changing Demand",
+            "a rush of orders and a second packer for it, on a schedule",
+            _three("changing_demand.yaml", "changing_demand_example.py"),
+        ),
+        Example(
+            "local-replay",
+            "Local Replay",
+            "the orders of a recorded morning, replayed from a CSV file at their times",
+            _three("local_replay.yaml", "local_replay_example.py"),
+            shared=["local_replay_orders.csv"],
+        ),
+        Example(
             "related-records",
             "Generate Related Records",
             "orders and their line items, in two PostgreSQL tables",

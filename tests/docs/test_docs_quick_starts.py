@@ -35,6 +35,9 @@ PAGES = {
     "interruptions": "docs/user-guide/resources.md",
     "competing-resources": "docs/user-guide/resources.md",
     "end-conditions": "docs/user-guide/time-and-pacing.md",
+    "breakdowns": "docs/guides/breakdowns.md",
+    "changing-demand": "docs/guides/time-varying-arrivals.md",
+    "local-replay": "docs/user-guide/arrivals-and-services.md",
 }
 TABS = {"yaml": "YAML", "builder": "Builder", "low-level": "Low-level"}
 ODCTL = '"odctl>=1.0,<2"'

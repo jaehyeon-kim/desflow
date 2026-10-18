@@ -1,0 +1,25 @@
+# As s1_breakdown_resume.yaml, with work: finish: the work in service finishes,
+# and no new work starts until the repair. See test_s1_breakdowns.py.
+simulation:
+  sim_id: S1
+  factor: 0
+resources:
+  machine:
+    current_cap: 1
+    max_cap: 2
+    breakdown:
+      time_to_failure: {dist: constant, value: 15}
+      repair: {dist: constant, value: 4}
+      work: finish
+services:
+  work: {dist: constant, value: 5}
+arrivals:
+  jobs: {dist: constant, value: 3, spawn: work}
+tasks:
+  work:
+    service: work
+    resource: machine
+    payload: {event: done}
+stats: basic
+run:
+  until: 30

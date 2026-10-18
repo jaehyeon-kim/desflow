@@ -181,22 +181,61 @@ class Distribution(_Model):
         }
 
 
-class Arrival(Distribution):
-    """An `arrivals` entry: a distribution, the task it spawns, and the attributes
-    each entity it starts carries."""
+class Replay(_Model):
+    """An arrival's `replay`: the rows of a local file, each one arrival at its time.
 
+    `path` is a CSV or Parquet file, relative to the blueprint; `time` its column of
+    times; `unit` `ms`, `s`, `min` or `h` from the start of the run, or `timestamp`
+    for a date and time read from `simulation.logical_start_time`; `fields` the
+    columns each entity carries, or `all`; `on_invalid` `error` or `skip` for a row
+    with no valid time.
+    """
+
+    path: str
+    time: str = "time"
+    unit: Literal["ms", "s", "min", "h", "timestamp"] = "s"
+    fields: Union[Literal["all"], List[str]] = "all"
+    on_invalid: Literal["error", "skip"] = "error"
+
+
+class Arrival(Distribution):
+    """An `arrivals` entry: a distribution, or a `replay` of recorded rows, the task
+    it spawns, and the attributes each entity it starts carries."""
+
+    dist: Optional[str] = None  # type: ignore[assignment]
+    replay: Optional[Replay] = None
     spawn: Optional[str] = None
     attributes: Dict[str, Any] = Field(default_factory=dict)
 
+    @model_validator(mode="after")
+    def _distribution_in_range(self) -> "Arrival":
+        if (self.dist is None) == (self.replay is None):
+            raise ValueError("an arrival takes a dist or a replay, not both or neither")
+        if self.replay is not None and self.parameters():
+            raise ValueError("a replayed arrival takes no distribution parameters")
+        if self.dist is not None:
+            self.config()
+        return self
+
+
+class Breakdown(_Model):
+    """A resource's `breakdown`: the time to each failure, the repair time, and
+    whether the tasks being served are interrupted or finish."""
+
+    time_to_failure: Distribution
+    repair: Distribution
+    work: Literal["interrupt", "finish"] = "interrupt"
+
 
 class Resource(_Model):
-    """A `resources` entry: its capacity, the order its queue is served in, and
-    whether a request of a lower priority value preempts a user."""
+    """A `resources` entry: its capacity, the order its queue is served in, whether
+    a request of a lower priority value preempts a user, and how it breaks down."""
 
     current_cap: float
     max_cap: float
     queue: str = DEFAULT_QUEUE_ORDER
     preempt: bool = False
+    breakdown: Optional[Breakdown] = None
 
     @model_validator(mode="after")
     def _preempt_needs_priority(self) -> "Resource":

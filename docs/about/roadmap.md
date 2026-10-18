@@ -57,6 +57,10 @@ Releases come in the order shown, without dates: a release ships when it is read
   content: 'A JSON Schema for blueprints, shipped in the package, so editors complete keys and flag mistakes as you type, and a skill that teaches an AI assistant to write and check blueprints. [#41](https://github.com/jaehyeon-kim/desflow/issues/41)'
   icon: ':material-clock-outline:'
   key: planned
+- title: Downstream checks
+  content: 'With the blueprint schema: every change is tested against projects that use desflow, the benchtop data generators, before a release, and a test fails when a public name or signature changes. [#67](https://github.com/jaehyeon-kim/desflow/issues/67)'
+  icon: ':material-clock-outline:'
+  key: planned
 - title: desflow explain
   content: 'Shows a simulation as a graph, says whether each part is stable, points to the bottleneck and suggests changes; and `desflow run --sample` prints a few records from a blueprint. [#47](https://github.com/jaehyeon-kim/desflow/issues/47)'
   icon: ':material-clock-outline:'

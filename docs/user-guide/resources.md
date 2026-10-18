@@ -378,9 +378,60 @@ A task can also hand a unit to the next task of its flow with `keep`: the next t
 
 **One order of acquisition.** Two tasks that acquire the same two resources in opposite orders can each hold one and wait for ever for the other. desflow refuses such a model when it is built, naming both tasks: every task, `keep` handoffs included, must acquire shared resources in one order. [Competing Resources](../tutorials/competing-resources.md) shows what a partial holding costs.
 
+### Breakdowns
+
+A `breakdown` makes a resource fail at random and be repaired. `time_to_failure` is the time from the start, or from a repair, to the next failure, on calendar time, busy or idle; `repair` is how long a repair takes. While the resource is down its effective capacity is 0 and no request is granted:
+
+=== "YAML"
+
+    ```yaml title="examples/yaml/breakdowns.yaml:station"
+    resources:
+      station:
+        current_cap: 2
+        max_cap: 3
+        breakdown:
+          # Calendar time from a repair, or the start, to the next failure.
+          time_to_failure: {dist: exponential, rate: 0.0167}
+          repair: {dist: uniform, low: 5 s, high: 15 s}
+          # The orders being packed are interrupted, and follow their on_interrupt.
+          work: interrupt
+    ```
+
+=== "Builder"
+
+    ```python title="examples/builder/breakdowns_example.py:station"
+    .add_resource("station", current_cap=2, max_cap=3)
+    .add_breakdown(
+        "station",
+        # Calendar time from a repair, or the start, to the next failure
+        time_to_failure={"dist": "exponential", "rate": 0.0167},
+        repair={"dist": "uniform", "low": 5, "high": 15},
+        # The orders being packed are interrupted, and follow their on_interrupt
+        work="interrupt",
+    )
+    ```
+
+=== "Low-level"
+
+    ```python title="examples/low-level/breakdowns_example.py:station"
+    breakdowns={
+        "station": BreakdownConfig(
+            # Calendar time from a repair, or the start, to the next failure
+            time_to_failure=DistributionConfig(dist="exponential", rate=0.0167),
+            repair=DistributionConfig(dist="uniform", low=5, high=15),
+            # The orders being packed are interrupted
+            work="interrupt",
+        )
+    },
+    ```
+
+    Start `run_breakdowns(env, station, sampler, work="interrupt")` as a SimPy process beside the arrivals. `station.fail()` and `station.repair()` put a resource down and back by hand.
+
+`work` says what happens to the tasks being served: `interrupt`, the default, interrupts each with the cause `breakdown`, and it follows its `on_interrupt`; `finish` lets them finish. Each failure and repair publishes an event keyed by the resource's name, with `status` `down` or `repaired` and `reason: failure`. [Breakdowns](../guides/breakdowns.md) checks the downtime of the example, and [Interruptions](../tutorials/interruptions.md) explains `on_interrupt`.
+
 ### Registry Paths and Readings
 
-Each resource has two registry paths, `<sim_id>.resources.<name>.current_cap` and `.max_cap`, which a scenario, an ingress message or a process can change; [Live Parameters](live-parameters.md) explains how. With statistics at the `minimal` level or above, each resource publishes four readings, such as `Shop.stats.resources.packers.utilization`: `capacity`, `in_use`, `queue_length` and `utilization`, the busy units as a percentage of the capacity. [Statistics](statistics.md) lists what the other levels add.
+Each resource has two registry paths, `<sim_id>.resources.<name>.current_cap` and `.max_cap`, which a scenario, an ingress message or a process can change; [Live Parameters](live-parameters.md) explains how. A resource that breaks down adds `<sim_id>.breakdown.<name>.time_to_failure` and `.repair`, its two distributions. With statistics at the `minimal` level or above, each resource publishes four readings, such as `Shop.stats.resources.packers.utilization`: `capacity`, `in_use`, `queue_length` and `utilization`, the busy units as a percentage of the capacity; one that breaks down adds `down`, 1 while it is down. [Statistics](statistics.md) lists what the other levels add, among them `downtime` and `failures`.
 
 ### Example: Interruptions
 
@@ -631,6 +682,7 @@ A change to `current_cap` takes effect at once, without stopping any work:
 - **Growing again** before the owed units are given back cancels them first, so only the rest of the rise grants waiting requests.
 - A `current_cap` outside 0 to `max_cap` is clamped to that range, with a warning.
 - **Lowering `max_cap`** lowers the capacity with it. A `current_cap` above the new `max_cap` is stored as `max_cap`, with a warning.
+- **During a repair** the capacity is 0 and `current_cap` keeps the planned value. A change to it sets the capacity the resource returns to and does not end the repair.
 
 The example above takes three of five packers off the floor while four orders are being packed: the capacity is 2 at once, and `in_use` stays 4 until two orders finish. The animation steps through it:
 
@@ -656,7 +708,7 @@ Until the owed units finish, `in_use` is above `capacity`, and the `utilization`
 - **Priority needs `queue: priority`.** A task priority on a resource of another order is a load error, while a low-level request's priority is ignored under `fifo` and `lifo`.
 - **Priority can starve.** Under `priority`, a request with a high number is served only when no lower number is waiting; if the low numbers alone keep the resource busy, it is never served.
 - **One order of acquisition.** A model whose tasks acquire two resources in opposite orders is refused; [Several Resources](#several-resources) explains why.
-- **A shrink never stops work.** Lowering `current_cap` lets busy units finish. Work in progress stops only for an interrupt or a preemption: [Interruptions](../tutorials/interruptions.md), and [Preemptive Breakdowns](../guides/preemptive-breakdowns.md) for a machine that breaks down.
+- **A shrink never stops work.** Lowering `current_cap` lets busy units finish. Work in progress stops only for an interrupt, a preemption or a breakdown: [Interruptions](../tutorials/interruptions.md), and [Breakdowns](../guides/breakdowns.md) for a machine that fails.
 - **A preempted task queues again.** With `resume` or `restart` it joins the back of its priority among the waiting requests, as a new SimPy request does; the time it waited before counts in its wait.
 
 Amounts and items that tasks take and add, rather than hold, are [Stores and Containers](stores-and-containers.md).

@@ -444,3 +444,42 @@
   checks:
     - tests/conformance/test_c6_end_conditions.py::test_c6_inspect_next_event_time
   page: user-guide/time-and-pacing.md#step-and-peek
+
+- id: S1
+  operation: Breakdown and repair
+  simpy: "a repair process holding the machine on a `PreemptiveResource`"
+  yaml: "`resources.<name>.breakdown: {time_to_failure, repair, work}`"
+  builder: "`add_breakdown(resource, time_to_failure={...}, repair={...}, work=...)`"
+  low_level: "`run_breakdowns(env, resource, sampler, work=...)`"
+  checks:
+    - tests/conformance/test_s1_breakdowns.py::test_s1_failure_during_service
+    - tests/conformance/test_s1_breakdowns.py::test_s1_failure_during_service_work_finishes
+    - tests/conformance/test_s1_breakdowns.py::test_s1_planned_change_during_repair
+    - tests/conformance/test_s1_breakdowns.py::test_s1_two_failures_in_a_row
+  page: guides/breakdowns.md#steps
+  differences: "The resource is down on a calendar clock, from the failure to the repair, even while it waits for the work in service to finish with `work: finish`."
+
+- id: S2
+  operation: Finite schedules
+  simpy: a process that changes values at set times, started before the others
+  yaml: "`scenario` steps with `at`, `path` and `value`"
+  builder: "`add_scenario(steps)` or `add_step(at, path=..., value=...)`"
+  low_level: "`run_scenario(env, steps, until=...)`"
+  checks:
+    - tests/conformance/test_s2_schedules.py::test_s2_step_at_an_arrival_time
+    - tests/conformance/test_s2_schedules.py::test_s2_equal_time_steps_apply_in_order
+    - tests/conformance/test_s2_schedules.py::test_s2_step_at_until_does_not_apply
+  page: guides/time-varying-arrivals.md#boundaries
+  differences: A step applies before every other event at its time, so the arrival gap drawn then uses the new value.
+
+- id: S3
+  operation: Local replay
+  simpy: a loop over recorded rows, each a timeout to its time
+  yaml: "`arrivals.<name>.replay: {path, time, unit, fields, on_invalid}`"
+  builder: "`add_arrival_replay(name, source, ...)`"
+  low_level: "`read_trace(source, ...)` and a SimPy loop over its rows"
+  checks:
+    - tests/conformance/test_s3_replay.py::test_s3_replay_equal_times_invalid_rows_and_the_horizon
+    - tests/conformance/test_s3_replay.py::test_s3_replay_refuses_unsorted_and_invalid_rows
+    - tests/conformance/test_s3_replay.py::test_s3_replay_stops_at_the_end_of_the_input
+  page: tutorials/local-replay.md#replay-the-rows

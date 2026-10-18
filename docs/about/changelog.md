@@ -15,6 +15,9 @@ desflow matches SimPy operation by operation, in YAML, the builder and the low-l
 - A task can hold several resources, `resource: [picker, bench]`, acquired in that order, and hand a unit to the next task with `keep`; a model that acquires resources in opposite orders is refused. See [Competing Resources](../tutorials/competing-resources.md) and [Resources](../user-guide/resources.md#several-resources).
 - End conditions: `run.stop` ends a run at a signal or a condition, and `run.drain` (or `desflow run --drain`) stops the arrivals at `until` and finishes the entities already in the model; `start()`, `step()`, `peek()` and `close()` step a builder or YAML run one event at a time. The statistics count `flows.<arrival>.started` and `in_system`, and `tasks.<task>.in_progress`. See [End Conditions](../tutorials/end-conditions.md) and [Time and Pacing](../user-guide/time-and-pacing.md#stop-early).
 - A low-level request can be cancelled with `request.cancel()` and given back with `resource.release(request)`, as in SimPy. See [Resources](../user-guide/resources.md#how-it-works).
+- Breakdowns: `resources.<name>.breakdown`, `add_breakdown` and `run_breakdowns` make a resource fail at random and be repaired, interrupting the work it was doing or letting it finish; each failure and repair publishes `down` and `repaired`, and the statistics count `resources.<name>.down`, `downtime` and `failures`. The Preemptive Breakdowns guide becomes [Breakdowns](../guides/breakdowns.md). See also [Resources](../user-guide/resources.md#breakdowns).
+- Schedules in every API: the builder's `add_scenario` and `add_step`, and the low-level `run_scenario`, take the same steps as a blueprint's `scenario`. See [Time-varying Arrivals](../guides/time-varying-arrivals.md) and [Changing Demand](../tutorials/changing-demand.md).
+- Replay: an arrival's `replay`, `add_arrival_replay` and the low-level `read_trace` take arrivals from the rows of a CSV or Parquet file, or a list of dicts, at their recorded times, with the row's fields as attributes. See [Local Replay](../tutorials/local-replay.md) and [Arrivals and Services](../user-guide/arrivals-and-services.md#replay).
 
 ### Upgrading
 
@@ -25,6 +28,7 @@ desflow matches SimPy operation by operation, in YAML, the builder and the low-l
 - A builder task whose function raises now fails the task, publishing `failed` with the error as its reason and ending the entity's flow, instead of stopping the run.
 - The built-in statistics publish new names: `tasks.<task>.in_progress` from `minimal`, and `flows.<arrival>.started` and `in_system` from `basic`. A low-level process that calls `env.stats.task_queued`, `task_started` and `task_finished` publishes `in_progress` too, and one that calls `flow_started` publishes the flow counts.
 - Events with the statuses `balked`, `reneged`, `failed`, `interrupted`, `preempted` and `resumed` reach the sinks, so a consumer that filters on `status` should expect them.
+- A scenario step now applies before every other event at its time, as SimPy applies its own `until`, so an arrival at the step's time draws its next gap from the new value; seeded runs whose steps fall on the time of another event can give other numbers.
 
 ## Version 0.21.0
 

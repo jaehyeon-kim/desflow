@@ -50,7 +50,11 @@ from desflow.core.sampler import Sampler
 from desflow.core.signals import Signal, SignalFailed
 from desflow.core.task import TaskFailed
 from desflow.models.flow import Entity, Upstream
+from desflow.core.breakdowns import run_breakdowns
+from desflow.core.replay import read_trace
+from desflow.core.scenario import run_scenario
 from desflow.models.params import (
+    BreakdownConfig,
     CapacityConfig,
     ContainerConfig,
     DistributionConfig,
@@ -84,6 +88,10 @@ __all__ = [
     "SimParameter",
     "DistributionConfig",
     "CapacityConfig",
+    "BreakdownConfig",
+    "run_breakdowns",
+    "run_scenario",
+    "read_trace",
     "ContainerConfig",
     "Entity",
     "Upstream",

@@ -1,0 +1,47 @@
+# Changing demand: a rush of orders and a second packer for it, on a schedule, in YAML.
+#
+# The twin of examples/builder/changing_demand_example.py. Orders arrive at 0.4 a
+# second, and at 0.8 during a rush from 120 to 180 seconds; a second packer works
+# during the rush. Each change applies before every other event at its time, so
+# the arrival gap drawn at 120 already uses the rush rate.
+#
+# Needs no containers. Runs unpaced and ends after 300 simulation seconds.
+# Run it with: desflow run examples/yaml/changing_demand.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+egress:
+  - type: Console
+
+resources:
+  packers: {current_cap: 1, max_cap: 2}
+
+services:
+  packing: {dist: triangular, low: 1 s, mode: 2 s, high: 3 s}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.4, spawn: pack}
+
+tasks:
+  pack:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+
+# --8<-- [start:schedule]
+scenario:
+  # The rush: twice the orders, and a second packer, from 120 to 180 seconds
+  - {at: 120, path: Shop.arrival.orders.rate, value: 0.8}
+  - {at: 120, path: Shop.resources.packers.current_cap, value: 2}
+  - {at: 180, path: Shop.arrival.orders.rate, value: 0.4}
+  - {at: 180, path: Shop.resources.packers.current_cap, value: 1}
+# --8<-- [end:schedule]
+
+# Every 60 seconds: the packers' readings and the mean wait so far.
+stats: {level: typical, interval: 60}
+
+run:
+  until: 300

@@ -1,0 +1,50 @@
+# Breakdowns: a packing station that fails and is repaired, in YAML.
+#
+# The twin of examples/builder/breakdowns_example.py. The packing station breaks
+# down about once a minute and takes 5 to 15 seconds to repair. A breakdown stops
+# the orders being packed: each gives the station back, queues again, and packs
+# what it had left once the station is repaired.
+#
+# Needs no containers. Runs unpaced and ends after 300 simulation seconds.
+# Run it with: desflow run examples/yaml/breakdowns.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+egress:
+  - type: Console
+
+# --8<-- [start:station]
+resources:
+  station:
+    current_cap: 2
+    max_cap: 3
+    breakdown:
+      # Calendar time from a repair, or the start, to the next failure.
+      time_to_failure: {dist: exponential, rate: 0.0167}
+      repair: {dist: uniform, low: 5 s, high: 15 s}
+      # The orders being packed are interrupted, and follow their on_interrupt.
+      work: interrupt
+# --8<-- [end:station]
+
+services:
+  packing: {dist: triangular, low: 1 s, mode: 2 s, high: 4 s}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.6, spawn: pack}
+
+tasks:
+  pack:
+    service: packing
+    resource: station
+    # Packs what it had left once the station is back.
+    on_interrupt: resume
+    payload: {event_type: order_packed}
+
+# Every 60 seconds: the station's down state, downtime and failures.
+stats: {level: basic, interval: 60}
+
+run:
+  until: 300

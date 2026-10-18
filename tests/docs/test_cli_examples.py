@@ -36,7 +36,7 @@ def test_every_example_file_is_listed():
     on_disk = {
         str(p.relative_to(EXAMPLES_DIR))
         for p in EXAMPLES_DIR.rglob("*")
-        if p.suffix in (".py", ".yaml") and "__pycache__" not in p.parts
+        if p.suffix in (".py", ".yaml", ".csv") and "__pycache__" not in p.parts
     }
     assert on_disk == listed
 

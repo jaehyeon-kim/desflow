@@ -150,6 +150,34 @@ class ContainerConfig(CapacityConfig):
 
 
 @dataclass
+class BreakdownConfig:
+    """
+    How a resource breaks down: the time to each failure, the repair time, and what
+    happens to the work in progress.
+
+    The failure clock runs on calendar time: the next failure is drawn when a repair
+    ends, busy or idle. While down, the resource's capacity is 0; its `current_cap`
+    keeps the planned value, which a change during the repair sets for its return.
+
+    Attributes:
+        time_to_failure (DistributionConfig): The time from a repair, or the start,
+            to the next failure.
+        repair (DistributionConfig): How long a repair takes.
+        work (str): `interrupt` (the default) interrupts the tasks being served,
+            which follow their `on_interrupt`; `finish` lets them finish, and no new
+            task starts until the repair ends.
+    """
+
+    time_to_failure: DistributionConfig
+    repair: DistributionConfig
+    work: str = "interrupt"
+
+    def __post_init__(self) -> None:
+        if self.work not in ("interrupt", "finish"):
+            raise ValueError(f"work must be interrupt or finish, got '{self.work}'")
+
+
+@dataclass
 class SimParameter:
     """
     The master schema representing the state of a specific simulation entity (like a production line).
@@ -166,6 +194,9 @@ class SimParameter:
             A `ContainerConfig` also sets the level the container starts at; a plain
             `CapacityConfig` starts it empty.
         stores (Dict[str, CapacityConfig]): Configurations for discrete SimPy Stores.
+        breakdowns (Dict[str, BreakdownConfig]): How each named resource breaks
+            down, registered at `<sim_id>.breakdown.<resource>.time_to_failure` and
+            `.repair`.
         variables (Dict[str, Any]): Flexible user-defined state variables (e.g., int, float, bool, str)
             used to drive custom logic, track string-based states, or act as external control dials.
     """
@@ -177,5 +208,6 @@ class SimParameter:
     resources: Dict[str, CapacityConfig] = field(default_factory=dict)
     containers: Dict[str, CapacityConfig] = field(default_factory=dict)
     stores: Dict[str, CapacityConfig] = field(default_factory=dict)
+    breakdowns: Dict[str, BreakdownConfig] = field(default_factory=dict)
     # Custom / User-Defined states
     variables: Dict[str, Any] = field(default_factory=dict)

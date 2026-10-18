@@ -162,6 +162,12 @@ class DynamicResource(BaseDynamicResource):
         self._sequence = itertools.count()
         self.queue = _RequestQueue()
         self.users: List[DynamicResourceRequest] = []
+        # The down state of a breakdown: no unit is granted while it is down
+        self.down = False
+        self.failures = 0
+        self.has_breakdowns = False
+        self._down_since: Optional[float] = None
+        self._downtime = 0.0
         super().__init__(env, sim_id, resource_id, "resources")
 
         self._capacity = self._target()
@@ -309,9 +315,55 @@ class DynamicResource(BaseDynamicResource):
         return True
 
     def _target(self) -> int:
-        """The registry's capacity, bound to [0, max_cap]."""
+        """The registry's capacity, bound to [0, max_cap], and 0 while it is down."""
+        if self.down:
+            return 0
         max_cap = int(self._max_cap_val.value)
         return max(0, min(int(self._current_cap_val.value), max_cap))
+
+    @property
+    def downtime(self) -> float:
+        """Seconds the resource has been down so far, the current repair included."""
+        if self._down_since is not None:
+            return self._downtime + self.env.now - self._down_since
+        return self._downtime
+
+    def fail(self, interrupt_work: bool = True) -> int:
+        """
+        Puts the resource down: its capacity is 0 until `repair()`.
+
+        `current_cap` in the registry keeps the planned capacity, so a change during
+        the repair sets the capacity the resource returns to.
+
+        Args:
+            interrupt_work: True interrupts every task being served, with the cause
+                `breakdown`; False lets them finish, and their units are not handed
+                on until the repair.
+
+        Returns:
+            int: How many tasks were interrupted.
+        """
+        self.down = True
+        self.failures += 1
+        self._down_since = self.env.now
+        self._capacity = 0
+        self._changed()
+        interrupted = 0
+        if interrupt_work:
+            for user in list(self.users):
+                if user.proc is not None and user.proc.is_alive:
+                    user.proc.interrupt("breakdown")
+                    interrupted += 1
+        return interrupted
+
+    def repair(self) -> None:
+        """Ends the down state: the capacity returns to `current_cap` in the registry
+        and waiting requests are granted."""
+        if self._down_since is not None:
+            self._downtime += self.env.now - self._down_since
+        self.down, self._down_since = False, None
+        self._grant()
+        self._changed()
 
     def _handle_capacity_change(self, new_target: float):
         self._capacity = self._target()

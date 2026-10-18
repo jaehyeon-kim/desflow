@@ -1,0 +1,40 @@
+# The Changing Demand tutorial: a 20-minute rush, with one packer or two.
+# Run it with: desflow run changing_demand.yaml
+# With a second packer for the rush: RUSH_PACKERS=2 desflow run changing_demand.yaml
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+resources:
+  packers: {current_cap: 1, max_cap: 2}
+
+services:
+  packing: {dist: constant, value: 1.5 s}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.4, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+
+# --8<-- [start:schedule]
+# The rush: 0.9 orders a second from 20 to 40 minutes, and RUSH_PACKERS for it
+scenario:
+  - {at: 20 min, path: Shop.arrival.orders.rate, value: 0.9}
+  - {at: 20 min, path: Shop.resources.packers.current_cap, value: "${RUSH_PACKERS:-1}"}
+  - {at: 40 min, path: Shop.arrival.orders.rate, value: 0.4}
+  - {at: 40 min, path: Shop.resources.packers.current_cap, value: 1}
+# --8<-- [end:schedule]
+
+# Orders packed, and the mean and longest wait, at the end
+stats: {level: typical, interval: 2 h}
+
+egress:
+  - type: Console
+
+run:
+  until: 1 h
