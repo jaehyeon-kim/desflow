@@ -83,6 +83,7 @@ class SimulationContext:
         logical_start_time: Optional[datetime] = None,
         go_live_at: Optional[datetime] = None,
         warmup: Union[float, str, None] = None,
+        initial_time: float = 0.0,
     ):
         """
         Initializes the context builder with a designated namespace and temporal factor.
@@ -104,6 +105,8 @@ class SimulationContext:
                 such as `"10 min"`. No sink receives a record stamped before it, and
                 the built-in statistics are reset at that time, so they measure the
                 steady state only.
+            initial_time: The simulation clock's starting value, so event times are
+                relative to it. Defaults to 0.
 
         Raises:
             ValueError: If `warmup` is negative or not a duration.
@@ -113,6 +116,7 @@ class SimulationContext:
         self.random_seed = random_seed
         self.logical_start_time = logical_start_time
         self.go_live_at = go_live_at
+        self.initial_time = float(initial_time)
         self.warmup = None if warmup is None else _seconds(warmup)
         if self.warmup is not None and self.warmup < 0:
             raise ValueError(f"warmup must be 0 or more, got {warmup}")
@@ -141,6 +145,7 @@ class SimulationContext:
         self._resource_queues: Dict[str, str] = {}
         self._containers_config: Dict[str, CapacityConfig] = {}
         self._stores_config: Dict[str, CapacityConfig] = {}
+        self._store_priority: Dict[str, bool] = {}
         self._services_config: Dict[str, DistributionConfig] = {}
         self._arrivals_config: Dict[str, DistributionConfig] = {}
         # Per arrival: the attributes each entity starts with, and the key function
@@ -160,6 +165,9 @@ class SimulationContext:
         self._containers_map: Dict[str, DynamicContainer] = {}
         self._entity_counters: Dict[str, "itertools.count[int]"] = {}
         self._instance_counters: Dict[str, "itertools.count[int]"] = {}
+        # One rising sequence for priority-store puts, so equal priorities keep
+        # their put order and the payloads are never compared to break a tie.
+        self._store_put_seq = itertools.count()
         self._startup_loops: List[Tuple[Callable, Optional[str]]] = []
 
         # Set by from_yaml from the blueprint's `run` section.
@@ -422,18 +430,23 @@ class SimulationContext:
         return self
 
     def add_store(
-        self, name: str, current_cap: int, max_cap: int
+        self, name: str, current_cap: int, max_cap: int, priority: bool = False
     ) -> "SimulationContext":
         """
         Registers a store: a place that holds items, which tasks put and get.
 
-        A task puts its finished payload as an item and gets the oldest item,
-        waiting when the store is full or empty.
+        A task puts its finished payload as an item and gets the next item,
+        waiting when the store is full or empty. A `fifo` store, the default,
+        returns the oldest item; a priority store returns the item whose task
+        gave the lowest `put` priority first, and the oldest among equal
+        priorities.
 
         Args:
             name: The internal identifier (e.g., 'parcels').
             current_cap: The number of items it can hold at simulation start.
             max_cap: The largest capacity a live update can set.
+            priority: When True, items are returned by the `priority` each task's
+                `put` gives, lowest first, instead of first in, first out.
 
         Returns:
             SimulationContext: The current instance for method chaining.
@@ -446,6 +459,7 @@ class SimulationContext:
         self._stores_config[name] = CapacityConfig(
             current_cap=current_cap, max_cap=max_cap
         )
+        self._store_priority[name] = priority
         return self
 
     def add_variable(self, name: str, value: Any) -> "SimulationContext":
@@ -804,8 +818,20 @@ class SimulationContext:
         if transfer.store is not None:
             store = self._stores_map[transfer.store]
             if direction == "get":
-                return (yield store.get())
-            yield store.put(payload)
+                item = yield store.get()
+                # A priority store holds PriorityItem wrappers; the task reads the payload.
+                if self._store_priority.get(transfer.store):
+                    return item.item
+                return item
+            if self._store_priority.get(transfer.store):
+                scope = make_scope(
+                    upstream, entity.attributes, self._env, self._levels()
+                )
+                rank = transfer.priority_for(task_id, upstream, scope)
+                order = next(self._store_put_seq)
+                yield store.put(simpy.PriorityItem((rank, order), payload))
+            else:
+                yield store.put(payload)
             return None
         container = self._containers_map[transfer.target]
         scope = make_scope(upstream, entity.attributes, self._env, self._levels())
@@ -1086,6 +1112,8 @@ class SimulationContext:
         logger.info(f"Building SimulationContext for '{self.sim_id}'...")
 
         env_kwargs: Dict[str, Any] = {"factor": self.factor}
+        if self.initial_time:
+            env_kwargs["initial_time"] = self.initial_time
         if self.logical_start_time is not None:
             env_kwargs["logical_start_time"] = self.logical_start_time
         if self.go_live_at is not None:
@@ -1141,7 +1169,12 @@ class SimulationContext:
                 self._env, self.sim_id, res_id, queue=self._resource_queues[res_id]
             )
         for store_id in self._stores_config:
-            self._stores_map[store_id] = DynamicStore(self._env, self.sim_id, store_id)
+            self._stores_map[store_id] = DynamicStore(
+                self._env,
+                self.sim_id,
+                store_id,
+                priority=self._store_priority.get(store_id, False),
+            )
         for container_id in self._containers_config:
             self._containers_map[container_id] = DynamicContainer(
                 self._env, self.sim_id, container_id
@@ -1217,8 +1250,12 @@ class SimulationContext:
             if isinstance(spec.priority, str):
                 expressions.append(Expression(spec.priority))
             for transfer in (spec.get, spec.put):
-                if transfer is not None and isinstance(transfer.amount, str):
+                if transfer is None:
+                    continue
+                if isinstance(transfer.amount, str):
                     expressions.append(Expression(transfer.amount))
+                if isinstance(transfer.priority, str):
+                    expressions.append(Expression(transfer.priority))
             for expression in expressions:
                 for level in expression.references["level"]:
                     if level not in holders:

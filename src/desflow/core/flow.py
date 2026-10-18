@@ -209,6 +209,7 @@ class Transfer:
         container: Optional[str] = None,
         store: Optional[str] = None,
         amount: Amount = 1.0,
+        priority: Amount = 0.0,
     ):
         """
         Checks the transfer.
@@ -217,18 +218,24 @@ class Transfer:
             container: The container's name.
             store: The store's name, instead of a container.
             amount: For a container, a number, an expression or a function.
+            priority: For a put into a priority store, a number, an expression
+                or a function, lowest served first. Ignored by a `fifo` store.
 
         Raises:
             ValueError: If not exactly one of container and store is given, an
-                amount is given for a store, or the amount is malformed.
+                amount is given for a store, a priority is given for a
+                container, or the amount or priority is malformed.
         """
         if (container is None) == (store is None):
             raise ValueError("a get or put names one container or one store")
         if store is not None and amount != 1.0:
             raise ValueError("a store moves one item, so it takes no amount")
+        if container is not None and priority != 0.0:
+            raise ValueError("priority orders a store's items, so it needs a store")
         self.container = container
         self.store = store
         self.amount = amount
+        self.priority = priority
         self._expression: Optional[Expression] = None
         if isinstance(amount, str):
             self._expression = Expression(amount)
@@ -237,6 +244,15 @@ class Transfer:
         ):
             raise ValueError(
                 f"amount must be a number or an expression, got {amount!r}"
+            )
+        self._priority_expression: Optional[Expression] = None
+        if isinstance(priority, str):
+            self._priority_expression = Expression(priority)
+        elif not callable(priority) and (
+            isinstance(priority, bool) or not isinstance(priority, (int, float))
+        ):
+            raise ValueError(
+                f"priority must be a number or an expression, got {priority!r}"
             )
 
     @classmethod
@@ -258,7 +274,7 @@ class Transfer:
             return spec
         if not isinstance(spec, Mapping):
             raise ValueError(f"a get or put is a mapping, got {spec!r}")
-        unknown = set(spec) - {"container", "store", "amount"}
+        unknown = set(spec) - {"container", "store", "amount", "priority"}
         if unknown:
             raise ValueError(f"a get or put does not take {', '.join(sorted(unknown))}")
         return cls(**spec)
@@ -287,3 +303,23 @@ class Transfer:
         if callable(self.amount):
             return float(self.amount(task_id, payload_of(upstream)))
         return float(self.amount)
+
+    def priority_for(
+        self, task_id: Any, upstream: Optional[Upstream], scope: Scope
+    ) -> float:
+        """
+        Returns the priority for one put into a priority store, lowest first.
+
+        Args:
+            task_id: The instance id.
+            upstream: What the previous task handed on.
+            scope: What an expression's names read.
+
+        Returns:
+            float: The priority.
+        """
+        if self._priority_expression is not None:
+            return float(self._priority_expression.evaluate(scope))
+        if callable(self.priority):
+            return float(self.priority(task_id, payload_of(upstream)))
+        return float(self.priority)

@@ -112,6 +112,7 @@ class Simulation(_Model):
     logical_start_time: Optional[datetime] = None
     go_live_at: Optional[datetime] = None
     warmup: Optional[float] = Field(default=None, ge=0)
+    initial_time: float = 0.0
 
     @field_validator("logical_start_time", "go_live_at", mode="before")
     @classmethod
@@ -203,10 +204,11 @@ class Resource(_Model):
 
 
 class Store(_Model):
-    """A `stores` entry: how many items it holds."""
+    """A `stores` entry: how many items it holds, and whether it serves by priority."""
 
     current_cap: float
     max_cap: float
+    priority: bool = False
 
 
 class Container(_Model):
@@ -221,12 +223,14 @@ class TransferStep(_Model):
     """A task's `get` or `put`: one `container` with an `amount`, or one `store`.
 
     `amount` is a number or an expression such as `payload.quantity`, and 1 when it
-    is left out.
+    is left out. `priority` is a number or an expression for a put into a priority
+    store, lowest served first, and 0 when it is left out.
     """
 
     container: Optional[str] = None
     store: Optional[str] = None
     amount: Union[float, str] = 1.0
+    priority: Union[float, str] = 0.0
 
     @model_validator(mode="after")
     def _one_target(self) -> "TransferStep":
@@ -235,7 +239,12 @@ class TransferStep(_Model):
 
     def transfer(self) -> Transfer:
         """The `Transfer` the builder takes."""
-        return Transfer(container=self.container, store=self.store, amount=self.amount)
+        return Transfer(
+            container=self.container,
+            store=self.store,
+            amount=self.amount,
+            priority=self.priority,
+        )
 
 
 class Rule(_Model):

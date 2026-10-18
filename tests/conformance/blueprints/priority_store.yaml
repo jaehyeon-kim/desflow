@@ -1,0 +1,24 @@
+simulation:
+  sim_id: C5
+  factor: 0
+stores:
+  buffer:
+    current_cap: 10
+    max_cap: 10
+    priority: true
+arrivals:
+  lows:
+    dist: constant
+    value: 10
+    spawn: stash
+    attributes:
+      p: 5
+tasks:
+  stash:
+    put:
+      store: buffer
+      priority: attr.p
+    payload:
+      kind: low
+run:
+  until: 12

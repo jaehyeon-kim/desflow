@@ -231,8 +231,12 @@ def _expressions(
         found.append((Expression(task.priority), where + ("priority",)))
     for field in ("get", "put"):
         step = getattr(task, field)
-        if step is not None and isinstance(step.amount, str):
+        if step is None:
+            continue
+        if isinstance(step.amount, str):
             found.append((Expression(step.amount), where + (field, "amount")))
+        if isinstance(step.priority, str):
+            found.append((Expression(step.priority), where + (field, "priority")))
     if task.next is not None and not isinstance(task.next, str):
         for index, rule in enumerate(task.next.when):
             found.append(
@@ -271,7 +275,9 @@ def _build_context(blueprint: Blueprint, source: SourceMap) -> SimulationContext
             name, int(resource.current_cap), int(resource.max_cap), queue=resource.queue
         )
     for name, store in blueprint.stores.items():
-        context.add_store(name, int(store.current_cap), int(store.max_cap))
+        context.add_store(
+            name, int(store.current_cap), int(store.max_cap), priority=store.priority
+        )
     for name, container in blueprint.containers.items():
         context.add_container(
             name, container.current_cap, container.max_cap, level=container.level
