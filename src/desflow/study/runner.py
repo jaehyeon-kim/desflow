@@ -52,7 +52,7 @@ def level_for(measures: Optional[Iterable[str]]) -> str:
 
     Args:
         measures: Statistic names such as `tasks.pack.wait_mean`; None means every
-            statistic up to `typical`.
+            statistic the run publishes, at least up to `typical`.
 
     Returns:
         str: `basic`, `typical` or `all`.
@@ -150,7 +150,7 @@ class Replications:
         """The summary as a table: each measure's n, mean and half-width."""
         rows = self.summary
         width = max(len("measure"), *(len(row["measure"]) for row in rows))
-        heading = f"half-width ({self.level:.0%})"
+        heading = f"half-width ({self.level * 100:g}%)"
         lines = [f"{'measure':<{width}}  {'n':>4}  {'mean':>12}  {heading:>18}"]
         for row in rows:
             lines.append(
@@ -209,7 +209,8 @@ def replicate(
             duration such as `"1 h"`. None uses a blueprint's `run.until`.
         warmup: The end of each replication's warm-up; None keeps the model's own.
         measures: Statistic names without the sim id, such as
-            `tasks.pack.wait_mean`. None summarises every statistic up to `typical`.
+            `tasks.pack.wait_mean`. None summarises every statistic the run publishes, at least up to
+            `typical`.
         level: The confidence level of the half-widths. Defaults to 0.95.
         workers: Replications run at once, each in its own process. Above 1 the
             model must be a path or a function defined at the top of a module.
@@ -367,13 +368,15 @@ def values_of(results: Sequence[RunResult], measure: str) -> List[float]:
 def _publish(model: Model, replications: Replications, until: Any) -> None:
     """Sends the summary to the model's sinks, once, stamped at the end time.
 
-    The model is built again with its sinks but never run, so a model without
-    sinks publishes nothing.
+    A model with sinks is built again with them, without its ingress, and never
+    run. A model without sinks, low-level models included, is not built again.
     """
     if isinstance(model, LowLevelModel):
         return
     context = context_of(model)
     assert context is not None
+    if not context._egress_providers:
+        return
     stop = seconds(until)
     if stop is None:
         stop = default_until(model)
@@ -381,7 +384,7 @@ def _publish(model: Model, replications: Replications, until: Any) -> None:
     context.go_live_at = None
     context.warmup = None
     context.initial_time = float(stop or 0.0)
-    context._prepare(seed=replications.seeds[0], egress=True)
+    context._prepare(seed=replications.seeds[0], egress=True, ingress=False)
     # Only the summary is sent: the model's own statistics are not published
     context.env.stats.configure(replications.sim_id, "none")
     try:

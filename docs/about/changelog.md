@@ -9,12 +9,16 @@ desflow matches SimPy operation by operation, in YAML, the builder and the low-l
 - A [SimPy Compatibility](../reference/simpy-compatibility.md) page lists every supported SimPy operation with its form in each API and the tests that compare it with SimPy.
 - Patience and balking: a task's `patience` takes a duration such as `30 s`, and orders that leave or refuse to join are counted as `tasks.<task>.reneged` and `.balked`. See [Patience](../tutorials/patience.md) and [Reneging and Balking](../guides/reneging-and-balking.md).
 - A low-level request can be cancelled with `request.cancel()` and given back with `resource.release(request)`, as in SimPy. See [Resources](../user-guide/resources.md#how-it-works).
+- Replications: `desflow run FILE --replications N` and `desflow.replicate` run a model with seeds spawned from one seed and give each statistic's mean and 95% half-width; the model's sinks receive the result once, as `<sim_id>.stats.<measure>.replication.<i>`, `.mean`, `.half_width` and `.n`. See [Replications](../user-guide/replications.md) and [Trusting Results](../tutorials/trusting-results.md).
+- Local studies: `desflow study` and `desflow.run_study` compare designs with paired replications and sweeps, apply checks that fail the command, compare with observed values, and write CSV and JSON results and a `report.md`; `desflow report` builds the report again. See [Local Studies](../user-guide/local-studies.md), [Comparing Designs](../tutorials/comparing-designs.md) and [Parameter Sweeps](../tutorials/parameter-sweeps.md).
+- Input fitting: `desflow fit` and `desflow.fit_column` fit a column of measured times to every distribution family, with diagnostics and a plot, and write settings a blueprint loads with the new `!include` tag. See [Input Fitting](../user-guide/input-fitting.md), [Fit the Inputs](../tutorials/fit-the-inputs.md) and [Fit a Distribution](../guides/fit-a-distribution.md).
 
 ### Upgrading
 
 - A `priority` on a store `get` is refused; priority orders a `put` into a priority store.
 - Resources grant units with the same events as SimPy's `Resource`, so requests at the same simulation time are granted in SimPy's order, which can change seeded output where such ties occur.
 - Events with the statuses `balked` and `reneged` reach the sinks, so a consumer that filters on `status` should expect them.
+- Fitting needs the new `fit` extra, which installs scipy and matplotlib: `pip install "desflow[fit]"`.
 
 ## Version 0.21.0
 

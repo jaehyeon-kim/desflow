@@ -53,7 +53,7 @@ Give the model, the number of replications, the seed they are spawned from and t
         return replicate(shop, 3, seed=42, until=3600, warmup=180, measures=MEASURES)
     ```
 
-    `LowLevelModel` names a function that builds the model in the environment and with the sampler it is given, and the `sim_id` its statistics are published under. The function registers the parameters, builds the resources and starts the processes; it sets up neither the statistics nor the sinks, because `replicate` does. Its tasks report their steps to `env.stats`, as [Statistics](statistics.md) shows.
+    `LowLevelModel` names a function that builds the model in the environment and with the sampler it is given, and the `sim_id` its statistics are published under. The function registers the parameters, builds the resources and starts the processes; it sets up no statistics, because `replicate` does, and no sinks. Its tasks report their steps to `env.stats`, as [Statistics](statistics.md) shows.
 
 `replicate` takes these options:
 
@@ -63,7 +63,7 @@ Give the model, the number of replications, the seed they are spawned from and t
 | `seed` | the seed the replications' seeds are spawned from; None draws one and logs it | |
 | `until` | the end of each replication, in seconds or a duration such as `"1 h"`; None uses a blueprint's `run.until` | |
 | `warmup` | the end of each replication's warm-up | the model's own |
-| `measures` | the statistics to summarise | every statistic up to `typical` |
+| `measures` | the statistics to summarise | every statistic the run publishes, at least up to `typical` |
 | `level` | the confidence level of the half-widths | 0.95 |
 | `workers` | replications run at once, each in its own process | 1 |
 | `overrides` | registry paths and the values every replication starts with, such as `{"Shop.resources.packers.current_cap": 3}` | none |
@@ -263,13 +263,13 @@ The `replications` example runs one hour of the shop 20 times, with seeds spawne
 
 **Seeds.** The replications' seeds are `numpy.random.SeedSequence(seed).spawn(n)`, each turned into one plain integer. The same seed gives the same list, and a longer list starts with the shorter one, so 40 replications begin with the 10 that `n=10` runs. Within a replication each distribution draws from a random sequence of its own, as in any run ([Randomness and Seeds](../tutorials/randomness-and-seeds.md)).
 
-**One replication.** Each replication builds the model again: it reads the blueprint, calls the factory, or calls the low-level function with a new environment and sampler. It runs unpaced, at `factor` 0, with no ingress, no egress and no statistics timer, applies the warm-up and the `overrides` before the clock starts, and reads `env.stats.readings()` at its end. A blueprint's `run.before` functions run once per replication.
+**One replication.** Each replication builds the model again: it reads the blueprint, calls the factory, or calls the low-level function with a new environment and sampler. It runs unpaced, at `factor` 0, with no ingress, no egress and no statistics timer, applies the warm-up and the `overrides` before the clock starts, and reads `env.stats.readings()` at its end. A blueprint's `run.before` functions run once per replication, and once more when the model has sinks, for the build that sends them the result.
 
 **Intervals.** The half-width is t × s ÷ √n, where s is the sample standard deviation of the n values and t the Student t quantile at (1 + level) ÷ 2 with n − 1 degrees of freedom. desflow computes the quantile itself, from the t distribution's cumulative probability by bisection, so replications need nothing beyond a base install; the tests check it against a published table.
 
 **Workers.** With `workers` above 1, replications run in a pool of that many processes. Each process imports the model, so it must be a blueprint path or a function defined at the top of a module; a lambda or a function defined inside another function is refused with that reason. The values are the same as with one worker.
 
-**Sinks.** After the last replication the model is built once more with its sinks and the clock at the end time, but not run. Its own statistics are switched off, so the sinks receive only the result.
+**Sinks.** When the model has sinks, it is built once more after the last replication, with its sinks but without its ingress and with the clock at the end time, and is not run. Its own statistics are switched off, so the sinks receive only the result. A model without sinks is not built again.
 
 ---
 

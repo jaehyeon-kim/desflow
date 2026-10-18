@@ -18,6 +18,7 @@ from desflow import (
 )
 from desflow.blueprint.cli import app as cli
 from desflow.connectors.egress.base import BaseEgress
+from desflow.connectors.ingress.base import BaseIngress
 from desflow.study.intervals import interval, t_quantile
 from desflow.study.runner import level_for, spawn_seeds
 
@@ -320,3 +321,81 @@ def test_cli_prints_the_summary(blueprint):
         cli, ["run", str(blueprint), "--replications", "2", "--measure", "nope"]
     )
     assert bad.exit_code == 1 and "no statistic called nope" in bad.output
+
+
+class _NeverRun(BaseIngress):
+    """An ingress whose connection must never be opened."""
+
+    def __init__(self):
+        self.ran = False
+
+    async def run(self, ingress_queue):
+        self.ran = True
+
+
+def test_replications_never_start_the_ingress():
+    """Neither the replications nor the build that sends the result to the sinks
+    connect the model's ingress."""
+    for with_sink in (False, True):
+        ingress = _NeverRun()
+
+        def model() -> SimulationContext:
+            app = shop().add_ingress(ingress)
+            return app.add_egress(_Capture()) if with_sink else app
+
+        replicate(model, 2, seed=1, until=100, measures=["tasks.pack.finished"])
+        assert not ingress.ran
+
+
+def test_run_before_runs_once_more_only_with_sinks():
+    calls = []
+
+    def model(sinks) -> SimulationContext:
+        app = shop()
+        app._before_run = [lambda: calls.append(1)]
+        return app.add_egress(_Capture()) if sinks else app
+
+    replicate(
+        lambda: model(False), 3, seed=1, until=50, measures=["tasks.pack.finished"]
+    )
+    assert len(calls) == 3
+    calls.clear()
+    replicate(
+        lambda: model(True), 3, seed=1, until=50, measures=["tasks.pack.finished"]
+    )
+    assert len(calls) == 4
+
+
+def test_workers_refuse_a_function_from_an_interactive_session(monkeypatch):
+    """A function defined in python -c or a notebook cannot reach a worker."""
+    import sys
+    import types
+
+    session = types.ModuleType("__main__")  # no __file__, as in python -c
+    monkeypatch.setitem(sys.modules, "__main__", session)
+
+    def typed_in():
+        return shop()
+
+    typed_in.__module__ = "__main__"
+    with pytest.raises(ValueError, match="Put the function in a file"):
+        replicate(typed_in, 2, seed=1, until=100, workers=2)
+    with pytest.raises(ValueError, match="Put the function in a file"):
+        replicate(LowLevelModel(typed_in, "Shop"), 2, seed=1, until=100, workers=2)
+
+
+def test_a_lower_max_cap_that_would_clamp_current_cap_is_refused(blueprint):
+    with pytest.raises(ValueError, match="current_cap' is 1; set current_cap first"):
+        replicate(
+            blueprint,
+            2,
+            seed=4,
+            until=100,
+            overrides={"Shop.resources.packers.max_cap": 0},
+        )
+
+
+def test_the_summary_heading_keeps_the_level():
+    result = replicate(shop, 2, seed=1, until=200, measures=["tasks.pack.finished"])
+    result.level = 0.975
+    assert "half-width (97.5%)" in result.summary_text()

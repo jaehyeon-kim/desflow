@@ -137,7 +137,7 @@ Each replication runs unpaced with no sinks and reads the built-in statistics at
 
 The mean of the 40 values is the estimate. Its **confidence interval** says how far off it may be: with 95% confidence, the true mean lies within the estimate plus or minus the **half-width**, which is t × s ÷ √n, where s is the spread of the n values and t a quantile of the Student t distribution. The seeds are spawned in order, so the first 10 of the 40 replications are the 10 a run with `--replications 10` makes. The table reads the estimate after the first 5, 10 and 20 replications and after all 40:
 
-| Replications | Mean wait (s) | Half-width (s) | Half-width as a share of the mean | Utilisation (%) | Half-width (%) | Half-width as a share of the mean |
+| Replications | Mean wait (s) | Half-width (s) | Wait half-width share | Utilisation (%) | Half-width (%) | Utilisation half-width share |
 |---|---|---|---|---|---|---|
 | 5 | 2.21 | 0.47 | 21.2% | 89.72 | 1.37 | 1.5% |
 | 10 | 2.25 | 0.25 | 11.0% | 90.34 | 0.91 | 1.0% |
@@ -150,7 +150,7 @@ The 40 mean waits range from 1.45 to 4.39 seconds. The run with the seed 42 meas
 
 ## Choose the Precision
 
-How many replications are enough depends on the decision, not on a fixed number such as 30. Choose the precision each output needs. Here it is a half-width within 10% of the mean. Utilisation meets it with 5 replications, but the mean wait needs 40, because waits vary far more from run to run than how busy the packers are. So each output has its own precision, and the replications must be enough for the least precise output the decision reads.
+How many replications are enough depends on the decision, not on a fixed number such as 30. Choose the precision each output needs. Here it is a half-width within 10% of the mean. Utilisation meets it with 5 replications. Of the counts in the table, the mean wait first meets it at 40, because waits vary far more from run to run than how busy the packers are. So each output has its own precision, and the replications must be enough for the least precise output the decision reads.
 
 The half-width shrinks with √n, so 10 replications at 11.0% suggest about 10 × (11.0 ÷ 10)² ≈ 12 for 10%. That is a guide, not a promise: the half-width is itself an estimate, and 20 replications gave 13.0%. Add replications, then read the half-width again.
 

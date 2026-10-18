@@ -10,6 +10,7 @@ statistics it measured.
 import copy
 import dataclasses
 import pickle
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, Union
@@ -83,8 +84,23 @@ def check_importable(model: Model) -> None:
 
     Raises:
         ValueError: If the model cannot be sent to another process, such as a
-            lambda or a function defined inside another function.
+            lambda, a function defined inside another function, or one defined in
+            an interactive session or `python -c`.
     """
+    target = model.function if isinstance(model, LowLevelModel) else model
+    main = sys.modules.get("__main__")
+    if (
+        getattr(target, "__module__", None) == "__main__"
+        and getattr(main, "__file__", None) is None
+    ):
+        # A function typed into python -c, a REPL or a notebook pickles by name,
+        # but a worker process has no such module to find it in
+        raise ValueError(
+            f"workers above 1 run each replication in another process, which must "
+            f"import the model; {describe(model)} was defined in an interactive "
+            f"session or python -c, so it cannot be imported there. Put the "
+            f"function in a file and import it from there, or use workers=1"
+        )
     try:
         pickle.loads(pickle.dumps(model))
     except Exception as exc:
@@ -142,7 +158,9 @@ def _build(
         context.go_live_at = None
         if warmup is not None:
             context.warmup = warmup
-        context._prepare(seed=seed, overrides=overrides, stats=stats, egress=False)
+        context._prepare(
+            seed=seed, overrides=overrides, stats=stats, egress=False, ingress=False
+        )
         assert context.sampler is not None
         # A new context per run, so nothing is shared with the next run
         return context.env, context.sampler, context.sim_id, lambda: None

@@ -59,7 +59,7 @@ def _incomplete_beta(x: float, a: float, b: float) -> float:
     return 1.0 - math.exp(log_front) * _beta_fraction(1.0 - x, b, a) / b
 
 
-def t_cdf(t: float, df: float) -> float:
+def _t_cdf(t: float, df: float) -> float:
     """
     Returns the probability that a Student t variable is at most `t`.
 
@@ -97,14 +97,14 @@ def t_quantile(p: float, df: float) -> float:
     if p < 0.5:
         return -t_quantile(1.0 - p, df)
     low, high = 0.0, 1.0
-    while t_cdf(high, df) < p:
+    while _t_cdf(high, df) < p:
         low, high = high, high * 2.0
     # Halving the bracket until it stops shrinking gives the closest float
     while True:
         middle = (low + high) / 2.0
         if middle in (low, high):
             return high
-        if t_cdf(middle, df) < p:
+        if _t_cdf(middle, df) < p:
             low = middle
         else:
             high = middle

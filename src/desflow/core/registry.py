@@ -253,10 +253,20 @@ class SimulationRegistry:
 
         Raises:
             ValueError: If the path does not exist, or the registry refuses, casts to
-                another value or clamps the value.
+                another value or clamps the value, or a `max_cap` would clamp the
+                `current_cap` beside it.
         """
         if path not in self._values:
             raise ValueError(f"'{path}' is not a registry path")
+        sibling = f"{path.rsplit('.', 1)[0]}.current_cap"
+        if path.endswith(".max_cap") and sibling in self._values:
+            current = self._values[sibling].value
+            if value is not None and current is not None and current > value:
+                # update would lower current_cap to it without a word
+                raise ValueError(
+                    f"'{path}' cannot be set to {value!r}: '{sibling}' is "
+                    f"{current!r}; set current_cap first, to {value!r} or less"
+                )
         self.update(path, value)
         kept = self._values[path].value
         if kept != value:

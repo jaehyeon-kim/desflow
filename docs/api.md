@@ -44,6 +44,18 @@
       heading_level: 3
       show_root_heading: true
 
+<!-- prettier-ignore -->
+::: desflow.study.intervals.interval
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.study.intervals.Interval
+    options:
+      heading_level: 3
+      show_root_heading: true
+
 ## Local Studies
 
 <!-- prettier-ignore -->

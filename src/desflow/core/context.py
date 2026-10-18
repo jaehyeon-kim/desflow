@@ -1182,6 +1182,7 @@ class SimulationContext:
         overrides: Optional[Mapping[str, Any]] = None,
         stats: Optional[str] = None,
         egress: bool = True,
+        ingress: bool = True,
     ) -> None:
         """Builds the run up to the moment its clock starts, as `run()` does.
 
@@ -1195,9 +1196,12 @@ class SimulationContext:
                 refuse or clamp raises instead.
             stats: The lowest statistics level the run keeps; a higher level set
                 with `with_stats` stays.
-            egress: False builds the run without its ingress and egress and without
-                the statistics timer, as a replication runs: nothing receives its
+            egress: False builds the run without its egress and without the
+                statistics timer, as a replication runs: nothing receives its
                 records, and its statistics are read at the end.
+            ingress: False builds the run without its ingress, so no connector
+                listens for parameter changes, as a replication runs and as the
+                build that sends replications' summary to the sinks runs.
 
         Raises:
             ValueError: If a task names something the context does not define, or an
@@ -1250,7 +1254,7 @@ class SimulationContext:
             self._env.registry.set_exactly(path, value)
 
         # Connect External Infrastructure
-        if self._ingress_providers and egress:
+        if self._ingress_providers and ingress:
             self._env.setup_ingress(self._ingress_providers)
 
         if self._egress_providers and egress:

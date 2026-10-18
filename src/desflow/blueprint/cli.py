@@ -105,7 +105,7 @@ def run(
         typer.Option(
             metavar="NAME",
             help="A statistic to summarise, such as tasks.pack.wait_mean; repeat it "
-            "for more. Defaults to every statistic up to the typical level.",
+            "for more. Defaults to every statistic the run publishes, at least up to typical.",
         ),
     ] = None,
     workers: Annotated[

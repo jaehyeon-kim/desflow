@@ -155,7 +155,7 @@ def build_report(folder: Union[str, Path]) -> str:
                 f"{settings['seed']}, which the replications' seeds are spawned from",
             ],
             ["Pairing", pairing],
-            ["Confidence level", f"{settings['level']:.0%}"],
+            ["Confidence level", f"{settings['level'] * 100:g}%"],
         ],
     )
     lines += [""]
@@ -196,7 +196,7 @@ def build_report(folder: Union[str, Path]) -> str:
 
     lines += ["", "## Results", ""]
     lines.append(
-        f"Each measure's mean over the replications, with its {settings['level']:.0%} "
+        f"Each measure's mean over the replications, with its {settings['level'] * 100:g}% "
         "confidence interval."
     )
     lines.append("")
