@@ -691,6 +691,10 @@ class SimulationContext:
             )
         rank_of = Expression(priority) if isinstance(priority, str) else None
         take = None if get is None else Transfer.of(get)
+        if take is not None and take.priority != 0.0:
+            raise ValueError(
+                "a get takes no priority; priority orders a put into a priority store"
+            )
         give = None if put is None else Transfer.of(put)
         router = Router(next)
         attribute_changes = dict(set or {})

@@ -341,3 +341,12 @@ def test_add_service_refuses_an_invalid_parameter():
         SimulationContext("TestSim").add_service("packing", "normal", mean=1.0, std=-1)
     with pytest.raises(ValueError, match="rate"):
         SimulationContext("TestSim").add_arrival("standard", "exponential")
+
+
+def test_a_store_get_rejects_a_priority():
+    """A priority orders a put into a priority store, so a get must not carry one."""
+    app = SimulationContext("TestSim", factor=0.0).add_store(
+        "buffer", current_cap=1, max_cap=1, priority=True
+    )
+    with pytest.raises(ValueError, match="a get takes no priority"):
+        app.task(name="drain", get={"store": "buffer", "priority": 1})

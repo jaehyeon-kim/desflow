@@ -61,7 +61,7 @@ def _yaml_store_is_priority():
     path = Path(__file__).parent / "blueprints" / "priority_store.yaml"
     app = SimulationContext.from_yaml(path)
     app.run()
-    return isinstance(app.get_store("buffer")._store, simpy.PriorityStore)
+    return app.get_store("buffer").priority
 
 
 def test_priority_order_matches_simpy_through_the_builder():

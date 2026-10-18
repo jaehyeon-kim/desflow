@@ -80,6 +80,7 @@ class DynamicStore(BaseDynamicResource):
         initial_capacity = max(0, min(int(self._current_cap_val.value), max_cap))
 
         # Dynamically select the underlying SimPy storage engine
+        self.priority = priority
         kind = _PriorityStore if priority else _Store
         self._store = kind(env, self._changed, capacity=initial_capacity)
         self._register()
