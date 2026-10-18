@@ -187,6 +187,7 @@ EXAMPLE_CASES = [
     ("patience", "patience.yaml", None, 120, _patience),
     ("replications", "replications.yaml", None, 1200, _typical),
     ("study", "study_shop.yaml", None, 600, _built),
+    ("fitting", "fitting.yaml", "scipy", 1200, _typical),
 ]
 
 
@@ -254,3 +255,29 @@ def test_study_example_gives_the_same_results_in_every_api(tmp_path):
     run_study(EXAMPLES / "yaml" / "study.yaml", output=tmp_path / "yaml")
     results["yaml"] = (tmp_path / "yaml" / "results.csv").read_text()
     assert results["yaml"] == results["builder"] == results["low-level"]
+
+
+def test_fitting_example_writes_the_file_its_blueprint_loads(tmp_path):
+    """desflow fit on the example's data writes packing_fit.yaml byte for byte, so
+    the blueprint loads what the fit gives today."""
+    pytest.importorskip("scipy")
+    from typer.testing import CliRunner
+
+    from desflow.blueprint.cli import app as cli
+
+    out = tmp_path / "packing_fit.yaml"
+    run = CliRunner().invoke(
+        cli,
+        [
+            "fit",
+            str(EXAMPLES / "packing_times.csv"),
+            "--column",
+            "packing_seconds",
+            "--lower",
+            "0",
+            "--out",
+            str(out),
+        ],
+    )
+    assert run.exit_code == 0, run.output
+    assert out.read_text() == (EXAMPLES / "yaml" / "packing_fit.yaml").read_text()

@@ -1,0 +1,3 @@
+# Fitted by desflow fit from order_log.csv, gaps between placed_at: exponential, from 299 values in s, written in seconds.
+dist: exponential
+rate: 0.36388

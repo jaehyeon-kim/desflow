@@ -1,0 +1,30 @@
+# The Fit a Distribution guide: the shop with arrivals fitted to an order log.
+# Fit the gaps first (docs/snippets/guides/fit_a_distribution.py writes
+# fitted/orders.yaml), then run it with: desflow run fit_a_distribution.yaml
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+resources:
+  packers: {current_cap: 1, max_cap: 2}
+
+services:
+  packing: {dist: gamma, shape: 4, scale: 0.375}
+
+# --8<-- [start:include]
+arrivals:
+  # The fitted gaps, with the task each order starts added to them
+  orders: !include {file: fitted/orders.yaml, spawn: pack_order}
+# --8<-- [end:include]
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+
+stats: basic
+
+run:
+  until: 1 h

@@ -443,4 +443,4 @@ Replications are independent of each other because each has its own seed, so the
                 )
         ```
 
-Next, [Stock](stock.md) asks what happens when the shop runs out of boxes.
+Next, [Fit the Inputs](fit-the-inputs.md) asks which distribution fits the 40 packing times.

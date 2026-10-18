@@ -9,7 +9,9 @@ page.
 Usage: python scripts/charts.py [name ...]
 """
 
+import contextlib
 import importlib.util
+import io
 import sys
 from pathlib import Path
 from typing import Callable, Dict, List, Tuple
@@ -441,6 +443,15 @@ def distribution_shapes() -> None:
     _save(fig, "distribution-shapes")
 
 
+def fit_the_inputs() -> None:
+    """Fit the Inputs: the 40 packing times against values drawn from the best fit,
+    as `desflow fit --plot` draws them."""
+    module = _module("fit_the_inputs")
+    with contextlib.redirect_stdout(io.StringIO()):
+        result = module.fitted()
+    result.plot(CHARTS_DIR / "fit-the-inputs.png")
+
+
 CHARTS: Dict[str, Callable[[], None]] = {
     "distribution-shapes": distribution_shapes,
     "priorities-wait": priorities_wait,
@@ -450,6 +461,7 @@ CHARTS: Dict[str, Callable[[], None]] = {
     "measuring-queue": measuring_queue,
     "queues-wait": queues_wait,
     "choosing-inputs": choosing_inputs,
+    "fit-the-inputs": fit_the_inputs,
 }
 
 

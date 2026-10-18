@@ -154,6 +154,16 @@ EXAMPLES: Dict[str, Example] = {
             yaml_command="desflow study study.yaml",
         ),
         Example(
+            "fitting",
+            "Fitted Inputs",
+            "the packing time fitted from 40 measured times, then loaded into the shop",
+            _three("fitting.yaml", "fitting_example.py", "packing_fit.yaml"),
+            extras="fit",
+            shared=["packing_times.csv"],
+            yaml_command="desflow fit ../packing_times.csv --column packing_seconds "
+            "--lower 0 --out packing_fit.yaml && desflow run fitting.yaml",
+        ),
+        Example(
             "related-records",
             "Generate Related Records",
             "orders and their line items, in two PostgreSQL tables",

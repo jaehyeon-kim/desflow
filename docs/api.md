@@ -70,6 +70,26 @@
       heading_level: 3
       show_root_heading: true
 
+## Input Fitting
+
+<!-- prettier-ignore -->
+::: desflow.study.fit.fit_column
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.study.fit.FitResult
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.study.fit.Candidate
+    options:
+      heading_level: 3
+      show_root_heading: true
+
 ## Environment
 
 <!-- prettier-ignore -->

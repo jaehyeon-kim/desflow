@@ -32,6 +32,7 @@ PAGES = {
     "patience": "docs/guides/reneging-and-balking.md",
     "replications": "docs/user-guide/replications.md",
     "study": "docs/user-guide/local-studies.md",
+    "fitting": "docs/user-guide/input-fitting.md",
 }
 TABS = {"yaml": "YAML", "builder": "Builder", "low-level": "Low-level"}
 ODCTL = '"odctl>=1.0,<2"'

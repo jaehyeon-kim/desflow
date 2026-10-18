@@ -58,6 +58,7 @@ from desflow.models.schemas import EventPayload, LabelPayload, TelemetryPayload
 from desflow.resources.container import DynamicContainer
 from desflow.resources.resource import DynamicResource
 from desflow.resources.store import DynamicStore
+from desflow.study.fit import FitResult, fit_column
 from desflow.study.models import LowLevelModel
 from desflow.study.results import CheckFailed, StudyResult
 from desflow.study.runner import Replications, replicate, run_study
@@ -101,6 +102,8 @@ __all__ = [
     "StudySpec",
     "StudyResult",
     "CheckFailed",
+    "fit_column",
+    "FitResult",
 ]
 
 # ---------------------------------------------------------

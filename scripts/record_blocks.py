@@ -250,6 +250,28 @@ def study_report() -> List[str]:
     return report[report.index("## Results") : report.index("## Limits") - 1]
 
 
+def fit_table() -> List[str]:
+    """Fit the Inputs: the table of candidates for the 40 packing times."""
+    import io
+
+    module = _module("docs/snippets/tutorials/fit_the_inputs.py")
+    printed = io.StringIO()
+    with contextlib.redirect_stdout(printed):
+        module.fitted()
+    return printed.getvalue().rstrip("\n").split("\n")
+
+
+def fit_gaps() -> List[str]:
+    """Fit a Distribution: the table of candidates for the gaps between orders."""
+    import io
+
+    module = _module("docs/snippets/guides/fit_a_distribution.py")
+    printed = io.StringIO()
+    with contextlib.redirect_stdout(printed):
+        module.fit()
+    return printed.getvalue().rstrip("\n").split("\n")
+
+
 def stock_out() -> List[str]:
     """Stock: the stock's readings around the second stock-out of 40-box deliveries."""
     module = _module("docs/snippets/tutorials/stock.py")
@@ -494,6 +516,8 @@ BLOCKS: Dict[str, Callable[[], List[str]]] = {
     "replications-telemetry": replications_telemetry,
     "replications-summary": replications_summary,
     "study-report": study_report,
+    "fit-table": fit_table,
+    "fit-gaps": fit_gaps,
     "measuring-final": measuring_final,
     "choosing-table": choosing_table,
     "first-trace": first_trace,

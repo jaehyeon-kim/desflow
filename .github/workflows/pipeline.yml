@@ -127,6 +127,17 @@ jobs:
               # catalog client and the Arrow FileIO are what the extra has to carry.
               from pyiceberg.catalog.rest import RestCatalog
               from pyiceberg.io.pyarrow import PyArrowFileIO
+          - extra: fit
+            check: |
+              import numpy as np
+
+              from desflow import fit_column
+
+              # fit_column and plot import scipy and matplotlib only when they run
+              values = np.random.default_rng(1).gamma(4.0, 0.4, 50)
+              result = fit_column(values, lower=0)
+              assert result.best is not None, result.text()
+              result.plot("fit.png")
     steps:
       - uses: actions/checkout@v7
 

@@ -175,7 +175,7 @@ A check whose measure is not in `measures` is refused. The study writes every fi
 | task and flow counts, such as `finished` | `count` | `count over the horizon` |
 | other readings, such as `queue_length` | `count`, or `amount` for a container | `end of run` |
 
-The horizon is the end time minus the warm-up, in seconds or a duration such as `57 min`. This compares the model's output with the real system's; it is not the fitting of an input distribution, which Input Fitting covers.
+The horizon is the end time minus the warm-up, in seconds or a duration such as `57 min`. This compares the model's output with the real system's; it is not the fitting of an input distribution, which [Input Fitting](input-fitting.md) covers.
 
 ### Files
 

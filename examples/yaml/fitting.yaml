@@ -1,0 +1,43 @@
+# Fitted inputs in YAML: the shop's packing time, fitted from 40 measured times.
+#
+# The twin of examples/builder/fitting_example.py. packing_fit.yaml holds the
+# distribution desflow fit chose for the 40 packing times in ../packing_times.csv;
+# the Quick Start runs the fit again, which writes the same file. Two packers and
+# orders at 0.8 a second. The run prints every event and the statistics, and ends
+# after one simulation hour.
+#
+# Needs no containers.
+# Fit and run it with:
+#   desflow fit ../packing_times.csv --column packing_seconds --lower 0 --out packing_fit.yaml
+#   desflow run fitting.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+egress:
+  - type: Console
+
+resources:
+  packers: {current_cap: 2, max_cap: 4}
+
+# --8<-- [start:include]
+services:
+  # The fitted distribution, read from the file desflow fit wrote
+  packing: !include packing_fit.yaml
+# --8<-- [end:include]
+
+arrivals:
+  orders: {dist: exponential, rate: 0.8, spawn: pack}
+
+tasks:
+  pack:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+
+stats: {level: typical, interval: 10 min}
+
+run:
+  until: 1 h

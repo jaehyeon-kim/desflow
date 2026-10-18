@@ -490,3 +490,73 @@ def test_parameter_sweeps_demand(api, tmp_path, monkeypatch):
         f"four {rate}=1.8": (0.27, 0.01),
         f"four {rate}=1.9": (0.35, 0.02),
     }
+
+
+FIT_WAITS = {
+    "triangular": (2.93, 0.25),
+    "gamma": (2.33, 0.19),
+    "empirical": (2.32, 0.20),
+}
+
+
+def _fit_cli(*args):
+    from typer.testing import CliRunner
+
+    from desflow.blueprint.cli import app as cli
+
+    run = CliRunner().invoke(cli, ["fit", *map(str, args)])
+    assert run.exit_code == 0, run.output
+    return run.output
+
+
+@pytest.mark.parametrize("api", APIS)
+def test_fit_the_inputs(api, tmp_path, capsys):
+    """Triangular has the lowest AIC, gamma is 0.11 behind; the triangular raises
+    the mean wait to 2.93 s while the gamma agrees with the 40 times."""
+    pytest.importorskip("scipy")
+    from desflow import replicate
+
+    if api == "yaml":
+        data = BLUEPRINTS / "packing_times.csv"
+        out = tmp_path / "fitted" / "packing.yaml"
+        table = _fit_cli(
+            data, "--column", "packing_seconds", "--lower", "0", "--out", out
+        )
+        assert out.read_text() == (BLUEPRINTS / "fitted" / "packing.yaml").read_text()
+        waits = {}
+        for name, extra in (("triangular", []), ("gamma", ["--candidates", "gamma"])):
+            _fit_cli(
+                data,
+                "--column",
+                "packing_seconds",
+                "--lower",
+                "0",
+                "--out",
+                out,
+                *extra,
+            )
+            blueprint = tmp_path / "fit_the_inputs.yaml"
+            blueprint.write_text((BLUEPRINTS / "fit_the_inputs.yaml").read_text())
+            [row] = replicate(
+                blueprint,
+                40,
+                seed=42,
+                until=None,
+                measures=["tasks.pack_order.wait_mean"],
+            ).summary
+            waits[name] = (round(row["mean"], 2), round(row["half_width"], 2))
+        assert waits == {k: FIT_WAITS[k] for k in waits}
+    else:
+        module = _load("fit_the_inputs" + ("" if api == "builder" else "_low_level"))
+        result = module.fitted()
+        table = capsys.readouterr().out
+        assert round(result.settings("triangular")["mode"], 3) == 1.2
+        waits = {
+            name: (round(row["mean"], 2), round(row["half_width"], 2))
+            for name, row in module.mean_waits(result).items()
+        }
+        assert waits == FIT_WAITS
+    assert "triangular *      fitted            56.68" in table
+    assert "gamma             fitted            56.79" in table
+    assert "exponential       rejected" in table
+    assert "(can draw below the lower bound 0)" in table
