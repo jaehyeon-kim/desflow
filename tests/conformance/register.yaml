@@ -222,6 +222,7 @@
   low_level: "`request.cancel()`, or leaving the `with` block"
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_cancel_before_a_grant
+    - tests/conformance/test_c4_resources.py::test_c4_renege_ahead_of_a_preempting_request
   page: user-guide/resources.md#cancel-and-release
 
 - id: C4
@@ -441,6 +442,7 @@
     - tests/conformance/test_c7_patience.py::test_c7_reneging_tie_timeout_scheduled_after_the_grant
     - tests/conformance/test_c7_patience.py::test_c7_reneging_tie_timeout_scheduled_before_the_grant
     - tests/conformance/test_c7_patience.py::test_c7_reneged_request_leaves_the_queue
+    - tests/conformance/test_c7_patience.py::test_c7_patience_pauses_during_service
   page: tutorials/patience.md#leave-after-a-wait
 
 - id: C7

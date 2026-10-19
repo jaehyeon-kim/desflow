@@ -70,7 +70,9 @@ In Python the same settings are a mapping, and the model is a blueprint path, a 
 | `model` | a blueprint path; `!python module.function`, a function returning a new `SimulationContext`; or `{function: !python module.function, sim_id: Shop}`, a [low-level function](replications.md#run-replications) | required |
 | `assumptions` | sentences the report lists | none |
 | `inputs` | each distribution's registry path, such as `Shop.service.packing`, and where its values came from | none |
-| `until` | each run's end time, in seconds or a duration such as `8 h` | required |
+| `until` | where each run's arrivals stop, in seconds or a duration such as `8 h`; the run ends there unless `stop` ends it earlier or `drain` runs on | required |
+| `stop` | ends each run when it happens: `{signal: name}` or `{condition: "..."}` | a blueprint's `run.stop` |
+| `drain` | at `until`, stop the arrivals and run on until the model is empty: `true`, or `{limit: 1 h}` | a blueprint's `run.drain` |
 | `warmup` | each run's warm-up | the model's own |
 | `replications` | runs of each design, 2 or more | required |
 | `seed` | the seed every run's seed is spawned from | required |
@@ -173,10 +175,11 @@ A check whose measure is not in `measures` is refused. The experiment writes eve
 | `service_*` of a task, recorded when an instance finishes | `s` | `finished instances` |
 | `utilization` and `utilization_avg` | `percent` | `end of run` and `time average` |
 | other `*_avg`, such as `queue_length_avg` | `count`, or `amount` for a container | `time average` |
-| task and flow counts, such as `finished` | `count` | `count over the horizon` |
+| task and flow counts, such as `finished` and `started` | `count` | `count over the horizon` |
+| `in_system` of a flow and `in_progress` of a task | `count` | `end of run` |
 | other readings, such as `queue_length` | `count`, or `amount` for a container | `end of run` |
 
-The horizon is the end time minus the warm-up, in seconds or a duration such as `57 min`. This compares the model's output with the real system's; it is not the fitting of an input distribution, which [Input Fitting](input-fitting.md) covers.
+The horizon is `until` minus the warm-up, in seconds or a duration such as `57 min`; it describes a run that ends at `until`, so with a `stop` or a `drain` the observed values must cover the same entities as the simulated ones. This compares the model's output with the real system's; it is not the fitting of an input distribution, which [Input Fitting](input-fitting.md) covers.
 
 ### Files
 
@@ -420,6 +423,6 @@ The `experiment` example is the experiment above: one hour of the shop with two 
 
 - **Finite designs only.** Variants and sweeps list their values. Latin hypercube designs, sampling uncertain inputs and searching for the best design are not part of an experiment.
 - **No event records.** An experiment writes its files and sends nothing to the model's sinks. Run one design with one seed to see its records.
-- **Fixed horizons.** Every run ends at `until`. Entities still in the model then are not finished, so a count of finished entities leaves them out; Counts shows what each design finished.
+- **End of a run.** A run ends at `until`, unless `stop` ends it earlier or `drain` runs it on until the model is empty; a blueprint's own `run.stop` and `run.drain` apply when the experiment does not set them. Entities still in the model at the end are not finished, so a count of finished entities leaves them out; Counts shows what each design started, finished and left.
 - **Observed values are outputs.** The observed comparison is a check of the model's output against the real system's for the question asked. It does not fit inputs, and one value inside an interval does not make a model valid for every question.
 - **One machine.** `workers` runs replications in parallel processes on one machine; there is no distributed or server executor.

@@ -171,6 +171,11 @@ class TaskRun:
         self.process: Any = None
         # The put or get the task is waiting for, cancelled by an interrupt
         self._pending: Any = None
+        # The child flows a `{task}` wait started, by branch, kept for a resume
+        self._children: Dict[str, Any] = {}
+        # The patience still to use, and when the current wait began
+        self._patience_left: Optional[float] = None
+        self._patience_since: Optional[float] = None
 
     # ------------------------------------------------------------------ records
 
@@ -253,21 +258,26 @@ class TaskRun:
             stats.task_balked(spec.name, self.task_id)
             self._end_flow("ended")
             return None
-        # The patience timer starts when the task joins its first queue and covers
-        # every wait after it: the wait, the resources, then the get.
-        deadline = None
+        # The patience counts waiting time only: it runs while the task waits for
+        # its wait, its resources or its get, and pauses while it is served, so a
+        # preempted task that queues again goes on from the time it had used, as
+        # SimPy's reneging pattern `req | env.timeout(patience_left)` does.
         if spec.queues:
             self.publish(self.status("queued"))
             stats.task_queued(spec.name, self.task_id)
             if spec.patience is not None:
-                deadline = env.timeout(float(self._patience()))
+                self._patience_left = float(self._patience())
 
         failure: Any = None
         while spec.wait is not None:
             try:
-                outcome = yield from self._wait(deadline)
+                outcome = yield from self._wait(self._deadline())
+                self._waited()
             except Interrupt as interrupt:
+                self._waited()
                 if self._interrupted(interrupt):
+                    if spec.on_interrupt == "restart":
+                        self._children = {}  # a restart starts its child flows again
                     continue  # resume or restart: wait again
                 return (yield from self._abandon(interrupt))
             if outcome is _RENEGED:
@@ -292,10 +302,12 @@ class TaskRun:
                         rank, preempt=spec.preempt
                     )
                     held.append(request)
+                    deadline = self._deadline()
                     if deadline is None:
                         yield request
                     else:
                         yield request | deadline
+                        self._waited()
                         # The patience ran out before a unit was free: leave the
                         # queue, give back the units held so far, and renege.
                         if not request.triggered:
@@ -303,7 +315,10 @@ class TaskRun:
                             self._renege()
                             return None
                 if spec.get is not None and not got_item:
-                    got = yield from self._transfer(spec.get, "get", None, deadline)
+                    got = yield from self._transfer(
+                        spec.get, "get", None, self._deadline()
+                    )
+                    self._waited()
                     if got is _RENEGED:
                         self._release(held)
                         self._renege()
@@ -342,10 +357,14 @@ class TaskRun:
                 if failure is None:
                     self.publish(payload)
                     stats.task_finished(spec.name, self.task_id)
+                    # A stop condition, such as `t >= 300`, is checked after every
+                    # finished task as well as after every change of state
+                    env.notify_change()
                 else:
                     self.publish(self.status("failed", reason=failure))
                     stats.task_failed(spec.name, self.task_id)
             except Interrupt as interrupt:
+                self._waited()
                 self._release(held)
                 if service_from is not None and remaining is not None:
                     # resume serves what is left; restart draws a new service time
@@ -407,6 +426,19 @@ class TaskRun:
             self._end_flow("finished")
             return None
         return (yield from self._follow(following, handed))
+
+    def _deadline(self) -> Any:
+        """A timer for the patience left, started now, or None without patience."""
+        if self._patience_left is None:
+            return None
+        self._patience_since = self.env.now
+        return self.env.timeout(self._patience_left)
+
+    def _waited(self) -> None:
+        """Takes the time waited since `_deadline` from the patience left."""
+        if self._patience_since is not None and self._patience_left is not None:
+            self._patience_left -= self.env.now - self._patience_since
+            self._patience_since = None
 
     def _release(self, held: List[Any]) -> None:
         """Cancels requests still waiting and gives back granted units, last first,
@@ -622,14 +654,20 @@ class TaskRun:
             if kind == "signal":
                 events[name] = self.context._signals[target].wait()
             elif kind == "task":
-                events[name] = self.context._start(
-                    target,
-                    self.entity,
-                    self.upstream,
-                    child=True,
-                    args=self.args,
-                    kwargs=self.kwargs,
-                )
+                # A wait resumed after an interrupt waits again for the child flow
+                # it started, as a SimPy process yields the same process again
+                child = self._children.get(name)
+                if child is None:
+                    child = self.context._start(
+                        target,
+                        self.entity,
+                        self.upstream,
+                        child=True,
+                        args=self.args,
+                        kwargs=self.kwargs,
+                    )
+                    self._children[name] = child
+                events[name] = child
             elif kind == "timeout":
                 events[name] = env.timeout(target)
             else:
@@ -650,7 +688,9 @@ class TaskRun:
             # running, as SimPy leaves processes running.
             for stop in stop_watching:
                 stop()
-        if failure is None and not joined.triggered:
+        # The patience timer was scheduled first, so at a tie it wins: the wait's
+        # condition is then triggered but not processed, and has no value yet
+        if failure is None and not joined.processed:
             return _RENEGED
         for name, event in events.items():
             done = (event in joined.value) if joined.ok else event.processed

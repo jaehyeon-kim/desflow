@@ -85,7 +85,9 @@ class ExperimentSpec(_Model):
     `model` is a blueprint path, a builder factory (a function with no arguments
     returning a new `SimulationContext`), a `LowLevelModel`, or in a file a mapping
     of a low-level `function` and its `sim_id`. Relative paths are read from the
-    experiment file's folder.
+    experiment file's folder. `until` is where each replication's arrivals stop;
+    `stop` and `drain` end each replication as `SimulationContext.run` does, and
+    when they are not set a blueprint's own `run.stop` and `run.drain` apply.
     """
 
     experiment: str
@@ -94,6 +96,13 @@ class ExperimentSpec(_Model):
     assumptions: List[str] = Field(default_factory=list)
     inputs: Dict[str, str] = Field(default_factory=dict)
     until: float = Field(gt=0)
+    # Ends each replication early, `{signal: name}` or `{condition: "..."}`, or
+    # for a low-level model a function of the environment; None keeps a
+    # blueprint's run.stop
+    stop: Any = None
+    # At until, stop the arrivals and run on until the model is empty: true, or
+    # {limit: duration}; None keeps a blueprint's run.drain
+    drain: Any = None
     warmup: Optional[float] = Field(default=None, ge=0)
     replications: int = Field(ge=2)
     seed: int

@@ -148,15 +148,15 @@ def _run(
     if seed is not None:
         context.random_seed = seed
     if replications is not None:
-        if drain:
-            typer.echo(
-                "Error: --drain does not apply to --replications; set run.drain: "
-                "true in the file, which every replication follows",
-                err=True,
-            )
-            raise typer.Exit(code=1)
         _replicate(
-            file, replications, context.random_seed, stop_at, level, measure, workers
+            file,
+            replications,
+            context.random_seed,
+            stop_at,
+            level,
+            measure,
+            workers,
+            drain,
         )
         return
     try:
@@ -181,8 +181,9 @@ def _replicate(
     level: float,
     measures: Optional[List[str]],
     workers: int,
+    drain: bool,
 ) -> None:
-    """Runs the replications and prints their summary."""
+    """Runs the replications and prints their summary; `--drain` drains each."""
     from desflow.analysis.runner import replicate
 
     if seed is None:
@@ -196,6 +197,7 @@ def _replicate(
             measures=measures,
             level=level,
             workers=workers,
+            drain=True if drain else None,
         )
     except ValueError as exc:
         typer.echo(f"Error: {exc}", err=True)

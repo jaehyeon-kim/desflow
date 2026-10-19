@@ -53,7 +53,7 @@ And two labels, as a JSON Lines sink writes them:
 
 - `sim_ts` is rounded to three decimal places and is always a float, so simulation time 0 is `0.0`.
 - `key` and `path_id` are strings. `bytes` and `bytearray` are decoded to strings; any other type, such as an `int`, raises a Pydantic `ValidationError` at the call.
-- `task` is the name of a builder or YAML task; `instance` is its instance id, an integer from 0 for a builder or YAML task, or what a low-level process passes.
+- `task` is the name of a builder or YAML task; `instance` is its instance id, an integer from 0 for a builder or YAML task, or what a low-level process passes. `publish_event` and `publish_label` do not check `task`, `instance` or `path`, so a low-level process that passes another type writes that type; the types in the table are what the builder and YAML write.
 - `value`, `old`, `new` and `label` are converted to plain JSON values before any sink sees them. A Pydantic V2 model becomes a dictionary, a datetime an ISO string, and a NaN or an infinity `None`, in a model at any depth as in a plain dictionary.
 
 ```python title="docs/snippets/pages/records.py:values"
@@ -153,13 +153,13 @@ env.publish_label({"fault": "slow_packing"}, path="Shop.service.packing.scale")
 
 ## Reserved Payload Keys
 
-A key of an event's `value` that starts and ends with two underscores, such as `__table__` or `__stream__`, belongs to desflow, not to the data. A sink that routes by one uses it and removes it: `PostgresEgress` writes the record to the table its `__table__` names, and `RedisEgress` to the stream its `__stream__` names. Every other sink, `KafkaEgress`, the Parquet, JSON Lines and Iceberg sinks and `ConsoleEgress`, drops every such key and logs one warning per key the first time it meets it:
+A key of a record's `value`, an event's or a telemetry value that is a mapping, that starts and ends with two underscores, such as `__table__` or `__stream__`, belongs to desflow, not to the data. A sink that routes by one uses it and removes it: `PostgresEgress` writes the record to the table its `__table__` names, and `RedisEgress` to the stream its `__stream__` names. Every other sink, `KafkaEgress`, the Parquet, JSON Lines and Iceberg sinks and `ConsoleEgress`, drops every such key and logs one warning per key the first time it meets it:
 
 ```text
 KafkaEgress drops the payload key '__table__': keys that start and end with two underscores are reserved for desflow, and only a sink that routes by one, such as PostgreSQL's __table__ or Redis's __stream__, uses it. Rename the key to keep it as data.
 ```
 
-The record itself is not changed, so a PostgreSQL sink on the same run still finds its `__table__`. Rename a key such as `__source__` to `source` to keep it as data.
+The record itself is not changed, so a PostgreSQL sink on the same run still finds its `__table__`. A sink drops the keys before its router sees the record, so a Kafka `topic_router` or a storage `path_router` cannot route by such a key. `PostgresEgress` and `RedisEgress` drop only their own routing key, so any other such key reaches their rows as data. Rename a key such as `__source__` to `source` to keep it as data.
 
 ## What Each Sink Writes
 

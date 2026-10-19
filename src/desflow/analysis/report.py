@@ -59,6 +59,15 @@ def _distributions(experiment: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
     }
 
 
+def _end_setting(value: Any, unset: str) -> str:
+    """A stop or drain setting as the report shows it; unset, the model's own."""
+    if value is None:
+        return f"{unset} unless the model's own run sets one"
+    if value is True:
+        return "yes"
+    return f"`{value}`"
+
+
 def _missing_inputs(experiment: Dict[str, Any]) -> List[str]:
     """What the experiment does not state: each is named, never filled in."""
     missing = []
@@ -143,11 +152,14 @@ def build_report(folder: Union[str, Path]) -> str:
     lines += _table(
         ["Setting", "Value"],
         [
-            ["End time", f"{_number(settings['until'])} s"],
+            ["Until, where arrivals stop", f"{_number(settings['until'])} s"],
+            ["Stop", _end_setting(settings.get("stop"), "none")],
+            ["Drain", _end_setting(settings.get("drain"), "no")],
             ["Warm-up", f"{_number(warmup)} s"],
             [
                 "Measured horizon",
-                f"{_number(horizon)} s, the end time minus the warm-up",
+                f"{_number(horizon)} s, until minus the warm-up, for a run that "
+                "ends at until",
             ],
             ["Replications", f"{settings['replications']} per design"],
             [

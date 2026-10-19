@@ -15,7 +15,7 @@ Requires the odctl `catalog` profile: `odctl up catalog`.
 
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pyarrow as pa
 
@@ -102,7 +102,7 @@ router = create_table_router(EVENTS_TABLE)
 # The day of backdating this example exists to demonstrate. It sits at module scope
 # because the builder below needs it, and the builder has to stay at module scope for
 # the decorators further down to attach to it.
-LOGICAL_START_TIME = datetime.now() - timedelta(days=1)
+LOGICAL_START_TIME = datetime.now(timezone.utc) - timedelta(days=1)
 
 # ==========================================
 # 2. Infrastructure Builder

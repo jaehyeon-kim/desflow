@@ -295,3 +295,171 @@ def test_c7_balking():
         assert at(records, "queued") == []
         assert env.stats.readings()["C7balk.stats.tasks.maybe.balked"] == 1
         assert machine.queue.items == [] and machine.in_use == 0
+
+
+# Patience with preemption: the patience counts waiting time only. A low job waits
+# 10 s for the machine, is served from 10 and preempted at 13 by a high job that
+# holds it for 5 s; it queues again with the patience it has left, so with a
+# patience of 12 it reneges at 15, and with 20 it resumes at 18.
+
+
+def _reference_preempted(patience):
+    env = simpy.Environment()
+    machine = simpy.PreemptiveResource(env, capacity=1)
+    trace = []
+
+    def job(name, priority, service):
+        with machine.request(priority=priority) as req:
+            yield req
+            trace.append((env.now, name, "started"))
+            yield env.timeout(service)
+            trace.append((env.now, name, "finished"))
+
+    def low():
+        left, remaining, started = patience, 8.0, False
+        while True:
+            try:
+                with machine.request(priority=2) as req:
+                    since = env.now
+                    result = yield req | env.timeout(left)
+                    if req not in result:
+                        trace.append((env.now, "low", "reneged"))
+                        return
+                    left -= env.now - since
+                    trace.append((env.now, "low", "resumed" if started else "started"))
+                    started, served_from = True, env.now
+                    yield env.timeout(remaining)
+                    trace.append((env.now, "low", "finished"))
+                    return
+            except simpy.Interrupt:
+                remaining -= env.now - served_from
+                trace.append((env.now, "low", "preempted"))
+
+    def high():
+        yield env.timeout(13)
+        yield from job("high", 0, 5)
+
+    env.process(job("first", 1, 10))
+    env.process(low())
+    env.process(high())
+    env.run(until=40)
+    return trace
+
+
+def _named(records):
+    names = {"firsts": "first", "lows": "low", "highs": "high"}
+    out = []
+    for r in records:
+        if r["stream_type"] != "event":
+            continue
+        status = r["value"].get("status", "finished")
+        if status != "queued":
+            out.append((r["sim_ts"], names[r["key"].split("-")[0]], status))
+    return out
+
+
+def _builder_preempted(patience):
+    app = SimulationContext("C7p", factor=0.0)
+    app.add_resource(
+        "machine", current_cap=1, max_cap=1, queue="priority", preempt=True
+    )
+    app.add_service("first", dist="constant", value=10)
+    app.add_service("work", dist="constant", value=8)
+    app.add_service("rush", dist="constant", value=5)
+    app.add_arrival_replay("firsts", [{"time": 0}])
+    app.add_arrival_replay("lows", [{"time": 0}])
+    app.add_arrival_replay("highs", [{"time": 13}])
+
+    @app.task(service_id="first", resource_id="machine", priority=1)
+    def first_job(task_id):
+        return {"event": "done"}
+
+    @app.task(
+        service_id="work",
+        resource_id="machine",
+        priority=2,
+        patience=patience,
+        on_interrupt="resume",
+    )
+    def low_job(task_id):
+        return {"event": "done"}
+
+    @app.task(service_id="rush", resource_id="machine", priority=0)
+    def high_job(task_id):
+        return {"event": "done"}
+
+    for arrival, task in (
+        ("firsts", first_job),
+        ("lows", low_job),
+        ("highs", high_job),
+    ):
+
+        def loop(context, arrival=arrival, task=task):
+            while True:
+                entity = yield context.wait_for_arrival(arrival)
+                context.spawn(task(context.next_instance(task.__name__), entity=entity))
+
+        app.arrival_loop(arrival)(loop)
+    return run_builder(app, 40)
+
+
+def _low_level_preempted(patience):
+    trace = []
+
+    def start(env):
+        machine = DynamicResource(env, "C7p", "machine", queue="priority", preempt=True)
+
+        def job(name, priority, service):
+            with machine.request(priority=priority) as req:
+                yield req
+                trace.append((env.now, name, "started"))
+                yield env.timeout(service)
+                trace.append((env.now, name, "finished"))
+
+        def low():
+            left, remaining, started = patience, 8.0, False
+            while True:
+                try:
+                    with machine.request(priority=2) as req:
+                        since = env.now
+                        result = yield req | env.timeout(left)
+                        if req not in result:
+                            trace.append((env.now, "low", "reneged"))
+                            return
+                        left -= env.now - since
+                        trace.append(
+                            (env.now, "low", "resumed" if started else "started")
+                        )
+                        started, served_from = True, env.now
+                        yield env.timeout(remaining)
+                        trace.append((env.now, "low", "finished"))
+                        return
+                except simpy.Interrupt:
+                    remaining -= env.now - served_from
+                    trace.append((env.now, "low", "preempted"))
+
+        def high():
+            yield env.timeout(13)
+            yield from job("high", 0, 5)
+
+        env.process(job("first", 1, 10))
+        env.process(low())
+        env.process(high())
+
+    run_low_level(_machine("C7p"), start, 40)
+    return trace
+
+
+def test_c7_patience_pauses_during_service(monkeypatch):
+    """With a patience of 12 the preempted low job has 2 s left and reneges at 15;
+    with 20 it has 10 s left and resumes at 18, when the high job ends."""
+    for patience, ending in (
+        (12, (15, "low", "reneged")),
+        (20, (18, "low", "resumed")),
+    ):
+        expected = sorted(_reference_preempted(patience))
+        assert ending in expected
+        assert sorted(_low_level_preempted(patience)) == expected
+        assert sorted(_named(_builder_preempted(patience))) == expected
+        monkeypatch.setenv("PATIENCE", str(patience))
+        assert sorted(_named(run_yaml("c7_patience_preempted.yaml")[0])) == expected

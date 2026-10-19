@@ -13,7 +13,7 @@ variables `yaml/parquet.yaml` reads: `PARQUET_FILESYSTEM=s3` and `S3_ENDPOINT`,
 
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import numpy as np
 
@@ -130,7 +130,7 @@ def run():
     # ---------------------------------------------------------
     # 2. SIMULATION SETUP
     # ---------------------------------------------------------
-    start_time = datetime.now() - timedelta(days=7)
+    start_time = datetime.now(timezone.utc) - timedelta(days=7)
     env = DynamicRealtimeEnvironment(factor=0.0, logical_start_time=start_time)
     env.registry.register_sim_parameter(PARAMS)
 

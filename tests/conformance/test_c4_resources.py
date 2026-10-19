@@ -703,3 +703,152 @@ def test_c4_priority_request_with_mixed_preempt_flags():
 
     assert _mixed_starts(run_builder(app, 10.5)) == expected
     assert _mixed_starts(run_yaml("c4_mixed_preempt.yaml")[0]) == expected
+
+
+# A renege ahead of a preempting request: SimPy tries the head of the queue after
+# every release, the release of a request that reneged included. A waiting request
+# of priority 0 that may not preempt stands ahead of one of priority 1 that may;
+# when the first reneges at 3, the second becomes the head and preempts the holder.
+
+
+def _reference_renege_ahead():
+    env = simpy.Environment()
+    machine = simpy.PreemptiveResource(env, capacity=1)
+    trace = []
+
+    def holder():
+        try:
+            with machine.request(priority=2) as req:
+                yield req
+                trace.append((env.now, "holder", "started"))
+                yield env.timeout(20)
+        except simpy.Interrupt:
+            trace.append((env.now, "holder", "preempted"))
+
+    def patient():
+        yield env.timeout(1)
+        with machine.request(priority=0, preempt=False) as req:
+            result = yield req | env.timeout(2)
+            if req not in result:
+                trace.append((env.now, "patient", "reneged"))
+                return
+            trace.append((env.now, "patient", "started"))
+            yield env.timeout(1)
+
+    def eager():
+        yield env.timeout(2)
+        with machine.request(priority=1) as req:
+            yield req
+            trace.append((env.now, "eager", "started"))
+            yield env.timeout(1)
+
+    for process in (holder, patient, eager):
+        env.process(process())
+    env.run(until=10)
+    return trace
+
+
+def _renege_trace(records):
+    names = {"holders": "holder", "patients": "patient", "eagers": "eager"}
+    return [
+        (t, names[key.split("-")[0]], status)
+        for t, key, _task, status in event_trace(records)
+        if status in ("started", "reneged", "preempted")
+    ]
+
+
+def test_c4_renege_ahead_of_a_preempting_request():
+    """At 3 the request of priority 0 reneges, and the request of priority 1 behind
+    it takes the machine from the holder at once, as in SimPy."""
+    expected = _reference_renege_ahead()
+    assert expected == [
+        (0, "holder", "started"),
+        (3, "patient", "reneged"),
+        (3, "holder", "preempted"),
+        (3, "eager", "started"),
+    ]
+    trace = []
+
+    def start(env):
+        machine = DynamicResource(env, "C4r", "machine", queue="priority", preempt=True)
+
+        def holder():
+            try:
+                with machine.request(priority=2) as req:
+                    yield req
+                    trace.append((env.now, "holder", "started"))
+                    yield env.timeout(20)
+            except simpy.Interrupt:
+                trace.append((env.now, "holder", "preempted"))
+
+        def patient():
+            yield env.timeout(1)
+            with machine.request(priority=0, preempt=False) as req:
+                result = yield req | env.timeout(2)
+                if req not in result:
+                    trace.append((env.now, "patient", "reneged"))
+                    return
+                trace.append((env.now, "patient", "started"))
+                yield env.timeout(1)
+
+        def eager():
+            yield env.timeout(2)
+            with machine.request(priority=1) as req:
+                yield req
+                trace.append((env.now, "eager", "started"))
+                yield env.timeout(1)
+
+        for process in (holder, patient, eager):
+            env.process(process())
+
+    params = SimParameter(
+        sim_id="C4r", resources={"machine": CapacityConfig(current_cap=1, max_cap=1)}
+    )
+    run_low_level(params, start, 10)
+    assert trace == expected
+
+    app = SimulationContext("C4r", factor=0.0)
+    app.add_resource(
+        "machine", current_cap=1, max_cap=1, queue="priority", preempt=True
+    )
+    app.add_service("hold", dist="constant", value=20)
+    app.add_service("work", dist="constant", value=1)
+    app.add_arrival_replay("holders", [{"time": 0}])
+    app.add_arrival_replay("patients", [{"time": 1}])
+    app.add_arrival_replay("eagers", [{"time": 2}])
+
+    @app.task(
+        service_id="hold", resource_id="machine", priority=2, on_interrupt="abandon"
+    )
+    def holder(task_id):
+        return {"event": "done"}
+
+    @app.task(
+        service_id="work",
+        resource_id="machine",
+        priority=0,
+        preempt=False,
+        patience=2,
+    )
+    def patient(task_id):
+        return {"event": "done"}
+
+    @app.task(service_id="work", resource_id="machine", priority=1)
+    def eager(task_id):
+        return {"event": "done"}
+
+    for arrival, task in (
+        ("holders", holder),
+        ("patients", patient),
+        ("eagers", eager),
+    ):
+
+        def loop(context, arrival=arrival, task=task):
+            while True:
+                entity = yield context.wait_for_arrival(arrival)
+                context.spawn(task(context.next_instance(task.__name__), entity=entity))
+
+        app.arrival_loop(arrival)(loop)
+
+    assert _renege_trace(run_builder(app, 10)) == expected
+    assert _renege_trace(run_yaml("c4_renege_ahead.yaml")[0]) == expected

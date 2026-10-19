@@ -442,6 +442,17 @@ class Statistics:
             self._started_flows[flow] = self._started_flows.get(flow, 0) + 1
             self._in_system[flow] = self._in_system.get(flow, 0) + 1
 
+    def in_system(self) -> int:
+        """
+        Returns how many entities of every flow are in the model now.
+
+        It counts only at `basic` or above, where `flow_started` records them.
+
+        Returns:
+            int: The entities started and not yet finished, failed or ended.
+        """
+        return sum(self._in_system.values())
+
     def flow_ended(self, flow: str) -> None:
         """
         Records that an entity left the model without finishing or failing: it

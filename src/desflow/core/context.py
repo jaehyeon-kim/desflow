@@ -828,7 +828,8 @@ class SimulationContext:
            resource or a `get`.
         3. Waits for its `wait`, then for a unit of each resource in `resource_id`,
            in the order listed and each in its queue order, then for its `get`;
-           `patience` covers all three.
+           `patience` counts the time spent waiting for all three, and pauses
+           while the task is served.
         4. Emits a `started` event.
         5. Executes the wrapped user function to extract custom payload data.
         6. Samples the live `service_id` distribution and yields the timeout.
@@ -875,8 +876,11 @@ class SimulationContext:
                 "task": ...}], "default": ...}`, `{"weights": {name: weight}}`, or a
                 function of the `Upstream` returning a name or None.
             set: Attribute values applied to the entity when the task finishes.
-            patience: How long the task waits for its resource before it leaves the
-                queue and publishes `reneged`: seconds, a duration such as `"30 s"`,
+            patience: How long the task may wait, for its `wait`, its resources and
+                its `get` together, before it leaves the queue and publishes
+                `reneged`. It pauses while the task is served, so a preempted task
+                that queues again goes on with the time it has left. Seconds, a
+                duration such as `"30 s"`,
                 an expression such as `"attr.patience"`, or a function of the task id
                 and the entity's attributes.
             balk: A condition, such as `"t >= 3300"`, checked before the task joins
@@ -1214,7 +1218,9 @@ class SimulationContext:
                 an iterable of mappings.
             time: The column of each row's time.
             unit: `ms`, `s`, `min` or `h` from the start of the run, or `timestamp`
-                for a date and time read from `logical_start_time`.
+                for a date and time, which arrives when the run's records carry
+                that time: `logical_start_time` is simulation time 0, whatever
+                the `initial_time`.
             fields: The columns each entity carries, or `all`.
             on_invalid: `error` refuses a row with no valid time; `skip` leaves it
                 out with a warning.
@@ -1593,6 +1599,7 @@ class SimulationContext:
         stats: Optional[str] = None,
         egress: bool = True,
         ingress: bool = True,
+        run_settings: bool = True,
     ) -> DynamicRealtimeEnvironment:
         """
         Builds and starts everything `run()` does before the clock moves.
@@ -1624,6 +1631,9 @@ class SimulationContext:
                 records, and its statistics are read at the end.
             ingress: False builds the run without its ingress, so no connector
                 listens for parameter changes.
+            run_settings: False leaves out a blueprint's `run.until`, `run.stop`
+                and `run.drain`, for a run whose clock never moves, such as the
+                one that sends replications' summary to the sinks.
 
         Returns:
             DynamicRealtimeEnvironment: The environment, also `context.env`.
@@ -1632,11 +1642,11 @@ class SimulationContext:
             ValueError: As for `run()`; or `stats` is not a level, or an override's
                 path does not exist or its value is refused.
         """
-        if until is None:
+        if until is None and run_settings:
             until = self._default_until
-        if stop is None:
+        if stop is None and run_settings:
             stop = self._default_stop
-        if drain is None:
+        if drain is None and run_settings:
             drain = self._default_drain
         # Read before any connector starts its thread, so a bad value stops the run
         # with nothing to tear down
@@ -1805,8 +1815,9 @@ class SimulationContext:
             if meta:
                 # Arrival loops require context injection
                 process = self._env.process(loop_func(self))
-                # Stopped by an interrupt when a drain starts, which ends the loop
-                process.callbacks.append(_defuse)
+                # Stopped by an interrupt when a drain starts, which ends the loop;
+                # any other error in the loop still stops the run, as in SimPy
+                process.callbacks.append(_defuse_arrivals_stopped)
                 self._arrival_processes.append(process)
             else:
                 # Telemetry loops run blindly
@@ -1855,7 +1866,7 @@ class SimulationContext:
         """
         for process in getattr(self, "_arrival_processes", []):
             if process.is_alive:
-                process.interrupt("arrivals stopped")
+                process.interrupt(_ARRIVALS_STOPPED)
 
     def _end_event(self, until: Any, stop: Any, drain: Any) -> Optional[simpy.Event]:
         """The event that ends the run when `stop` or `drain` is given, else None.
@@ -2116,6 +2127,20 @@ def _check_end(until: Any, stop: Any, drain: Any, signals: List[str]) -> None:
         Expression(target)
     else:
         raise ValueError(f"stop takes a signal or a condition, not '{kind}'")
+
+
+_ARRIVALS_STOPPED = "arrivals stopped"
+
+
+def _defuse_arrivals_stopped(event: Any) -> None:
+    """Marks an arrival loop ended by `stop_arrivals` as handled, and nothing else."""
+    value = getattr(event, "_value", None)
+    if (
+        not event.ok
+        and isinstance(value, simpy.Interrupt)
+        and value.cause == _ARRIVALS_STOPPED
+    ):
+        event.defused = True
 
 
 def _defuse(event: Any) -> None:

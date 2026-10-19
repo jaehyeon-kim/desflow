@@ -989,7 +989,7 @@ def test_cached_timestamp_is_the_isoformat_text():
 
     env = DynamicRealtimeEnvironment(factor=0)
     starts = [
-        datetime(2026, 10, 1, 9, 0, 0, 999_500),
+        datetime(2026, 10, 1, 9, 0, 0, 999_500, tzinfo=timezone.utc),
         datetime(2026, 10, 3, 12, 0, tzinfo=ZoneInfo("Australia/Melbourne")),
         datetime(2026, 1, 1, tzinfo=timezone.utc),
     ]
@@ -997,13 +997,10 @@ def test_cached_timestamp_is_the_isoformat_text():
     times += [s + 0.0005 for s in range(1000)] + [s + 0.9995 for s in range(1000)]
     for start in starts:
         env.zone = start.tzinfo
-        for now in times[:: 1 if start.tzinfo is None else 7]:
-            if start.tzinfo is None:
-                moment = start + timedelta(seconds=now)
-            else:
-                # The clock runs in UTC and the text is written in the zone
-                utc = start.astimezone(timezone.utc) + timedelta(seconds=now)
-                moment = utc.astimezone(start.tzinfo)
+        for now in times[:: 1 if start.tzinfo is timezone.utc else 7]:
+            # The clock runs in UTC and the text is written in the zone
+            utc = start.astimezone(timezone.utc) + timedelta(seconds=now)
+            moment = utc.astimezone(start.tzinfo)
             expected = moment.isoformat(timespec="milliseconds")
             assert env._get_iso_timestamp(start, now) == expected, (start, now)
 

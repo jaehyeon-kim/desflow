@@ -13,7 +13,7 @@ Requires the odctl `catalog` profile: `odctl up catalog`.
 
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import numpy as np
 import pyarrow as pa
@@ -142,7 +142,7 @@ def run():
     # ---------------------------------------------------------
     # 1. SIMULATION SETUP
     # ---------------------------------------------------------
-    start_time = datetime.now() - timedelta(days=1)
+    start_time = datetime.now(timezone.utc) - timedelta(days=1)
     env = DynamicRealtimeEnvironment(factor=0.0, logical_start_time=start_time)
     env.registry.register_sim_parameter(PARAMS)
 

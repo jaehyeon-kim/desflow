@@ -1,0 +1,36 @@
+# A job of priority 1 holds a preemptive machine from 0 to 10; a low job with a
+# patience waits from 0 and is served at 10; a high job at 13 preempts it for 5 s.
+# The patience pauses during service. See test_c7_patience.py.
+simulation:
+  sim_id: C7p
+  factor: 0
+resources:
+  machine: {current_cap: 1, max_cap: 1, queue: priority, preempt: true}
+services:
+  first: {dist: constant, value: 10}
+  work: {dist: constant, value: 8}
+  rush: {dist: constant, value: 5}
+arrivals:
+  firsts: {replay: {path: c7_first.csv}, spawn: first_job}
+  lows: {replay: {path: c7_first.csv}, spawn: low_job}
+  highs: {replay: {path: c7_high.csv}, spawn: high_job}
+tasks:
+  first_job:
+    service: first
+    resource: machine
+    priority: 1
+    payload: {event: done}
+  low_job:
+    service: work
+    resource: machine
+    priority: 2
+    patience: ${PATIENCE:-12}
+    on_interrupt: resume
+    payload: {event: done}
+  high_job:
+    service: rush
+    resource: machine
+    priority: 0
+    payload: {event: done}
+run:
+  until: 40

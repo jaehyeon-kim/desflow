@@ -8,7 +8,7 @@ Make a run that generates data go as fast as the machine allows, and measure how
 
 ## Steps
 
-1. Run at `factor: 0`. The run then waits for no wall clock, each event is processed by SimPy's own step, and no lag telemetry is published.
+1. Run at `factor: 0`, without `go_live_at`. The run then waits for no wall clock, each event is processed by SimPy's own step, and no lag telemetry is published; a pending go-live keeps the real-time step until it is reached.
 2. Ask only for the statistics you read: `minimal` reads a few values at each interval, while `typical` and `all` add work at every task step, as [Statistics](../user-guide/statistics.md#stability-and-limits) explains.
 3. Leave the console for looking at a run. It writes one line per record; a file or a stream sink costs less per record, and a counting sink almost nothing.
 4. Give a lake sink a large `batch_size`, such as 10,000, because the batch is the file; a stream sink can keep a small one.
@@ -79,7 +79,7 @@ At `factor: 0` no `system.simulation.lag_seconds` is published, so the count hol
 | 0.21.0's `ConsoleEgress`, one log call per record | 0.672 | 1.902 | 157,771 |
 
 - **0.22.0 against 0.21.0:** the run takes 0.531 seconds against 0.604, 1.14 times faster, from the three changes: SimPy's own step at `factor: 0`, a timestamp formatted once per second of the clock (300 against 580 nanoseconds a record), and no lag readings at `factor: 0`.
-- **Console:** logging a batch with one call takes 0.11 seconds more than a counting sink; one call per record took 0.76 seconds more. A terminal is slower than `/dev/null`, so a run that prints to one costs more than this.
+- **Console:** in the total, run and teardown, logging a batch with one call takes 0.11 seconds more than a counting sink; one call per record took 0.76 seconds more. A terminal is slower than `/dev/null`, so a run that prints to one costs more than this.
 - **Teardown:** about 0.6 seconds of every total is the teardown. Once the queues are empty, it waits half a second for a file sink to close its last file, so a short run spends most of its time there.
 
 Where the time goes, from a sampling profile of the run "as shipped" (a thread reads the main thread's stack every 0.2 milliseconds, as py-spy does from outside, which needs root on macOS):

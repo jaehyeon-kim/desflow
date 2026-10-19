@@ -24,7 +24,7 @@ The settings are the same on `DynamicRealtimeEnvironment`, on `SimulationContext
 app = SimulationContext(
     sim_id="Shop",
     factor=0.0,
-    logical_start_time=datetime.now() - timedelta(days=7),  # a week of history
+    logical_start_time=datetime.now(timezone.utc) - timedelta(days=7),  # a week
 )
 ```
 
@@ -78,14 +78,14 @@ unpaced = DynamicRealtimeEnvironment(factor=0.0)  # takes no real time at all
 ```
 
 - `factor: 1.0` follows the wall clock: a process that waits 5 simulation seconds waits 5 real seconds. It suits a live twin feeding a dashboard.
-- `factor: 0` does not wait at all: the run goes as fast as the machine allows. It suits history, tests and experiments. At `factor: 0` each event is processed by SimPy's own `Environment.step`, without the real-time arithmetic, and `strict` is not checked, as there is no wall clock to fall behind.
+- `factor: 0` does not wait at all: the run goes as fast as the machine allows. It suits history, tests and experiments. At `factor: 0`, once no `go_live_at` is pending, each event is processed by SimPy's own `Environment.step`, without the real-time arithmetic, and `strict` is not checked, as there is no wall clock to fall behind; before a pending go-live the real-time step runs, as it does after.
 
 ### Go Live
 
 `factor` applies until the logical clock reaches `go_live_at`, and from that instant the run is paced at one simulation second per real second. With a backdated `logical_start_time` and `factor: 0`, one run writes the history as fast as it can, then keeps going in real time:
 
 ```python title="docs/snippets/pages/pacing.py:go-live"
-go_live_at = datetime.now()
+go_live_at = datetime.now(timezone.utc)
 
 env = DynamicRealtimeEnvironment(
     factor=0.0,  # until go_live_at

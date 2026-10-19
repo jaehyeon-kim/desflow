@@ -11,7 +11,7 @@ real second, and the same events are published to Kafka as they happen.
 import logging
 import os
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import numpy as np
 
@@ -42,9 +42,11 @@ HISTORY = timedelta(minutes=float(os.getenv("HISTORY_MINUTES", "10")))
 LIVE_SECONDS = float(os.getenv("LIVE_SECONDS", "60"))
 base_path = os.getenv("DEST_PATH", "data/backfill")
 
-GO_LIVE_AT = datetime.now()
+GO_LIVE_AT = datetime.now(timezone.utc)
+# Cut to milliseconds, as timestamps are, so a record stamped in the go-live
+# millisecond is live
+GO_LIVE_AT = GO_LIVE_AT.replace(microsecond=GO_LIVE_AT.microsecond // 1000 * 1000)
 LOGICAL_START_TIME = GO_LIVE_AT - HISTORY
-GO_LIVE_ISO = GO_LIVE_AT.isoformat(timespec="milliseconds")
 
 PARAMS = SimParameter(
     sim_id="Shop",
@@ -56,12 +58,12 @@ PARAMS = SimParameter(
 
 def is_history(record: dict) -> bool:
     """True for records stamped before the go-live instant."""
-    return record["timestamp"] < GO_LIVE_ISO
+    return datetime.fromisoformat(record["timestamp"]) < GO_LIVE_AT
 
 
 def is_live(record: dict) -> bool:
     """True for records stamped at or after the go-live instant."""
-    return record["timestamp"] >= GO_LIVE_ISO
+    return datetime.fromisoformat(record["timestamp"]) >= GO_LIVE_AT
 
 
 def history_router(data: dict) -> str | None:

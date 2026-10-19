@@ -191,7 +191,7 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
     import logging
     import os
     import time
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
     from desflow import (
         KafkaAdminConnector,
@@ -224,23 +224,24 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
     # The go-live instant is now, so everything before it is history and everything after
     # it is the live tail. These sit at module scope because the builder below needs them,
     # and the builder has to stay at module scope for the decorators to attach to it.
-    GO_LIVE_AT = datetime.now()
+    GO_LIVE_AT = datetime.now(timezone.utc)
+    # Cut to milliseconds, as timestamps are, so a record stamped in the go-live
+    # millisecond is live
+    GO_LIVE_AT = GO_LIVE_AT.replace(microsecond=GO_LIVE_AT.microsecond // 1000 * 1000)
     LOGICAL_START_TIME = GO_LIVE_AT - HISTORY
 
-    # Records carry their logical time as an ISO string, so the predicates that split the
-    # two sinks compare strings. That works because every timestamp comes from the same
-    # formatter: identical layout, so ordering by text is ordering by time.
-    GO_LIVE_ISO = GO_LIVE_AT.isoformat(timespec="milliseconds")
+    # Records carry their logical time as an ISO string with its zone offset, so the
+    # predicates that split the two sinks read it as a time and compare instants.
 
 
     def is_history(record: dict) -> bool:
         """True for records stamped before the go-live instant."""
-        return record["timestamp"] < GO_LIVE_ISO
+        return datetime.fromisoformat(record["timestamp"]) < GO_LIVE_AT
 
 
     def is_live(record: dict) -> bool:
         """True for records stamped at or after the go-live instant."""
-        return record["timestamp"] >= GO_LIVE_ISO
+        return datetime.fromisoformat(record["timestamp"]) >= GO_LIVE_AT
 
 
     def history_router(data: dict) -> str | None:
@@ -408,7 +409,7 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
     import logging
     import os
     import time
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
     import numpy as np
 
@@ -439,9 +440,11 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
     LIVE_SECONDS = float(os.getenv("LIVE_SECONDS", "60"))
     base_path = os.getenv("DEST_PATH", "data/backfill")
 
-    GO_LIVE_AT = datetime.now()
+    GO_LIVE_AT = datetime.now(timezone.utc)
+    # Cut to milliseconds, as timestamps are, so a record stamped in the go-live
+    # millisecond is live
+    GO_LIVE_AT = GO_LIVE_AT.replace(microsecond=GO_LIVE_AT.microsecond // 1000 * 1000)
     LOGICAL_START_TIME = GO_LIVE_AT - HISTORY
-    GO_LIVE_ISO = GO_LIVE_AT.isoformat(timespec="milliseconds")
 
     PARAMS = SimParameter(
         sim_id="Shop",
@@ -453,12 +456,12 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
 
     def is_history(record: dict) -> bool:
         """True for records stamped before the go-live instant."""
-        return record["timestamp"] < GO_LIVE_ISO
+        return datetime.fromisoformat(record["timestamp"]) < GO_LIVE_AT
 
 
     def is_live(record: dict) -> bool:
         """True for records stamped at or after the go-live instant."""
-        return record["timestamp"] >= GO_LIVE_ISO
+        return datetime.fromisoformat(record["timestamp"]) >= GO_LIVE_AT
 
 
     def history_router(data: dict) -> str | None:
@@ -638,16 +641,17 @@ app = (
 
 ## Two Details to Get Right
 
-**Predicates compare strings, not datetimes.** A record carries its logical time as an ISO string, so `record["timestamp"] >= GO_LIVE_AT` raises a `TypeError`. Format the instant once with `isoformat(timespec="milliseconds")` and compare against that. Every timestamp is produced by the same formatter, so ordering by text is ordering by time.
+**Predicates compare times read from the timestamp.** A record carries its logical time as an ISO string with its zone offset, such as `+00:00`, so `record["timestamp"] >= GO_LIVE_AT` raises a `TypeError`. Read it with `datetime.fromisoformat` and compare instants, which holds whatever zone each side is written in. Cut the go-live instant to milliseconds, as timestamps are, so a record stamped in the go-live millisecond counts as live. Take the instant with `datetime.now(timezone.utc)`: a datetime without an offset is read in UTC, or in the run's `timezone`, not in the machine's local time.
 
 ```python title="examples/builder/backfill_live_example.py:clock"
-GO_LIVE_AT = datetime.now()
+GO_LIVE_AT = datetime.now(timezone.utc)
+# Cut to milliseconds, as timestamps are, so a record stamped in the go-live
+# millisecond is live
+GO_LIVE_AT = GO_LIVE_AT.replace(microsecond=GO_LIVE_AT.microsecond // 1000 * 1000)
 LOGICAL_START_TIME = GO_LIVE_AT - HISTORY
 
-# Records carry their logical time as an ISO string, so the predicates that split the
-# two sinks compare strings. That works because every timestamp comes from the same
-# formatter: identical layout, so ordering by text is ordering by time.
-GO_LIVE_ISO = GO_LIVE_AT.isoformat(timespec="milliseconds")
+# Records carry their logical time as an ISO string with its zone offset, so the
+# predicates that split the two sinks read it as a time and compare instants.
 ```
 
 **`flush_interval` has no effect before `go_live_at`, so `batch_size` decides the history.** The interval flush is a simulation process, and it is only started if `factor` is non-zero when the egress is set up. This run starts at `factor=0.0`, so until go-live records leave the buffer only when it fills to `batch_size`. That sets the number of Parquet part files. From go-live the interval flush starts, so the live tail also flushes every `flush_interval`, and that decides how often Kafka sees anything. Give each sink its own `batch_size` and `flush_interval` to separate those two jobs:
@@ -670,7 +674,7 @@ The two halves look different enough that the second can be mistaken for a hang.
 `go_live_at` behaves identically on `DynamicRealtimeEnvironment`, alongside `logical_start_time`:
 
 ```python title="docs/snippets/pages/backfill_live.py:low-level"
-go_live_at = datetime.now()
+go_live_at = datetime.now(timezone.utc)
 
 env = DynamicRealtimeEnvironment(
     factor=0.0,

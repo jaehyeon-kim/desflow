@@ -54,14 +54,15 @@ def read_trace(
             iterable of mappings, such as a list of dicts.
         time: The column that holds each row's time.
         unit: `ms`, `s`, `min` or `h` for a number of that unit from the start of
-            the run, or `timestamp` for a date and time, read from
-            `logical_start_time` (`start`).
+            the run, or `timestamp` for a date and time, read against `start` so
+            that a row arrives at the time its records are stamped with.
         fields: The columns each arrival carries as attributes, or `all`.
         on_invalid: `error` refuses a row whose time is missing or not a time;
             `skip` leaves it out, with a warning naming it.
-        start: The date and time simulation time `initial_time` stands for, needed
-            with `unit="timestamp"`, such as `env.start_datetime`. When it has a
-            time zone, a timestamp without an offset is read in that zone.
+        start: The date and time of simulation time 0, as for every record's
+            `timestamp`, needed with `unit="timestamp"`, such as
+            `env.start_datetime`. When it has a time zone, a timestamp without an
+            offset is read in that zone.
         initial_time: The simulation clock's start.
 
     Returns:
@@ -156,7 +157,9 @@ def _time(
                 "a timestamp has a time zone but logical_start_time has none; give "
                 "logical_start_time a time zone, or a timezone setting"
             )
-        return initial_time + (value - start).total_seconds()
+        # As records do: logical_start_time is simulation time 0, whatever the
+        # initial time, so a row's timestamp is the timestamp its arrival gets
+        return (value - start).total_seconds()
     try:
         return initial_time + float(value) * UNITS[unit]
     except (TypeError, ValueError):

@@ -4,7 +4,7 @@ tests/docs runs this file. Every run in it is unpaced or very short, so it finis
 in under a second.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from desflow import DynamicRealtimeEnvironment, SimulationContext
 
@@ -12,7 +12,7 @@ from desflow import DynamicRealtimeEnvironment, SimulationContext
 app = SimulationContext(
     sim_id="Shop",
     factor=0.0,
-    logical_start_time=datetime.now() - timedelta(days=7),  # a week of history
+    logical_start_time=datetime.now(timezone.utc) - timedelta(days=7),  # a week
 )
 # --8<-- [end:logical-start]
 
@@ -23,7 +23,7 @@ unpaced = DynamicRealtimeEnvironment(factor=0.0)  # takes no real time at all
 # --8<-- [end:factor]
 
 # --8<-- [start:go-live]
-go_live_at = datetime.now()
+go_live_at = datetime.now(timezone.utc)
 
 env = DynamicRealtimeEnvironment(
     factor=0.0,  # until go_live_at

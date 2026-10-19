@@ -113,7 +113,7 @@ An arrival also takes:
 | `item_field` | adds the item the task's store `get` took to a mapping payload under this key |
 | `attributes` | a list of entity attributes added to a mapping payload |
 | `priority` | a number or an expression such as `attr.tier`, for a resource with `queue: priority` |
-| `patience` | seconds, a duration or an expression: how long the task waits for its `wait`, its resource and its `get` before it leaves and publishes `reneged` |
+| `patience` | seconds, a duration or an expression: how long the task may wait for its `wait`, its resource and its `get`, all together, before it leaves and publishes `reneged`; it pauses while the task is served |
 | `balk` | a condition checked before the task joins a queue; when it holds, the task publishes `balked` |
 | `wait` | what the task waits for before its resource: `{signal: name}`, `{task: name}`, `{timeout: ...}`, `{condition: ...}`, or `{any: {name: branch, ...}}` or `{all: {...}}`; read after it as `wait.<branch>.done`, `.ok` and `.value` |
 | `signal` | a signal under `signals` the task fires with its payload when it finishes, and fails when it fails |

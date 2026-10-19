@@ -442,3 +442,79 @@ def test_a_child_flow_that_raises_gives_its_unit_back():
         assert packers.in_use == 0
     finally:
         app.close()
+
+
+class _Keep:
+    """An egress that keeps every record."""
+
+    def __init__(self):
+        self.records = []
+
+    async def run(self, egress_queue):
+        while True:
+            try:
+                self.records.extend(egress_queue.get_nowait())
+            except queue.Empty:
+                await asyncio.sleep(0.01)
+
+
+def _statuses(records):
+    return [
+        (r["sim_ts"], r["value"].get("status", r["value"].get("event")))
+        for r in records
+        if r["stream_type"] == "event"
+    ]
+
+
+def test_a_wait_and_a_patience_that_end_at_the_same_instant():
+    """The patience timer was scheduled first, so it wins the tie and the order
+    reneges, as `yield wait | patience` does in SimPy; the wait's own branch,
+    triggered at that instant but not yet processed, is not read."""
+    keep = _Keep()
+    app = SimulationContext("Shop", factor=0).add_egress(keep)
+
+    @app.task(wait={"timeout": 5}, patience=5)
+    def order(task_id):
+        return {"event": "went_on"}
+
+    def script(context):
+        context.spawn(order(0))
+        yield context.env.timeout(0)
+
+    app.add_process(script)
+    app.run(until=10)
+    assert _statuses(keep.records) == [(0.0, "queued"), (5.0, "reneged")]
+
+
+def test_a_resumed_wait_waits_again_for_the_same_child_flow():
+    """An order waits for its inspection, a child flow of 10 s; an interrupt at 3
+    with `resume` makes it wait again for that same inspection, which runs once
+    and ends at 10, when the order goes on."""
+    keep = _Keep()
+    app = SimulationContext("Shop", factor=0).add_egress(keep)
+    app.add_service("inspecting", dist="constant", value=10)
+
+    @app.task(service_id="inspecting")
+    def inspect(task_id):
+        return {"event": "inspected"}
+
+    @app.task(wait={"task": "inspect"}, on_interrupt="resume")
+    def order(task_id):
+        return {"event": "ordered"}
+
+    def script(context):
+        context.spawn(order(0))
+        yield context.env.timeout(3)
+        context.interrupt("order", cause="recount")
+
+    app.add_process(script)
+    app.run(until=30)
+    events = [
+        (r["sim_ts"], r["task"], r["value"].get("status", r["value"].get("event")))
+        for r in keep.records
+        if r["stream_type"] == "event"
+    ]
+    assert [e for e in events if e[2] == "inspected"] == [
+        (10.0, "inspect", "inspected")
+    ]
+    assert (10.0, "order", "ordered") in events

@@ -12,7 +12,7 @@ instant in both, and keeping them in step by hand.
 import logging
 import os
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from desflow import (
     KafkaAdminConnector,
@@ -46,24 +46,25 @@ base_path = os.getenv("DEST_PATH", "data/backfill")
 # it is the live tail. These sit at module scope because the builder below needs them,
 # and the builder has to stay at module scope for the decorators to attach to it.
 # --8<-- [start:clock]
-GO_LIVE_AT = datetime.now()
+GO_LIVE_AT = datetime.now(timezone.utc)
+# Cut to milliseconds, as timestamps are, so a record stamped in the go-live
+# millisecond is live
+GO_LIVE_AT = GO_LIVE_AT.replace(microsecond=GO_LIVE_AT.microsecond // 1000 * 1000)
 LOGICAL_START_TIME = GO_LIVE_AT - HISTORY
 
-# Records carry their logical time as an ISO string, so the predicates that split the
-# two sinks compare strings. That works because every timestamp comes from the same
-# formatter: identical layout, so ordering by text is ordering by time.
-GO_LIVE_ISO = GO_LIVE_AT.isoformat(timespec="milliseconds")
+# Records carry their logical time as an ISO string with its zone offset, so the
+# predicates that split the two sinks read it as a time and compare instants.
 # --8<-- [end:clock]
 
 
 def is_history(record: dict) -> bool:
     """True for records stamped before the go-live instant."""
-    return record["timestamp"] < GO_LIVE_ISO
+    return datetime.fromisoformat(record["timestamp"]) < GO_LIVE_AT
 
 
 def is_live(record: dict) -> bool:
     """True for records stamped at or after the go-live instant."""
-    return record["timestamp"] >= GO_LIVE_ISO
+    return datetime.fromisoformat(record["timestamp"]) >= GO_LIVE_AT
 
 
 def history_router(data: dict) -> str | None:

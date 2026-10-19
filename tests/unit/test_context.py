@@ -704,3 +704,37 @@ def test_an_until_at_or_before_the_initial_time_is_refused():
         with pytest.raises(ValueError, match="until \\(100\\) must be greater"):
             app.run(until=100, **kwargs)
         assert app._env is None
+
+
+def test_a_stop_condition_is_checked_after_a_finished_task():
+    """A timed step ends at 5 and changes no level or capacity; the stop condition
+    `t >= 5` is checked then, so the run ends at 5, not at until."""
+    app = SimulationContext("Shop", factor=0)
+    app.add_service("wait", dist="constant", value=5)
+
+    @app.task(service_id="wait")
+    def step(task_id):
+        return {"event": "done"}
+
+    def script(context):
+        context.spawn(step(0))
+        yield context.env.timeout(0)
+
+    app.add_process(script)
+    app.run(until=100, stop={"condition": "t >= 5"})
+    assert app.env.now == 5
+
+
+def test_an_error_in_an_arrival_loop_stops_the_run():
+    """Only the interrupt a drain sends ends an arrival loop quietly; any other
+    error in the loop reaches the caller, as an error in a SimPy process does."""
+    app = SimulationContext("Shop", factor=0)
+    app.add_arrival("orders", dist="constant", value=1)
+
+    @app.arrival_loop("orders")
+    def loop(context):
+        yield context.wait_for_arrival("orders")
+        raise RuntimeError("the loop broke")
+
+    with pytest.raises(RuntimeError, match="the loop broke"):
+        app.run(until=10)

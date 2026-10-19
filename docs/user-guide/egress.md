@@ -171,10 +171,16 @@ app.add_egress(stream).add_egress(lake)  # both receive every record
 ```
 
 ```python title="docs/snippets/pages/batching.py:when"
-# A record carries its timestamp as an ISO string, so compare with one
-hot_from = datetime.now().isoformat(timespec="milliseconds")
-app.add_egress(stream, when=lambda r: r["timestamp"] >= hot_from)  # hot tail
-app.add_egress(lake, when=lambda r: r["timestamp"] < hot_from)  # cold history
+# A record's timestamp is an ISO string with its zone offset, so read it as a time
+hot_from = datetime.now(timezone.utc)
+
+
+def is_hot(record) -> bool:
+    return datetime.fromisoformat(record["timestamp"]) >= hot_from
+
+
+app.add_egress(stream, when=is_hot)  # hot tail
+app.add_egress(lake, when=lambda r: not is_hot(r))  # cold history
 app.add_egress(audit)  # no predicate: everything
 ```
 

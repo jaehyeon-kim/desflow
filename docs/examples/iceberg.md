@@ -207,7 +207,7 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
 
     import logging
     import os
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
     import pyarrow as pa
 
@@ -294,7 +294,7 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
     # The day of backdating this example exists to demonstrate. It sits at module scope
     # because the builder below needs it, and the builder has to stay at module scope for
     # the decorators further down to attach to it.
-    LOGICAL_START_TIME = datetime.now() - timedelta(days=1)
+    LOGICAL_START_TIME = datetime.now(timezone.utc) - timedelta(days=1)
 
     # ==========================================
     # 2. Infrastructure Builder
@@ -441,7 +441,7 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
 
     import logging
     import os
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
     import numpy as np
     import pyarrow as pa
@@ -570,7 +570,7 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
         # ---------------------------------------------------------
         # 1. SIMULATION SETUP
         # ---------------------------------------------------------
-        start_time = datetime.now() - timedelta(days=1)
+        start_time = datetime.now(timezone.utc) - timedelta(days=1)
         env = DynamicRealtimeEnvironment(factor=0.0, logical_start_time=start_time)
         env.registry.register_sim_parameter(PARAMS)
 

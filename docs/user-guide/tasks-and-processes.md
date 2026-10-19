@@ -551,7 +551,7 @@ Until `run()` is called nothing exists but the description: `context.env`, `cont
 ![pack_order in three steps. queued: orders-1 joins the packers queue, and the record has status queued. started: it gets a packer and the function returns the payload, and the record has status started. finished: after the packing time the payload is published and the packer released](../assets/diagrams/task-life.gif)
 
 1. If its `balk` condition holds, it publishes `balked` and stops.
-2. If it has a `wait`, a resource or a `get`, it publishes `queued`, starts its `patience` timer, and waits for its `wait`.
+2. If it has a `wait`, a resource or a `get`, it publishes `queued`, starts its `patience` timer, which runs only while it waits, and waits for its `wait`.
 3. It asks for the resource, in the resource's queue order, then takes its `get` from a store or container, waiting while there is not enough.
 4. It publishes `started`, calls your function, and keeps what it returns as the payload. The payload is computed before the service time, so it can use the state of the simulation at that moment.
 5. It waits the service time, drawn from the live distribution.

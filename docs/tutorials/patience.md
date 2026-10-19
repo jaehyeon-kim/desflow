@@ -12,7 +12,7 @@ A `patience` and a `balk` condition on the packing task. The shop is the one fro
 
 ## Leave After a Wait
 
-An entity that leaves a queue after waiting too long **reneges**. In SimPy it waits for whichever comes first, the unit or a timeout, with the `|` of two events (an `AnyOf`), then checks which one happened. In desflow it is the task's `patience`: how long the task waits, for its resource and then for its `get` from a store or container, before it leaves the queue and publishes `reneged`:
+An entity that leaves a queue after waiting too long **reneges**. In SimPy it waits for whichever comes first, the unit or a timeout, with the `|` of two events (an `AnyOf`), then checks which one happened. In desflow it is the task's `patience`: how long the task may wait, for its resource and then for its `get` from a store or container, before it leaves the queue and publishes `reneged`. It counts waiting time only and pauses while the task is served, as SimPy's pattern does when a preempted process waits again with the patience it has left:
 
 === "YAML"
 

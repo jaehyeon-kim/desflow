@@ -183,12 +183,14 @@ def replicate(
     n: int,
     *,
     seed: Optional[int],
-    until: Union[float, str, None],
+    until: Union[float, str, None] = None,
     warmup: Union[float, str, None] = None,
     measures: Optional[Sequence[str]] = None,
     level: float = 0.95,
     workers: int = 1,
     overrides: Optional[Mapping[str, Any]] = None,
+    stop: Any = None,
+    drain: Any = None,
 ) -> Replications:
     """
     Runs a model `n` times with spawned seeds and summarises its statistics.
@@ -205,8 +207,9 @@ def replicate(
         n: How many replications, 2 or more.
         seed: The seed the replications' seeds are spawned from. None draws one and
             logs it.
-        until: The simulation time each replication stops at, in seconds or as a
-            duration such as `"1 h"`. None uses a blueprint's `run.until`.
+        until: Where each replication's arrivals stop, in seconds or as a duration
+            such as `"1 h"`; the replication ends there unless `stop` ends it
+            earlier or `drain` runs on. None uses a blueprint's `run.until`.
         warmup: The end of each replication's warm-up; None keeps the model's own.
         measures: Statistic names without the sim id, such as
             `tasks.pack.wait_mean`. None summarises every statistic the run
@@ -215,6 +218,15 @@ def replicate(
         workers: Replications run at once, each in its own process. Above 1 the
             model must be a path or a function defined at the top of a module.
         overrides: Registry paths and the values they take in every replication.
+        stop: Ends each replication before `until` when it happens, as for
+            `SimulationContext.run`: `{"signal": name}`, a signal's name or
+            `{"condition": "..."}`; for a `LowLevelModel`, a function of the
+            environment returning the event that ends the run. None keeps a
+            blueprint's `run.stop`.
+        drain: At `until`, stop the arrivals and run each replication on until no
+            entity is left: True, or `{"limit": duration}`. None keeps a
+            blueprint's `run.drain`. A `LowLevelModel` is drained when its function
+            returns the processes that start its arrivals.
 
     Returns:
         Replications: Every value with its seed, and the summary.
@@ -240,6 +252,8 @@ def replicate(
         stats=level_for(measures),
         workers=workers,
         overrides=overrides,
+        stop=stop,
+        drain=drain,
     )
     names = select_measures(results, measures)
     replications = Replications(
@@ -263,6 +277,8 @@ def run_replications(
     stats: str = "basic",
     workers: int = 1,
     overrides: Optional[Mapping[str, Any]] = None,
+    stop: Any = None,
+    drain: Any = None,
 ) -> List[RunResult]:
     """
     Runs a model once per seed and returns what each run measured, in seed order.
@@ -270,12 +286,14 @@ def run_replications(
     Args:
         model: A YAML path, a builder factory or a `LowLevelModel`.
         seeds: One seed per run.
-        until: The simulation time each run stops at; None uses a blueprint's
-            `run.until`.
+        until: Where each run's arrivals stop, and the run too unless `stop` or
+            `drain` ends it otherwise; None uses a blueprint's `run.until`.
         warmup: The end of each run's warm-up; None keeps the model's own.
         stats: The lowest statistics level each run keeps.
         workers: Runs at once, each in its own process.
         overrides: Registry paths and the values they take in every run.
+        stop: As for `replicate`.
+        drain: As for `replicate`.
 
     Returns:
         List[RunResult]: One per seed.
@@ -284,16 +302,21 @@ def run_replications(
         ValueError: If `until` is missing, or the model cannot be sent to another
             process when `workers` is above 1.
     """
-    stop = seconds(until)
-    if stop is None:
-        stop = default_until(model)
-    if stop is None:
+    end = seconds(until)
+    if end is None:
+        end = default_until(model)
+    if end is None:
         raise ValueError(
             "replications need an end time: pass until, or set run.until in the "
             "blueprint"
         )
     options = dict(
-        until=stop, warmup=seconds(warmup), stats=stats, overrides=dict(overrides or {})
+        until=end,
+        warmup=seconds(warmup),
+        stats=stats,
+        overrides=dict(overrides or {}),
+        stop=stop,
+        drain=drain,
     )
     if workers > 1 and len(seeds) > 1:
         check_importable(model)
@@ -392,8 +415,9 @@ def _publish(model: Model, replications: Replications, until: Any) -> None:
     context.initial_time = float(stop or 0.0)
     # The clock never moves, so the run is started with no end of its own: its
     # until is the start, which SimPy and start() refuse as an end time
-    context._default_until = context._default_stop = context._default_drain = None
-    context.start(seed=replications.seeds[0], egress=True, ingress=False)
+    context.start(
+        seed=replications.seeds[0], egress=True, ingress=False, run_settings=False
+    )
     # Only the summary is sent: the model's own statistics are not published
     context.env.stats.configure(replications.sim_id, "none")
     try:
@@ -505,10 +529,13 @@ def run_experiment(
             stats=stats,
             workers=settings.workers,
             overrides=design.overrides,
+            stop=settings.stop,
+            drain=settings.drain,
         )
     runs = [run for design in all_designs for run in design.runs]
     select_measures(runs, settings.measures)
-    counts = found.count_names(runs)
+    # A count that is also a measure is summarised once, as a measure
+    counts = [c for c in found.count_names(runs) if c not in settings.measures]
     rows = found.result_rows(all_designs, settings.measures, counts)
     summary = found.summary_rows(
         all_designs, rows, [*settings.measures, *counts], settings.level
@@ -595,6 +622,10 @@ def _evidence(
         },
         "settings": {
             "until": settings.until,
+            "stop": settings.stop
+            if not callable(settings.stop)
+            else describe(settings.stop),
+            "drain": settings.drain,
             "warmup": settings.warmup,
             "replications": settings.replications,
             "seed": settings.seed,

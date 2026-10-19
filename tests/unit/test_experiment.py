@@ -390,6 +390,38 @@ def test_a_fixed_horizon_leaves_orders_unfinished_and_a_drained_run_does_not(tmp
         assert "`flows.orders.in_system`" in result.report
     rows = [r for r in drained.results if r["statistic"] == "flows.orders.in_system"]
     assert {r["population"] for r in rows} == {"end of run"}
+    # The report's Counts give the mean of each count over the replications
+    mean_started = sum(started) / len(started)
+    counts_section = drained.report.split("## Counts", 1)[1].split("\n## ", 1)[0]
+    row = next(
+        line for line in counts_section.splitlines() if line.startswith("| base")
+    )
+    # in_progress, then task and flow finished, flow started and in_system
+    m = f"{mean_started:g}"
+    assert row == f"| base | 0 | {m} | {m} | {m} | 0 |"
+
+
+def test_the_experiment_file_sets_stop_and_drain(tmp_path):
+    """`drain: true` in the experiment file drains a model whose blueprint does not;
+    a count that is also a measure appears once in the summary."""
+    (tmp_path / "shop.yaml").write_text(SHOP + "run: {until: 120}\n")
+    result = run_experiment(
+        _settings(
+            model=str(tmp_path / "shop.yaml"),
+            until=120,
+            warmup=None,
+            drain=True,
+            measures=["tasks.pack.wait_mean", "flows.orders.in_system"],
+            variants={"base": {}},
+            compare=[],
+            checks=[],
+            output=str(tmp_path / "out"),
+        )
+    )
+    rows = [r for r in result.results if r["statistic"] == "flows.orders.in_system"]
+    assert [r["value"] for r in rows] == [0] * 4
+    summary = [r for r in result.summary if r["statistic"] == "flows.orders.in_system"]
+    assert len(summary) == 1
 
 
 def test_bad_settings_are_refused_with_their_line(folder):

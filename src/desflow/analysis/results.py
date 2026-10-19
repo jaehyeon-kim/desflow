@@ -404,7 +404,8 @@ def read_observed(spec: ExperimentSpec, folder: Path) -> List[Dict[str, Any]]:
         if not math.isclose(seconds, horizon):
             raise ValueError(
                 f"{where}: the observed horizon is {seconds:g} s, but the experiment "
-                f"measures {horizon:g} s (until minus warmup)"
+                f"measures {horizon:g} s (until minus warmup, for a run that ends at "
+                f"until); give the observed horizon of the same period"
             )
         found.append(
             {

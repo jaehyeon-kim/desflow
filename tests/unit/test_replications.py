@@ -403,3 +403,137 @@ def test_the_summary_heading_keeps_the_level():
     result = replicate(shop, 2, seed=1, until=200, measures=["tasks.pack.finished"])
     result.level = 0.975
     assert "half-width (97.5%)" in result.summary_text()
+
+
+def _closing_shop(signal: bool = False) -> SimulationContext:
+    """The shop, reporting its orders as a flow; with `signal`, a `closing` signal
+    fires at 50."""
+    app = shop().with_stats("typical")
+    if signal:
+        app.add_signal("closing")
+
+        def close_at_50(context):
+            yield context.env.timeout(50)
+            context.signal("closing").fire(None)
+
+        app.add_process(close_at_50)
+    return app
+
+
+def _closing_low_level(env, sampler):
+    """The low-level shop with its orders counted as a flow, returning its arrival
+    process, so a drain can stop it."""
+    env.registry.register_sim_parameter(
+        SimParameter(
+            sim_id="Shop",
+            arrival={"orders": DistributionConfig(dist="exponential", rate=0.5)},
+            service={"packing": DistributionConfig(dist="exponential", rate=1.0)},
+            resources={"packers": CapacityConfig(current_cap=1, max_cap=1)},
+        )
+    )
+    packers = DynamicResource(env, "Shop", "packers")
+
+    def pack(task_id):
+        env.stats.flow_started("orders")
+        yield from _pack(env, sampler, packers, task_id)
+
+    def orders():
+        gap = env.registry.get_config("Shop.arrival.orders")
+        task_id = 0
+        while True:
+            yield env.timeout(sampler.sample(gap))
+            env.process(pack(task_id))
+            task_id += 1
+
+    return [env.process(orders())]
+
+
+COUNTS = ["flows.orders.started", "flows.orders.finished", "flows.orders.in_system"]
+
+
+def test_replications_drain_and_stop_in_every_api(blueprint):
+    """With a drain, every replication ends with no order left, in the builder, the
+    low-level API and YAML; a stop at 50 gives the replications of a run to 50."""
+    builder = replicate(shop, 3, seed=8, until=100, measures=COUNTS, drain=True)
+    low = replicate(
+        LowLevelModel(_closing_low_level, "Shop"),
+        3,
+        seed=8,
+        until=100,
+        measures=COUNTS,
+        drain={"limit": "1 h"},
+    )
+    drained_yaml = blueprint.parent / "drained.yaml"
+    drained_yaml.write_text(
+        BLUEPRINT.replace("run: {until: 2000}", "run: {until: 100, drain: true}")
+    )
+    from_file = replicate(drained_yaml, 3, seed=8, measures=COUNTS)
+    for result in (builder, low, from_file):
+        assert result.values["flows.orders.in_system"] == [0, 0, 0]
+        assert (
+            result.values["flows.orders.finished"]
+            == result.values["flows.orders.started"]
+        )
+    # The call overrides the blueprint's own drain
+    undrained = replicate(drained_yaml, 3, seed=8, measures=COUNTS, drain=False)
+    assert sum(undrained.values["flows.orders.in_system"]) > 0
+
+    measures = ["tasks.pack.finished"]
+    to_50 = replicate(shop, 3, seed=9, until=50, measures=measures)
+    stopped = replicate(
+        lambda: _closing_shop(signal=True),
+        3,
+        seed=9,
+        until=100,
+        measures=measures,
+        stop="closing",
+    )
+    low_stopped = replicate(
+        LowLevelModel(low_level, "Shop"),
+        3,
+        seed=9,
+        until=100,
+        measures=measures,
+        stop=lambda env: env.timeout(50),
+    )
+    low_to_50 = replicate(
+        LowLevelModel(low_level, "Shop"), 3, seed=9, until=50, measures=measures
+    )
+    assert stopped.values == to_50.values
+    assert low_stopped.values == low_to_50.values
+
+
+def test_replications_of_a_blueprint_with_sinks_and_a_drain(tmp_path):
+    """A blueprint with a sink and run.drain: every replication drains, and the
+    sink receives the summary once, at the until."""
+    import desflow.blueprint.loader  # noqa: F401  (the !python tag)
+
+    module = tmp_path / "capture_sink.py"
+    module.write_text(
+        "import asyncio, queue\n"
+        "RECORDS = []\n"
+        "class Capture:\n"
+        "    async def run(self, egress_queue):\n"
+        "        while True:\n"
+        "            try:\n"
+        "                RECORDS.extend(egress_queue.get_nowait())\n"
+        "            except queue.Empty:\n"
+        "                await asyncio.sleep(0.01)\n"
+    )
+    import sys
+
+    sys.path.insert(0, str(tmp_path))
+    try:
+        path = tmp_path / "shop.yaml"
+        path.write_text(
+            BLUEPRINT.replace("run: {until: 2000}", "run: {until: 100, drain: true}")
+            + "egress:\n  - type: !python capture_sink.Capture\n"
+        )
+        import capture_sink
+
+        result = replicate(path, 2, seed=3, measures=["flows.orders.in_system"])
+        assert result.values["flows.orders.in_system"] == [0, 0]
+        assert {r["sim_ts"] for r in capture_sink.RECORDS} == {100.0}
+        assert len(capture_sink.RECORDS) == 5
+    finally:
+        sys.path.remove(str(tmp_path))

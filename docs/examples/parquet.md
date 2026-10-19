@@ -178,7 +178,7 @@ desflow is built for real-time digital twins, but the same model can also run fa
 
     import logging
     import os
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
     from desflow import ParquetStorageEgress, SimulationContext
 
@@ -245,7 +245,7 @@ desflow is built for real-time digital twins, but the same model can also run fa
     # because the builder below needs it, and the builder has to stay at module scope for
     # the decorators further down to attach to it. The low-level twin computes the same
     # value inside run(), where it has no such constraint.
-    LOGICAL_START_TIME = datetime.now() - timedelta(days=7)
+    LOGICAL_START_TIME = datetime.now(timezone.utc) - timedelta(days=7)
 
     # ==========================================
     # 2. Infrastructure Builder
@@ -378,7 +378,7 @@ desflow is built for real-time digital twins, but the same model can also run fa
 
     import logging
     import os
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
     import numpy as np
 
@@ -495,7 +495,7 @@ desflow is built for real-time digital twins, but the same model can also run fa
         # ---------------------------------------------------------
         # 2. SIMULATION SETUP
         # ---------------------------------------------------------
-        start_time = datetime.now() - timedelta(days=7)
+        start_time = datetime.now(timezone.utc) - timedelta(days=7)
         env = DynamicRealtimeEnvironment(factor=0.0, logical_start_time=start_time)
         env.registry.register_sim_parameter(PARAMS)
 

@@ -392,15 +392,11 @@ class EgressMixIn:
         if delay > 0:
             yield self.timeout(delay)  # type: ignore[attr-defined]
         while True:
-            # Real seconds since the start. now() takes the start time's zone, so a
-            # start time with a zone does not raise TypeError against a naive now().
+            # Real seconds since the start, in UTC: the start always has a zone
             start = self.start_datetime  # type: ignore[attr-defined]
-            if start.tzinfo is None:
-                real_elapsed = (datetime.now() - start).total_seconds()
-            else:
-                real_elapsed = (
-                    datetime.now(dt_timezone.utc) - start.astimezone(dt_timezone.utc)
-                ).total_seconds()
+            real_elapsed = (
+                datetime.now(dt_timezone.utc) - start.astimezone(dt_timezone.utc)
+            ).total_seconds()
             lag = max(0.0, real_elapsed - self.now)  # type: ignore[attr-defined]
 
             # Publish this system health metric automatically
@@ -669,12 +665,12 @@ class EgressMixIn:
     def _get_iso_timestamp(self, start_time: datetime, sim_now: float) -> str:
         """Internal: Converts simulation time to a real-world ISO string.
 
-        For a start with a time zone the clock runs in UTC, so a daylight-saving
-        change never adds or drops simulation time, and the text is written in the
-        run's zone (`self.zone`) with its offset: `(start_time.astimezone(UTC) +
-        timedelta(seconds=sim_now)).astimezone(zone).isoformat(timespec=
-        "milliseconds")`. A start without one gives `(start_time + timedelta(...))
-        .isoformat(...)`, with no offset. The text is built cheaply: the date and
+        The clock runs in UTC, so a daylight-saving change never adds or drops
+        simulation time, and the text is written in the run's zone (`self.zone`)
+        with its offset: `(start_time.astimezone(UTC) + timedelta(seconds=sim_now))
+        .astimezone(zone).isoformat(timespec="milliseconds")`. A start without a
+        zone is read in the run's zone, as the environment reads one. The text is
+        built cheaply: the date and
         time up to the second, and the offset after it, are formatted once per
         second of the clock and kept, and only the milliseconds are added for each
         record.
@@ -686,13 +682,10 @@ class EgressMixIn:
         seconds, micro = divmod(start_time.microsecond + micros, 1_000_000)
         cache = self.__dict__.get("_timestamp_cache")
         if cache is None or cache[0] != seconds or cache[1] is not start_time:
-            base = start_time.replace(microsecond=0)
-            if base.tzinfo is None:
-                moment = base + timedelta(seconds=seconds)
-            else:
-                zone = self.__dict__.get("zone") or base.tzinfo
-                utc = base.astimezone(dt_timezone.utc) + timedelta(seconds=seconds)
-                moment = utc.astimezone(zone)
+            zone = self.__dict__.get("zone") or start_time.tzinfo or dt_timezone.utc
+            base = in_zone(start_time, zone).replace(microsecond=0)
+            utc = base.astimezone(dt_timezone.utc) + timedelta(seconds=seconds)
+            moment = utc.astimezone(zone)
             text = moment.isoformat(timespec="seconds")
             # The date and time take the first 19 characters; an offset follows
             cache = (seconds, start_time, text[:19], text[19:])

@@ -213,10 +213,11 @@ class DynamicResource(BaseDynamicResource):
 
     def release(self, request: Optional[DynamicResourceRequest] = None) -> Event:
         """
-        Gives a granted unit back, and grants the next waiting request one event later.
+        Gives a granted unit back, and tries the head of the queue one event later.
 
-        Releasing a request twice, or one never granted, does nothing, as SimPy's
-        `Release` does. While units are busy above a lowered capacity, a release
+        Releasing a request twice, or one never granted, gives back nothing, as
+        SimPy's `Release` does; the queue is still tried when the release event is
+        processed, as SimPy tries it after every release. While units are busy above a lowered capacity, a release
         brings the busy count down and grants nothing until it is within the
         capacity.
 
@@ -233,8 +234,10 @@ class DynamicResource(BaseDynamicResource):
         if request is not None and request in self.users:
             self.users.remove(request)
             self._changed()
-            # SimPy grants the next request when the release event is processed
-            released.callbacks.append(self._grant_from_release)
+        # SimPy tries the head of the queue when any release event is processed,
+        # one that gave back no unit too, such as the release of a request that
+        # reneged; on a preemptive resource that try can preempt a user
+        released.callbacks.append(self._grant_from_release)
         released.succeed()
         return released
 

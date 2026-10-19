@@ -1,0 +1,36 @@
+# A holder of priority 2 keeps a preemptive machine from 0; at 1 a request of
+# priority 0 that does not preempt waits with a patience of 2; at 2 a request of
+# priority 1 that may preempt waits behind it. See test_c4_resources.py.
+simulation:
+  sim_id: C4r
+  factor: 0
+resources:
+  machine: {current_cap: 1, max_cap: 1, queue: priority, preempt: true}
+services:
+  hold: {dist: constant, value: 20}
+  work: {dist: constant, value: 1}
+arrivals:
+  holders: {replay: {path: c4_renege_holder.csv}, spawn: holder}
+  patients: {replay: {path: c4_renege_a.csv}, spawn: patient}
+  eagers: {replay: {path: c4_renege_b.csv}, spawn: eager}
+tasks:
+  holder:
+    service: hold
+    resource: machine
+    priority: 2
+    on_interrupt: abandon
+    payload: {event: done}
+  patient:
+    service: work
+    resource: machine
+    priority: 0
+    preempt: false
+    patience: 2
+    payload: {event: done}
+  eager:
+    service: work
+    resource: machine
+    priority: 1
+    payload: {event: done}
+run:
+  until: 10

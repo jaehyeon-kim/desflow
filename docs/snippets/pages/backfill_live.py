@@ -4,7 +4,7 @@ Building the connectors and the environment opens no connection and starts no ru
 tests/docs run this file without a broker.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from desflow import (
     DynamicRealtimeEnvironment,
@@ -13,15 +13,15 @@ from desflow import (
     SimulationContext,
 )
 
-GO_LIVE_ISO = datetime.now().isoformat(timespec="milliseconds")
+GO_LIVE_AT = datetime.now(timezone.utc)
 
 
 def is_history(record: dict) -> bool:
-    return record["timestamp"] < GO_LIVE_ISO
+    return datetime.fromisoformat(record["timestamp"]) < GO_LIVE_AT
 
 
 def is_live(record: dict) -> bool:
-    return record["timestamp"] >= GO_LIVE_ISO
+    return datetime.fromisoformat(record["timestamp"]) >= GO_LIVE_AT
 
 
 parquet = ParquetStorageEgress(path_router=lambda data: "data/backfill/events.parquet")
@@ -34,7 +34,7 @@ app.add_egress(kafka, when=is_live, batch_size=500, flush_interval=1.0)
 # --8<-- [end:per-sink]
 
 # --8<-- [start:low-level]
-go_live_at = datetime.now()
+go_live_at = datetime.now(timezone.utc)
 
 env = DynamicRealtimeEnvironment(
     factor=0.0,

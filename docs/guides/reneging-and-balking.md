@@ -8,7 +8,7 @@ Give a task a time limit on its wait, a condition that stops it joining at all, 
 
 ## Leave After a Wait and Refuse to Join
 
-A task's `patience` is how long it waits, for its resource and then for its `get`, before it leaves the queue and publishes `reneged`; a get that gives up is cancelled, so it takes nothing later. Its `balk` is a condition checked before it joins the queue; when it holds, the task publishes `balked` and never asks for the resource. Here each order brings its own patience as an attribute, and no order joins after the courier's last collection at 100 seconds:
+A task's `patience` is how long it may wait, for its resource and then for its `get`, before it leaves the queue and publishes `reneged`. It counts waiting time only: it pauses while the task is served, so a task that is preempted and queues again goes on with the time it has left; a get that gives up is cancelled, so it takes nothing later. Its `balk` is a condition checked before it joins the queue; when it holds, the task publishes `balked` and never asks for the resource. Here each order brings its own patience as an attribute, and no order joins after the courier's last collection at 100 seconds:
 
 === "YAML"
 

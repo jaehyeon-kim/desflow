@@ -9,7 +9,7 @@ historical orders for machine learning models, written to Parquet on disk or S3.
 
 import logging
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from desflow import ParquetStorageEgress, SimulationContext
 
@@ -76,7 +76,7 @@ router = create_history_router(base_path)
 # because the builder below needs it, and the builder has to stay at module scope for
 # the decorators further down to attach to it. The low-level twin computes the same
 # value inside run(), where it has no such constraint.
-LOGICAL_START_TIME = datetime.now() - timedelta(days=7)
+LOGICAL_START_TIME = datetime.now(timezone.utc) - timedelta(days=7)
 
 # ==========================================
 # 2. Infrastructure Builder

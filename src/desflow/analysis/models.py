@@ -15,6 +15,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, Union
 
+from simpy.events import URGENT, Event
+
 from desflow.core.context import SimulationContext
 from desflow.core.environment import DynamicRealtimeEnvironment
 from desflow.core.sampler import Sampler
@@ -30,7 +32,10 @@ class LowLevelModel:
         function (Callable): Called as `function(env, sampler)` once per run. It
             registers the parameters, builds the resources and starts the processes,
             and draws every random number from `sampler`. It does not set up the
-            statistics or the sinks: the runner does.
+            statistics or the sinks: the runner does. To be drained, it returns the
+            processes that start its arrivals, which a drain interrupts at `until`,
+            and reports its entities with `env.stats.flow_started` and
+            `flow_finished`, so the drain knows when the model is empty.
         sim_id (str): The sim id the parameters are registered under, which the
             statistics' names start with.
     """
@@ -179,12 +184,15 @@ def _build(
     stats: str,
     overrides: Optional[Mapping[str, Any]],
     until: Optional[float] = None,
+    stop: Any = None,
+    drain: Any = None,
 ) -> Tuple[
     DynamicRealtimeEnvironment,
     Sampler,
     str,
     Callable[[], None],
     Optional[SimulationContext],
+    Any,
 ]:
     """Builds one run of a model up to the moment its clock starts.
 
@@ -201,6 +209,8 @@ def _build(
             context.warmup = warmup
         context.start(
             until,
+            stop,
+            drain,
             seed=seed,
             overrides=overrides,
             stats=stats,
@@ -209,12 +219,19 @@ def _build(
         )
         assert context.sampler is not None
         # A new context per run, so nothing is shared with the next run
-        return context.env, context.sampler, context.sim_id, lambda: None, context
+        return (
+            context.env,
+            context.sampler,
+            context.sim_id,
+            lambda: None,
+            context,
+            None,
+        )
     assert isinstance(model, LowLevelModel)
     env = DynamicRealtimeEnvironment(factor=0.0)
     env.stats.configure(model.sim_id, stats)
     sampler = Sampler(seed=seed)
-    model.function(env, sampler)
+    arrivals = model.function(env, sampler)
     restore = _keep(env)
     try:
         for path, value in (overrides or {}).items():
@@ -224,7 +241,7 @@ def _build(
         raise
     if warmup is not None:
         env.process(_end_warmup(env, warmup))
-    return env, sampler, model.sim_id, restore, None
+    return env, sampler, model.sim_id, restore, None, arrivals
 
 
 def _keep(env: DynamicRealtimeEnvironment) -> Callable[[], None]:
@@ -270,7 +287,7 @@ def inspect_model(model: Model, overrides: Mapping[str, Any]) -> Dict[str, Any]:
     Raises:
         ValueError: If a path does not exist or its value is refused.
     """
-    env, _, _, restore, context = _build(model, 0, None, "none", overrides)
+    env, _, _, restore, context, _ = _build(model, 0, None, "none", overrides)
     parameters = _parameters(env)
     if context is not None:
         context.close()
@@ -288,6 +305,8 @@ def run_once(
     warmup: Optional[float] = None,
     stats: str = "basic",
     overrides: Optional[Mapping[str, Any]] = None,
+    stop: Any = None,
+    drain: Any = None,
 ) -> RunResult:
     """
     Runs a model once, unpaced, with no ingress and no egress.
@@ -295,29 +314,39 @@ def run_once(
     Args:
         model: A YAML path, a builder factory or a `LowLevelModel`.
         seed: The run's seed.
-        until: The simulation time the run stops at.
+        until: The simulation time the arrivals stop at, and the run too unless a
+            `stop` ends it earlier or a `drain` runs on.
         warmup: The end of the warm-up in simulation seconds; None keeps the
             model's own.
         stats: The lowest statistics level the run keeps.
         overrides: Registry paths and the values they take before the clock starts.
+        stop: As for `SimulationContext.run`: `{"signal": name}`,
+            `{"condition": "..."}`, or for a blueprint or builder model a signal's
+            name; for a `LowLevelModel`, a function of the environment returning
+            the event that ends the run. None keeps a blueprint's `run.stop`.
+        drain: As for `SimulationContext.run`: True, or `{"limit": duration}`.
+            None keeps a blueprint's `run.drain`.
 
     Returns:
         RunResult: The statistics at the end of the run, the random streams used and
             the parameters it started with.
 
     Raises:
-        ValueError: If an override's path does not exist or its value is refused.
+        ValueError: If an override's path does not exist or its value is refused,
+            or a low-level model is drained without returning its arrivals.
     """
-    env, sampler, sim_id, restore, context = _build(
-        model, seed, warmup, stats, overrides, until
+    if isinstance(stop, str) and not isinstance(model, LowLevelModel):
+        stop = {"signal": stop}
+    env, sampler, sim_id, restore, context, arrivals = _build(
+        model, seed, warmup, stats, overrides, until, stop, drain
     )
     parameters = _parameters(env)
     try:
         if context is not None:
-            # The model's own end: until, or its run.stop or run.drain
+            # The model's own end, or the one given: until, a stop or a drain
             context.finish()
         else:
-            env.run(until=until)
+            _run_low_level(env, until, stop, drain, arrivals)
     finally:
         if context is None:
             env.teardown()
@@ -328,6 +357,43 @@ def run_once(
         sim_id=sim_id,
         parameters=parameters,
     )
+
+
+def _run_low_level(
+    env: DynamicRealtimeEnvironment,
+    until: float,
+    stop: Any,
+    drain: Any,
+    arrivals: Any,
+) -> None:
+    """Runs a low-level model to `until`, a `stop` event, or the end of a drain."""
+    if stop is None:
+        env.run(until=until)
+    else:
+        # Urgent, as SimPy schedules its own `until`, so no event due at `until`
+        # runs before the run ends there
+        horizon = Event(env)
+        horizon._ok, horizon._value = True, None
+        env.schedule(horizon, URGENT, until - env.now)
+        env.run(until=stop(env) | horizon)
+    if not drain or (stop is not None and env.now < until):
+        return
+    processes = list(arrivals or [])
+    if not processes:
+        raise ValueError(
+            "a low-level model drains only when its function returns the processes "
+            "that start its arrivals"
+        )
+    for process in processes:
+        if process.is_alive:
+            process.interrupt("arrivals stopped")
+            process.defused = True
+    limit = seconds(drain.get("limit")) if isinstance(drain, Mapping) else None
+    last = float("inf") if limit is None else until + limit
+    while env.stats.in_system() > 0 and env.peek() < last:
+        env.step()
+    if env.stats.in_system() > 0 and last < float("inf") and env.now < last:
+        env.run(until=last)
 
 
 def _parameters(env: DynamicRealtimeEnvironment) -> Dict[str, Any]:
