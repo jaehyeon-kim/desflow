@@ -24,7 +24,7 @@ from desflow import (
     SimParameter,
     fit_column,
 )
-from desflow.study.fit import read_column
+from desflow.analysis.fit import read_column
 
 logging.basicConfig(
     level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"

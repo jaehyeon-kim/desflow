@@ -658,15 +658,15 @@ def test_local_replay_recorded_and_modelled(api, caplog):
     assert "Skipped row 501, which has no valid ordered_at: ''" in caplog.text
 
 
-def _study(name, api, tmp_path, monkeypatch):
-    """Runs a tutorial's study in one API, writing its files under tmp_path."""
-    from desflow import run_study
+def _experiment(name, api, tmp_path, monkeypatch):
+    """Runs a tutorial's experiment in one API, writing its files under tmp_path."""
+    from desflow import run_experiment
 
     if api == "yaml":
         monkeypatch.delenv("WARMUP", raising=False)
-        return run_study(BLUEPRINTS / f"{name}_study.yaml", output=tmp_path)
+        return run_experiment(BLUEPRINTS / f"{name}_experiment.yaml", output=tmp_path)
     module = _load(name + ("" if api == "builder" else "_low_level"))
-    return module.study(output=tmp_path)
+    return module.experiment(output=tmp_path)
 
 
 def _means(result, statistic):
@@ -681,7 +681,7 @@ def _means(result, statistic):
 def test_comparing_designs_fourth_packer(api, tmp_path, monkeypatch):
     """A fourth packer cuts the mean wait by 2.21 +/- 0.31 s; the paired utilisation
     difference is narrower than either design's own interval; the check passes."""
-    result = _study("comparing_designs", api, tmp_path, monkeypatch)
+    result = _experiment("comparing_designs", api, tmp_path, monkeypatch)
     assert _means(result, "tasks.pack_order.wait_mean") == {
         "three": (2.48, 0.32),
         "four": (0.27, 0.01),
@@ -709,7 +709,7 @@ def test_comparing_designs_fourth_packer(api, tmp_path, monkeypatch):
 @pytest.mark.parametrize("api", APIS)
 def test_parameter_sweeps_demand(api, tmp_path, monkeypatch):
     """The table of mean waits at four rates, for three packers and for four."""
-    result = _study("parameter_sweeps", api, tmp_path, monkeypatch)
+    result = _experiment("parameter_sweeps", api, tmp_path, monkeypatch)
     rate = "Shop.arrival.orders.rate"
     assert _means(result, "tasks.pack_order.wait_mean") == {
         f"three {rate}=1.6": (0.97, 0.07),

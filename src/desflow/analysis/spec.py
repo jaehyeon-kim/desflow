@@ -1,8 +1,8 @@
-"""The study file: what a local study runs, compares and checks.
+"""The experiment file: what an experiment runs, compares and checks.
 
-A study file is YAML read with the blueprint loader, so `!python` references and
+An experiment file is YAML read with the blueprint loader, so `!python` references and
 `${VAR}` work as in a blueprint, and every model here forbids unknown keys, so a
-misspelt key is reported with its line. `load_study` reads a file; `StudySpec` also
+misspelt key is reported with its line. `load_experiment` reads a file; `ExperimentSpec` also
 takes the same settings as a Python mapping.
 """
 
@@ -19,7 +19,7 @@ from pydantic import (
 )
 
 from desflow.blueprint.loader import BlueprintError, SourceMap, read_document
-from desflow.study.models import LowLevelModel
+from desflow.analysis.models import LowLevelModel
 from desflow.utils import time_to_seconds
 
 
@@ -79,16 +79,16 @@ class Observed(_Model):
     variant: Optional[str] = None
 
 
-class StudySpec(_Model):
-    """A whole study file, or the same settings given in Python.
+class ExperimentSpec(_Model):
+    """A whole experiment file, or the same settings given in Python.
 
     `model` is a blueprint path, a builder factory (a function with no arguments
     returning a new `SimulationContext`), a `LowLevelModel`, or in a file a mapping
     of a low-level `function` and its `sim_id`. Relative paths are read from the
-    study file's folder.
+    experiment file's folder.
     """
 
-    study: str
+    experiment: str
     question: Optional[str] = None
     model: Any
     assumptions: List[str] = Field(default_factory=list)
@@ -138,7 +138,7 @@ class StudySpec(_Model):
         return value
 
     @model_validator(mode="after")
-    def _names_exist(self) -> "StudySpec":
+    def _names_exist(self) -> "ExperimentSpec":
         if not self.variants:
             raise ValueError("variants needs at least one variant")
         names = set(self.variants)
@@ -174,12 +174,12 @@ class StudySpec(_Model):
         return self
 
 
-def load_study(path: Union[str, Path]) -> "tuple[StudySpec, SourceMap]":
+def load_experiment(path: Union[str, Path]) -> "tuple[ExperimentSpec, SourceMap]":
     """
-    Reads and validates a study file.
+    Reads and validates an experiment file.
 
     Args:
-        path: The study file.
+        path: The experiment file.
 
     Returns:
         The settings, and the map from each key to its line.
@@ -189,7 +189,7 @@ def load_study(path: Union[str, Path]) -> "tuple[StudySpec, SourceMap]":
     """
     data, source = read_document(path)
     try:
-        spec = StudySpec.model_validate(data)
+        spec = ExperimentSpec.model_validate(data)
     except ValidationError as exc:
         raise _error(exc, source) from None
     return spec, source

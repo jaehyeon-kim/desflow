@@ -39,7 +39,7 @@ PAGES = {
     "changing-demand": "docs/guides/time-varying-arrivals.md",
     "local-replay": "docs/user-guide/arrivals-and-services.md",
     "replications": "docs/user-guide/replications.md",
-    "study": "docs/user-guide/local-studies.md",
+    "experiment": "docs/user-guide/experiments.md",
     "fitting": "docs/user-guide/input-fitting.md",
 }
 TABS = {"yaml": "YAML", "builder": "Builder", "low-level": "Low-level"}

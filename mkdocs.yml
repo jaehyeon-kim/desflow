@@ -66,6 +66,8 @@ plugins:
         guides/low-level-api.md: user-guide/low-level-api.md
         guides/backfill-then-live.md: examples/backfill-live.md
         architecture/records.md: reference/records-and-telemetry.md
+        # Local Studies became Experiments, before 0.22.0 was released
+        user-guide/local-studies.md: user-guide/experiments.md
         # Preemptive Breakdowns became Breakdowns, with the native breakdown, in 0.22.0
         guides/preemptive-breakdowns.md: guides/breakdowns.md
         # The page named after the package before the rename to desflow in 0.20.0.
@@ -190,7 +192,7 @@ nav:
       - Task Flow: user-guide/task-flow.md
       - Statistics: user-guide/statistics.md
       - Replications: user-guide/replications.md
-      - Local Studies: user-guide/local-studies.md
+      - Experiments: user-guide/experiments.md
       - Input Fitting: user-guide/input-fitting.md
       - Live Parameters: user-guide/live-parameters.md
       - Time and Pacing: user-guide/time-and-pacing.md

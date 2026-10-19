@@ -230,7 +230,7 @@ Replications are independent of each other because each has its own seed, so the
         import logging
 
         from desflow import ConsoleEgress, SimulationContext, replicate
-        from desflow.study import interval
+        from desflow.analysis import interval
 
         logging.basicConfig(
             level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
@@ -332,7 +332,7 @@ Replications are independent of each other because each has its own seed, so the
             SimParameter,
             replicate,
         )
-        from desflow.study import interval
+        from desflow.analysis import interval
 
         logging.basicConfig(
             level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"

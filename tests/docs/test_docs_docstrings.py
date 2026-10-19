@@ -4,7 +4,7 @@ the API page.
 The API page renders docstrings with mkdocstrings, which hides names that start
 with an underscore. So a public function or method in `src/desflow` with
 parameters needs a docstring with an `Args:` section, a public class needs a
-docstring, and every name `desflow` and `desflow.study` export needs a
+docstring, and every name `desflow` and `desflow.analysis` export needs a
 `::: <module>.<name>` line in `docs/api.md`.
 """
 
@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import List
 
 import desflow
-import desflow.study
+import desflow.analysis
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "src" / "desflow"
@@ -66,7 +66,7 @@ def test_every_exported_name_is_on_the_api_page():
     entries = set(re.findall(r"^::: (\S+)$", text, re.M))
     missing = [
         f"{getattr(package, name).__module__}.{name}"
-        for package in (desflow, desflow.study)
+        for package in (desflow, desflow.analysis)
         for name in package.__all__
         if f"{getattr(package, name).__module__}.{name}" not in entries
     ]

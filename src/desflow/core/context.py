@@ -1604,7 +1604,7 @@ class SimulationContext:
         the next, as SimPy's `env.step()` and `env.peek()` do; `close()` ends the
         run. A context built by `from_yaml` takes its `run` section's values.
 
-        Replications and studies start each run here too, with the arguments after
+        Replications and experiments start each run here too, with the arguments after
         `drain`, and finish it with `finish()`, so a replication builds and ends
         exactly as `run()` does, `run.stop` and `run.drain` included.
 

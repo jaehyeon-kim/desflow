@@ -13,7 +13,7 @@ import logging
 from pathlib import Path
 
 from desflow import ConsoleEgress, SimulationContext, fit_column
-from desflow.study.fit import read_column
+from desflow.analysis.fit import read_column
 
 logging.basicConfig(
     level=logging.INFO,

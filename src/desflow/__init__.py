@@ -64,11 +64,11 @@ from desflow.models.schemas import EventPayload, LabelPayload, TelemetryPayload
 from desflow.resources.container import DynamicContainer
 from desflow.resources.resource import DynamicResource
 from desflow.resources.store import DynamicStore
-from desflow.study.fit import FitResult, fit_column
-from desflow.study.models import LowLevelModel
-from desflow.study.results import CheckFailed, StudyResult
-from desflow.study.runner import Replications, replicate, run_study
-from desflow.study.spec import StudySpec
+from desflow.analysis.fit import FitResult, fit_column
+from desflow.analysis.models import LowLevelModel
+from desflow.analysis.results import CheckFailed, ExperimentResult
+from desflow.analysis.runner import Replications, replicate, run_experiment
+from desflow.analysis.spec import ExperimentSpec
 from desflow.utils import time_to_seconds
 
 try:
@@ -111,9 +111,9 @@ __all__ = [
     "replicate",
     "Replications",
     "LowLevelModel",
-    "run_study",
-    "StudySpec",
-    "StudyResult",
+    "run_experiment",
+    "ExperimentSpec",
+    "ExperimentResult",
     "CheckFailed",
     "fit_column",
     "FitResult",

@@ -190,17 +190,17 @@ EXAMPLES: Dict[str, Example] = {
             yaml_command="desflow run replications.yaml --replications 20",
         ),
         Example(
-            "study",
-            "A Local Study",
+            "experiment",
+            "An Experiment",
             "two designs of the shop compared with paired replications, a check, "
             "observed waits and a report",
             {
-                "yaml": ["yaml/study.yaml", "yaml/study_shop.yaml"],
-                "builder": ["builder/study_example.py"],
-                "low-level": ["low-level/study_example.py"],
+                "yaml": ["yaml/experiment.yaml", "yaml/experiment_shop.yaml"],
+                "builder": ["builder/experiment_example.py"],
+                "low-level": ["low-level/experiment_example.py"],
             },
             shared=["observed_waits.csv"],
-            yaml_command="desflow study study.yaml",
+            yaml_command="desflow experiment experiment.yaml",
         ),
         Example(
             "fitting",

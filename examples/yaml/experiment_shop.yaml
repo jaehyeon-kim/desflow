@@ -1,17 +1,17 @@
-# The model of the local study in study.yaml: one hour of the shop.
+# The model of the experiment in experiment.yaml: one hour of the shop.
 #
-# The twin of the shop function in examples/builder/study_example.py. Two packers,
+# The twin of the shop function in examples/builder/experiment_example.py. Two packers,
 # orders every 2.5 seconds on average and a packing time of 4 seconds on average.
-# It has no sinks and no statistics level: the study runs it without sinks and
+# It has no sinks and no statistics level: the experiment runs it without sinks and
 # keeps the statistics its measures need.
 #
 # Needs no containers.
-# Run the study with: desflow study study.yaml
+# Run the experiment with: desflow experiment experiment.yaml
 
 simulation:
   sim_id: Shop
   factor: 0
-  # The study gives each run its own seed; 42 is for a run on its own.
+  # The experiment gives each run its own seed; 42 is for a run on its own.
   random_seed: 42
 
 resources:

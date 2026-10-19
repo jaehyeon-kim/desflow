@@ -73,69 +73,69 @@ The classes a task's flow is built from, and the signals and failures tasks shar
 ## Replications
 
 <!-- prettier-ignore -->
-::: desflow.study.runner.replicate
+::: desflow.analysis.runner.replicate
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.study.runner.Replications
+::: desflow.analysis.runner.Replications
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.study.models.LowLevelModel
+::: desflow.analysis.models.LowLevelModel
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.study.intervals.interval
+::: desflow.analysis.intervals.interval
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.study.intervals.Interval
+::: desflow.analysis.intervals.Interval
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.study.intervals.t_quantile
+::: desflow.analysis.intervals.t_quantile
     options:
       heading_level: 3
       show_root_heading: true
 
-## Local Studies
+## Experiments
 
 <!-- prettier-ignore -->
-::: desflow.study.runner.run_study
-    options:
-      heading_level: 3
-      show_root_heading: true
-
-<!-- prettier-ignore -->
-::: desflow.study.spec.StudySpec
+::: desflow.analysis.runner.run_experiment
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.study.spec.load_study
+::: desflow.analysis.spec.ExperimentSpec
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.study.results.StudyResult
+::: desflow.analysis.spec.load_experiment
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.study.results.CheckFailed
+::: desflow.analysis.results.ExperimentResult
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.analysis.results.CheckFailed
     options:
       heading_level: 3
       show_root_heading: true
@@ -143,19 +143,19 @@ The classes a task's flow is built from, and the signals and failures tasks shar
 ## Input Fitting
 
 <!-- prettier-ignore -->
-::: desflow.study.fit.fit_column
+::: desflow.analysis.fit.fit_column
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.study.fit.FitResult
+::: desflow.analysis.fit.FitResult
     options:
       heading_level: 3
       show_root_heading: true
 
 <!-- prettier-ignore -->
-::: desflow.study.fit.Candidate
+::: desflow.analysis.fit.Candidate
     options:
       heading_level: 3
       show_root_heading: true

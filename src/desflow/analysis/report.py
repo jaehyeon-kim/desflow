@@ -1,6 +1,6 @@
-"""The study report: a Markdown file built from the study's saved artifacts only.
+"""The experiment report: a Markdown file built from the experiment's saved artifacts only.
 
-`run_study` writes the artifacts and then this report, and `desflow report` builds
+`run_experiment` writes the artifacts and then this report, and `desflow report` builds
 it again from the same files, so the two never differ. Every section says so when
 it has nothing to report, rather than inventing content.
 """
@@ -8,12 +8,12 @@ it has nothing to report, rather than inventing content.
 from pathlib import Path
 from typing import Any, Dict, List, Sequence, Union
 
-from desflow.study.results import (
+from desflow.analysis.results import (
     CHECKS_FILE,
     COMPARISONS_FILE,
     REPORT_FILE,
     RESULTS_FILE,
-    STUDY_FILE,
+    EXPERIMENT_FILE,
     SUMMARY_FILE,
     read_csv,
     read_json,
@@ -51,62 +51,62 @@ def _interval(row: Dict[str, str]) -> str:
     return f"{_number(row['low'])} to {_number(row['high'])}"
 
 
-def _distributions(study: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+def _distributions(experiment: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
     return {
         path: values
-        for path, values in study["parameters"].items()
+        for path, values in experiment["parameters"].items()
         if isinstance(values, dict) and "dist" in values
     }
 
 
-def _missing_inputs(study: Dict[str, Any]) -> List[str]:
-    """What the study does not state: each is named, never filled in."""
+def _missing_inputs(experiment: Dict[str, Any]) -> List[str]:
+    """What the experiment does not state: each is named, never filled in."""
     missing = []
-    if not study.get("question"):
-        missing.append("The question the study answers is not stated.")
-    if not study.get("assumptions"):
+    if not experiment.get("question"):
+        missing.append("The question the experiment answers is not stated.")
+    if not experiment.get("assumptions"):
         missing.append("No assumptions are stated.")
-    for path in _distributions(study):
-        if path not in study.get("inputs", {}):
+    for path in _distributions(experiment):
+        if path not in experiment.get("inputs", {}):
             missing.append(f"The provenance of `{path}` is not stated.")
-    if not study.get("observed"):
+    if not experiment.get("observed"):
         missing.append(
             "No observed values are given, so the model's output is not compared "
             "with the real system."
         )
-    if not study.get("limits"):
+    if not experiment.get("limits"):
         missing.append("No limits are stated.")
     return missing
 
 
 def build_report(folder: Union[str, Path]) -> str:
     """
-    Builds the report of the study whose artifacts are in `folder`.
+    Builds the report of the experiment whose artifacts are in `folder`.
 
     Args:
-        folder: The study's output folder, holding `study.json` and the CSV files.
+        folder: The experiment's output folder, holding `experiment.json` and the CSV files.
 
     Returns:
         str: The report, as Markdown.
 
     Raises:
-        FileNotFoundError: If the folder has no `study.json`.
+        FileNotFoundError: If the folder has no `experiment.json`.
     """
     folder = Path(folder)
-    study = read_json(folder / STUDY_FILE)
-    settings = study["settings"]
+    experiment = read_json(folder / EXPERIMENT_FILE)
+    settings = experiment["settings"]
     summary = read_csv(folder / SUMMARY_FILE)
     results = read_csv(folder / RESULTS_FILE)
     comparisons = read_csv(folder / COMPARISONS_FILE)
     checks = read_csv(folder / CHECKS_FILE)
     measures = settings["measures"]
-    counts = study["counts"]
-    designs = [d["name"] for d in study["designs"]]
-    model = study["model"]
-    versions = study["versions"]
+    counts = experiment["counts"]
+    designs = [d["name"] for d in experiment["designs"]]
+    model = experiment["model"]
+    versions = experiment["versions"]
 
-    lines = [f"# Study: {study['study']}", "", "## Question", ""]
-    lines.append(study.get("question") or "Not stated.")
+    lines = [f"# Experiment: {experiment['experiment']}", "", "## Question", ""]
+    lines.append(experiment.get("question") or "Not stated.")
 
     lines += ["", "## Model", ""]
     lines += [
@@ -118,15 +118,15 @@ def build_report(folder: Union[str, Path]) -> str:
     ]
 
     lines += ["", "## Assumptions", ""]
-    lines += _items(study.get("assumptions", []), "None stated.")
+    lines += _items(experiment.get("assumptions", []), "None stated.")
 
     lines += ["", "## Inputs and Provenance", ""]
-    distributions = _distributions(study)
+    distributions = _distributions(experiment)
     if distributions:
         rows = []
         for path, values in distributions.items():
             parameters = ", ".join(f"{k}={v}" for k, v in values.items() if k != "dist")
-            provenance = study.get("inputs", {}).get(path, "not stated")
+            provenance = experiment.get("inputs", {}).get(path, "not stated")
             rows.append([f"`{path}`", values["dist"], parameters, provenance])
         lines += _table(["Input", "Family", "Parameters", "Provenance"], rows)
     else:
@@ -167,7 +167,7 @@ def build_report(folder: Union[str, Path]) -> str:
                 ", ".join(f"`{k}` = {v}" for k, v in d["overrides"].items())
                 or "none: the model as written",
             ]
-            for d in study["designs"]
+            for d in experiment["designs"]
         ],
     )
 
@@ -291,7 +291,7 @@ def build_report(folder: Union[str, Path]) -> str:
         lines.append("No checks were requested.")
 
     lines += ["", "## Observed Comparison", ""]
-    observed = study.get("observed") or []
+    observed = experiment.get("observed") or []
     if observed:
         lines += _table(
             ["Design", "Measure", "Observed", "Unit", "Simulated interval", "Inside"],
@@ -311,19 +311,19 @@ def build_report(folder: Union[str, Path]) -> str:
         lines.append("No observed values were given.")
 
     lines += ["", "## Limits", ""]
-    lines += _items(study.get("limits", []), "None stated.")
+    lines += _items(experiment.get("limits", []), "None stated.")
 
     lines += ["", "## Missing Inputs", ""]
-    lines += _items(_missing_inputs(study), "None.")
+    lines += _items(_missing_inputs(experiment), "None.")
     return "\n".join(lines) + "\n"
 
 
 def write_report(folder: Union[str, Path]) -> Path:
     """
-    Builds the report from the study's artifacts and writes it beside them.
+    Builds the report from the experiment's artifacts and writes it beside them.
 
     Args:
-        folder: The study's output folder.
+        folder: The experiment's output folder.
 
     Returns:
         Path: The `report.md` written.

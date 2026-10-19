@@ -1,20 +1,20 @@
 # Comparing Designs
 
-[Trusting Results](trusting-results.md) measured the busy hour with three packers: over 40 replications the mean wait was 2.32 ± 0.20 seconds. The shop could hire a fourth packer. This page asks: **does a fourth packer cut the mean wait, and by how much?** It runs both designs as a local study, with the same seeds, and compares them seed by seed.
+[Trusting Results](trusting-results.md) measured the busy hour with three packers: over 40 replications the mean wait was 2.32 ± 0.20 seconds. The shop could hire a fourth packer. This page asks: **does a fourth packer cut the mean wait, and by how much?** It runs both designs as an experiment, with the same seeds, and compares them seed by seed.
 
 ## What You Add
 
-A study: a file in YAML, or a mapping in Python, that names the model, the two designs, the comparison and a check. The model is the busy hour of Trusting Results, unchanged.
+An experiment: a file in YAML, or a mapping in Python, that names the model, the two designs, the comparison and a check. The model is the busy hour of Trusting Results, unchanged.
 
 ---
 
 ## Name the Model
 
-A study runs a model written in any of the three ways, for a number of replications from one seed:
+An experiment runs a model written in any of the three ways, for a number of replications from one seed:
 
 === "YAML"
 
-    ```yaml title="docs/snippets/yaml/comparing_designs_study.yaml:model"
+    ```yaml title="docs/snippets/yaml/comparing_designs_experiment.yaml:model"
     # The busy hour of Trusting Results, with its 2-minute warm-up
     model: trusting_results.yaml
     until: 1 h
@@ -22,7 +22,7 @@ A study runs a model written in any of the three ways, for a number of replicati
     seed: 42
     ```
 
-    The path is read from the study file's folder.
+    The path is read from the experiment file's folder.
 
 === "Builder"
 
@@ -34,7 +34,7 @@ A study runs a model written in any of the three ways, for a number of replicati
     "seed": 42,
     ```
 
-    `shop` is the function of Trusting Results that returns a new busy hour; the study calls it once per run.
+    `shop` is the function of Trusting Results that returns a new busy hour; the experiment calls it once per run.
 
 === "Low-level"
 
@@ -47,7 +47,7 @@ A study runs a model written in any of the three ways, for a number of replicati
     "seed": 42,
     ```
 
-    The low-level model has no warm-up of its own, so the study gives it one.
+    The low-level model has no warm-up of its own, so the experiment gives it one.
 
 ---
 
@@ -57,7 +57,7 @@ Each variant names the registry values it changes before the clock starts. `thre
 
 === "YAML"
 
-    ```yaml title="docs/snippets/yaml/comparing_designs_study.yaml:compare"
+    ```yaml title="docs/snippets/yaml/comparing_designs_experiment.yaml:compare"
     # Every design runs with the same 20 seeds, so they are compared seed by seed
     pairing: common
     measures: [tasks.pack_order.wait_mean, resources.packers.utilization_avg]
@@ -87,7 +87,7 @@ Run it:
 === "YAML"
 
     ```bash
-    desflow study comparing_designs_study.yaml
+    desflow experiment comparing_designs_experiment.yaml
     ```
 
 === "Builder"
@@ -102,7 +102,7 @@ Run it:
     python comparing_designs_low_level.py
     ```
 
-The study runs 40 replications, 20 of each design, and writes what it found to `results/four-packers`. Each design's results, with the 95% half-width:
+The experiment runs 40 replications, 20 of each design, and writes what it found to `results/four-packers`. Each design's results, with the 95% half-width:
 
 | Design | Mean wait (s) | Utilisation (%) |
 |---|---|---|
@@ -128,7 +128,7 @@ A check states what the answer must be. This one asks for a mean wait under half
 
 === "YAML"
 
-    ```yaml title="docs/snippets/yaml/comparing_designs_study.yaml:checks"
+    ```yaml title="docs/snippets/yaml/comparing_designs_experiment.yaml:checks"
     checks:
       # The upper end of the interval must be under half a second
       - {measure: tasks.pack_order.wait_mean, variant: four, max: 0.5}
@@ -147,15 +147,15 @@ A check states what the answer must be. This one asks for a mean wait under half
 
     The same key, in the same mapping.
 
-A check compares the far end of the interval with its bound, the upper end here, so a mean that is below the bound only by chance does not pass. The upper end is 0.286 seconds, so the check passes. When a check fails, `desflow study` still writes every file and then exits with status 1, and `run_study` raises `CheckFailed`, so a script or a CI job stops on it.
+A check compares the far end of the interval with its bound, the upper end here, so a mean that is below the bound only by chance does not pass. The upper end is 0.286 seconds, so the check passes. When a check fails, `desflow experiment` still writes every file and then exits with status 1, and `run_experiment` raises `CheckFailed`, so a script or a CI job stops on it.
 
 ---
 
 ## Read the Report
 
-The study writes `report.md` beside its results. It states the question, the model and its versions, the assumptions, each input distribution with where it came from, the run settings, the counts, the results, the comparison and the checks, and what the study does not state. The study names its assumptions, the source of its inputs and its limits:
+The experiment writes `report.md` beside its results. It states the question, the model and its versions, the assumptions, each input distribution with where it came from, the run settings, the counts, the results, the comparison and the checks, and what the experiment does not state. The experiment names its assumptions, the source of its inputs and its limits:
 
-```yaml title="docs/snippets/yaml/comparing_designs_study.yaml:report"
+```yaml title="docs/snippets/yaml/comparing_designs_experiment.yaml:report"
 assumptions:
   - Orders arrive at random, at a steady 1.8 a second, through the busy hour.
   - The 40 packing times measured at the bench stand for every packer.
@@ -166,7 +166,7 @@ limits:
 output: results/four-packers
 ```
 
-The study states where the packing times came from but not the arrival rate, so the report's Missing Inputs section says: "The provenance of `Shop.arrival.orders` is not stated." It names the gap rather than filling it in. [Local Studies](../user-guide/local-studies.md) lists every file and section.
+The experiment states where the packing times came from but not the arrival rate, so the report's Missing Inputs section says: "The provenance of `Shop.arrival.orders` is not stated." It names the gap rather than filling it in. [Experiments](../user-guide/experiments.md) lists every file and section.
 
 ---
 
@@ -186,11 +186,11 @@ Two designs run with different seeds differ by the design and by chance, and the
 
     === "YAML"
 
-        ```yaml title="docs/snippets/yaml/comparing_designs_study.yaml"
+        ```yaml title="docs/snippets/yaml/comparing_designs_experiment.yaml"
         # The Comparing Designs tutorial: does a fourth packer cut the busy hour's mean wait?
-        # Run it with: desflow study comparing_designs_study.yaml
+        # Run it with: desflow experiment comparing_designs_experiment.yaml
         # Each design separately: change pairing to independent and remove compare.
-        study: four-packers
+        experiment: four-packers
         question: Does a fourth packer cut the mean wait of the busy hour, and by how much?
         # The busy hour of Trusting Results, with its 2-minute warm-up
         model: trusting_results.yaml
@@ -226,21 +226,21 @@ Two designs run with different seeds differ by the design and by chance, and the
         """The Comparing Designs tutorial: a fourth packer, builder.
 
         The busy hour of Trusting Results, run 20 times with three packers and 20 times with
-        four, with the same seeds, and compared seed by seed. The study writes its artifacts
+        four, with the same seeds, and compared seed by seed. The experiment writes its artifacts
         and report to results/four-packers, and the script prints the comparison and the
         check.
         """
 
         import logging
 
-        from desflow import run_study
+        from desflow import run_experiment
         from trusting_results import shop
 
-        # The imported model logs at INFO; a study logs only its warnings
+        # The imported model logs at INFO; an experiment logs only its warnings
         logging.getLogger("desflow").setLevel(logging.WARNING)
 
-        STUDY = {
-            "study": "four-packers",
+        EXPERIMENT = {
+            "experiment": "four-packers",
             "question": "Does a fourth packer cut the mean wait of the busy hour, and by how much?",
             # A function returning a new busy hour, with its 2-minute warm-up
             "model": shop,
@@ -268,16 +268,16 @@ Two designs run with different seeds differ by the design and by chance, and the
         }
 
 
-        def study(pairing="common", output=None):
-            """Runs the study; independent pairing gives each design seeds of its own."""
-            settings = dict(STUDY, pairing=pairing)
+        def experiment(pairing="common", output=None):
+            """Runs the experiment; independent pairing gives each design seeds of its own."""
+            settings = dict(EXPERIMENT, pairing=pairing)
             if pairing == "independent":
                 settings["compare"] = []  # a comparison needs the same seeds
-            return run_study(settings, output=output)
+            return run_experiment(settings, output=output)
 
 
         if __name__ == "__main__":
-            result = study()
+            result = experiment()
             for row in result.comparisons:
                 print(f"{row['measure']}: {row['difference']:.2f} ± {row['half_width']:.2f}")
             for row in result.checks:
@@ -290,21 +290,21 @@ Two designs run with different seeds differ by the design and by chance, and the
         """The Comparing Designs tutorial: a fourth packer, low-level.
 
         The busy hour of Trusting Results, run 20 times with three packers and 20 times with
-        four, with the same seeds, and compared seed by seed. The study writes its artifacts
+        four, with the same seeds, and compared seed by seed. The experiment writes its artifacts
         and report to results/four-packers, and the script prints the comparison and the
         check.
         """
 
         import logging
 
-        from desflow import LowLevelModel, run_study
+        from desflow import LowLevelModel, run_experiment
         from trusting_results_low_level import WARMUP, model
 
-        # The imported model logs at INFO; a study logs only its warnings
+        # The imported model logs at INFO; an experiment logs only its warnings
         logging.getLogger("desflow").setLevel(logging.WARNING)
 
-        STUDY = {
-            "study": "four-packers",
+        EXPERIMENT = {
+            "experiment": "four-packers",
             "question": "Does a fourth packer cut the mean wait of the busy hour, and by how much?",
             # The function that builds the busy hour, and its 2-minute warm-up
             "model": LowLevelModel(model, sim_id="Shop"),
@@ -331,16 +331,16 @@ Two designs run with different seeds differ by the design and by chance, and the
         }
 
 
-        def study(pairing="common", output=None):
-            """Runs the study; independent pairing gives each design seeds of its own."""
-            settings = dict(STUDY, pairing=pairing)
+        def experiment(pairing="common", output=None):
+            """Runs the experiment; independent pairing gives each design seeds of its own."""
+            settings = dict(EXPERIMENT, pairing=pairing)
             if pairing == "independent":
                 settings["compare"] = []  # a comparison needs the same seeds
-            return run_study(settings, output=output)
+            return run_experiment(settings, output=output)
 
 
         if __name__ == "__main__":
-            result = study()
+            result = experiment()
             for row in result.comparisons:
                 print(f"{row['measure']}: {row['difference']:.2f} ± {row['half_width']:.2f}")
             for row in result.checks:

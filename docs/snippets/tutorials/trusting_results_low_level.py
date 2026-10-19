@@ -20,7 +20,7 @@ from desflow import (
     SimParameter,
     replicate,
 )
-from desflow.study import interval
+from desflow.analysis import interval
 
 logging.basicConfig(
     level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"

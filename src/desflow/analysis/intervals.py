@@ -13,7 +13,7 @@ from statistics import fmean, stdev
 from typing import Sequence
 
 # Steps of the continued fraction before giving up, and the relative change at
-# which it has converged. 300 steps covers every degree of freedom a study uses.
+# which it has converged. 300 steps covers every degree of freedom an experiment uses.
 _MAX_TERMS = 300
 _TOLERANCE = 1e-15
 _TINY = 1e-300

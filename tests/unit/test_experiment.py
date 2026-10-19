@@ -1,4 +1,4 @@
-"""Local studies: designs, pairing, comparisons, checks, observed values and the report."""
+"""Experiments: designs, pairing, comparisons, checks, observed values and the report."""
 
 from pathlib import Path
 from typing import Optional
@@ -14,13 +14,13 @@ from desflow import (
     LowLevelModel,
     SimParameter,
     SimulationContext,
-    run_study,
+    run_experiment,
 )
 from desflow.blueprint.cli import app as cli
 from desflow.blueprint.loader import BlueprintError
-from desflow.study import results as found
-from desflow.study.models import RunResult
-from desflow.study.spec import StudySpec
+from desflow.analysis import results as found
+from desflow.analysis.models import RunResult
+from desflow.analysis.spec import ExperimentSpec
 
 SHOP = """\
 simulation: {sim_id: Shop, factor: 0}
@@ -29,8 +29,8 @@ arrivals: {orders: {dist: exponential, rate: 0.4, spawn: pack}}
 services: {packing: {dist: gamma, shape: 4, scale: 1}}
 tasks: {pack: {service: packing, resource: packers, payload: {event_type: packed}}}
 """
-STUDY = """\
-study: packers
+EXPERIMENT = """\
+experiment: packers
 question: Does a third packer keep the mean wait under 2 seconds?
 model: shop.yaml
 assumptions: ["Orders arrive at random at a steady rate."]
@@ -118,7 +118,7 @@ def low_level(env, sampler):
 def _settings(**changes):
     import yaml
 
-    settings = yaml.safe_load(STUDY)
+    settings = yaml.safe_load(EXPERIMENT)
     settings.update(changes)
     return settings
 
@@ -126,12 +126,12 @@ def _settings(**changes):
 @pytest.fixture
 def folder(tmp_path) -> Path:
     (tmp_path / "shop.yaml").write_text(SHOP)
-    (tmp_path / "study.yaml").write_text(STUDY)
+    (tmp_path / "experiment.yaml").write_text(EXPERIMENT)
     return tmp_path
 
 
 def test_a_sweep_runs_every_variant_at_every_point():
-    spec = StudySpec.model_validate(
+    spec = ExperimentSpec.model_validate(
         _settings(
             model=shop,
             sweep={
@@ -151,7 +151,7 @@ def test_a_sweep_runs_every_variant_at_every_point():
 
 
 def test_one_factor_sensitivity_changes_only_that_factor(tmp_path):
-    result = run_study(
+    result = run_experiment(
         _settings(
             model=shop,
             variants={"base": {}},
@@ -176,12 +176,12 @@ def test_one_factor_sensitivity_changes_only_that_factor(tmp_path):
 
 
 def test_a_study_repeats_and_the_three_forms_agree(folder, tmp_path):
-    first = run_study(folder / "study.yaml")
-    again = run_study(folder / "study.yaml")
+    first = run_experiment(folder / "experiment.yaml")
+    again = run_experiment(folder / "experiment.yaml")
     assert first.results == again.results
     keep = (folder / "results" / "packers" / "results.csv").read_text()
-    run_study(_settings(model=shop, output=str(tmp_path / "builder")))
-    low = run_study(
+    run_experiment(_settings(model=shop, output=str(tmp_path / "builder")))
+    low = run_experiment(
         _settings(
             model=LowLevelModel(low_level, "Shop"),
             output=str(tmp_path / "low"),
@@ -194,7 +194,7 @@ def test_a_study_repeats_and_the_three_forms_agree(folder, tmp_path):
 
 def test_a_paired_interval_matches_a_hand_calculation(tmp_path):
     """Differences 1 to 5 seed by seed: mean 3, half-width 2.776 x sqrt(2.5 / 5)."""
-    spec = StudySpec.model_validate(
+    spec = ExperimentSpec.model_validate(
         _settings(
             model=shop, replications=5, measures=["tasks.pack.wait_mean"], checks=[]
         )
@@ -214,7 +214,7 @@ def test_a_paired_interval_matches_a_hand_calculation(tmp_path):
 
 def test_stream_alignment_is_reported(tmp_path):
     """A variant that draws from a stream the baseline never uses names it."""
-    result = run_study(
+    result = run_experiment(
         _settings(
             model=LowLevelModel(low_level, "Shop"),
             variants={"base": {}, "wrap": {"Shop.variables.wrap": 1}},
@@ -230,7 +230,7 @@ def test_stream_alignment_is_reported(tmp_path):
 
 
 def test_independent_pairing_spawns_seeds_per_design():
-    spec = StudySpec.model_validate(
+    spec = ExperimentSpec.model_validate(
         _settings(model=shop, pairing="independent", compare=[])
     )
     base, three = found.designs(spec)
@@ -238,27 +238,29 @@ def test_independent_pairing_spawns_seeds_per_design():
 
 
 def test_a_failed_check_writes_everything_then_fails(folder):
-    study = folder / "study.yaml"
-    study.write_text(STUDY.replace("variant: three, max: 2", "variant: base, max: 2"))
+    experiment = folder / "experiment.yaml"
+    experiment.write_text(
+        EXPERIMENT.replace("variant: three, max: 2", "variant: base, max: 2")
+    )
     with pytest.raises(CheckFailed, match="base: tasks.pack.wait_mean max 2") as caught:
-        run_study(study)
+        run_experiment(experiment)
     assert caught.value.result.failed[0]["design"] == "base"
     out = folder / "results" / "packers"
     assert sorted(p.name for p in out.iterdir()) == [
         "checks.csv",
         "comparisons.csv",
+        "experiment.json",
         "report.md",
         "results.csv",
-        "study.json",
         "summary.csv",
     ]
     assert (
         "| base | `tasks.pack.wait_mean` | the upper end | max 2 |"
         in (out / "report.md").read_text()
     )
-    cli_run = CliRunner().invoke(cli, ["study", str(study)])
+    cli_run = CliRunner().invoke(cli, ["experiment", str(experiment)])
     assert cli_run.exit_code == 1 and "FAILED: base" in cli_run.output
-    assert not run_study(study, raise_on_failure=False).failed == []
+    assert not run_experiment(experiment, raise_on_failure=False).failed == []
 
 
 def test_a_check_on_the_interval_is_stricter_than_on_the_mean(tmp_path):
@@ -267,7 +269,7 @@ def test_a_check_on_the_interval_is_stricter_than_on_the_mean(tmp_path):
         for m in (6.0,)
         for on in ("mean", "interval")
     ]
-    result = run_study(
+    result = run_experiment(
         _settings(model=shop, checks=checks, output=str(tmp_path / "o")),
         raise_on_failure=False,
     )
@@ -290,9 +292,11 @@ OBSERVED = "measure,value,unit,population,horizon\n{}\n"
 )
 def test_observed_values_must_match_the_measure(folder, row, error):
     (folder / "observed.csv").write_text(OBSERVED.format(row))
-    (folder / "study.yaml").write_text(STUDY + "observed: {file: observed.csv}\n")
+    (folder / "experiment.yaml").write_text(
+        EXPERIMENT + "observed: {file: observed.csv}\n"
+    )
     with pytest.raises(ValueError, match=error):
-        run_study(folder / "study.yaml")
+        run_experiment(folder / "experiment.yaml")
 
 
 def test_an_observed_value_is_placed_against_the_interval(folder):
@@ -301,8 +305,10 @@ def test_an_observed_value_is_placed_against_the_interval(folder):
         "resources.packers.utilization_avg,95,percent,time average,1620"
     )
     (folder / "observed.csv").write_text(OBSERVED.format(rows))
-    (folder / "study.yaml").write_text(STUDY + "observed: {file: observed.csv}\n")
-    result = run_study(folder / "study.yaml")
+    (folder / "experiment.yaml").write_text(
+        EXPERIMENT + "observed: {file: observed.csv}\n"
+    )
+    result = run_experiment(folder / "experiment.yaml")
     inside = {row["measure"]: row["inside"] for row in result.observed}
     assert inside == {
         "tasks.pack.wait_mean": True,
@@ -319,17 +325,17 @@ def test_an_observed_value_is_placed_against_the_interval(folder):
 
 
 def test_the_report_names_missing_inputs_and_rebuilds_the_same(folder):
-    (folder / "study.yaml").write_text(
+    (folder / "experiment.yaml").write_text(
         "\n".join(
             line
-            for line in STUDY.split("\n")
+            for line in EXPERIMENT.split("\n")
             if not line.startswith(("question", "assumptions", "limits"))
         )
     )
-    result = run_study(folder / "study.yaml")
+    result = run_experiment(folder / "experiment.yaml")
     missing = result.report[result.report.index("## Missing Inputs") :]
     for text in (
-        "The question the study answers is not stated.",
+        "The question the experiment answers is not stated.",
         "No assumptions are stated.",
         "The provenance of `Shop.arrival.orders` is not stated.",
         "No observed values are given",
@@ -356,8 +362,8 @@ def test_a_fixed_horizon_leaves_orders_unfinished_and_a_drained_run_does_not(tmp
     ):
         (tmp_path / f"{name}.yaml").write_text(SHOP + run)
 
-    def study(name):
-        return run_study(
+    def experiment(name):
+        return run_experiment(
             _settings(
                 model=str(tmp_path / f"{name}.yaml"),
                 until=120,
@@ -370,7 +376,7 @@ def test_a_fixed_horizon_leaves_orders_unfinished_and_a_drained_run_does_not(tmp
             )
         )
 
-    fixed, drained = study("fixed"), study("drained")
+    fixed, drained = experiment("fixed"), experiment("drained")
 
     def counts(result, statistic):
         return [r["value"] for r in result.results if r["statistic"] == statistic]
@@ -387,48 +393,50 @@ def test_a_fixed_horizon_leaves_orders_unfinished_and_a_drained_run_does_not(tmp
 
 
 def test_bad_settings_are_refused_with_their_line(folder):
-    study = folder / "study.yaml"
-    study.write_text(STUDY + "replication: 3\n")
-    with pytest.raises(BlueprintError, match=r"study.yaml:15: replication"):
-        run_study(study)
-    study.write_text(STUDY.replace("current_cap: 3", "capacity: 3"))
+    experiment = folder / "experiment.yaml"
+    experiment.write_text(EXPERIMENT + "replication: 3\n")
+    with pytest.raises(BlueprintError, match=r"experiment.yaml:15: replication"):
+        run_experiment(experiment)
+    experiment.write_text(EXPERIMENT.replace("current_cap: 3", "capacity: 3"))
     with pytest.raises(
         BlueprintError,
-        match=r"study.yaml:11: three: 'Shop.resources.packers.capacity' is not a registry path",
+        match=r"experiment.yaml:11: three: 'Shop.resources.packers.capacity' is not a registry path",
     ):
-        run_study(study)
-    study.write_text(STUDY.replace("Shop.service.packing:", "Shop.service.pack:"))
+        run_experiment(experiment)
+    experiment.write_text(
+        EXPERIMENT.replace("Shop.service.packing:", "Shop.service.pack:")
+    )
     with pytest.raises(
-        BlueprintError, match="study.yaml:5: inputs names Shop.service.pack"
+        BlueprintError, match="experiment.yaml:5: inputs names Shop.service.pack"
     ):
-        run_study(study)
-    study.write_text(STUDY.replace("current_cap: 3", "current_cap: 9"))
+        run_experiment(experiment)
+    experiment.write_text(EXPERIMENT.replace("current_cap: 3", "current_cap: 9"))
     with pytest.raises(BlueprintError, match="cannot be set to 9"):
-        run_study(study)
+        run_experiment(experiment)
     with pytest.raises(ValueError, match="pairing: common"):
-        StudySpec.model_validate(_settings(model=shop, pairing="independent"))
+        ExperimentSpec.model_validate(_settings(model=shop, pairing="independent"))
     with pytest.raises(ValueError, match="add it to measures"):
-        StudySpec.model_validate(
+        ExperimentSpec.model_validate(
             _settings(model=shop, checks=[{"measure": "tasks.pack.wait_max", "max": 1}])
         )
     with pytest.raises(ValueError, match="sweep also sets"):
-        StudySpec.model_validate(
+        ExperimentSpec.model_validate(
             _settings(model=shop, sweep={"Shop.resources.packers.current_cap": [2, 3]})
         )
-    cli_run = CliRunner().invoke(cli, ["study", str(study)])
+    cli_run = CliRunner().invoke(cli, ["experiment", str(experiment)])
     assert cli_run.exit_code == 2 and "cannot be set to 9" in cli_run.output
 
 
 def test_a_python_reference_names_a_builder_factory(folder):
     (folder / "shop_model.py").write_text(
-        "from tests.unit.test_study import shop\n\ndef make_shop():\n    return shop()\n"
+        "from tests.unit.test_experiment import shop\n\ndef make_shop():\n    return shop()\n"
     )
-    study = folder / "study.yaml"
-    study.write_text(
-        STUDY.replace("model: shop.yaml", "model: !python shop_model.make_shop")
+    experiment = folder / "experiment.yaml"
+    experiment.write_text(
+        EXPERIMENT.replace("model: shop.yaml", "model: !python shop_model.make_shop")
     )
-    result = run_study(study)
-    evidence = found.read_json(result.output / "study.json")
+    result = run_experiment(experiment)
+    evidence = found.read_json(result.output / "experiment.json")
     assert evidence["model"]["form"] == "builder"
     assert evidence["model"]["source"] == "shop_model:make_shop"
     assert len(evidence["model"]["sha256"]) == 64
@@ -444,20 +452,20 @@ def test_a_python_reference_names_a_builder_factory(folder):
 
 def test_report_needs_a_study_folder(tmp_path):
     run = CliRunner().invoke(cli, ["report", str(tmp_path)])
-    assert run.exit_code == 2 and "study.json" in run.output
+    assert run.exit_code == 2 and "experiment.json" in run.output
 
 
-def test_a_missing_model_or_observed_file_is_an_invalid_study(folder):
-    """Both exit 2, the status of an invalid study, naming the line of the key."""
-    study = folder / "study.yaml"
-    study.write_text(STUDY.replace("model: shop.yaml", "model: shops.yaml"))
-    run = CliRunner().invoke(cli, ["study", str(study)])
+def test_a_missing_model_or_observed_file_is_an_invalid_experiment(folder):
+    """Both exit 2, the status of an invalid experiment, naming the line of the key."""
+    experiment = folder / "experiment.yaml"
+    experiment.write_text(EXPERIMENT.replace("model: shop.yaml", "model: shops.yaml"))
+    run = CliRunner().invoke(cli, ["experiment", str(experiment)])
     assert run.exit_code == 2
-    assert "study.yaml:3: model shops.yaml: no such file" in run.output
-    study.write_text(STUDY + "observed: {file: observed.csv}\n")
-    run = CliRunner().invoke(cli, ["study", str(study)])
+    assert "experiment.yaml:3: model shops.yaml: no such file" in run.output
+    experiment.write_text(EXPERIMENT + "observed: {file: observed.csv}\n")
+    run = CliRunner().invoke(cli, ["experiment", str(experiment)])
     assert run.exit_code == 2
-    assert "study.yaml:15: observed file observed.csv: no such file" in run.output
+    assert "experiment.yaml:15: observed file observed.csv: no such file" in run.output
 
 
 SHARED = SimParameter(
@@ -480,7 +488,7 @@ def shared_model(env, sampler):
 
 def test_a_low_level_model_keeps_its_own_parameters(tmp_path):
     """A variant's value is undone after each run, so the baseline is not changed."""
-    result = run_study(
+    result = run_experiment(
         _settings(
             model=LowLevelModel(shared_model, "Shop"),
             variants={"three": {"Shop.resources.packers.current_cap": 3}, "base": {}},

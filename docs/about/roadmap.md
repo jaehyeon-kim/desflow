@@ -41,8 +41,8 @@ Releases come in the order shown, without dates: a release ships when it is read
   content: 'In 0.22.0: run a model with many seeds and get each statistic with a confidence interval, so a result is never read from one run. [#59](https://github.com/jaehyeon-kim/desflow/issues/59)'
   icon: ':material-clock-outline:'
   key: planned
-- title: Local studies
-  content: 'In 0.22.0: compare designs and sweep parameters over replications, fail a study when a result breaks a limit, fit a distribution to measured data, and write a Markdown report, all on one machine. [#66](https://github.com/jaehyeon-kim/desflow/issues/66)'
+- title: Experiments
+  content: 'In 0.22.0: compare designs and sweep parameters over replications, fail an experiment when a result breaks a limit, fit a distribution to measured data, and write a Markdown report, all on one machine. [#66](https://github.com/jaehyeon-kim/desflow/issues/66)'
   icon: ':material-clock-outline:'
   key: planned
 - title: Speed
@@ -70,7 +70,7 @@ Releases come in the order shown, without dates: a release ships when it is read
   icon: ':material-clock-outline:'
   key: planned
 - title: Learn section
-  content: 'Finishes the shop tutorial, which extends one shop model page by page and answers a question with a number on each page, and adds concept pages on studies, verification and queueing. 0.21.0 opens the Learn section with the first nine tutorial pages. [#60](https://github.com/jaehyeon-kim/desflow/issues/60)'
+  content: 'Finishes the shop tutorial, which extends one shop model page by page and answers a question with a number on each page, and adds concept pages on experiments, verification and queueing. 0.21.0 opens the Learn section with the first nine tutorial pages. [#60](https://github.com/jaehyeon-kim/desflow/issues/60)'
   icon: ':material-clock-outline:'
   key: planned
 ::/timeline::
@@ -165,7 +165,7 @@ From 1.0, the YAML blueprint format, the `desflow` command, the public Python AP
 ### Analysis
 
 - **Experiments:** experiment designs, optimisation, and calibration against observed data.
-- **Fitting and comparison:** distribution fitting from more data sources, automatic fault-impact studies, and fuller run comparison and fidelity scoring.
+- **Fitting and comparison:** distribution fitting from more data sources, automatic fault-impact experiments, and fuller run comparison and fidelity scoring.
 
 ### Simulation server
 

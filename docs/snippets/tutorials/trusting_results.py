@@ -9,7 +9,7 @@ replications: python trusting_results.py 2>/dev/null shows only those lines.
 import logging
 
 from desflow import ConsoleEgress, SimulationContext, replicate
-from desflow.study import interval
+from desflow.analysis import interval
 
 logging.basicConfig(
     level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"

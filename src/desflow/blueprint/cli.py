@@ -183,7 +183,7 @@ def _replicate(
     workers: int,
 ) -> None:
     """Runs the replications and prints their summary."""
-    from desflow.study.runner import replicate
+    from desflow.analysis.runner import replicate
 
     if seed is None:
         seed = secrets.randbelow(2**32)
@@ -205,12 +205,12 @@ def _replicate(
     typer.echo(f"Repeat one replication with: desflow run {file} --seed <its seed>")
 
 
-@app.command("study")
-def _study(
+@app.command("experiment")
+def _experiment(
     file: Annotated[
         Path,
         typer.Argument(
-            help="The study file.",
+            help="The experiment file.",
             metavar="FILE",
             exists=True,
             dir_okay=False,
@@ -225,8 +225,8 @@ def _study(
         ),
     ] = None,
 ) -> None:
-    """Run the study in FILE, write its artifacts and report, and exit 1 if a check fails."""
-    from desflow.study.runner import run_study
+    """Run the experiment in FILE, write its artifacts and report, and exit 1 if a check fails."""
+    from desflow.analysis.runner import run_experiment
 
     logging.basicConfig(
         level=logging.WARNING,
@@ -234,7 +234,7 @@ def _study(
         datefmt="%H:%M:%S",
     )
     try:
-        result = run_study(file, raise_on_failure=False, output=output)
+        result = run_experiment(file, raise_on_failure=False, output=output)
     except (BlueprintError, ValueError) as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(code=2) from None
@@ -254,15 +254,15 @@ def _report(
     folder: Annotated[
         Path,
         typer.Argument(
-            help="A study's output folder, with its study.json.",
+            help="An experiment's output folder, with its experiment.json.",
             metavar="FOLDER",
             exists=True,
             file_okay=False,
         ),
     ],
 ) -> None:
-    """Build the report of a study again from the artifacts in FOLDER."""
-    from desflow.study.report import write_report
+    """Build the report of an experiment again from the artifacts in FOLDER."""
+    from desflow.analysis.report import write_report
 
     try:
         path = write_report(folder)
@@ -341,7 +341,7 @@ def _fit(
     ] = None,
 ) -> None:
     """Fit a column of FILE to the distribution families, and exit 1 if none is usable."""
-    from desflow.study.fit import fit_column, read_column
+    from desflow.analysis.fit import fit_column, read_column
 
     try:
         result = fit_column(

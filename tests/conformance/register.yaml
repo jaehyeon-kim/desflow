@@ -1,7 +1,9 @@
-# The SimPy compatibility register: every SimPy operation desflow supports natively,
-# its form in each API, the conformance tests that compare it with plain SimPy (the
-# version in uv.lock, which scripts/gen_pages.py names on the page),
-# and the docs page that teaches it. scripts/gen_pages.py writes the SimPy
+# The SimPy compatibility register: every modelling feature of SimPy, each with its
+# status in YAML, the builder and the low-level API. A native row gives its form in
+# each API, the conformance tests that compare it with plain SimPy (the version in
+# uv.lock, which scripts/gen_pages.py names on the page) and the docs page that
+# teaches it; a row not yet native gives the release that makes it native; a
+# difference kept by design gives its reason. scripts/gen_pages.py writes the SimPy
 # Compatibility page from this file, and tests/docs/test_gen_pages.py checks that
 # every check names a test function, every test function here is listed, and every
 # page exists.

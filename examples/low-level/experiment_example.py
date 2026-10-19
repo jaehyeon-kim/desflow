@@ -1,8 +1,8 @@
-"""A local study, low-level API: does a third packer keep the mean wait under 2 seconds?
+"""An experiment, low-level API: does a third packer keep the mean wait under 2 seconds?
 
-The low-level twin of `builder/study_example.py`. `model` builds the shop in an
+The low-level twin of `builder/experiment_example.py`. `model` builds the shop in an
 environment and with a sampler it is given; `LowLevelModel` names it with its sim
-id. The study runs one hour of it 20 times with two packers and 20 times with three,
+id. The experiment runs one hour of it 20 times with two packers and 20 times with three,
 with the same seeds, after a 3-minute warm-up. It compares the two designs seed by
 seed, checks the three-packer design against a 2-second bound, and compares the
 two-packer design with the mean wait observed in the real shop. It writes its
@@ -21,7 +21,7 @@ from desflow import (
     DynamicResource,
     LowLevelModel,
     SimParameter,
-    run_study,
+    run_experiment,
 )
 
 logging.basicConfig(
@@ -78,14 +78,14 @@ def processes(env, sampler, packers):
 
 
 def model(env, sampler):
-    """The whole shop in a given environment: the study sets up the statistics."""
+    """The whole shop in a given environment: the experiment sets up the statistics."""
     env.registry.register_sim_parameter(PARAMS)
     for process in processes(env, sampler, build(env)):
         env.process(process)
 
 
-STUDY = {
-    "study": "packers",
+EXPERIMENT = {
+    "experiment": "packers",
     "question": "Does a third packer keep the mean wait under 2 seconds?",
     "model": LowLevelModel(model, sim_id="Shop"),
     "assumptions": [
@@ -114,8 +114,8 @@ STUDY = {
 
 
 def run(output=None):
-    """Runs the study and prints the comparison and the check."""
-    result = run_study(STUDY, output=output)
+    """Runs the experiment and prints the comparison and the check."""
+    result = run_experiment(EXPERIMENT, output=output)
     for row in result.comparisons:
         print(f"{row['measure']}: {row['difference']:.2f} ± {row['half_width']:.2f}")
     for row in result.checks:

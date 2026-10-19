@@ -1,9 +1,9 @@
-"""A study's designs, results, comparisons, checks and artifacts.
+"""An experiment's designs, results, comparisons, checks and artifacts.
 
-A design is one variant at one point of the sweep. Each design runs the study's
+A design is one variant at one point of the sweep. Each design runs the experiment's
 replications; this module turns those runs into rows (one per run and statistic,
 one per design and statistic, one per comparison and one per check), reads the
-observed values a study compares with, and writes and reads the artifact files a
+observed values an experiment compares with, and writes and reads the artifact files a
 report is built from.
 """
 
@@ -18,13 +18,13 @@ from typing import Any, Dict, List, Sequence
 
 import numpy as np
 
-from desflow.study.intervals import interval
-from desflow.study.models import RunResult
-from desflow.study.runner import spawn_seeds, values_of
-from desflow.study.spec import StudySpec
+from desflow.analysis.intervals import interval
+from desflow.analysis.models import RunResult
+from desflow.analysis.runner import spawn_seeds, values_of
+from desflow.analysis.spec import ExperimentSpec
 from desflow.utils import time_to_seconds
 
-STUDY_FILE = "study.json"
+EXPERIMENT_FILE = "experiment.json"
 RESULTS_FILE = "results.csv"
 SUMMARY_FILE = "summary.csv"
 COMPARISONS_FILE = "comparisons.csv"
@@ -104,15 +104,15 @@ class Design:
     runs: List[RunResult] = field(default_factory=list, repr=False)
 
 
-def designs(spec: StudySpec) -> List[Design]:
-    """Returns every design of a study: each variant at each point of the sweep.
+def designs(spec: ExperimentSpec) -> List[Design]:
+    """Returns every design of an experiment: each variant at each point of the sweep.
 
-    With common pairing every design uses the same seeds, spawned from the study's
+    With common pairing every design uses the same seeds, spawned from the experiment's
     seed; with independent pairing each design's seeds are spawned from a seed of
     its own.
 
     Args:
-        spec: The study's settings.
+        spec: The experiment's settings.
 
     Returns:
         List[Design]: The designs, variants in order and the sweep's points within
@@ -175,7 +175,7 @@ def result_rows(
 
     Args:
         all_designs: The designs, with their runs.
-        measures: The study's measures.
+        measures: The experiment's measures.
         counts: The counts to add, from `count_names`.
 
     Returns:
@@ -253,7 +253,7 @@ def summary_rows(
 
 
 def comparison_rows(
-    spec: StudySpec,
+    spec: ExperimentSpec,
     all_designs: Sequence[Design],
     rows: Sequence[Dict[str, Any]],
 ) -> List[Dict[str, Any]]:
@@ -265,7 +265,7 @@ def comparison_rows(
     ones.
 
     Args:
-        spec: The study's settings, with its `compare` pairs.
+        spec: The experiment's settings, with its `compare` pairs.
         all_designs: The designs, with their runs.
         rows: The rows from `result_rows`.
 
@@ -310,7 +310,7 @@ def comparison_rows(
 
 
 def check_rows(
-    spec: StudySpec, summary: Sequence[Dict[str, Any]]
+    spec: ExperimentSpec, summary: Sequence[Dict[str, Any]]
 ) -> List[Dict[str, Any]]:
     """Returns one row per check, design and bound.
 
@@ -318,7 +318,7 @@ def check_rows(
     end with `max`, the lower end with `min`. `on: mean` compares the mean.
 
     Args:
-        spec: The study's settings, with its checks.
+        spec: The experiment's settings, with its checks.
         summary: The rows from `summary_rows`.
 
     Returns:
@@ -355,18 +355,18 @@ def check_rows(
     return found
 
 
-def read_observed(spec: StudySpec, folder: Path) -> List[Dict[str, Any]]:
+def read_observed(spec: ExperimentSpec, folder: Path) -> List[Dict[str, Any]]:
     """Reads the observed CSV and checks each row against the measure it names.
 
     Args:
-        spec: The study's settings, which name the file.
+        spec: The experiment's settings, which name the file.
         folder: The folder a relative path is read from.
 
     Returns:
         List[Dict[str, Any]]: The observed rows, checked.
 
     Raises:
-        ValueError: If a column is missing, a measure is not one of the study's,
+        ValueError: If a column is missing, a measure is not one of the experiment's,
             or a row's unit, population or horizon differs from the simulated
             measure's.
     """
@@ -384,7 +384,9 @@ def read_observed(spec: StudySpec, folder: Path) -> List[Dict[str, Any]]:
         where = f"{path}:{number}"
         measure = row["measure"].strip()
         if measure not in spec.measures:
-            raise ValueError(f"{where}: {measure} is not one of the study's measures")
+            raise ValueError(
+                f"{where}: {measure} is not one of the experiment's measures"
+            )
         unit = _UNITS.get(row["unit"].strip().lower())
         if unit != _unit_of(measure):
             raise ValueError(
@@ -401,7 +403,7 @@ def read_observed(spec: StudySpec, folder: Path) -> List[Dict[str, Any]]:
         seconds = time_to_seconds(text) if re.search(r"[a-z]", text) else float(text)
         if not math.isclose(seconds, horizon):
             raise ValueError(
-                f"{where}: the observed horizon is {seconds:g} s, but the study "
+                f"{where}: the observed horizon is {seconds:g} s, but the experiment "
                 f"measures {horizon:g} s (until minus warmup)"
             )
         found.append(
@@ -417,12 +419,12 @@ def read_observed(spec: StudySpec, folder: Path) -> List[Dict[str, Any]]:
 
 
 def observed_rows(
-    spec: StudySpec, observed: Sequence[Dict[str, Any]], summary: Sequence[Dict]
+    spec: ExperimentSpec, observed: Sequence[Dict[str, Any]], summary: Sequence[Dict]
 ) -> List[Dict[str, Any]]:
     """Returns each observed value beside the simulated interval of the observed variant.
 
     Args:
-        spec: The study's settings.
+        spec: The experiment's settings.
         observed: The rows from `read_observed`.
         summary: The rows from `summary_rows`.
 
@@ -468,7 +470,7 @@ def write_csv(path: Path, rows: Sequence[Dict[str, Any]], columns: Sequence[str]
 
 
 def read_csv(path: Path) -> List[Dict[str, str]]:
-    """Reads a CSV the study wrote; a missing file has no rows.
+    """Reads a CSV the experiment wrote; a missing file has no rows.
 
     Args:
         path: The file.
@@ -483,7 +485,7 @@ def read_csv(path: Path) -> List[Dict[str, str]]:
 
 
 def write_json(path: Path, data: Dict[str, Any]) -> None:
-    """Writes the study's settings and evidence, indented, keys in order.
+    """Writes the experiment's settings and evidence, indented, keys in order.
 
     Args:
         path: The file.
@@ -493,7 +495,7 @@ def write_json(path: Path, data: Dict[str, Any]) -> None:
 
 
 def read_json(path: Path) -> Dict[str, Any]:
-    """Reads `study.json`.
+    """Reads `experiment.json`.
 
     Args:
         path: The file.
@@ -508,7 +510,7 @@ def columns(spec_sweep: Sequence[str], kind: str) -> List[str]:
     """Returns the columns of one artifact file, with the swept paths after the variant.
 
     Args:
-        spec_sweep: The registry paths the study sweeps.
+        spec_sweep: The registry paths the experiment sweeps.
         kind: The file's name: `results.csv`, `summary.csv`, `comparisons.csv` or
             `checks.csv`.
 
@@ -531,12 +533,12 @@ def columns(spec_sweep: Sequence[str], kind: str) -> List[str]:
 
 
 @dataclass
-class StudyResult:
+class ExperimentResult:
     """
-    What a study found, as `run_study` returns it and its artifacts hold it.
+    What an experiment found, as `run_experiment` returns it and its artifacts hold it.
 
     Attributes:
-        spec (StudySpec): The study's settings.
+        spec (ExperimentSpec): The experiment's settings.
         output (Path): The folder the artifacts were written to.
         designs (List[Design]): Each variant at each sweep point, with its seeds.
         results (List[Dict]): One row per design, replication and statistic.
@@ -547,7 +549,7 @@ class StudyResult:
         report (str): The Markdown report.
     """
 
-    spec: StudySpec
+    spec: ExperimentSpec
     output: Path
     designs: List[Design]
     results: List[Dict[str, Any]]
@@ -565,13 +567,13 @@ class StudyResult:
 
 class CheckFailed(Exception):
     """
-    A study's check failed. The artifacts are written before it is raised.
+    An experiment's check failed. The artifacts are written before it is raised.
 
     Attributes:
-        result (StudyResult): The whole result, failed checks included.
+        result (ExperimentResult): The whole result, failed checks included.
     """
 
-    def __init__(self, result: StudyResult):
+    def __init__(self, result: ExperimentResult):
         self.result = result
         names = "; ".join(
             f"{row['design']}: {row['measure']} {row['bound']} {row['limit']:g} "

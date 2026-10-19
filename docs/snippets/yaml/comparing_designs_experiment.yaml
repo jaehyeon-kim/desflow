@@ -1,7 +1,7 @@
 # The Comparing Designs tutorial: does a fourth packer cut the busy hour's mean wait?
-# Run it with: desflow study comparing_designs_study.yaml
+# Run it with: desflow experiment comparing_designs_experiment.yaml
 # Each design separately: change pairing to independent and remove compare.
-study: four-packers
+experiment: four-packers
 question: Does a fourth packer cut the mean wait of the busy hour, and by how much?
 # --8<-- [start:model]
 # The busy hour of Trusting Results, with its 2-minute warm-up

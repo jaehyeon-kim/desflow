@@ -1,6 +1,6 @@
 # The Parameter Sweeps tutorial: how much does the mean wait depend on the demand?
-# Run it with: desflow study parameter_sweeps_study.yaml
-study: demand
+# Run it with: desflow experiment parameter_sweeps_experiment.yaml
+experiment: demand
 question: How sensitive is the busy hour's mean wait to the arrival rate?
 # The busy hour of Trusting Results, with its 2-minute warm-up
 model: trusting_results.yaml

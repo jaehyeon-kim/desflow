@@ -130,7 +130,7 @@ class SimulationRegistry:
         """
         Returns every configuration object by its path, such as `Shop.service.packing`.
 
-        A study records them as the model's compiled parameters. The objects are the
+        An experiment records them as the model's compiled parameters. The objects are the
         live ones, so read them rather than change them.
 
         Returns:
@@ -248,8 +248,8 @@ class SimulationRegistry:
         """
         Sets a path to exactly `value`, raising where `update` would log and go on.
 
-        Replications and studies set their variants' values this way before the
-        clock starts, so a misspelt path or a refused value stops the study rather
+        Replications and experiments set their variants' values this way before the
+        clock starts, so a misspelt path or a refused value stops the experiment rather
         than leaving the model's own value in place.
 
         Args:

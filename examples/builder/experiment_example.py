@@ -1,7 +1,7 @@
-"""A local study, builder API: does a third packer keep the mean wait under 2 seconds?
+"""An experiment, builder API: does a third packer keep the mean wait under 2 seconds?
 
 `shop` returns a new shop: two packers, orders every 2.5 seconds on average and a
-packing time of 4 seconds on average. The study runs one hour of it 20 times with
+packing time of 4 seconds on average. The experiment runs one hour of it 20 times with
 two packers and 20 times with three, with the same seeds, after a 3-minute warm-up.
 It compares the two designs seed by seed, checks the three-packer design against a
 2-second bound, and compares the two-packer design with the mean wait observed in
@@ -14,7 +14,7 @@ Needs no containers.
 import logging
 from pathlib import Path
 
-from desflow import SimulationContext, run_study
+from desflow import SimulationContext, run_experiment
 
 logging.basicConfig(
     level=logging.WARNING,
@@ -25,9 +25,9 @@ HERE = Path(__file__).resolve().parent
 
 
 def shop() -> SimulationContext:
-    """A new shop: the study calls this once per run."""
+    """A new shop: the experiment calls this once per run."""
     app = (
-        # The study gives each run its own seed; 42 is for a run on its own
+        # The experiment gives each run its own seed; 42 is for a run on its own
         SimulationContext(sim_id="Shop", factor=0, random_seed=42)
         .add_resource("packers", current_cap=2, max_cap=4)
         # A mean of 4 seconds (shape times scale)
@@ -52,8 +52,8 @@ def shop() -> SimulationContext:
     return app
 
 
-STUDY = {
-    "study": "packers",
+EXPERIMENT = {
+    "experiment": "packers",
     "question": "Does a third packer keep the mean wait under 2 seconds?",
     "model": shop,
     "assumptions": [
@@ -82,8 +82,8 @@ STUDY = {
 
 
 def run(output=None):
-    """Runs the study and prints the comparison and the check."""
-    result = run_study(STUDY, output=output)
+    """Runs the experiment and prints the comparison and the check."""
+    result = run_experiment(EXPERIMENT, output=output)
     for row in result.comparisons:
         print(f"{row['measure']}: {row['difference']:.2f} ± {row['half_width']:.2f}")
     for row in result.checks:

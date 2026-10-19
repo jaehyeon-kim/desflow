@@ -237,7 +237,7 @@ EXAMPLE_CASES = [
     ("changing_demand", "changing_demand.yaml", None, 300, _every_minute_typical),
     ("local_replay", "local_replay.yaml", None, 120, _built),
     ("replications", "replications.yaml", None, 1200, _typical),
-    ("study", "study_shop.yaml", None, 600, _built),
+    ("experiment", "experiment_shop.yaml", None, 600, _built),
     ("fitting", "fitting.yaml", "scipy", 1200, _typical),
 ]
 
@@ -293,17 +293,17 @@ def test_every_example_is_compared():
     assert names == {case[0] for case in EXAMPLE_CASES}
 
 
-def test_study_example_gives_the_same_results_in_every_api(tmp_path):
-    """The study's results and checks are the same whichever way its model is written."""
-    from desflow import run_study
+def test_experiment_example_gives_the_same_results_in_every_api(tmp_path):
+    """The experiment's results and checks are the same whichever way its model is written."""
+    from desflow import run_experiment
 
     results = {}
     for api in ("builder", "low-level"):
-        module = _load(EXAMPLES / api / "study_example.py")
+        module = _load(EXAMPLES / api / "experiment_example.py")
         result = module.run(output=tmp_path / api)
         results[api] = (tmp_path / api / "results.csv").read_text()
         assert [row["passed"] for row in result.checks] == [True]
-    run_study(EXAMPLES / "yaml" / "study.yaml", output=tmp_path / "yaml")
+    run_experiment(EXAMPLES / "yaml" / "experiment.yaml", output=tmp_path / "yaml")
     results["yaml"] = (tmp_path / "yaml" / "results.csv").read_text()
     assert results["yaml"] == results["builder"] == results["low-level"]
 

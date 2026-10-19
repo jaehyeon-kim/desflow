@@ -1,10 +1,10 @@
-"""Replications and local studies: one model run with many seeds, and summarised.
+"""Replications and experiments: one model run with many seeds, and summarised.
 
 `replicate` runs a model N times with seeds spawned from one seed, each unpaced with
 no ingress and no egress, and reads the built-in statistics at the end of each run.
 It returns every value with its seed, and the mean and Student t half-width of each
-measure. `run_study` runs each design of a study the same way, then compares and
-checks them and writes the study's artifacts.
+measure. `run_experiment` runs each design of an experiment the same way, then compares and
+checks them and writes the experiment's artifacts.
 """
 
 import hashlib
@@ -21,8 +21,8 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Union
 import numpy as np
 
 from desflow.config import STATS_LEVELS
-from desflow.study.intervals import interval
-from desflow.study.models import (
+from desflow.analysis.intervals import interval
+from desflow.analysis.models import (
     LowLevelModel,
     Model,
     RunResult,
@@ -403,51 +403,53 @@ def _publish(model: Model, replications: Replications, until: Any) -> None:
         context.close()
 
 
-def run_study(
+def run_experiment(
     spec: Union[str, Path, Mapping[str, Any], Any],
     *,
     raise_on_failure: bool = True,
     output: Union[str, Path, None] = None,
 ) -> Any:
     """
-    Runs a local study: its variants and sweep, replications, comparisons and checks.
+    Runs an experiment: its variants and sweep, replications, comparisons and checks.
 
-    Every artifact is written to the study's `output` folder before anything is
-    raised: `study.json` (settings and evidence), `results.csv`, `summary.csv`,
+    Every artifact is written to the experiment's `output` folder before anything is
+    raised: `experiment.json` (settings and evidence), `results.csv`, `summary.csv`,
     `comparisons.csv`, `checks.csv` and `report.md`.
 
     Args:
-        spec: A study file, a mapping of the same settings, or a `StudySpec`.
+        spec: An experiment file, a mapping of the same settings, or a `ExperimentSpec`.
             Relative paths in a file are read from the file's folder, and in a
             mapping from the working directory.
         raise_on_failure: When True, a failed check raises `CheckFailed`, which
             carries the result.
-        output: The folder to write the artifacts to, in place of the study's
+        output: The folder to write the artifacts to, in place of the experiment's
             `output`.
 
     Returns:
-        StudyResult: What the study found.
+        ExperimentResult: What the experiment found.
 
     Raises:
-        BlueprintError: If the study file is invalid, or the model or observed file
+        BlueprintError: If the experiment file is invalid, or the model or observed file
             it names does not exist, naming the file and line.
         ValueError: If the settings are invalid, a variant sets a path the model
             does not have, or the observed values do not match the measures; for
             settings given as a mapping, also a missing model or observed file.
         CheckFailed: If a check failed and `raise_on_failure` is True.
     """
-    from desflow.study import results as found
-    from desflow.study.report import build_report
-    from desflow.study.spec import StudySpec, load_study
+    from desflow.analysis import results as found
+    from desflow.analysis.report import build_report
+    from desflow.analysis.spec import ExperimentSpec, load_experiment
 
     source = None
     if isinstance(spec, (str, Path)):
         path = Path(spec)
-        settings, source = load_study(path)
+        settings, source = load_experiment(path)
         folder = path.resolve().parent
     else:
         settings = (
-            spec if isinstance(spec, StudySpec) else StudySpec.model_validate(spec)
+            spec
+            if isinstance(spec, ExperimentSpec)
+            else ExperimentSpec.model_validate(spec)
         )
         folder = Path.cwd()
 
@@ -516,11 +518,11 @@ def run_study(
     observed_rows = found.observed_rows(settings, observed, summary)
 
     if output is None:
-        output = folder / (settings.output or f"results/{settings.study}")
+        output = folder / (settings.output or f"results/{settings.experiment}")
     output = Path(output)
     output.mkdir(parents=True, exist_ok=True)
     found.write_json(
-        output / found.STUDY_FILE,
+        output / found.EXPERIMENT_FILE,
         _evidence(settings, model, runs[0].sim_id, parameters, all_designs)
         | {"counts": counts, "observed": observed_rows},
     )
@@ -535,7 +537,7 @@ def run_study(
     report = build_report(output)
     (output / found.REPORT_FILE).write_text(report, encoding="utf-8")
 
-    result = found.StudyResult(
+    result = found.ExperimentResult(
         spec=settings,
         output=output,
         designs=all_designs,
@@ -558,7 +560,7 @@ def _evidence(
     parameters: Dict[str, Any],
     all_designs: Sequence[Any],
 ) -> Dict[str, Any]:
-    """The settings and evidence `study.json` holds, apart from the results."""
+    """The settings and evidence `experiment.json` holds, apart from the results."""
     from importlib.metadata import version
 
     import desflow
@@ -579,7 +581,7 @@ def _evidence(
         else None
     )
     return {
-        "study": settings.study,
+        "experiment": settings.experiment,
         "question": settings.question,
         "assumptions": settings.assumptions,
         "inputs": settings.inputs,

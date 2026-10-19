@@ -1,4 +1,4 @@
-"""One way to run a model written in any of the three APIs, for replications and studies.
+"""One way to run a model written in any of the three APIs, for replications and experiments.
 
 A model is a YAML blueprint path, a builder factory (a function with no arguments
 that returns a new `SimulationContext`), or a `LowLevelModel`: a function that builds
@@ -24,7 +24,7 @@ from desflow.utils import time_to_seconds
 @dataclass(frozen=True)
 class LowLevelModel:
     """
-    A model written with the low-level API, for `replicate` and `run_study`.
+    A model written with the low-level API, for `replicate` and `run_experiment`.
 
     Attributes:
         function (Callable): Called as `function(env, sampler)` once per run. It
@@ -76,7 +76,7 @@ def seconds(value: Union[float, str, None]) -> Optional[float]:
 
 
 def describe(model: Model) -> str:
-    """Returns a short name for the model, for messages and study evidence.
+    """Returns a short name for the model, for messages and experiment evidence.
 
     Args:
         model: A blueprint path, a builder factory or a `LowLevelModel`.
@@ -257,7 +257,7 @@ def _keep(env: DynamicRealtimeEnvironment) -> Callable[[], None]:
 def inspect_model(model: Model, overrides: Mapping[str, Any]) -> Dict[str, Any]:
     """Builds the model with `overrides` without running it, and returns its parameters.
 
-    A study calls it for each design before running anything, so a bad path fails
+    An experiment calls it for each design before running anything, so a bad path fails
     at once rather than after other designs have run.
 
     Args:

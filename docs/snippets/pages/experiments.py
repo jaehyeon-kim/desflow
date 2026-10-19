@@ -1,8 +1,8 @@
-"""Local studies: run a study from Python, read its result and stop on a failed check."""
+"""Experiments: run an experiment from Python, read its result and stop on a failed check."""
 
 import logging
 
-from desflow import CheckFailed, SimulationContext, run_study
+from desflow import CheckFailed, SimulationContext, run_experiment
 
 logging.basicConfig(
     level=logging.WARNING, format="%(levelname)s [%(asctime)s] %(message)s"
@@ -34,8 +34,8 @@ def shop() -> SimulationContext:
 
 
 # --8<-- [start:run]
-STUDY = {
-    "study": "packers",
+EXPERIMENT = {
+    "experiment": "packers",
     "model": shop,  # a blueprint path, a builder factory or a LowLevelModel
     "until": "1 h",
     "warmup": "3 min",
@@ -49,7 +49,7 @@ STUDY = {
     "checks": [{"measure": "tasks.pack.wait_mean", "variant": "two", "max": 2}],
 }
 try:
-    result = run_study(STUDY)  # writes results/packers, then checks
+    result = run_experiment(EXPERIMENT)  # writes results/packers, then checks
 except CheckFailed as failed:
     result = failed.result  # every file is written before it is raised
     print(failed)
