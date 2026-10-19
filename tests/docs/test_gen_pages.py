@@ -62,12 +62,53 @@ def test_every_register_check_is_a_test_and_every_test_is_listed():
 
 
 def test_every_register_page_exists_and_every_group_has_a_heading():
-    for entry in gen_pages.register():
-        assert (ROOT / "docs" / entry["page"].split("#")[0]).is_file(), entry["page"]
-        assert entry["id"] in gen_pages.GROUPS
     page = gen_pages.compatibility_page()
     for entry in gen_pages.register():
-        assert f"[{entry['operation']}](../{entry['page']})" in page
+        assert entry["id"] in gen_pages.GROUPS
+        if entry.get("status", "native") == "native":
+            assert (ROOT / "docs" / entry["page"].split("#")[0]).is_file(), entry[
+                "page"
+            ]
+            assert f"[{entry['operation']}](../{entry['page']})" in page
+        else:
+            assert entry["operation"] in page
+
+
+# The 98 modelling features of SimPy 4.1.2, by the inventory id of
+# planning research/simpy-4.1.2-inventory.md
+INVENTORY = (
+    [f"E{n}" for n in range(1, 18) if n != 11]
+    + ["E11"]
+    + [f"R{n}" for n in range(1, 5)]
+    + [f"V{n}" for n in range(1, 12)]
+    + [f"P{n}" for n in range(1, 13)]
+    + [f"C{n}" for n in range(1, 9)]
+    + [f"B{n}" for n in range(1, 9)]
+    + [f"S{n}" for n in range(1, 15)]
+    + [f"Q{n}" for n in range(1, 9)]
+    + [f"K{n}" for n in range(1, 6)]
+    + [f"T{n}" for n in range(1, 10)]
+    + ["U1", "U2"]
+)
+
+
+def test_the_register_is_the_full_simpy_matrix():
+    """Every SimPy feature is in exactly one row; a native row has checks and its
+    three forms, a row not yet native has none and names its release, and a
+    difference gives its reason."""
+    assert len(INVENTORY) == len(set(INVENTORY)) == 98
+    seen = [i for entry in gen_pages.register() for i in entry["inventory"]]
+    assert sorted(seen) == sorted(INVENTORY)
+    for entry in gen_pages.register():
+        status = entry.get("status", "native")
+        assert status in ("native", "not yet", "difference"), entry["operation"]
+        if status == "native":
+            assert entry["checks"], entry["operation"]
+            assert all(entry[api] for api in ("yaml", "builder", "low_level"))
+        elif status == "not yet":
+            assert not entry["checks"] and entry["release"], entry["operation"]
+        else:
+            assert not entry["checks"] and entry["differences"], entry["operation"]
 
 
 def test_the_simpy_version_is_read_from_the_lock():

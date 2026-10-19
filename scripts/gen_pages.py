@@ -255,6 +255,8 @@ GROUPS: Dict[str, str] = {
     "S1": "Breakdowns",
     "S2": "Schedules",
     "S3": "Replay",
+    "N": "Not Yet",
+    "D": "Differences Kept by Design",
 }
 
 
@@ -281,24 +283,39 @@ def simpy_version() -> str:
 def compatibility_page() -> str:
     """The SimPy Compatibility reference page, as Markdown."""
     entries = register()
+    native = [e for e in entries if e.get("status", "native") == "native"]
+    not_yet = [e for e in entries if e.get("status") == "not yet"]
+    kept = [e for e in entries if e.get("status") == "difference"]
+
+    def count(rows: List[Dict[str, Any]]) -> int:
+        return sum(len(row["inventory"]) for row in rows)
+
+    version = simpy_version()
+    total = count(entries)
     lines: List[str] = [
         "# SimPy Compatibility",
         "",
-        "Every SimPy operation desflow supports natively, with its form in YAML, the "
-        "builder and the low-level API. Each is checked by conformance tests that run "
-        f"a plain SimPy {simpy_version()} model and the same model in all three APIs, "
-        "and compare "
-        "event times, outcomes and balances. The page is generated from "
+        f"Every modelling feature of SimPy {version}, {total} in all, with its status "
+        "in YAML, the builder and the low-level API: native and checked, or not yet. "
+        f"A native feature is checked by conformance tests that run a plain SimPy "
+        f"{version} model and the same model in all three APIs, and compare event "
+        "times, outcomes and balances. The page is generated from "
         f"[`tests/conformance/register.yaml`]({SOURCE_URL}tests/conformance/register.yaml), "
-        "the list the tests read, so a row appears here only with its checks.",
+        "the list the tests read, so a feature is native here only with its checks.",
         "",
-        "The low-level API is SimPy with a few classes added, so a SimPy construct "
-        "not listed here still works in it; [SimPy and desflow](../des/simpy-and-desflow.md) "
-        "explains how the two fit together. Where desflow differs from SimPy on "
-        "purpose, the difference is listed under the table.",
+        f"**{count(native)}** features are native and checked in all three APIs, "
+        f"**{count(not_yet)}** are not yet, and **{count(kept)}** are differences "
+        "kept by design. Roadmap step 14 makes each feature that is not yet native "
+        "a native one in all three APIs, in 0.23.0.",
+        "",
+        "The low-level API is SimPy with a few classes added, so most SimPy features "
+        "work in it, those not yet checked included; [SimPy and desflow]"
+        "(../des/simpy-and-desflow.md) explains how the two fit together. Where "
+        "desflow differs from SimPy on purpose, the difference is listed under the "
+        "table.",
     ]
     groups: Dict[str, List[Dict[str, Any]]] = {}
-    for entry in entries:
+    for entry in native:
         groups.setdefault(entry["id"], []).append(entry)
     for group, rows in groups.items():
         lines += [
@@ -320,6 +337,28 @@ def compatibility_page() -> str:
                 differences.append(f"- **{row['operation']}:** {row['differences']}")
         if differences:
             lines += ["", *differences]
+    lines += [
+        "",
+        f"## {GROUPS['N']}",
+        "",
+        "These features are not yet native and checked in all three APIs. The "
+        "inventory id names the feature in desflow's list of SimPy's features.",
+        "",
+        "| Feature | Inventory | SimPy | YAML | Builder | Low-level | Release |",
+        "|---|---|---|---|---|---|---|",
+    ]
+    for row in not_yet:
+        lines.append(
+            f"| {row['operation']} | {', '.join(row['inventory'])} "
+            f"| {_cell(row['simpy'])} | not yet | not yet | not yet "
+            f"| {row['release']} |"
+        )
+    lines += ["", f"## {GROUPS['D']}", ""]
+    for row in kept:
+        lines.append(
+            f"- **{row['operation']}** ({', '.join(row['inventory'])}; SimPy: "
+            f"{row['simpy']}): {row['differences']}"
+        )
     return "\n".join(lines) + "\n"
 
 
