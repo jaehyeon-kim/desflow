@@ -14,8 +14,8 @@
 # id: the capability group (C1 to C7 core, S1 to S3 bounded support), N for a
 #   feature not yet native, D for a difference kept by design
 # inventory: the inventory ids of the SimPy features the row covers
-# exists: for a row not yet native, the APIs where a form exists but no
-#   conformance test checks it yet
+# exists: for a row not yet native, the APIs where a form exists
+# checked: for a row not yet native, the APIs of exists that its checks cover
 # status: native (the default: native in all three APIs and checked against
 #   SimPy), not yet, or difference
 # release: for a row not yet native, the release that makes it native
@@ -466,7 +466,6 @@
   checks:
     - tests/conformance/test_c6_end_conditions.py::test_c6_stop_at_an_event
     - tests/conformance/test_c6_end_conditions.py::test_c6_stop_at_an_event_at_the_same_instant_as_until
-    - tests/conformance/test_c6_end_conditions.py::test_c6_stopped_and_resumed_run
   page: user-guide/time-and-pacing.md#stop-early
   differences: When the stop and `until` fall at the same time, `until` ends the run first, as SimPy's own `until` would.
 
@@ -621,10 +620,12 @@
 - id: N
   inventory: [SP-E15, SP-E16]
   exists: [low_level]
+  checked: [low_level]
   status: not yet
   operation: Run in segments
   simpy: "`core.Environment.run`, called again"
-  checks: []
+  checks:
+    - tests/conformance/test_c6_end_conditions.py::test_c6_stopped_and_resumed_run
   release: 0.23.0, roadmap step 14
 
 - id: N

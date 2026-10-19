@@ -212,3 +212,29 @@ def test_cli_seed_overrides_the_file_and_an_unseeded_run_names_the_command(
     monkeypatch.setattr(SimulationContext, "finish", lambda self: None)
     CliRunner().invoke(cli, ["run", str(path), "--seed", match.group(1)])
     assert seeds == [int(match.group(1))]
+
+
+def test_the_repeat_command_keeps_the_options_that_change_the_run(tmp_path, caplog):
+    """An unseeded run given --until and --drain names them in the command that
+    repeats it, since without them the repeat runs a different horizon."""
+    from typer.testing import CliRunner
+
+    from desflow.blueprint.cli import app as cli
+
+    path = tmp_path / "shop.yaml"
+    path.write_text(
+        "simulation: {sim_id: Shop, factor: 0}\n"
+        "arrivals:\n  orders: {dist: exponential, rate: 1}\n"
+        "run: {until: 5}\n",
+        encoding="utf-8",
+    )
+    with caplog.at_level(logging.INFO, logger="desflow.core.context"):
+        result = CliRunner().invoke(
+            cli, ["run", str(path), "--until", "1 min", "--drain"]
+        )
+    assert result.exit_code == 0, result.output
+    assert re.search(
+        rf"Repeat it with: desflow run {re.escape(str(path))} --seed \d+ "
+        r"--until '1 min' --drain",
+        caplog.text,
+    ), caplog.text

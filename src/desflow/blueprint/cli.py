@@ -2,6 +2,7 @@
 
 import logging
 import secrets
+import shlex
 from pathlib import Path
 from typing import Annotated, List, Optional
 
@@ -41,6 +42,12 @@ def _main(
     ] = False,
 ) -> None:
     """Run desflow simulations defined in YAML blueprint files, and download the examples."""
+
+
+def _run_options(until: Optional[str], drain: bool) -> str:
+    """The options given that change the run, as a repeat command needs them."""
+    options = f" --until {shlex.quote(until)}" if until is not None else ""
+    return options + (" --drain" if drain else "")
 
 
 def _parse_until(value: Optional[str]) -> Optional[float]:
@@ -147,6 +154,10 @@ def _run(
 
     if seed is not None:
         context.random_seed = seed
+    if context._repeat_hint is not None:
+        # The run's seed is filled in later, so braces in the until are doubled
+        options = _run_options(until, drain)
+        context._repeat_hint += options.replace("{", "{{").replace("}", "}}")
     if replications is not None:
         _replicate(
             file,
@@ -157,6 +168,7 @@ def _run(
             measure,
             workers,
             drain,
+            _run_options(until, drain),
         )
         return
     try:
@@ -182,6 +194,7 @@ def _replicate(
     measures: Optional[List[str]],
     workers: int,
     drain: bool,
+    options: str,
 ) -> None:
     """Runs the replications and prints their summary; `--drain` drains each."""
     from desflow.analysis.runner import replicate
@@ -204,7 +217,9 @@ def _replicate(
         raise typer.Exit(code=1) from None
     typer.echo(result.summary_text())
     typer.echo(f"\nSeed {seed}; replication seeds: {', '.join(map(str, result.seeds))}")
-    typer.echo(f"Repeat one replication with: desflow run {file} --seed <its seed>")
+    typer.echo(
+        f"Repeat one replication with: desflow run {file} --seed <its seed>{options}"
+    )
 
 
 @app.command("experiment")

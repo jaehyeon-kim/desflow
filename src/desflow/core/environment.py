@@ -928,7 +928,7 @@ class DynamicRealtimeEnvironment(
 
     def notify_change(self) -> None:
         """Calls every function `watch_changes` added. Resources, the registry and
-        signals call it after each change."""
+        signals call it after each change, and tasks after each one finishes."""
         if self._change_watchers:
             for callback in list(self._change_watchers):
                 callback()

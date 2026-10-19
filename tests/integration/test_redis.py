@@ -1,9 +1,8 @@
 import asyncio
 import queue
-
-import orjson
 import pytest
 import redis.asyncio as redis
+import orjson
 
 from desflow.connectors.egress.redis import RedisEgress
 from desflow.connectors.ingress.redis import RedisIngress

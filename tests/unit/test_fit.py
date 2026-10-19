@@ -13,10 +13,10 @@ from desflow import (
     SimulationContext,
     fit_column,
 )
-from desflow.analysis import fit as fitting
 from desflow.blueprint.cli import app as cli
 from desflow.blueprint.loader import BlueprintError
 from desflow.core.distributions import get_distribution
+from desflow.analysis import fit as fitting
 
 pytest.importorskip("scipy")
 

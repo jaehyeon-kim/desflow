@@ -1,7 +1,7 @@
 """YAML blueprints: validation, error lines and the builder calls they make."""
 
 import textwrap
-from datetime import UTC, datetime
+from datetime import datetime
 
 import pytest
 from typer.testing import CliRunner
@@ -607,13 +607,13 @@ def _with_times(start, live):
     ],
 )
 def test_relative_times_read_one_now(tmp_path, start, live, start_offset, live_offset):
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
     # `now` is an instant, read in the run's zone, UTC by default
-    before = datetime.now(UTC)
+    before = datetime.now(timezone.utc)
     app = SimulationContext.from_yaml(write(tmp_path, _with_times(start, live)))
-    after = datetime.now(UTC)
-    assert app.logical_start_time.tzinfo is UTC
+    after = datetime.now(timezone.utc)
+    assert app.logical_start_time.tzinfo is timezone.utc
 
     assert app.go_live_at - app.logical_start_time == timedelta(
         seconds=live_offset - start_offset
@@ -980,7 +980,8 @@ def test_balk_and_patience_cannot_read_the_wait(tmp_path, key):
     value = "wait.stock.done" if key == "balk" else "1 if wait.stock.done else 5"
     text = MINIMAL.replace(
         "    id_field: order_id\n",
-        f"    id_field: order_id\n    wait: {{any: {{stock: {{timeout: 5}}}}}}\n    {key}: {value}\n",
+        f"    id_field: order_id\n    wait: {{any: {{stock: {{timeout: 5}}}}}}\n"
+        f"    {key}: {value}\n",
     )
     with pytest.raises(BlueprintError, match="wait.stock is not a branch"):
         SimulationContext.from_yaml(write(tmp_path, text))

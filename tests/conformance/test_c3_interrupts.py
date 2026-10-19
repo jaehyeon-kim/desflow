@@ -42,7 +42,7 @@ def _trace(records, key, queued=False):
     return out
 
 
-def _machine(sim_id, cap=1):
+def _machine(sim_id, cap=1, queue="fifo"):
     return SimParameter(
         sim_id=sim_id,
         resources={"machine": CapacityConfig(current_cap=cap, max_cap=cap)},

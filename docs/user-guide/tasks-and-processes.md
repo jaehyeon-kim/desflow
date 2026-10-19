@@ -225,7 +225,7 @@ A task can wait for something before it queues for its resource: its `wait`. A w
 | `{signal: name}` | the next firing of a signal declared under `signals` (builder `add_signal`) | the firing's value, the payload of the task that fired it |
 | `{task: name}` | a **child flow**: that task, started for the same entity with its own instance id, and the tasks its `next` leads to, until the flow ends | the last task's finished payload |
 | `{timeout: 40 s}` | a time | none |
-| `{condition: level.stock >= 5}` | a condition to hold, checked when the wait starts and again after every store or container change, registry update and signal firing | `True` |
+| `{condition: level.stock >= 5}` | a condition to hold, checked when the wait starts and again after every store or container change, registry update, signal firing and finished task | `True` |
 
 A single branch is named after its signal or task, or `timeout` or `condition`. After the wait, `wait.<branch>.done` says whether the branch happened before the wait ended, `.ok` whether it succeeded, and `.value` (or `.value.<field>`) is its value; `next`, `fail` and amounts read them, and a builder function that declares `wait` receives them as a mapping. A task fires a signal with `signal: name` when it finishes, with its payload as the value, and `signal.<name>.count`, `.ok` and `.value` read the signal in any condition. The `process-interaction` example waits for a child flow, then for the first of a courier's signal and a time limit:
 

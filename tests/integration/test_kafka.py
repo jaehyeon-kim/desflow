@@ -1,12 +1,11 @@
 import asyncio
 import json
 import queue
-
 import pytest
 from aiokafka import AIOKafkaConsumer
 
-from desflow.connectors.admin.kafka import KafkaAdminConnector
 from desflow.connectors.egress.kafka import KafkaEgress
+from desflow.connectors.admin.kafka import KafkaAdminConnector
 
 
 @pytest.mark.asyncio

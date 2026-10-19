@@ -8,7 +8,7 @@ updated, and so does a published record whose keys differ from its model.
 
 import typing
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List
 
 from desflow import DynamicRealtimeEnvironment
 from desflow.models.schemas import EventPayload, LabelPayload, TelemetryPayload
@@ -18,7 +18,7 @@ PAGE = ROOT / "docs" / "reference" / "records-and-telemetry.md"
 MODELS = {"Telemetry": TelemetryPayload, "Event": EventPayload, "Label": LabelPayload}
 
 
-def _table() -> list[dict[str, str]]:
+def _table() -> List[Dict[str, str]]:
     """The rows of the Record Shape table, one per field, in page order."""
     text = PAGE.read_text(encoding="utf-8")
     section = text.split("## Record Shape", 1)[1].split("\n## ", 1)[0]

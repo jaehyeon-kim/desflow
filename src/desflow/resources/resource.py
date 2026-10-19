@@ -220,9 +220,9 @@ class DynamicResource(BaseDynamicResource):
 
         Releasing a request twice, or one never granted, gives back nothing, as
         SimPy's `Release` does; the queue is still tried when the release event is
-        processed, as SimPy tries it after every release. While units are busy above a lowered capacity, a release
-        brings the busy count down and grants nothing until it is within the
-        capacity.
+        processed, as SimPy tries it after every release. While units are busy above
+        a lowered capacity, a release brings the busy count down and grants nothing
+        until it is within the capacity.
 
         Args:
             request: The granted request. None gives back the oldest unit held, the

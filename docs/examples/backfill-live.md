@@ -641,7 +641,7 @@ app = (
 
 ## Two Details to Get Right
 
-**Predicates compare times read from the timestamp.** A record carries its logical time as an ISO string with its zone offset, such as `+00:00`, so `record["timestamp"] >= GO_LIVE_AT` raises a `TypeError`. Read it with `datetime.fromisoformat` and compare instants, which holds whatever zone each side is written in. Cut the go-live instant to milliseconds, as timestamps are, so a record stamped in the go-live millisecond counts as live. Take the instant with `datetime.now(timezone.utc)`: a datetime without an offset is read in UTC, or in the run's `timezone`, not in the machine's local time.
+**Predicates compare times read from the timestamp.** A record carries its logical time as an ISO string with its zone offset, such as `+00:00`, so `record["timestamp"] >= GO_LIVE_AT` raises a `TypeError`. Read it with `datetime.fromisoformat` and compare instants, which holds whatever zone each side is written in. Cut the go-live instant to milliseconds, as timestamps are, so a record stamped in the go-live millisecond counts as live. Take the instant with `datetime.now(timezone.utc)`: a datetime without an offset is read in the run's `timezone`, else in the zone of `logical_start_time`, else in UTC, not in the machine's local time.
 
 ```python title="examples/builder/backfill_live_example.py:clock"
 GO_LIVE_AT = datetime.now(timezone.utc)

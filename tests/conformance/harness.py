@@ -9,16 +9,15 @@ test exercises what a run actually writes.
 
 import asyncio
 import queue
-from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from desflow import DynamicRealtimeEnvironment, SimParameter
 from desflow.core.context import SimulationContext
 
 # One captured event: simulation time rounded to 3 decimals, entity key, task
 # name, and the status the task published (started, finished and so on).
-Event = tuple[float, str, Any, Any]
+Event = Tuple[float, str, Any, Any]
 
 
 class RecordingEgress:
@@ -30,7 +29,7 @@ class RecordingEgress:
     """
 
     def __init__(self) -> None:
-        self.records: list[dict[str, Any]] = []
+        self.records: List[Dict[str, Any]] = []
 
     async def run(self, egress_queue: "queue.Queue[Any]") -> None:
         try:
@@ -43,13 +42,13 @@ class RecordingEgress:
             pass
 
 
-def event_trace(records: list[dict[str, Any]]) -> list[Event]:
+def event_trace(records: List[Dict[str, Any]]) -> List[Event]:
     """The event records as comparable tuples, in publication order.
 
     Telemetry and label records are left out, so the trace is the discrete
     events a reader compares across interfaces and against SimPy.
     """
-    trace: list[Event] = []
+    trace: List[Event] = []
     for record in records:
         if record.get("stream_type") != "event":
             continue
@@ -64,12 +63,12 @@ def event_trace(records: list[dict[str, Any]]) -> list[Event]:
 BLUEPRINTS = Path(__file__).parent / "blueprints"
 
 
-def at(records: list[dict[str, Any]], status: Any) -> list[tuple[float, str]]:
+def at(records: List[Dict[str, Any]], status: Any) -> List[Tuple[float, str]]:
     """The time and entity key of every event with this status, in order."""
     return [(t, key) for t, key, _task, s in event_trace(records) if s == status]
 
 
-def run_yaml(name: str) -> tuple[list[dict[str, Any]], SimulationContext]:
+def run_yaml(name: str) -> Tuple[List[Dict[str, Any]], SimulationContext]:
     """Runs a blueprint from `blueprints/` into a recording egress."""
     rec = RecordingEgress()
     app = SimulationContext.from_yaml(BLUEPRINTS / name)
@@ -78,7 +77,7 @@ def run_yaml(name: str) -> tuple[list[dict[str, Any]], SimulationContext]:
     return rec.records, app
 
 
-def run_builder(app: SimulationContext, until: float) -> list[dict[str, Any]]:
+def run_builder(app: SimulationContext, until: float) -> List[Dict[str, Any]]:
     """Runs a builder model into a recording egress."""
     rec = RecordingEgress()
     app.add_egress(rec)
@@ -87,12 +86,12 @@ def run_builder(app: SimulationContext, until: float) -> list[dict[str, Any]]:
 
 
 def run_low_level(
-    params: SimParameter | None,
+    params: Optional[SimParameter],
     start: Callable[[DynamicRealtimeEnvironment], Any],
     until: float,
-    stats: str | None = None,
+    stats: Optional[str] = None,
     initial_time: float = 0.0,
-) -> tuple[list[dict[str, Any]], DynamicRealtimeEnvironment]:
+) -> Tuple[List[Dict[str, Any]], DynamicRealtimeEnvironment]:
     """Runs a low-level model, unpaced, into a recording egress.
 
     `start(env)` builds the resources and starts the processes, after the

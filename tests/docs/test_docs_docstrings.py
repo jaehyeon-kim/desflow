@@ -11,6 +11,7 @@ docstring, and every name `desflow` and `desflow.analysis` export needs a
 import ast
 import re
 from pathlib import Path
+from typing import List
 
 import desflow
 import desflow.analysis
@@ -19,9 +20,9 @@ ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "src" / "desflow"
 
 
-def _public_without_docs() -> list[str]:
+def _public_without_docs() -> List[str]:
     """`file:line name` for each public definition that lacks what it needs."""
-    found: list[str] = []
+    found: List[str] = []
     for path in sorted(SOURCE.rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         public_file = not path.name.startswith("_") or path.name == "__init__.py"
@@ -29,7 +30,7 @@ def _public_without_docs() -> list[str]:
     return found
 
 
-def _visit(node, prefix: str, public: bool, path: Path, found: list[str]) -> None:
+def _visit(node, prefix: str, public: bool, path: Path, found: List[str]) -> None:
     for child in ast.iter_child_nodes(node):
         if not isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             continue
@@ -62,7 +63,7 @@ def test_every_public_definition_has_a_docstring_with_its_args():
 
 def test_every_exported_name_is_on_the_api_page():
     text = (ROOT / "docs" / "api.md").read_text(encoding="utf-8")
-    entries = set(re.findall(r"^::: (\S+)$", text, re.MULTILINE))
+    entries = set(re.findall(r"^::: (\S+)$", text, re.M))
     missing = [
         f"{getattr(package, name).__module__}.{name}"
         for package in (desflow, desflow.analysis)

@@ -66,6 +66,8 @@ def _end_setting(value: Any, unset: str) -> str:
         return f"{unset} unless the model's own run sets one"
     if value is True:
         return "yes"
+    if value is False:
+        return "no"
     return f"`{value}`"
 
 
@@ -189,7 +191,8 @@ def build_report(folder: Union[str, Path]) -> str:
     if counts:
         lines.append(
             "The mean over the replications of each count the statistics publish. "
-            "`started` and `finished` count over the measured horizon; `in_system` "
+            "`started` and `finished` count from the warm-up to the end of the run: "
+            "`until`, the stop, or the end of the drain; `in_system` "
             "and `in_progress` are read at the end of the run, the entities and "
             "task instances still in the model, which finished counts leave out. "
             "Without a warm-up, `started` is `finished` plus `in_system` plus the "

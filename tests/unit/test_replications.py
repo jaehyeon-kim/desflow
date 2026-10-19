@@ -16,11 +16,11 @@ from desflow import (
     SimulationContext,
     replicate,
 )
-from desflow.analysis.intervals import interval, t_quantile
-from desflow.analysis.runner import level_for, spawn_seeds
 from desflow.blueprint.cli import app as cli
 from desflow.connectors.egress.base import BaseEgress
 from desflow.connectors.ingress.base import BaseIngress
+from desflow.analysis.intervals import interval, t_quantile
+from desflow.analysis.runner import level_for, spawn_seeds
 
 BLUEPRINT = """\
 simulation: {sim_id: Shop, factor: 0}
@@ -559,3 +559,25 @@ def test_cli_drains_every_replication(blueprint):
     row = next(line for line in result.output.splitlines() if "in_system" in line)
     # measure, n, mean, half-width
     assert row.split() == ["flows.orders.in_system", "2", "0", "0"]
+
+
+def test_cli_repeat_command_keeps_until_and_drain(blueprint):
+    """The command that repeats one replication names --until and --drain when
+    they were given, since they change the run."""
+    result = CliRunner().invoke(
+        cli,
+        ["run", str(blueprint), "--replications", "2", "--until", "100", "--drain"],
+    )
+    assert result.exit_code == 0, result.output
+    assert (
+        f"Repeat one replication with: desflow run {blueprint} --seed <its seed> "
+        "--until 100 --drain"
+    ) in result.output
+
+
+def test_a_low_level_stop_that_is_not_a_function_is_refused():
+    """A low-level model's stop is a function of the environment; a mapping or a
+    name is refused with the form to use."""
+    for stop in ({"signal": "closing"}, "closing"):
+        with pytest.raises(ValueError, match="a function of the environment"):
+            replicate(LowLevelModel(low_level, "Shop"), 2, seed=1, until=50, stop=stop)

@@ -15,7 +15,7 @@ def _commands(text):
     """Every non-comment line of the bash blocks in the install section, and the extras line."""
     section = text[text.index("nstall") : text.index("| Extra |")]
     lines = []
-    for block in re.findall(r"```bash\n(.*?)\n *```", section, re.DOTALL):
+    for block in re.findall(r"```bash\n(.*?)\n *```", section, re.S):
         lines += [line.strip() for line in block.split("\n") if line.strip()]
     extras = re.search(r"The connectors are optional extras[^\n]*", section).group(0)
     return lines, extras

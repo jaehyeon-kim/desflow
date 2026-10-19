@@ -627,13 +627,11 @@ def test_a_failed_start_tears_the_connectors_down():
     """An error after the connectors start stops their thread, as run() would."""
     app = SimulationContext("Shop", factor=0).add_egress(_Sink())
     app.add_resource("packers", current_cap=1, max_cap=1)
-    with (
-        patch(
-            "desflow.core.context.DynamicResource", side_effect=RuntimeError("broken")
-        ),
-        pytest.raises(RuntimeError, match="broken"),
+    with patch(
+        "desflow.core.context.DynamicResource", side_effect=RuntimeError("broken")
     ):
-        app.run(until=10)
+        with pytest.raises(RuntimeError, match="broken"):
+            app.run(until=10)
     thread = app._env._egress_thread
     thread.join(timeout=5)
     assert not thread.is_alive()

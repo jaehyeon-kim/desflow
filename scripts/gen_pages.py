@@ -343,22 +343,31 @@ def compatibility_page() -> str:
         "",
         "These features are not yet native and checked in all three APIs. "
         '"Exists, not checked" marks an API that has a form, which no conformance '
-        "test compares with SimPy yet; the low-level API is SimPy, so many work "
-        "there already. The inventory id names the feature in desflow's list of "
-        "SimPy's features.",
+        'test compares with SimPy yet, and "exists, checked" one that a test in '
+        "the Checks column compares already; the low-level API is SimPy, so many "
+        "work there already. The inventory id names the feature in desflow's list "
+        "of SimPy's features.",
         "",
-        "| Feature | Inventory | SimPy | YAML | Builder | Low-level | Release |",
-        "|---|---|---|---|---|---|---|",
+        "| Feature | Inventory | SimPy | YAML | Builder | Low-level | Checks "
+        "| Release |",
+        "|---|---|---|---|---|---|---|---|",
     ]
     for row in not_yet:
         exists = row.get("exists", [])
+        checked = row.get("checked", [])
         status = [
-            "exists, not checked" if api in exists else "not yet"
+            "exists, checked"
+            if api in checked
+            else "exists, not checked"
+            if api in exists
+            else "not yet"
             for api in ("yaml", "builder", "low_level")
         ]
+        checks = "<br>".join(_check_link(check) for check in row["checks"])
         lines.append(
             f"| {row['operation']} | {', '.join(row['inventory'])} "
-            f"| {_cell(row['simpy'])} | {' | '.join(status)} | {row['release']} |"
+            f"| {_cell(row['simpy'])} | {' | '.join(status)} | {checks or 'none'} "
+            f"| {row['release']} |"
         )
     lines += ["", f"## {GROUPS['D']}", ""]
     for row in kept:

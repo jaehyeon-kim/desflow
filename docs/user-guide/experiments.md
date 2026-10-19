@@ -22,9 +22,10 @@ An experiment names its model, how long and how often to run it, what to measure
 # The twin of examples/builder/experiment_example.py. The model is
 # experiment_shop.yaml. The experiment runs one hour of it 20 times with two packers
 # and 20 times with three, with the same seeds, after a 3-minute warm-up. It
-# compares the two designs seed by seed, checks the three-packer design against a 2-second bound, and compares the
-# two-packer design with the mean wait observed in the real shop. It writes its
-# artifacts and report to results/packers, and exits 1 if the check fails.
+# compares the two designs seed by seed, checks the three-packer design against a
+# 2-second bound, and compares the two-packer design with the mean wait observed in
+# the real shop. It writes its artifacts and report to results/packers, and exits 1
+# if the check fails.
 #
 # Needs no containers.
 # Run it with: desflow experiment experiment.yaml
@@ -71,8 +72,8 @@ In Python the same settings are a mapping, and the model is a blueprint path, a 
 | `assumptions` | sentences the report lists | none |
 | `inputs` | each distribution's registry path, such as `Shop.service.packing`, and where its values came from | none |
 | `until` | where each run's arrivals stop, in seconds or a duration such as `8 h`; the run ends there unless `stop` ends it earlier or `drain` runs on | required |
-| `stop` | ends each run when it happens: `{signal: name}` or `{condition: "..."}` | a blueprint's `run.stop` |
-| `drain` | at `until`, stop the arrivals and run on until the model is empty: `true`, or `{limit: 1 h}` | a blueprint's `run.drain` |
+| `stop` | ends each run when it happens: `{signal: name}` or `{condition: "..."}`; for a low-level model, given in Python, a function of the environment that returns the event | a blueprint's `run.stop` |
+| `drain` | at `until`, stop the arrivals and run on until the model is empty: `true`, or `{limit: 1 h}`; a low-level model is drained when its function returns its arrival processes | a blueprint's `run.drain` |
 | `warmup` | each run's warm-up | the model's own |
 | `replications` | runs of each design, 2 or more | required |
 | `seed` | the seed every run's seed is spawned from | required |

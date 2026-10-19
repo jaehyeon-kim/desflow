@@ -1,9 +1,6 @@
 import queue
-from datetime import UTC
 from unittest.mock import AsyncMock, MagicMock, patch
-
 import pytest
-
 from desflow.connectors.egress.postgres import PostgresEgress
 
 
@@ -125,7 +122,7 @@ async def test_iso_strings_are_converted_for_time_columns(
     mock_create_pool, mock_pool, run_until
 ):
     """asyncpg rejects a string for a timestamp column, so the writer converts it."""
-    from datetime import date, datetime
+    from datetime import date, datetime, timezone
 
     pool, conn = mock_pool
     mock_create_pool.return_value = pool
@@ -159,7 +156,7 @@ async def test_iso_strings_are_converted_for_time_columns(
     query, values = conn.executemany.call_args[0]
     row = dict(zip(query.split("(")[1].split(")")[0].split(", "), values[0]))
     assert row["timestamp"] == datetime(2026, 1, 1, 12, 0)
-    assert row["placed_at"] == datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
+    assert row["placed_at"] == datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc)
     assert row["order_day"] == date(2026, 1, 1)
     assert row["note"] == "2026-01-01"
 

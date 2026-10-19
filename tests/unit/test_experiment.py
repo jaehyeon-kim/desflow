@@ -1,6 +1,7 @@
 """Experiments: designs, pairing, comparisons, checks, observed values, the report."""
 
 from pathlib import Path
+from typing import Optional
 
 import pytest
 from typer.testing import CliRunner
@@ -15,11 +16,11 @@ from desflow import (
     SimulationContext,
     run_experiment,
 )
+from desflow.blueprint.cli import app as cli
+from desflow.blueprint.loader import BlueprintError
 from desflow.analysis import results as found
 from desflow.analysis.models import RunResult
 from desflow.analysis.spec import ExperimentSpec
-from desflow.blueprint.cli import app as cli
-from desflow.blueprint.loader import BlueprintError
 
 SHOP = """\
 simulation: {sim_id: Shop, factor: 0}
@@ -47,7 +48,7 @@ limits: ["Thirty minutes of one shop only."]
 MEASURES = ["tasks.pack.wait_mean", "resources.packers.utilization_avg"]
 
 
-def shop(orders: int | None = None) -> SimulationContext:
+def shop(orders: Optional[int] = None) -> SimulationContext:
     """The blueprint's shop, written with the builder; `orders` stops the arrivals
     after that many."""
     app = (
@@ -535,3 +536,14 @@ def test_a_low_level_model_keeps_its_own_parameters(tmp_path):
     assert result.comparisons[0]["difference"] < 0
     assert SHARED.resources["packers"].current_cap == 2
     assert SHARED.variables == {"wrap": 0}
+
+
+def test_the_report_shows_each_end_setting_in_words():
+    """drain true and false show as yes and no, a stop as its value, and an unset
+    setting as the model's own."""
+    from desflow.analysis.report import _end_setting
+
+    assert _end_setting(True, "no") == "yes"
+    assert _end_setting(False, "no") == "no"
+    assert _end_setting("closing", "none") == "`closing`"
+    assert _end_setting(None, "none") == "none unless the model's own run sets one"

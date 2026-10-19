@@ -334,7 +334,8 @@ def run_once(
 
     Raises:
         ValueError: If an override's path does not exist or its value is refused,
-            or a low-level model is drained without returning its arrivals.
+            a low-level model is drained without returning its arrivals, or a
+            low-level model's stop is not a function.
     """
     if isinstance(stop, str) and not isinstance(model, LowLevelModel):
         stop = {"signal": stop}
@@ -368,6 +369,11 @@ def _run_low_level(
     arrivals: Any,
 ) -> None:
     """Runs a low-level model to `until`, a `stop` event, or the end of a drain."""
+    if stop is not None and not callable(stop):
+        raise ValueError(
+            f"a low-level model's stop is a function of the environment that returns "
+            f"the event to stop at, such as lambda env: env.timeout(30), not {stop!r}"
+        )
     if stop is None:
         env.run(until=until)
     else:

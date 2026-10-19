@@ -1,10 +1,8 @@
 import asyncio
 import queue
 from unittest.mock import AsyncMock, MagicMock, patch
-
 import asyncpg
 import pytest
-
 from desflow.connectors.ingress.postgres import PostgresIngress
 
 

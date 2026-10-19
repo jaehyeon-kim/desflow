@@ -97,8 +97,8 @@ INVENTORY = [
 
 def test_the_register_is_the_full_simpy_matrix():
     """Every SimPy feature is in exactly one row; a native row has checks and its
-    three forms, a row not yet native has none and names its release, and a
-    difference gives its reason."""
+    three forms, a row not yet native names its release and has checks only for
+    the APIs in its checked list, and a difference gives its reason."""
     assert len(INVENTORY) == len(set(INVENTORY)) == 98
     seen = [i for entry in gen_pages.register() for i in entry["inventory"]]
     assert sorted(seen) == sorted(INVENTORY)
@@ -109,7 +109,11 @@ def test_the_register_is_the_full_simpy_matrix():
             assert entry["checks"], entry["operation"]
             assert all(entry[api] for api in ("yaml", "builder", "low_level"))
         elif status == "not yet":
-            assert not entry["checks"] and entry["release"], entry["operation"]
+            # Checks cover only the APIs named in checked, each of which exists
+            checked = entry.get("checked", [])
+            assert bool(entry["checks"]) == bool(checked), entry["operation"]
+            assert set(checked) <= set(entry.get("exists", [])), entry["operation"]
+            assert entry["release"], entry["operation"]
         else:
             assert not entry["checks"] and entry["differences"], entry["operation"]
 
@@ -122,3 +126,12 @@ def test_the_simpy_version_is_read_from_the_lock():
     version = next(p["version"] for p in lock["package"] if p["name"] == "simpy")
     assert gen_pages.simpy_version() == version
     assert f"a plain SimPy {version} model" in gen_pages.compatibility_page()
+
+
+def test_a_not_yet_row_shows_its_checks():
+    """A feature not yet native in all three APIs, with a check of one API, shows
+    that API as checked and names the check."""
+    page = gen_pages.compatibility_page()
+    row = next(line for line in page.splitlines() if line.startswith("| Run in "))
+    assert "exists, checked" in row
+    assert "test_c6_stopped_and_resumed_run" in row

@@ -1,6 +1,6 @@
 """read_trace: the sources, units and checks a replayed arrival relies on."""
 
-from datetime import UTC, datetime
+from datetime import datetime
 
 import pytest
 
@@ -50,11 +50,11 @@ def test_rows_before_the_start_and_unknown_settings_are_refused():
 def test_a_replayed_timestamp_arrives_when_records_carry_it():
     """With an initial time of 100, a row stamped 110 s after logical_start_time
     arrives at simulation time 110, and its record carries the row's time."""
-    from datetime import datetime
+    from datetime import datetime, timezone
 
     from desflow import SimulationContext
 
-    start = datetime(2026, 10, 1, 9, 0, tzinfo=UTC)
+    start = datetime(2026, 10, 1, 9, 0, tzinfo=timezone.utc)
     records = []
 
     class Keep:

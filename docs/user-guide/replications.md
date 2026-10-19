@@ -100,7 +100,7 @@ Three replications give a wide interval; [Trusting Results](../tutorials/trustin
 
 ### Repeat One Replication
 
-Each replication's seed is a plain integer, recorded in `seeds` and in every row of the table, so any replication repeats on its own: `desflow run shop.yaml --seed <its seed>`, `random_seed` in a builder context, or `Sampler(seed=...)` in the low-level API, with the same end time and warm-up. That run publishes its event records, which replications do not.
+Each replication's seed is a plain integer, recorded in `seeds` and in every row of the table, so any replication repeats on its own: `desflow run shop.yaml --seed <its seed>`, `random_seed` in a builder context, or `Sampler(seed=...)` in the low-level API, with the same end time, drain and warm-up. That run publishes its event records, which replications do not.
 
 ### What the Sinks Receive
 
