@@ -1,7 +1,5 @@
 # Performance Tuning
 
-**Level:** Advanced
-
 Make a run that generates data go as fast as the machine allows, and measure how many records a second it publishes. It builds on [Time and Pacing](../user-guide/time-and-pacing.md), which explains `factor`, and on [Egress](../user-guide/egress.md), which explains batches.
 
 ---

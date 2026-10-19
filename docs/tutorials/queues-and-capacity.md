@@ -1,7 +1,5 @@
 # Queues and Capacity
 
-**Level:** Basics
-
 In its busy hour the shop gets 1.8 orders a second, and packing still takes 1.5 seconds. One packer cannot keep up. This page asks: **how many packers keep the mean wait under 10 seconds?**
 
 ## What You Add

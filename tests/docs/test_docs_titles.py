@@ -101,19 +101,3 @@ def test_no_heading_or_label_starts_with_the():
             if re.match(r"^#{1,6} The ", line) or re.match(r"^\s*[*-] \*\*The ", line):
                 found.append(f"{page.relative_to(ROOT)}: {line[:60]}")
     assert found == [], "; ".join(found)
-
-
-LEVEL = re.compile(r"^# .+\n\n\*\*Level:\*\* (Basics|Intermediate|Advanced)\n")
-
-
-def test_every_tutorial_and_how_to_page_opens_with_its_level():
-    missing = [
-        str(page.relative_to(ROOT))
-        for folder in ("tutorials", "guides")
-        for page in sorted((ROOT / "docs" / folder).glob("*.md"))
-        if not LEVEL.match(page.read_text(encoding="utf-8"))
-    ]
-    assert missing == [], (
-        "Pages without a level under the title: add **Level:** Basics, Intermediate "
-        "or Advanced as the line after it"
-    )

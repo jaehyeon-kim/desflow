@@ -1,7 +1,5 @@
 # Reneging and Balking
 
-**Level:** Intermediate
-
 Give a task a time limit on its wait, a condition that stops it joining at all, or both, and account for every entity afterwards. It builds on [Patience](../tutorials/patience.md), which explains both ideas, and on [Resources](../user-guide/resources.md#how-it-works), which explains how a request is granted.
 
 ---

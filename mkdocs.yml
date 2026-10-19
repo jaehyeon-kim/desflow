@@ -162,27 +162,33 @@ nav:
   - Learn:
       - What Is DES?: des/how-it-works.md
       - SimPy and desflow: des/simpy-and-desflow.md
+      # The shop tutorial in the order of a study: build a first model, choose its
+      # inputs, add the shop's logic, then analyse the results.
       - "Tutorial: the Shop":
-          - First Simulation: tutorials/first-simulation.md
-          - Queues and Capacity: tutorials/queues-and-capacity.md
-          - Randomness and Seeds: tutorials/randomness-and-seeds.md
-          - Choosing Inputs: tutorials/choosing-inputs.md
-          - Measuring a Run: tutorials/measuring-a-run.md
-          - Trusting Results: tutorials/trusting-results.md
-          - End Conditions: tutorials/end-conditions.md
-          - Fit the Inputs: tutorials/fit-the-inputs.md
-          - Stock: tutorials/stock.md
-          - Priorities: tutorials/priorities.md
-          - A Flow of Tasks: tutorials/flow-of-tasks.md
-          - Process Interaction: tutorials/process-interaction.md
-          - Patience: tutorials/patience.md
-          - Interruptions: tutorials/interruptions.md
-          - Competing Resources: tutorials/competing-resources.md
-          - Filtered Inventory: tutorials/filtered-inventory.md
-          - Changing Demand: tutorials/changing-demand.md
-          - Local Replay: tutorials/local-replay.md
-          - Comparing Designs: tutorials/comparing-designs.md
-          - Parameter Sweeps: tutorials/parameter-sweeps.md
+          - A First Model:
+              - First Simulation: tutorials/first-simulation.md
+              - Queues and Capacity: tutorials/queues-and-capacity.md
+              - Randomness and Seeds: tutorials/randomness-and-seeds.md
+              - Measuring a Run: tutorials/measuring-a-run.md
+              - End Conditions: tutorials/end-conditions.md
+          - Inputs:
+              - Choosing Inputs: tutorials/choosing-inputs.md
+              - Fit the Inputs: tutorials/fit-the-inputs.md
+              - Changing Demand: tutorials/changing-demand.md
+              - Local Replay: tutorials/local-replay.md
+          - Shop Logic:
+              - Stock: tutorials/stock.md
+              - Priorities: tutorials/priorities.md
+              - A Flow of Tasks: tutorials/flow-of-tasks.md
+              - Process Interaction: tutorials/process-interaction.md
+              - Patience: tutorials/patience.md
+              - Interruptions: tutorials/interruptions.md
+              - Competing Resources: tutorials/competing-resources.md
+              - Filtered Inventory: tutorials/filtered-inventory.md
+          - Results:
+              - Trusting Results: tutorials/trusting-results.md
+              - Comparing Designs: tutorials/comparing-designs.md
+              - Parameter Sweeps: tutorials/parameter-sweeps.md
   - User Guide:
       - Ways to Write: user-guide/ways-to-write.md
       - YAML Blueprints: user-guide/blueprints.md

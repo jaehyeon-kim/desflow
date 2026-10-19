@@ -1,7 +1,5 @@
 # Measuring a Run
 
-**Level:** Basics
-
 Most of the last three pages read one number, the mean wait. A run knows much more: how busy the packers were, how long the queue was, how many orders were packed, and how long the slowest one waited. This page asks: **what does a run tell me?**
 
 ## What You Add

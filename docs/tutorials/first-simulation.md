@@ -1,7 +1,5 @@
 # First Simulation
 
-**Level:** Basics
-
 This tutorial models a shop that receives and packs customer orders: one packer, orders arriving about every 2 seconds, and 1.5 seconds of packing per order. It answers one question: **how long does an order wait with one packer?** The following pages extend the same model, one idea per page.
 
 Each step shows the code three ways, in tabs: a **YAML** blueprint, the **Builder** (`SimulationContext`) and the **Low-level** API (`DynamicRealtimeEnvironment` and SimPy processes). Choose the tab for your preferred API; all code tabs on the site switch to that API. The three build the same simulation and print the same records. [Ways to Write](../user-guide/ways-to-write.md) explains how they relate.

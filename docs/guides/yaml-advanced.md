@@ -1,7 +1,5 @@
 # Python in a Blueprint: `!python`
 
-**Level:** Intermediate
-
 A blueprint holds configuration as plain YAML, and the [YAML Blueprints](../user-guide/blueprints.md) page covers that. When a simulation needs logic that YAML cannot express, the file can reference a Python object with `!python module.attribute` in place of a value. This guide covers when to use it, how a reference is found, what each field receives and the security note, and ends with the OML hot rolling twin as a worked case.
 
 The [advanced Postgres example](../examples/advanced-postgres-orders.md) is a complete blueprint with one Python process. Every file on this page is in the repository under [`docs/snippets/`](https://github.com/jaehyeon-kim/desflow/tree/main/docs/snippets).

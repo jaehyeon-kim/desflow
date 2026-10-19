@@ -1,7 +1,5 @@
 # Connecting to Secure Kafka Clusters
 
-**Level:** Advanced
-
 The Kafka connectors pass any keyword argument they do not use themselves to the Kafka client underneath, so SASL, mTLS, OAuth and AWS IAM work without code of your own. `KafkaIngress` and `KafkaEgress` use `aiokafka`. `KafkaAdminConnector` uses `kafka-python` for `create_topics` and `aiokafka` for `send_config` and `collect_data`, so its arguments must suit the library each method uses.
 
 Every example here connects to a managed or secured cluster. No odctl profile runs a secured broker, so the full script at the end needs a cluster of your own that uses SASL PLAIN, such as Confluent Cloud. To try the connectors locally without security, start a broker with `odctl up kafka-lite` and see [Installation](../getting-started.md).

@@ -126,7 +126,7 @@ run:
 
 ## Roadmap
 
-Version 0.21.0 adds distributions, stores, flows, statistics and the first pages of the shop tutorial in the Learn section. The next releases add replications, the record format that 1.0 keeps stable, `desflow explain` and the rest of the tutorial, followed by a simulation server with tools for AI agents. The [roadmap page](https://jaehyeon.me/desflow/latest/about/roadmap/) shows them in order, with what is in progress.
+Before 1.0, desflow reaches feature parity with SimPy in YAML, the builder and the low-level API, and adds a JSON Schema for blueprints, `desflow explain`, the rest of the shop tutorial, more storage backends and a record format that 1.0 keeps stable. A simulation server with tools for AI agents follows 1.0. The [roadmap page](https://jaehyeon.me/desflow/latest/about/roadmap/) shows each step in order, with what is in progress.
 
 ## Learn More
 

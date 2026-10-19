@@ -1,7 +1,5 @@
 # Changing Demand
 
-**Level:** Intermediate
-
 The shop's one packer packs an order in 1.5 seconds, and orders usually arrive at 0.4 a second. From 20 to 40 minutes a promotion brings 0.9 a second, more than one packer can pack. This page asks: **what does a 20-minute rush do to waits, and does a second packer for the rush keep them short?** It runs the hour with one packer through the rush and with two.
 
 ## What You Add

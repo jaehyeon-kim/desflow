@@ -1,7 +1,5 @@
 # Wait for One or All
 
-**Level:** Intermediate
-
 Make a task wait for the first of several things, or for all of them, and read which happened. It builds on [Process Interaction](../tutorials/process-interaction.md), which introduces signals and a wait with a limit, and on [Tasks and Processes](../user-guide/tasks-and-processes.md#wait-signals-and-child-flows), which lists every kind of branch.
 
 ---

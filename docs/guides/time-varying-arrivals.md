@@ -1,7 +1,5 @@
 # Time-varying Arrivals
 
-**Level:** Intermediate
-
 Change the arrival rate and the staffing at set times, such as a rush at lunch or a second packer for an afternoon, and know exactly which events a change reaches. It builds on [Changing Demand](../tutorials/changing-demand.md), which asks what a rush does to waits, and on [Live Parameters](../user-guide/live-parameters.md), which explains registry paths.
 
 ---

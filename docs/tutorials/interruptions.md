@@ -1,7 +1,5 @@
 # Interruptions
 
-**Level:** Advanced
-
 A quarter of the shop's orders are express, as in [Priorities](priorities.md), but now an express order does not wait for the regular order being packed: it takes the packer at once. This page asks: **what remains of a regular order's packing when an express order takes its packer, and which way of carrying on keeps regular orders waiting least?** It compares three policies over an hour.
 
 ## What You Add

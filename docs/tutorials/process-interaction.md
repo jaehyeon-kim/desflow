@@ -1,7 +1,5 @@
 # Process Interaction
 
-**Level:** Intermediate
-
 Packed orders now wait for a courier, who comes every 10 minutes and takes every order that is waiting. An order that waits too long goes by post instead, which costs more and takes longer. This page asks: **when does a waiting order resume, and how long must it be allowed to wait so that most orders go by courier?** It compares limits of 5 and 8 minutes over an 8-hour day.
 
 ## What You Add

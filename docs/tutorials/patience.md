@@ -1,7 +1,5 @@
 # Patience
 
-**Level:** Intermediate
-
 The shop now takes 0.7 orders a second, and its one packer packs one every 1.5 seconds, so orders arrive faster than they can be packed. A real customer does not wait for ever: one whose order has not started within 30 seconds cancels it. And the courier leaves at the hour, so the shop takes no new orders in the last five minutes. This page asks: **which orders leave or refuse to join, and what does that do to the wait of the others?** It measures the hour with a patience of 30 seconds and without one.
 
 ## What You Add

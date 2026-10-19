@@ -1,7 +1,5 @@
 # Filtered Inventory
 
-**Level:** Intermediate
-
 The shop now sells shirts in three sizes, small, medium and large. Shirts of every size go on one shelf, a shirt every 10 seconds on average, and an order every 10 seconds asks for one shirt of its own size. A customer cancels an order not filled within 10 minutes. Half the orders are medium, but only 4 shirts in 10 are. This page asks: **which waiting order can use the shirt that arrives, and which orders go unfilled?** It runs a working day of 8 hours.
 
 ## What You Add
