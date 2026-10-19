@@ -31961,7 +31961,7 @@ Shows a simulation as a graph, marks each resource OK, congested or unstable (it
 
 Learn section
 
-The shop tutorial, which extends one shop model page by page and answers a question with a number on each page, has 20 pages since 0.22.0, which added replications, comparing designs, sweeps, fitting, patience, interruptions, end conditions and more. Left: concept pages on a simulation study, checking and validating, queueing and output analysis, a final study of the whole shop and an independent problem. [#60](https://github.com/jaehyeon-kim/desflow/issues/60)
+The shop tutorial, which extends one shop model page by page and answers a question with a number on each page, has 20 pages since 0.22.0, which added replications, comparing designs, sweeps, fitting, patience, interruptions, end conditions and more. Left: concept pages on a simulation study, checking and validating, queueing and output analysis, and a final study of the whole shop. [#60](https://github.com/jaehyeon-kim/desflow/issues/60)
 
 ## Later
 
