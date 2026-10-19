@@ -46,7 +46,9 @@ dependencies = [
     "simpy>=4.1.2",
     "numpy>=1.26.0",
     "orjson>=3.10.0",
-    "pydantic>=2.0.0",
+    # 2.6.0 is the oldest release the unit and conformance tests pass with: 2.0 to
+    # 2.4 have no Discriminator, and 2.5 no inf_nan_mode in to_jsonable_python
+    "pydantic>=2.6.0",
     "pyyaml>=6.0.1",
     "typer>=0.16.0"
 ]
@@ -63,12 +65,12 @@ Documentation = "https://jaehyeon.me/desflow/"
 Issues = "https://github.com/jaehyeon-kim/desflow/issues"
 
 [project.optional-dependencies]
-kafka =[
+kafka = [
     "aiokafka[lz4]>=0.11.0",
     "kafka-python>=2.0.2"
 ]
 redis = ["redis>=5.0.1"]
-postgres =["asyncpg>=0.29.0"]
+postgres = ["asyncpg>=0.29.0"]
 confluent = [
     # ConfluentAvroSerializer lives in the Kafka connector module, so the kafka
     # extra is required for `pip install desflow[confluent]` to be usable.
@@ -77,15 +79,23 @@ confluent = [
     # confluent-kafka stopped bundling in 2.6. Without them the registry client
     # cannot be imported at all.
     "confluent-kafka[schemaregistry,avro]>=2.6",
-    "dataclasses-avroschema[pydantic]"
+    # 0.65.7 is the oldest release with which this extra installs alone and the
+    # Kafka connector tests and the Avro guide's test pass on Python 3.11 to 3.14:
+    # 0.53.0 to 0.65.6 fail on 3.14, and releases before 0.53.0 need pydantic 1.
+    "dataclasses-avroschema[pydantic]>=0.65.7"
 ]
 glue = [
-    "desflow[kafka]",
-    "aws-glue-schema-registry",
-    "boto3",
-    "dataclasses-avroschema[pydantic]",
     # aws_schema_registry.adapter.kafka imports the kafka package
-    "kafka-python>=2.0.2"
+    "desflow[kafka]",
+    # The oldest releases with which this extra installs alone and the Kafka
+    # connector tests pass on Python 3.11 to 3.14, found by installing older ones.
+    # aws-glue-schema-registry 1.1.0 to 1.1.2 pin an orjson older than desflow's
+    # and are never chosen. boto3 before 1.26.0 pulls a botocore that imports
+    # cgi, which Python 3.13 removed.
+    "aws-glue-schema-registry>=1.0.0",
+    "boto3>=1.26.0",
+    # The floor of the confluent extra
+    "dataclasses-avroschema[pydantic]>=0.65.7"
 ]
 parquet = [
     "pyarrow>=14.0.0"
@@ -100,15 +110,15 @@ iceberg = [
     # Python 3.13 or later only 0.11.0 and above are installable anyway.
     "pyiceberg[pyarrow]>=0.7.0"
 ]
-all = [
-    "desflow[kafka,redis,postgres,confluent,glue,parquet,iceberg]"
-]
 fit = [
     "matplotlib>=3.11.2",
     "scipy>=1.17.1",
 ]
+all = [
+    "desflow[kafka,redis,postgres,confluent,glue,parquet,iceberg,fit]"
+]
 [build-system]
-requires = ["uv_build>=0.9.16,<0.13.0"]
+requires = ["uv_build>=0.9.16,<0.14.0"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]

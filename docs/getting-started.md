@@ -35,8 +35,8 @@ The connectors are optional extras, for example `uv add "desflow[kafka,parquet]"
 | `postgres` | PostgreSQL ingress and egress |
 | `parquet` | Parquet and JSONL files on local disk or S3-compatible storage |
 | `iceberg` | Apache Iceberg tables through a REST catalog |
+| `fit` | scipy and matplotlib, for [input fitting](user-guide/input-fitting.md) with `desflow fit` |
 | `all` | Every extra above |
-| `fit` | scipy and matplotlib, for [input fitting](user-guide/input-fitting.md) with `desflow fit`; not part of `all` |
 
 ---
 

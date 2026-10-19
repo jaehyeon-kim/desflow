@@ -15,6 +15,20 @@ pytestmark = pytest.mark.skipif(
 )
 
 
+def _has_upsert() -> bool:
+    try:
+        from pyiceberg.table import Table
+    except ImportError:
+        return False
+    return hasattr(Table, "upsert")
+
+
+# upsert_keys needs pyiceberg 0.9.0; the iceberg extra's floor is 0.7.0
+needs_upsert = pytest.mark.skipif(
+    not _has_upsert(), reason="upsert_keys needs pyiceberg 0.9.0 or later"
+)
+
+
 class FakeSchema:
     """Stands in for a pyiceberg Schema, which the connector reads back as Arrow."""
 
@@ -211,6 +225,7 @@ def test_a_table_without_upsert_keys_is_appended():
     assert len(table.appended) == 1 and table.upserted == []
 
 
+@needs_upsert
 def test_a_table_with_upsert_keys_is_upserted_on_those_keys():
     """A table named in upsert_keys is written with upsert, joined on its keys."""
     catalog = FakeCatalog()
@@ -229,6 +244,7 @@ def test_a_table_with_upsert_keys_is_upserted_on_those_keys():
     assert df.to_pylist() == [{"order_id": 1, "status": "new"}]
 
 
+@needs_upsert
 def test_upsert_keeps_the_last_record_per_key_in_a_flush():
     """Two changes to one key in one flush leave only the later one."""
     catalog = FakeCatalog()
@@ -254,6 +270,7 @@ def test_upsert_keeps_the_last_record_per_key_in_a_flush():
     ]
 
 
+@needs_upsert
 def test_upsert_record_without_its_key_raises():
     """A record with no key cannot be matched, so it is refused rather than duplicated on every rerun."""
     egress = IcebergStorageEgress(
@@ -270,7 +287,7 @@ def test_upsert_keys_on_a_pyiceberg_without_upsert_fails_at_construction(monkeyp
     """On pyiceberg older than 0.9.0 the option fails before the run, naming the version."""
     from pyiceberg.table import Table
 
-    monkeypatch.delattr(Table, "upsert")
+    monkeypatch.delattr(Table, "upsert", raising=False)
     with pytest.raises(ImportError, match="0.9.0"):
         IcebergStorageEgress(
             catalog=FakeCatalog(),

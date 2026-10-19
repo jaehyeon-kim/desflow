@@ -992,9 +992,12 @@ all = [
     { name = "confluent-kafka", extra = ["avro", "schemaregistry"] },
     { name = "dataclasses-avroschema", extra = ["pydantic"] },
     { name = "kafka-python" },
+    { name = "matplotlib" },
     { name = "pyarrow" },
     { name = "pyiceberg", extra = ["pyarrow"] },
     { name = "redis" },
+    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
+    { name = "scipy", version = "1.18.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
 confluent = [
     { name = "aiokafka", extra = ["lz4"] },
@@ -1056,21 +1059,20 @@ dev = [
 requires-dist = [
     { name = "aiokafka", extras = ["lz4"], marker = "extra == 'kafka'", specifier = ">=0.11.0" },
     { name = "asyncpg", marker = "extra == 'postgres'", specifier = ">=0.29.0" },
-    { name = "aws-glue-schema-registry", marker = "extra == 'glue'" },
-    { name = "boto3", marker = "extra == 'glue'" },
+    { name = "aws-glue-schema-registry", marker = "extra == 'glue'", specifier = ">=1.0.0" },
+    { name = "boto3", marker = "extra == 'glue'", specifier = ">=1.26.0" },
     { name = "confluent-kafka", extras = ["schemaregistry", "avro"], marker = "extra == 'confluent'", specifier = ">=2.6" },
-    { name = "dataclasses-avroschema", extras = ["pydantic"], marker = "extra == 'confluent'" },
-    { name = "dataclasses-avroschema", extras = ["pydantic"], marker = "extra == 'glue'" },
+    { name = "dataclasses-avroschema", extras = ["pydantic"], marker = "extra == 'confluent'", specifier = ">=0.65.7" },
+    { name = "dataclasses-avroschema", extras = ["pydantic"], marker = "extra == 'glue'", specifier = ">=0.65.7" },
     { name = "desflow", extras = ["kafka"], marker = "extra == 'confluent'" },
     { name = "desflow", extras = ["kafka"], marker = "extra == 'glue'" },
-    { name = "desflow", extras = ["kafka", "redis", "postgres", "confluent", "glue", "parquet", "iceberg"], marker = "extra == 'all'" },
-    { name = "kafka-python", marker = "extra == 'glue'", specifier = ">=2.0.2" },
+    { name = "desflow", extras = ["kafka", "redis", "postgres", "confluent", "glue", "parquet", "iceberg", "fit"], marker = "extra == 'all'" },
     { name = "kafka-python", marker = "extra == 'kafka'", specifier = ">=2.0.2" },
     { name = "matplotlib", marker = "extra == 'fit'", specifier = ">=3.11.2" },
     { name = "numpy", specifier = ">=1.26.0" },
     { name = "orjson", specifier = ">=3.10.0" },
     { name = "pyarrow", marker = "extra == 'parquet'", specifier = ">=14.0.0" },
-    { name = "pydantic", specifier = ">=2.0.0" },
+    { name = "pydantic", specifier = ">=2.6.0" },
     { name = "pyiceberg", extras = ["pyarrow"], marker = "extra == 'iceberg'", specifier = ">=0.7.0" },
     { name = "pyyaml", specifier = ">=6.0.1" },
     { name = "redis", marker = "extra == 'redis'", specifier = ">=5.0.1" },
@@ -1078,7 +1080,7 @@ requires-dist = [
     { name = "simpy", specifier = ">=4.1.2" },
     { name = "typer", specifier = ">=0.16.0" },
 ]
-provides-extras = ["kafka", "redis", "postgres", "confluent", "glue", "parquet", "iceberg", "all", "fit"]
+provides-extras = ["kafka", "redis", "postgres", "confluent", "glue", "parquet", "iceberg", "fit", "all"]
 
 [package.metadata.requires-dev]
 dev = [
