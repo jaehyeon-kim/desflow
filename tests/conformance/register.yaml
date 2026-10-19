@@ -562,7 +562,7 @@
   operation: Current time
   simpy: "`core.Environment.now`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-E3]
@@ -571,7 +571,7 @@
   operation: Active process
   simpy: "`core.Environment.active_process`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-E4]
@@ -580,7 +580,7 @@
   operation: Start a process without waiting for it
   simpy: "`core.Environment.process`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-E5]
@@ -589,7 +589,7 @@
   operation: Schedule an event with a priority
   simpy: "`core.Environment.schedule`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-E6]
@@ -598,7 +598,7 @@
   operation: Urgent and normal event priorities
   simpy: "`events.URGENT`, `events.NORMAL`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-E10]
@@ -606,7 +606,7 @@
   operation: A step processes only the model's events
   simpy: "`core.Environment.step`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-E14]
@@ -615,7 +615,7 @@
   operation: Value of a run stopped at an event
   simpy: "`core.Environment.run`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-E15, SP-E16]
@@ -626,7 +626,7 @@
   simpy: "`core.Environment.run`, called again"
   checks:
     - tests/conformance/test_c6_end_conditions.py::test_c6_stopped_and_resumed_run
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-E17]
@@ -635,7 +635,7 @@
   operation: Subclass the environment
   simpy: "`core.Environment`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-R1]
@@ -644,7 +644,7 @@
   operation: Real-time factor
   simpy: "`rt.RealtimeEnvironment(factor)`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-R2]
@@ -653,7 +653,7 @@
   operation: Strict pacing
   simpy: "`rt.RealtimeEnvironment.strict`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-R3]
@@ -661,7 +661,7 @@
   operation: Strict by default
   simpy: "`rt.RealtimeEnvironment(strict=True)`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-R4]
@@ -670,7 +670,7 @@
   operation: Sync with the wall clock
   simpy: "`rt.RealtimeEnvironment.sync`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-V3]
@@ -679,7 +679,7 @@
   operation: One-shot event
   simpy: "`events.Event`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-V4]
@@ -688,7 +688,7 @@
   operation: Trigger from another event
   simpy: "`events.Event.trigger`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-V5]
@@ -697,7 +697,7 @@
   operation: Callbacks
   simpy: "`events.Event.callbacks`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-V6]
@@ -706,7 +706,7 @@
   operation: Defused failure
   simpy: "`events.Event.defused`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-V7]
@@ -715,7 +715,7 @@
   operation: Failure nobody handles
   simpy: "`core.Environment.run`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-V11]
@@ -724,7 +724,7 @@
   operation: Timeout value
   simpy: "`events.Timeout(delay, value)`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-P5]
@@ -733,7 +733,7 @@
   operation: Process target
   simpy: "`events.Process.target`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-P6]
@@ -742,7 +742,7 @@
   operation: Process name
   simpy: "`events.Process.name`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-P7]
@@ -751,7 +751,7 @@
   operation: Wait for a process already running
   simpy: "`yield process`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-C5]
@@ -760,7 +760,7 @@
   operation: Nested and mixed conditions
   simpy: "`events.Condition`, `&` and `|`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-C6]
@@ -769,7 +769,7 @@
   operation: A condition with a custom rule
   simpy: "`events.Condition(env, evaluate, events)`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-C7]
@@ -778,7 +778,7 @@
   operation: A condition over no events
   simpy: "`events.AnyOf(env, [])`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-C8]
@@ -787,7 +787,7 @@
   operation: Request, put or get as a wait branch
   simpy: "`resources.base.Put`, `resources.base.Get`, `events.AnyOf`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-B2]
@@ -795,7 +795,7 @@
   operation: Put and get queues of a store or container
   simpy: "`resources.base.BaseResource.put_queue`, `.get_queue`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-B5]
@@ -803,7 +803,7 @@
   operation: Custom resource types
   simpy: "`resources.base.BaseResource._do_put`, `._do_get`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-B6]
@@ -811,7 +811,7 @@
   operation: Custom put and get queue types
   simpy: "`resources.base.BaseResource.PutQueue`, `.GetQueue`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-B7]
@@ -819,7 +819,7 @@
   operation: Custom put and get event classes
   simpy: "`resources.base.BaseResource.put`, `.get`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-B8]
@@ -828,7 +828,7 @@
   operation: A put or get the process does not wait for
   simpy: "`resources.base.Put` without `yield`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-S2]
@@ -836,7 +836,7 @@
   operation: Resource capacity defaults to 1
   simpy: "`resources.resource.Resource(capacity=1)`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-S4]
@@ -844,7 +844,7 @@
   operation: Resource count
   simpy: "`resources.resource.Resource.count`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-S5]
@@ -852,7 +852,7 @@
   operation: Resource queue
   simpy: "`resources.resource.Resource.queue`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-S6]
@@ -861,7 +861,7 @@
   operation: Resource users
   simpy: "`resources.resource.Resource.users`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-S10]
@@ -869,7 +869,7 @@
   operation: Release event and its request
   simpy: "`resources.resource.Release.request`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-S11]
@@ -878,7 +878,7 @@
   operation: Usage since
   simpy: "`resources.resource.Request.usage_since`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-Q2]
@@ -886,7 +886,7 @@
   operation: Default request priority 0
   simpy: "`resources.resource.PriorityRequest(priority=0)`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-Q6]
@@ -895,7 +895,7 @@
   operation: Preemption cause
   simpy: "`resources.resource.Preempted`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-Q7]
@@ -903,7 +903,7 @@
   operation: A waiting line with a limit
   simpy: "`resources.resource.SortedQueue(maxlen)`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-Q8]
@@ -911,7 +911,7 @@
   operation: Subclass a resource to change its rules
   simpy: "`resources.resource.PreemptiveResource`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-K5]
@@ -919,7 +919,7 @@
   operation: Container with no capacity limit
   simpy: "`resources.container.Container(capacity=inf)`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-T5]
@@ -928,7 +928,7 @@
   operation: Read a store's items
   simpy: "`resources.store.Store.items`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-T6]
@@ -936,7 +936,7 @@
   operation: Store with no capacity limit
   simpy: "`resources.store.Store(capacity=inf)`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-T8]
@@ -945,7 +945,7 @@
   operation: Priorities of any orderable type
   simpy: "`resources.store.PriorityItem`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-U1]
@@ -954,7 +954,7 @@
   operation: Start a process after a delay
   simpy: "`util.start_delayed`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 - id: N
   inventory: [SP-U2]
@@ -963,7 +963,7 @@
   operation: Be told when an event happens
   simpy: "`util.subscribe_at`"
   checks: []
-  release: 0.23.0, roadmap step 14
+  release: 0.23.0
 
 # Differences kept by design, approved by the owner on 18 Oct 2026.
 

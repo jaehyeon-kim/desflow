@@ -305,8 +305,8 @@ def compatibility_page() -> str:
         "",
         f"**{count(native)}** features are native and checked in all three APIs, "
         f"**{count(not_yet)}** are not yet, and **{count(kept)}** are differences "
-        "kept by design. Roadmap step 14 makes each feature that is not yet native "
-        "a native one in all three APIs, in 0.23.0.",
+        "kept by design. Each feature that is not yet native becomes native in all "
+        "three APIs in 0.23.0, as the [Roadmap](../about/roadmap.md) says.",
         "",
         "The low-level API is SimPy with a few classes added, so most SimPy features "
         "work in it, those not yet checked included; [SimPy and desflow]"
