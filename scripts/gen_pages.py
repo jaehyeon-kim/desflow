@@ -398,6 +398,8 @@ def compatibility_page() -> str:
             lines += [
                 f'??? note "{row["operation"]}"',
                 "",
+                f"    {row['description']}",
+                "",
                 f"    - **SimPy:** {row['simpy']}",
                 f"    - **YAML:** {row['yaml']}",
                 f"    - **Builder:** {row['builder']}",

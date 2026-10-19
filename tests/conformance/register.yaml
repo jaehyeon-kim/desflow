@@ -20,6 +20,7 @@
 #   SimPy), not yet, or difference
 # release: for a row not yet native, the release that makes it native
 # operation: what a model does
+# description: one sentence saying what the operation does, shown first on the page
 # simpy: the SimPy construct it corresponds to
 # yaml, builder, low_level: one short form each
 # checks: pytest node ids of the conformance tests
@@ -29,6 +30,7 @@
 - id: C1
   inventory: [SP-V10]
   operation: Timed wait
+  description: "A task waits a set or sampled time, such as the time packing takes, before it goes on."
   simpy: "`simpy.events.Timeout`"
   yaml: a task with `service` and no `resource`
   builder: "`@app.task(service_id=...)` with no resource"
@@ -40,6 +42,7 @@
 - id: C1
   inventory: [SP-V1]
   operation: Signal event success and value
+  description: "One task fires a named signal with a value, and every task waiting for it wakes up and reads that value."
   simpy: "`simpy.events.Event.succeed(value)`"
   yaml: "`signals: [restocked]`, `signal: restocked` on the firing task and `wait: {signal: restocked}`"
   builder: "`add_signal`, `@app.task(signal=...)`, `wait={\"signal\": ...}`, or `context.signal(name).fire(value)`"
@@ -51,6 +54,7 @@
 - id: C1
   inventory: [SP-V2]
   operation: Signal event failure
+  description: "A signal fires as a failure, and every task waiting for it fails with the same reason."
   simpy: "`simpy.events.Event.fail(exception)`"
   yaml: "a failing task with `signal`; its waiters fail with its reason"
   builder: "the same, or `context.signal(name).fail(reason)`"
@@ -62,6 +66,7 @@
 - id: C1
   inventory: [SP-P1]
   operation: Start and wait for a process
+  description: "A task starts a child flow, such as an inspection, and waits until it ends."
   simpy: "`yield env.process(child())`"
   yaml: "`wait: {task: inspect}`"
   builder: "`wait={\"task\": \"inspect\"}`, or `yield context.call(\"inspect\")`"
@@ -73,6 +78,7 @@
 - id: C1
   inventory: [SP-P2]
   operation: Process return value
+  description: "The task that waited for a child flow reads what the child produced."
   simpy: "a process's `return` value"
   yaml: "`wait.inspect.value.<field>`, the last payload of the child flow"
   builder: "the same, or the value of `context.call(...)`"
@@ -84,6 +90,7 @@
 - id: C1
   inventory: [SP-P3]
   operation: Process failure
+  description: "A failure inside a child flow reaches the task waiting for it, which can handle it or fail in turn."
   simpy: "an exception raised in a process reaches the process that waits for it"
   yaml: "`fail`, `fail_reason` and `on_fail` on a task; a failure no `on_fail` handles fails the waiting task"
   builder: "the same, and a function that raises fails its task"
@@ -97,6 +104,7 @@
 - id: C1
   inventory: [SP-V8]
   operation: Event inspection
+  description: "A condition reads whether a signal has fired, whether it succeeded, and its value."
   simpy: "`Event.triggered`, `.processed`, `.ok`, `.value`"
   yaml: "`signal.<name>.count`, `.ok` and `.value` in a condition"
   builder: "`context.signal(name).wait()` and its SimPy attributes, or the signal's `count`, `ok` and `value`"
@@ -108,6 +116,7 @@
 - id: C1
   inventory: [SP-P4]
   operation: Process inspection
+  description: "After a wait, a task reads whether a child flow has finished, whether it succeeded, and its value."
   simpy: "`Process.is_alive`, `.triggered`, `.ok`, `.value`"
   yaml: "`wait.<branch>.done`, `.ok` and `.value` after the wait"
   builder: "the process `context.spawn` and `context.call` return"
@@ -119,6 +128,7 @@
 - id: C1
   inventory: [SP-K4]
   operation: Wait for a shared condition
+  description: "A task waits until a condition on the model's state holds, such as stock reaching 5."
   simpy: "a loop over a fresh \"changed\" event"
   yaml: "`wait: {condition: level.stock >= 5}`"
   builder: "`wait={\"condition\": \"level.stock >= 5\"}`"
@@ -130,6 +140,7 @@
 - id: C2
   inventory: [SP-V9, SP-C1, SP-C3, SP-E7]
   operation: Wait for one event
+  description: "A task waits for whichever of several events happens first, such as a delivery or a time limit."
   simpy: "`simpy.events.AnyOf`, `a | b`"
   yaml: "`wait: {any: {stock: {signal: restocked}, limit: {timeout: 3}}}`"
   builder: "`wait={\"any\": {...}}`"
@@ -143,6 +154,7 @@
 - id: C2
   inventory: [SP-C2, SP-C4]
   operation: Wait for all events
+  description: "A task waits until every one of several events has happened."
   simpy: "`simpy.events.AllOf`, `a & b`"
   yaml: "`wait: {all: {...}}`"
   builder: "`wait={\"all\": {...}}`"
@@ -155,6 +167,7 @@
 - id: C3
   inventory: [SP-P8, SP-P12]
   operation: Interrupt while waiting
+  description: "Another task or a scenario step interrupts a task while it is still in a queue."
   simpy: "`simpy.Process.interrupt` while the process waits for a request"
   yaml: "`interrupt: {task: waiter}` on a scenario step or a task; `on_interrupt` on the task"
   builder: "`context.interrupt(\"waiter\")`; `@app.task(on_interrupt=...)`"
@@ -166,6 +179,7 @@
 - id: C3
   inventory: [SP-P9, SP-P10, SP-P11]
   operation: Interrupt during service
+  description: "A task is interrupted while it holds a resource, and resumes, restarts or abandons its work."
   simpy: "`simpy.Process.interrupt` while the process holds a unit"
   yaml: "`on_interrupt: resume`, `restart` or `abandon`"
   builder: "`@app.task(on_interrupt=...)`"
@@ -178,6 +192,7 @@
 - id: C3
   inventory: [SP-Q4, SP-Q5]
   operation: Priority preemption
+  description: "A more urgent request takes a resource unit away from a less urgent user, who is interrupted."
   simpy: "`simpy.resources.resource.PreemptiveResource`"
   yaml: "`resources.<name>.preempt: true` with `queue: priority`; `preempt: false` on a task opts out"
   builder: "`add_resource(..., queue=\"priority\", preempt=True)`"
@@ -193,6 +208,7 @@
 - id: C4
   inventory: [SP-S1]
   operation: Ordinary request and release
+  description: "A task takes one unit of a resource, such as a packer, waits in line if none is free, and gives it back when done."
   simpy: "`simpy.resources.resource.Resource`"
   yaml: "`resource: packers` on a task"
   builder: "`@app.task(resource_id=\"packers\")`"
@@ -204,6 +220,7 @@
 - id: C4
   inventory: [SP-Q1, SP-Q3]
   operation: Priority request
+  description: "Waiting requests are served by priority, the lowest number first, instead of in order of arrival."
   simpy: "`simpy.resources.resource.PriorityResource`"
   yaml: "`queue: priority` on the resource and `priority` on a task"
   builder: "`add_resource(..., queue=\"priority\")` and `@app.task(priority=...)`"
@@ -217,6 +234,7 @@
 - id: C4
   inventory: [SP-S7, SP-S8]
   operation: Cancel before a grant
+  description: "A task leaves the queue before it is served, so it never takes a unit."
   simpy: "`Request.cancel()` before it is granted"
   yaml: "`patience`, or an interrupt with `on_interrupt: abandon`"
   builder: the same
@@ -229,6 +247,7 @@
 - id: C4
   inventory: [SP-S9]
   operation: Cancel after a grant
+  description: "A task that already holds a unit stops early and gives the unit back."
   simpy: "`Request.cancel()` after the grant releases nothing; `Resource.release(request)` does"
   yaml: "an interrupt with `on_interrupt: abandon` gives the unit back"
   builder: the same
@@ -240,6 +259,7 @@
 - id: C4
   inventory: [SP-S12]
   operation: Hold several resources
+  description: "A task holds more than one resource at once, taken in a fixed order, and can hand them to the next task."
   simpy: nested requests, each held while the next is awaited
   yaml: "`resource: [picker, bench]`, acquired in that order; `keep` hands units to the next task"
   builder: "`@app.task(resource_id=[\"picker\", \"bench\"], keep=[...])`"
@@ -253,6 +273,7 @@
 - id: C5
   inventory: [SP-T1]
   operation: Bounded store put
+  description: "A task adds an item to a store, and waits when the store is full."
   simpy: "`simpy.resources.store.Store.put`"
   yaml: "`put: {store: parcels}` on a task"
   builder: "`@app.task(put={\"store\": \"parcels\"})`"
@@ -264,6 +285,7 @@
 - id: C5
   inventory: [SP-T2]
   operation: Bounded store get
+  description: "A task takes an item from a store, and waits when the store is empty."
   simpy: "`simpy.resources.store.Store.get`"
   yaml: "`get: {store: parcels}` on a task"
   builder: "`@app.task(get={\"store\": \"parcels\"})`"
@@ -275,6 +297,7 @@
 - id: C5
   inventory: [SP-B4, SP-T3]
   operation: Equal-time puts and gets
+  description: "When items are added and taken at the same moment, waiting tasks are served in the same order as in SimPy."
   simpy: "`simpy.resources.store.Store`, one waiting get granted per trigger"
   yaml: "`get: {store: parcels}` and `put: {store: parcels}` on tasks"
   builder: "`@app.task(get={\"store\": \"parcels\"})`"
@@ -288,6 +311,7 @@
 - id: C5
   inventory: [SP-K1]
   operation: Bounded quantity put
+  description: "A task adds an amount to a container, such as boxes to stock, and waits when there is no room."
   simpy: "`simpy.resources.container.Container.put`"
   yaml: "`put: {container: stock, amount: 2}` on a task"
   builder: "`@app.task(put={\"container\": \"stock\", \"amount\": 2})`"
@@ -299,6 +323,7 @@
 - id: C5
   inventory: [SP-K2]
   operation: Bounded quantity get
+  description: "A task takes an amount from a container, and waits until there is enough."
   simpy: "`simpy.resources.container.Container.get`"
   yaml: "`get: {container: stock, amount: 1}` on a task"
   builder: "`@app.task(get={\"container\": \"stock\", \"amount\": 1})`"
@@ -310,6 +335,7 @@
 - id: C5
   inventory: [SP-T7]
   operation: Priority item storage
+  description: "Items in a store come out by priority, the lowest number first, instead of in the order they went in."
   simpy: "`simpy.resources.store.PriorityStore`"
   yaml: "`stores.<name>.priority: true` and a `put` with `priority`"
   builder: "`add_store(..., priority=True)` and `put={\"store\": ..., \"priority\": ...}`"
@@ -322,6 +348,7 @@
 - id: C5
   inventory: [SP-T9]
   operation: Filtered retrieval
+  description: "A task takes only an item that matches a condition, such as a parcel for its own area."
   simpy: "`simpy.resources.store.FilterStore.get(filter)`"
   yaml: "`get: {store: parcels, filter: item.area == attr.area}`"
   builder: "`get={\"store\": \"parcels\", \"filter\": ...}`, a condition or a function of the item"
@@ -334,6 +361,7 @@
 - id: C5
   inventory: [SP-B3]
   operation: Cancel store get
+  description: "A task stops waiting for an item, for example when its patience runs out."
   simpy: "`simpy.resources.base.Get.cancel()`"
   yaml: "`patience` on a task with a store `get`"
   builder: "`@app.task(get={\"store\": ...}, patience=...)`"
@@ -345,6 +373,7 @@
 - id: C5
   inventory: []
   operation: Cancel quantity get
+  description: "A task stops waiting for an amount from a container."
   simpy: "`simpy.resources.base.Get.cancel()`"
   yaml: "`patience` on a task with a container `get`"
   builder: "`@app.task(get={\"container\": ...}, patience=...)`"
@@ -356,6 +385,7 @@
 - id: C5
   inventory: []
   operation: Cancel store put
+  description: "A task stops waiting for room in a full store."
   simpy: "`simpy.resources.base.Put.cancel()`"
   yaml: "an interrupt with `on_interrupt: abandon` while the put waits"
   builder: the same
@@ -367,6 +397,7 @@
 - id: C5
   inventory: []
   operation: Cancel quantity put
+  description: "A task stops waiting for room in a full container."
   simpy: "`simpy.resources.base.Put.cancel()`"
   yaml: "an interrupt with `on_interrupt: abandon` while the put waits"
   builder: the same
@@ -378,6 +409,7 @@
 - id: C6
   inventory: [SP-E1]
   operation: Initial time
+  description: "The simulation clock starts at a given time instead of 0."
   simpy: "`simpy.core.Environment(initial_time=...)`"
   yaml: "`simulation.initial_time`"
   builder: "`SimulationContext(..., initial_time=100)`"
@@ -389,6 +421,7 @@
 - id: C6
   inventory: [SP-B1]
   operation: Initial resources
+  description: "Each resource starts with a given number of units."
   simpy: "`simpy.resources.resource.Resource(capacity=...)`"
   yaml: "`resources.<name>.current_cap`"
   builder: "`add_resource(name, current_cap=2, ...)`"
@@ -400,6 +433,7 @@
 - id: C6
   inventory: [SP-K3, SP-T4]
   operation: Initial inventory
+  description: "Containers start with a given level, and stores with given items."
   simpy: "`Container(init=...)`; items in a `Store`"
   yaml: "`containers.<name>.level` and `stores.<name>.items`"
   builder: "`add_container(..., level=6)` and `add_store(..., items=[...])`"
@@ -411,6 +445,7 @@
 - id: C6
   inventory: []
   operation: Initial entity state
+  description: "Each arriving entity, such as an order, starts with given attributes."
   simpy: the attributes a process starts with
   yaml: "`arrivals.<name>.attributes`"
   builder: "`add_arrival(..., attributes={...})`"
@@ -422,6 +457,7 @@
 - id: C6
   inventory: [SP-E12]
   operation: Stop at a time
+  description: "The run ends at a given simulation time."
   simpy: "`simpy.core.Environment.run(until=...)`"
   yaml: "`run.until`"
   builder: "`app.run(until=...)`"
@@ -433,6 +469,7 @@
 - id: C7
   inventory: [SP-S13]
   operation: Reneging
+  description: "A customer leaves the queue after waiting longer than their patience."
   simpy: "`simpy.events.AnyOf` of a request and a timeout"
   yaml: "`patience: 3 min` on a task"
   builder: "`@app.task(..., patience=180)`"
@@ -448,6 +485,7 @@
 - id: C7
   inventory: [SP-S14]
   operation: Balking
+  description: "A customer does not join the queue at all when a condition holds, such as the queue being too long."
   simpy: "a check before `Resource.request`"
   yaml: "`balk: <condition>` on a task"
   builder: "`@app.task(..., balk=\"...\")`"
@@ -459,6 +497,7 @@
 - id: C6
   inventory: [SP-E13]
   operation: Stop at an event
+  description: "The run ends when a given event happens, such as a closing signal, even before its end time."
   simpy: "`simpy.core.Environment.run(until=event)`"
   yaml: "`run.stop: {signal: closing}` beside `run.until`"
   builder: "`app.run(until=..., stop={\"signal\": \"closing\"})`, a signal's name, or a function returning an event"
@@ -472,6 +511,7 @@
 - id: C6
   inventory: []
   operation: Explicit stop condition
+  description: "The run ends as soon as a condition on the model's state holds."
   simpy: "`env.run(until=event)` with a process that succeeds the event when the condition holds"
   yaml: "`run.stop: {condition: level.stock >= 5}`"
   builder: "`app.run(until=..., stop={\"condition\": \"...\"})`"
@@ -483,6 +523,7 @@
 - id: C6
   inventory: []
   operation: Stop arrivals and drain
+  description: "New arrivals stop, and the run goes on until everything already in the model has finished."
   simpy: "interrupt the source, then `env.run(until=env.all_of(entities))`"
   yaml: "`run.drain: true` or `{limit: 1 h}`; `desflow run --drain`"
   builder: "`app.run(until=..., drain=True)`, or `context.stop_arrivals()`"
@@ -495,6 +536,7 @@
 - id: C6
   inventory: [SP-E9]
   operation: Step one event
+  description: "The run advances one event at a time, so a script can watch each step."
   simpy: "`simpy.core.Environment.step()`"
   yaml: "`SimulationContext.from_yaml(path).start()`, then `.step()`"
   builder: "`app.start()`, `app.step()`, `app.close()`"
@@ -507,6 +549,7 @@
 - id: C6
   inventory: [SP-E8]
   operation: Inspect next event time
+  description: "A script reads when the next event will happen without running it."
   simpy: "`simpy.core.Environment.peek()`"
   yaml: "`SimulationContext.from_yaml(path).start()`, then `.peek()`"
   builder: "`app.peek()`"
@@ -518,6 +561,7 @@
 - id: S1
   inventory: []
   operation: Breakdown and repair
+  description: "A resource fails from time to time and is repaired, interrupting the work it was doing."
   simpy: "a repair process holding the machine on a `PreemptiveResource`"
   yaml: "`resources.<name>.breakdown: {time_to_failure, repair, work}`"
   builder: "`add_breakdown(resource, time_to_failure={...}, repair={...}, work=...)`"
@@ -532,6 +576,7 @@
 - id: S2
   inventory: []
   operation: Finite schedules
+  description: "Arrival rates or capacities change at set times during the run."
   simpy: a process that changes values at set times, started before the others
   yaml: "`scenario` steps with `at`, `path` and `value`"
   builder: "`add_scenario(steps)` or `add_step(at, path=..., value=...)`"
@@ -544,6 +589,7 @@
 - id: S3
   inventory: []
   operation: Local replay
+  description: "Arrivals come from rows in a local CSV or Parquet file instead of a random distribution."
   simpy: a loop over recorded rows, each a timeout to its time
   yaml: "`arrivals.<name>.replay: {path, time, unit, fields, on_invalid}`"
   builder: "`add_arrival_replay(name, source, ...)`"

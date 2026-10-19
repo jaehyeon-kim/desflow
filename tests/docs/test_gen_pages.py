@@ -135,3 +135,11 @@ def test_a_not_yet_row_shows_its_checks():
     row = next(line for line in page.splitlines() if line.startswith("| Run in "))
     assert "| checked |" in row
     assert "test_c6_stopped_and_resumed_run" in row
+
+
+def test_every_native_feature_says_what_it_is():
+    """A native feature's block opens with a sentence saying what it does."""
+    rows = [e for e in gen_pages.register() if e.get("status", "native") == "native"]
+    assert all(row.get("description") for row in rows)
+    page = gen_pages.compatibility_page()
+    assert all(row["description"] in page for row in rows)
