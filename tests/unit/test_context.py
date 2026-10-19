@@ -572,7 +572,7 @@ def test_preemption_settings_are_checked():
         SimulationContext("TestSim").add_resource("m", 1, 1, preempt=True)
     with pytest.raises(ValueError, match="on_interrupt must be one of"):
         SimulationContext("TestSim").task(on_interrupt="pause")
-    with pytest.raises(ValueError, match="keep names resources"):
+    with pytest.raises(ValueError, match="list only resources in its resource_id"):
         SimulationContext("TestSim").task("s", "m", keep=["bench"])
 
 
@@ -580,10 +580,19 @@ def test_stop_and_drain_are_checked_when_the_run_starts():
     app = SimulationContext("TestSim", factor=0.0)
     with pytest.raises(ValueError, match="needs until"):
         app.run(drain=True)
-    with pytest.raises(ValueError, match="signal 'closing', which is not added"):
+    with pytest.raises(
+        ValueError,
+        match=r"signal 'closing', which is not added; add it with "
+        r"add_signal\('closing'\)",
+    ):
         SimulationContext("TestSim", factor=0.0).run(
             until=1, stop={"signal": "closing"}
         )
+    closing = SimulationContext("TestSim", factor=0.0).add_signal("closing")
+    with pytest.raises(ValueError, match="did you mean 'closing'"):
+        closing.run(until=1, stop={"signal": "closng"})
+    with pytest.raises(ValueError, match="drain takes a limit, not limt; did you"):
+        SimulationContext("TestSim", factor=0.0).run(until=1, drain={"limt": 5})
     with pytest.raises(ValueError, match="stop takes a signal or a condition"):
         SimulationContext("TestSim", factor=0.0).run(until=1, stop={"event": "x"})
 
@@ -839,3 +848,49 @@ def test_a_scenario_step_at_until_does_not_apply():
         app.add_step(at, path="S2.resources.packers.current_cap", value=4)
         app.run(until=40)
         assert app.get_resource("packers").capacity == expected
+
+
+def test_a_misspelt_name_names_the_closest_or_how_to_add_it():
+    """A task that names a resource, service, task or path nothing added gets the
+    closest name, or the call that adds it."""
+    app = SimulationContext("Shop", factor=0)
+    app.add_resource("packers", current_cap=1, max_cap=1)
+    app.add_service("packing", dist="constant", value=1)
+
+    @app.task(service_id="packing", resource_id="packer")
+    def pack(task_id):
+        return {}
+
+    with pytest.raises(ValueError, match="'packer', which is not added; did you mean"):
+        app.run(until=1)
+
+    app = SimulationContext("Shop", factor=0)
+    app.add_service("packing", dist="constant", value=1)
+
+    @app.task(service_id="paking")
+    def pick(task_id):
+        return {}
+
+    with pytest.raises(ValueError, match="'paking', which is not added; did you"):
+        app.run(until=1)
+
+    app = SimulationContext("Shop", factor=0)
+    app.add_service("packing", dist="constant", value=1)
+    app.add_step(5, path="Shop.service.packng.mean", value=2)
+    with pytest.raises(ValueError, match="did you mean 'Shop.service.packing.value'"):
+        app.run(until=1)
+    with pytest.raises(ValueError, match="does not take pth; did you mean 'path'"):
+        app.add_scenario([{"at": 1, "pth": "Shop.service.packing.value", "value": 2}])
+    with pytest.raises(ValueError, match="got 'timout'; did you mean 'timeout'"):
+        app.task(wait={"timout": 3})
+
+
+def test_calls_that_need_a_running_model_say_where_to_make_them():
+    """call, signal and interrupt before the run name where they work."""
+    app = SimulationContext("Shop", factor=0)
+    with pytest.raises(RuntimeError, match="call them from a task or a process"):
+        app.call("pack")
+    with pytest.raises(RuntimeError, match="read them from a task or a process"):
+        app.signal("closing")
+    with pytest.raises(RuntimeError, match="from a task, a process or a scenario"):
+        app.interrupt("pack")

@@ -11,7 +11,7 @@ from typing import Any, Callable, Iterable, List, Mapping, Optional
 
 from simpy.events import URGENT, Event
 
-from desflow.utils import time_to_seconds
+from desflow.utils import suggestion, time_to_seconds
 
 STEP_KEYS = ("at", "path", "value", "record", "interrupt")
 
@@ -33,7 +33,13 @@ def check_step(step: Mapping[str, Any]) -> dict:
     """
     unknown = set(step) - set(STEP_KEYS)
     if unknown:
-        raise ValueError(f"a scenario step does not take {', '.join(sorted(unknown))}")
+        raise ValueError(
+            f"a scenario step does not take {', '.join(sorted(unknown))}"
+            + (
+                suggestion(sorted(unknown)[0], STEP_KEYS)
+                or f"; it takes {', '.join(STEP_KEYS)}"
+            )
+        )
     if "at" not in step:
         raise ValueError("a scenario step needs at")
     at = step["at"]

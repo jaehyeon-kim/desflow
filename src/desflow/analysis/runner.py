@@ -34,6 +34,7 @@ from desflow.analysis.models import (
     run_once,
     seconds,
 )
+from desflow.utils import suggestion
 
 logger = logging.getLogger(__name__)
 
@@ -485,20 +486,30 @@ def run_experiment(
     if isinstance(model, str):
         model = str((folder / model).resolve())
         if not Path(model).is_file():
-            raise located(("model",), f"model {settings.model}: no such file")
+            raise located(
+                ("model",),
+                f"model {settings.model}: no such file; give a path from the "
+                f"experiment file's folder",
+            )
     if settings.observed is not None:
         observed_file = folder / settings.observed.file
         if not observed_file.is_file():
             raise located(
                 ("observed", "file"),
-                f"observed file {settings.observed.file}: no such file",
+                f"observed file {settings.observed.file}: no such file; give a path "
+                f"from the experiment file's folder",
             )
 
     parameters = inspect_model(model, {})
     for name in settings.inputs:
         if name not in parameters or "dist" not in parameters[name]:
             raise located(
-                ("inputs", name), f"inputs names {name}, which is not a distribution"
+                ("inputs", name),
+                f"inputs names {name}, which is not a distribution"
+                + (
+                    suggestion(name, [p for p, v in parameters.items() if "dist" in v])
+                    or "; name a distribution's path, such as Shop.service.packing"
+                ),
             )
     all_designs = found.designs(settings)
     for design in all_designs:

@@ -7,13 +7,13 @@ script that make the same calls produce the same simulation.
 import importlib
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import simpy
 from pydantic import ValidationError
 
 from desflow.blueprint.loader import BlueprintError, SourceMap, read_document
-from desflow.blueprint.models import Blueprint, Run
+from desflow.blueprint.models import Blueprint, Run, unknown_key
 from desflow.config import LABELS
 from desflow.core.expressions import Expression
 from desflow.core.flow import Wait
@@ -21,6 +21,7 @@ from desflow.core.task import check_acquisition_order
 from desflow.core.context import SimulationContext
 from desflow.core.environment import in_zone, resolve_zone
 from desflow.core.registry import SimulationRegistry
+from desflow.utils import suggestion
 
 # Short connector names, mapped to the module, the class and the extra that installs
 # what the module imports. Modules are imported only when a blueprint names them, so
@@ -102,7 +103,10 @@ def _validation_error(exc: ValidationError, source: SourceMap) -> BlueprintError
             )
         )
         where = ".".join(str(part) for part in location) or "top level"
-        messages.append(str(source.error(location, f"{where}: {error['msg']}")))
+        text = error["msg"]
+        if error["type"] == "extra_forbidden":
+            text = unknown_key(Blueprint, tuple(error["loc"]))
+        messages.append(str(source.error(location, f"{where}: {text}")))
     return BlueprintError("\n".join(messages))
 
 
@@ -118,15 +122,15 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
         if task.service is not None and task.service not in blueprint.services:
             raise source.error(
                 ("tasks", name, "service"),
-                f"task '{name}' uses service '{task.service}', which is not "
-                f"defined under services",
+                f"task '{name}' uses service '{task.service}', "
+                + _undefined(task.service, blueprint.services, "services"),
             )
         for resource in task.resources():
             if resource not in blueprint.resources:
                 raise source.error(
                     ("tasks", name, "resource"),
-                    f"task '{name}' uses resource '{resource}', which is not "
-                    f"defined under resources",
+                    f"task '{name}' uses resource '{resource}', "
+                    + _undefined(resource, blueprint.resources, "resources"),
                 )
             if (
                 task.priority is not None
@@ -135,7 +139,7 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                 raise source.error(
                     ("tasks", name, "priority"),
                     f"task '{name}' has a priority, but resource '{resource}' "
-                    f"does not set queue: priority",
+                    f"does not set queue: priority; set it, or remove the priority",
                 )
         for key, target in (
             ("on_interrupt_next", task.on_interrupt_next),
@@ -144,8 +148,8 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
             if target is not None and target not in blueprint.tasks:
                 raise source.error(
                     ("tasks", name, key),
-                    f"task '{name}' names task '{target}', which is not defined "
-                    f"under tasks",
+                    f"task '{name}' names task '{target}', "
+                    + _undefined(target, blueprint.tasks, "tasks"),
                 )
         for field in ("get", "put"):
             step = getattr(task, field)
@@ -160,21 +164,22 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
             if target not in section:
                 raise source.error(
                     ("tasks", name, field),
-                    f"task '{name}' uses {kind} '{target}', which is not defined "
-                    f"under {kind}s",
+                    f"task '{name}' uses {kind} '{target}', "
+                    + _undefined(target, section, f"{kind}s"),
                 )
             if step.filter is not None and blueprint.stores[target].priority:
                 raise source.error(
                     ("tasks", name, field, "filter"),
                     f"store '{target}' serves by priority, and SimPy has no store "
-                    f"that both ranks and filters its items",
+                    f"that both ranks and filters its items; remove the filter, or "
+                    f"the store's priority",
                 )
         for target, location in _routes(name, task):
             if target not in blueprint.tasks:
                 raise source.error(
                     location,
-                    f"task '{name}' routes to '{target}', which is not defined "
-                    f"under tasks",
+                    f"task '{name}' routes to '{target}', "
+                    + _undefined(target, blueprint.tasks, "tasks"),
                 )
         wait = None if task.wait is None else Wait(task.wait)
         named = [
@@ -194,8 +199,8 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
             if target is not None and target not in defined:
                 raise source.error(
                     ("tasks", name, key),
-                    f"task '{name}' names {kind} '{target}', which is not defined "
-                    f"under {kind}s",
+                    f"task '{name}' names {kind} '{target}', "
+                    + _undefined(target, defined, f"{kind}s"),
                 )
         branches = set(wait.branches) if wait else set()
         takes_item = task.get is not None and task.get.store is not None
@@ -203,7 +208,12 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
             for signal in expression.references["signal"]:
                 if signal not in blueprint.signals:
                     raise source.error(
-                        location, f"signal.{signal} names no signal under signals"
+                        location,
+                        f"signal.{signal} names no signal under signals"
+                        + (
+                            suggestion(signal, blueprint.signals)
+                            or "; add it under signals"
+                        ),
                     )
             for branch in expression.references["wait"]:
                 # balk and patience are read before the wait starts
@@ -215,7 +225,8 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                     raise source.error(
                         location,
                         f"wait.{branch} is not a branch of this task's wait, read "
-                        f"after it",
+                        f"after it; read it in the task's payload, put, next or "
+                        f"fail, after the wait" + suggestion(branch, branches),
                     )
             # item.<field> reads what a store get took: a get's own filter, then
             # the put and next after it
@@ -233,7 +244,13 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                 if level not in blueprint.stores and level not in blueprint.containers:
                     raise source.error(
                         location,
-                        f"level.{level} names no store or container",
+                        f"level.{level} names no store or container"
+                        + (
+                            suggestion(
+                                level, [*blueprint.stores, *blueprint.containers]
+                            )
+                            or "; add it under stores or containers"
+                        ),
                     )
 
     _check_run(blueprint, source)
@@ -262,24 +279,24 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
         if arrival.spawn is not None and arrival.spawn not in blueprint.tasks:
             raise source.error(
                 ("arrivals", name, "spawn"),
-                f"arrival '{name}' spawns task '{arrival.spawn}', which is not "
-                f"defined under tasks",
+                f"arrival '{name}' spawns task '{arrival.spawn}', "
+                + _undefined(arrival.spawn, blueprint.tasks, "tasks"),
             )
 
     stop = blueprint.run.stop or {}
     if "signal" in stop and stop["signal"] not in blueprint.signals:
         raise source.error(
             ("run", "stop"),
-            f"run.stop names signal '{stop['signal']}', which is not defined under "
-            f"signals",
+            f"run.stop names signal '{stop['signal']}', "
+            + _undefined(stop["signal"], blueprint.signals, "signals"),
         )
 
     for index, step in enumerate(blueprint.scenario):
         if step.interrupt is not None and step.interrupt.task not in blueprint.tasks:
             raise source.error(
                 ("scenario", index, "interrupt"),
-                f"the step interrupts task '{step.interrupt.task}', which is not "
-                f"defined under tasks",
+                f"the step interrupts task '{step.interrupt.task}', "
+                + _undefined(step.interrupt.task, blueprint.tasks, "tasks"),
             )
 
     for index, egress in enumerate(blueprint.egress):
@@ -292,6 +309,14 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                 ("egress", index, "when"),
                 f"when: {egress.when} needs simulation.go_live_at",
             )
+
+
+def _undefined(name: str, defined: Iterable[str], section: str) -> str:
+    """The end of a message for a name no section defines: the fix, or the closest."""
+    hint = suggestion(name, defined)
+    return f"which is not defined under {section}" + (
+        hint or f"; add it under {section}"
+    )
 
 
 def _check_run(blueprint: Blueprint, source: SourceMap) -> None:
@@ -316,7 +341,8 @@ def _check_run(blueprint: Blueprint, source: SourceMap) -> None:
         if target not in blueprint.signals:
             raise source.error(
                 where,
-                f"stop names signal '{target}', which is not defined under signals",
+                f"stop names signal '{target}', "
+                + _undefined(target, blueprint.signals, "signals"),
             )
         return
     try:
@@ -325,10 +351,21 @@ def _check_run(blueprint: Blueprint, source: SourceMap) -> None:
         raise source.error(where, str(exc)) from None
     for signal in expression.references["signal"]:
         if signal not in blueprint.signals:
-            raise source.error(where, f"signal.{signal} names no signal under signals")
+            raise source.error(
+                where,
+                f"signal.{signal} names no signal under signals"
+                + (suggestion(signal, blueprint.signals) or "; add it under signals"),
+            )
     for level in expression.references["level"]:
         if level not in blueprint.stores and level not in blueprint.containers:
-            raise source.error(where, f"level.{level} names no store or container")
+            raise source.error(
+                where,
+                f"level.{level} names no store or container"
+                + (
+                    suggestion(level, [*blueprint.stores, *blueprint.containers])
+                    or "; add it under stores or containers"
+                ),
+            )
     entity = [
         f"{kind}.<...>"
         for kind in ("payload", "attr", "item", "wait")

@@ -1,4 +1,6 @@
+import difflib
 import re
+from typing import Iterable
 
 MULTIPLIERS = {
     "s": 1,
@@ -66,3 +68,18 @@ def time_to_seconds(time_str: str) -> float:
         return value * MULTIPLIERS[unit]
     except KeyError:
         raise ValueError(f"Unknown time unit: {unit!r}") from None
+
+
+def suggestion(name: str, choices: Iterable[str]) -> str:
+    """The closest of `choices` to a misspelt `name`, as an error message's end.
+
+    Args:
+        name: The name that matched nothing.
+        choices: The names that would have matched.
+
+    Returns:
+        str: `"; did you mean 'x'?"` for the closest choice, or `""` when none is
+            close.
+    """
+    close = difflib.get_close_matches(str(name), [str(c) for c in choices], n=1)
+    return f"; did you mean '{close[0]}'?" if close else ""

@@ -103,8 +103,23 @@ def test_tasks_spawned_from_an_arrival_publish_the_payload(tmp_path):
             "services:",
             "stores:\n  parcels: {current_cap: 1, max_cap: 1, items: [a, b]}\nservices:",
             8,
-            "cannot start with 2",
+            "cannot start with 2; raise current_cap and max_cap, or give fewer items",
         ),
+        # An unknown key names the closest key that place takes, or every key
+        (
+            "  random_seed: 7",
+            "  ranom_seed: 7",
+            4,
+            "unknown key 'ranom_seed'; did you mean 'random_seed'?",
+        ),
+        (
+            "    id_field: order_id",
+            "    id_field: order_id\n    patiense: 5",
+            17,
+            "tasks.part.patiense: unknown key 'patiense'; did you mean 'patience'?",
+        ),
+        ("run:", "storez: {}\nrun:", 17, "did you mean 'stores'?"),
+        ("until: 30", "until: 30\n  zzz: 1", 19, "this place takes before, drain"),
     ],
 )
 def test_schema_errors_name_the_line(tmp_path, old, new, line, fragment):
@@ -120,8 +135,20 @@ def test_schema_errors_name_the_line(tmp_path, old, new, line, fragment):
 @pytest.mark.parametrize(
     "old,new,line,fragment",
     [
-        ("    service: packing", "    service: drilling", 13, "service 'drilling'"),
-        ("    resource: packers", "    resource: press", 14, "resource 'press'"),
+        (
+            "    service: packing",
+            "    service: drilling",
+            13,
+            "service 'drilling', which is not defined under services; add it under "
+            "services",
+        ),
+        (
+            "    resource: packers",
+            "    resource: packer",
+            14,
+            "resource 'packer', which is not defined under resources; did you mean "
+            "'packers'?",
+        ),
         ("spawn: part", "spawn: widget", 10, "task 'widget'"),
         ("current_cap: 2,", "current_cap: 2.5,", 6, "whole number"),
         (
@@ -147,13 +174,21 @@ def test_schema_errors_name_the_line(tmp_path, old, new, line, fragment):
             "    id_field: order_id\n    wait: {timeout: 5}\n"
             "    next: {when: [{condition: wait.limit.done, task: part}]}",
             18,
-            "wait.limit is not a branch",
+            "wait.limit is not a branch of this task's wait, read after it; read it "
+            "in the task's payload, put, next or fail, after the wait",
         ),
         (
             "    id_field: order_id",
             "    id_field: order_id\n    next: {when: [{condition: signal.ready.ok, task: part}]}",
             17,
-            "signal.ready names no signal",
+            "signal.ready names no signal under signals; add it under signals",
+        ),
+        (
+            "    id_field: order_id",
+            "    id_field: order_id\n    next: {when: [{condition: level.shelf > 0, task: part}]}",
+            17,
+            "level.shelf names no store or container; add it under stores or "
+            "containers",
         ),
     ],
 )

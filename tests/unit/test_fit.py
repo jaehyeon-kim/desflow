@@ -149,7 +149,9 @@ def test_a_failed_fit_and_a_bad_result_are_rows(monkeypatch):
 def test_nothing_usable_when_there_is_no_data():
     result = fit_column(["", None, " "])
     assert result.best is None and result.missing == 3
-    with pytest.raises(ValueError, match="no candidate is usable"):
+    with pytest.raises(
+        ValueError, match="no candidate is usable.*keep empirical in the candidates"
+    ):
         result.settings()
 
 
@@ -303,7 +305,8 @@ def test_an_include_of_itself_is_refused(tmp_path):
     (tmp_path / "a.yaml").write_text("dist: gamma\nshape: !include b.yaml\n")
     (tmp_path / "b.yaml").write_text("scale: !include a.yaml\n")
     with pytest.raises(
-        BlueprintError, match=r"b.yaml:1: !include a.yaml: includes itself"
+        BlueprintError,
+        match=r"b.yaml:1: !include a.yaml: includes itself; include another file",
     ):
         SimulationContext.from_yaml(_shop_yaml(tmp_path, "!include a.yaml"))
     (tmp_path / "c.yaml").write_text("dist: gamma\nshape: !include c.yaml\n")

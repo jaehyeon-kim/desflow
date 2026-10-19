@@ -39,7 +39,7 @@ from desflow.models.params import (
 from desflow.resources.container import DynamicContainer
 from desflow.resources.resource import DynamicResource
 from desflow.resources.store import DynamicStore
-from desflow.utils import time_to_seconds
+from desflow.utils import suggestion, time_to_seconds
 
 logger = logging.getLogger(__name__)
 
@@ -530,13 +530,15 @@ class SimulationContext:
         if len(start) > min(current_cap, max_cap):
             raise ValueError(
                 f"store '{name}' holds {min(current_cap, max_cap)} items, so it "
-                f"cannot start with {len(start)}"
+                f"cannot start with {len(start)}; raise current_cap and max_cap, or "
+                f"give fewer items"
             )
         if priority and not all(
             isinstance(item, (tuple, list)) and len(item) == 2 for item in start
         ):
             raise ValueError(
-                f"priority store '{name}' starts with (priority, item) pairs"
+                f"priority store '{name}' starts with (priority, item) pairs; give "
+                f"each item as a pair, such as (1, item)"
             )
         self._store_items[name] = start
         self._stores_config[name] = CapacityConfig(
@@ -944,7 +946,10 @@ class SimulationContext:
         if len({*resources}) != len(resources):
             raise ValueError("a task lists each resource once")
         if not {*(keep or [])} <= {*resources}:
-            raise ValueError("keep names resources the task holds")
+            raise ValueError(
+                "keep names resources the task holds; list only resources in its "
+                "resource_id"
+            )
         if on_interrupt not in INTERRUPT_POLICIES:
             raise ValueError(
                 f"on_interrupt must be one of {', '.join(INTERRUPT_POLICIES)}, "
@@ -1403,9 +1408,15 @@ class SimulationContext:
             ValueError: If no task has that name.
         """
         if not self._env:
-            raise RuntimeError("Cannot call tasks before context is run.")
+            raise RuntimeError(
+                "Cannot call tasks before context is run; call them from a task or "
+                "a process"
+            )
         if task not in self._task_specs:
-            raise ValueError(f"no task is called '{task}'")
+            raise ValueError(
+                f"no task is called '{task}'"
+                + (suggestion(task, self._task_specs) or "; add it with @app.task()")
+            )
         if entity is None:
             entity = self._new_entity(task, None)
         return self._start(
@@ -1477,7 +1488,10 @@ class SimulationContext:
             RuntimeError: If called before the run starts.
         """
         if not self._env:
-            raise RuntimeError("Signals are not created until context is run.")
+            raise RuntimeError(
+                "Signals are not created until context is run; read them from a "
+                "task or a process"
+            )
         return self._signals[name]
 
     def interrupt(
@@ -1508,7 +1522,10 @@ class SimulationContext:
             RuntimeError: If called before the run starts.
         """
         if not self._env:
-            raise RuntimeError("Cannot interrupt tasks before context is run.")
+            raise RuntimeError(
+                "Cannot interrupt tasks before context is run; interrupt them from a "
+                "task, a process or a scenario step"
+            )
         condition = Expression(where) if isinstance(where, str) else where
         active = self._env.active_process
         count = 0
@@ -1908,6 +1925,7 @@ class SimulationContext:
                 if unknown:
                     raise ValueError(
                         f"drain takes a limit, not {', '.join(sorted(unknown))}"
+                        + suggestion(sorted(unknown)[0], ["limit"])
                     )
                 if drain.get("limit") is not None:
                     limit = _seconds(drain["limit"])
@@ -1954,7 +1972,10 @@ class SimulationContext:
         ((kind, target),) = stop.items()
         if kind == "signal":
             if target not in self._signals:
-                raise ValueError(f"stop names signal '{target}', which is not added")
+                raise ValueError(
+                    f"stop names signal '{target}', "
+                    + _not_added(target, self._signals, f"add_signal('{target}')")
+                )
             return self._signals[target].wait()
         if kind != "condition":
             raise ValueError(f"stop takes a signal or a condition, not '{kind}'")
@@ -2001,17 +2022,20 @@ class SimulationContext:
                         raise ValueError(
                             f"scenario step at {step['at']:g} s sets '{step['path']}', "
                             f"which is not a registry path"
+                            + suggestion(step["path"], known.paths())
                         ) from None
                 action = step.get("interrupt")
                 if action is not None and action["task"] not in self._tasks:
                     raise ValueError(
                         f"scenario step at {step['at']:g} s interrupts task "
-                        f"'{action['task']}', which is not a task"
+                        f"'{action['task']}', "
+                        + _not_added(action["task"], self._tasks, "@app.task()")
                     )
         for resource in self._breakdowns_config:
             if resource not in self._resources_config:
                 raise ValueError(
-                    f"a breakdown names resource '{resource}', which is not added"
+                    f"a breakdown names resource '{resource}', "
+                    + _not_added(resource, self._resources_config, "add_resource()")
                 )
         check_acquisition_order(
             {name: spec.resources for name, spec in self._task_specs.items()},
@@ -2026,14 +2050,18 @@ class SimulationContext:
             for resource in spec.resources:
                 if resource not in self._resources_config:
                     raise ValueError(
-                        f"task '{name}' uses resource '{resource}', which is not added"
+                        f"task '{name}' uses resource '{resource}', "
+                        + _not_added(resource, self._resources_config, "add_resource()")
                     )
             if (
                 spec.service_id is not None
                 and spec.service_id not in self._services_config
             ):
                 raise ValueError(
-                    f"task '{name}' uses service '{spec.service_id}', which is not added"
+                    f"task '{name}' uses service '{spec.service_id}', "
+                    + _not_added(
+                        spec.service_id, self._services_config, "add_service()"
+                    )
                 )
             for resource in spec.resources if spec.priority is not None else ():
                 if self._resource_queues.get(resource) != "priority":
@@ -2072,7 +2100,8 @@ class SimulationContext:
             ):
                 if target is not None and target not in self._tasks:
                     raise ValueError(
-                        f"task '{name}' names task '{target}', which is not a task"
+                        f"task '{name}' names task '{target}', "
+                        + _not_added(target, self._tasks, "@app.task()")
                     )
             signals = set(spec.wait.targets("signal")) if spec.wait else set()
             if spec.signal is not None:
@@ -2134,6 +2163,7 @@ def _check_end(until: Any, stop: Any, drain: Any, signals: List[str]) -> None:
     if isinstance(drain, Mapping) and {*drain} - {"limit"}:
         raise ValueError(
             f"drain takes a limit, not {', '.join(sorted({*drain} - {'limit'}))}"
+            + suggestion(sorted({*drain} - {"limit"})[0], ["limit"])
         )
     if isinstance(stop, str):
         stop = {"signal": stop}
@@ -2146,11 +2176,19 @@ def _check_end(until: Any, stop: Any, drain: Any, signals: List[str]) -> None:
     ((kind, target),) = stop.items()
     if kind == "signal":
         if target not in signals:
-            raise ValueError(f"stop names signal '{target}', which is not added")
+            raise ValueError(
+                f"stop names signal '{target}', "
+                + _not_added(target, signals, f"add_signal('{target}')")
+            )
     elif kind == "condition":
         Expression(target)
     else:
         raise ValueError(f"stop takes a signal or a condition, not '{kind}'")
+
+
+def _not_added(name: str, added: Iterable[str], how: str) -> str:
+    """The end of a message for a name nothing added: the closest, or how to add it."""
+    return "which is not added" + (suggestion(name, added) or f"; add it with {how}")
 
 
 _ARRIVALS_STOPPED = "arrivals stopped"

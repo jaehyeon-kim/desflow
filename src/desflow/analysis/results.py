@@ -377,7 +377,9 @@ def read_observed(spec: ExperimentSpec, folder: Path) -> List[Dict[str, Any]]:
         rows = list(csv.DictReader(handle))
     needed = ("measure", "value", "unit", "population", "horizon")
     if rows and any(column not in rows[0] for column in needed):
-        raise ValueError(f"{path} needs the columns {', '.join(needed)}")
+        raise ValueError(
+            f"{path} needs the columns {', '.join(needed)}; add the missing ones"
+        )
     horizon = spec.until - (spec.warmup or 0.0)
     found = []
     for number, row in enumerate(rows, start=2):
@@ -385,7 +387,8 @@ def read_observed(spec: ExperimentSpec, folder: Path) -> List[Dict[str, Any]]:
         measure = row["measure"].strip()
         if measure not in spec.measures:
             raise ValueError(
-                f"{where}: {measure} is not one of the experiment's measures"
+                f"{where}: {measure} is not one of the experiment's measures; add "
+                f"it to measures, or remove the row"
             )
         unit = _UNITS.get(row["unit"].strip().lower())
         if unit != _unit_of(measure):
@@ -397,7 +400,8 @@ def read_observed(spec: ExperimentSpec, folder: Path) -> List[Dict[str, Any]]:
         if population != _population_of(measure):
             raise ValueError(
                 f"{where}: {measure} is measured on {_population_of(measure)!r}, not "
-                f"{population!r}"
+                f"{population!r}; give the observed value for "
+                f"{_population_of(measure)!r}"
             )
         text = row["horizon"].strip()
         seconds = time_to_seconds(text) if re.search(r"[a-z]", text) else float(text)

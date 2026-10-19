@@ -285,9 +285,16 @@ OBSERVED = "measure,value,unit,population,horizon\n{}\n"
     "row,error",
     [
         ("tasks.pack.wait_mean,4.5,min,started instances,27 min", "is in s"),
-        ("tasks.pack.wait_mean,4.5,s,all orders,27 min", "is measured on"),
+        (
+            "tasks.pack.wait_mean,4.5,s,all orders,27 min",
+            "is measured on 'started instances', not 'all orders'; give the observed "
+            "value for 'started instances'",
+        ),
         ("tasks.pack.wait_mean,4.5,s,started instances,30 min", "horizon is 1800"),
-        ("tasks.pack.service_mean,4,s,finished instances,27 min", "not one of"),
+        (
+            "tasks.pack.service_mean,4,s,finished instances,27 min",
+            "not one of the experiment's measures; add it to measures, or remove",
+        ),
     ],
 )
 def test_observed_values_must_match_the_measure(folder, row, error):
@@ -427,7 +434,11 @@ def test_the_experiment_file_sets_stop_and_drain(tmp_path):
 def test_bad_settings_are_refused_with_their_line(folder):
     experiment = folder / "experiment.yaml"
     experiment.write_text(EXPERIMENT + "replication: 3\n")
-    with pytest.raises(BlueprintError, match=r"experiment.yaml:15: replication"):
+    with pytest.raises(
+        BlueprintError,
+        match=r"experiment.yaml:15: replication: unknown key 'replication'; did you "
+        r"mean 'replications'\?",
+    ):
         run_experiment(experiment)
     experiment.write_text(EXPERIMENT.replace("current_cap: 3", "capacity: 3"))
     with pytest.raises(
@@ -442,7 +453,9 @@ def test_bad_settings_are_refused_with_their_line(folder):
         EXPERIMENT.replace("Shop.service.packing:", "Shop.service.pack:")
     )
     with pytest.raises(
-        BlueprintError, match="experiment.yaml:5: inputs names Shop.service.pack"
+        BlueprintError,
+        match="experiment.yaml:5: inputs names Shop.service.pack, which is not a "
+        "distribution; did you mean 'Shop.service.packing'",
     ):
         run_experiment(experiment)
     experiment.write_text(EXPERIMENT.replace("current_cap: 3", "current_cap: 9"))
@@ -453,6 +466,12 @@ def test_bad_settings_are_refused_with_their_line(folder):
     with pytest.raises(ValueError, match="add it to measures"):
         ExperimentSpec.model_validate(
             _settings(model=shop, checks=[{"measure": "tasks.pack.wait_max", "max": 1}])
+        )
+    with pytest.raises(
+        ValueError, match="which is not a variant; did you mean 'three'"
+    ):
+        ExperimentSpec.model_validate(
+            _settings(model=shop, compare=[{"baseline": "base", "variant": "thre"}])
         )
     with pytest.raises(ValueError, match="sweep also sets"):
         ExperimentSpec.model_validate(

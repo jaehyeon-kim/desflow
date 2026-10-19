@@ -9,7 +9,20 @@ fails when the file is loaded rather than during the run.
 
 import inspect
 from datetime import datetime, timedelta
-from typing import Annotated, Any, Callable, Dict, List, Literal, Optional, Type, Union
+from types import UnionType
+from typing import (
+    Annotated,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Type,
+    Union,
+    get_args,
+    get_origin,
+)
 
 from pydantic import (
     BaseModel,
@@ -41,7 +54,7 @@ from desflow.core.expressions import Expression
 from desflow.core.environment import in_zone, resolve_zone
 from desflow.core.flow import Router, Transfer, Wait
 from desflow.models.params import DistributionConfig
-from desflow.utils import time_to_seconds
+from desflow.utils import suggestion, time_to_seconds
 
 # The names an egress `when` takes instead of a `!python` function.
 WHEN_NAMES = ("history", "live", LABELS)
@@ -227,7 +240,10 @@ class Arrival(Distribution):
         if (self.dist is None) == (self.replay is None):
             raise ValueError("an arrival takes a dist or a replay, not both or neither")
         if self.replay is not None and self.parameters():
-            raise ValueError("a replayed arrival takes no distribution parameters")
+            raise ValueError(
+                "a replayed arrival takes no distribution parameters; remove them, "
+                "or the replay"
+            )
         if self.dist is not None:
             self.config()
         return self
@@ -287,7 +303,8 @@ class Store(_Model):
         if len(self.items) > room:
             raise ValueError(
                 f"the store holds {room:g} items, so it cannot start with "
-                f"{len(self.items)}"
+                f"{len(self.items)}; raise current_cap and max_cap, or give fewer "
+                f"items"
             )
         if self.priority and not all(
             isinstance(item, list) and len(item) == 2 for item in self.items
@@ -472,7 +489,10 @@ class Task(_Model):
     @model_validator(mode="after")
     def _keep_and_policy(self) -> "Task":
         if not set(self.keep) <= set(self.resources()):
-            raise ValueError("keep names resources the task holds")
+            raise ValueError(
+                "keep names resources the task holds; list only resources in its "
+                "resource"
+            )
         if len(set(self.resources())) != len(self.resources()):
             raise ValueError("a task lists each resource once")
         if self.on_interrupt_next is not None and self.on_interrupt != "abandon":
@@ -783,3 +803,61 @@ class Blueprint(_Model):
                 item if isinstance(item, dict) else {"function": item} for item in value
             ]
         return value
+
+
+def unknown_key(model: Type[BaseModel], location: tuple) -> str:
+    """The message for a key no model at `location` takes, with the closest one.
+
+    Args:
+        model: The model of the whole file, such as `Blueprint`.
+        location: The key's location in the file, as pydantic gives it.
+
+    Returns:
+        str: "unknown key 'x'", then the closest key that place takes, or the keys
+            it takes when none is close.
+    """
+    types: List[Any] = [model]
+    for part in location[:-1]:
+        inner = [found for kind in types for found in _inner(kind, part)]
+        # A union's tag, such as `rules`, is in the location but not in the file
+        types = inner or (types if isinstance(part, str) else [])
+    keys = sorted(
+        {
+            field.alias or name
+            for kind in types
+            if inspect.isclass(kind) and issubclass(kind, BaseModel)
+            for name, field in kind.model_fields.items()
+        }
+    )
+    key = str(location[-1])
+    message = f"unknown key '{key}'"
+    hint = suggestion(key, keys)
+    if hint:
+        return message + hint
+    return f"{message}; this place takes {', '.join(keys)}" if keys else message
+
+
+def _leaves(kind: Any) -> List[Any]:
+    """The types `kind` can be, with Optional, Union and Annotated taken apart."""
+    origin = get_origin(kind)
+    if origin is Annotated:
+        return _leaves(get_args(kind)[0])
+    if origin is Union or origin is UnionType:
+        return [leaf for arg in get_args(kind) for leaf in _leaves(arg)]
+    return [kind]
+
+
+def _inner(kind: Any, part: Any) -> List[Any]:
+    """The types at `part` inside a value of type `kind`."""
+    found = []
+    for leaf in _leaves(kind):
+        origin = get_origin(leaf)
+        if inspect.isclass(leaf) and issubclass(leaf, BaseModel):
+            for name, field in leaf.model_fields.items():
+                if part in (name, field.alias):
+                    found.append(field.annotation)
+        elif origin in (dict, Dict) and isinstance(part, str):
+            found.append(get_args(leaf)[1])
+        elif origin in (list, List, tuple) and isinstance(part, int):
+            found.append(get_args(leaf)[0])
+    return found

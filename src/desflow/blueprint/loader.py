@@ -192,7 +192,10 @@ def _construct_include(loader: yaml.SafeLoader, node: yaml.Node) -> Any:
         raise BlueprintError(f"{loader.name}:{line}: !include {name}: no such file")
     including = getattr(loader, "including", ())
     if path.resolve() in including:
-        raise BlueprintError(f"{loader.name}:{line}: !include {name}: includes itself")
+        raise BlueprintError(
+            f"{loader.name}:{line}: !include {name}: includes itself; include "
+            f"another file"
+        )
     # Read as a document of its own, so a YAML error in it names its own file and
     # line, and a file that is not a mapping is refused there
     data, _ = read_document(path, including=including)

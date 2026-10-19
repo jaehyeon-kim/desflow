@@ -464,7 +464,7 @@ class Wait:
 
 def _wait_branch(branch: Any) -> Tuple[str, Any]:
     """One branch of a wait, as its kind and its checked target."""
-    from desflow.utils import time_to_seconds
+    from desflow.utils import suggestion, time_to_seconds
 
     if not isinstance(branch, Mapping) or len(branch) != 1:
         raise ValueError(
@@ -474,6 +474,7 @@ def _wait_branch(branch: Any) -> Tuple[str, Any]:
     if kind not in WAIT_KINDS:
         raise ValueError(
             f"a wait branch is one of {', '.join(WAIT_KINDS)}, got '{kind}'"
+            + suggestion(kind, WAIT_KINDS)
         )
     if kind == "timeout":
         seconds = time_to_seconds(target) if isinstance(target, str) else target

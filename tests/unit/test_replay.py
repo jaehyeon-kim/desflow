@@ -39,10 +39,12 @@ def test_units_and_the_initial_time():
 
 def test_rows_before_the_start_and_unknown_settings_are_refused():
     start = datetime(2026, 10, 18, 9, 0, 0)
-    with pytest.raises(ValueError, match="before the start of the run"):
+    with pytest.raises(ValueError, match="remove the row, or start the run earlier"):
         read_trace([{"time": "2026-10-18T08:59:00"}], unit="timestamp", start=start)
     with pytest.raises(ValueError, match="unit must be one of"):
         read_trace([], unit="days")
+    with pytest.raises(ValueError, match="no field sku; add it to the row, or leave"):
+        read_trace([{"time": 1}], fields=["sku"])
     with pytest.raises(ValueError, match="needs the run's logical_start_time"):
         read_trace([], unit="timestamp")
 

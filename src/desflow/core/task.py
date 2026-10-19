@@ -18,6 +18,7 @@ from simpy.resources.resource import Preempted
 from desflow.core.expressions import Expression, Scope
 from desflow.core.flow import Router, Transfer, Wait, make_scope
 from desflow.models.flow import Entity, Upstream
+from desflow.utils import suggestion
 
 if TYPE_CHECKING:
     from desflow.core.context import SimulationContext
@@ -575,6 +576,7 @@ class TaskRun:
         if task not in context._tasks:
             raise ValueError(
                 f"task '{self.spec.name}' routes to '{task}', which is not a task"
+                + suggestion(task, context._tasks)
             )
         if self.child:
             result = yield context._start(

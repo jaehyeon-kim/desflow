@@ -19,8 +19,9 @@ from pydantic import (
 )
 
 from desflow.blueprint.loader import BlueprintError, SourceMap, read_document
+from desflow.blueprint.models import unknown_key
 from desflow.analysis.models import LowLevelModel
-from desflow.utils import time_to_seconds
+from desflow.utils import suggestion, time_to_seconds
 
 
 def _seconds(value: Any) -> Any:
@@ -166,11 +167,15 @@ class ExperimentSpec(_Model):
         for entry in self.compare:
             for name in (entry.baseline, entry.variant):
                 if name not in names:
-                    raise ValueError(f"compare names {name}, which is not a variant")
+                    raise ValueError(
+                        f"compare names {name}, which is not a variant"
+                        + _variant(name, names)
+                    )
         for check in self.checks:
             if check.variant is not None and check.variant not in names:
                 raise ValueError(
                     f"a check names {check.variant}, which is not a variant"
+                    + _variant(check.variant, names)
                 )
             if check.measure not in self.measures:
                 raise ValueError(
@@ -179,8 +184,14 @@ class ExperimentSpec(_Model):
         if self.observed and self.observed.variant not in (None, *names):
             raise ValueError(
                 f"observed names {self.observed.variant}, which is not a variant"
+                + _variant(self.observed.variant, names)
             )
         return self
+
+
+def _variant(name: Any, names: Any) -> str:
+    """The end of a message for a name no variant has: the closest, or the variants."""
+    return suggestion(name, names) or f"; the variants are {', '.join(sorted(names))}"
 
 
 def load_experiment(path: Union[str, Path]) -> "tuple[ExperimentSpec, SourceMap]":
@@ -210,5 +221,8 @@ def _error(exc: ValidationError, source: SourceMap) -> BlueprintError:
     for error in exc.errors():
         location = tuple(error["loc"])
         where = ".".join(str(part) for part in location) or "top level"
-        messages.append(str(source.error(location, f"{where}: {error['msg']}")))
+        text = error["msg"]
+        if error["type"] == "extra_forbidden":
+            text = unknown_key(ExperimentSpec, location)
+        messages.append(str(source.error(location, f"{where}: {text}")))
     return BlueprintError("\n".join(messages))

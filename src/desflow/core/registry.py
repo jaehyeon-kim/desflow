@@ -1,10 +1,11 @@
 import copy
 import logging
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from simpy import Environment, Store
 
 from desflow.core.distributions import get_distribution
+from desflow.utils import suggestion
 from desflow.models.params import (
     CapacityConfig,
     DistributionConfig,
@@ -125,6 +126,16 @@ class SimulationRegistry:
         if path not in self._configs:
             raise KeyError(f"Config path '{path}' not found in Simulation Registry.")
         return self._configs[path]
+
+    def paths(self) -> List[str]:
+        """
+        Returns every value path, such as `Shop.resources.packers.current_cap`.
+
+        Returns:
+            List[str]: The paths `get` and `update` take, in the order they were
+                registered.
+        """
+        return list(self._values)
 
     def configs(self) -> Dict[str, Any]:
         """
@@ -262,7 +273,9 @@ class SimulationRegistry:
                 `current_cap` beside it.
         """
         if path not in self._values:
-            raise ValueError(f"'{path}' is not a registry path")
+            raise ValueError(
+                f"'{path}' is not a registry path" + suggestion(path, self._values)
+            )
         sibling = f"{path.rsplit('.', 1)[0]}.current_cap"
         if path.endswith(".max_cap") and sibling in self._values:
             current = self._values[sibling].value

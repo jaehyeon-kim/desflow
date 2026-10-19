@@ -177,7 +177,11 @@ class FitResult:
                 }
         usable = [c.family for c in self.candidates if c.usable]
         if not usable:
-            raise ValueError("no candidate is usable; the table says why for each")
+            raise ValueError(
+                "no candidate is usable; the table says why for each. empirical "
+                "fits any values, so give the column values, or keep empirical in "
+                "the candidates (--candidates)"
+            )
         raise ValueError(f"{name} is not usable; choose one of {', '.join(usable)}")
 
     def text(self) -> str:

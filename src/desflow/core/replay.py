@@ -98,7 +98,7 @@ def read_trace(
         if when < initial_time:
             raise ValueError(
                 f"row {number} is at {when:g} s, before the start of the run at "
-                f"{initial_time:g} s"
+                f"{initial_time:g} s; remove the row, or start the run earlier"
             )
         if last is not None and when < last:
             raise ValueError(
@@ -111,7 +111,10 @@ def read_trace(
         else:
             missing = [name for name in fields if name not in record]
             if missing:
-                raise ValueError(f"row {number} has no field {', '.join(missing)}")
+                raise ValueError(
+                    f"row {number} has no field {', '.join(missing)}; add it to the "
+                    f"row, or leave it out of fields"
+                )
             kept = {name: _value(record[name]) for name in fields}
         rows.append(Row(when, number, kept))
     return rows
