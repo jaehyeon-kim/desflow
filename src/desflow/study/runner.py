@@ -390,7 +390,10 @@ def _publish(model: Model, replications: Replications, until: Any) -> None:
     context.go_live_at = None
     context.warmup = None
     context.initial_time = float(stop or 0.0)
-    context.start(stop, seed=replications.seeds[0], egress=True, ingress=False)
+    # The clock never moves, so the run is started with no end of its own: its
+    # until is the start, which SimPy and start() refuse as an end time
+    context._default_until = context._default_stop = context._default_drain = None
+    context.start(seed=replications.seeds[0], egress=True, ingress=False)
     # Only the summary is sent: the model's own statistics are not published
     context.env.stats.configure(replications.sim_id, "none")
     try:

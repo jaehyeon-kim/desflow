@@ -115,7 +115,11 @@ class DynamicStore(BaseDynamicResource):
         # order they were added in and their items are never compared
         self._order = itertools.count()
         kind = _PriorityStore if priority else _Store
-        self._store = kind(env, self._changed, capacity=initial_capacity)
+        # SimPy refuses a capacity of 0, which desflow accepts because a capacity
+        # changes during a run; the store is built with 1 and held at 0, as a
+        # capacity change sets it
+        self._store = kind(env, self._changed, capacity=initial_capacity or 1)
+        self._store._capacity = initial_capacity
         start = list(items or [])
         if len(start) > initial_capacity:
             raise ValueError(

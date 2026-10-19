@@ -1,0 +1,22 @@
+# Two orders wait for parcels from 1; at 5 a courier puts two parcels and a third
+# order asks for one; a last parcel comes at 6. See test_c5_store_order.py.
+simulation:
+  sim_id: C5
+  factor: 0
+stores:
+  parcels: {current_cap: 3, max_cap: 3}
+arrivals:
+  early: {replay: {path: c5_order_early.csv}, spawn: take}
+  parcels: {replay: {path: c5_order_parcels.csv}, spawn: drop}
+  late: {replay: {path: c5_order_late.csv}, spawn: take}
+tasks:
+  take:
+    get: {store: parcels}
+    payload: {event: taken}
+    item_field: parcel
+  drop:
+    put: {store: parcels}
+    payload: {}
+    attributes: [name]
+run:
+  until: 10

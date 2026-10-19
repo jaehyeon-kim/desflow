@@ -161,6 +161,7 @@
     - tests/conformance/test_c3_interrupts.py::test_c3_priority_preemption
     - tests/conformance/test_c3_interrupts.py::test_c3_priority_preemption_equal_priorities
     - tests/conformance/test_c3_interrupts.py::test_c3_two_preemptions_at_one_instant
+    - tests/conformance/test_c3_interrupts.py::test_c3_preemption_tie_between_users
     - tests/conformance/test_c3_interrupts.py::test_c3_priority_preemption_low_level
   page: user-guide/resources.md#preemption
 
@@ -182,6 +183,7 @@
   low_level: "`DynamicResource(..., queue=\"priority\")` and `request(priority=...)`"
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_priority_resource_request
+    - tests/conformance/test_c4_resources.py::test_c4_priority_request_with_mixed_preempt_flags
   page: user-guide/resources.md#task-priority
   differences: Equal priorities are served first in, first out, as in SimPy; desflow also offers `fifo` and `lifo` queues, under which a request's priority is ignored.
 
@@ -245,6 +247,7 @@
   low_level: "`yield parcels.put(item)`, `item = yield parcels.get()`"
   checks:
     - tests/conformance/test_c5_store_order.py::test_c5_equal_time_puts_and_gets_follow_simpy_store
+    - tests/conformance/test_c5_store_order.py::test_c5_equal_time_puts_and_gets_as_tasks
   page: user-guide/stores-and-containers.md#take-and-add
   differences: "While a get with a filter waits, the store grants as SimPy's `FilterStore` does, looking at every waiting get each time."
 

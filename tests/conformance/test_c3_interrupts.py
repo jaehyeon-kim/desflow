@@ -395,8 +395,8 @@ def test_c3_two_interrupts_at_one_instant():
 # ------------------------------------------------------------- preemption
 
 
-def _reference_preemption(lows, highs, cap):
-    """(time, user, status) on a PreemptiveResource: lows from 10 (each 0.5 s
+def _reference_preemption(lows, highs, cap, gap=0.5):
+    """(time, user, status) on a PreemptiveResource: lows from 10 (each `gap` s
     apart) for 10 s, highs at 13 for 5 s; a preempted low resumes."""
     env = simpy.Environment()
     machine = simpy.PreemptiveResource(env, capacity=cap)
@@ -419,7 +419,7 @@ def _reference_preemption(lows, highs, cap):
                 remaining -= env.now - since
 
     for i, p in enumerate(lows):
-        env.process(user(f"low{i}", p, 10 + 0.5 * i, 10))
+        env.process(user(f"low{i}", p, 10 + gap * i, 10))
     for i, p in enumerate(highs):
         env.process(user(f"high{i}", p, 13, 5))
     env.run(until=19.9)
@@ -437,7 +437,7 @@ def _desflow_trace(records):
     return out
 
 
-def _builder_preemption(lows, highs, cap):
+def _builder_preemption(lows, highs, cap, gap=0.5):
     app = SimulationContext("C3", factor=0.0)
     app.add_resource(
         "machine", current_cap=cap, max_cap=cap, queue="priority", preempt=True
@@ -454,7 +454,7 @@ def _builder_preemption(lows, highs, cap):
         return {"event": "high_done"}
 
     def script(context):
-        events = [(10 + 0.5 * i, f"low{i}", low, p) for i, p in enumerate(lows)]
+        events = [(10 + gap * i, f"low{i}", low, p) for i, p in enumerate(lows)]
         events += [(13, f"high{i}", high, p) for i, p in enumerate(highs)]
         for at, name, task, p in sorted(events, key=lambda e: e[0]):
             if at > context.env.now:
@@ -466,9 +466,12 @@ def _builder_preemption(lows, highs, cap):
     return run_builder(app, 19.9)
 
 
-def _check_preemption(lows, highs, cap, blueprint):
-    expected = _reference_preemption(lows, highs, cap)
-    for records in (_builder_preemption(lows, highs, cap), run_yaml(blueprint)[0]):
+def _check_preemption(lows, highs, cap, blueprint, gap=0.5):
+    expected = _reference_preemption(lows, highs, cap, gap)
+    for records in (
+        _builder_preemption(lows, highs, cap, gap),
+        run_yaml(blueprint)[0],
+    ):
         assert _desflow_trace(records) == [(float(t), n, s) for t, n, s in expected]
     return expected
 
@@ -509,6 +512,48 @@ def test_c3_two_preemptions_at_one_instant():
         (18, "low1", "resumed"),
         (18, "low0", "resumed"),
     ]
+
+
+def test_c3_preemption_tie_between_users():
+    """Two users of priority 1 got the machine of 2 at 10, so their keys are equal.
+    SimPy 4.1.2 picks the user to preempt with `max`, which returns the first of
+    equal keys in the order the units were granted: low0, not low1."""
+    expected = _check_preemption((1, 1), (0,), 2, "c3_preemption_tie.yaml", gap=0)
+    assert expected[:4] == [
+        (10, "low0", "started"),
+        (10, "low1", "started"),
+        (13, "low0", "preempted"),
+        (13, "high0", "started"),
+    ]
+    trace = []
+
+    def start(env):
+        machine = DynamicResource(env, "C3", "machine", queue="priority", preempt=True)
+
+        def user(name, priority, at, hold):
+            yield env.timeout(at)
+            remaining, started, since = hold, False, None
+            while True:
+                try:
+                    with machine.request(priority=priority) as req:
+                        yield req
+                        trace.append(
+                            (env.now, name, "resumed" if started else "started")
+                        )
+                        started, since = True, env.now
+                        yield env.timeout(remaining)
+                        trace.append((env.now, name, "finished"))
+                        return
+                except simpy.Interrupt:
+                    trace.append((env.now, name, "preempted"))
+                    remaining -= env.now - since
+
+        env.process(user("low0", 1, 10, 10))
+        env.process(user("low1", 1, 10, 10))
+        env.process(user("high0", 0, 13, 5))
+
+    run_low_level(_machine("C3", cap=2), start, 19.9)
+    assert trace == expected
 
 
 def test_c3_priority_preemption_low_level():

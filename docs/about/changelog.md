@@ -4,7 +4,7 @@ Each release, newest first: what changed, then under Upgrading what to change in
 
 ## Version 0.22.0
 
-desflow matches SimPy operation by operation, in YAML, the builder and the low-level API, and each operation is checked against plain SimPy.
+The low-level API is SimPy, so every SimPy feature works there. YAML and the builder provide the operations listed on the SimPy Compatibility page natively, and each is checked against plain SimPy in all three APIs.
 
 - A [SimPy Compatibility](../reference/simpy-compatibility.md) page lists every supported SimPy operation with its form in each API and the tests that compare it with SimPy.
 - Patience and balking: a task's `patience` takes a duration such as `30 s`, and orders that leave or refuse to join are counted as `tasks.<task>.reneged` and `.balked`. See [Patience](../tutorials/patience.md) and [Reneging and Balking](../guides/reneging-and-balking.md).
@@ -27,7 +27,11 @@ desflow matches SimPy operation by operation, in YAML, the builder and the low-l
 
 ### Upgrading
 
-- desflow needs SimPy 4.1.0 or later, where it accepted 4.0.0: SimPy 4.0 imports `pkg_resources`, which a new Python environment does not have. It is tested against SimPy 4.1.2, the newest release, and against 4.1.0.
+- desflow needs SimPy 4.1.2 or later, where it accepted 4.0.0. SimPy 4.1.2 chooses which user to preempt differently on equal keys, and desflow follows it; SimPy 4.0 also imports `pkg_resources`, which a new Python environment does not have.
+- When a preemption finds several users with the same priority, request time and preempt flag, the first one granted a unit is preempted, as SimPy 4.1.2 does; it was the last one granted, as in SimPy 4.1.1. Seeded runs with such ties can give other numbers.
+- On a `queue: priority` resource, among requests of the same priority made at the same time, one that may preempt is served before one with `preempt: false`, as SimPy's `PriorityResource` ranks them; it was the order they came.
+- A store or container built with a capacity of 0 now works, as a resource does, and holds nothing until its capacity rises; SimPy's `ValueError` stopped it before.
+- An `until` at or before `initial_time` is refused when the run starts, with `stop` or `drain` as well, where it ran with a horizon in the past.
 - A `priority` on a store `get` is refused; priority orders a `put` into a priority store.
 - Resources grant units with the same events as SimPy's `Resource`, so requests at the same simulation time are granted in SimPy's order, which can change seeded output where such ties occur.
 - `patience` now covers a task's `get` as well as its resource, so a task with both can renege while it waits for stock. A task with `patience` needs a resource or a `get`.

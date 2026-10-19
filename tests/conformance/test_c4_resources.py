@@ -606,3 +606,100 @@ def test_c4_keep_hands_a_unit_to_the_next_task():
     assert _keep_starts(_low_level_keep()) == expected
     assert _keep_starts(_builder_keep()) == expected
     assert _keep_starts(run_yaml("c4_keep.yaml")[0]) == expected
+
+
+# Mixed preempt flags on a priority resource: SimPy's PriorityResource ranks a
+# waiting request by (priority, time, not preempt), so among equal priorities and
+# times the request that may preempt is served first, whatever the order they came.
+
+
+def _reference_mixed():
+    env = simpy.Environment()
+    machine = simpy.PriorityResource(env, capacity=1)
+    starts = []
+
+    def job(name, at, priority, preempt, hold):
+        yield env.timeout(at)
+        with machine.request(priority=priority, preempt=preempt) as req:
+            yield req
+            starts.append((env.now, name))
+            yield env.timeout(hold)
+
+    env.process(job("holder", 0.001, 0, True, 10))
+    env.process(job("plain", 5, 1, False, 1))
+    env.process(job("eager", 5, 1, True, 1))
+    env.run(until=10.5)
+    return starts
+
+
+def _mixed_starts(records):
+    names = {"holders": "holder", "plain": "plain", "eager": "eager"}
+    return [
+        (t, names[key.split("-")[0]])
+        for t, key, _task, status in event_trace(records)
+        if status == "started"
+    ]
+
+
+def test_c4_priority_request_with_mixed_preempt_flags():
+    """At 10.001 the request that may preempt is served before the one that may
+    not, though both have priority 1 and the other came first."""
+    expected = _reference_mixed()
+    assert expected == [(0.001, "holder"), (10.001, "eager")]
+
+    starts = []
+
+    def start(env):
+        machine = DynamicResource(env, "C4m", "machine", queue="priority")
+
+        def job(name, at, priority, preempt, hold):
+            yield env.timeout(at)
+            with machine.request(priority=priority, preempt=preempt) as req:
+                yield req
+                starts.append((env.now, name))
+                yield env.timeout(hold)
+
+        env.process(job("holder", 0.001, 0, True, 10))
+        env.process(job("plain", 5, 1, False, 1))
+        env.process(job("eager", 5, 1, True, 1))
+
+    params = SimParameter(
+        sim_id="C4m", resources={"machine": CapacityConfig(current_cap=1, max_cap=1)}
+    )
+    run_low_level(params, start, 10.5)
+    assert [(round(t, 3), n) for t, n in starts] == expected
+
+    app = SimulationContext("C4m", factor=0.0)
+    app.add_resource("machine", current_cap=1, max_cap=1, queue="priority")
+    app.add_service("hold", dist="constant", value=10)
+    app.add_service("work", dist="constant", value=1)
+    app.add_arrival("holders", dist="constant", value=0.001)
+    app.add_arrival("plain", dist="constant", value=5)
+    app.add_arrival("eager", dist="constant", value=5)
+
+    @app.task(service_id="hold", resource_id="machine", priority=0)
+    def holder(task_id):
+        return {"event": "held"}
+
+    @app.task(service_id="work", resource_id="machine", priority=1, preempt=False)
+    def plain_job(task_id):
+        return {"event": "done"}
+
+    @app.task(service_id="work", resource_id="machine", priority=1)
+    def eager_job(task_id):
+        return {"event": "done"}
+
+    for arrival, task in (
+        ("holders", holder),
+        ("plain", plain_job),
+        ("eager", eager_job),
+    ):
+
+        def loop(context, arrival=arrival, task=task):
+            entity = yield context.wait_for_arrival(arrival)
+            context.spawn(task(context.next_instance(task.__name__), entity=entity))
+
+        app.arrival_loop(arrival)(loop)
+
+    assert _mixed_starts(run_builder(app, 10.5)) == expected
+    assert _mixed_starts(run_yaml("c4_mixed_preempt.yaml")[0]) == expected

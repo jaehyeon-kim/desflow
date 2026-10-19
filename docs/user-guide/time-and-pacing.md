@@ -254,7 +254,7 @@ With statistics at `basic` or above, `flows.<arrival>.started`, `finished` and `
 
 ### Step and Peek
 
-`start()` builds everything `run()` builds and starts every process, with the clock still at its start. `step()` then processes one event, and `peek()` gives the time of the next one, infinity when none is left, as SimPy's `env.step()` and `env.peek()` do; `close()` ends the run, which `run()` does in a `finally` block. A context from `from_yaml` steps the same way:
+`start()` builds everything `run()` builds and starts every process, with the clock still at its start. `step()` then processes one event, and `peek()` gives the time of the next one, infinity when none is left, as SimPy's `env.step()` and `env.peek()` do. The event can be one of desflow's own, such as the statistics timer or a resource's capacity watcher, as well as one of the model's; `close()` ends the run, which `run()` does in a `finally` block. A context from `from_yaml` steps the same way:
 
 ```python title="docs/snippets/pages/pacing.py:step"
 def every_ten(context):

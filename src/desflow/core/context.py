@@ -1642,6 +1642,13 @@ class SimulationContext:
         # with nothing to tear down
         if isinstance(until, str):
             until = time_to_seconds(until)
+        if until is not None and until <= self.initial_time:
+            # SimPy's run(until=) refuses it; with stop or drain the end is an
+            # event desflow schedules itself, which would be in the past
+            raise ValueError(
+                f"until ({until:g}) must be greater than the initial time "
+                f"({self.initial_time:g}); set until later, or initial_time earlier"
+            )
         if isinstance(drain, Mapping) and drain.get("limit") is not None:
             _seconds(drain["limit"])
         if stats is not None and stats not in STATS_LEVELS:

@@ -241,12 +241,11 @@ class DynamicResource(BaseDynamicResource):
     def _rank(self, request: DynamicResourceRequest) -> Tuple[Any, ...]:
         """The sort key of a new request under this resource's queue order."""
         sequence = next(self._sequence)
-        priority = request.priority
-        if self.preempt:
-            # SimPy's PreemptiveResource sorts its queue by the request's key
+        if self.preempt or self.queue_order == "priority":
+            # SimPy's PriorityResource and PreemptiveResource sort their queue by
+            # the request's key, (priority, time, not preempt): among equal
+            # priorities and times a request that may preempt goes first
             return (*request.key, sequence)
-        if self.queue_order == "priority":
-            return (priority, sequence)
         if self.queue_order == "lifo":
             return (0, -sequence)
         return (0, sequence)
@@ -301,7 +300,9 @@ class DynamicResource(BaseDynamicResource):
         if not self.users or len(self.users) > self._capacity:
             # Busy units above a lowered capacity are owed, not preemptible
             return False
-        victim = sorted(self.users, key=lambda user: user.key)[-1]
+        # SimPy 4.1.2 takes `max`, the first of equal keys in grant order; 4.1.1
+        # took the last, `sorted(...)[-1]`
+        victim = max(self.users, key=lambda user: user.key)
         if not victim.key > request.key:
             return False
         self.users.remove(victim)

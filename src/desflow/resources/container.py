@@ -78,9 +78,16 @@ class DynamicContainer(BaseDynamicResource):
         initial_capacity = max(0.0, min(float(self._current_cap_val.value), max_cap))
         start = float(self._level_val.value if init is None else init)
 
+        if start > initial_capacity:
+            # SimPy's own check, which the capacity of 1 below would not make
+            raise ValueError('"init" must be <= "capacity".')
+        # SimPy refuses a capacity of 0, which desflow accepts because a capacity
+        # changes during a run; the container is built with 1 and held at 0, as a
+        # capacity change sets it
         self._container = _Container(
-            env, self._level_changed, init=start, capacity=initial_capacity
+            env, self._level_changed, init=start, capacity=initial_capacity or 1.0
         )
+        self._container._capacity = initial_capacity
         self._level_val.track(self._container.level)
         self.env.process(self._watch_level())
         self._register()

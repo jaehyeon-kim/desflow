@@ -43,7 +43,7 @@ classifiers = [
     "Topic :: System :: Distributed Computing",
 ]
 dependencies = [
-    "simpy>=4.1.0",
+    "simpy>=4.1.2",
     "numpy>=1.26.0",
     "orjson>=3.10.0",
     "pydantic>=2.0.0",

@@ -164,3 +164,40 @@ def test_a_priority_store_refuses_a_filter(env, registry, sample_params):
     store = DynamicStore(env, "Shop", "buffer1", priority=True)
     with pytest.raises(ValueError, match="both ranks and filters"):
         store.get(filter=lambda item: True)
+
+
+def test_a_store_and_a_container_start_at_capacity_0():
+    """SimPy refuses a capacity of 0; desflow accepts it, as for a resource, and a
+    put waits until the capacity rises."""
+    from desflow import ContainerConfig, DynamicContainer, DynamicRealtimeEnvironment
+
+    env = DynamicRealtimeEnvironment(factor=0)
+    env.registry.register_sim_parameter(
+        SimParameter(
+            sim_id="Shop",
+            stores={"shelf": CapacityConfig(current_cap=0, max_cap=2)},
+            containers={"tank": ContainerConfig(current_cap=0, max_cap=10, level=0)},
+        )
+    )
+    shelf = DynamicStore(env, "Shop", "shelf")
+    tank = DynamicContainer(env, "Shop", "tank")
+    assert (shelf.capacity, tank.capacity) == (0, 0)
+    done = []
+
+    def fill():
+        yield shelf.put("box")
+        done.append(("box", env.now))
+        yield tank.put(4)
+        done.append(("oil", env.now))
+
+    def grow():
+        yield env.timeout(5)
+        env.registry.update("Shop.stores.shelf.current_cap", 1)
+        yield env.timeout(5)
+        env.registry.update("Shop.containers.tank.current_cap", 10)
+
+    env.process(fill())
+    env.process(grow())
+    env.run(until=20)
+    env.teardown()
+    assert done == [("box", 5), ("oil", 10)]

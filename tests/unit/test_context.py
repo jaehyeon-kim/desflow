@@ -694,3 +694,13 @@ def test_scenario_steps_and_warmup_count_from_the_start_of_the_run():
     ]
     assert speeds[:2] == [(105.0, 1), (110.0, 2)]
     assert min(r["sim_ts"] for r in records) >= 105
+
+
+def test_an_until_at_or_before_the_initial_time_is_refused():
+    """SimPy refuses run(until=t) with t not after now; desflow refuses it too, with
+    stop or drain as well, before anything is built."""
+    for kwargs in ({}, {"drain": True}, {"stop": {"condition": "t > 1"}}):
+        app = SimulationContext("Shop", factor=0, initial_time=100)
+        with pytest.raises(ValueError, match="until \\(100\\) must be greater"):
+            app.run(until=100, **kwargs)
+        assert app._env is None
