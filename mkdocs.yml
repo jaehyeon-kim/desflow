@@ -257,3 +257,4 @@ markdown_extensions:
 extra_css:
   - css/neoteroi-mkdocs.css
   - css/roadmap.css
+  - css/tables.css

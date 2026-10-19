@@ -379,14 +379,14 @@ def compatibility_page() -> str:
         groups.setdefault(entry["id"], []).append(entry)
     lines += [
         "",
-        "| Section | Features native in all three APIs |",
+        "| Section | Operations native in all three APIs |",
         "|---|---|",
         *(
-            f"| [{group}: {GROUPS[group]}](#{_anchor(group)}) | {count(rows)} |"
+            f"| [{group}: {GROUPS[group]}](#{_anchor(group)}) | {len(rows)} |"
             for group, rows in groups.items()
         ),
-        f"| [{GROUPS['N']}](#{_anchor('N')}) | {count(not_yet)} not yet |",
-        f"| [{GROUPS['D']}](#{_anchor('D')}) | {count(kept)} |",
+        f"| [{GROUPS['N']}](#{_anchor('N')}) | none; {count(not_yet)} SimPy features to come |",
+        f"| [{GROUPS['D']}](#{_anchor('D')}) | {len(kept)} differences |",
         "",
         "Under each feature, Forms and checks opens to show its SimPy construct, "
         "its form in YAML, the builder and the low-level API, and the conformance "
