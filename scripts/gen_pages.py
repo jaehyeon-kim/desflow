@@ -388,17 +388,18 @@ def compatibility_page() -> str:
         f"| [{GROUPS['N']}](#{_anchor('N')}) | {count(not_yet)} not yet |",
         f"| [{GROUPS['D']}](#{_anchor('D')}) | {count(kept)} |",
         "",
-        "Each feature below opens to show its SimPy construct, its form in YAML, "
-        "the builder and the low-level API, and the conformance tests that check it.",
+        "Under each feature, Forms and checks opens to show its SimPy construct, "
+        "its form in YAML, the builder and the low-level API, and the conformance "
+        "tests that check it.",
     ]
     for group, rows in groups.items():
         lines += ["", f"## {group}: {GROUPS[group]}", "", GROUP_INTROS[group], ""]
         for row in rows:
             checks = ", ".join(_check_link(check) for check in row["checks"])
             lines += [
-                f'??? note "{row["operation"]}"',
+                f"**{row['operation']}**: {row['description']}",
                 "",
-                f"    {row['description']}",
+                '??? note "Forms and checks"',
                 "",
                 f"    - **SimPy:** {row['simpy']}",
                 f"    - **YAML:** {row['yaml']}",
