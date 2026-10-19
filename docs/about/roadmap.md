@@ -81,38 +81,6 @@ The work after the Learn section, on the way to 1.0, in the order it is planned.
 
 <div class="grid cards" markdown>
 
--   __Server: API and MCP tools__
-
-    ---
-
-    `desflow serve` runs simulations through a REST API: upload, start, stop, change parameters while a run is going and follow its events. MCP tools, which let an AI agent do the same, ship as an experimental part, in this release or the next server release.
-
-    [#48](https://github.com/jaehyeon-kim/desflow/issues/48)
-
--   __Server: browser UI__
-
-    ---
-
-    The same from a browser, including each simulation's graph from `desflow explain`.
-
-    [#49](https://github.com/jaehyeon-kim/desflow/issues/49)
-
--   __Server: schedules__
-
-    ---
-
-    Run simulations on cron schedules.
-
-    [#50](https://github.com/jaehyeon-kim/desflow/issues/50)
-
--   __Server image and odctl profile__
-
-    ---
-
-    A published image and an [odctl](https://github.com/jaehyeon-kim/odctl) profile run the server locally with nothing installed on the host.
-
-    [#52](https://github.com/jaehyeon-kim/desflow/issues/52)
-
 -   __Storage and Python 3.15__
 
     ---
@@ -120,6 +88,14 @@ The work after the Learn section, on the way to 1.0, in the order it is planned.
     Parquet and JSONL on more cloud storage, more Iceberg catalogs, and Python 3.15 support.
 
     [#32](https://github.com/jaehyeon-kim/desflow/issues/32), [#40](https://github.com/jaehyeon-kim/desflow/issues/40)
+
+-   __Library hooks for the server__
+
+    ---
+
+    Changes the server will need, made before 1.0 so the server adds to the library without changing it: parameter changes that report who made them and why, and a way to load and inspect a simulation folder.
+
+    [#70](https://github.com/jaehyeon-kim/desflow/issues/70)
 
 -   __Reserve the gen key__
 
@@ -133,7 +109,7 @@ The work after the Learn section, on the way to 1.0, in the order it is planned.
 
     ---
 
-    A final check of every record field, including those the server and the AI tools add, then the format is marked frozen: no 1.x release removes a field, renames it or changes its type.
+    A final check of every record field, then the format is marked frozen: no 1.x release removes a field, renames it or changes its type.
 
     [#51](https://github.com/jaehyeon-kim/desflow/issues/51)
 
@@ -169,6 +145,12 @@ From 1.0, the YAML blueprint format, the `desflow` command, the public Python AP
 
 ### Simulation server
 
+The server ships after 1.0, as 1.x releases installed with the `server` extra.
+
+- **Server API and MCP tools:** `desflow serve` runs simulations through a REST API: upload, start, stop, change parameters during a run and follow its events. MCP tools, which let an AI agent do the same, are experimental. ([#48](https://github.com/jaehyeon-kim/desflow/issues/48))
+- **Browser UI:** the same from a browser, including each simulation's graph from `desflow explain`. ([#49](https://github.com/jaehyeon-kim/desflow/issues/49))
+- **Schedules:** run simulations on cron schedules. ([#50](https://github.com/jaehyeon-kim/desflow/issues/50))
+- **Server image and odctl profile:** a published image and an [odctl](https://github.com/jaehyeon-kim/odctl) profile run the server locally with nothing installed on the host. ([#52](https://github.com/jaehyeon-kim/desflow/issues/52))
 - **Visualisation:** animation of a running or recorded simulation, and a map view.
 - **Distributed runs:** workers on several machines.
 
