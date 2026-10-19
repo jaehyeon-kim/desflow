@@ -1,7 +1,5 @@
 # Priorities
 
-**Level:** Intermediate
-
 A quarter of the shop's orders are now express: the customer paid for speed. With one packer and 0.6 orders a second, every order waits about 5 seconds. This page asks: **can express orders jump the queue?** And what does that cost the others?
 
 ## What You Add

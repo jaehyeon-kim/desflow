@@ -1,7 +1,5 @@
 # Performance Tuning
 
-**Level:** Advanced
-
 Make a run that generates data go as fast as the machine allows, and measure how many records a second it publishes. It builds on [Time and Pacing](https://jaehyeon.me/desflow/latest/user-guide/time-and-pacing/index.md), which explains `factor`, and on [Egress](https://jaehyeon.me/desflow/latest/user-guide/egress/index.md), which explains batches.
 
 ______________________________________________________________________

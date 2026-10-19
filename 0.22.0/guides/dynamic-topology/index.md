@@ -1,7 +1,5 @@
 # Dynamic Topology: Resources Changed Mid-run
 
-**Level:** Intermediate
-
 Sometimes the layout itself changes during a run: a dock opens a new bay, or a shop adds a gift wrapping station. Here a supervisor process adds gift wrappers at 12 seconds, and from then on new jobs go to the wrappers as well as the packers.
 
 The builder (`SimulationContext`) creates every resource before the clock starts and has no call to add one later. A resource added during the run is written with the [low-level API](https://jaehyeon.me/desflow/latest/user-guide/low-level-api/index.md): register its parameters, then create the `DynamicResource` that reads them.

@@ -1,7 +1,5 @@
 # Breakdowns
 
-**Level:** Advanced
-
 Make a resource fail at random and be repaired, decide what happens to the work it was doing, and check how long it was down. It builds on [Interruptions](https://jaehyeon.me/desflow/latest/tutorials/interruptions/index.md), which explains `on_interrupt`, and on [Resources](https://jaehyeon.me/desflow/latest/user-guide/resources/#breakdowns), which describes the down state.
 
 ______________________________________________________________________

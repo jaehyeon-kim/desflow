@@ -1,7 +1,5 @@
 # Fit the Inputs
 
-**Level:** Intermediate
-
 [Choosing Inputs](https://jaehyeon.me/desflow/latest/tutorials/choosing-inputs/index.md) compared four candidates for the packing time by hand and chose the 40 times measured at the bench. desflow can fit every distribution family to those times and say which fits best. This page asks: **which supported distribution fits the 40 packing times, and does the choice change the busy hour's answer?**
 
 ## What You Add

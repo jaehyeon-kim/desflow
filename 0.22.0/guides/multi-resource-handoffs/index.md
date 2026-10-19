@@ -1,7 +1,5 @@
 # Multi-Resource Handoffs
 
-**Level:** Intermediate
-
 A handoff passes an order from one resource to the next without letting go of the first too early. Here a picker carries each order to a packing bench. The order keeps the picker until the bench is free, so for a moment it holds both, and then it releases the picker. It builds on [Competing Resources](https://jaehyeon.me/desflow/latest/tutorials/competing-resources/index.md), which measures what such a holding costs, and on [Resources](https://jaehyeon.me/desflow/latest/user-guide/resources/#several-resources).
 
 ______________________________________________________________________

@@ -1,7 +1,5 @@
 # Trusting Results
 
-**Level:** Intermediate
-
 [Measuring a Run](https://jaehyeon.me/desflow/latest/tutorials/measuring-a-run/index.md) read five numbers from one run of the busy hour. The run started with an empty shop: no orders waiting and every packer free. A real shop at that hour is never empty, so the first orders of the run wait less than they would. This page asks: **is one run enough?** It answers in two parts: how much of the start to leave out, and how many runs give an answer precise enough to act on.
 
 ## What You Add

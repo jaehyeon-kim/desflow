@@ -1,7 +1,5 @@
 # Local Replay
 
-**Level:** Intermediate
-
 The shop recorded every order of one morning, 09:00 to 10:00 on 1 October 2026: 1,963 orders, 0.545 a second on average. A model with exponential gaps at that rate says one packer keeps waits short. This page asks: **what does the shop do with the same orders, at the times they were really placed?** It replays the recorded morning and compares it with the model.
 
 ## What You Add

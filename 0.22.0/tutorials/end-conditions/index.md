@@ -1,7 +1,5 @@
 # End Conditions
 
-**Level:** Intermediate
-
 The shop now takes 0.7 orders a second for an hour, a little more than its one packer can pack in 1.5 seconds each, so orders are still waiting when the hour ends. A report that counts only the orders packed in the hour leaves them out. This page asks: **does a fixed horizon answer the same question as closing the doors and packing every order already in the shop?** It runs the hour both ways and counts every order.
 
 ## What You Add

@@ -1,7 +1,5 @@
 # A Flow of Tasks
 
-**Level:** Intermediate
-
 Until now an order was one task: it was packed and left. A real order is picked from the shelves, packed and shipped; sometimes an item is out of stock, and sometimes a parcel fails its check and is packed again. This page asks: **how do orders move through pick, pack and ship?** It answers with two shares: how many orders go to backorder, and how many parcels are packed again.
 
 ## What You Add

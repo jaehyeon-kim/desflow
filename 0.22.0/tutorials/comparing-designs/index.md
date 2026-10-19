@@ -1,7 +1,5 @@
 # Comparing Designs
 
-**Level:** Intermediate
-
 [Trusting Results](https://jaehyeon.me/desflow/latest/tutorials/trusting-results/index.md) measured the busy hour with three packers: over 40 replications the mean wait was 2.32 ± 0.20 seconds. The shop could hire a fourth packer. This page asks: **does a fourth packer cut the mean wait, and by how much?** It runs both designs as an experiment, with the same seeds, and compares them seed by seed.
 
 ## What You Add

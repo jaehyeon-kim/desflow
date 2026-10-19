@@ -1,7 +1,5 @@
 # Fit a Distribution
 
-**Level:** Intermediate
-
 Fit a column of your own measured times, such as the gaps between orders in an order log, and load the result into a model. It builds on [Fit the Inputs](https://jaehyeon.me/desflow/latest/tutorials/fit-the-inputs/index.md), which fits the shop's packing times and checks what the choice changes, and on [Input Fitting](https://jaehyeon.me/desflow/latest/user-guide/input-fitting/index.md), which describes every option and outcome. Fitting needs the `fit` extra: `pip install "desflow[fit]"`.
 
 ______________________________________________________________________

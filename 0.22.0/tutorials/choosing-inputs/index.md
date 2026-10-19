@@ -1,7 +1,5 @@
 # Choosing Inputs
 
-**Level:** Basics
-
 Packing takes 1.5 seconds on average. So far the shop has said exactly that: a `constant` 1.5 seconds. Real packing times vary, and a model is only as good as the times it draws. This page asks: **which distribution fits packing times?**
 
 ## What You Add
