@@ -70,7 +70,7 @@ Releases come in the order shown, without dates: a release ships when it is read
   icon: ':material-clock-outline:'
   key: planned
 - title: Learn section
-  content: 'The shop tutorial, which extends one shop model page by page and answers a question with a number on each page, has 20 pages since 0.22.0, which added replications, comparing designs, sweeps, fitting, patience, interruptions, end conditions and more. Left: concept pages on a simulation study, checking and validating, queueing and output analysis, a final study of the whole shop and an independent problem. [#60](https://github.com/jaehyeon-kim/desflow/issues/60)'
+  content: 'The shop tutorial, which extends one shop model page by page and answers a question with a number on each page, has 20 pages since 0.22.0, which added replications, comparing designs, sweeps, fitting, patience, interruptions, end conditions and more. Left: concept pages on a simulation study, checking and validating, queueing and output analysis, and a final study of the whole shop. [#60](https://github.com/jaehyeon-kim/desflow/issues/60)'
   icon: ':material-clock-outline:'
   key: planned
 ::/timeline::
