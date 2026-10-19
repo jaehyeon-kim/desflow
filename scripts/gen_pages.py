@@ -316,6 +316,13 @@ def compatibility_page() -> str:
         "(../des/simpy-and-desflow.md) explains how the two fit together. Where "
         "desflow differs from SimPy on purpose, the difference is listed under the "
         "table.",
+        "",
+        "The sections are numbered by kind. **C1 to C7** are SimPy's core "
+        "operations, such as events, conditions, interrupts, resources and stores. "
+        "**S1 to S3** are support features desflow builds from those operations: "
+        "breakdowns, schedules and replay. SimPy has no single call for them, so "
+        "their conformance tests compare with the same behaviour written in plain "
+        "SimPy.",
     ]
     groups: Dict[str, List[Dict[str, Any]]] = {}
     for entry in native:
@@ -348,12 +355,10 @@ def compatibility_page() -> str:
         '"Exists, not checked" marks an API that has a form, which no conformance '
         'test compares with SimPy yet, and "exists, checked" one that a test in '
         "the Checks column compares already; the low-level API is SimPy, so many "
-        "work there already. The inventory id names the feature in desflow's list "
-        "of SimPy's features.",
+        "work there already.",
         "",
-        "| Feature | Inventory | SimPy | YAML | Builder | Low-level | Checks "
-        "| Release |",
-        "|---|---|---|---|---|---|---|---|",
+        "| Feature | SimPy | YAML | Builder | Low-level | Checks | Release |",
+        "|---|---|---|---|---|---|---|",
     ]
     for row in not_yet:
         exists = row.get("exists", [])
@@ -368,15 +373,13 @@ def compatibility_page() -> str:
         ]
         checks = "<br>".join(_check_link(check) for check in row["checks"])
         lines.append(
-            f"| {row['operation']} | {', '.join(row['inventory'])} "
-            f"| {_cell(row['simpy'])} | {' | '.join(status)} | {checks or 'none'} "
+            f"| {row['operation']} | {_cell(row['simpy'])} | {' | '.join(status)} | {checks or 'none'} "
             f"| {row['release']} |"
         )
     lines += ["", f"## {GROUPS['D']}", ""]
     for row in kept:
         lines.append(
-            f"- **{row['operation']}** ({', '.join(row['inventory'])}; SimPy: "
-            f"{row['simpy']}): {row['differences']}"
+            f"- **{row['operation']}** (SimPy: {row['simpy']}): {row['differences']}"
         )
     return "\n".join(lines) + "\n"
 
