@@ -402,3 +402,43 @@ def test_parquet_write_error_is_logged_and_the_sink_goes_on(tmp_path: Path, capl
     )
     egress._write_batch([{"a": 2}], pa, pq)
     assert len(list(tmp_path.glob("events_*.parquet"))) == 2
+
+
+def test_the_shut_down_message_counts_only_batches_written(tmp_path: Path, caplog):
+    """A batch that fails is not counted among the chunks written."""
+    import asyncio
+    import queue
+
+    egress = ParquetStorageEgress(default_path=str(tmp_path / "events.parquet"))
+    egress.filesystem = fs.LocalFileSystem()
+    q: queue.Queue = queue.Queue()
+    for batch in ([{"a": 1}], [{"a": "not a number"}], [{"a": 2}]):
+        q.put(batch)
+
+    async def drain():
+        task = asyncio.create_task(egress.run(q))
+        while not q.empty() or getattr(egress, "active_tasks", 0):
+            await asyncio.sleep(0.05)
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+    with caplog.at_level("INFO"):
+        asyncio.run(drain())
+    assert "Successfully wrote 2 total chunks" in caplog.text
+
+
+def test_an_integer_column_widens_to_float(tmp_path: Path):
+    """A column written as integers takes a later batch's floats: the later files
+    hold doubles, and the earlier integers read back as the same numbers."""
+    import pyarrow.dataset as ds
+
+    egress = ParquetStorageEgress(default_path=str(tmp_path / "events.parquet"))
+    egress.filesystem = fs.LocalFileSystem()
+    assert egress._write_batch([{"a": 1}], pa, pq) == 1
+    assert egress._write_batch([{"a": 1.5}], pa, pq) == 1
+    files = list(tmp_path.glob("events_*.parquet"))
+    schema = pa.unify_schemas(
+        [pq.read_schema(f) for f in files], promote_options="permissive"
+    )
+    values = ds.dataset(files, schema=schema).to_table().column("a").to_pylist()
+    assert sorted(values) == [1.0, 1.5]

@@ -76,7 +76,12 @@ class DynamicContainer(BaseDynamicResource):
         max_cap = float(self._max_cap_val.value)
         # Prevent initialization out-of-bounds
         initial_capacity = max(0.0, min(float(self._current_cap_val.value), max_cap))
-        start = self._level_val.value if init is None else init
+        if init is None:
+            # The registry holds the level as a float, so later updates stay
+            # fractional; the configured level keeps the type it was given
+            config = env.registry.get_config(f"{sim_id}.containers.{container_id}")
+            init = getattr(config, "level", self._level_val.value)
+        start = init
         # A number keeps its type, so a whole level stays an int, as SimPy keeps it
         if isinstance(start, bool) or not isinstance(start, (int, float)):
             start = float(start)

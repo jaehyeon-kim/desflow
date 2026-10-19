@@ -487,7 +487,7 @@ class SimulationContext:
         if name in self._stores_config:
             raise ValueError(f"'{name}' is already a store")
         self._containers_config[name] = ContainerConfig(
-            current_cap=current_cap, max_cap=max_cap, level=float(level)
+            current_cap=current_cap, max_cap=max_cap, level=level
         )
         return self
 

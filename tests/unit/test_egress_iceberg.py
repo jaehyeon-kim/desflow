@@ -536,3 +536,52 @@ def test_an_iceberg_write_error_is_logged(caplog):
         r.levelname == "ERROR" and "sim.orders" in r.getMessage()
         for r in caplog.records
     )
+
+
+def test_a_low_level_event_without_a_task_still_creates_the_table():
+    """A low-level publish_event without task= gives task and instance as None in
+    every row; Iceberg has no null type, so the created schema leaves them out and
+    the rows are written."""
+    from desflow import DynamicRealtimeEnvironment
+
+    catalog = FakeCatalog()
+    env = DynamicRealtimeEnvironment(factor=0)
+    env.setup_egress(
+        [IcebergStorageEgress(catalog=catalog, default_table="sim.events")]
+    )
+
+    def orders(env):
+        for n in range(3):
+            yield env.timeout(1)
+            env.publish_event(f"orders-{n + 1}", {"event_type": "order_placed"})
+
+    env.process(orders(env))
+    env.run(until=5)
+    env.teardown()
+    table = catalog.tables["sim.events"]
+    schema = table.schema().as_arrow()
+    assert not any(pa.types.is_null(field.type) for field in schema)
+    assert "task" not in schema.names
+    assert sum(df.num_rows for df in table.appended) == 3
+
+
+def test_the_shut_down_message_counts_only_batches_committed(caplog):
+    """A batch the table refuses is not counted among the snapshots committed."""
+    import asyncio
+    import queue
+
+    egress = IcebergStorageEgress(catalog=FakeCatalog(), default_table="sim.orders")
+    q: queue.Queue = queue.Queue()
+    for value in (1, "text", 2):
+        q.put([{"stream_type": "event", "key": "o", "value": {"a": value}}])
+
+    async def drain():
+        task = asyncio.create_task(egress.run(q))
+        while not q.empty() or getattr(egress, "active_tasks", 0):
+            await asyncio.sleep(0.05)
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+    with caplog.at_level("INFO"):
+        asyncio.run(drain())
+    assert "Successfully committed 2 total snapshots" in caplog.text

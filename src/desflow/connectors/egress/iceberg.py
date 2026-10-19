@@ -297,15 +297,18 @@ class IcebergStorageEgress(BaseEgress):
                 try:
                     batch = egress_queue.get_nowait()
                     self.active_tasks = getattr(self, "active_tasks", 0) + 1
+                    written = 0
                     try:
-                        await asyncio.to_thread(self._write_batch, batch, pa)
+                        written = await asyncio.to_thread(self._write_batch, batch, pa)
                     except Exception as exc:
                         # A batch that fails is logged, and the sink goes on
                         logger.error(f"Iceberg Writer: batch not written: {exc}")
                     finally:
                         self.active_tasks -= 1
-                    # Log a progress heartbeat every 10 batches
-                    batches_processed += 1
+                    if not written:
+                        continue
+                    # Only what was written counts; log a heartbeat every 10
+                    batches_processed += written
                     if batches_processed % 10 == 0:
                         q_size = egress_queue.qsize()
                         logger.info(
@@ -321,7 +324,7 @@ class IcebergStorageEgress(BaseEgress):
                 f"Successfully committed {batches_processed} total snapshots."
             )
 
-    def _write_batch(self, batch: list, pa: Any):
+    def _write_batch(self, batch: list, pa: Any) -> int:
         """
         Groups a batch by target table and writes each group in one commit.
 
@@ -335,6 +338,9 @@ class IcebergStorageEgress(BaseEgress):
             batch (list): A list of dictionaries or Pydantic models to be written.
             pa (Any): Injected reference to the `pyarrow` module.
 
+        Returns:
+            int: The commits made, one per table written.
+
         Raises:
             ValueError: If an identifier names no namespace, or a record for an
                 upserted table lacks a key column. A batch the table refuses is
@@ -344,6 +350,7 @@ class IcebergStorageEgress(BaseEgress):
         batch = drop_reserved_keys(batch, self)
         grouped_batches = group_rows(batch, self.table_router, self.default_table)
 
+        written = 0
         for identifier, records in grouped_batches.items():
             if "." not in identifier:
                 raise ValueError(
@@ -366,6 +373,9 @@ class IcebergStorageEgress(BaseEgress):
                     f"Iceberg Writer: could not write {len(records)} rows to "
                     f"{identifier}: {exc}"
                 )
+                continue
+            written += 1
+        return written
 
     def _write_table(
         self, identifier: str, records: list, keys: Optional[list], pa: Any
@@ -418,7 +428,14 @@ class IcebergStorageEgress(BaseEgress):
 
         namespace = identifier.rsplit(".", 1)[0]
 
-        schema = self.schemas.get(identifier) or rows_table(records, pa).schema
+        schema = self.schemas.get(identifier)
+        if schema is None:
+            # Iceberg has no null type, so a column null in every row, such as a
+            # low-level event's task, is left out until a batch gives it a value
+            inferred = rows_table(records, pa).schema
+            schema = pa.schema(
+                [field for field in inferred if not pa.types.is_null(field.type)]
+            )
         catalog = self._load_catalog()
         catalog.create_namespace_if_not_exists(namespace)
         table = catalog.create_table_if_not_exists(

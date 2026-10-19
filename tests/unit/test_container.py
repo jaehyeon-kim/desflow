@@ -192,3 +192,24 @@ def test_a_whole_starting_level_stays_whole_as_in_simpy(env, registry, sample_pa
     reference = simpy.Container(simpy.Environment(), init=1)
     assert cont.level == reference.level
     assert type(cont.level) is type(reference.level) is int
+
+
+def test_a_whole_level_from_the_builder_and_yaml_stays_whole(tmp_path):
+    """A level of 1 in add_container or a blueprint is 1, as in simpy.Container."""
+    from desflow import SimulationContext
+
+    app = SimulationContext("Shop", factor=0).add_container(
+        "stock", current_cap=5, max_cap=5, level=1
+    )
+    app.run(until=1)
+    assert type(app.get_container("stock").level) is int
+
+    path = tmp_path / "shop.yaml"
+    path.write_text(
+        "simulation: {sim_id: Shop, factor: 0}\n"
+        "containers: {stock: {current_cap: 5, max_cap: 5, level: 1}}\n"
+        "run: {until: 1}\n"
+    )
+    app = SimulationContext.from_yaml(path)
+    app.run()
+    assert type(app.get_container("stock").level) is int

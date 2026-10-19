@@ -141,3 +141,25 @@ async def test_a_column_a_later_batch_adds_reaches_the_table(
         ("o-1", 1, None),
         ("o-2", 2, "x"),
     ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_a_column_null_in_the_first_batch_waits_for_a_value(
+    iceberg_catalog, namespace
+):
+    """Iceberg has no null type: a task that is None in every row of the first batch
+    is left out of the created table, then added when a batch gives it a value."""
+    identifier = f"{namespace}.events"
+    egress = IcebergStorageEgress(catalog=iceberg_catalog, default_table=identifier)
+    q: queue.Queue = queue.Queue()
+    q.put([{"stream_type": "event", "key": "o-1", "task": None, "value": {"a": 1}}])
+    q.put([{"stream_type": "event", "key": "o-2", "task": "pack", "value": {"a": 2}}])
+
+    await _drain(egress, q)
+
+    rows = iceberg_catalog.load_table(identifier).scan().to_arrow().to_pylist()
+    assert sorted((r["key"], r["task"]) for r in rows) == [
+        ("o-1", None),
+        ("o-2", "pack"),
+    ]

@@ -318,7 +318,8 @@ class Container(_Model):
 
     current_cap: float
     max_cap: float
-    level: float = 0.0
+    # An int stays an int, as simpy.Container keeps it
+    level: Union[int, float] = 0
 
 
 class TransferStep(_Model):

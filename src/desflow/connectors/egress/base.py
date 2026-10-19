@@ -189,7 +189,9 @@ def widen_schema(known: Any, batch: Any, pa: Any) -> Any:
     Returns `known` with the columns of `batch` it lacks added at the end.
 
     A column `known` has only as null, because every value so far was missing,
-    takes the batch's type.
+    takes the batch's type, and an integer column that the batch gives a float
+    becomes a double. Keys nested inside a struct are not widened: the first batch
+    with the struct fixes them.
 
     Args:
         known (Any): The schema written so far, or None before the first write.
@@ -203,8 +205,13 @@ def widen_schema(known: Any, batch: Any, pa: Any) -> Any:
         return batch
     fields = []
     for field in known:
-        if pa.types.is_null(field.type) and field.name in batch.names:
-            field = batch.field(field.name)
+        if field.name in batch.names:
+            new = batch.field(field.name).type
+            if pa.types.is_null(field.type):
+                field = batch.field(field.name)
+            elif pa.types.is_integer(field.type) and pa.types.is_floating(new):
+                # A float after integers widens the column to double
+                field = field.with_type(pa.float64())
         fields.append(field)
     fields += [field for field in batch if field.name not in known.names]
     return pa.schema(fields)

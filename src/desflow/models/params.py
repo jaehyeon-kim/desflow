@@ -143,10 +143,11 @@ class ContainerConfig(CapacityConfig):
     Attributes:
         current_cap (Union[int, float]): The capacity: the largest level.
         max_cap (Union[int, float]): The largest capacity a live update can set.
-        level (float): The amount held when the run starts. Defaults to 0.
+        level (Union[int, float]): The amount held when the run starts, kept as the
+            type given, as `simpy.Container` keeps it. Defaults to 0.
     """
 
-    level: float = 0.0
+    level: Union[int, float] = 0
 
 
 @dataclass

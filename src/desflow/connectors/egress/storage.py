@@ -377,15 +377,20 @@ class ParquetStorageEgress(BaseEgress):
                 try:
                     batch = egress_queue.get_nowait()
                     self.active_tasks = getattr(self, "active_tasks", 0) + 1
+                    written = 0
                     try:
-                        await asyncio.to_thread(self._write_batch, batch, pa, pq)
+                        written = await asyncio.to_thread(
+                            self._write_batch, batch, pa, pq
+                        )
                     except Exception as exc:
                         # A batch that fails is logged, and the sink goes on
                         logger.error(f"Parquet Writer: batch not written: {exc}")
                     finally:
                         self.active_tasks -= 1
-                    # Log a progress heartbeat every 10 batches
-                    batches_processed += 1
+                    if not written:
+                        continue
+                    # Only what was written counts; log a heartbeat every 10
+                    batches_processed += written
                     if batches_processed % 10 == 0:
                         q_size = egress_queue.qsize()
                         logger.info(
@@ -401,7 +406,7 @@ class ParquetStorageEgress(BaseEgress):
                 f"Successfully wrote {batches_processed} total chunks to storage."
             )
 
-    def _write_batch(self, batch: list, pa: Any, pq: Any):
+    def _write_batch(self, batch: list, pa: Any, pq: Any) -> int:
         """
         Groups a batch of records, enforces strict schema typing, and writes Parquet chunks.
 
@@ -415,11 +420,15 @@ class ParquetStorageEgress(BaseEgress):
             batch (list): A list of dictionaries or Pydantic models to be written.
             pa (Any): Injected reference to the `pyarrow` module.
             pq (Any): Injected reference to the `pyarrow.parquet` module.
+
+        Returns:
+            int: The files written.
         """
         # A file routes by no reserved key, so it writes none
         batch = drop_reserved_keys(batch, self)
         grouped_batches = group_rows(batch, self.path_router, self.default_path)
 
+        written = 0
         for target_path, records in grouped_batches.items():
             if not self.filesystem:
                 continue
@@ -440,3 +449,5 @@ class ParquetStorageEgress(BaseEgress):
                 )
                 continue
             self.schemas[target_path] = schema
+            written += 1
+        return written

@@ -181,11 +181,22 @@ Each example needs at most one odctl profile, started before you run it and torn
 
 The YAML blueprints in `examples/yaml/` need the same profile as their builder twin.
 
-Kafka and Redis are the two whose profile names are not what you would guess, because odctl ships a one-broker Kafka as `kafka-lite` and uses Valkey rather than Redis.
+Kafka and Redis are the two whose profile names are not what you would guess, because odctl ships a one-broker Kafka as `kafka-lite` and a three-broker cluster as `kafka-full`, and uses Valkey rather than Redis. The Kafka examples run on either, since both publish a broker at `localhost:9092`.
 
 ### Endpoints These Profiles Publish
 
-The Postgres database is `odctl`. The object store bucket is `odctl-dev`. Valkey requires the `user` / `password` credentials, so the connection URL is `redis://user:password@localhost:6379/0`.
+These are the addresses the examples use. Every profile publishes on your machine only (`localhost`).
+
+| Profile | Service | Address the examples use |
+|---|---|---|
+| `kafka-lite` | Kafka, one broker, with the Karapace schema registry | `localhost:9092`; schema registry `http://localhost:8081` |
+| `kafka-full` | Kafka, three brokers, with the same schema registry | `localhost:9092,localhost:9093,localhost:9094`; schema registry `http://localhost:8081` |
+| `postgres` | PostgreSQL, database `odctl` | `postgresql://user:password@localhost:5432/odctl` |
+| `valkey` | Valkey (Redis protocol) | `redis://user:password@localhost:6379/0` |
+| `storage` | S3-compatible object store, bucket `odctl-dev` | `http://localhost:8333`, access key `user`, secret key `password` |
+| `catalog` | Iceberg REST catalog, warehouse `s3://warehouse/` | `http://localhost:8181` |
+
+`odctl list -d` shows every port a profile publishes.
 
 ---
 

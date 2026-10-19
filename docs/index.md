@@ -16,29 +16,13 @@ Events and telemetry go to **Kafka**, **Redis**, **PostgreSQL**, **Parquet** or 
   <img src="assets/architecture.png" alt="desflow architecture" width="900" />
 </div>
 
-The control dashboard changes simulation parameters while a run is going, and the telemetry reacts without a restart:
+The control dashboard of the [Kafka Digital Twin](examples/kafka.md) example changes simulation parameters while a run is going, and the telemetry reacts without a restart. Its Quick Start runs the dashboard beside the simulation:
 
 <div align="center">
   <img src="assets/dashboard-preview.gif" alt="Live parameter updates from the control dashboard" width="800" />
 </div>
 
 ---
-
-## What Do You Want to Do?
-
-| To | Start with |
-|---|---|
-| Build a first model and run it | [First Simulation](tutorials/first-simulation.md) |
-| Find how many servers keep a queue short | [Queues and Capacity](tutorials/queues-and-capacity.md) |
-| Stream events to Kafka | [Kafka Digital Twin](examples/kafka.md) |
-| Write days of history to Parquet or Iceberg at full speed | [Fast-Forward to Parquet](examples/parquet.md) |
-| Write history, then keep streaming in real time | [Parquet History, Kafka Live](examples/backfill-live.md) |
-| Change parameters while a run is going | [Changing Demand](tutorials/changing-demand.md) for timed changes, [Live Parameters](user-guide/live-parameters.md) for changes from Kafka, Redis or PostgreSQL |
-| Compare two designs and say which is better | [Comparing Designs](tutorials/comparing-designs.md) |
-| Fit service times to measured data | [Fit the Inputs](tutorials/fit-the-inputs.md) |
-| Model customers who give up waiting | [Patience](tutorials/patience.md) |
-| Model machines that break down | [Breakdowns](guides/breakdowns.md) |
-| Look up a YAML key or a builder call | [Cheat Sheet](reference/cheat-sheet.md) |
 
 ## Key Features
 
@@ -49,3 +33,20 @@ The control dashboard changes simulation parameters while a run is going, and th
 - **Three ways to write a simulation**: the low-level `DynamicRealtimeEnvironment`, the `SimulationContext` builder, or a YAML blueprint run with `desflow run`.
 - **Serialisation**: JSON through `orjson` by default, Avro through the Confluent or AWS Glue Schema Registry for chosen topics, and Pydantic models published as they are.
 - **Kafka security**: extra keyword arguments go to the Kafka client, so SASL, mTLS, OAuth and AWS IAM clusters work.
+
+## Where to Start
+
+| To | Start with |
+|---|---|
+| Build a first model and run it | [First Simulation](tutorials/first-simulation.md) |
+| Find how many servers keep a queue short | [Queues and Capacity](tutorials/queues-and-capacity.md) |
+| Stream events to Kafka | [Kafka Digital Twin](examples/kafka.md) |
+| Write days of history to Parquet or Iceberg at full speed | [Fast-Forward to Parquet](examples/parquet.md) or [Fast-Forward to Iceberg](examples/iceberg.md) |
+| Write history, then keep streaming in real time | [Parquet History, Kafka Live](examples/backfill-live.md) |
+| Change parameters at set times during a run | [Changing Demand](tutorials/changing-demand.md) |
+| Change parameters from Kafka, Redis or PostgreSQL while a run is going | [Live Parameters](user-guide/live-parameters.md) |
+| Compare two designs and say which is better | [Comparing Designs](tutorials/comparing-designs.md) |
+| Fit service times to measured data | [Fit the Inputs](tutorials/fit-the-inputs.md) |
+| Model customers who give up waiting | [Patience](tutorials/patience.md) |
+| Model machines that break down | [Breakdowns](guides/breakdowns.md) |
+| Look up a YAML key or a builder call | [Cheat Sheet](reference/cheat-sheet.md) |
