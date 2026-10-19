@@ -135,6 +135,8 @@ dev = [
     "mypy>=1.19.1",
     "pytest>=9.0.2",
     "pytest-asyncio>=1.3.0",
+    # Runs the tests in parallel worker processes (-n auto in CI).
+    "pytest-xdist>=3.8.0",
     "ruff>=0.15.5",
     # Integration tests and the examples get their containers from odctl. 1.x
     # keeps profile names, ports and commands stable, and versions before 0.5.1

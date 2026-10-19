@@ -21,9 +21,11 @@ concurrency:
 jobs:
   # Stages, each starting only when the one before it passes:
   # 1. checks, in parallel: lint, extras-isolation and core-install;
-  # 2. tests, in parallel: unit-test, integration-test, blueprint and simpy-range;
-  # 3. docs-build;
-  # 4. docs, on main only.
+  # 2. tests, in parallel: unit-test, integration-test, blueprint, simpy-range and
+  #    docs-build;
+  # 3. docs, on main only, once every test job has passed.
+  # The unit, conformance and docs tests run in parallel worker processes
+  # (pytest-xdist, -n auto, one worker per CPU).
   # Linting is not version specific, so it runs once rather than in all five
   # unit-test legs, where a single hook failure used to fail the matrix five times.
   lint:
@@ -212,7 +214,7 @@ jobs:
         # --python is what selects the interpreter. `uv python install` above only
         # downloads it, so without this every leg of the matrix would run the
         # version in .python-version and the other three would test nothing new.
-        run: uv run --python ${{ matrix.python-version }} --with pytest-cov --all-extras pytest tests/unit/ tests/conformance/ --cov=src/desflow --cov-report=xml
+        run: uv run --python ${{ matrix.python-version }} --with pytest-cov --all-extras pytest tests/unit/ tests/conformance/ -n auto --cov=src/desflow --cov-report=xml
 
   # SimPy is what desflow is checked against, so the conformance tests run at both
   # ends of the `simpy` requirement: the floor in pyproject.toml and the newest
@@ -246,7 +248,7 @@ jobs:
       - name: Run the conformance tests
         run: |
           uv run --all-extras --with "$SIMPY" python -c "import simpy; print('SimPy', simpy.__version__)"
-          uv run --all-extras --with "$SIMPY" pytest tests/conformance/ -q
+          uv run --all-extras --with "$SIMPY" pytest tests/conformance/ -q -n auto
 
   integration-test:
     needs: [lint, extras-isolation, core-install]
@@ -308,11 +310,12 @@ jobs:
   # The docs tests check that every page's code matches its file, that the snippets
   # and examples run, and that the generated pages and record blocks are current. A
   # strict build fails on a broken link or anchor, so a pull request finds it before
-  # the docs job deploys from main. It runs after the tests, because the docs are only
-  # deployed from code that passed them. Material prints a notice about MkDocs 2.0
-  # that strict mode counts as a warning; the variable turns that notice off.
+  # the docs job deploys from main. It runs beside the other tests; the docs job waits
+  # for all of them, so the docs are only deployed from code that passed them.
+  # Material prints a notice about MkDocs 2.0 that strict mode counts as a warning;
+  # the variable turns that notice off.
   docs-build:
-    needs: [unit-test, integration-test, blueprint, simpy-range]
+    needs: [lint, extras-isolation, core-install]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -323,7 +326,7 @@ jobs:
           enable-cache: true
 
       - name: Run the docs and example tests
-        run: uv run --all-extras pytest tests/docs/ -q
+        run: uv run --all-extras pytest tests/docs/ -q -n auto
 
       - name: Build the docs in strict mode
         env:
@@ -331,7 +334,7 @@ jobs:
         run: uv run mkdocs build --strict
 
   docs:
-    needs: docs-build
+    needs: [unit-test, integration-test, blueprint, simpy-range, docs-build]
     permissions:
       contents: write
       pages: write

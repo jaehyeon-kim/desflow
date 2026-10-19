@@ -25,15 +25,15 @@ Real-time SimPy simulations whose parameters change while they run, writing even
 ## Commands
 
 ```bash
-uv run --all-extras pytest tests/unit tests/conformance -q  # unit and SimPy conformance tests, as CI runs them (--all-extras matters)
-uv run --all-extras pytest tests/docs -q          # docs, snippet, example and script tests, run in the docs-build CI job
+uv run --all-extras pytest tests/unit tests/conformance -q -n auto  # unit and SimPy conformance tests, as CI runs them (--all-extras matters)
+uv run --all-extras pytest tests/docs -q -n auto  # docs, snippet, example and script tests, run in the docs-build CI job
 uv run --all-extras pytest tests/integration -ra  # needs Docker; starts odctl profiles on demand
 uvx pre-commit run --all-files                    # ruff, ruff format, mypy, whitespace, YAML
 DISABLE_MKDOCS_2_WARNING=true uv run mkdocs build --strict
 uv run mkdocs serve -a 127.0.0.1:8001             # docs at http://127.0.0.1:8001/desflow/
 ```
 
-A plain `uv run` without `--all-extras` removes the extras from the venv, and the connector tests then fail to import.
+A plain `uv run` without `--all-extras` removes the extras from the venv, and the connector tests then fail to import. `-n auto` runs the tests in one worker process per CPU (pytest-xdist); the integration tests share odctl containers, so they run in one process.
 
 Run tests as often as a change needs. While fixing, rerun only the failed tests (`pytest --lf`) and the test files for the code changed; run `tests/unit tests/conformance` in full once before each commit, and not `tests/conformance` again on its own. `tests/docs` is the slowest suite: while working, run only the docs tests for the pages, snippets and examples you changed (`pytest tests/docs -k <name>`), plus `test_docs_record_blocks.py` and `test_example_twins.py` when a commit changes behaviour (not for a rename or a docstring); run the full `tests/docs` before a merge or a release. Run the strict build only when `docs/`, `mkdocs.yml`, a docstring or a `scripts/gen_pages.py` input (`tests/conformance/register.yaml`, `uv.lock`, the distribution list, the statistic names) changed, at most once per commit. CI runs everything on every push.
 
