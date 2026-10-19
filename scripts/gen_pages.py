@@ -14,6 +14,7 @@ build.
   form in each API, the conformance tests that compare it with SimPy, and its page.
 """
 
+import re
 import tomllib
 from pathlib import Path
 from typing import Any, Dict, List
@@ -310,6 +311,13 @@ def _cell(text: str) -> str:
     return str(text).replace("|", "\\|")
 
 
+def _anchor(group: str) -> str:
+    """The id MkDocs gives a group's heading: its text in lower case, joined by
+    hyphens, with punctuation dropped."""
+    title = f"{group}: {GROUPS[group]}" if group not in ("N", "D") else GROUPS[group]
+    return "-".join(re.sub(r"[^a-z0-9 ]", "", title.lower()).split())
+
+
 def _check_link(check: str) -> str:
     path, name = check.split("::")
     return f"[`{name}`]({SOURCE_URL}{path})"
@@ -369,37 +377,47 @@ def compatibility_page() -> str:
     groups: Dict[str, List[Dict[str, Any]]] = {}
     for entry in native:
         groups.setdefault(entry["id"], []).append(entry)
+    lines += [
+        "",
+        "| Section | Features native in all three APIs |",
+        "|---|---|",
+        *(
+            f"| [{group}: {GROUPS[group]}](#{_anchor(group)}) | {count(rows)} |"
+            for group, rows in groups.items()
+        ),
+        f"| [{GROUPS['N']}](#{_anchor('N')}) | {count(not_yet)} not yet |",
+        f"| [{GROUPS['D']}](#{_anchor('D')}) | {count(kept)} |",
+        "",
+        "Each feature below opens to show its SimPy construct, its form in YAML, "
+        "the builder and the low-level API, and the conformance tests that check it.",
+    ]
     for group, rows in groups.items():
-        lines += [
-            "",
-            f"## {group}: {GROUPS[group]}",
-            "",
-            GROUP_INTROS[group],
-            "",
-            "| Operation | SimPy | YAML | Builder | Low-level | Checks |",
-            "|---|---|---|---|---|---|",
-        ]
-        differences = []
+        lines += ["", f"## {group}: {GROUPS[group]}", "", GROUP_INTROS[group], ""]
         for row in rows:
-            operation = f"[{row['operation']}](../{row['page']})"
-            checks = "<br>".join(_check_link(check) for check in row["checks"])
-            lines.append(
-                f"| {operation} | {_cell(row['simpy'])} | {_cell(row['yaml'])} "
-                f"| {_cell(row['builder'])} | {_cell(row['low_level'])} | {checks} |"
-            )
+            checks = ", ".join(_check_link(check) for check in row["checks"])
+            lines += [
+                f'??? note "{row["operation"]}"',
+                "",
+                f"    - **SimPy:** {row['simpy']}",
+                f"    - **YAML:** {row['yaml']}",
+                f"    - **Builder:** {row['builder']}",
+                f"    - **Low-level:** {row['low_level']}",
+                f"    - **Checks:** {checks}",
+            ]
             if row.get("differences"):
-                differences.append(f"- **{row['operation']}:** {row['differences']}")
-        if differences:
-            lines += ["", *differences]
+                lines.append(f"    - **Difference:** {row['differences']}")
+            lines += [
+                f"    - **Taught on:** [{row['operation']}](../{row['page']})",
+                "",
+            ]
     lines += [
         "",
         f"## {GROUPS['N']}",
         "",
         "These features are not yet native and checked in all three APIs. "
-        '"Exists, not checked" marks an API that has a form, which no conformance '
-        'test compares with SimPy yet, and "exists, checked" one that a test in '
-        "the Checks column compares already; the low-level API is SimPy, so many "
-        "work there already.",
+        '"Exists" marks an API that has a form, which no conformance test compares '
+        'with SimPy yet, and "checked" one that a test in the Checks column '
+        "compares already; the low-level API is SimPy, so many work there already.",
         "",
         "| Feature | SimPy | YAML | Builder | Low-level | Checks | Release |",
         "|---|---|---|---|---|---|---|",
@@ -408,17 +426,13 @@ def compatibility_page() -> str:
         exists = row.get("exists", [])
         checked = row.get("checked", [])
         status = [
-            "exists, checked"
-            if api in checked
-            else "exists, not checked"
-            if api in exists
-            else "not yet"
+            "checked" if api in checked else "exists" if api in exists else "not yet"
             for api in ("yaml", "builder", "low_level")
         ]
         checks = "<br>".join(_check_link(check) for check in row["checks"])
         lines.append(
-            f"| {row['operation']} | {_cell(row['simpy'])} | {' | '.join(status)} | {checks or 'none'} "
-            f"| {row['release']} |"
+            f"| {row['operation']} | {_cell(row['simpy'])} | {' | '.join(status)} "
+            f"| {checks or 'none'} | {row['release']} |"
         )
     lines += ["", f"## {GROUPS['D']}", ""]
     for row in kept:

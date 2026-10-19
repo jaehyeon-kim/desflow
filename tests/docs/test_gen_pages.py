@@ -133,5 +133,5 @@ def test_a_not_yet_row_shows_its_checks():
     that API as checked and names the check."""
     page = gen_pages.compatibility_page()
     row = next(line for line in page.splitlines() if line.startswith("| Run in "))
-    assert "exists, checked" in row
+    assert "| checked |" in row
     assert "test_c6_stopped_and_resumed_run" in row
