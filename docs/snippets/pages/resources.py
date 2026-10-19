@@ -113,7 +113,7 @@ def orders(context):
 
 
 # --8<-- [start:shrink]
-def breakdown(env):
+def capacity_drop(env):
     """Takes 3 of 5 packers off the floor at t=5 s. Orders being packed are not stopped."""
     env.registry.update("Shop.resources.packers.current_cap", 5)
     yield env.timeout(5.0)
@@ -126,7 +126,7 @@ def breakdown(env):
 
 for i in range(4):  # four orders, all being packed when the change comes
     env.process(order(env, i))
-env.process(breakdown(env))
+env.process(capacity_drop(env))
 
 if __name__ == "__main__":
     try:

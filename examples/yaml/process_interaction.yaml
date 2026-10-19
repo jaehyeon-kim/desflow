@@ -7,7 +7,7 @@
 # that waits; an order that has waited 40 seconds goes by post instead.
 #
 # Needs no containers. Runs unpaced and ends after 300 simulation seconds.
-# Run it with: desflow run examples/yaml/process_interaction.yaml
+# Run it from its folder with: desflow run process_interaction.yaml
 
 simulation:
   sim_id: Shop

@@ -46,7 +46,7 @@ Fitting needs the `fit` extra, which installs scipy and matplotlib: `pip install
     )
     ```
 
-`read_column(path, column)` reads one CSV column as text; `fit_column` takes any list of numbers or text, where an empty cell or None is a missing value.
+`read_column(path, column)`, imported with `from desflow.analysis.fit import read_column`, reads one CSV column as text; `fit_column` takes any list of numbers or text, where an empty cell or None is a missing value.
 
 ### Options
 
@@ -255,7 +255,7 @@ The `fitting` example fits the 40 packing times of the tutorials and runs one ho
 
 **Data first.** The values are read, missing ones counted and left out, and invalid ones refused or, with `--drop-invalid`, counted and left out. They are converted to seconds. Then each family is checked against the data before it is fitted: enough values, positive values where the family needs them, and not a constant column.
 
-**Maximum likelihood, location at 0.** desflow's families have no location parameter: a gamma or a Weibull starts at 0. scipy can fit a location too, which moves the start of the distribution to wherever the data suggests: for the 40 packing times with one outlier of 120 seconds, a free location puts a gamma's start at 0.70 seconds, the smallest value, with a shape of 0.21 and a scale of 81, which desflow cannot use. So the location of `exponential`, `gamma`, `weibull` and `lognormal` is fixed at 0, and each fit is converted to desflow's parameters:
+**Maximum likelihood, location at 0.** desflow's families have no location parameter: a gamma or a Weibull starts at 0. scipy can fit a location too, which moves the start of the distribution to wherever the data suggests: for the 40 packing times plus one outlier of 120 seconds, a free location puts a gamma's start at 0.70 seconds, the smallest value, with a shape of 0.21 and a scale of 81, which desflow cannot use. So the location of `exponential`, `gamma`, `weibull` and `lognormal` is fixed at 0, and each fit is converted to desflow's parameters:
 
 | Family | Fitted with | desflow's parameters |
 |---|---|---|

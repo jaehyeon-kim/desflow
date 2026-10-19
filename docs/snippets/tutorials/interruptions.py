@@ -67,7 +67,8 @@ def shop(policy: str = "resume") -> SimulationContext:
 
     # --8<-- [start:interrupt]
     def called_away(context: SimulationContext):
-        """The packer is called away at 30 minutes: the order being packed is interrupted."""
+        """The packer is called away at 30 minutes: every regular order in the shop,
+        waiting or being packed, is interrupted."""
         yield context.env.timeout(1800)
         context.interrupt("pack_order", cause="called away")
 

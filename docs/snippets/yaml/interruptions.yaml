@@ -38,7 +38,8 @@ tasks:
 
 # --8<-- [start:interrupt]
 scenario:
-  # The packer is called away at 30 minutes: the order being packed is interrupted
+  # The packer is called away at 30 minutes: every regular order in the shop,
+  # waiting or being packed, is interrupted
   - {at: 30 min, interrupt: {task: pack_order, cause: called away}}
 # --8<-- [end:interrupt]
 

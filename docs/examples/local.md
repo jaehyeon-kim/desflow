@@ -59,7 +59,7 @@ Local connectors need no Docker, Kafka or other external store, so this example 
 
     **Full Source Code**
 
-    The blueprint declares one resource, one service and one arrival. `spawn` names the task each arrival starts, `stats: minimal` publishes the packers' four readings every 2 simulation seconds, and the `scenario` changes the number of packers at 10 and 20 seconds.
+    The blueprint declares one resource, one service and one arrival. `spawn` names the task each arrival starts, `stats: minimal` publishes the packers' four readings and the task's `in_progress` every 2 simulation seconds, and the `scenario` changes the number of packers at 10 and 20 seconds.
 
     Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
@@ -71,7 +71,7 @@ Local connectors need no Docker, Kafka or other external store, so this example 
     # A scenario adds packers at 10 seconds and removes one at 20 seconds.
     # The run ends on its own after 30 simulation seconds.
     #
-    # Run it with: desflow run examples/yaml/local.yaml
+    # Run it from its folder with: desflow run local.yaml
 
     simulation:
       sim_id: Shop

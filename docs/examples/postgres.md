@@ -78,7 +78,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
     # simulation_params and polls it for parameter updates.
     #
     # Needs a database: odctl up postgres. Runs until interrupted with Ctrl + C.
-    # Run it with: desflow run examples/yaml/postgres.yaml
+    # Run it from its folder with: desflow run postgres.yaml
 
     simulation:
       sim_id: Shop

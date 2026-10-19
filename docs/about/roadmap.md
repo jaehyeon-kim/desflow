@@ -30,31 +30,31 @@ Releases come in the order shown, without dates: a release ships when it is read
   icon: ':material-check:'
   key: done
 - title: Native core parity
-  content: 'In 0.22.0: the operations on the SimPy Compatibility page, natively in YAML, the builder and the low-level API, each checked against SimPy: signals, interrupts, tasks needing several resources, filtered store gets, stopping and stepping a run, and customers who give up on a queue or never join it. [#64](https://github.com/jaehyeon-kim/desflow/issues/64)'
-  icon: ':material-clock-outline:'
-  key: planned
+  content: 'Done in 0.22.0: the operations on the SimPy Compatibility page, natively in YAML, the builder and the low-level API, each checked against SimPy: signals, interrupts, tasks needing several resources, filtered store gets, stopping and stepping a run, and customers who give up on a queue or never join it. [#64](https://github.com/jaehyeon-kim/desflow/issues/64)'
+  icon: ':material-check:'
+  key: done
 - title: Breakdowns, changing demand and replay
-  content: 'In 0.22.0: a resource that fails and is repaired, a schedule of times at which an arrival rate or a capacity changes, and arrivals read from a local CSV or Parquet file. [#65](https://github.com/jaehyeon-kim/desflow/issues/65)'
-  icon: ':material-clock-outline:'
-  key: planned
+  content: 'Done in 0.22.0: a resource that fails and is repaired, a schedule of times at which an arrival rate or a capacity changes, and arrivals read from a local CSV or Parquet file. [#65](https://github.com/jaehyeon-kim/desflow/issues/65)'
+  icon: ':material-check:'
+  key: done
 - title: Replications
-  content: 'In 0.22.0: run a model with many seeds and get each statistic with a confidence interval, so a result is never read from one run. [#59](https://github.com/jaehyeon-kim/desflow/issues/59)'
-  icon: ':material-clock-outline:'
-  key: planned
+  content: 'Done in 0.22.0: run a model with many seeds and get each statistic with a confidence interval, so a result is never read from one run. [#59](https://github.com/jaehyeon-kim/desflow/issues/59)'
+  icon: ':material-check:'
+  key: done
 - title: Experiments
-  content: 'In 0.22.0: compare designs and sweep parameters over replications, fail an experiment when a result breaks a limit, fit a distribution to measured data, and write a Markdown report, all on one machine. [#66](https://github.com/jaehyeon-kim/desflow/issues/66)'
-  icon: ':material-clock-outline:'
-  key: planned
+  content: 'Done in 0.22.0: compare designs and sweep parameters over replications, fail an experiment when a result breaks a limit, fit a distribution to measured data, and write a Markdown report, all on one machine. [#66](https://github.com/jaehyeon-kim/desflow/issues/66)'
+  icon: ':material-check:'
+  key: done
 - title: Speed
-  content: 'In 0.22.0: faster runs that publish the same records. [#24](https://github.com/jaehyeon-kim/desflow/issues/24)'
-  icon: ':material-clock-outline:'
-  key: planned
+  content: 'Done in 0.22.0: faster runs that publish the same records. [#24](https://github.com/jaehyeon-kim/desflow/issues/24)'
+  icon: ':material-check:'
+  key: done
 - title: Record contract
-  content: 'In 0.22.0: every record field documented with its type and format, payload keys such as `__table__` reserved for desflow, a `timezone` setting for timestamps, and no `lag_seconds` from a run at full speed. The format is frozen before 1.0. [#51](https://github.com/jaehyeon-kim/desflow/issues/51)'
-  icon: ':material-clock-outline:'
-  key: planned
+  content: 'Done in 0.22.0: every record field documented with its type and format, payload keys such as `__table__` reserved for desflow, a `timezone` setting for timestamps, and no `lag_seconds` from a run at full speed. The format is frozen before 1.0. [#51](https://github.com/jaehyeon-kim/desflow/issues/51)'
+  icon: ':material-check:'
+  key: done
 - title: SimPy parity
-  content: 'In 0.23.0: every SimPy 4.1.2 feature natively in YAML, the builder and the low-level API, each checked against SimPy, such as nested conditions, event callbacks, unlimited stores and custom resource types. The SimPy Compatibility page lists each one, and the two differences kept by design. [#ISSUE](https://github.com/jaehyeon-kim/desflow/issues/ISSUE)'
+  content: 'In 0.23.0: every SimPy 4.1.2 feature natively in YAML, the builder and the low-level API, each checked against SimPy, such as nested conditions, event callbacks, unlimited stores and custom resource types. The SimPy Compatibility page lists each one, and the two differences kept by design. [#71](https://github.com/jaehyeon-kim/desflow/issues/71)'
   icon: ':material-clock-outline:'
   key: planned
 - title: Blueprint schema and AI skill
@@ -70,7 +70,7 @@ Releases come in the order shown, without dates: a release ships when it is read
   icon: ':material-clock-outline:'
   key: planned
 - title: Learn section
-  content: 'Finishes the shop tutorial, which extends one shop model page by page and answers a question with a number on each page, and adds concept pages on experiments, verification and queueing. 0.21.0 opens the Learn section with the first nine tutorial pages. [#60](https://github.com/jaehyeon-kim/desflow/issues/60)'
+  content: 'The shop tutorial, which extends one shop model page by page and answers a question with a number on each page, has 20 pages since 0.22.0, which added replications, comparing designs, sweeps, fitting, patience, interruptions, end conditions and more. Left: concept pages on a simulation study, checking and validating, queueing and output analysis, a final study of the whole shop and an independent problem. [#60](https://github.com/jaehyeon-kim/desflow/issues/60)'
   icon: ':material-clock-outline:'
   key: planned
 ::/timeline::
@@ -131,7 +131,7 @@ From 1.0, the YAML blueprint format, the `desflow` command, the public Python AP
 
 ### Simulation model
 
-- **Breakdowns, schedules and incidents:** planned maintenance, repeating schedules by time of day, and faults that start at random times.
+- **Maintenance, schedules and incidents:** planned maintenance, a failure clock that runs only while a resource works, schedules that repeat by time of day, and incidents that change several parameters at once. 0.22.0 ships random breakdowns with repair and finite schedules.
 - **More flow and resource features:** batching, matching and splitting, setup times, and resources chosen by skill.
 - **Reuse, costs and continuous flow:** parts of a model defined once and used several times, costs and energy per resource state, and levels that rise and fall continuously.
 - **Transport on maps:** vehicles that move between locations on real roads and publish their positions.
@@ -174,4 +174,4 @@ The server ships after 1.0, as 1.x releases installed with the `server` extra.
 ### Docs
 
 - **Reference:** a page for each generator and connector, with examples and the records they produce, and a command-line cheat sheet.
-- **How-To:** generating data at scale, testing pipelines with simulated data, and performance tuning.
+- **How-To:** generating data at scale, and testing pipelines with simulated data.

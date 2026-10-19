@@ -66,7 +66,7 @@ Related records are rows that belong together across tables. Here every customer
     # records whose __table__ key names its table. Each creates its table at start.
     #
     # Needs a database: odctl up postgres. Runs until interrupted with Ctrl + C.
-    # Run it with: desflow run examples/yaml/advanced/postgres_orders.yaml
+    # Run it from its folder with: desflow run postgres_orders.yaml
 
     simulation:
       sim_id: Shop

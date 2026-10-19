@@ -6,7 +6,7 @@
 # the arrival gap drawn at 120 already uses the rush rate.
 #
 # Needs no containers. Runs unpaced and ends after 300 simulation seconds.
-# Run it with: desflow run examples/yaml/changing_demand.yaml
+# Run it from its folder with: desflow run changing_demand.yaml
 
 simulation:
   sim_id: Shop

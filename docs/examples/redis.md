@@ -76,7 +76,7 @@ This example models a shop receiving orders. The simulation writes each order to
     # the simulation_params channel.
     #
     # Needs Valkey: odctl up valkey. Runs until interrupted with Ctrl + C.
-    # Run it with: desflow run examples/yaml/redis.yaml
+    # Run it from its folder with: desflow run redis.yaml
 
     simulation:
       sim_id: Shop

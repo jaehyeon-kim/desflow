@@ -92,7 +92,7 @@ The Builder and Low-level scripts print both plans:
 
 ## Why It Works
 
-During the rush one packer would need 0.9 × 1.5 = 1.35 seconds of packing every second, more than it has, so the queue grows by about 0.35 orders a second for as long as the rush lasts. That is a **finite overload**: when the rush ends the load falls to 0.6, and the packer works the queue off, here by about 54 minutes. A load that stays at 1 or above is different: its queue grows for as long as the run lasts, and no run length gives a stable mean wait, as on [Queues and Capacity](queues-and-capacity.md). A finite overload has an answer, but it depends on the schedule: a mean over the hour mixes the quiet minutes with the rush, so report the longest wait, or the waits during the rush, beside it. With two packers the rush load is 0.68 a packer, and waits stay short.
+During the rush one packer would need 0.9 × 1.5 = 1.35 seconds of packing every second, more than it has: 0.9 orders arrive a second and the packer finishes about 0.67, so the queue grows by about 0.23 orders a second for as long as the rush lasts. That is a **finite overload**: when the rush ends the load falls to 0.6, and the packer works the queue off, here by about 54 minutes. A load that stays at 1 or above is different: its queue grows for as long as the run lasts, and no run length gives a stable mean wait, as on [Queues and Capacity](queues-and-capacity.md). A finite overload has an answer, but it depends on the schedule: a mean over the hour mixes the quiet minutes with the rush, so report the longest wait, or the waits during the rush, beside it. With two packers the rush load is 0.68 a packer, and waits stay short.
 
 ---
 

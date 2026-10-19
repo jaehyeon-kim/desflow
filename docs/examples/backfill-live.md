@@ -70,7 +70,7 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
     # to Kafka for one minute.
     #
     # Needs a broker: odctl up kafka-lite.
-    # Run it with: desflow run examples/yaml/backfill_live.yaml
+    # Run it from its folder with: desflow run backfill_live.yaml
 
     simulation:
       sim_id: Shop

@@ -196,7 +196,7 @@ egress:
 
 ![A scenario step at 30 seconds updates the registry, which raises the order rate the data sink sees, and publishes a label with path, old, new and label to the when: labels sink only](../assets/diagrams/ground-truth.png)
 
-The labels sink writes one line per label:
+The labels sink writes one file per batch under `labels/`, such as `labels/labels_1a2b3c4d.jsonl`, with one line per label:
 
 <!-- records: label-records -->
 ```text

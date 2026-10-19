@@ -30,6 +30,8 @@ In SimPy a process holds a resource for as long as its request is granted and no
       payload: {event_type: order_packed}
     ```
 
+    Remove `keep: [picker]` to run it without the handoff: `pick_order` then gives the picker back when it finishes, as every task does.
+
 === "Builder"
 
     ```python title="docs/snippets/tutorials/competing_resources.py:handoff"

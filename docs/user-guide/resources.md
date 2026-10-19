@@ -684,12 +684,12 @@ A change to `current_cap` takes effect at once, without stopping any work:
 - **Lowering `max_cap`** lowers the capacity with it. A `current_cap` above the new `max_cap` is stored as `max_cap`, with a warning.
 - **During a repair** the capacity is 0 and `current_cap` keeps the planned value. A change to it sets the capacity the resource returns to and does not end the repair.
 
-The example above takes three of five packers off the floor while four orders are being packed: the capacity is 2 at once, and `in_use` stays 4 until two orders finish. The animation steps through it:
+The example below takes three of five packers off the floor while four orders are being packed: the capacity is 2 at once, and `in_use` stays 4 until two orders finish. The animation steps through it:
 
 ![Capacity drops from 5 to 2 with 4 units busy: the free unit is gone, two units are owed and are not handed on as tasks finish, and only then does a waiting task start](../assets/diagrams/resource-shrink.gif)
 
 ```python title="docs/snippets/pages/resources.py:shrink"
-def breakdown(env):
+def capacity_drop(env):
     """Takes 3 of 5 packers off the floor at t=5 s. Orders being packed are not stopped."""
     env.registry.update("Shop.resources.packers.current_cap", 5)
     yield env.timeout(5.0)

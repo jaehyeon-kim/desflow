@@ -9,7 +9,7 @@
 # sets the level to 30.
 #
 # Needs no containers. Runs unpaced and ends after 60 simulation seconds.
-# Run it with: desflow run examples/yaml/stock.yaml
+# Run it from its folder with: desflow run stock.yaml
 
 simulation:
   sim_id: Shop

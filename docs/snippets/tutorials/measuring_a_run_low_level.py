@@ -61,6 +61,7 @@ def order_generator(env, sampler, packers):
     task_id = 0
     while True:
         yield env.timeout(sampler.sample(arrival))
+        env.stats.flow_started("orders")  # the order enters the shop
         env.process(pack_order(env, sampler, packers, f"orders-{task_id + 1}", task_id))
         task_id += 1
 

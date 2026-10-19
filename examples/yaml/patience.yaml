@@ -7,7 +7,7 @@
 # last collection, so new orders balk: they publish balked and never join the queue.
 #
 # Needs no containers. Runs unpaced and ends after 120 simulation seconds.
-# Run it with: desflow run examples/yaml/patience.yaml
+# Run it from its folder with: desflow run patience.yaml
 
 simulation:
   sim_id: Shop

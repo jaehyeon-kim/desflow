@@ -46,7 +46,7 @@ An entity that leaves a queue after waiting too long **reneges**. In SimPy it wa
 
 A reneged order publishes `reneged` in place of `started` and its finished event, and adds nothing to the wait statistics, because it was never served.
 
-A grant and a patience can fall at the same instant: the packer finishes the order before at exactly the moment the next order's 30 seconds run out. desflow then does what plain SimPy does, which depends on which of the two events was scheduled first; the [Reneging and Balking](../guides/reneging-and-balking.md) guide shows both cases.
+A grant and a patience can fall at the same instant: the packer finishes the previous order at exactly the moment the next order's 30 seconds run out. desflow then does what plain SimPy does, which depends on which of the two events was scheduled first; the [Reneging and Balking](../guides/reneging-and-balking.md) guide shows both cases.
 
 ---
 

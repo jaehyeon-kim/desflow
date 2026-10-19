@@ -175,7 +175,8 @@ Preemption is one source of interrupts; a model can send others. An `interrupt` 
 
     ```yaml title="docs/snippets/yaml/interruptions.yaml:interrupt"
     scenario:
-      # The packer is called away at 30 minutes: the order being packed is interrupted
+      # The packer is called away at 30 minutes: every regular order in the shop,
+      # waiting or being packed, is interrupted
       - {at: 30 min, interrupt: {task: pack_order, cause: called away}}
     ```
 
@@ -185,7 +186,8 @@ Preemption is one source of interrupts; a model can send others. An `interrupt` 
 
     ```python title="docs/snippets/tutorials/interruptions.py:interrupt"
     def called_away(context: SimulationContext):
-        """The packer is called away at 30 minutes: the order being packed is interrupted."""
+        """The packer is called away at 30 minutes: every regular order in the shop,
+        waiting or being packed, is interrupted."""
         yield context.env.timeout(1800)
         context.interrupt("pack_order", cause="called away")
 
@@ -198,7 +200,8 @@ Preemption is one source of interrupts; a model can send others. An `interrupt` 
 
     ```python title="docs/snippets/tutorials/interruptions_low_level.py:interrupt"
     def called_away(env, shop):
-        """The packer is called away at 30 minutes: every regular order is interrupted."""
+        """The packer is called away at 30 minutes: every regular order in the shop,
+        waiting or being packed, is interrupted."""
         yield env.timeout(1800)
         for process in list(shop["running"].get("pack_order", [])):
             process.interrupt("called away")
@@ -323,7 +326,8 @@ Under `restart` the packer spends part of its time on packing that is thrown awa
             payload: {event_type: express_packed}
 
         scenario:
-          # The packer is called away at 30 minutes: the order being packed is interrupted
+          # The packer is called away at 30 minutes: every regular order in the shop,
+          # waiting or being packed, is interrupted
           - {at: 30 min, interrupt: {task: pack_order, cause: called away}}
 
         # Counts of preemptions and resumptions, and the mean wait and service, at the end
@@ -401,7 +405,8 @@ Under `restart` the packer spends part of its time on packing that is thrown awa
                 app.arrival_loop(arrival)(loop)
 
             def called_away(context: SimulationContext):
-                """The packer is called away at 30 minutes: the order being packed is interrupted."""
+                """The packer is called away at 30 minutes: every regular order in the shop,
+                waiting or being packed, is interrupted."""
                 yield context.env.timeout(1800)
                 context.interrupt("pack_order", cause="called away")
 
@@ -541,7 +546,8 @@ Under `restart` the packer spends part of its time on packing that is thrown awa
 
 
         def called_away(env, shop):
-            """The packer is called away at 30 minutes: every regular order is interrupted."""
+            """The packer is called away at 30 minutes: every regular order in the shop,
+            waiting or being packed, is interrupted."""
             yield env.timeout(1800)
             for process in list(shop["running"].get("pack_order", [])):
                 process.interrupt("called away")

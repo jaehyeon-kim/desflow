@@ -7,7 +7,7 @@
 # finished and are still in the shop.
 #
 # Needs no containers. Runs unpaced and ends on its own.
-# Run it with: desflow run examples/yaml/end_conditions.yaml
+# Run it from its folder with: desflow run end_conditions.yaml
 
 simulation:
   sim_id: Shop

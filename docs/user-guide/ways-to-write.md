@@ -10,9 +10,9 @@ The three are layers, not alternatives. Each layer writes the one below it for y
 
 ![A YAML blueprint makes the builder calls a script would make; the builder's run() compiles a SimParameter, builds the DynamicRealtimeEnvironment and starts the SimPy processes, which is what a low-level script writes by hand](../assets/diagrams/ways-to-write.png)
 
-- A **YAML blueprint** is a file. `SimulationContext.from_yaml`, which `desflow run` calls, reads it and makes the same builder calls a Python script would make, so the result is an ordinary `SimulationContext`.
-- The **builder API**, `SimulationContext`, collects resources, distributions, tasks and connectors through its methods and decorators. Its `run()` compiles them into a `SimParameter`, builds the environment, registers the parameters and starts the processes.
-- The **low-level API** is that last step written by hand: a `SimParameter`, a `DynamicRealtimeEnvironment` that registers it, and SimPy processes that use the environment's resources and publish records.
+- **YAML blueprint:** a file. `SimulationContext.from_yaml`, which `desflow run` calls, reads it and makes the same builder calls a Python script would make, so the result is an ordinary `SimulationContext`.
+- **Builder API:** `SimulationContext` collects resources, distributions, tasks and connectors through its methods and decorators. Its `run()` compiles them into a `SimParameter`, builds the environment, registers the parameters and starts the processes.
+- **Low-level API:** that last step written by hand: a `SimParameter`, a `DynamicRealtimeEnvironment` that registers it, and SimPy processes that use the environment's resources and publish records.
 
 Because each layer ends in the one below, the layers mix: a blueprint can reference Python written for the builder with `!python`, and a builder process can use the environment directly.
 

@@ -18,7 +18,7 @@ arrivals:
   orders:
     # Each row is one order, at its recorded time, carrying its order_id and items
     replay:
-      path: ../tutorials/local_replay_orders.csv
+      path: local_replay_orders.csv
       time: ordered_at
       unit: timestamp
       fields: [order_id, items]

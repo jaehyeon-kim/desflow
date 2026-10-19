@@ -7,7 +7,7 @@
 # every task uses, so no two orders can wait for each other.
 #
 # Needs no containers. Runs unpaced and ends after 120 simulation seconds.
-# Run it with: desflow run examples/yaml/competing_resources.yaml
+# Run it from its folder with: desflow run competing_resources.yaml
 
 simulation:
   sim_id: Shop

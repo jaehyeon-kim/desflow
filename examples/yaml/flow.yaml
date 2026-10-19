@@ -7,7 +7,7 @@
 # again, and wrapping and shipping are timed steps, which use no resource.
 #
 # Needs no containers. Runs unpaced and ends after 120 simulation seconds.
-# Run it with: desflow run examples/yaml/flow.yaml
+# Run it from its folder with: desflow run flow.yaml
 
 simulation:
   sim_id: Shop

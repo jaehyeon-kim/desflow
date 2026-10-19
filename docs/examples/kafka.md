@@ -68,7 +68,7 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
 
     **Full Source Code**
 
-    The blueprint wires both Kafka connectors and declares the packers, the packing service, the order arrival and the task. The finished event of each task is the fixed `payload`, and `stats: minimal` publishes the packers' four built-in readings every 2 simulation seconds, as `with_stats("minimal", interval=2.0)` and `env.setup_stats` do in the builder and low-level versions.
+    The blueprint wires both Kafka connectors and declares the packers, the packing service, the order arrival and the task. The finished event of each task is the fixed `payload`, and `stats: minimal` publishes the packers' four built-in readings and the task's `in_progress` every 2 simulation seconds, as `with_stats("minimal", interval=2.0)` and `env.setup_stats` do in the builder and low-level versions.
 
     Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
@@ -82,7 +82,7 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
     #
     # Needs a broker: odctl up kafka-lite. Runs until interrupted with Ctrl + C.
     # KAFKA_BOOTSTRAP_SERVERS overrides the broker address.
-    # Run it with: desflow run examples/yaml/kafka.yaml
+    # Run it from its folder with: desflow run kafka.yaml
 
     simulation:
       sim_id: Shop

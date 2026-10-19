@@ -17,8 +17,8 @@ desflow keeps statistics about a run as it goes, and publishes them as telemetry
 | Level | Question it answers | Adds |
 |---|---|---|
 | `none` | | nothing (the default) |
-| `minimal` | What is happening now? | each resource's `capacity`, `in_use`, `queue_length` and `utilization` |
-| `basic` | How much got done, and how busy was it? | `finished` counts, and `utilization_avg` and `queue_length_avg` over time |
+| `minimal` | What is happening now? | each resource's `capacity`, `in_use`, `queue_length` and `utilization`, and each task's `in_progress` |
+| `basic` | How much got done, and how busy was it? | `finished` counts, each arrival's `started` and `in_system`, and `utilization_avg` and `queue_length_avg` over time |
 | `typical` | How long did orders take? | each task's `wait_mean`, `wait_max`, `service_mean` and `service_max` |
 | `all` | How long did the slowest take? | each task's `wait_p50`, `wait_p95` and `wait_p99`, and the same for service |
 
@@ -45,7 +45,7 @@ Each level includes the ones above it. Switch on `typical`:
     env.setup_stats("Shop", "typical", interval=10)
     ```
 
-    The environment keeps the statistics in `env.stats`. Resources report their own changes, but a low-level process has no task for desflow to watch, so it reports each step itself: `env.stats.task_queued`, `task_started` and `task_finished` with the task's name and instance id, and `flow_finished` when the order leaves the shop. The full file below shows them.
+    The environment keeps the statistics in `env.stats`. Resources report their own changes, but a low-level process has no task for desflow to watch, so it reports each step itself: `env.stats.task_queued`, `task_started` and `task_finished` with the task's name and instance id, and `flow_started` and `flow_finished` when the order enters and leaves the shop. The full file below shows them.
 
 The statistics are telemetry, so they reach every sink, and they can also be read in Python at the end of the run:
 
@@ -307,6 +307,7 @@ The numbers check each other. Little's Law says that the average number waiting 
             task_id = 0
             while True:
                 yield env.timeout(sampler.sample(arrival))
+                env.stats.flow_started("orders")  # the order enters the shop
                 env.process(pack_order(env, sampler, packers, f"orders-{task_id + 1}", task_id))
                 task_id += 1
 

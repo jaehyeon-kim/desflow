@@ -286,6 +286,8 @@ Two designs run with different seeds differ by the design and by chance, and the
                 print(f"check {row['design']}: {row['value']:.3f} passed={row['passed']}")
         ```
 
+        It imports from `trusting_results.py`, which is in the full files of [Trusting Results](trusting-results.md#full-files).
+
     === "Low-level"
 
         ```python title="docs/snippets/tutorials/comparing_designs_low_level.py"
@@ -348,5 +350,7 @@ Two designs run with different seeds differ by the design and by chance, and the
             for row in result.checks:
                 print(f"check {row['design']}: {row['value']:.3f} passed={row['passed']}")
         ```
+
+        It imports from `trusting_results_low_level.py`, which is in the full files of [Trusting Results](trusting-results.md#full-files).
 
 Next, [Parameter Sweeps](parameter-sweeps.md) asks how much these answers depend on the arrival rate.

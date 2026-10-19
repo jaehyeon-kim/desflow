@@ -7,7 +7,7 @@
 # drill interrupts the order being packed, which resumes when it gets the packer back.
 #
 # Needs no containers. Runs unpaced and ends after 120 simulation seconds.
-# Run it with: desflow run examples/yaml/interruptions.yaml
+# Run it from its folder with: desflow run interruptions.yaml
 
 simulation:
   sim_id: Shop

@@ -19,7 +19,7 @@ Give the model, the number of replications, the seed they are spawned from and t
 === "YAML"
 
     ```bash
-    desflow run shop.yaml --replications 20 --measure tasks.pack.wait_mean
+    desflow run replications.yaml --replications 20 --measure tasks.pack.wait_mean
     ```
 
     `--seed` overrides `simulation.random_seed`, and `--until` overrides `run.until`, as for one run. `--level` sets the confidence level (0.95 when it is not given), `--workers` runs replications at once, each in its own process, and `--drain` drains every replication, as `run.drain: true` does. The command prints the summary, the seed of each replication and the command that repeats one. The blueprint's own `warmup` applies to every replication:

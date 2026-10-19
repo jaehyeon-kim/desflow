@@ -45,7 +45,7 @@ And two labels, as a JSON Lines sink writes them:
 {"stream_type":"label","sim_ts":45.0,"timestamp":"...","path":null,"old":null,"new":null,"label":{"fault":"label_printer_offline"}}
 ```
 
-`sim_ts` is simulation seconds. `timestamp` is `logical_start_time` plus `sim_ts`, as an ISO 8601 string with milliseconds and the offset of the run's time zone, such as `2026-10-03T12:00:00.000+10:00`, or `+00:00` in UTC, the default; [Time and Pacing](../user-guide/time-and-pacing.md#time-zone) describes the zone.
+`sim_ts` is simulation seconds. `timestamp` is `logical_start_time` plus the simulation time, as an ISO 8601 string with milliseconds and the offset of the run's time zone, such as `2026-10-03T12:00:00.000+10:00`, or `+00:00` in UTC, the default; [Time and Pacing](../user-guide/time-and-pacing.md#time-zone) describes the zone. `sim_ts` is rounded to the millisecond and `timestamp` cut to it, so their milliseconds can differ by 1.
 
 ---
 
@@ -153,7 +153,7 @@ env.publish_label({"fault": "slow_packing"}, path="Shop.service.packing.scale")
 
 ## Reserved Payload Keys
 
-A key of a record's `value`, an event's or a telemetry value that is a mapping, that starts and ends with two underscores, such as `__table__` or `__stream__`, belongs to desflow, not to the data. A sink that routes by one uses it and removes it: `PostgresEgress` writes the record to the table its `__table__` names, and `RedisEgress` to the stream its `__stream__` names. Every other sink, `KafkaEgress`, the Parquet, JSON Lines and Iceberg sinks and `ConsoleEgress`, drops every such key and logs one warning per key the first time it meets it:
+A key of a record's `value`, an event's or a telemetry value that is a mapping, that is two underscores, a name of at least one character, then two underscores, such as `__table__` or `__stream__`, belongs to desflow, not to the data. A sink that routes by one uses it and removes it: `PostgresEgress` writes the record to the table its `__table__` names, and `RedisEgress` to the stream its `__stream__` names. Every other sink, `KafkaEgress`, the Parquet, JSON Lines and Iceberg sinks and `ConsoleEgress`, drops every such key and logs one warning per key the first time it meets it:
 
 ```text
 KafkaEgress drops the payload key '__table__': keys that start and end with two underscores are reserved for desflow, and only a sink that routes by one, such as PostgreSQL's __table__ or Redis's __stream__, uses it. Rename the key to keep it as data.

@@ -36,7 +36,7 @@ A store holds items, each a value of its own; here each shirt is a mapping such 
     stores={"shelf": CapacityConfig(current_cap=1000, max_cap=1000)},
     ```
 
-The shirts and the orders arrive from six arrivals, one per size, each with a `size` attribute:
+The shirts and the orders arrive from six arrivals, one per size, each with a `size` attribute. The YAML is below; the builder and low-level versions add the same six arrivals, and their full files are at the end of the page:
 
 ```yaml title="docs/snippets/yaml/filtered_inventory.yaml:arrivals"
 # A shirt every 10 seconds: 3 in 10 small, 4 medium, 3 large
@@ -68,7 +68,7 @@ A plain `get` takes the oldest item, whatever it is. A `get` with a `filter` tak
       payload: {event_type: order_filled}
     ```
 
-    `item_field: shirt` adds the shirt the get took to the finished event's payload, as `id_field` adds the task id.
+    `item_field: shirt` adds the shirt the get took to the finished event's payload under the key `shirt`, as `id_field` adds the task id under the key it names ([YAML Format](../reference/yaml-format.md#tasks) lists both).
 
 === "Builder"
 

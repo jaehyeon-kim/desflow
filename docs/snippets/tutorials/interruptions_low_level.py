@@ -108,7 +108,8 @@ def order_generator(env, sampler, shop, arrival, policy):
 
 # --8<-- [start:interrupt]
 def called_away(env, shop):
-    """The packer is called away at 30 minutes: every regular order is interrupted."""
+    """The packer is called away at 30 minutes: every regular order in the shop,
+    waiting or being packed, is interrupted."""
     yield env.timeout(1800)
     for process in list(shop["running"].get("pack_order", [])):
         process.interrupt("called away")

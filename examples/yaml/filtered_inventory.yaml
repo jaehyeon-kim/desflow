@@ -6,7 +6,7 @@
 # without one if none comes within 20 seconds.
 #
 # Needs no containers. Runs unpaced and ends after 120 simulation seconds.
-# Run it with: desflow run examples/yaml/filtered_inventory.yaml
+# Run it from its folder with: desflow run filtered_inventory.yaml
 
 simulation:
   sim_id: Shop

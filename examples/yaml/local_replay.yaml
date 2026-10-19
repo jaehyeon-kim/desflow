@@ -6,7 +6,7 @@
 # row is at 73 seconds; after it the arrival stops, and the run ends at 120.
 #
 # Needs no containers. Runs unpaced and ends after 120 simulation seconds.
-# Run it with: desflow run examples/yaml/local_replay.yaml
+# Run it from its folder with: desflow run local_replay.yaml
 
 simulation:
   sim_id: Shop

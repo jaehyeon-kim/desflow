@@ -194,6 +194,8 @@ def test_measuring_a_run_answer(api):
     assert round(r[name("tasks.pack_order.wait_max")], 2) == 9.38
     assert r[name("tasks.pack_order.finished")] == 6250
     assert r[name("flows.orders.finished")] == 6250
+    assert r[name("flows.orders.started")] == 6261
+    assert r[name("flows.orders.in_system")] == 11
     rate = r[name("tasks.pack_order.finished")] / 3600
     little = rate * r[name("tasks.pack_order.wait_mean")]
     assert little == pytest.approx(
@@ -640,7 +642,7 @@ def test_local_replay_recorded_and_modelled(api, caplog):
         if api == "yaml":
             if not replay:
                 continue  # the blueprint replays the recorded orders only
-            app = SimulationContext.from_yaml(BLUEPRINTS / "local_replay.yaml")
+            app = SimulationContext.from_yaml(TUTORIALS / "local_replay.yaml")
             app.run()
             r = app.env.stats.readings()
             n = "Shop.stats.tasks.pack_order.{}".format

@@ -42,7 +42,7 @@ desflow is built for real-time digital twins, but the same model can also run fa
 
     **What It Does**
 
-    The run writes Parquet chunks to a local `data/` folder by default and ends on its own. The folder is created on the first write. On a laptop a week of simulated time takes about 20 seconds and writes about 850 files with 3.6 million rows, one row per lifecycle event. Without a router, the egress drops telemetry and writes each event as one flat row, so the columns are `stream_type`, `sim_ts`, `timestamp`, `key`, `task`, `instance`, `path_id` and `status`. `logical_start_time: -7d` stamps the week as history that ends now.
+    The run writes Parquet chunks to a local `data/` folder by default and ends on its own. The folder is created on the first write. On a laptop a week of simulated time takes about 20 seconds and writes 725 files with 3.6 million rows, one row per lifecycle event. Without a router, the egress drops telemetry and writes each event as one flat row, so the columns are `stream_type`, `sim_ts`, `timestamp`, `key`, `task`, `instance`, `path_id` and `status`. `logical_start_time: -7d` stamps the week as history that ends now.
 
     To write to S3 instead, install `odctl` (`uv tool install "odctl>=1.0,<2"` or `pip install "odctl>=1.0,<2"`), start the object store, and set these variables before the run command. All three versions read the same ones. The chunks land under the `odctl-dev/history/` prefix, browsable at <http://localhost:8889>.
 
@@ -71,7 +71,7 @@ desflow is built for real-time digital twins, but the same model can also run fa
     # Writes to ./data by default. To write to the odctl storage profile instead (odctl
     # up storage), set PARQUET_FILESYSTEM=s3, DEST_PATH=odctl-dev/history,
     # S3_ENDPOINT=http://localhost:8333, S3_ACCESS_KEY=user and S3_SECRET_KEY=password.
-    # Run it with: desflow run examples/yaml/parquet.yaml
+    # Run it from its folder with: desflow run parquet.yaml
 
     simulation:
       sim_id: Shop

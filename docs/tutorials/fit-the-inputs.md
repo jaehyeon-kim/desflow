@@ -20,7 +20,7 @@ Fit the times, which are in seconds and cannot be below 0:
     desflow fit packing_times.csv --column packing_seconds --lower 0 --out fitted/packing.yaml --plot fit.png
     ```
 
-    `packing_times.csv` has a column `packing_seconds` with the 40 times. `--out` writes the best candidate's settings, and `--plot` draws the data against it.
+    `packing_times.csv` has a column `packing_seconds` with the 40 times; `desflow examples get fitting` downloads it as `fitting/packing_times.csv`. `--out` writes the best candidate's settings, and `--plot` draws the data against it.
 
 === "Builder"
 
@@ -258,6 +258,8 @@ The triangular's mean is (0.546 + 1.2 + 2.838) ÷ 3 = 1.53 seconds, 2% above the
                 print(f"{name}: mean wait {row['mean']:.2f} ± {row['half_width']:.2f} s")
         ```
 
+        It imports from `trusting_results.py`, which is in the full files of [Trusting Results](trusting-results.md#full-files).
+
     === "Low-level"
 
         ```python title="docs/snippets/tutorials/fit_the_inputs_low_level.py"
@@ -336,5 +338,7 @@ The triangular's mean is (0.546 + 1.2 + 2.838) ÷ 3 = 1.53 seconds, 2% above the
             for name, row in mean_waits(fitted()).items():
                 print(f"{name}: mean wait {row['mean']:.2f} ± {row['half_width']:.2f} s")
         ```
+
+        It imports from `trusting_results_low_level.py`, which is in the full files of [Trusting Results](trusting-results.md#full-files).
 
 Next, [Stock](stock.md) asks what happens when the shop runs out of boxes.

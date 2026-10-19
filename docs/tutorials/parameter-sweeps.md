@@ -136,6 +136,8 @@ Three packers that take 1.5 seconds an order on average pack 2 orders a second a
                     print(f"{row['design']}: {row['mean']:.2f} ± {row['half_width']:.2f} s")
         ```
 
+        It imports from `trusting_results.py`, which is in the full files of [Trusting Results](trusting-results.md#full-files).
+
     === "Low-level"
 
         ```python title="docs/snippets/tutorials/parameter_sweeps_low_level.py"
@@ -180,5 +182,7 @@ Three packers that take 1.5 seconds an order on average pack 2 orders a second a
                 if row["statistic"] == "tasks.pack_order.wait_mean":
                     print(f"{row['design']}: {row['mean']:.2f} ± {row['half_width']:.2f} s")
         ```
+
+        It imports from `trusting_results_low_level.py`, which is in the full files of [Trusting Results](trusting-results.md#full-files).
 
 This is the last page of the tutorial for now. [Experiments](../user-guide/experiments.md) describes every setting of an experiment, its files and its report, and the rest of the [User Guide](../user-guide/ways-to-write.md) describes each part of desflow in full.

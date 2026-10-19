@@ -8,7 +8,7 @@
 # own that receives nothing else.
 #
 # Needs no containers. Runs unpaced and ends after 20 simulation minutes.
-# Run it with: desflow run examples/yaml/measuring.yaml
+# Run it from its folder with: desflow run measuring.yaml
 
 simulation:
   sim_id: Shop

@@ -6,7 +6,7 @@ The shop recorded every order of one morning, 09:00 to 10:00 on 1 October 2026: 
 
 ## What You Add
 
-A **replayed arrival**: arrivals taken from the rows of a file instead of a distribution. The shop is the one from [First Simulation](first-simulation.md), with packing at a constant 1.5 seconds. The recorded orders are `local_replay_orders.csv`, one row per order, beside the scripts:
+A **replayed arrival**: arrivals taken from the rows of a file instead of a distribution. The shop is the one from [First Simulation](first-simulation.md), with packing at a constant 1.5 seconds. The recorded orders are [`local_replay_orders.csv`](https://raw.githubusercontent.com/jaehyeon-kim/desflow/main/docs/snippets/tutorials/local_replay_orders.csv), one row per order; download it into the folder that holds the blueprint and the scripts:
 
 ```text
 ordered_at,order_id,items
@@ -22,12 +22,12 @@ Each row becomes one arrival at its time, and the fields named in `fields` becom
 
 === "YAML"
 
-    ```yaml title="docs/snippets/yaml/local_replay.yaml:replay"
+    ```yaml title="docs/snippets/tutorials/local_replay.yaml:replay"
     arrivals:
       orders:
         # Each row is one order, at its recorded time, carrying its order_id and items
         replay:
-          path: ../tutorials/local_replay_orders.csv
+          path: local_replay_orders.csv
           time: ordered_at
           unit: timestamp
           fields: [order_id, items]
@@ -131,7 +131,7 @@ A mean rate says how many orders come in an hour, not when they come. Exponentia
 
     === "YAML"
 
-        ```yaml title="docs/snippets/yaml/local_replay.yaml"
+        ```yaml title="docs/snippets/tutorials/local_replay.yaml"
         # The Local Replay tutorial: a recorded morning of orders, at their recorded times.
         # Run it with: desflow run local_replay.yaml
         simulation:
@@ -151,7 +151,7 @@ A mean rate says how many orders come in an hour, not when they come. Exponentia
           orders:
             # Each row is one order, at its recorded time, carrying its order_id and items
             replay:
-              path: ../tutorials/local_replay_orders.csv
+              path: local_replay_orders.csv
               time: ordered_at
               unit: timestamp
               fields: [order_id, items]

@@ -78,7 +78,7 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
     #
     # Needs the odctl catalog profile: odctl up catalog. ICEBERG_URI, ICEBERG_WAREHOUSE,
     # S3_ENDPOINT, S3_ACCESS_KEY and S3_SECRET_KEY override the catalog and credentials.
-    # Run it with: desflow run examples/yaml/iceberg.yaml
+    # Run it from its folder with: desflow run iceberg.yaml
 
     simulation:
       sim_id: Shop

@@ -6,7 +6,7 @@
 # what it had left once the station is repaired.
 #
 # Needs no containers. Runs unpaced and ends after 300 simulation seconds.
-# Run it with: desflow run examples/yaml/breakdowns.yaml
+# Run it from its folder with: desflow run breakdowns.yaml
 
 simulation:
   sim_id: Shop
