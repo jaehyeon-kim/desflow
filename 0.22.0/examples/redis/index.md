@@ -60,8 +60,6 @@ docker exec -it valkey valkey-cli --user user --pass password PUBLISH simulation
 
 Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
-examples/yaml/redis.yaml
-
 ```yaml
 # Redis Streams output with live parameter updates, in YAML.
 #
@@ -111,8 +109,6 @@ With `RedisIngress` and `RedisEgress`, the simulation reads parameter updates th
 
 `RedisEgress` writes each record to a Redis Stream with `XADD`. Its default stream is the one named in the constructor, `events` in this example, and a `__stream__` key in a record picks another.
 
-examples/builder/redis_example.py:app
-
 ```python
 app = (
     SimulationContext(sim_id="Shop", factor=1.0, random_seed=42)
@@ -123,8 +119,6 @@ app = (
 ```
 
 `record_order` has no service or resource, so its record is published as soon as the arrival loop spawns it, one per order:
-
-examples/builder/redis_example.py:records
 
 ```python
 @app.task()
@@ -210,8 +204,6 @@ odctl down valkey --volumes
 **Full Source Code**
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
-
-examples/builder/redis_example.py
 
 ```python
 """Redis Streams output with live parameter updates, builder API.
@@ -341,8 +333,6 @@ odctl down valkey --volumes
 **Full Source Code**
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
-
-examples/low-level/redis_example.py
 
 ```python
 """Redis Streams output with live parameter updates, low-level API.

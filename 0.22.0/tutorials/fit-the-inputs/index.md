@@ -20,15 +20,11 @@ desflow fit packing_times.csv --column packing_seconds --lower 0 --out fitted/pa
 
 `packing_times.csv` has a column `packing_seconds` with the 40 times; `desflow examples get fitting` downloads it as `fitting/packing_times.csv`. `--out` writes the best candidate's settings, and `--plot` draws the data against it.
 
-docs/snippets/tutorials/fit_the_inputs.py:fit
-
 ```python
 # The 40 packing times, in seconds; none can be below 0
 result = fit_column(MEASURED, unit="s", lower=0)
 print(result.text())  # every candidate, its status and diagnostics
 ```
-
-docs/snippets/tutorials/fit_the_inputs_low_level.py:fit
 
 ```python
 # The 40 packing times, in seconds; none can be below 0
@@ -70,8 +66,6 @@ ______________________________________________________________________
 
 The fitted settings go where the 40 times were:
 
-docs/snippets/yaml/fit_the_inputs.yaml:include
-
 ```yaml
 services:
   # The best fit of the 40 packing times, as desflow fit wrote it
@@ -79,8 +73,6 @@ services:
 ```
 
 `!include` reads a mapping from another file, relative to the blueprint. The file `desflow fit` wrote:
-
-docs/snippets/yaml/fitted/packing.yaml
 
 ```yaml
 # Fitted by desflow fit from packing_times.csv, column packing_seconds: triangular, from 40 values in s, written in seconds.
@@ -90,14 +82,10 @@ mode: 1.2
 high: 2.83766
 ```
 
-docs/snippets/tutorials/fit_the_inputs.py:service
-
 ```python
 # The best fit's settings: dist="triangular", low, mode and high
 .add_service("packing", **packing)
 ```
-
-docs/snippets/tutorials/fit_the_inputs_low_level.py:service
 
 ```python
 params = SimParameter(
@@ -139,8 +127,6 @@ ______________________________________________________________________
 
 Full files
 
-docs/snippets/yaml/fit_the_inputs.yaml
-
 ```yaml
 # The Fit the Inputs tutorial: the busy hour, with a packing time fitted to the data.
 # Fit, then run it:
@@ -174,8 +160,6 @@ stats: typical
 run:
   until: 1 h
 ```
-
-docs/snippets/tutorials/fit_the_inputs.py
 
 ```python
 """The Fit the Inputs tutorial: which distribution fits the 40 packing times? builder.
@@ -256,8 +240,6 @@ if __name__ == "__main__":
 ```
 
 It imports from `trusting_results.py`, which is in the full files of [Trusting Results](https://jaehyeon.me/desflow/latest/tutorials/trusting-results/#full-files).
-
-docs/snippets/tutorials/fit_the_inputs_low_level.py
 
 ```python
 """The Fit the Inputs tutorial: which distribution fits the 40 packing times? low-level.

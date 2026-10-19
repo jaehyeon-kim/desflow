@@ -18,8 +18,6 @@ ______________________________________________________________________
 
 `logical_start_time` is the date and time that simulation time 0 maps to; without it, the run uses the moment the environment is created. A run with a backdated start writes history:
 
-docs/snippets/pages/pacing.py:logical-start
-
 ```python
 app = SimulationContext(
     sim_id="Shop",
@@ -34,15 +32,11 @@ A datetime without an offset is read in the run's time zone, described next. In 
 
 `timezone` names the zone that record timestamps are written in, as an IANA name such as `Australia/Melbourne`. Every `timestamp` carries the offset of its moment, such as `2026-10-03T12:00:00.000+10:00`, or `+00:00` in UTC. By default the zone is that of `logical_start_time` when it has one, and UTC otherwise. A `logical_start_time` or `go_live_at` without an offset, `now`, and the default start are read in it:
 
-docs/snippets/yaml/environment.yaml:timezone
-
 ```yaml
 # Under simulation: timestamps written in Melbourne time, with its offset; the
 # start and now are read in it. UTC by default
 timezone: ${SIM_TIMEZONE:-Australia/Melbourne}
 ```
-
-docs/snippets/pages/pacing.py:timezone
 
 ```python
 # Timestamps in Melbourne time, with their offset: 2026-10-03T12:00:00.000+10:00
@@ -53,8 +47,6 @@ melbourne = SimulationContext(
     logical_start_time=datetime(2026, 10, 3, 12, 0),  # read in Melbourne time
 )
 ```
-
-docs/snippets/pages/pacing.py:low-level-timezone
 
 ```python
 zoned = DynamicRealtimeEnvironment(
@@ -71,8 +63,6 @@ The clock runs in UTC, so a daylight-saving change in the zone never adds or dro
 
 The wall-clock duration of a stretch of the run is its simulation duration times `factor`:
 
-docs/snippets/pages/pacing.py:factor
-
 ```python
 live = DynamicRealtimeEnvironment(factor=1.0)  # 1 simulated second takes 1 real second
 twice_as_fast = DynamicRealtimeEnvironment(factor=0.5)  # takes half a real second
@@ -85,8 +75,6 @@ unpaced = DynamicRealtimeEnvironment(factor=0.0)  # takes no real time at all
 ### Go Live
 
 `factor` applies until the logical clock reaches `go_live_at`, and from that instant the run is paced at one simulation second per real second. With a backdated `logical_start_time` and `factor: 0`, one run writes the history as fast as it can, then keeps going in real time:
-
-docs/snippets/pages/pacing.py:go-live
 
 ```python
 go_live_at = datetime.now(timezone.utc)
@@ -106,22 +94,16 @@ A sink with `when: history` receives the records stamped before `go_live_at`, an
 
 At a `factor` above 0 the run follows the wall clock, and `system.simulation.lag_seconds` says how many seconds it is behind, as telemetry. `lag_interval` sets how often, in simulation seconds or a duration. By default it is every simulation second at a `factor` above 0, and off at `factor: 0`, where the run is meant to be ahead of the wall clock; a run at `factor: 0` that goes live starts it at the go-live instant. 0 turns it off:
 
-docs/snippets/yaml/environment.yaml:lag
-
 ```yaml
 # Under simulation: how far the run is behind the wall clock, every 10 s; by
 # default off at factor 0 and every second otherwise, and 0 turns it off
 lag_interval: 10 s
 ```
 
-docs/snippets/pages/pacing.py:lag
-
 ```python
 # system.simulation.lag_seconds every 10 simulation seconds; 0 turns it off
 paced = SimulationContext(sim_id="Shop", factor=1.0, lag_interval="10 s")
 ```
-
-docs/snippets/pages/pacing.py:low-level-lag
 
 ```python
 # The low-level API sets it with the sinks; the default "auto" is off at factor 0
@@ -132,14 +114,10 @@ docs/snippets/pages/pacing.py:low-level-lag
 
 `warmup` leaves the start of a run out of what it reports. It is one time per run, in simulation seconds or a duration. No sink receives a record or telemetry stamped before it, and the built-in statistics are reset once at that moment, so they describe the rest of the run. A run without it sends everything, which is what a data generator usually wants.
 
-docs/snippets/yaml/trusting_results.yaml:warmup
-
 ```yaml
 # Records and statistics start after the first 2 minutes; 0 keeps everything
 warmup: ${WARMUP:-2 min}
 ```
-
-docs/snippets/pages/pacing.py:warmup
 
 ```python
 # No sink receives a record stamped before 10 minutes, and the statistics restart then
@@ -156,8 +134,6 @@ The warm-up drops early records; `go_live_at` drops nothing and only decides whi
 
 `initial_time` is the reading of the simulation clock when the run starts, 0 when left out, in seconds or as a duration. A model of a shift that starts at 8 in the morning can start its clock at 8 hours, so every event time, every record's `sim_ts` and `until` read that clock; a record's `timestamp` is still `logical_start_time` plus `sim_ts`, to within the 1 millisecond by which a rounded `sim_ts` and a cut `timestamp` can differ:
 
-docs/snippets/yaml/initial_time.yaml:initial-time
-
 ```yaml
 simulation:
   sim_id: Shop
@@ -166,14 +142,10 @@ simulation:
   initial_time: 8 h
 ```
 
-docs/snippets/pages/pacing.py:initial-time
-
 ```python
 # The clock starts at 8 hours: event times, sim_ts and until all read it
 shift = SimulationContext(sim_id="Shop", factor=0.0, initial_time="8 h")
 ```
-
-docs/snippets/pages/pacing.py:low-level-initial-time
 
 ```python
 # The clock starts at 8 hours, in seconds, as in SimPy's Environment(initial_time=)
@@ -185,8 +157,6 @@ morning = DynamicRealtimeEnvironment(factor=0.0, initial_time=8 * 3600)
 ### Run Length
 
 `until` is in simulation seconds. `run()` and a blueprint's `run.until` also take a duration such as `"10 min"`, `"8 hours"` or `"1 week"`; a month counts as 30 days and a year as 365.
-
-docs/snippets/pages/pacing.py:run-length
 
 ```python
 app.add_resource("packers", current_cap=1, max_cap=1)
@@ -205,8 +175,6 @@ Without `until`, SimPy runs until no events remain, and a run with an arrival ne
 
 A fixed horizon cuts the run at `until` with orders still in the shop. A **drain** stops the arrivals at `until` and keeps running until every entity in the model has left: `drain: true`, or `drain: {limit: 1 h}` to stop at the latest that long after `until`; `desflow run --drain` sets it from the command line. The environment's own processes, such as the statistics timer, never hold a drain open. The `end-conditions` example closes the shop at 120 seconds, drains for at most a minute, and stops at once if the boxes run out:
 
-examples/yaml/end_conditions.yaml:run
-
 ```yaml
 run:
   # No new orders after closing time.
@@ -216,8 +184,6 @@ run:
   # Stop at once when the last box is taken.
   stop: {condition: level.boxes == 0}
 ```
-
-examples/builder/end_conditions_example.py:run
 
 ```python
 app.run(
@@ -231,8 +197,6 @@ app.run(
 ```
 
 `context.stop_arrivals()` stops the arrival loops by hand, as a drain does at `until`.
-
-examples/low-level/end_conditions_example.py:run
 
 ```python
 def run_to_end(env, shop, source):
@@ -260,8 +224,6 @@ With statistics at `basic` or above, `flows.<arrival>.started`, `finished` and `
 ### Step and Peek
 
 `start()` builds everything `run()` builds and starts every process, with the clock still at its start. `step()` then processes one event, and `peek()` gives the time of the next one, infinity when none is left, as SimPy's `env.step()` and `env.peek()` do. The event can be one of desflow's own, such as the statistics timer or a resource's capacity watcher, as well as one of the model's; `finish()` runs a started run on to the end `run()` would reach, `until`, the `stop` or the end of the drain, then closes it, so `run()` is `start()` then `finish()`; `close()` ends the run where it is. A context from `from_yaml` steps the same way:
-
-docs/snippets/pages/pacing.py:step
 
 ```python
 def every_ten(context):

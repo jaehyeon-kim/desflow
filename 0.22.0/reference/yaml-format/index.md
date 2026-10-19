@@ -8,8 +8,6 @@ Each section becomes one builder call:
 
 A blueprint with logic in Python beside it, which the sections below refer to:
 
-docs/snippets/yaml/hybrid.yaml
-
 ```yaml
 # The shop with its logic in Python. YAML keeps the blueprint and the
 # experiment; shop_logic.py beside this file holds what YAML cannot express.
@@ -140,8 +138,6 @@ A list of `!python` generator functions, each written as `{function: ..., kwargs
 ## telemetry
 
 A list of custom readings, each `{interval, function}`: every `interval` simulation seconds, greater than 0, `function(context)` is called and publishes with `context.publish`. The built-in readings of resources, stores and containers come from `stats` instead.
-
-docs/snippets/yaml/telemetry.yaml:telemetry
 
 ```yaml
 telemetry:

@@ -62,8 +62,6 @@ The catalog is contacted on the first write, not when the blueprint is loaded, s
 
 Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
-examples/yaml/iceberg.yaml
-
 ```yaml
 # Lakehouse data generation in YAML.
 #
@@ -178,8 +176,6 @@ Running it twice appends to the same table rather than replacing it, which is wh
 This script simulates the shop over a 1-day period. It routes lifecycle events into one Iceberg table and pins the schema so the event time is a real timestamp rather than the string inference would give.
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
-
-examples/builder/iceberg_example.py
 
 ```python
 """
@@ -410,8 +406,6 @@ Running it twice appends to the same table rather than replacing it, which is wh
 This script simulates the shop over a 1-day period. It routes lifecycle events into one Iceberg table and pins the schema so the event time is a real timestamp rather than the string inference would give.
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
-
-examples/low-level/iceberg_example.py
 
 ```python
 """Lakehouse data generation, low-level API.

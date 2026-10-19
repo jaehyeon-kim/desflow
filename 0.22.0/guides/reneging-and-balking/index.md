@@ -10,8 +10,6 @@ ______________________________________________________________________
 
 A task's `patience` is how long it may wait, for its `wait`, then its resource and then its `get`, before it leaves the queue and publishes `reneged`. It counts waiting time only: it pauses while the task is served, so a task that is preempted and queues again goes on with the time it has left; a get that gives up is cancelled, so it takes nothing later. Its `balk` is a condition checked before it joins the queue; when it holds, the task publishes `balked` and never asks for the resource. Here each order brings its own patience as an attribute, and no order joins after the courier's last collection at 100 seconds:
 
-examples/yaml/patience.yaml:pack
-
 ```yaml
 tasks:
   pack:
@@ -23,8 +21,6 @@ tasks:
     balk: t >= 100
     payload: {event_type: order_packed}
 ```
-
-examples/builder/patience_example.py:pack
 
 ```python
 @app.task(
@@ -39,8 +35,6 @@ def pack(task_id, context):
     """Packs one order."""
     return {"event_type": "order_packed"}
 ```
-
-examples/low-level/patience_example.py:pack
 
 ```python
 def pack(env, sampler, packers, key, patience, task_id):
@@ -91,8 +85,6 @@ A unit can come free at the same instant a waiting order's patience runs out. Pl
 
 This function runs both:
 
-docs/snippets/guides/reneging_and_balking.py:tie
-
 ```python
 def tie(waiter_at: float, patience: float) -> str:
     """The outcome of an order whose patience ends when the packer comes free."""
@@ -135,8 +127,6 @@ ______________________________________________________________________
 ## Check the Balance
 
 Every order that arrives ends in one of four places: packed, reneged, balked, or still in the shop when the run ends, waiting (`queued`) or being packed (`started`). The last event of each entity key says which. With statistics at `basic` or above, the `finished`, `reneged` and `balked` counts must match those events:
-
-docs/snippets/guides/reneging_and_balking.py:balance
 
 ```python
 def balance(path: str) -> Counter:

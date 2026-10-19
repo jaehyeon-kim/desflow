@@ -12,8 +12,6 @@ ______________________________________________________________________
 
 For Confluent Cloud, or any cluster that uses SASL PLAIN or SCRAM, pass `security_protocol`, `sasl_mechanism` and the credentials:
 
-docs/snippets/guides/kafka_security.py:sasl
-
 ```python
 egress = KafkaEgress(
     bootstrap_servers="pkc-xxxx.us-east-1.aws.confluent.cloud:9092",
@@ -32,8 +30,6 @@ ______________________________________________________________________
 ## On-Premise Cluster (mTLS)
 
 For a cluster that requires mutual TLS, build an SSL context from your certificate files. `aiokafka` takes only `ssl_context`, not the certificate paths, and `kafka-python` accepts the same context, so one context serves every connector.
-
-docs/snippets/guides/kafka_security.py:mtls
 
 ```python
 from aiokafka.helpers import create_ssl_context
@@ -61,8 +57,6 @@ ______________________________________________________________________
 Amazon MSK with IAM access control uses `sasl_mechanism="OAUTHBEARER"` with a token provider. The token comes from the `aws-msk-iam-sasl-signer-python` package, which you install yourself.
 
 Each library checks the provider's type. `aiokafka` requires a subclass of `aiokafka.abc.AbstractTokenProvider` with an `async` `token()`. `kafka-python` requires a subclass of `kafka.sasl.oauth.AbstractTokenProvider` with a plain `token()`. One object cannot be both, so the connectors that use `aiokafka` get one provider, and `create_topics` gets the other.
-
-docs/snippets/guides/kafka_security.py:msk
 
 ```python
 from aiokafka.abc import AbstractTokenProvider as AsyncTokenProvider
@@ -108,8 +102,6 @@ ______________________________________________________________________
 
 A connector with security settings is added like any other. This simulation publishes its events through the SASL egress above:
 
-docs/snippets/guides/kafka_security.py:shop
-
 ```python
 app = (
     SimulationContext(sim_id="Shop", factor=1.0, random_seed=42)
@@ -148,8 +140,6 @@ ______________________________________________________________________
 Full script
 
 The complete file. It needs a Kafka cluster that uses SASL PLAIN:
-
-docs/snippets/guides/kafka_security.py
 
 ```python
 """The secured Kafka connections of the Secure Kafka page, and a shop that uses one.

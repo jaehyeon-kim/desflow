@@ -18,8 +18,6 @@ Each sink is attached with `add_egress` in the builder, passed to `env.setup_egr
 
 `ConsoleEgress` logs each record at INFO level, one line per record: `[EVT]` for an event, `[TEL]` for telemetry and `[LBL]` for a label. It logs a whole batch with one call, so the logging format's prefix, such as the time and level, starts each batch, and the lines after it start with `[EVT]`, `[TEL]` or `[LBL]`. One call per record cost far more: in the measurements on [Performance Tuning](https://jaehyeon.me/desflow/latest/guides/performance-tuning/index.md), a run printing every record took about 50 percent longer.
 
-docs/snippets/pages/connectors.py:console-egress
-
 ```python
 app.add_egress(ConsoleEgress())
 ```
@@ -27,8 +25,6 @@ app.add_egress(ConsoleEgress())
 ### Kafka
 
 `KafkaEgress` sends events to `event_topic` and telemetry to `telemetry_topic`, keyed by the record's `key` or `path_id`, so all events of one entity land on one partition, in order. `KafkaEgress` creates both topics when the run starts, if they do not exist; with a `topic_router` it creates none. [Complex Routing](https://jaehyeon.me/desflow/latest/guides/complex-routing/index.md) sends records to other topics.
-
-docs/snippets/pages/connectors.py:kafka-egress
 
 ```python
 app.add_egress(
@@ -48,8 +44,6 @@ app.add_egress(
 
 **Columns of a finished event.** A task's `queued` and `started` events carry `path_id` and `status`, but its finished event's value is the task's payload only, so in a finished event's row `path_id` and `status` are null unless the payload has them. The [Parquet example](https://jaehyeon.me/desflow/latest/examples/parquet/index.md) adds them to its payload for that reason.
 
-docs/snippets/pages/connectors.py:storage-egress
-
 ```python
 # Parquet files on the local disk, output/events_<8 hex digits>.parquet
 app.add_egress(ParquetStorageEgress(default_path="output/events.parquet"))
@@ -68,8 +62,6 @@ app.add_egress(
 
 Read the files back as one table with `pyarrow.dataset`, which reads every file in the folder:
 
-docs/snippets/pages/file_sink.py:read
-
 ```python
 def read_events(folder="output"):
     """Every file the sink wrote under `folder`, as one table."""
@@ -85,8 +77,6 @@ A second run adds its files beside the first run's, so reading the folder then c
 
 `RedisEgress` appends each record to a Redis Stream with `XADD`, as one `payload` field holding the record as JSON. A `__stream__` key in the record's value picks the stream, and is removed before writing.
 
-docs/snippets/pages/connectors.py:redis-egress
-
 ```python
 # XADD to the events stream, unless a record's value names another in __stream__
 app.add_egress(
@@ -98,16 +88,12 @@ app.add_egress(
 
 `PostgresEgress` inserts records into a table in batches. Only records whose value is a mapping are written, and the labels on a labels sink. A label is written as `sim_ts`, `timestamp`, `path`, `old`, `new` and `label`. The record's `sim_ts`, `timestamp`, `key` (as `event_id`) and `path_id` are added to the value and replace fields of the same name. Its `task` and `instance` are added too, but a value field of the same name keeps its own value. Keys with no matching column are dropped. A `__table__` key in the value sends the record only to the sink whose `table_name` matches.
 
-docs/snippets/pages/connectors.py:postgres-egress
-
 ```python
 dsn = "postgresql://user:password@localhost:5432/odctl"
 app.add_egress(PostgresEgress(dsn, table_name="orders"))
 ```
 
 By default a record whose key already exists is skipped. `upsert_keys` updates that row instead, for a model that changes rows it wrote earlier, such as an order moving from packed to shipped. The key columns need a unique index; an update sets only the columns the record carries, and within one flush the last record for a key wins.
-
-docs/snippets/pages/connectors.py:postgres-upsert
 
 ```python
 app.add_egress(PostgresEgress(dsn, table_name="orders", upsert_keys=["order_id"]))
@@ -116,8 +102,6 @@ app.add_egress(PostgresEgress(dsn, table_name="orders", upsert_keys=["order_id"]
 ### Iceberg
 
 `IcebergStorageEgress` appends records to an Apache Iceberg table through a REST catalog. One flush is one commit, so this sink wants a large `batch_size` of its own: every commit writes new metadata, and many small commits slow down queries. A table the sink creates has a column for every key of its first batch that has a value in some row; a key null in every row, such as `task` in a low-level event published without one, waits for a batch that gives it a value, as Iceberg has no null type. A key that first appears in a later batch is added to the table as an optional column, unless the table is named in `schemas`, which keeps the columns it gives. A batch the table refuses is logged at ERROR.
-
-docs/snippets/pages/connectors.py:iceberg-egress
 
 ```python
 catalog = RestCatalog(
@@ -140,8 +124,6 @@ app.add_egress(
 
 `upsert_keys` upserts on key columns instead of appending, so rerunning a seeded model over the same window does not duplicate rows. An upsert reads the matching rows first, replaces whole rows, never deletes, and needs pyiceberg 0.9.0 or later.
 
-docs/snippets/pages/connectors.py:iceberg-upsert
-
 ```python
 app.add_egress(
     IcebergStorageEgress(
@@ -156,8 +138,6 @@ app.add_egress(
 ### Connectors in a Blueprint
 
 In a blueprint, `config` holds the constructor's arguments, and settings that Python takes as objects are plain values: a Parquet or JSON Lines `filesystem` is a mapping with `type: local` or `type: s3`, an Iceberg `catalog` is a mapping of PyIceberg properties, and a Postgres `tables` mapping creates its tables when the run starts. [YAML Format](https://jaehyeon.me/desflow/latest/reference/yaml-format/#ingress-and-egress) lists them all.
-
-docs/snippets/yaml_build/connectors.yaml:egress
 
 ```yaml
 egress:
@@ -201,13 +181,9 @@ Every sink receives every event and telemetry record. `when` narrows that down:
 - **`history` and `live`**, in a blueprint: the records stamped before `simulation.go_live_at`, and the rest, as [Time and Pacing](https://jaehyeon.me/desflow/latest/user-guide/time-and-pacing/#go-live) describes.
 - **`labels`**: the ground-truth labels, and nothing else. No other sink receives a label, so data and labels always reach different sinks; [Live Parameters](https://jaehyeon.me/desflow/latest/user-guide/live-parameters/#record-what-a-change-was-for) describes them.
 
-docs/snippets/pages/batching.py:every-sink
-
 ```python
 app.add_egress(stream).add_egress(lake)  # both receive every record
 ```
-
-docs/snippets/pages/batching.py:when
 
 ```python
 # A record's timestamp is an ISO string with its zone offset, so read it as a time
@@ -223,14 +199,10 @@ app.add_egress(lake, when=lambda r: not is_hot(r))  # cold history
 app.add_egress(audit)  # no predicate: everything
 ```
 
-docs/snippets/pages/batching.py:labels
-
 ```python
 app.add_egress(stream)  # events and telemetry, never a label
 app.add_egress(audit, when="labels")  # ground-truth labels, and nothing else
 ```
-
-docs/snippets/yaml/ground_truth.yaml:sinks
 
 ```yaml
 egress:
@@ -257,8 +229,6 @@ A sink receives records in batches. A batch is handed over when it holds `batch_
 
 `with_batching` sets the defaults, and each sink can have its own size and interval: a stream sink wants small, frequent batches to keep latency down, and a file or lake sink wants large ones, because the batch is the file, and for Iceberg the commit.
 
-docs/snippets/pages/batching.py:defaults
-
 ```python
 app.with_batching(
     batch_size=5_000,  # records per batch
@@ -268,8 +238,6 @@ app.with_batching(
 )
 ```
 
-docs/snippets/pages/batching.py:per-sink
-
 ```python
 app.with_batching(batch_size=500, flush_interval=1.0)  # the default for every sink
 app.add_egress(stream, batch_size=50, flush_interval=0.5)  # small and often
@@ -277,8 +245,6 @@ app.add_egress(lake, batch_size=200_000)  # large files, the default interval
 ```
 
 The same settings in a blueprint, and in the low-level API, where the lists are matched to the sinks by position and `None` means the default:
-
-docs/snippets/yaml/batching.yaml
 
 ```yaml
 # The delivery settings of the Egress page, as a blueprint.
@@ -312,8 +278,6 @@ resources:
 run:
   until: 60
 ```
-
-docs/snippets/pages/batching.py:low-level
 
 ```python
 env = DynamicRealtimeEnvironment(factor=0.0)

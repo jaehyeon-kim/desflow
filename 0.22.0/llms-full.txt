@@ -321,8 +321,6 @@ In discrete-event simulation (DES), an **entity** is a thing that moves through 
 
 In desflow these are parameters of one simulation, named by a `sim_id`, here `Shop`: a resource called `packers` with one unit, a service called `packing`, and an arrival stream called `orders`.
 
-docs/snippets/yaml/first_shop.yaml:shop
-
 ```yaml
 simulation:
   sim_id: Shop
@@ -341,8 +339,6 @@ arrivals:
   orders: {dist: exponential, rate: 0.5, spawn: pack_order}
 ```
 
-docs/snippets/tutorials/first_shop.py:shop
-
 ```python
 app = (
     # 1 simulated second = 1 real second; a seed gives the same arrivals every run
@@ -354,8 +350,6 @@ app = (
     .add_arrival("orders", dist="exponential", rate=0.5)
 )
 ```
-
-docs/snippets/tutorials/first_shop_low_level.py:shop
 
 ```python
 PARAMS = SimParameter(
@@ -377,8 +371,6 @@ ______________________________________________________________________
 
 In DES terms an order **queues** for the packer, **seizes** it when it is free, is **delayed** for the service time, and **releases** the packer. desflow calls this a **task**. It publishes three events: `queued` when the order asks for a packer, `started` when it gets one, and a finished event at the end, whose value is the task's payload.
 
-docs/snippets/yaml/first_shop.yaml:order
-
 ```yaml
 tasks:
   pack_order:
@@ -389,8 +381,6 @@ tasks:
 ```
 
 `spawn: pack_order` on the arrival, in the step above, starts the task for every order.
-
-docs/snippets/tutorials/first_shop.py:order
 
 ```python
 @app.task(service_id="packing", resource_id="packers")
@@ -411,8 +401,6 @@ def order_generator(context: SimulationContext):
 ```
 
 `@app.task` publishes the three events and handles the packer for you. The arrival loop waits for each arrival and starts one `pack_order` for the order it returns.
-
-docs/snippets/tutorials/first_shop_low_level.py:order
 
 ```python
 def pack_order(env, sampler, packers, key, task_id):
@@ -450,20 +438,14 @@ ______________________________________________________________________
 
 A sink, called an egress, receives every record the simulation publishes. `ConsoleEgress` prints them; [Egress](https://jaehyeon.me/desflow/latest/user-guide/egress/index.md) lists the others.
 
-docs/snippets/yaml/first_shop.yaml:records
-
 ```yaml
 egress:
   - type: Console
 ```
 
-docs/snippets/tutorials/first_shop.py:records
-
 ```python
 app.add_egress(ConsoleEgress())
 ```
-
-docs/snippets/tutorials/first_shop_low_level.py:records
 
 ```python
 SINKS = [ConsoleEgress()]  # passed to env.setup_egress in run below
@@ -475,21 +457,15 @@ ______________________________________________________________________
 
 ## Run It
 
-docs/snippets/yaml/first_shop.yaml:run
-
 ```yaml
 run:
   until: 20
 ```
 
-docs/snippets/tutorials/first_shop.py:run
-
 ```python
 if __name__ == "__main__":
     app.run(until=20)
 ```
-
-docs/snippets/tutorials/first_shop_low_level.py:run
 
 ```python
 def run(until=20, factor=1.0):
@@ -564,8 +540,6 @@ Full files
 
 The complete first shop, which the documentation tests run:
 
-docs/snippets/yaml/first_shop.yaml
-
 ```yaml
 # The First Simulation tutorial: the shop as a blueprint.
 # Run it with: desflow run first_shop.yaml
@@ -598,8 +572,6 @@ egress:
 run:
   until: 20
 ```
-
-docs/snippets/tutorials/first_shop.py
 
 ```python
 """The First Simulation tutorial: the shop, with the SimulationContext builder.
@@ -649,8 +621,6 @@ app.add_egress(ConsoleEgress())
 if __name__ == "__main__":
     app.run(until=20)
 ```
-
-docs/snippets/tutorials/first_shop_low_level.py
 
 ```python
 """The First Simulation tutorial: the shop, on the low-level API.
@@ -763,8 +733,6 @@ So the shop needs at least 3 packers (2.7 ÷ 3 = 0.9). Each resource in a model 
 
 Here is the busy hour. The arrival rate is 1.8, and `until` is one hour of simulation time:
 
-docs/snippets/yaml/queues_and_capacity.yaml:load
-
 ```yaml
 simulation:
   sim_id: Shop
@@ -791,16 +759,12 @@ run:
   until: 1 h
 ```
 
-docs/snippets/tutorials/queues_and_capacity.py:load
-
 ```python
 app = SimulationContext(sim_id="Shop", factor=0, random_seed=42)  # unpaced
 app.add_service("packing", dist="constant", value=1.5)
 # The busy hour: 1.8 orders a second, more than one packer can pack
 app.add_arrival("orders", dist="exponential", rate=1.8)
 ```
-
-docs/snippets/tutorials/queues_and_capacity_low_level.py:load
 
 ```python
 service={"packing": DistributionConfig(dist="constant", value=1.5)},
@@ -816,8 +780,6 @@ ______________________________________________________________________
 
 The number of packers is the resource's `current_cap`. Each run sets it once:
 
-docs/snippets/yaml/queues_and_capacity.yaml:packers
-
 ```yaml
 resources:
   # The number of packers comes from the PACKERS variable, 1 when it is not set
@@ -828,13 +790,9 @@ resources:
 
 `${PACKERS:-1}` reads the environment variable `PACKERS`, and uses 1 when it is not set.
 
-docs/snippets/tutorials/queues_and_capacity.py:packers
-
 ```python
 app.add_resource("packers", current_cap=packers, max_cap=10)
 ```
-
-docs/snippets/tutorials/queues_and_capacity_low_level.py:packers
 
 ```python
 resources={"packers": CapacityConfig(current_cap=packers, max_cap=10)},
@@ -844,21 +802,15 @@ A `DynamicResource` with a `current_cap` of 3 behaves like a SimPy resource with
 
 To read the mean wait, switch on the built-in statistics at the `typical` level, which keeps the mean wait of every task; [Measuring a Run](https://jaehyeon.me/desflow/latest/tutorials/measuring-a-run/index.md) explains the levels.
 
-docs/snippets/yaml/queues_and_capacity.yaml:stats
-
 ```yaml
 # The mean wait of pack_order, published once an hour and at the end
 stats: {level: typical, interval: 1 h}
 ```
 
-docs/snippets/tutorials/queues_and_capacity.py:stats
-
 ```python
 # The mean wait of pack_order, kept by the run and read at the end
 app.with_stats("typical", interval=3600)
 ```
-
-docs/snippets/tutorials/queues_and_capacity_low_level.py:stats
 
 ```python
 # The mean wait of pack_order, kept by the environment and read at the end
@@ -875,8 +827,6 @@ for n in 1 2 3 4; do
 done
 ```
 
-docs/snippets/tutorials/queues_and_capacity.py:table
-
 ```python
 def mean_wait(packers: int) -> float:
     """Runs the busy hour with `packers` packers and returns the mean wait."""
@@ -889,8 +839,6 @@ if __name__ == "__main__":
     for packers in range(1, 5):
         print(f"packers {packers}: mean wait {mean_wait(packers):8.2f} s")
 ```
-
-docs/snippets/tutorials/queues_and_capacity_low_level.py:table
 
 ```python
 def mean_wait(packers: int) -> float:
@@ -942,8 +890,6 @@ ______________________________________________________________________
 
 Full files
 
-docs/snippets/yaml/queues_and_capacity.yaml
-
 ```yaml
 # The Queues and Capacity tutorial: the shop in its busy hour, as a blueprint.
 # Run it once per number of packers, and read the mean wait from the last lines:
@@ -981,8 +927,6 @@ resources:
 # The mean wait of pack_order, published once an hour and at the end
 stats: {level: typical, interval: 1 h}
 ```
-
-docs/snippets/tutorials/queues_and_capacity.py
 
 ```python
 """The Queues and Capacity tutorial: the shop's busy hour, with the builder.
@@ -1032,8 +976,6 @@ if __name__ == "__main__":
     for packers in range(1, 5):
         print(f"packers {packers}: mean wait {mean_wait(packers):8.2f} s")
 ```
-
-docs/snippets/tutorials/queues_and_capacity_low_level.py
 
 ```python
 """The Queues and Capacity tutorial: the shop's busy hour, on the low-level API.
@@ -1152,8 +1094,6 @@ ______________________________________________________________________
 
 Set the seed once, and every run draws the same numbers:
 
-docs/snippets/yaml/randomness_and_seeds.yaml:seed
-
 ```yaml
 # The same random numbers on every run; leave it out to draw a new seed
 random_seed: 42
@@ -1161,14 +1101,10 @@ random_seed: 42
 
 `desflow run randomness_and_seeds.yaml --seed 7` runs with another seed without editing the file; `--seed` overrides `random_seed`.
 
-docs/snippets/tutorials/randomness_and_seeds.py:seed
-
 ```python
 # The same random numbers on every run; leave it out to draw a new seed
 SimulationContext(sim_id="Shop", factor=0, random_seed=42)
 ```
-
-docs/snippets/tutorials/randomness_and_seeds_low_level.py:seed
 
 ```python
 # The same random numbers on every run, passed to Sampler(seed=SEED) in run below
@@ -1191,8 +1127,6 @@ ______________________________________________________________________
 
 Now add returned parcels: about one every 5 seconds, recorded as they arrive. They do not use the packers.
 
-docs/snippets/yaml/randomness_and_seeds.yaml:returns
-
 ```yaml
 arrivals:
   orders: {dist: exponential, rate: 1.8, spawn: pack_order}
@@ -1204,8 +1138,6 @@ tasks:
   receive_return:
     payload: {event_type: return_received}
 ```
-
-docs/snippets/tutorials/randomness_and_seeds.py:returns
 
 ```python
 # Returned parcels: about one every 5 seconds
@@ -1226,8 +1158,6 @@ def return_generator(context: SimulationContext):
         context.spawn(receive_return(task_id, entity=parcel))
         task_id += 1
 ```
-
-docs/snippets/tutorials/randomness_and_seeds_low_level.py:returns
 
 ```python
 # Returned parcels: about one every 5 seconds
@@ -1271,8 +1201,6 @@ ______________________________________________________________________
 
 Full files
 
-docs/snippets/yaml/randomness_and_seeds.yaml
-
 ```yaml
 # The Randomness and Seeds tutorial: the busy shop, seeded, with returns.
 # Run it with: desflow run randomness_and_seeds.yaml
@@ -1309,8 +1237,6 @@ egress:
 run:
   until: 1 min
 ```
-
-docs/snippets/tutorials/randomness_and_seeds.py
 
 ```python
 """The Randomness and Seeds tutorial: the busy shop, seeded, with returns, builder.
@@ -1375,8 +1301,6 @@ def return_generator(context: SimulationContext):
 if __name__ == "__main__":
     app.run(until="1 min")
 ```
-
-docs/snippets/tutorials/randomness_and_seeds_low_level.py
 
 ```python
 """The Randomness and Seeds tutorial: the busy shop, seeded, with returns, low-level.
@@ -1495,21 +1419,15 @@ ______________________________________________________________________
 
 Choosing a distribution for an input is called **input modelling**. Often there is no data yet, but someone who knows the work can say how long it takes at least, usually and at most. A **triangular** distribution takes exactly those three numbers, `low`, `mode` and `high`, and all three are required:
 
-docs/snippets/yaml/choosing_inputs.yaml:triangular
-
 ```yaml
 # An expert's estimate: at least 1 s, usually 1.25 s, at most 2.25 s
 triangular: {dist: triangular, low: 1 s, mode: 1.25 s, high: 2.25 s}
 ```
 
-docs/snippets/tutorials/choosing_inputs.py:triangular
-
 ```python
 # An expert's estimate: at least 1 s, usually 1.25 s, at most 2.25 s
 app.add_service("triangular", dist="triangular", low=1, mode=1.25, high=2.25)
 ```
-
-docs/snippets/tutorials/choosing_inputs_low_level.py:triangular
 
 ```python
 # An expert's estimate: at least 1 s, usually 1.25 s, at most 2.25 s
@@ -1524,8 +1442,6 @@ ______________________________________________________________________
 
 When times can be measured, use them. An **empirical** distribution draws from a list of measured `values`, each equally likely (or with `weights`, one per value). These are 40 packing times timed at the bench, with a mean of 1.5 seconds:
 
-docs/snippets/yaml/choosing_inputs.yaml:empirical
-
 ```yaml
 # 40 packing times measured at the bench, in seconds
 empirical:
@@ -1535,8 +1451,6 @@ empirical:
            1.1, 0.8, 1.7, 1.1, 0.7, 1.1, 1.2, 0.9, 0.8, 1.5,
            2.1, 1.3, 1.1, 1.7, 1.9, 1.3, 1.8, 2.2, 1.4, 1.1]
 ```
-
-docs/snippets/tutorials/choosing_inputs.py:empirical
 
 ```python
 # 40 packing times measured at the bench, in seconds
@@ -1548,8 +1462,6 @@ measured = [
 ]  # fmt: skip
 app.add_service("empirical", dist="empirical", values=measured)
 ```
-
-docs/snippets/tutorials/choosing_inputs_low_level.py:empirical
 
 ```python
 # 40 packing times measured at the bench, in seconds
@@ -1570,8 +1482,6 @@ ______________________________________________________________________
 
 All four candidates have the same mean, so the packers are equally busy with each: utilisation 0.9. Run the hour with each, and read the mean wait from the statistics at the `typical` level, which [Measuring a Run](https://jaehyeon.me/desflow/latest/tutorials/measuring-a-run/index.md) explains:
 
-docs/snippets/yaml/choosing_inputs.yaml:compare
-
 ```yaml
 tasks:
   pack_order:
@@ -1590,8 +1500,6 @@ for packing in constant triangular empirical exponential; do
 done
 ```
 
-docs/snippets/tutorials/choosing_inputs.py:compare
-
 ```python
 # The task packs with the candidate; the mean wait is read at the end
 @app.task(service_id=packing, resource_id="packers")
@@ -1600,8 +1508,6 @@ def pack_order(task_id):
 
 app.with_stats("typical", interval=3600)
 ```
-
-docs/snippets/tutorials/choosing_inputs_low_level.py:compare
 
 ```python
 def pack_order(env, sampler, packers, packing, task_id):
@@ -1643,8 +1549,6 @@ ______________________________________________________________________
 ## Full Files
 
 Full files
-
-docs/snippets/yaml/choosing_inputs.yaml
 
 ```yaml
 # The Choosing Inputs tutorial: the busy hour with four candidate packing times.
@@ -1691,8 +1595,6 @@ egress:
 run:
   until: 1 h
 ```
-
-docs/snippets/tutorials/choosing_inputs.py
 
 ```python
 """The Choosing Inputs tutorial: the busy hour with four candidate packing times.
@@ -1756,8 +1658,6 @@ if __name__ == "__main__":
     for packing in CANDIDATES:
         print(f"{packing:<12} mean wait {mean_wait(packing):5.2f} s")
 ```
-
-docs/snippets/tutorials/choosing_inputs_low_level.py
 
 ```python
 """The Choosing Inputs tutorial: the busy hour with four candidate packing times.
@@ -1871,21 +1771,15 @@ desflow keeps statistics about a run as it goes, and publishes them as telemetry
 
 Each level includes the ones above it. Switch on `typical`:
 
-docs/snippets/yaml/measuring_a_run.yaml:stats
-
 ```yaml
 # Counts, time averages, and the mean and maximum wait and service, every 10 s
 stats: typical
 ```
 
-docs/snippets/tutorials/measuring_a_run.py:stats
-
 ```python
 # Counts, time averages, and the mean and maximum wait and service, every 10 s
 .with_stats("typical")
 ```
-
-docs/snippets/tutorials/measuring_a_run_low_level.py:stats
 
 ```python
 # Counts, time averages, and the mean and maximum wait and service, every 10 s
@@ -1896,15 +1790,11 @@ The environment keeps the statistics in `env.stats`. Resources report their own 
 
 The statistics are telemetry, so they reach every sink, and they can also be read in Python at the end of the run:
 
-docs/snippets/yaml/measuring_a_run.yaml:read
-
 ```yaml
 # The statistics are telemetry, so every sink receives them
 egress:
   - type: Console
 ```
-
-docs/snippets/tutorials/measuring_a_run.py:read
 
 ```python
 if __name__ == "__main__":
@@ -1913,8 +1803,6 @@ if __name__ == "__main__":
     for name, value in app.env.stats.readings().items():
         print(f"{name} = {value}")
 ```
-
-docs/snippets/tutorials/measuring_a_run_low_level.py:read
 
 ```python
 if __name__ == "__main__":
@@ -1983,8 +1871,6 @@ ______________________________________________________________________
 
 Full files
 
-docs/snippets/yaml/measuring_a_run.yaml
-
 ```yaml
 # The Measuring a Run tutorial: the busy hour, with built-in statistics.
 # Run it with: desflow run measuring_a_run.yaml
@@ -2024,8 +1910,6 @@ egress:
 run:
   until: 1 h
 ```
-
-docs/snippets/tutorials/measuring_a_run.py
 
 ```python
 """The Measuring a Run tutorial: the busy hour, with built-in statistics, builder.
@@ -2082,8 +1966,6 @@ if __name__ == "__main__":
     for name, value in app.env.stats.readings().items():
         print(f"{name} = {value}")
 ```
-
-docs/snippets/tutorials/measuring_a_run_low_level.py
 
 ```python
 """The Measuring a Run tutorial: the busy hour, with built-in statistics, low-level.
@@ -2196,8 +2078,6 @@ Some runs have a natural start and end, such as a shop that opens empty at 9:00 
 
 To see how long the distortion lasts, plot an output over time and look for where it stops trending. Publish the statistics every 10 seconds: `wait_mean` is then the mean wait of every order so far, and `queue_length` is the queue at that moment.
 
-docs/snippets/yaml/trusting_results.yaml:plot
-
 ```yaml
 # wait_mean every 10 seconds is the mean wait so far: plot it against sim_ts
 stats: {level: typical, interval: 10}
@@ -2206,15 +2086,11 @@ egress:
   - type: Console
 ```
 
-docs/snippets/tutorials/trusting_results.py:plot
-
 ```python
 # wait_mean every 10 seconds is the mean wait so far: plot it against sim_ts
 .with_stats("typical", interval=10)
 .add_egress(ConsoleEgress())
 ```
-
-docs/snippets/tutorials/trusting_results_low_level.py:plot
 
 ```python
 # wait_mean every 10 seconds is the mean wait so far: plot it against sim_ts
@@ -2234,21 +2110,15 @@ ______________________________________________________________________
 
 A `warmup` time leaves the start out of everything the run reports:
 
-docs/snippets/yaml/trusting_results.yaml:warmup
-
 ```yaml
 # Records and statistics start after the first 2 minutes; 0 keeps everything
 warmup: ${WARMUP:-2 min}
 ```
 
-docs/snippets/tutorials/trusting_results.py:warmup
-
 ```python
 # Records and statistics start after the first 2 minutes; None keeps everything
 SimulationContext(sim_id="Shop", factor=0, random_seed=42, warmup=warmup)
 ```
-
-docs/snippets/tutorials/trusting_results_low_level.py:warmup
 
 ```python
 # Records and statistics start after the first 2 minutes; None keeps everything
@@ -2278,8 +2148,6 @@ Run the busy hour 40 times. The 40 seeds are spawned from the seed 42, so the se
 desflow run trusting_results.yaml --replications 40 --measure tasks.pack_order.wait_mean --measure resources.packers.utilization_avg
 ```
 
-docs/snippets/tutorials/trusting_results.py:replicate
-
 ```python
 MEASURES = ["tasks.pack_order.wait_mean", "resources.packers.utilization_avg"]
 
@@ -2288,8 +2156,6 @@ def replications(n=40):
     """Runs the busy hour n times, each after the warm-up, with seeds spawned from 42."""
     return replicate(shop, n, seed=42, until="1 h", measures=MEASURES)
 ```
-
-docs/snippets/tutorials/trusting_results_low_level.py:replicate
 
 ```python
 MEASURES = ["tasks.pack_order.wait_mean", "resources.packers.utilization_avg"]
@@ -2349,8 +2215,6 @@ ______________________________________________________________________
 
 Full files
 
-docs/snippets/yaml/trusting_results.yaml
-
 ```yaml
 # The Trusting Results tutorial: the busy hour, measured after a warm-up.
 # Run it with: desflow run trusting_results.yaml
@@ -2392,8 +2256,6 @@ egress:
 run:
   until: 1 h
 ```
-
-docs/snippets/tutorials/trusting_results.py
 
 ```python
 """The Trusting Results tutorial: the busy hour, measured after a warm-up, builder.
@@ -2483,8 +2345,6 @@ if __name__ == "__main__":
             f"{measure}, {n} runs: {result.mean:.2f} ± {result.half_width:.2f} ({share:.1%})"
         )
 ```
-
-docs/snippets/tutorials/trusting_results_low_level.py
 
 ```python
 """The Trusting Results tutorial: the busy hour, measured after a warm-up, low-level.
@@ -2638,21 +2498,15 @@ ______________________________________________________________________
 
 An end condition decides which entities a run's results describe. With statistics at `basic` or above, `flows.orders.started` counts the orders that entered the shop, when their first task began, before any queue, `flows.orders.finished` the orders that left, and `flows.orders.in_system` those still in the shop; from `minimal`, `tasks.pack_order.in_progress` counts the orders waiting for or being packed:
 
-docs/snippets/yaml/end_conditions.yaml:watch
-
 ```yaml
 # Orders started, finished and still in the shop, and the mean wait, at the end
 stats: {level: typical, interval: 2 h}
 ```
 
-docs/snippets/tutorials/end_conditions.py:watch
-
 ```python
 # Orders started, finished and still in the shop, and the mean wait, at the end
 .with_stats("typical", interval=7200)
 ```
-
-docs/snippets/tutorials/end_conditions_low_level.py:watch
 
 ```python
 # Orders started, finished and still in the shop, and the mean wait, at the end
@@ -2669,8 +2523,6 @@ ______________________________________________________________________
 
 A **fixed horizon** stops the clock at `until`, whatever is still going on. A **drain** stops only the arrivals at `until` and keeps running until every entity in the model has left. In SimPy that is two steps: interrupt the source process, then run until every admitted process has ended. desflow writes both with `drain`:
 
-docs/snippets/yaml/end_conditions.yaml:run
-
 ```yaml
 run:
   # No new orders after one hour
@@ -2681,14 +2533,10 @@ run:
 
 `${DRAIN:-false}` reads the environment variable `DRAIN`, so `DRAIN=true desflow run end_conditions.yaml` runs the drain, as `desflow run end_conditions.yaml --drain` does.
 
-docs/snippets/tutorials/end_conditions.py:run
-
 ```python
 # No new orders after one hour; with drain, pack every order already in the shop
 app.run(until="1 h", drain=drain or None)
 ```
-
-docs/snippets/tutorials/end_conditions_low_level.py:run
 
 ```python
 env.run(until=3600)  # no new orders after one hour
@@ -2724,8 +2572,6 @@ ______________________________________________________________________
 ## Full Files
 
 Full files
-
-docs/snippets/yaml/end_conditions.yaml
 
 ```yaml
 # The End Conditions tutorial: a fixed horizon against a drain.
@@ -2763,8 +2609,6 @@ run:
   # true: pack every order already in the shop before the run ends
   drain: ${DRAIN:-false}
 ```
-
-docs/snippets/tutorials/end_conditions.py
 
 ```python
 """The End Conditions tutorial: a fixed horizon against a drain.
@@ -2837,8 +2681,6 @@ if __name__ == "__main__":
             f"mean wait {r['wait_mean']:5.2f} s"
         )
 ```
-
-docs/snippets/tutorials/end_conditions_low_level.py
 
 ```python
 """The End Conditions tutorial: a fixed horizon against a drain.
@@ -2975,15 +2817,11 @@ desflow fit packing_times.csv --column packing_seconds --lower 0 --out fitted/pa
 
 `packing_times.csv` has a column `packing_seconds` with the 40 times; `desflow examples get fitting` downloads it as `fitting/packing_times.csv`. `--out` writes the best candidate's settings, and `--plot` draws the data against it.
 
-docs/snippets/tutorials/fit_the_inputs.py:fit
-
 ```python
 # The 40 packing times, in seconds; none can be below 0
 result = fit_column(MEASURED, unit="s", lower=0)
 print(result.text())  # every candidate, its status and diagnostics
 ```
-
-docs/snippets/tutorials/fit_the_inputs_low_level.py:fit
 
 ```python
 # The 40 packing times, in seconds; none can be below 0
@@ -3025,8 +2863,6 @@ ______________________________________________________________________
 
 The fitted settings go where the 40 times were:
 
-docs/snippets/yaml/fit_the_inputs.yaml:include
-
 ```yaml
 services:
   # The best fit of the 40 packing times, as desflow fit wrote it
@@ -3034,8 +2870,6 @@ services:
 ```
 
 `!include` reads a mapping from another file, relative to the blueprint. The file `desflow fit` wrote:
-
-docs/snippets/yaml/fitted/packing.yaml
 
 ```yaml
 # Fitted by desflow fit from packing_times.csv, column packing_seconds: triangular, from 40 values in s, written in seconds.
@@ -3045,14 +2879,10 @@ mode: 1.2
 high: 2.83766
 ```
 
-docs/snippets/tutorials/fit_the_inputs.py:service
-
 ```python
 # The best fit's settings: dist="triangular", low, mode and high
 .add_service("packing", **packing)
 ```
-
-docs/snippets/tutorials/fit_the_inputs_low_level.py:service
 
 ```python
 params = SimParameter(
@@ -3094,8 +2924,6 @@ ______________________________________________________________________
 
 Full files
 
-docs/snippets/yaml/fit_the_inputs.yaml
-
 ```yaml
 # The Fit the Inputs tutorial: the busy hour, with a packing time fitted to the data.
 # Fit, then run it:
@@ -3129,8 +2957,6 @@ stats: typical
 run:
   until: 1 h
 ```
-
-docs/snippets/tutorials/fit_the_inputs.py
 
 ```python
 """The Fit the Inputs tutorial: which distribution fits the 40 packing times? builder.
@@ -3211,8 +3037,6 @@ if __name__ == "__main__":
 ```
 
 It imports from `trusting_results.py`, which is in the full files of [Trusting Results](https://jaehyeon.me/desflow/latest/tutorials/trusting-results/#full-files).
-
-docs/snippets/tutorials/fit_the_inputs_low_level.py
 
 ```python
 """The Fit the Inputs tutorial: which distribution fits the 40 packing times? low-level.
@@ -3313,22 +3137,16 @@ So far each order needed only a packer, a **resource** that it holds and gives b
 
 In desflow it is a container in the `containers` section. Its `current_cap` is the capacity, the most it can hold, and `level` is what it holds when the run starts:
 
-docs/snippets/yaml/stock.yaml:container
-
 ```yaml
 containers:
   # Boxes on the shelf: room for 200, and 50 when the run starts
   stock: {current_cap: 200, max_cap: 200, level: 50}
 ```
 
-docs/snippets/tutorials/stock.py:container
-
 ```python
 # Boxes on the shelf: room for 200, and 50 when the run starts
 app.add_container("stock", current_cap=200, max_cap=200, level=50)
 ```
-
-docs/snippets/tutorials/stock_low_level.py:container
 
 ```python
 # Boxes on the shelf: room for 200, and 50 when the run starts
@@ -3345,8 +3163,6 @@ ______________________________________________________________________
 
 Packing an order takes one box. The task gets its packer first and then its box, so an order that finds the shelf empty waits for stock while it holds the packer:
 
-docs/snippets/yaml/stock.yaml:take
-
 ```yaml
 pack_order:
   service: packing
@@ -3355,8 +3171,6 @@ pack_order:
   get: {container: stock, amount: 1}
   payload: {event_type: order_packed}
 ```
-
-docs/snippets/tutorials/stock.py:take
 
 ```python
 # One box per order, taken once the order has a packer; waits while stock is 0
@@ -3369,8 +3183,6 @@ def pack_order(task_id: int):
     return {"event_type": "order_packed"}
 ```
 
-docs/snippets/tutorials/stock_low_level.py:take
-
 ```python
 with shop["packers"].request() as request:
     yield request
@@ -3380,14 +3192,10 @@ with shop["packers"].request() as request:
 
 A delivery arrives every 100 seconds, and its task puts the boxes on the shelf. It waits while there is no room for all of them. It has no service and no resource, so it takes no time and publishes its payload once the boxes are on the shelf:
 
-docs/snippets/yaml/stock.yaml:restock
-
 ```yaml
 # A delivery every 100 seconds
 deliveries: {dist: constant, value: 100 s, spawn: restock}
 ```
-
-docs/snippets/yaml/stock.yaml:delivery
 
 ```yaml
 restock:
@@ -3399,8 +3207,6 @@ restock:
 ```
 
 `${DELIVERY:-60}` reads the environment variable `DELIVERY`, 60 when it is not set, so `DELIVERY=40 desflow run stock.yaml` runs the smaller deliveries.
-
-docs/snippets/tutorials/stock.py:restock
 
 ```python
 # A delivery every 100 seconds
@@ -3419,8 +3225,6 @@ def delivery_generator(context: SimulationContext):
         context.spawn(restock(task_id, entity=delivery))
         task_id += 1
 ```
-
-docs/snippets/tutorials/stock_low_level.py:restock
 
 ```python
 def restock(env, shop, delivery, key, task_id):
@@ -3446,21 +3250,15 @@ ______________________________________________________________________
 
 The built-in statistics, which [Statistics](https://jaehyeon.me/desflow/latest/user-guide/statistics/index.md) describes, at the `minimal` level and above publish each container's `capacity`, `level`, `getters_waiting` and `putters_waiting`. `typical` adds the mean wait:
 
-docs/snippets/yaml/stock.yaml:watch
-
 ```yaml
 # The stock's level and waiting tasks every 10 seconds, and the mean wait at the end
 stats: typical
 ```
 
-docs/snippets/tutorials/stock.py:watch
-
 ```python
 # The stock's level and waiting tasks every 10 seconds, and the mean wait
 .with_stats("typical")
 ```
-
-docs/snippets/tutorials/stock_low_level.py:watch
 
 ```python
 # The stock's level and waiting tasks every 10 seconds, and the mean wait
@@ -3511,8 +3309,6 @@ ______________________________________________________________________
 
 Full files
 
-docs/snippets/yaml/stock.yaml
-
 ```yaml
 # The Stock tutorial: packing takes a box from stock, and deliveries restock it.
 # Run it with: desflow run stock.yaml
@@ -3561,8 +3357,6 @@ egress:
 run:
   until: 1 h
 ```
-
-docs/snippets/tutorials/stock.py
 
 ```python
 """The Stock tutorial: packing takes a box from stock, and deliveries restock it.
@@ -3645,8 +3439,6 @@ if __name__ == "__main__":
     for delivery in (60, 40):
         print(f"deliveries of {delivery}: mean wait {mean_wait(delivery):6.2f} s")
 ```
-
-docs/snippets/tutorials/stock_low_level.py
 
 ```python
 """The Stock tutorial: packing takes a box from stock, and deliveries restock it.
@@ -3786,22 +3578,16 @@ Which waiting entity a resource serves next is its **queue discipline**. The usu
 
 SimPy has a `PriorityResource` for the priority discipline, and a `PriorityStore` for items. In desflow every resource has a `queue`: `fifo` (the default), `lifo` or `priority`. Under `priority` the lowest number goes first, and requests with the same priority are served first in, first out:
 
-docs/snippets/yaml/priorities.yaml:queue
-
 ```yaml
 resources:
   # The packer serves the lowest priority first, the oldest first among equals
   packers: {current_cap: 1, max_cap: 4, queue: priority}
 ```
 
-docs/snippets/tutorials/priorities.py:queue
-
 ```python
 # The packer serves the lowest priority first, the oldest first among equals
 app.add_resource("packers", current_cap=1, max_cap=4, queue=queue)
 ```
-
-docs/snippets/tutorials/priorities_low_level.py:queue
 
 ```python
 # The packer serves the lowest priority first, the oldest first among equals
@@ -3813,8 +3599,6 @@ ______________________________________________________________________
 ## Give Express Orders Priority
 
 Each task gives its requests a priority. Express orders get 0, so they are served before any regular order that is waiting; regular orders get 1:
-
-docs/snippets/yaml/priorities.yaml:priority
 
 ```yaml
 tasks:
@@ -3832,8 +3616,6 @@ tasks:
 
 Here each task has a fixed number. A priority can also be an expression read from the entity's attributes, which [Task Flow](https://jaehyeon.me/desflow/latest/user-guide/task-flow/#attributes) describes, such as `priority: attr.priority`, so each order gets its own. A `priority` on a task whose resource does not have `queue: priority` is refused when the file loads, so to run the shop under `fifo`, remove `queue: priority` and both `priority` lines.
 
-docs/snippets/tutorials/priorities.py:priority
-
 ```python
 @app.task(service_id="packing", resource_id="packers", priority=rank(1))
 def pack_order(task_id: int):
@@ -3847,14 +3629,10 @@ def pack_express(task_id: int):
 
 `rank` gives each task its priority under `priority` and none under `fifo`, because a priority on a resource of another order is refused when the run starts. A task's priority can also be an expression such as `priority="attr.tier"`, or a function of the task id and the entity's attributes, such as `priority=lambda task_id, attributes: attributes["tier"]`, so each order gets its own; the attributes exist before the order joins the queue, while its payload does not.
 
-docs/snippets/tutorials/priorities_low_level.py:priority
-
 ```python
 # Express orders are served before any regular order that is waiting
 TASKS = {"orders": ("pack_order", 1), "express": ("pack_express", 0)}
 ```
-
-docs/snippets/tutorials/priorities_low_level.py:request
 
 ```python
 # Under fifo and lifo the priority is ignored
@@ -3895,8 +3673,6 @@ ______________________________________________________________________
 ## Full Files
 
 Full files
-
-docs/snippets/yaml/priorities.yaml
 
 ```yaml
 # The Priorities tutorial: express orders go before regular ones.
@@ -3939,8 +3715,6 @@ egress:
 run:
   until: 1 h
 ```
-
-docs/snippets/tutorials/priorities.py
 
 ```python
 """The Priorities tutorial: express orders go before regular ones, builder.
@@ -4021,8 +3795,6 @@ if __name__ == "__main__":
         for task, wait in mean_waits(queue).items():
             print(f"{queue:<8} {task:<12} mean wait {wait:5.2f} s")
 ```
-
-docs/snippets/tutorials/priorities_low_level.py
 
 ```python
 """The Priorities tutorial: express orders go before regular ones, low-level.
@@ -4145,8 +3917,6 @@ ______________________________________________________________________
 
 Choosing where an entity goes next is called **routing**. In desflow a task, which [Tasks and Processes](https://jaehyeon.me/desflow/latest/user-guide/tasks-and-processes/index.md) describes, names what follows it with `next`. `next` is a task name, which always leads there; a list of `when` rules, each a condition and a task, where the first rule that holds wins and `default` catches the rest; or `weights`, below. A task with no `next` ends the order's flow.
 
-docs/snippets/yaml/flow_of_tasks.yaml:chain
-
 ```yaml
 pick_order:
   service: picking
@@ -4158,8 +3928,6 @@ pick_order:
       - {condition: "level.stock == 0", task: backorder}
     default: pack_order
 ```
-
-docs/snippets/tutorials/flow_of_tasks.py:chain
 
 ```python
 # The first rule that holds wins; default catches the rest
@@ -4175,8 +3943,6 @@ def pick_order(task_id: int, context: SimulationContext):
     return {"event_type": "order_picked"}
 ```
 
-docs/snippets/tutorials/flow_of_tasks_low_level.py:chain
-
 ```python
 # The first rule that holds wins; default catches the rest
 "pick_order": Router(
@@ -4188,8 +3954,6 @@ docs/snippets/tutorials/flow_of_tasks_low_level.py:chain
 ```
 
 A `Router` takes the same rules as `next` and returns the name of the task to start. When a task finishes, its process asks the router and starts the next task as a new process, with the same entity:
-
-docs/snippets/tutorials/flow_of_tasks_low_level.py:next
 
 ```python
 entity.attributes.update(SETS.get(name, {}))
@@ -4214,8 +3978,6 @@ ______________________________________________________________________
 
 An order picked while the shelf is empty waits for the supplier for a minute, then is picked again. The wait uses no picker or packer, so `backorder` has a `service` and no `resource`: a **timed step**. It publishes `started` at once, with no `queued` event, waits the sampled time, and publishes its finished event:
 
-docs/snippets/yaml/flow_of_tasks.yaml:backorder
-
 ```yaml
 backorder:
   # A timed step: a service and no resource, so it starts at once
@@ -4226,8 +3988,6 @@ backorder:
   next: pick_order
 ```
 
-docs/snippets/tutorials/flow_of_tasks.py:backorder
-
 ```python
 # A timed step: a service and no resource, so it starts at once. `set` is applied
 # to the order's attributes when the step finishes.
@@ -4236,13 +3996,9 @@ def backorder(task_id: int, context: SimulationContext):
     return {"event_type": "order_backordered"}
 ```
 
-docs/snippets/tutorials/flow_of_tasks_low_level.py:backorder
-
 ```python
 "backorder": Router("pick_order"),
 ```
-
-docs/snippets/tutorials/flow_of_tasks_low_level.py:set
 
 ```python
 # Applied to the order's attributes when the step finishes
@@ -4257,8 +4013,6 @@ ______________________________________________________________________
 
 One parcel in 20 fails its check and is packed again. Sending work back to a task it has passed is called **rework**. `weights` chooses the next task at random, in proportion to the weights, from a random stream of the routing task's own, `route.pack_order`, so a seeded run repeats and the choice does not change any other draw:
 
-docs/snippets/yaml/flow_of_tasks.yaml:rework
-
 ```yaml
 pack_order:
   service: packing
@@ -4269,8 +4023,6 @@ pack_order:
   next:
     weights: {ship_order: 95, pack_order: 5}
 ```
-
-docs/snippets/tutorials/flow_of_tasks.py:rework
 
 ```python
 # One parcel in 20 fails its check and is packed again
@@ -4283,8 +4035,6 @@ docs/snippets/tutorials/flow_of_tasks.py:rework
 def pack_order(task_id: int, context: SimulationContext):
     return {"event_type": "order_packed"}
 ```
-
-docs/snippets/tutorials/flow_of_tasks_low_level.py:rework
 
 ```python
 # One parcel in 20 fails its check and is packed again; the generator is set
@@ -4300,8 +4050,6 @@ ______________________________________________________________________
 
 An order is an **entity** with **attributes**: values it carries from task to task, such as whether it is express. The arrival gives each new entity its starting attributes, and `set` on a task changes them when the task finishes, as `backorder` does with `backordered: 1`:
 
-docs/snippets/yaml/flow_of_tasks.yaml:attributes
-
 ```yaml
 arrivals:
   # Each order starts with the attributes given here, read as attr.<name>
@@ -4309,15 +4057,11 @@ arrivals:
   express: {dist: exponential, rate: 0.1, spawn: pick_order, attributes: {express: 1}}
 ```
 
-docs/snippets/tutorials/flow_of_tasks.py:attributes
-
 ```python
 # Each order starts with the attributes given here, read as attr.<name>
 app.add_arrival("orders", dist="exponential", rate=0.4, attributes={"express": 0})
 app.add_arrival("express", dist="exponential", rate=0.1, attributes={"express": 1})
 ```
-
-docs/snippets/tutorials/flow_of_tasks_low_level.py:attributes
 
 ```python
 # Each order starts with the attributes given here, read as attr.<name>
@@ -4370,8 +4114,6 @@ ______________________________________________________________________
 ## Full Files
 
 Full files
-
-docs/snippets/yaml/flow_of_tasks.yaml
 
 ```yaml
 # The A Flow of Tasks tutorial: orders are picked, packed and shipped.
@@ -4443,8 +4185,6 @@ egress:
 run:
   until: 1 h
 ```
-
-docs/snippets/tutorials/flow_of_tasks.py
 
 ```python
 """The A Flow of Tasks tutorial: orders are picked, packed and shipped, builder.
@@ -4545,8 +4285,6 @@ app.arrival_loop("deliveries")(spawn("deliveries", restock, "restock"))
 if __name__ == "__main__":
     app.run(until="1 h")
 ```
-
-docs/snippets/tutorials/flow_of_tasks_low_level.py
 
 ```python
 """The A Flow of Tasks tutorial: orders are picked, packed and shipped, low-level.
@@ -4750,22 +4488,16 @@ ______________________________________________________________________
 
 So far a process has waited for time, a resource or an item. Processes can also wait for each other. In SimPy one process yields an event, and another succeeds it; every process waiting for the event resumes. desflow gives such an event a name, a **signal**: declared once, fired by a task when it finishes, and fired again later, each firing waking every waiter that waits at that moment:
 
-docs/snippets/yaml/process_interaction.yaml:signal
-
 ```yaml
 signals:
   # Fired by the courier as it leaves with every order that waits for it
   - courier_left
 ```
 
-docs/snippets/tutorials/process_interaction.py:signal
-
 ```python
 # Fired by the courier as it leaves with every order that waits for it
 app.add_signal("courier_left")
 ```
-
-docs/snippets/tutorials/process_interaction_low_level.py:signal
 
 ```python
 # Fired by the courier as it leaves with every order that waits for it
@@ -4776,14 +4508,10 @@ docs/snippets/tutorials/process_interaction_low_level.py:signal
 
 The courier arrives every 10 minutes, and its task fires the signal with its payload:
 
-docs/snippets/yaml/process_interaction.yaml:courier
-
 ```yaml
 # A courier every 10 minutes
 couriers: {dist: constant, value: 10 min, spawn: collect}
 ```
-
-docs/snippets/yaml/process_interaction.yaml:collect
 
 ```yaml
 collect:
@@ -4792,14 +4520,10 @@ collect:
   signal: courier_left
 ```
 
-docs/snippets/tutorials/process_interaction.py:courier
-
 ```python
 # A courier every 10 minutes
 .add_arrival("couriers", dist="constant", value=600)
 ```
-
-docs/snippets/tutorials/process_interaction.py:collect
 
 ```python
 # Fires courier_left with this payload, so every waiting order resumes
@@ -4808,14 +4532,10 @@ def collect(task_id: int):
     return {"event_type": "courier_left"}
 ```
 
-docs/snippets/tutorials/process_interaction_low_level.py:courier
-
 ```python
 # A courier every 10 minutes
 "couriers": DistributionConfig(dist="constant", value=600),
 ```
-
-docs/snippets/tutorials/process_interaction_low_level.py:collect
 
 ```python
 def collect(env, shop, key, ids):
@@ -4835,8 +4555,6 @@ ______________________________________________________________________
 
 A packed order waits for the courier or for its limit. SimPy waits for the first of several events with `a | b`, an `AnyOf`; desflow's `wait` takes the same with `any` and a name for each branch. After the wait, `wait.<branch>.done` says whether that branch happened, so `next` can route on it:
 
-docs/snippets/yaml/process_interaction.yaml:dispatch
-
 ```yaml
 dispatch:
   # The courier's departure, or the limit, whichever comes first
@@ -4853,8 +4571,6 @@ dispatch:
 
 `"${LIMIT:-5 min}"` reads the environment variable `LIMIT`, 5 minutes when it is not set, so `LIMIT="8 min" desflow run process_interaction.yaml` runs the longer limit.
 
-docs/snippets/tutorials/process_interaction.py:dispatch
-
 ```python
 @app.task(
     # The courier's departure, or the limit, whichever comes first
@@ -4870,8 +4586,6 @@ docs/snippets/tutorials/process_interaction.py:dispatch
 def dispatch(task_id: int):
     return {"event_type": "dispatched"}
 ```
-
-docs/snippets/tutorials/process_interaction_low_level.py:dispatch
 
 ```python
 def dispatch(env, shop, key, ids):
@@ -4894,21 +4608,15 @@ def dispatch(env, shop, key, ids):
 
 The task publishes `queued` when it starts waiting and `started` when the wait ends, so its wait statistics measure the time waiting for the courier:
 
-docs/snippets/yaml/process_interaction.yaml:watch
-
 ```yaml
 # How many orders went each way, and the mean wait for dispatch, at the end
 stats: {level: typical, interval: 8 h}
 ```
 
-docs/snippets/tutorials/process_interaction.py:watch
-
 ```python
 # How many orders went each way, and the mean wait for dispatch, at the end
 .with_stats("typical", interval=8 * 3600)
 ```
-
-docs/snippets/tutorials/process_interaction_low_level.py:watch
 
 ```python
 # How many orders went each way, and the mean wait for dispatch, at the end
@@ -4937,8 +4645,6 @@ ______________________________________________________________________
 ## Full Files
 
 Full files
-
-docs/snippets/yaml/process_interaction.yaml
 
 ```yaml
 # The Process Interaction tutorial: packed orders wait for the courier, with a limit.
@@ -4999,8 +4705,6 @@ egress:
 run:
   until: 8 h
 ```
-
-docs/snippets/tutorials/process_interaction.py
 
 ```python
 """The Process Interaction tutorial: packed orders wait for the courier, with a limit.
@@ -5104,8 +4808,6 @@ if __name__ == "__main__":
             f"{result['by_post']} by post, mean wait {result['wait_mean']:6.1f} s"
         )
 ```
-
-docs/snippets/tutorials/process_interaction_low_level.py
 
 ```python
 """The Process Interaction tutorial: packed orders wait for the courier, with a limit.
@@ -5273,8 +4975,6 @@ ______________________________________________________________________
 
 An entity that leaves a queue after waiting too long **reneges**. In SimPy it waits for whichever comes first, the unit or a timeout, with the `|` of two events (an `AnyOf`), then checks which one happened. In desflow it is the task's `patience`: how long the task may wait, for its `wait`, then its resource and then its `get` from a store or container, before it leaves the queue and publishes `reneged`. It counts waiting time only and pauses while the task is served, as SimPy's pattern does when a preempted process waits again with the patience it has left:
 
-docs/snippets/yaml/patience.yaml:patience
-
 ```yaml
 # A customer cancels an order not started within 30 seconds
 patience: ${PATIENCE:-30 s}
@@ -5282,16 +4982,12 @@ patience: ${PATIENCE:-30 s}
 
 `${PATIENCE:-30 s}` reads the environment variable `PATIENCE`, 30 seconds when it is not set, so `PATIENCE="1 h" desflow run patience.yaml` runs the hour with no limit that matters. `patience` takes seconds, a duration, or an expression such as `attr.patience`, so each order can bring its own.
 
-docs/snippets/tutorials/patience.py:patience
-
 ```python
 # A customer cancels an order not started within 30 seconds
 patience=patience,
 ```
 
 `patience` is 30 here, in seconds; it also takes a duration, as in YAML: `patience="30 s"`. A distribution's parameters in the builder take seconds only.
-
-docs/snippets/tutorials/patience_low_level.py:patience
 
 ```python
 # A customer cancels an order not started within 30 seconds
@@ -5315,21 +5011,15 @@ ______________________________________________________________________
 
 An entity that does not join a queue at all **balks**. In SimPy it is an `if` before the request. In desflow it is the task's `balk`, a condition checked before the task joins the queue; when it holds, the task publishes `balked` and never asks for the resource. Here `t`, the simulation time, stops new orders in the last five minutes:
 
-docs/snippets/yaml/patience.yaml:balk
-
 ```yaml
 # The courier leaves at the hour, so the last 5 minutes take no new orders
 balk: t >= 3300
 ```
 
-docs/snippets/tutorials/patience.py:balk
-
 ```python
 # The courier leaves at the hour, so the last 5 minutes take no new orders
 balk="t >= 3300",
 ```
-
-docs/snippets/tutorials/patience_low_level.py:balk
 
 ```python
 # The courier leaves at the hour, so the last 5 minutes take no new orders
@@ -5347,21 +5037,15 @@ ______________________________________________________________________
 
 With statistics at `basic` and above, each task publishes how many instances reneged and balked, as `Shop.stats.tasks.pack_order.reneged` and `.balked`, once the first one happens. `typical` adds the mean and longest wait of the orders that were served:
 
-docs/snippets/yaml/patience.yaml:watch
-
 ```yaml
 # Counts of finished, reneged and balked orders, and the mean wait, at the end
 stats: {level: typical, interval: 1 h}
 ```
 
-docs/snippets/tutorials/patience.py:watch
-
 ```python
 # Counts of finished, reneged and balked orders, and the mean wait, at the end
 .with_stats("typical", interval=3600)
 ```
-
-docs/snippets/tutorials/patience_low_level.py:watch
 
 ```python
 # Counts of finished, reneged and balked orders, and the mean wait, at the end
@@ -5392,8 +5076,6 @@ ______________________________________________________________________
 ## Full Files
 
 Full files
-
-docs/snippets/yaml/patience.yaml
 
 ```yaml
 # The Patience tutorial: orders leave after waiting too long, and none join near closing.
@@ -5433,8 +5115,6 @@ egress:
 run:
   until: 1 h
 ```
-
-docs/snippets/tutorials/patience.py
 
 ```python
 """The Patience tutorial: orders leave after waiting too long, and none join near closing.
@@ -5511,8 +5191,6 @@ if __name__ == "__main__":
             f"mean wait {result['wait_mean']:5.2f} s"
         )
 ```
-
-docs/snippets/tutorials/patience_low_level.py
 
 ```python
 """The Patience tutorial: orders leave after waiting too long, and none join near closing.
@@ -5642,15 +5320,11 @@ ______________________________________________________________________
 
 Priority so far decided only who goes next. **Preemption** also stops the work in progress: SimPy's `PreemptiveResource` takes a unit from the user with the highest priority value when a request with a lower one finds every unit busy, and that user's process receives an `Interrupt`. In desflow it is `preempt: true` on a resource whose queue is `priority`:
 
-docs/snippets/yaml/interruptions.yaml:packers
-
 ```yaml
 resources:
   # An express order takes the packer from a regular one being packed
   packers: {current_cap: 1, max_cap: 4, queue: priority, preempt: true}
 ```
-
-docs/snippets/tutorials/interruptions.py:packers
 
 ```python
 # An express order takes the packer from a regular one being packed
@@ -5658,8 +5332,6 @@ docs/snippets/tutorials/interruptions.py:packers
     "packers", current_cap=1, max_cap=4, queue="priority", preempt=True
 )
 ```
-
-docs/snippets/tutorials/interruptions_low_level.py:packers
 
 ```python
 # An express order takes the packer from a regular one being packed
@@ -5682,8 +5354,6 @@ A preempted or interrupted task first gives back everything it holds and stops w
 
 It publishes `preempted` (or `interrupted`) when it loses the packer, and `resumed` when it has it again:
 
-docs/snippets/yaml/interruptions.yaml:policy
-
 ```yaml
 pack_order:
   service: packing
@@ -5696,8 +5366,6 @@ pack_order:
 
 `${POLICY:-resume}` reads the environment variable `POLICY`, so `POLICY=restart desflow run interruptions.yaml` runs the second policy.
 
-docs/snippets/tutorials/interruptions.py:policy
-
 ```python
 @app.task(
     service_id="packing",
@@ -5709,8 +5377,6 @@ docs/snippets/tutorials/interruptions.py:policy
 def pack_order(task_id: int):
     return {"event_type": "order_packed"}
 ```
-
-docs/snippets/tutorials/interruptions_low_level.py:policy
 
 ```python
 def pack(env, sampler, shop, arrival, key, task_id, policy):
@@ -5772,21 +5438,15 @@ The process catches `simpy.Interrupt`, whose cause is SimPy's `Preempted` for a 
 
 The statistics count each `preempted`, `interrupted` and `resumed`; a resumed order's wait is the sum of its waits, and its packing time is the time it was packed:
 
-docs/snippets/yaml/interruptions.yaml:watch
-
 ```yaml
 # Counts of preemptions and resumptions, and the mean wait and service, at the end
 stats: {level: typical, interval: 1 h}
 ```
 
-docs/snippets/tutorials/interruptions.py:watch
-
 ```python
 # Counts of preemptions and resumptions, and the mean wait and service, at the end
 .with_stats("typical", interval=3600)
 ```
-
-docs/snippets/tutorials/interruptions_low_level.py:watch
 
 ```python
 # Counts of preemptions and resumptions, and the mean wait and service, at the end
@@ -5799,8 +5459,6 @@ ______________________________________________________________________
 
 Preemption is one source of interrupts; a model can send others. An `interrupt` names a task, and every instance of it that is running, waiting or being served, receives an interrupt with the `cause` given, and follows its `on_interrupt`. A `where` condition, such as `attr.order == 3`, limits it to the instances it holds for. Here the packer is called away at 30 minutes:
 
-docs/snippets/yaml/interruptions.yaml:interrupt
-
 ```yaml
 scenario:
   # The packer is called away at 30 minutes: every regular order in the shop,
@@ -5809,8 +5467,6 @@ scenario:
 ```
 
 A task can carry the same `interrupt`, applied when it finishes.
-
-docs/snippets/tutorials/interruptions.py:interrupt
 
 ```python
 def called_away(context: SimulationContext):
@@ -5823,8 +5479,6 @@ app.add_process(called_away)
 ```
 
 `context.interrupt(task, where=None, cause=None)` returns how many instances it reached; it never reaches the instance that calls it.
-
-docs/snippets/tutorials/interruptions_low_level.py:interrupt
 
 ```python
 def called_away(env, shop):
@@ -5843,8 +5497,6 @@ ______________________________________________________________________
 
 A machine that fails interrupts the work it was doing in the same way. A resource's `breakdown` makes it fail at random times and be repaired: here a packing station fails about once a minute and takes 5 to 15 seconds to repair:
 
-examples/yaml/breakdowns.yaml:station
-
 ```yaml
 resources:
   station:
@@ -5858,8 +5510,6 @@ resources:
       work: interrupt
 ```
 
-examples/builder/breakdowns_example.py:station
-
 ```python
 .add_resource("station", current_cap=2, max_cap=3)
 .add_breakdown(
@@ -5871,8 +5521,6 @@ examples/builder/breakdowns_example.py:station
     work="interrupt",
 )
 ```
-
-examples/low-level/breakdowns_example.py:station
 
 ```python
 breakdowns={
@@ -5913,8 +5561,6 @@ ______________________________________________________________________
 ## Full Files
 
 Full files
-
-docs/snippets/yaml/interruptions.yaml
 
 ```yaml
 # The Interruptions tutorial: express orders take the packer from regular ones.
@@ -5965,8 +5611,6 @@ egress:
 run:
   until: 1 h
 ```
-
-docs/snippets/tutorials/interruptions.py
 
 ```python
 """The Interruptions tutorial: express orders take the packer from regular ones.
@@ -6063,8 +5707,6 @@ if __name__ == "__main__":
             f"mean wait {r['wait_mean']:5.2f} s, mean packing {r['service_mean']:4.2f} s"
         )
 ```
-
-docs/snippets/tutorials/interruptions_low_level.py
 
 ```python
 """The Interruptions tutorial: express orders take the packer from regular ones.
@@ -6243,8 +5885,6 @@ ______________________________________________________________________
 
 In SimPy a process holds a resource for as long as its request is granted and not released, and it can ask for a second resource while it holds the first: nested `with` blocks. A desflow task does the same in two ways. It can list several resources, `resource: [picker, bench]`, and hold them all while it works; or it can hand a unit to the next task of its flow with `keep`, and that task gives it back once it starts:
 
-docs/snippets/yaml/competing_resources.yaml:handoff
-
 ```yaml
 pick_order:
   service: picking
@@ -6260,8 +5900,6 @@ pack_order:
 ```
 
 Remove `keep: [picker]` to run it without the handoff: `pick_order` then gives the picker back when it finishes, as every task does.
-
-docs/snippets/tutorials/competing_resources.py:handoff
 
 ```python
 @app.task(
@@ -6280,8 +5918,6 @@ def pack_order(task_id: int):
 ```
 
 Without `keep`, `pick_order` gives the picker back when it finishes, as every task does.
-
-docs/snippets/tutorials/competing_resources_low_level.py:handoff
 
 ```python
 def pick_order(env, sampler, shop, key, task_id, keep):
@@ -6326,21 +5962,15 @@ The picker's request is not in a `with` block, because the next process releases
 
 While the order waits for the bench it holds the picker: a **partial holding**. Nothing grants the picker and the bench together; each is acquired in turn, and the units already held stay held while the task waits for the next. The picker's busy share counts that waiting time:
 
-docs/snippets/yaml/competing_resources.yaml:watch
-
 ```yaml
 # The mean wait of each task and the picker's busy share, at the end
 stats: {level: typical, interval: 1 h}
 ```
 
-docs/snippets/tutorials/competing_resources.py:watch
-
 ```python
 # The mean wait of each task and the picker's busy share, at the end
 .with_stats("typical", interval=3600)
 ```
-
-docs/snippets/tutorials/competing_resources_low_level.py:watch
 
 ```python
 # The mean wait of each task and the picker's busy share, at the end
@@ -6375,8 +6005,6 @@ ______________________________________________________________________
 ## Full Files
 
 Full files
-
-docs/snippets/yaml/competing_resources.yaml
 
 ```yaml
 # The Competing Resources tutorial: an order keeps the picker until it is on the bench.
@@ -6419,8 +6047,6 @@ egress:
 run:
   until: 1 h
 ```
-
-docs/snippets/tutorials/competing_resources.py
 
 ```python
 """The Competing Resources tutorial: an order keeps the picker until it is on the bench.
@@ -6501,8 +6127,6 @@ if __name__ == "__main__":
             f"{r['pack_wait']:5.2f} s, picker busy {r['picker_busy']:4.1f}%"
         )
 ```
-
-docs/snippets/tutorials/competing_resources_low_level.py
 
 ```python
 """The Competing Resources tutorial: an order keeps the picker until it is on the bench.
@@ -6660,22 +6284,16 @@ ______________________________________________________________________
 
 A store holds items, each a value of its own; here each shirt is a mapping such as `{size: M}`, put on the shelf by a restock task. [Stores and Containers](https://jaehyeon.me/desflow/latest/user-guide/stores-and-containers/index.md) describes stores:
 
-docs/snippets/yaml/filtered_inventory.yaml:shelf
-
 ```yaml
 stores:
   # Shirts of every size on one shelf, each item a mapping such as {size: M}
   shelf: {current_cap: 1000, max_cap: 1000}
 ```
 
-docs/snippets/tutorials/filtered_inventory.py:shelf
-
 ```python
 # Shirts of every size on one shelf, each item a mapping such as {"size": "M"}
 app.add_store("shelf", current_cap=1000, max_cap=1000)
 ```
-
-docs/snippets/tutorials/filtered_inventory_low_level.py:shelf
 
 ```python
 # Shirts of every size on one shelf, each item a mapping such as {"size": "M"}
@@ -6683,8 +6301,6 @@ stores={"shelf": CapacityConfig(current_cap=1000, max_cap=1000)},
 ```
 
 The shirts and the orders arrive from six arrivals, one per size, each with a `size` attribute. The YAML is below; the builder and low-level versions add the same six arrivals, and their full files are at the end of the page:
-
-docs/snippets/yaml/filtered_inventory.yaml:arrivals
 
 ```yaml
 # A shirt every 10 seconds: 3 in 10 small, 4 medium, 3 large
@@ -6703,8 +6319,6 @@ ______________________________________________________________________
 
 A plain `get` takes the oldest item, whatever it is. A `get` with a `filter` takes the oldest item the filter accepts and waits while none does. In SimPy this is a `FilterStore`, whose `get` takes a function of the item. In desflow the filter is a condition in which `item.<field>` reads the item offered, beside the other names a condition reads, such as `attr.size` for the order's own size:
 
-docs/snippets/yaml/filtered_inventory.yaml:take
-
 ```yaml
 take_shirt:
   # Takes the oldest shirt of the order's own size; waits while there is none
@@ -6717,8 +6331,6 @@ take_shirt:
 ```
 
 `item_field: shirt` adds the shirt the get took to the finished event's payload under the key `shirt`, as `id_field` adds the task id under the key it names ([YAML Format](https://jaehyeon.me/desflow/latest/reference/yaml-format/#tasks) lists both).
-
-docs/snippets/tutorials/filtered_inventory.py:take
 
 ```python
 @app.task(
@@ -6733,8 +6345,6 @@ def take_shirt(task_id: int, item):
 ```
 
 The builder also takes a function of the item, such as `"filter": lambda shirt: shirt["size"] == "M"`.
-
-docs/snippets/tutorials/filtered_inventory_low_level.py:take
 
 ```python
 def take_shirt(env, shelf, key, size, task_id):
@@ -6784,8 +6394,6 @@ ______________________________________________________________________
 
 Full files
 
-docs/snippets/yaml/filtered_inventory.yaml
-
 ```yaml
 # The Filtered Inventory tutorial: each order waits for a shirt of its own size.
 # Run it with: desflow run filtered_inventory.yaml
@@ -6829,8 +6437,6 @@ egress:
 run:
   until: 8 h
 ```
-
-docs/snippets/tutorials/filtered_inventory.py
 
 ```python
 """The Filtered Inventory tutorial: each order waits for a shirt of its own size.
@@ -6951,8 +6557,6 @@ if __name__ == "__main__":
             f"{counts[(size, 'cancelled')]:4} cancelled"
         )
 ```
-
-docs/snippets/tutorials/filtered_inventory_low_level.py
 
 ```python
 """The Filtered Inventory tutorial: each order waits for a shirt of its own size.
@@ -7121,8 +6725,6 @@ ______________________________________________________________________
 
 A schedule is a list of steps, each a registry path, a value and the simulation time it applies at. The rush is four steps: the rate and the packers change at 20 minutes and change back at 40:
 
-docs/snippets/yaml/changing_demand.yaml:schedule
-
 ```yaml
 # The rush: 0.9 orders a second from 20 to 40 minutes, and RUSH_PACKERS for it
 scenario:
@@ -7133,8 +6735,6 @@ scenario:
 ```
 
 `${RUSH_PACKERS:-1}` reads the environment variable `RUSH_PACKERS`, so `RUSH_PACKERS=2 desflow run changing_demand.yaml` runs the second plan.
-
-docs/snippets/tutorials/changing_demand.py:schedule
 
 ```python
 # The rush: 0.9 orders a second from 20 to 40 minutes, and rush_packers for it
@@ -7156,8 +6756,6 @@ docs/snippets/tutorials/changing_demand.py:schedule
 )
 ```
 
-docs/snippets/tutorials/changing_demand_low_level.py:schedule
-
 ```python
 def schedule(rush_packers):
     """The rush: 0.9 orders a second from 20 to 40 minutes, and rush_packers for it."""
@@ -7174,8 +6772,6 @@ def schedule(rush_packers):
 ```
 
 `run_scenario` is the SimPy process that applies the steps:
-
-docs/snippets/tutorials/changing_demand_low_level.py:run
 
 ```python
 # Each step applies before every other event at its time
@@ -7206,8 +6802,6 @@ ______________________________________________________________________
 ## Full Files
 
 Full files
-
-docs/snippets/yaml/changing_demand.yaml
 
 ```yaml
 # The Changing Demand tutorial: a 20-minute rush, with one packer or two.
@@ -7249,8 +6843,6 @@ egress:
 run:
   until: 1 h
 ```
-
-docs/snippets/tutorials/changing_demand.py
 
 ```python
 """The Changing Demand tutorial: a 20-minute rush, with one packer or two.
@@ -7336,8 +6928,6 @@ if __name__ == "__main__":
             f"mean wait {r['wait_mean']:5.2f} s, longest {r['wait_max']:6.2f} s"
         )
 ```
-
-docs/snippets/tutorials/changing_demand_low_level.py
 
 ```python
 """The Changing Demand tutorial: a 20-minute rush, with one packer or two.
@@ -7475,8 +7065,6 @@ ______________________________________________________________________
 
 Each row becomes one arrival at its time, and the fields named in `fields` become the order's attributes. `unit` says what the time column holds: `ms`, `s`, `min` or `h` from the start of the run, or `timestamp`, a date and time read from the run's `logical_start_time`, here 09:00 on the recorded day:
 
-docs/snippets/tutorials/local_replay.yaml:replay
-
 ```yaml
 arrivals:
   orders:
@@ -7493,8 +7081,6 @@ arrivals:
 
 The `path` is relative to the blueprint.
 
-docs/snippets/tutorials/local_replay.py:replay
-
 ```python
 # Each row is one order, at its recorded time, carrying its order_id and items
 app.add_arrival_replay(
@@ -7510,8 +7096,6 @@ app.add_arrival_replay(
 
 The source can also be a list of dicts. The arrival loop is written as for any other arrival:
 
-docs/snippets/tutorials/local_replay.py:loop
-
 ```python
 @app.arrival_loop("orders")
 def order_generator(context: SimulationContext):
@@ -7522,8 +7106,6 @@ def order_generator(context: SimulationContext):
         context.spawn(pack_order(task_id, entity=order))
         task_id += 1
 ```
-
-docs/snippets/tutorials/local_replay_low_level.py:replay
 
 ```python
 def replayed_orders(env, sampler, packers):
@@ -7587,8 +7169,6 @@ ______________________________________________________________________
 
 Full files
 
-docs/snippets/tutorials/local_replay.yaml
-
 ```yaml
 # The Local Replay tutorial: a recorded morning of orders, at their recorded times.
 # Run it with: desflow run local_replay.yaml
@@ -7632,8 +7212,6 @@ egress:
 run:
   until: 1 h
 ```
-
-docs/snippets/tutorials/local_replay.py
 
 ```python
 """The Local Replay tutorial: a recorded morning of orders, against a model of it.
@@ -7728,8 +7306,6 @@ if __name__ == "__main__":
             f"mean wait {r['wait_mean']:5.2f} s, longest {r['wait_max']:6.2f} s"
         )
 ```
-
-docs/snippets/tutorials/local_replay_low_level.py
 
 ```python
 """The Local Replay tutorial: a recorded morning of orders, against a model of it.
@@ -7870,8 +7446,6 @@ ______________________________________________________________________
 
 An experiment runs a model written in any of the three ways, for a number of replications from one seed:
 
-docs/snippets/yaml/comparing_designs_experiment.yaml:model
-
 ```yaml
 # The busy hour of Trusting Results, with its 2-minute warm-up
 model: trusting_results.yaml
@@ -7882,8 +7456,6 @@ seed: 42
 
 The path is read from the experiment file's folder.
 
-docs/snippets/tutorials/comparing_designs.py:model
-
 ```python
 # A function returning a new busy hour, with its 2-minute warm-up
 "model": shop,
@@ -7893,8 +7465,6 @@ docs/snippets/tutorials/comparing_designs.py:model
 ```
 
 `shop` is the function of Trusting Results that returns a new busy hour; the experiment calls it once per run.
-
-docs/snippets/tutorials/comparing_designs_low_level.py:model
 
 ```python
 # The function that builds the busy hour, and its 2-minute warm-up
@@ -7913,8 +7483,6 @@ ______________________________________________________________________
 
 Each variant names the registry values it changes before the clock starts. `three` changes nothing, so it is the busy hour as written; `four` sets the packers' capacity to 4. `pairing: common` gives both designs the same 20 seeds, and `compare` asks for their difference seed by seed:
 
-docs/snippets/yaml/comparing_designs_experiment.yaml:compare
-
 ```yaml
 # Every design runs with the same 20 seeds, so they are compared seed by seed
 pairing: common
@@ -7925,8 +7493,6 @@ variants:
 compare:
   - {baseline: three, variant: four}
 ```
-
-docs/snippets/tutorials/comparing_designs.py:compare
 
 ```python
 # Every design runs with the same 20 seeds, so they are compared seed by seed
@@ -7976,15 +7542,11 @@ ______________________________________________________________________
 
 A check states what the answer must be. This one asks for a mean wait under half a second with four packers:
 
-docs/snippets/yaml/comparing_designs_experiment.yaml:checks
-
 ```yaml
 checks:
   # The upper end of the interval must be under half a second
   - {measure: tasks.pack_order.wait_mean, variant: four, max: 0.5}
 ```
-
-docs/snippets/tutorials/comparing_designs.py:checks
 
 ```python
 # The upper end of the interval must be under half a second
@@ -8002,8 +7564,6 @@ ______________________________________________________________________
 ## Read the Report
 
 The experiment writes `report.md` beside its results. It states the question, the model and its versions, the assumptions, each input distribution with where it came from, the run settings, the counts, the results, the comparison and the checks, and what the experiment does not state. The experiment names its assumptions, the source of its inputs and its limits:
-
-docs/snippets/yaml/comparing_designs_experiment.yaml:report
 
 ```yaml
 assumptions:
@@ -8033,8 +7593,6 @@ ______________________________________________________________________
 ## Full Files
 
 Full files
-
-docs/snippets/yaml/comparing_designs_experiment.yaml
 
 ```yaml
 # The Comparing Designs tutorial: does a fourth packer cut the busy hour's mean wait?
@@ -8069,8 +7627,6 @@ output: results/four-packers
 ```
 
 The model, `trusting_results.yaml`, is in the full files of [Trusting Results](https://jaehyeon.me/desflow/latest/tutorials/trusting-results/#full-files).
-
-docs/snippets/tutorials/comparing_designs.py
 
 ```python
 """The Comparing Designs tutorial: a fourth packer, builder.
@@ -8135,8 +7691,6 @@ if __name__ == "__main__":
 ```
 
 It imports from `trusting_results.py`, which is in the full files of [Trusting Results](https://jaehyeon.me/desflow/latest/tutorials/trusting-results/#full-files).
-
-docs/snippets/tutorials/comparing_designs_low_level.py
 
 ```python
 """The Comparing Designs tutorial: a fourth packer, low-level.
@@ -8219,8 +7773,6 @@ ______________________________________________________________________
 
 A sweep runs every variant at every value of its paths. Here that is two variants at four rates, 8 designs, each run 20 times with the same 20 seeds:
 
-docs/snippets/yaml/parameter_sweeps_experiment.yaml:sweep
-
 ```yaml
 variants:
   three: {}
@@ -8230,15 +7782,11 @@ sweep:
   Shop.arrival.orders.rate: [1.6, 1.7, 1.8, 1.9]
 ```
 
-docs/snippets/tutorials/parameter_sweeps.py:sweep
-
 ```python
 "variants": {"three": {}, "four": {"Shop.resources.packers.current_cap": 4}},
 # Each variant at each rate: 8 designs, all run with the same 20 seeds
 "sweep": {"Shop.arrival.orders.rate": [1.6, 1.7, 1.8, 1.9]},
 ```
-
-docs/snippets/tutorials/parameter_sweeps_low_level.py:sweep
 
 ```python
 "variants": {"three": {}, "four": {"Shop.resources.packers.current_cap": 4}},
@@ -8273,8 +7821,6 @@ ______________________________________________________________________
 
 Full files
 
-docs/snippets/yaml/parameter_sweeps_experiment.yaml
-
 ```yaml
 # The Parameter Sweeps tutorial: how much does the mean wait depend on the demand?
 # Run it with: desflow experiment parameter_sweeps_experiment.yaml
@@ -8296,8 +7842,6 @@ output: results/demand
 ```
 
 The model, `trusting_results.yaml`, is in the full files of [Trusting Results](https://jaehyeon.me/desflow/latest/tutorials/trusting-results/#full-files).
-
-docs/snippets/tutorials/parameter_sweeps.py
 
 ```python
 """The Parameter Sweeps tutorial: the wait at four arrival rates, builder.
@@ -8342,8 +7886,6 @@ if __name__ == "__main__":
 ```
 
 It imports from `trusting_results.py`, which is in the full files of [Trusting Results](https://jaehyeon.me/desflow/latest/tutorials/trusting-results/#full-files).
-
-docs/snippets/tutorials/parameter_sweeps_low_level.py
 
 ```python
 """The Parameter Sweeps tutorial: the wait at four arrival rates, low-level.
@@ -8470,8 +8012,6 @@ desflow --version
 
 From Python:
 
-docs/snippets/pages/yaml_loading.py:from-yaml
-
 ```python
 from desflow import SimulationContext
 
@@ -8490,8 +8030,6 @@ A time in a blueprint is a number of seconds or a duration such as `90 s`, `10 m
 ### Settings per Environment
 
 `${VAR}` in a value is replaced with the environment variable, so one file can serve several environments. `${VAR:-default}` uses the default when the variable is unset or empty, as in a shell, and `$${` writes a literal `${`. An unquoted value is read as YAML reads it after the replacement, so `factor: ${SIM_FACTOR:-0}` is the number 0; a quoted value stays a string. A variable without a default that is unset stops the load with its line.
-
-docs/snippets/yaml/environment.yaml
 
 ```yaml
 # Settings that change per environment, read from environment variables.
@@ -8541,8 +8079,6 @@ ______________________________________________________________________
 
 An error at any step is mapped back to its line through the source map:
 
-docs/snippets/pages/blueprint_error.yaml
-
 ```yaml
 # A blueprint with a mistake, for the YAML Blueprints page: pack_order has a priority,
 # but its resource serves its queue in the default order, fifo.
@@ -8566,8 +8102,6 @@ tasks:
     priority: 0
     payload: {event_type: order_packed}
 ```
-
-docs/snippets/pages/blueprint_errors.py:load
 
 ```python
 try:
@@ -8603,8 +8137,6 @@ ______________________________________________________________________
 
 The context names the simulation and sets its clock: `factor` for the pacing, `random_seed` for the draws, `logical_start_time` for the timestamps. It also takes `go_live_at` and `warmup`, which [Time and Pacing](https://jaehyeon.me/desflow/latest/user-guide/time-and-pacing/index.md) describes.
 
-docs/snippets/pages/builder.py:clock
-
 ```python
 app = SimulationContext(
     sim_id="Shop",
@@ -8618,8 +8150,6 @@ app = SimulationContext(
 
 A resource is held while a task works; a container holds an amount and a store holds items, which tasks take and add. `add_variable` registers any other live value. [Resources](https://jaehyeon.me/desflow/latest/user-guide/resources/index.md) and [Stores and Containers](https://jaehyeon.me/desflow/latest/user-guide/stores-and-containers/index.md) describe each.
 
-docs/snippets/pages/builder.py:resources
-
 ```python
 app.add_resource("packers", current_cap=2, max_cap=5)  # 2 packers now, room for 5
 app.add_container("boxes", current_cap=200, max_cap=200, level=100)  # an amount
@@ -8631,8 +8161,6 @@ app.add_variable("conveyor_speed", 1.5)  # any other live value
 
 Each arrival and service is a distribution, with its parameters by keyword. A parameter out of range, or one the family does not take, raises `ValueError` here, before the run. [Arrivals and Services](https://jaehyeon.me/desflow/latest/user-guide/arrivals-and-services/index.md) lists the ten families.
 
-docs/snippets/pages/builder.py:distributions
-
 ```python
 app.add_arrival("orders", dist="exponential", rate=0.5)  # an order every 2 s on average
 app.add_arrival("couriers", dist="constant", value=10)  # a courier every 10 s
@@ -8643,8 +8171,6 @@ app.add_service("labelling", dist="constant", value=0.5)
 ## Write the Tasks
 
 `@app.task` turns a function into a task: it publishes `queued`, waits for its resource and its `get`, publishes `started`, waits the service time, adds its `put`, and publishes what the function returns as the finished event. `next` names the task that follows, and the function receives `upstream`, `entity` or `item` when it declares them. [Task Flow](https://jaehyeon.me/desflow/latest/user-guide/task-flow/index.md) covers rules and weights.
-
-docs/snippets/pages/builder.py:tasks
 
 ```python
 @app.task(
@@ -8673,8 +8199,6 @@ def collect(task_id: int, item):
 
 An arrival loop waits for each arrival and starts a task for the entity it returns, keyed `orders-1`, `orders-2` and so on.
 
-docs/snippets/pages/builder.py:arrivals
-
 ```python
 @app.arrival_loop("orders")
 def orders(context: SimulationContext):
@@ -8698,8 +8222,6 @@ def couriers(context: SimulationContext):
 
 `with_stats` switches on the built-in statistics, published as telemetry; [Statistics](https://jaehyeon.me/desflow/latest/user-guide/statistics/index.md) lists the levels.
 
-docs/snippets/pages/builder.py:stats
-
 ```python
 app.with_stats("typical", interval=30)  # readings, counts, waits, every 30 s
 ```
@@ -8707,8 +8229,6 @@ app.with_stats("typical", interval=30)  # readings, counts, waits, every 30 s
 ## Add a Process
 
 `add_process` starts any generator when the run starts, called with the context, for anything that is not a task: here a speed that drifts.
-
-docs/snippets/pages/builder.py:process
 
 ```python
 def speed_drift(context: SimulationContext, step: float):
@@ -8727,8 +8247,6 @@ app.add_process(speed_drift, step=0.1)
 
 `add_ingress` brings parameter changes in, and `add_egress` writes records out, each with its own batching if it needs it. [Ingress](https://jaehyeon.me/desflow/latest/user-guide/ingress/index.md) and [Egress](https://jaehyeon.me/desflow/latest/user-guide/egress/index.md) list the connectors.
 
-docs/snippets/pages/builder.py:connectors
-
 ```python
 app.add_ingress(LocalIngress(schedule=[(5.0, "Shop.resources.packers.current_cap", 3)]))
 app.add_egress(ConsoleEgress(), batch_size=100, flush_interval=1.0)
@@ -8739,15 +8257,11 @@ app.with_batching(batch_size=1_000, flush_interval=5.0)  # defaults for other si
 
 `compile_parameters()` returns the `SimParameter` that `run()` will register, to check the registry paths before a run:
 
-docs/snippets/pages/builder.py:compile
-
 ```python
 paths = app.compile_parameters()  # the SimParameter that run() registers
 ```
 
 ## Run It
-
-docs/snippets/pages/builder.py:run
 
 ```python
 if __name__ == "__main__":
@@ -8799,8 +8313,6 @@ ______________________________________________________________________
 Full script
 
 The complete file, which the documentation tests run:
-
-docs/snippets/pages/builder.py
 
 ```python
 """The Builder API page: a whole simulation in one Python file, step by step.
@@ -8913,8 +8425,6 @@ ______________________________________________________________________
 
 ## Create the Environment
 
-docs/snippets/pages/low_level.py:imports
-
 ```python
 import logging
 
@@ -8933,8 +8443,6 @@ from desflow import (
 )
 ```
 
-docs/snippets/pages/low_level.py:environment
-
 ```python
 env = DynamicRealtimeEnvironment(factor=0.0)  # unpaced; 1.0 follows the wall clock
 ```
@@ -8942,8 +8450,6 @@ env = DynamicRealtimeEnvironment(factor=0.0)  # unpaced; 1.0 follows the wall cl
 `factor` sets the pacing: `1.0` follows the wall clock, and `0.0` runs as fast as possible. `logical_start_time` and `go_live_at` work as [Time and Pacing](https://jaehyeon.me/desflow/latest/user-guide/time-and-pacing/index.md) describes.
 
 ## Register the Parameters
-
-docs/snippets/pages/low_level.py:parameters
 
 ```python
 env.registry.register_sim_parameter(
@@ -8963,8 +8469,6 @@ One `SimParameter` holds every parameter of one simulation under its `sim_id`. R
 
 ## Attach the Connectors
 
-docs/snippets/pages/low_level.py:connectors
-
 ```python
 env.setup_egress([ConsoleEgress()])  # starts the egress thread
 # env.setup_ingress([KafkaIngress(...)]) would start the ingress thread
@@ -8974,8 +8478,6 @@ env.setup_stats("Shop", "basic", interval=60)  # readings and counts every minut
 `setup_egress` starts the egress thread, which writes every record the processes publish. `setup_ingress` starts the ingress thread for parameter changes from outside, and `setup_stats` switches on the built-in statistics. [Egress](https://jaehyeon.me/desflow/latest/user-guide/egress/index.md) lists the arguments of `setup_egress`, including a warm-up and labels sinks.
 
 ## Create Resources, Containers and Stores
-
-docs/snippets/pages/low_level.py:resources
 
 ```python
 packers = DynamicResource(env, "Shop", "packers")  # reads Shop.resources.packers.*
@@ -8989,8 +8491,6 @@ Each reads its capacity from the registry when it is created, so the parameters 
 ## Write the Processes
 
 A process is a SimPy generator: it `yield`s to wait, and publishes records as it goes. This one does what `@app.task` does in the builder, with a box from stock and a store for the result. It publishes each event with the entity key, the task's name and its instance id, and reports each step to the statistics:
-
-docs/snippets/pages/low_level.py:order
 
 ```python
 def order(env, key, task_id):
@@ -9019,8 +8519,6 @@ The service time is drawn once the order has a packer and a box, from the config
 
 The arrival loop keeps the configuration object rather than a copy of the rate, so the next draw uses whatever rate the registry holds. It gives each order its key, `orders-1`, `orders-2`:
 
-docs/snippets/pages/low_level.py:arrivals
-
 ```python
 def arrivals(env):
     gap = env.registry.get_config("Shop.arrival.orders")  # the live config object
@@ -9033,8 +8531,6 @@ def arrivals(env):
 
 A reading of your own is a process that publishes at an interval; `publish_telemetry` uses the name exactly as given:
 
-docs/snippets/pages/low_level.py:telemetry
-
 ```python
 def telemetry(env):
     """A reading of your own, beside the built-in statistics."""
@@ -9044,8 +8540,6 @@ def telemetry(env):
 ```
 
 A process can also change the simulation itself, through the registry, as a connector or a scenario would:
-
-docs/snippets/pages/low_level.py:control
 
 ```python
 def refill_and_rush(env):
@@ -9062,15 +8556,11 @@ def refill_and_rush(env):
 
 ## Start the Processes and Run
 
-docs/snippets/pages/low_level.py:start
-
 ```python
 env.process(arrivals(env))
 env.process(telemetry(env))
 env.process(refill_and_rush(env))
 ```
-
-docs/snippets/pages/low_level.py:run
 
 ```python
 logging.basicConfig(
@@ -9109,8 +8599,6 @@ ______________________________________________________________________
 Full script
 
 The complete file, which the documentation tests run:
-
-docs/snippets/pages/low_level.py
 
 ```python
 """A complete low-level simulation, as the Low-level API page explains it step by step.
@@ -9279,20 +8767,14 @@ Every distribution is a family, `dist`, and the parameters that family takes. Th
 
 Gaps between arrivals that happen independently of each other: orders, calls, visits. Many short gaps and a few long ones, with mean `1 / rate`.
 
-docs/snippets/yaml/arrivals_services.yaml:exponential
-
 ```yaml
 # under arrivals: an order every 2 seconds on average
 orders: {dist: exponential, rate: 0.5, spawn: pack}
 ```
 
-docs/snippets/pages/arrivals_services.py:builder-exponential
-
 ```python
 app.add_arrival("orders", dist="exponential", rate=0.5)  # an order every 2 s on average
 ```
-
-docs/snippets/pages/arrivals_services.py:low-level-exponential
 
 ```python
 gap = DistributionConfig(dist="exponential", rate=0.5)  # an order every 2 s on average
@@ -9304,20 +8786,14 @@ gap = DistributionConfig(dist="exponential", rate=0.5)  # an order every 2 s on 
 
 Work with a typical time and a small, symmetric spread.
 
-docs/snippets/yaml/arrivals_services.yaml:normal
-
 ```yaml
 # under services: 3 s on average, give or take 0.5 s
 packing: {dist: normal, mean: 3 s, std: 0.5 s}
 ```
 
-docs/snippets/pages/arrivals_services.py:builder-normal
-
 ```python
 app.add_service("packing", dist="normal", mean=3.0, std=0.5)  # 3 s, give or take 0.5 s
 ```
-
-docs/snippets/pages/arrivals_services.py:low-level-normal
 
 ```python
 # 3 s, give or take 0.5 s
@@ -9330,20 +8806,14 @@ packing = DistributionConfig(dist="normal", mean=3.0, std=0.5)
 
 Work with a typical time and a hard minimum.
 
-docs/snippets/yaml/arrivals_services.yaml:truncated-normal
-
 ```yaml
 # under services: 1 s on average, spread 1 s, never below 0.2 s
 labelling: {dist: truncated_normal, mean: 1 s, std: 1 s, low: 0.2 s}
 ```
 
-docs/snippets/pages/arrivals_services.py:builder-truncated-normal
-
 ```python
 app.add_service("labelling", dist="truncated_normal", mean=1.0, std=1.0, low=0.2)
 ```
-
-docs/snippets/pages/arrivals_services.py:low-level-truncated-normal
 
 ```python
 labelling = DistributionConfig(dist="truncated_normal", mean=1.0, std=1.0, low=0.2)
@@ -9355,21 +8825,15 @@ labelling = DistributionConfig(dist="truncated_normal", mean=1.0, std=1.0, low=0
 
 Times that are never negative and now and then much longer: repairs, support calls.
 
-docs/snippets/yaml/arrivals_services.yaml:lognormal
-
 ```yaml
 # under services: 4 s on average, now and then much longer
 repair: {dist: lognormal, mean: 4 s, std: 3 s}
 ```
 
-docs/snippets/pages/arrivals_services.py:builder-lognormal
-
 ```python
 # Now and then much longer
 app.add_service("repair", dist="lognormal", mean=4.0, std=3.0)
 ```
-
-docs/snippets/pages/arrivals_services.py:low-level-lognormal
 
 ```python
 # Now and then much longer
@@ -9382,20 +8846,14 @@ repair = DistributionConfig(dist="lognormal", mean=4.0, std=3.0)
 
 Fixed times: a conveyor, a set-up, a step that takes no time.
 
-docs/snippets/yaml/arrivals_services.yaml:constant
-
 ```yaml
 # under services: always 0.5 s, with no random draw
 inspection: {dist: constant, value: 0.5 s}
 ```
 
-docs/snippets/pages/arrivals_services.py:builder-constant
-
 ```python
 app.add_service("inspection", dist="constant", value=0.5)  # always 0.5 s, no draw
 ```
-
-docs/snippets/pages/arrivals_services.py:low-level-constant
 
 ```python
 inspection = DistributionConfig(dist="constant", value=0.5)  # always 0.5 s, no draw
@@ -9407,20 +8865,14 @@ inspection = DistributionConfig(dist="constant", value=0.5)  # always 0.5 s, no 
 
 Any time in a range, all equally likely, when only the range is known.
 
-docs/snippets/yaml/arrivals_services.yaml:uniform
-
 ```yaml
 # under services: any time from 1 to 2 s, all equally likely
 scanning: {dist: uniform, low: 1 s, high: 2 s}
 ```
 
-docs/snippets/pages/arrivals_services.py:builder-uniform
-
 ```python
 app.add_service("scanning", dist="uniform", low=1.0, high=2.0)  # any time from 1 to 2 s
 ```
-
-docs/snippets/pages/arrivals_services.py:low-level-uniform
 
 ```python
 scanning = DistributionConfig(dist="uniform", low=1.0, high=2.0)  # from 1 to 2 s
@@ -9432,21 +8884,15 @@ scanning = DistributionConfig(dist="uniform", low=1.0, high=2.0)  # from 1 to 2 
 
 An expert's estimate: the shortest, the most likely and the longest time.
 
-docs/snippets/yaml/arrivals_services.yaml:triangular
-
 ```yaml
 # under services: at least 1 s, usually 1.25 s, at most 2.25 s
 wrapping: {dist: triangular, low: 1 s, mode: 1.25 s, high: 2.25 s}
 ```
 
-docs/snippets/pages/arrivals_services.py:builder-triangular
-
 ```python
 # At least 1 s, usually 1.25 s, at most 2.25 s
 app.add_service("wrapping", dist="triangular", low=1.0, mode=1.25, high=2.25)
 ```
-
-docs/snippets/pages/arrivals_services.py:low-level-triangular
 
 ```python
 # At least 1 s, usually 1.25 s, at most 2.25 s
@@ -9459,21 +8905,15 @@ wrapping = DistributionConfig(dist="triangular", low=1.0, mode=1.25, high=2.25)
 
 Times less variable than exponential. A whole-number shape is the Erlang distribution: that many exponential steps in a row.
 
-docs/snippets/yaml/arrivals_services.yaml:gamma
-
 ```yaml
 # under services: three exponential steps of 0.5 s each, a mean of 1.5 s
 checking: {dist: gamma, shape: 3, scale: 0.5 s}
 ```
 
-docs/snippets/pages/arrivals_services.py:builder-gamma
-
 ```python
 # Three exponential steps of 0.5 s each: a mean of 1.5 s
 app.add_service("checking", dist="gamma", shape=3, scale=0.5)
 ```
-
-docs/snippets/pages/arrivals_services.py:low-level-gamma
 
 ```python
 # Three exponential steps of 0.5 s each: a mean of 1.5 s
@@ -9486,21 +8926,15 @@ checking = DistributionConfig(dist="gamma", shape=3, scale=0.5)
 
 Time to failure: a shape below 1 fails early, a shape above 1 wears out.
 
-docs/snippets/yaml/arrivals_services.yaml:weibull
-
 ```yaml
 # under services: time to a printer jam; a shape above 1 means it wears out
 jamming: {dist: weibull, shape: 1.5, scale: 1 h}
 ```
 
-docs/snippets/pages/arrivals_services.py:builder-weibull
-
 ```python
 # Time to a printer jam: a shape above 1 means it wears out
 app.add_service("jamming", dist="weibull", shape=1.5, scale=3600)
 ```
-
-docs/snippets/pages/arrivals_services.py:low-level-weibull
 
 ```python
 # Time to a printer jam: a shape above 1 means it wears out
@@ -9513,8 +8947,6 @@ jamming = DistributionConfig(dist="weibull", shape=1.5, scale=3600)
 
 Times taken from real data, when no family fits.
 
-docs/snippets/yaml/arrivals_services.yaml:empirical
-
 ```yaml
 # under services: measured times, each equally likely; or weights, one per value
 loading: {dist: empirical, values: [1.2 s, 1.5 s, 1.5 s, 2.1 s, 3 s]}
@@ -9522,16 +8954,12 @@ loading: {dist: empirical, values: [1.2 s, 1.5 s, 1.5 s, 2.1 s, 3 s]}
 sealing: {dist: empirical, edges: [0, 1 s, 2 s, 4 s], counts: [10, 30, 5]}
 ```
 
-docs/snippets/pages/arrivals_services.py:builder-empirical
-
 ```python
 # Measured times, each equally likely; or weights=[...], one per value
 app.add_service("loading", dist="empirical", values=[1.2, 1.5, 1.5, 2.1, 3.0])
 # A histogram: 10 times from 0 to 1 s, 30 from 1 to 2 s, 5 from 2 to 4 s
 app.add_service("sealing", dist="empirical", edges=[0, 1, 2, 4], counts=[10, 30, 5])
 ```
-
-docs/snippets/pages/arrivals_services.py:low-level-empirical
 
 ```python
 # Measured times, each equally likely; or weights=[...], one per value
@@ -9546,8 +8974,6 @@ Either `values`, each equally likely, with optional `weights`, one per value; or
 
 In a blueprint, every time-valued parameter takes a duration as well as a number of seconds: `mean`, `std`, `low`, `mode`, `high`, `scale` and `value`, and the `values` and `edges` of an `empirical`. A plain number is seconds. `rate` stays a number per second.
 
-docs/snippets/yaml/arrivals_services.yaml:durations
-
 ```yaml
 # under services: every time-valued parameter takes a duration
 support_call: {dist: lognormal, mean: 5 min, std: 3 min}
@@ -9559,8 +8985,6 @@ The builder and the low-level API take seconds.
 
 A seed makes every draw the same on every run:
 
-docs/snippets/yaml/arrivals_services.yaml:seed
-
 ```yaml
 # The same draws on every run; leave it out to draw a seed and log it
 random_seed: 42
@@ -9568,22 +8992,16 @@ random_seed: 42
 
 `desflow run arrivals_services.yaml --seed 7` overrides it without editing the file.
 
-docs/snippets/pages/arrivals_services.py:builder-seed
-
 ```python
 # The same draws on every run; leave it out to draw a seed and log it
 app = SimulationContext(sim_id="Shop", factor=0.0, random_seed=42)
 ```
-
-docs/snippets/pages/arrivals_services.py:low-level-seed
 
 ```python
 sampler = Sampler(seed=42)  # the same draws on every run
 ```
 
 In the low-level API you draw yourself, from the current values:
-
-docs/snippets/pages/arrivals_services.py:low-level-draw
 
 ```python
 seconds = sampler.sample(packing)  # one draw, in seconds, from the current values
@@ -9601,8 +9019,6 @@ A low-level `Sampler()` with no seed draws nothing at random, as How It Works ex
 
 An arrival can take its times from recorded rows instead of a distribution: each row of a CSV or Parquet file, or of a list of dicts, becomes one entity at the row's time, and the fields named in `fields` become its attributes. Here each row of `local_replay_orders.csv` is an order, at its time in seconds from the start of the run:
 
-examples/yaml/local_replay.yaml:replay
-
 ```yaml
 arrivals:
   orders:
@@ -9615,8 +9031,6 @@ arrivals:
     spawn: pack
 ```
 
-examples/builder/local_replay_example.py:replay
-
 ```python
 # A CSV or Parquet file, or a list of dicts
 .add_arrival_replay(
@@ -9625,8 +9039,6 @@ examples/builder/local_replay_example.py:replay
 ```
 
 `wait_for_arrival("orders")` then waits for the next row, so the arrival loop is written as for any other arrival.
-
-examples/low-level/local_replay_example.py:replay
 
 ```python
 def replay(env, sampler, packers):
@@ -9742,8 +9154,6 @@ ______________________________________________________________________
 
 In the low-level API, a `DistributionConfig` that was never registered draws from the `Sampler`'s main generator instead. Your own code can take a stream of its own with `sampler.generator("<name>")`:
 
-docs/snippets/pages/arrivals_services.py:streams
-
 ```python
 # Each registered distribution draws from the stream named by its path without
 # the sim id; register the parameters, and sample() picks the stream
@@ -9757,8 +9167,6 @@ assert stream is not None and sampler.sample(gap) == stream.exponential(2.0)
 `Sampler(rng=np.random.default_rng(42))` draws the same numbers as `Sampler(seed=42)`, because the streams come from the generator's seed.
 
 **No random generator.** A `Sampler()` with neither a seed nor a generator draws nothing at random: every sample is the distribution's mean, or its value, which gives the time a model takes on average and suits a test. A `truncated_normal` gives its `mean` or its `low`, whichever is higher.
-
-docs/snippets/pages/arrivals_services.py:no-generator
 
 ```python
 fixed = Sampler()  # no random generator: every draw is the mean, or the value
@@ -9776,8 +9184,6 @@ Each scalar parameter a family takes has a path in the registry: `<sim_id>.arriv
 
 - The next draw uses the new value. An order already being packed keeps the time it drew, and the arrival already being waited for keeps its gap.
 - An update is checked on a copy of the configuration, by the same rules as at build. A value outside the range is refused with an error log line, and the old value stays:
-
-docs/snippets/pages/arrivals_services.py:refused
 
 ```python
 packing_path = "Shop.service.packing.std"
@@ -9800,8 +9206,6 @@ ______________________________________________________________________
 ## Stability and Limits
 
 - **Refused at build.** The same checks refuse a bad distribution when the model is built. These three are an out-of-range `std`, a parameter `normal` does not take, and a `mode` above `high`:
-
-  docs/snippets/pages/arrivals_services.py:invalid
 
   ```python
   refused: List[Dict[str, Any]] = [
@@ -9848,8 +9252,6 @@ ______________________________________________________________________
 
 A task with a service and a resource asks for a unit of the resource, holds it for a time drawn from the service, and releases it. A task with neither takes no time and holds nothing: it publishes its payload at once, which suits an entity that only records that it happened, such as a return logged.
 
-docs/snippets/yaml/tasks.yaml:task
-
 ```yaml
 tasks:
   pack_order:
@@ -9864,8 +9266,6 @@ tasks:
 
 `payload` is a fixed mapping. A payload that changes per entity is a Python function, called as `function(task_id, context)`:
 
-docs/snippets/yaml/tasks.yaml:payload-function
-
 ```yaml
 # also under tasks: a payload computed by a Python function
 pack_with_delivery:
@@ -9874,8 +9274,6 @@ pack_with_delivery:
   # Called as choose_delivery(task_id, context) when the order gets a packer
   payload: !python shop_logic.choose_delivery
 ```
-
-docs/snippets/pages/tasks.py:builder-task
 
 ```python
 @app.task(service_id="packing", resource_id="packers", next="print_label")
@@ -9891,8 +9289,6 @@ def return_logged(task_id: int):
 ```
 
 The function is called with the task id and whatever the caller passes. It also receives `entity`, `upstream` and `item` by keyword when it declares a parameter of that name: the entity, what the previous task handed on, and what a store `get` took. A function that declares none of them works as before.
-
-docs/snippets/pages/tasks.py:low-level-task
 
 ```python
 def pack_order_process(env, sampler, packers, key, task_id, label_ids):
@@ -9921,8 +9317,6 @@ A task can also take from or add to a store or container (`get`, `put`), rank it
 
 A task with a `service` and no `resource` is a **timed step**: work that takes time but needs nothing that can be busy, such as printing a label or waiting for a supplier. It publishes `started` at once, with no `queued` event, waits the sampled time, and publishes its finished event. Its wait is 0. It is SimPy's `env.timeout`: the tests check that it ends at the same simulation time as a plain SimPy timeout in all three APIs ([SimPy Compatibility](https://jaehyeon.me/desflow/latest/reference/simpy-compatibility/index.md)).
 
-docs/snippets/yaml/tasks.yaml:timed-step
-
 ```yaml
 print_label:
   # A service and no resource: a timed step that starts at once
@@ -9930,15 +9324,11 @@ print_label:
   payload: {event_type: label_printed}
 ```
 
-docs/snippets/pages/tasks.py:builder-timed-step
-
 ```python
 @app.task(service_id="labelling")  # a service and no resource: starts at once
 def print_label(task_id: int):
     return {"event_type": "label_printed"}
 ```
-
-docs/snippets/pages/tasks.py:low-level-timed-step
 
 ```python
 def print_label_process(env, sampler, key, task_id):
@@ -9957,16 +9347,12 @@ def print_label_process(env, sampler, key, task_id):
 
 An arrival starts one task per arrival. The loop draws a gap from the arrival's distribution, waits for that duration, starts a task for the new entity, and repeats; the task runs on its own while the loop waits for the next arrival.
 
-docs/snippets/yaml/tasks.yaml:arrival
-
 ```yaml
 arrivals:
   # Each arrival spawns one pack_order, and one return_logged
   orders: {dist: exponential, rate: 0.2, spawn: pack_order}
   returns: {dist: exponential, rate: 0.1, spawn: return_logged}
 ```
-
-docs/snippets/pages/tasks.py:builder-arrival
 
 ```python
 @app.arrival_loop("orders")
@@ -9980,8 +9366,6 @@ def orders(context: SimulationContext):
 ```
 
 `context.wait_for_arrival` returns the new `Entity`, whose key is the arrival name and a counter: `orders-1`, `orders-2`. Pass it to the task with `entity=`. A task called without one starts an entity of its own, keyed by the task's name and a counter, such as `pack_order-1`. The `task_id` becomes the record's `instance`. When `next` or a second arrival also starts the task, take the id from `context.next_instance("pack_order")` instead: it is the task's one counter, which `next` uses too, so no two runs of the task share an id.
-
-docs/snippets/pages/tasks.py:low-level-arrival
 
 ```python
 def orders_process(env, sampler, packers):
@@ -9998,8 +9382,6 @@ def orders_process(env, sampler, packers):
 
 In the low-level API every loop is started once, before the run:
 
-docs/snippets/pages/tasks.py:low-level-start
-
 ```python
 env.process(orders_process(env, sampler, packers))  # start each loop once
 env.process(breaks_process(env, "packers", every=50, duration=5))
@@ -10009,16 +9391,12 @@ env.process(breaks_process(env, "packers", every=50, duration=5))
 
 A process runs alongside the tasks. This one sends the packers on a 5-second break every 50 seconds:
 
-docs/snippets/yaml/tasks.yaml:process
-
 ```yaml
 processes:
   # Called as breaks(context, resource="packers", every=50, duration=5)
   - function: !python shop_logic.breaks
     kwargs: {resource: packers, every: 50, duration: 5}
 ```
-
-docs/snippets/pages/tasks.py:builder-process
 
 ```python
 def breaks(context: SimulationContext, resource: str, every: float, duration: float):
@@ -10035,8 +9413,6 @@ def breaks(context: SimulationContext, resource: str, every: float, duration: fl
 
 app.add_process(breaks, resource="packers", every=50, duration=5)
 ```
-
-docs/snippets/pages/tasks.py:low-level-process
 
 ```python
 def breaks_process(env, resource: str, every: float, duration: float):
@@ -10065,8 +9441,6 @@ A task can wait for something before it queues for its resource: its `wait`. A w
 
 A single branch is named after its signal or task, or `timeout` or `condition`. After the wait, `wait.<branch>.done` says whether the branch happened before the wait ended, `.ok` whether it succeeded, and `.value` (or `.value.<field>`) is its value; `next`, `fail` and amounts read them, and a builder function that declares `wait` receives them as a mapping. A task fires a signal with `signal: name` when it finishes, with its payload as the value, and `signal.<name>.count`, `.ok` and `.value` read the signal in any condition. The `process-interaction` example waits for a child flow, then for the first of a courier's signal and a time limit:
 
-examples/yaml/process_interaction.yaml:check
-
 ```yaml
 check:
   # Starts the child flow inspect and waits for it to end.
@@ -10085,8 +9459,6 @@ wrap:
   payload: {event_type: wrapped}
 ```
 
-examples/yaml/process_interaction.yaml:dispatch
-
 ```yaml
 dispatch:
   # The courier's departure, or 40 seconds, whichever comes first.
@@ -10100,16 +9472,12 @@ dispatch:
     default: by_post
 ```
 
-examples/yaml/process_interaction.yaml:courier
-
 ```yaml
 courier:
   payload: {event_type: courier_left}
   # Fires courier_left with this payload; every order waiting for it resumes.
   signal: courier_left
 ```
-
-examples/builder/process_interaction_example.py:check
 
 ```python
 # Starts the child flow inspect and waits for it to end
@@ -10134,8 +9502,6 @@ def wrap(task_id, context):
     return {"event_type": "wrapped"}
 ```
 
-examples/builder/process_interaction_example.py:dispatch
-
 ```python
 # The courier's departure, or 40 seconds, whichever comes first
 @app.task(
@@ -10149,8 +9515,6 @@ def dispatch(task_id, context):
     return {"event_type": "dispatched"}
 ```
 
-examples/builder/process_interaction_example.py:courier
-
 ```python
 # Fires courier_left with this payload; every order waiting for it resumes
 @app.task(signal="courier_left")
@@ -10159,8 +9523,6 @@ def courier(task_id, context):
 ```
 
 `context.signal(name)` returns the `Signal` a process can fire, fail or wait for, and `context.call(task, entity=...)` starts a child flow from a process and returns its SimPy process, which a process can yield. `context.spawn` returns the process it starts too, so `is_alive`, `triggered`, `ok` and `value` inspect it, as in SimPy.
-
-examples/low-level/process_interaction_example.py:check
 
 ```python
 def check(shop, key, arrival):
@@ -10210,8 +9572,6 @@ def wrap(shop, key):
     return payload
 ```
 
-examples/low-level/process_interaction_example.py:dispatch
-
 ```python
 def dispatch(shop, key, arrival):
     """The courier's departure, or 40 seconds, whichever comes first."""
@@ -10227,8 +9587,6 @@ def dispatch(shop, key, arrival):
     task = "by_courier" if courier in done else "by_post"
     env.process(send(shop, key, arrival, task))
 ```
-
-examples/low-level/process_interaction_example.py:courier
 
 ```python
 def courier(shop, key):
@@ -10418,8 +9776,6 @@ ______________________________________________________________________
 
 A resource has a `current_cap`, the number of units now, and a `max_cap`, the most a live change can set. `run()` builds a `DynamicResource` for each one the context declares; in the low-level API you build it after registering the parameters:
 
-docs/snippets/yaml/resources.yaml:queue-order
-
 ```yaml
 resources:
   # fifo (the default), lifo or priority; priority serves the lowest number first,
@@ -10427,15 +9783,11 @@ resources:
   packers: {current_cap: 1, max_cap: 4, queue: priority}
 ```
 
-docs/snippets/pages/resources.py:declare
-
 ```python
 app = SimulationContext(sim_id="Shop", factor=0.0)
 # fifo (the default), lifo or priority
 app.add_resource("packers", current_cap=1, max_cap=4, queue="priority")
 ```
-
-docs/snippets/pages/resources.py:resource
 
 ```python
 packers = DynamicResource(env, "Shop", "packers")  # capacity from the registry: 2
@@ -10459,8 +9811,6 @@ def order(env, order_id):
 - `priority`: the lowest priority number first, and the oldest first among equal priorities.
 
 Four requests that join while the only unit is busy are served in these orders:
-
-docs/snippets/pages/resources.py:queue-order
 
 ```python
 def served_order(queue):
@@ -10512,8 +9862,6 @@ The last line is the capacity drop that Under Live Changes describes, below. The
 
 Under `queue: priority`, each task gives its requests a priority: a number, the same for every run of the task; an expression, read when the task joins the queue, such as `attr.tier` for the entity's attribute `tier`; or, in the builder, a function of the task id and the entity's attributes. The attributes exist before the request queues, and the task's own payload does not, so a priority cannot read it; an expression can read the previous task's payload as `payload.<field>`. The lowest priority is served first, and equal priorities first in, first out, which is the order of SimPy's `PriorityResource`: it ranks a request by `(priority, time, not preempt)`, so among equal priorities and times a request that may preempt goes before one with `preempt: false`. The tests check it, ties included, in all three APIs ([SimPy Compatibility](https://jaehyeon.me/desflow/latest/reference/simpy-compatibility/index.md)).
 
-docs/snippets/yaml/resources.yaml:priority
-
 ```yaml
 tasks:
   pack_order:
@@ -10523,8 +9871,6 @@ tasks:
     priority: attr.tier
     payload: {event_type: order_packed}
 ```
-
-docs/snippets/pages/resources.py:priority
 
 ```python
 app = (
@@ -10554,14 +9900,10 @@ A `priority` on a task whose resource does not have `queue: priority` is refused
 
 On a resource with `preempt: true`, which needs `queue: priority`, a request that finds every unit busy takes a unit from a task of a higher priority value, as SimPy's `PreemptiveResource` does. The task that loses the unit is chosen by SimPy's rule: the user whose `(priority, request time, may not preempt)` sorts last, and only when that sorts after the new request, so equal priorities do not preempt; the one exception is a user whose request was made at the same moment as the new one with `preempt: false`, which sorts after a request that may preempt. The task publishes `preempted` with the resource's name and follows its `on_interrupt`, as an interrupt would ([Interruptions](https://jaehyeon.me/desflow/latest/tutorials/interruptions/index.md)); a task with `preempt: false` never takes a unit this way. The `interruptions` example lets express orders preempt regular ones:
 
-examples/yaml/interruptions.yaml:packers
-
 ```yaml
 # A lower priority value takes the packer from a higher one.
 packers: {current_cap: 1, max_cap: 4, queue: priority, preempt: true}
 ```
-
-examples/yaml/interruptions.yaml:pack
 
 ```yaml
 tasks:
@@ -10575,14 +9917,10 @@ tasks:
     attributes: [priority]
 ```
 
-examples/builder/interruptions_example.py:packers
-
 ```python
 # A lower priority value takes the packer from a higher one
 .add_resource("packers", current_cap=1, max_cap=4, queue="priority", preempt=True)
 ```
-
-examples/builder/interruptions_example.py:pack
 
 ```python
 @app.task(
@@ -10595,8 +9933,6 @@ examples/builder/interruptions_example.py:pack
 def pack(task_id, context, entity):
     return {"event_type": "order_packed", "priority": entity.attributes["priority"]}
 ```
-
-examples/low-level/interruptions_example.py:pack
 
 ```python
 def pack(env, sampler, shop, key, priority, task_id):
@@ -10660,8 +9996,6 @@ def pack(env, sampler, shop, key, priority, task_id):
 
 A task that leaves a queue cancels its request, so the request is never granted later: patience that runs out, an interrupt, and an `on_interrupt: abandon` all do. Once a unit is granted, the task gives it back when it finishes, when it is interrupted, and when it is preempted (the preempting task has it then). In the low-level API these are SimPy's calls:
 
-docs/snippets/pages/resource_cancel.py:cancel
-
 ```python
 held = packers.request()  # granted at once: the packer was free
 waiting = packers.request()  # waits behind it
@@ -10681,8 +10015,6 @@ packers.release(held)  # a second release does nothing
 A task can hold several resources at once: `resource: [picker, bench]` asks for a picker, then, while it holds the picker, for the bench. The task is served once it holds all of them, and it releases all of them when it finishes. While it waits for the bench it holds the picker: the holding is partial, and nothing is granted to several resources at once. `patience` covers the whole acquisition, and an interrupt gives back every unit held.
 
 A task can also hand a unit to the next task of its flow with `keep`: the next task holds it from the start and gives it back once it publishes `started`, so an order keeps the picker until it is on the packing bench. The `competing-resources` example does both:
-
-examples/yaml/competing_resources.yaml:tasks
 
 ```yaml
 tasks:
@@ -10704,8 +10036,6 @@ tasks:
     payload: {event_type: gift_wrapped}
 ```
 
-examples/builder/competing_resources_example.py:tasks
-
 ```python
 # The picker stays with the order until pack has started
 @app.task(service_id="picking", resource_id="picker", keep=["picker"], next="pack")
@@ -10723,8 +10053,6 @@ def pack(task_id, context):
 def wrap(task_id, context):
     return {"event_type": "gift_wrapped"}
 ```
-
-examples/low-level/competing_resources_example.py:tasks
 
 ```python
 def pick(shop, key):
@@ -10787,8 +10115,6 @@ In the low-level API several resources are nested requests, and a handoff is a r
 
 A `breakdown` makes a resource fail at random and be repaired. `time_to_failure` is the time from the start, or from a repair, to the next failure, on calendar time, busy or idle; `repair` is how long a repair takes. While the resource is down its effective capacity is 0 and no request is granted:
 
-examples/yaml/breakdowns.yaml:station
-
 ```yaml
 resources:
   station:
@@ -10802,8 +10128,6 @@ resources:
       work: interrupt
 ```
 
-examples/builder/breakdowns_example.py:station
-
 ```python
 .add_resource("station", current_cap=2, max_cap=3)
 .add_breakdown(
@@ -10815,8 +10139,6 @@ examples/builder/breakdowns_example.py:station
     work="interrupt",
 )
 ```
-
-examples/low-level/breakdowns_example.py:station
 
 ```python
 breakdowns={
@@ -11053,8 +10375,6 @@ A change to `current_cap` takes effect at once, without stopping any work:
 
 The example below takes three of five packers off the floor while four orders are being packed: the capacity is 2 at once, and `in_use` stays 4 until two orders finish. The animation steps through it:
 
-docs/snippets/pages/resources.py:shrink
-
 ```python
 def capacity_drop(env):
     """Takes 3 of 5 packers off the floor at t=5 s. Orders being packed are not stopped."""
@@ -11101,15 +10421,11 @@ ______________________________________________________________________
 
 A container has a `current_cap`, its capacity, the largest amount it holds; a `max_cap`, the largest capacity a live change can set; and a `level`, the amount it holds when the run starts, 0 when left out. A store has a `current_cap` and a `max_cap`, in whole items, and starts empty unless it lists `items` ([Start With Items and Serve by Priority](#start-with-items-and-serve-by-priority)). `run()` builds a `DynamicContainer` and a `DynamicStore` for each one the context declares; a store and a container cannot share a name.
 
-docs/snippets/yaml/stores_containers.yaml:container
-
 ```yaml
 containers:
   # An amount: room for 100 boxes, 20 when the run starts
   stock: {current_cap: 100, max_cap: 100, level: 20}
 ```
-
-docs/snippets/yaml/stores_containers.yaml:store
 
 ```yaml
 stores:
@@ -11117,21 +10433,15 @@ stores:
   parcels: {current_cap: 5, max_cap: 10}
 ```
 
-docs/snippets/pages/stores_containers.py:builder-container
-
 ```python
 # An amount: room for 100 boxes, 20 when the run starts
 app.add_container("stock", current_cap=100, max_cap=100, level=20)
 ```
 
-docs/snippets/pages/stores_containers.py:builder-store
-
 ```python
 # Items: room for 5 parcels, empty when the run starts
 app.add_store("parcels", current_cap=5, max_cap=10)
 ```
-
-docs/snippets/pages/stores_containers.py:low-level-container
 
 ```python
 env = DynamicRealtimeEnvironment(factor=0.0)
@@ -11154,8 +10464,6 @@ A `DynamicContainer` built with no `init` starts at the level its `ContainerConf
 
 A task takes with `get` and adds with `put`. For a container, each names the container and an `amount`: a number; an expression, such as `payload.boxes` for a field of the previous task's payload; or in the builder, a function of the task id and the previous task's payload. The amount is 1 when left out. For a store, each names the store: a `put` adds the task's finished payload as the item, and a `get` takes the oldest item and passes it to the task's function as `item`.
 
-docs/snippets/yaml/stores_containers.yaml:take
-
 ```yaml
 pack_order:
   service: packing
@@ -11164,15 +10472,11 @@ pack_order:
   get: {container: stock, amount: payload.boxes}
 ```
 
-docs/snippets/yaml/stores_containers.yaml:put
-
 ```yaml
 # Adds its finished payload to the store as an item
 put: {store: parcels}
 payload: {event_type: order_packed}
 ```
-
-docs/snippets/pages/stores_containers.py:builder-take
 
 ```python
 # Takes the boxes the previous task's payload names, once it has a packer.
@@ -11194,8 +10498,6 @@ def collect(task_id: int, item):
     return {"event_type": "parcel_collected", "parcel": item["event_type"]}
 ```
 
-docs/snippets/pages/stores_containers.py:low-level-take
-
 ```python
 def pack(env, order_id):
     yield stock.get(2)  # takes 2 boxes, waiting while fewer are left
@@ -11215,8 +10517,6 @@ A task with a resource gets its unit first and then takes its `get`, so it waits
 
 A store can hold items when the run starts, as parcels left from yesterday: `items` lists them in the order a get returns them. A store with `priority` returns the item with the lowest priority first, as SimPy's `PriorityStore` does; its items are `[priority, item]` pairs, and a task's `put` gives each new item its `priority`, a number or an expression such as `attr.priority`. Items of equal priority come out in the order they went in. A store cannot start with more items than its `current_cap`; the blueprint or `add_store` is refused with the reason.
 
-docs/snippets/yaml/parcel_store.yaml:store
-
 ```yaml
 stores:
   parcels:
@@ -11230,8 +10530,6 @@ stores:
       - [1, {order: express-0}]
 ```
 
-docs/snippets/yaml/parcel_store.yaml:put
-
 ```yaml
 pack:
   # Each parcel's priority, read when it is put in the store
@@ -11239,8 +10537,6 @@ pack:
   payload: {order: standard}
   id_field: number
 ```
-
-docs/snippets/pages/parcel_store.py:builder-store
 
 ```python
 app = SimulationContext(sim_id="Shop", factor=0.0)
@@ -11256,8 +10552,6 @@ app.add_store(
 ```
 
 A task's `put` takes the priority the same way: `put={"store": "parcels", "priority": "attr.priority"}`.
-
-docs/snippets/pages/parcel_store.py:low-level-store
 
 ```python
 parcels = DynamicStore(
@@ -11287,8 +10581,6 @@ A store `get` can take a `filter`, a condition that picks which item it takes, a
 
 A task's `patience` covers its whole wait, for its `wait`, then its resource and then its `get`. When it runs out, the task publishes `reneged` and its get is cancelled, so it takes nothing later. In the low-level API, `cancel()` on a put or get event that has not succeeded takes it out of its queue, as in SimPy: a cancelled get takes nothing, and a cancelled put adds nothing. `item_field` adds the item a YAML task's get took to its payload, and a builder function receives it as `item`:
 
-examples/yaml/filtered_inventory.yaml:collect
-
 ```yaml
 tasks:
   pack:
@@ -11308,8 +10600,6 @@ tasks:
     payload: {event_type: parcel_collected}
 ```
 
-examples/builder/filtered_inventory_example.py:collect
-
 ```python
 @app.task(
     # The oldest parcel for the courier's own area
@@ -11323,8 +10613,6 @@ def collect(task_id, context, item):
 ```
 
 A filter can also be a function of the item: `"filter": lambda parcel: parcel["area"] == "north"`.
-
-examples/low-level/filtered_inventory_example.py:collect
 
 ```python
 def collect(env, sampler, shop, key, area, task_id):
@@ -11414,8 +10702,6 @@ cd stock/yaml
 desflow run stock.yaml
 ```
 
-examples/yaml/stock.yaml:pack
-
 ```yaml
 tasks:
   pack:
@@ -11460,8 +10746,6 @@ cd stock/builder
 # 3. Run it
 python stock_example.py
 ```
-
-examples/builder/stock_example.py:pack
 
 ```python
 @app.task(
@@ -11508,8 +10792,6 @@ cd stock/low-level
 # 3. Run it
 python stock_example.py
 ```
-
-examples/low-level/stock_example.py:pack
 
 ```python
 def pack(env, sampler, shop, key, priority, task_id):
@@ -11651,15 +10933,11 @@ ______________________________________________________________________
 
 The stock count in the blueprint above, in each way of writing:
 
-docs/snippets/yaml/stores_containers.yaml:level
-
 ```yaml
 scenario:
   # A stock count at 30 seconds: the level path sets what the container holds
   - {at: 30, path: Shop.containers.stock.level, value: 50}
 ```
-
-docs/snippets/pages/stores_containers.py:builder-level
 
 ```python
 def stock_count(context: SimulationContext):
@@ -11670,8 +10948,6 @@ def stock_count(context: SimulationContext):
 
 app.add_process(stock_count)
 ```
-
-docs/snippets/pages/stores_containers.py:low-level-level
 
 ```python
 def stock_count_process(env):
@@ -11714,8 +10990,6 @@ ______________________________________________________________________
 - **Weights**, below.
 - **In the builder, a function** that takes the `Upstream` and returns a task name or `None`.
 
-docs/snippets/yaml/task_flow.yaml:condition
-
 ```yaml
 check_order:
   payload: {total: 80}
@@ -11726,8 +11000,6 @@ check_order:
       - {condition: "payload.total >= 100 or attr.gift == 1", task: wrap_gift}
     default: pack_order
 ```
-
-docs/snippets/pages/task_flow.py:builder-condition
 
 ```python
 # Rules are tried in order; the first match wins. Otherwise, use the default.
@@ -11746,8 +11018,6 @@ docs/snippets/pages/task_flow.py:builder-condition
 def check_order(task_id: int):
     return {"total": 80}
 ```
-
-docs/snippets/pages/task_flow.py:low-level-condition
 
 ```python
 # The same rules as next, as a Router; choose() returns the next task's name
@@ -11770,8 +11040,6 @@ The condition is evaluated when the task finishes, after its `set`. `payload.` r
 
 `weights` maps task names to numbers, and the next task is drawn in proportion to them. The draw comes from a random stream of the routing task's own, `route.<task>`, so a seeded run repeats it and it changes no other draw:
 
-docs/snippets/yaml/task_flow.yaml:weights
-
 ```yaml
 pack_order:
   service: packing
@@ -11782,8 +11050,6 @@ pack_order:
   next:
     weights: {ship_order: 9, pack_order: 1}
 ```
-
-docs/snippets/pages/task_flow.py:builder-weights
 
 ```python
 # A task drawn in proportion to its weight: one in ten is packed again
@@ -11797,8 +11063,6 @@ def pack_order(task_id: int):
     return {"event_type": "order_packed"}
 ```
 
-docs/snippets/pages/task_flow.py:low-level-weights
-
 ```python
 # Weights draw from a generator: the routing task's own stream, as the builder's do
 rework = Router({"weights": {"ship_order": 9, "pack_order": 1}})
@@ -11810,16 +11074,12 @@ choices = [rework.choose(finished) for _ in range(1000)]
 
 An arrival gives each new entity its starting `attributes`, and a task's `set` changes them when the task finishes. Each entity gets its own copy. Attributes are not published: a condition reads them as `attr.<name>`, and a payload includes them only when it asks.
 
-docs/snippets/yaml/task_flow.yaml:attributes
-
 ```yaml
 arrivals:
   # Each order starts with these attributes, read as attr.gift
   orders: {dist: exponential, rate: 0.5, spawn: check_order, attributes: {gift: 0}}
   gifts: {dist: exponential, rate: 0.1, spawn: check_order, attributes: {gift: 1}}
 ```
-
-docs/snippets/yaml/task_flow.yaml:set
 
 ```yaml
 # Applied to the order's attributes when the task finishes
@@ -11828,15 +11088,11 @@ set: {backordered: 1}
 
 A task's `attributes` list adds the named attributes to a mapping payload, as `ship_order` does in the full blueprint.
 
-docs/snippets/pages/task_flow.py:builder-attributes
-
 ```python
 # Each order starts with these attributes, read as attr.gift
 app.add_arrival("orders", dist="exponential", rate=0.5, attributes={"gift": 0})
 app.add_arrival("gifts", dist="exponential", rate=0.1, attributes={"gift": 1})
 ```
-
-docs/snippets/pages/task_flow.py:builder-set
 
 ```python
 # `set` is applied to the order's attributes when the task finishes
@@ -11852,8 +11108,6 @@ An `Entity(key, arrival, attributes)` carries them; the process updates `entity.
 Each arrival starts a new entity, keyed by the arrival's name and a counter from 1: `orders-1`, `orders-2`. Every event of every task in its flow carries that key as its record key, so a sink can follow one order through the whole flow, and Kafka keeps its events in order on one partition. The builder can replace the key with a function of the counter:
 
 A blueprint uses the default key.
-
-docs/snippets/pages/task_flow.py:builder-key
 
 ```python
 # Keys ret-00001, ret-00002 instead of returns-1, from the counter, which starts at 1
@@ -11876,8 +11130,6 @@ These are the finished events of `gifts-5` in the blueprint above: checked while
 ### Upstream
 
 A task started by `next` receives what the task before it handed on, the `Upstream`: the finished task's instance id, the entity's key and attributes, and its payload. A builder function gets it by declaring a parameter called `upstream`, and the entity by declaring `entity`; a function that declares neither works as before. The first task of a flow gets `upstream=None`.
-
-docs/snippets/pages/task_flow.py:builder-upstream
 
 ```python
 # A function declaring `upstream` receives what the previous task handed on,
@@ -11929,8 +11181,6 @@ cd flow/yaml
 # 3. Run it
 desflow run flow.yaml
 ```
-
-examples/yaml/flow.yaml:routes
 
 ```yaml
 tasks:
@@ -11988,8 +11238,6 @@ cd flow/builder
 # 3. Run it
 python flow_example.py
 ```
-
-examples/builder/flow_example.py:routes
 
 ```python
 @app.task(
@@ -12052,8 +11300,6 @@ cd flow/low-level
 python flow_example.py
 ```
 
-examples/low-level/flow_example.py:routes
-
 ```python
 ROUTES = {
     "pick": Router(
@@ -12082,8 +11328,6 @@ ______________________________________________________________________
 - `t`, the simulation time in seconds.
 
 A name carries its source so that adding a payload field cannot change what an attribute of the same name means, and so registry paths, which contain dots, can be written whole. Anything else is refused with a message that names it:
-
-docs/snippets/pages/task_flow.py:refused
 
 ```python
 for text in ("payload.total ** 2", "x > 1", "open('orders.csv')"):
@@ -12143,8 +11387,6 @@ A level switches them on. Each level publishes what the levels before it publish
 
 They are published every `interval` of simulation time, 10 seconds when it is not given, starting one interval after the start, and once more at the end of the run:
 
-docs/snippets/yaml/statistics.yaml:levels
-
 ```yaml
 # none (the default), minimal, basic, typical or all, each adding to the one before;
 # published every interval of simulation time and once at the end
@@ -12153,23 +11395,17 @@ stats: {level: typical, interval: 1 min}
 
 `stats: typical` is the short form, with the 10-second interval. The interval takes seconds or a duration.
 
-docs/snippets/pages/built_in_statistics.py:builder-levels
-
 ```python
 # none (the default), minimal, basic, typical or all, each adding to the one before;
 # published every interval of simulation seconds and once at the end
 app.with_stats("typical", interval=60)
 ```
 
-docs/snippets/pages/built_in_statistics.py:low-level-levels
-
 ```python
 env.setup_stats("Shop", "typical", interval=60)  # before or after the resources
 ```
 
 Resources, stores and containers add themselves to `env.stats` when they are built. Tasks are your own processes, so each reports its steps:
-
-docs/snippets/pages/built_in_statistics.py:low-level-report
 
 ```python
 # A low-level task reports its own steps to the statistics
@@ -12206,8 +11442,6 @@ Every statistic is published as telemetry named `<sim_id>.stats.<kind>.<name>.<s
 
 In Python the same values are in `env.stats.readings()`, by name, during or after the run:
 
-docs/snippets/pages/built_in_statistics.py:low-level-read
-
 ```python
 # Every statistic the level publishes, by its published name
 readings = env.stats.readings()
@@ -12235,8 +11469,6 @@ Without a warm-up, `started` is `finished` plus `in_system` plus the entities th
 
 Anything else is a custom reading: a function called at an interval of simulation time, which publishes with `context.publish(name, value)` as `<sim_id>.<name>`. It can read resources, stores, containers or any registry value.
 
-docs/snippets/yaml/statistics.yaml:custom
-
 ```yaml
 telemetry:
   # Readings of your own: called as packers_report(context) every 30 seconds
@@ -12245,8 +11477,6 @@ telemetry:
 ```
 
 The function is in `shop_logic.py`, beside the blueprint:
-
-docs/snippets/yaml/shop_logic.py:packers-report
 
 ```python
 def packers_report(context):
@@ -12257,8 +11487,6 @@ def packers_report(context):
     rate = context.env.registry.get(f"{context.sim_id}.arrival.orders.rate").value
     context.publish("arrival_rate", rate)  # as Shop.arrival_rate
 ```
-
-docs/snippets/pages/built_in_statistics.py:builder-custom
 
 ```python
 @app.telemetry_loop(interval=30.0)
@@ -12305,8 +11533,6 @@ cd measuring/yaml
 desflow run measuring.yaml
 ```
 
-examples/yaml/measuring.yaml:measure
-
 ```yaml
 # Every level: readings, counts and time averages, mean and maximum wait and service,
 # and their 50th, 95th and 99th percentiles, such as Shop.stats.tasks.pack.wait_p95.
@@ -12349,8 +11575,6 @@ cd measuring/builder
 # 3. Run it
 python measuring_example.py
 ```
-
-examples/builder/measuring_example.py:fault
 
 ```python
 def slow_packing(context):
@@ -12400,8 +11624,6 @@ cd measuring/low-level
 # 3. Run it
 python measuring_example.py
 ```
-
-examples/low-level/measuring_example.py:measure
 
 ```python
 # Every level, published every 5 minutes, such as Shop.stats.tasks.pack.wait_p95
@@ -12465,15 +11687,11 @@ desflow run replications.yaml --replications 20 --measure tasks.pack.wait_mean
 
 `--seed` overrides `simulation.random_seed`, and `--until` overrides `run.until`, as for one run. `--level` sets the confidence level (0.95 when it is not given), `--workers` runs replications at once, each in its own process, and `--drain` drains every replication, as `run.drain: true` does. The command prints the summary, the seed of each replication and the command that repeats one. The blueprint's own `warmup` applies to every replication:
 
-examples/yaml/replications.yaml:seed
-
 ```yaml
 # The replications' seeds are spawned from this one; --seed overrides it
 random_seed: 42
 warmup: 3 min
 ```
-
-docs/snippets/pages/replications.py:builder
 
 ```python
 # shop is a function returning a new SimulationContext, called once per run
@@ -12481,8 +11699,6 @@ result = replicate(shop, 3, seed=42, until="1 h", warmup="3 min", measures=MEASU
 ```
 
 `shop` is a function with no arguments that returns a new `SimulationContext`, such as [the example's](https://github.com/jaehyeon-kim/desflow/blob/main/examples/builder/replications_example.py), because each replication starts from a new context. A blueprint path works here too.
-
-docs/snippets/pages/replications.py:low-level
 
 ```python
 def model(env, sampler):
@@ -12522,8 +11738,6 @@ A name that no replication publishes is refused, with the names the model does p
 ### Read the Result
 
 `replicate`, imported with `from desflow import replicate`, returns a `Replications`. Its `summary` has one row per measure, a mapping with `measure`, `n`, `mean`, `half_width` and `level`, and the interval runs from `mean - half_width` to `mean + half_width`; its `table` has one row per replication and measure, with the replication's number and seed; `seeds` lists the seeds in order:
-
-docs/snippets/pages/replications.py:read
 
 ```python
 print(result.summary_text())  # each measure's n, mean and half-width
@@ -12602,8 +11816,6 @@ cd replications/yaml
 desflow run replications.yaml --replications 20
 ```
 
-examples/yaml/replications.yaml:seed
-
 ```yaml
 # The replications' seeds are spawned from this one; --seed overrides it
 random_seed: 42
@@ -12639,8 +11851,6 @@ cd replications/builder
 # 3. Run it
 python replications_example.py
 ```
-
-examples/builder/replications_example.py:replicate
 
 ```python
 # 20 seeds spawned from 42; each replication runs unpaced, with no sinks
@@ -12679,8 +11889,6 @@ cd replications/low-level
 # 3. Run it
 python replications_example.py
 ```
-
-examples/low-level/replications_example.py:replicate
 
 ```python
 # 20 seeds spawned from 42; each replication runs unpaced, with no sinks
@@ -12734,8 +11942,6 @@ ______________________________________________________________________
 ### Write an Experiment
 
 An experiment names its model, how long and how often to run it, what to measure, the designs and what to compare and check. In a file:
-
-examples/yaml/experiment.yaml
 
 ```yaml
 # An experiment in YAML: does a third packer keep the mean wait under 2 seconds?
@@ -12820,8 +12026,6 @@ desflow experiment experiment.yaml
 
 `--output` writes the files to another folder. The command exits with status 1 when a check fails, after writing every file, and with status 2 when the experiment is invalid.
 
-docs/snippets/pages/experiments.py:run
-
 ```python
 EXPERIMENT = {
     "experiment": "packers",
@@ -12849,8 +12053,6 @@ except CheckFailed as failed:
 The same call, with `LowLevelModel(model, sim_id="Shop")` as the model, where `model` builds the shop in the environment and with the sampler it is given, as the [example](#example-an-experiment) shows.
 
 The result holds every row the files hold:
-
-docs/snippets/pages/experiments.py:read
 
 ```python
 for row in result.summary:  # one row per design and statistic, counts included
@@ -12990,8 +12192,6 @@ desflow experiment experiment.yaml
 
 The model is `experiment_shop.yaml`, beside the experiment file:
 
-examples/yaml/experiment_shop.yaml
-
 ```yaml
 # The model of the experiment in experiment.yaml: one hour of the shop.
 #
@@ -13054,8 +12254,6 @@ cd experiment/builder
 python experiment_example.py
 ```
 
-examples/builder/experiment_example.py:compare
-
 ```python
 # Both designs run with the same 20 seeds, so they are compared seed by seed
 "pairing": "common",
@@ -13097,8 +12295,6 @@ cd experiment/low-level
 # 3. Run it
 python experiment_example.py
 ```
-
-examples/low-level/experiment_example.py:compare
 
 ```python
 # Both designs run with the same 20 seeds, so they are compared seed by seed
@@ -13158,15 +12354,11 @@ desflow fit packing_times.csv --column packing_seconds --unit s --lower 0 --out 
 
 The command prints the table, writes the best candidate's settings to `--out` and the plot to `--plot`. It exits with status 1 when no candidate is usable, and with status 2 when the input is invalid.
 
-examples/builder/fitting_example.py:fit
-
 ```python
 times = read_column(DATA, "packing_seconds")
 result = fit_column(times, unit="s", lower=0)
 print(result.text())  # every candidate, its status and diagnostics
 ```
-
-examples/low-level/fitting_example.py:fit
 
 ```python
 result = fit_column(read_column(DATA, "packing_seconds"), unit="s", lower=0)
@@ -13240,8 +12432,6 @@ The command fails only when no candidate is usable, `empirical` included, which 
 
 `!include` reads a mapping from another file, relative to the blueprint, so the file `--out` wrote is loaded and checked as if it were written in place:
 
-examples/yaml/fitting.yaml:include
-
 ```yaml
 services:
   # The fitted distribution, read from the file desflow fit wrote
@@ -13249,8 +12439,6 @@ services:
 ```
 
 An arrival also needs its `spawn`, so the include names the file and adds keys to it: `orders: !include {file: fitted/orders.yaml, spawn: pack}`. A YAML syntax error in the included file, or a file that is not a mapping, names that file and its line. A wrong key or value in it is reported at the blueprint's `!include` line, and so is a missing file. A file that includes itself, directly or through another, is refused at the `!include` that closes the loop.
-
-examples/builder/fitting_example.py:service
 
 ```python
 # The best candidate's settings, such as dist="triangular", low=0.546332
@@ -13292,8 +12480,6 @@ desflow fit ../packing_times.csv --column packing_seconds --lower 0 --out packin
 ```
 
 The file the fit writes, which the download already holds:
-
-examples/yaml/packing_fit.yaml
 
 ```yaml
 # Fitted by desflow fit from packing_times.csv, column packing_seconds: triangular, from 40 values in s, written in seconds.
@@ -13431,15 +12617,11 @@ A path is the `sim_id`, the kind of parameter, its name and the field:
 
 [Arrivals and Services](https://jaehyeon.me/desflow/latest/user-guide/arrivals-and-services/index.md) lists each family's parameters. An update to a path that does not exist, including a parameter the family does not take, is logged as a warning and ignored, so a misspelt path changes nothing. `compile_parameters()` returns the `SimParameter` a `SimulationContext` will register, which shows the names to use:
 
-docs/snippets/pages/live_parameters.py:compile
-
 ```python
 print(app.compile_parameters())
 ```
 
 In the low-level API you register the parameters yourself, and read a value with `registry.get(path).value`:
-
-docs/snippets/pages/registry.py:paths
 
 ```python
 params = SimParameter(
@@ -13474,8 +12656,6 @@ Each source of a change suits a different job and lands at a different moment:
 
 [Ingress](https://jaehyeon.me/desflow/latest/user-guide/ingress/index.md) gives the message each connector reads. A process changes a value directly:
 
-docs/snippets/pages/registry.py:update
-
 ```python
 env.registry.update("Shop.resources.packers.current_cap", 3)  # applied
 env.registry.update("Shop.resources.packers.current_cap", 9)  # stored as 5, the max_cap
@@ -13488,8 +12668,6 @@ env.registry.update("Shop.containers.stock.level", 150)  # stored as 100, the ca
 ### Script an Experiment
 
 A blueprint's `scenario` lists changes, each with the simulation time it applies at. Here a second packer starts at 30 seconds, orders arrive twice as fast from one minute, and the extra packer leaves at two minutes:
-
-docs/snippets/yaml/scenario.yaml
 
 ```yaml
 # The first blueprint with a scripted experiment: a second packer starts at 30 s,
@@ -13532,8 +12710,6 @@ run:
 
 The builder and the low-level API take the same steps, as a list of mappings. Here are the steps of the `changing_demand` example in each API:
 
-examples/yaml/changing_demand.yaml:schedule
-
 ```yaml
 scenario:
   # The rush: twice the orders, and a second packer, from 120 to 180 seconds
@@ -13542,8 +12718,6 @@ scenario:
   - {at: 180, path: Shop.arrival.orders.rate, value: 0.4}
   - {at: 180, path: Shop.resources.packers.current_cap, value: 1}
 ```
-
-examples/builder/changing_demand_example.py:schedule
 
 ```python
 # The rush: twice the orders, and a second packer, from 120 to 180 seconds
@@ -13558,8 +12732,6 @@ app.add_scenario(
 ```
 
 `add_step(at, path=..., value=..., record=...)` adds one step.
-
-examples/low-level/changing_demand_example.py:schedule
 
 ```python
 # The rush: twice the orders, and a second packer, from 120 to 180 seconds
@@ -13579,8 +12751,6 @@ A scenario is not a connector. It is a SimPy process that waits on the simulatio
 
 A detector or an agent that watches the data is scored against what really happened. A scenario step with a `record` publishes a **ground-truth record** of it: `stream_type: "label"`, with the step's `path`, the value before (`old`) and after (`new`), and the step's `record` mapping as `label`. A step can have a `record` and no `path`, for something that happened outside the model, and then `path`, `old` and `new` are null.
 
-docs/snippets/yaml/ground_truth.yaml:record
-
 ```yaml
 scenario:
   # Changes the rate and publishes a ground-truth record of the change
@@ -13594,8 +12764,6 @@ scenario:
 ```
 
 Labels go only to sinks with `when: labels`, and those sinks receive nothing else, so the labels never reach the pipeline under test and a scorer reads them apart from the data:
-
-docs/snippets/yaml/ground_truth.yaml:sinks
 
 ```yaml
 egress:
@@ -13633,8 +12801,6 @@ ______________________________________________________________________
 
 **Change Signal.** Each value has a SimPy `Store` with one slot as its signal. An update puts a token in it if it is empty, and `wait_for_change()` waits for that token, so several changes before a waiter wakes give one signal, and one waiting process takes it. Resources, stores and containers already wait on their own paths, so wait only on paths nothing else waits on, such as variables:
 
-docs/snippets/pages/registry.py:wait
-
 ```python
 def watch_speed(env):
     """Logs the conveyor speed every time it changes."""
@@ -13668,8 +12834,6 @@ A change is easiest to see in the telemetry. With `stats: minimal`, the scenario
 ```
 
 The reading at 30 seconds still shows 1: the resource applies a change within the same simulation instant, but after the step that made it, and the reading was taken first. The builder publishes the same readings with `with_stats`:
-
-docs/snippets/pages/live_parameters.py:telemetry
 
 ```python
 # The packers' capacity, in use, queue and utilization every 2 seconds
@@ -13705,8 +12869,6 @@ ______________________________________________________________________
 
 `logical_start_time` is the date and time that simulation time 0 maps to; without it, the run uses the moment the environment is created. A run with a backdated start writes history:
 
-docs/snippets/pages/pacing.py:logical-start
-
 ```python
 app = SimulationContext(
     sim_id="Shop",
@@ -13721,15 +12883,11 @@ A datetime without an offset is read in the run's time zone, described next. In 
 
 `timezone` names the zone that record timestamps are written in, as an IANA name such as `Australia/Melbourne`. Every `timestamp` carries the offset of its moment, such as `2026-10-03T12:00:00.000+10:00`, or `+00:00` in UTC. By default the zone is that of `logical_start_time` when it has one, and UTC otherwise. A `logical_start_time` or `go_live_at` without an offset, `now`, and the default start are read in it:
 
-docs/snippets/yaml/environment.yaml:timezone
-
 ```yaml
 # Under simulation: timestamps written in Melbourne time, with its offset; the
 # start and now are read in it. UTC by default
 timezone: ${SIM_TIMEZONE:-Australia/Melbourne}
 ```
-
-docs/snippets/pages/pacing.py:timezone
 
 ```python
 # Timestamps in Melbourne time, with their offset: 2026-10-03T12:00:00.000+10:00
@@ -13740,8 +12898,6 @@ melbourne = SimulationContext(
     logical_start_time=datetime(2026, 10, 3, 12, 0),  # read in Melbourne time
 )
 ```
-
-docs/snippets/pages/pacing.py:low-level-timezone
 
 ```python
 zoned = DynamicRealtimeEnvironment(
@@ -13758,8 +12914,6 @@ The clock runs in UTC, so a daylight-saving change in the zone never adds or dro
 
 The wall-clock duration of a stretch of the run is its simulation duration times `factor`:
 
-docs/snippets/pages/pacing.py:factor
-
 ```python
 live = DynamicRealtimeEnvironment(factor=1.0)  # 1 simulated second takes 1 real second
 twice_as_fast = DynamicRealtimeEnvironment(factor=0.5)  # takes half a real second
@@ -13772,8 +12926,6 @@ unpaced = DynamicRealtimeEnvironment(factor=0.0)  # takes no real time at all
 ### Go Live
 
 `factor` applies until the logical clock reaches `go_live_at`, and from that instant the run is paced at one simulation second per real second. With a backdated `logical_start_time` and `factor: 0`, one run writes the history as fast as it can, then keeps going in real time:
-
-docs/snippets/pages/pacing.py:go-live
 
 ```python
 go_live_at = datetime.now(timezone.utc)
@@ -13793,22 +12945,16 @@ A sink with `when: history` receives the records stamped before `go_live_at`, an
 
 At a `factor` above 0 the run follows the wall clock, and `system.simulation.lag_seconds` says how many seconds it is behind, as telemetry. `lag_interval` sets how often, in simulation seconds or a duration. By default it is every simulation second at a `factor` above 0, and off at `factor: 0`, where the run is meant to be ahead of the wall clock; a run at `factor: 0` that goes live starts it at the go-live instant. 0 turns it off:
 
-docs/snippets/yaml/environment.yaml:lag
-
 ```yaml
 # Under simulation: how far the run is behind the wall clock, every 10 s; by
 # default off at factor 0 and every second otherwise, and 0 turns it off
 lag_interval: 10 s
 ```
 
-docs/snippets/pages/pacing.py:lag
-
 ```python
 # system.simulation.lag_seconds every 10 simulation seconds; 0 turns it off
 paced = SimulationContext(sim_id="Shop", factor=1.0, lag_interval="10 s")
 ```
-
-docs/snippets/pages/pacing.py:low-level-lag
 
 ```python
 # The low-level API sets it with the sinks; the default "auto" is off at factor 0
@@ -13819,14 +12965,10 @@ docs/snippets/pages/pacing.py:low-level-lag
 
 `warmup` leaves the start of a run out of what it reports. It is one time per run, in simulation seconds or a duration. No sink receives a record or telemetry stamped before it, and the built-in statistics are reset once at that moment, so they describe the rest of the run. A run without it sends everything, which is what a data generator usually wants.
 
-docs/snippets/yaml/trusting_results.yaml:warmup
-
 ```yaml
 # Records and statistics start after the first 2 minutes; 0 keeps everything
 warmup: ${WARMUP:-2 min}
 ```
-
-docs/snippets/pages/pacing.py:warmup
 
 ```python
 # No sink receives a record stamped before 10 minutes, and the statistics restart then
@@ -13843,8 +12985,6 @@ The warm-up drops early records; `go_live_at` drops nothing and only decides whi
 
 `initial_time` is the reading of the simulation clock when the run starts, 0 when left out, in seconds or as a duration. A model of a shift that starts at 8 in the morning can start its clock at 8 hours, so every event time, every record's `sim_ts` and `until` read that clock; a record's `timestamp` is still `logical_start_time` plus `sim_ts`, to within the 1 millisecond by which a rounded `sim_ts` and a cut `timestamp` can differ:
 
-docs/snippets/yaml/initial_time.yaml:initial-time
-
 ```yaml
 simulation:
   sim_id: Shop
@@ -13853,14 +12993,10 @@ simulation:
   initial_time: 8 h
 ```
 
-docs/snippets/pages/pacing.py:initial-time
-
 ```python
 # The clock starts at 8 hours: event times, sim_ts and until all read it
 shift = SimulationContext(sim_id="Shop", factor=0.0, initial_time="8 h")
 ```
-
-docs/snippets/pages/pacing.py:low-level-initial-time
 
 ```python
 # The clock starts at 8 hours, in seconds, as in SimPy's Environment(initial_time=)
@@ -13872,8 +13008,6 @@ morning = DynamicRealtimeEnvironment(factor=0.0, initial_time=8 * 3600)
 ### Run Length
 
 `until` is in simulation seconds. `run()` and a blueprint's `run.until` also take a duration such as `"10 min"`, `"8 hours"` or `"1 week"`; a month counts as 30 days and a year as 365.
-
-docs/snippets/pages/pacing.py:run-length
 
 ```python
 app.add_resource("packers", current_cap=1, max_cap=1)
@@ -13892,8 +13026,6 @@ Without `until`, SimPy runs until no events remain, and a run with an arrival ne
 
 A fixed horizon cuts the run at `until` with orders still in the shop. A **drain** stops the arrivals at `until` and keeps running until every entity in the model has left: `drain: true`, or `drain: {limit: 1 h}` to stop at the latest that long after `until`; `desflow run --drain` sets it from the command line. The environment's own processes, such as the statistics timer, never hold a drain open. The `end-conditions` example closes the shop at 120 seconds, drains for at most a minute, and stops at once if the boxes run out:
 
-examples/yaml/end_conditions.yaml:run
-
 ```yaml
 run:
   # No new orders after closing time.
@@ -13903,8 +13035,6 @@ run:
   # Stop at once when the last box is taken.
   stop: {condition: level.boxes == 0}
 ```
-
-examples/builder/end_conditions_example.py:run
 
 ```python
 app.run(
@@ -13918,8 +13048,6 @@ app.run(
 ```
 
 `context.stop_arrivals()` stops the arrival loops by hand, as a drain does at `until`.
-
-examples/low-level/end_conditions_example.py:run
 
 ```python
 def run_to_end(env, shop, source):
@@ -13947,8 +13075,6 @@ With statistics at `basic` or above, `flows.<arrival>.started`, `finished` and `
 ### Step and Peek
 
 `start()` builds everything `run()` builds and starts every process, with the clock still at its start. `step()` then processes one event, and `peek()` gives the time of the next one, infinity when none is left, as SimPy's `env.step()` and `env.peek()` do. The event can be one of desflow's own, such as the statistics timer or a resource's capacity watcher, as well as one of the model's; `finish()` runs a started run on to the end `run()` would reach, `until`, the `stop` or the end of the drain, then closes it, so `run()` is `start()` then `finish()`; `close()` ends the run where it is. A context from `from_yaml` steps the same way:
-
-docs/snippets/pages/pacing.py:step
 
 ```python
 def every_ten(context):
@@ -14116,8 +13242,6 @@ Each connector is attached with `add_ingress` in the builder, passed to `env.set
 
 `LocalIngress` applies changes after set delays in wall-clock seconds from the start of the run. It suits a local run; for a change at an exact simulation time, use a scenario step.
 
-docs/snippets/pages/connectors.py:local-ingress
-
 ```python
 # 10 wall-clock seconds after the start, set the packers capacity to 3
 app.add_ingress(
@@ -14129,16 +13253,12 @@ app.add_ingress(
 
 `KafkaIngress` consumes a topic and reads each message as a JSON object with `path` and `value`, or through a deserializer of your own, such as Avro, as [Avro and Pydantic](https://jaehyeon.me/desflow/latest/guides/avro-and-pydantic/index.md) shows.
 
-docs/snippets/pages/connectors.py:kafka-ingress
-
 ```python
 # Reads {"path": ..., "value": ...} messages from the sim-config topic
 app.add_ingress(KafkaIngress(topic="sim-config", bootstrap_servers="localhost:9092"))
 ```
 
 `KafkaAdminConnector.send_config(topic, path, value)` sends one such message. The [Kafka example](https://jaehyeon.me/desflow/latest/examples/kafka/index.md) listens on `sim-config`, and this sets its number of packers:
-
-docs/snippets/pages/live_parameters_kafka.py
 
 ```python
 """Sets the packers capacity of the running Kafka example.
@@ -14162,8 +13282,6 @@ def set_packer_capacity(value: int) -> None:
 
 From any Kafka client, the message is the JSON object itself:
 
-docs/snippets/pages/ingress_senders.py:kafka
-
 ```python
 async def send_with_kafka(rate: float) -> None:
     """A JSON object with path and value, to the topic KafkaIngress reads."""
@@ -14182,8 +13300,6 @@ async def send_with_kafka(rate: float) -> None:
 
 `RedisIngress` subscribes to a Pub/Sub channel and reads each message as the same JSON object.
 
-docs/snippets/pages/connectors.py:redis-ingress
-
 ```python
 # Reads {"path": ..., "value": ...} messages from a Pub/Sub channel
 app.add_ingress(
@@ -14192,8 +13308,6 @@ app.add_ingress(
     )
 )
 ```
-
-docs/snippets/pages/ingress_senders.py:redis
 
 ```python
 async def send_with_redis(rate: float) -> None:
@@ -14216,8 +13330,6 @@ docker exec -it valkey valkey-cli --user user --pass password PUBLISH simulation
 
 `PostgresIngress` polls a table, `simulation_params` by default, every `poll_interval` seconds, 2 by default. It creates the table when it is missing, with the columns `id`, `path`, `value`, `is_applied` and `created_at`. At the start it applies the latest applied value of each path, so a restarted run resumes from the last settings; then it applies every row whose `is_applied` is false and marks it true, so the table keeps the history of every change. `value` is read as JSON, and as plain text when it is not JSON.
 
-docs/snippets/pages/connectors.py:postgres-ingress
-
 ```python
 # Applies new rows (path, value) of simulation_params, checking every 2 seconds
 app.add_ingress(
@@ -14228,8 +13340,6 @@ app.add_ingress(
     )
 )
 ```
-
-docs/snippets/pages/ingress_senders.py:postgres
 
 ```python
 async def send_with_postgres(rate: float) -> None:
@@ -14268,8 +13378,6 @@ ______________________________________________________________________
 - **A bad message is skipped.** A message that cannot be decoded, that is not an object, or that lacks a non-empty `path` or a non-null `value` is logged as one WARNING line and skipped; the run goes on. A PostgreSQL row like that is marked applied, so it is read once. A path the model does not have is a warning from the registry.
 
 - **Old keys get a hint.** Before 0.21.0, Kafka read `path_id`, and Redis and PostgreSQL read `param_path` and `param_value`. A message with the old keys is skipped with a line that says so:
-
-  docs/snippets/pages/ingress_senders.py:old-keys
 
   ```python
   # Every connector reads a message with the same check; one written for desflow
@@ -14315,8 +13423,6 @@ Each sink is attached with `add_egress` in the builder, passed to `env.setup_egr
 
 `ConsoleEgress` logs each record at INFO level, one line per record: `[EVT]` for an event, `[TEL]` for telemetry and `[LBL]` for a label. It logs a whole batch with one call, so the logging format's prefix, such as the time and level, starts each batch, and the lines after it start with `[EVT]`, `[TEL]` or `[LBL]`. One call per record cost far more: in the measurements on [Performance Tuning](https://jaehyeon.me/desflow/latest/guides/performance-tuning/index.md), a run printing every record took about 50 percent longer.
 
-docs/snippets/pages/connectors.py:console-egress
-
 ```python
 app.add_egress(ConsoleEgress())
 ```
@@ -14324,8 +13430,6 @@ app.add_egress(ConsoleEgress())
 ### Kafka
 
 `KafkaEgress` sends events to `event_topic` and telemetry to `telemetry_topic`, keyed by the record's `key` or `path_id`, so all events of one entity land on one partition, in order. `KafkaEgress` creates both topics when the run starts, if they do not exist; with a `topic_router` it creates none. [Complex Routing](https://jaehyeon.me/desflow/latest/guides/complex-routing/index.md) sends records to other topics.
-
-docs/snippets/pages/connectors.py:kafka-egress
 
 ```python
 app.add_egress(
@@ -14345,8 +13449,6 @@ app.add_egress(
 
 **Columns of a finished event.** A task's `queued` and `started` events carry `path_id` and `status`, but its finished event's value is the task's payload only, so in a finished event's row `path_id` and `status` are null unless the payload has them. The [Parquet example](https://jaehyeon.me/desflow/latest/examples/parquet/index.md) adds them to its payload for that reason.
 
-docs/snippets/pages/connectors.py:storage-egress
-
 ```python
 # Parquet files on the local disk, output/events_<8 hex digits>.parquet
 app.add_egress(ParquetStorageEgress(default_path="output/events.parquet"))
@@ -14365,8 +13467,6 @@ app.add_egress(
 
 Read the files back as one table with `pyarrow.dataset`, which reads every file in the folder:
 
-docs/snippets/pages/file_sink.py:read
-
 ```python
 def read_events(folder="output"):
     """Every file the sink wrote under `folder`, as one table."""
@@ -14382,8 +13482,6 @@ A second run adds its files beside the first run's, so reading the folder then c
 
 `RedisEgress` appends each record to a Redis Stream with `XADD`, as one `payload` field holding the record as JSON. A `__stream__` key in the record's value picks the stream, and is removed before writing.
 
-docs/snippets/pages/connectors.py:redis-egress
-
 ```python
 # XADD to the events stream, unless a record's value names another in __stream__
 app.add_egress(
@@ -14395,16 +13493,12 @@ app.add_egress(
 
 `PostgresEgress` inserts records into a table in batches. Only records whose value is a mapping are written, and the labels on a labels sink. A label is written as `sim_ts`, `timestamp`, `path`, `old`, `new` and `label`. The record's `sim_ts`, `timestamp`, `key` (as `event_id`) and `path_id` are added to the value and replace fields of the same name. Its `task` and `instance` are added too, but a value field of the same name keeps its own value. Keys with no matching column are dropped. A `__table__` key in the value sends the record only to the sink whose `table_name` matches.
 
-docs/snippets/pages/connectors.py:postgres-egress
-
 ```python
 dsn = "postgresql://user:password@localhost:5432/odctl"
 app.add_egress(PostgresEgress(dsn, table_name="orders"))
 ```
 
 By default a record whose key already exists is skipped. `upsert_keys` updates that row instead, for a model that changes rows it wrote earlier, such as an order moving from packed to shipped. The key columns need a unique index; an update sets only the columns the record carries, and within one flush the last record for a key wins.
-
-docs/snippets/pages/connectors.py:postgres-upsert
 
 ```python
 app.add_egress(PostgresEgress(dsn, table_name="orders", upsert_keys=["order_id"]))
@@ -14413,8 +13507,6 @@ app.add_egress(PostgresEgress(dsn, table_name="orders", upsert_keys=["order_id"]
 ### Iceberg
 
 `IcebergStorageEgress` appends records to an Apache Iceberg table through a REST catalog. One flush is one commit, so this sink wants a large `batch_size` of its own: every commit writes new metadata, and many small commits slow down queries. A table the sink creates has a column for every key of its first batch that has a value in some row; a key null in every row, such as `task` in a low-level event published without one, waits for a batch that gives it a value, as Iceberg has no null type. A key that first appears in a later batch is added to the table as an optional column, unless the table is named in `schemas`, which keeps the columns it gives. A batch the table refuses is logged at ERROR.
-
-docs/snippets/pages/connectors.py:iceberg-egress
 
 ```python
 catalog = RestCatalog(
@@ -14437,8 +13529,6 @@ app.add_egress(
 
 `upsert_keys` upserts on key columns instead of appending, so rerunning a seeded model over the same window does not duplicate rows. An upsert reads the matching rows first, replaces whole rows, never deletes, and needs pyiceberg 0.9.0 or later.
 
-docs/snippets/pages/connectors.py:iceberg-upsert
-
 ```python
 app.add_egress(
     IcebergStorageEgress(
@@ -14453,8 +13543,6 @@ app.add_egress(
 ### Connectors in a Blueprint
 
 In a blueprint, `config` holds the constructor's arguments, and settings that Python takes as objects are plain values: a Parquet or JSON Lines `filesystem` is a mapping with `type: local` or `type: s3`, an Iceberg `catalog` is a mapping of PyIceberg properties, and a Postgres `tables` mapping creates its tables when the run starts. [YAML Format](https://jaehyeon.me/desflow/latest/reference/yaml-format/#ingress-and-egress) lists them all.
-
-docs/snippets/yaml_build/connectors.yaml:egress
 
 ```yaml
 egress:
@@ -14498,13 +13586,9 @@ Every sink receives every event and telemetry record. `when` narrows that down:
 - **`history` and `live`**, in a blueprint: the records stamped before `simulation.go_live_at`, and the rest, as [Time and Pacing](https://jaehyeon.me/desflow/latest/user-guide/time-and-pacing/#go-live) describes.
 - **`labels`**: the ground-truth labels, and nothing else. No other sink receives a label, so data and labels always reach different sinks; [Live Parameters](https://jaehyeon.me/desflow/latest/user-guide/live-parameters/#record-what-a-change-was-for) describes them.
 
-docs/snippets/pages/batching.py:every-sink
-
 ```python
 app.add_egress(stream).add_egress(lake)  # both receive every record
 ```
-
-docs/snippets/pages/batching.py:when
 
 ```python
 # A record's timestamp is an ISO string with its zone offset, so read it as a time
@@ -14520,14 +13604,10 @@ app.add_egress(lake, when=lambda r: not is_hot(r))  # cold history
 app.add_egress(audit)  # no predicate: everything
 ```
 
-docs/snippets/pages/batching.py:labels
-
 ```python
 app.add_egress(stream)  # events and telemetry, never a label
 app.add_egress(audit, when="labels")  # ground-truth labels, and nothing else
 ```
-
-docs/snippets/yaml/ground_truth.yaml:sinks
 
 ```yaml
 egress:
@@ -14554,8 +13634,6 @@ A sink receives records in batches. A batch is handed over when it holds `batch_
 
 `with_batching` sets the defaults, and each sink can have its own size and interval: a stream sink wants small, frequent batches to keep latency down, and a file or lake sink wants large ones, because the batch is the file, and for Iceberg the commit.
 
-docs/snippets/pages/batching.py:defaults
-
 ```python
 app.with_batching(
     batch_size=5_000,  # records per batch
@@ -14565,8 +13643,6 @@ app.with_batching(
 )
 ```
 
-docs/snippets/pages/batching.py:per-sink
-
 ```python
 app.with_batching(batch_size=500, flush_interval=1.0)  # the default for every sink
 app.add_egress(stream, batch_size=50, flush_interval=0.5)  # small and often
@@ -14574,8 +13650,6 @@ app.add_egress(lake, batch_size=200_000)  # large files, the default interval
 ```
 
 The same settings in a blueprint, and in the low-level API, where the lists are matched to the sinks by position and `None` means the default:
-
-docs/snippets/yaml/batching.yaml
 
 ```yaml
 # The delivery settings of the Egress page, as a blueprint.
@@ -14609,8 +13683,6 @@ resources:
 run:
   until: 60
 ```
-
-docs/snippets/pages/batching.py:low-level
 
 ```python
 env = DynamicRealtimeEnvironment(factor=0.0)
@@ -14703,8 +13775,6 @@ ______________________________________________________________________
 
 This blueprint keeps the shop in YAML and moves three pieces of logic into Python: a payload that picks each order's delivery, a breaks process with arguments, and a predicate that keeps telemetry off the terminal:
 
-docs/snippets/yaml/hybrid.yaml
-
 ```yaml
 # The shop with its logic in Python. YAML keeps the blueprint and the
 # experiment; shop_logic.py beside this file holds what YAML cannot express.
@@ -14745,8 +13815,6 @@ scenario:
 run:
   until: 3 min
 ```
-
-docs/snippets/yaml/shop_logic.py
 
 ```python
 """Python for the blueprints beside it: a payload, a process with arguments, a
@@ -14803,8 +13871,6 @@ The run shows both:
 
 A process is written either as a bare reference, `- !python module.func`, which is called as `func(context)`, or as a mapping with `function` and `kwargs`, which is called as `func(context, **kwargs)`. `kwargs` is what lets a blueprint start a process whose signature is not `(context)`. When the signature differs more, write a small adapter: a generator function that takes the context, picks out what the process needs, and hands over with `yield from`.
 
-docs/snippets/hot_rolling/hot_rolling_adapter.py:arrivals
-
 ```python
 def arrivals(context, product):
     yield from arrival_process(
@@ -14837,8 +13903,6 @@ ______________________________________________________________________
 
 Put such setup in a function rather than at the top of the module. The module is imported when the file is loaded, so its top-level code runs even when the file is loaded and never run.
 
-docs/snippets/yaml_build/connectors.yaml:before
-
 ```yaml
 run:
   until: 1 hour
@@ -14847,8 +13911,6 @@ run:
 ```
 
 The module beside the blueprint holds the setup function, and the `path_router` its `Jsonl` sink uses:
-
-docs/snippets/yaml_build/routing_logic.py
 
 ```python
 """Python for docs/snippets/yaml_build/connectors.yaml: a router and a setup step."""
@@ -14875,8 +13937,6 @@ ______________________________________________________________________
 The [OML hot rolling digital twin](https://github.com/jaehyeon-kim/oml-digital-twin-hotrolling) is a steel mill written with the low-level API. Its `generator.py` builds a `SimParameter` with three arrivals, three services, three resources, three containers and three variables, wires Kafka in both directions with a topic router, and starts the processes in `sim_logic.py`. Those processes take `(env, sampler, resource, ...)`, not a context, and `sim_logic.py` runs to 262 lines of multi-stage routing, wear and physics.
 
 The configuration moves to YAML. The processes keep their logic, and a small adapter changes only how they are called.
-
-docs/snippets/hot_rolling/hot_rolling.yaml
 
 ```yaml
 # The OML hot rolling digital twin as a blueprint. The parameters and the Kafka
@@ -14960,8 +14020,6 @@ run:
   before:
     - !python hot_rolling_adapter.create_topics
 ```
-
-docs/snippets/hot_rolling/hot_rolling_adapter.py
 
 ```python
 """Adapts the hot rolling processes to the calls a blueprint makes.
@@ -15077,8 +14135,6 @@ ______________________________________________________________________
 
 A service is fitted to its durations. An arrival is fitted to the gaps between arrivals, not to the times they happened, so turn an order log's times into gaps first:
 
-docs/snippets/guides/fit_a_distribution.py:gaps
-
 ```python
 with LOG.open(newline="", encoding="utf-8") as handle:
     placed = [
@@ -15097,8 +14153,6 @@ ______________________________________________________________________
 ## Fit It
 
 State the unit and the bounds. The gaps are in seconds and none can be below 0:
-
-docs/snippets/guides/fit_a_distribution.py:fit
 
 ```python
 result = fit_column(gaps(), unit="s", lower=0)
@@ -15140,8 +14194,6 @@ ______________________________________________________________________
 
 Write the best fit with `--out`, or from Python:
 
-docs/snippets/guides/fit_a_distribution.py:write
-
 ```python
 path = Path(folder) / "fitted" / "orders.yaml"
 path.parent.mkdir(parents=True, exist_ok=True)
@@ -15149,8 +14201,6 @@ path.write_text(result.yaml(source="order_log.csv, gaps between placed_at"))
 ```
 
 and include it. An arrival also needs the task it spawns, so the include names the file and adds `spawn`:
-
-docs/snippets/yaml/fit_a_distribution.yaml:include
 
 ```yaml
 arrivals:
@@ -15160,15 +14210,11 @@ arrivals:
 
 The file:
 
-docs/snippets/yaml/fitted/orders.yaml
-
 ```yaml
 # Fitted by desflow fit from order_log.csv, gaps between placed_at: exponential, from 299 values in s, written in seconds.
 dist: exponential
 rate: 0.36388
 ```
-
-docs/snippets/guides/fit_a_distribution.py:load
 
 ```python
 # The best fit's settings, such as dist="exponential", rate=0.4
@@ -15185,8 +14231,6 @@ ______________________________________________________________________
 
 When every family is skipped, rejected or did not fit, the best is the `empirical` distribution: the data itself, which a run draws from at random. For many values, a histogram is shorter:
 
-docs/snippets/guides/fit_a_distribution.py:empirical
-
 ```python
 result = fit_column(gaps(), unit="s", candidates=["empirical"], bins=10)
 ```
@@ -15198,8 +14242,6 @@ ______________________________________________________________________
 ## Example
 
 The whole script fits the gaps and runs the shop for an hour with the fitted arrivals; one packer packs 1,302 orders. Run it from `docs/snippets/guides/` with `python fit_a_distribution.py`:
-
-docs/snippets/guides/fit_a_distribution.py
 
 ```python
 """Fit a Distribution: the gaps between orders in an order log, fitted and loaded.
@@ -15305,8 +14347,6 @@ A topic router is a Python function that receives one record, as a dictionary wi
 
 This router sends telemetry, alarms and other events to three topics:
 
-docs/snippets/guides/complex_routing.py:router
-
 ```python
 def custom_kafka_router(data: Dict[str, Any]) -> str:
     """Picks a topic for each record by its kind and its value."""
@@ -15329,8 +14369,6 @@ ______________________________________________________________________
 
 Pass the router as `topic_router` to `KafkaEgress`:
 
-docs/snippets/guides/complex_routing.py:egress
-
 ```python
 app = (
     SimulationContext(sim_id="Shop", factor=1.0)
@@ -15349,8 +14387,6 @@ ______________________________________________________________________
 ## Run the Shop
 
 The shop packs an order about every 2 seconds, and every tenth order fails, so all three topics receive records. The minimal statistics give `shop-telemetry` a reading every 10 seconds:
-
-docs/snippets/guides/complex_routing.py:shop
 
 ```python
 app.add_arrival("orders", dist="exponential", rate=0.5)
@@ -15374,8 +14410,6 @@ def orders(context: SimulationContext):
 
 Before the run, the script creates the three topics with `KafkaAdminConnector`:
 
-docs/snippets/guides/complex_routing.py:run
-
 ```python
 if __name__ == "__main__":
     logging.basicConfig(
@@ -15396,8 +14430,6 @@ ______________________________________________________________________
 Full script
 
 The complete file. It needs the `kafka-lite` profile:
-
-docs/snippets/guides/complex_routing.py
 
 ```python
 """The Complex Routing guide: a shop whose records go to three Kafka topics.
@@ -15485,8 +14517,6 @@ ______________________________________________________________________
 
 `publish_event` turns a Pydantic V2 model into a JSON-ready dict before any egress sees it, so you do not convert it yourself. Pydantic V1 models, including `pydantic.v1`, are not supported and raise a `PydanticSerializationError`.
 
-docs/snippets/guides/avro_and_pydantic.py:model
-
 ```python
 from pydantic import BaseModel
 
@@ -15512,8 +14542,6 @@ ______________________________________________________________________
 A topic router picks the topic of each record, and `topic_serializers` names the serializer of each topic. A topic with no serializer in the mapping uses the default, `JsonSerializer`.
 
 `KafkaEgress` serializes the whole record, not only its `value`: `key`, `task`, `instance`, `sim_ts`, `timestamp` and `value`, without `stream_type`. `task` and `instance` are null on an event published without them, so the schema makes both nullable. An Avro schema therefore describes that record, with your payload as the `value` field. `ConfluentAvroSerializer` uses a Confluent Schema Registry, and `GlueAvroSerializer` uses an AWS Glue Schema Registry.
-
-docs/snippets/guides/avro_and_pydantic.py:router
 
 ```python
 from desflow import KafkaEgress
@@ -15568,8 +14596,6 @@ ______________________________________________________________________
 
 A schema written by hand as a JSON string can drift from the model it describes. The `dataclasses-avroschema` package generates it from a Pydantic model instead. `AvroBaseModel` is a Pydantic model that can also write its Avro schema:
 
-docs/snippets/guides/avro_and_pydantic.py:schema
-
 ```python
 from typing import Optional
 
@@ -15605,8 +14631,6 @@ schema_string = PredictionRecord.avro_schema()
 
 Both `ConfluentAvroSerializer` and `GlueAvroSerializer` take the generated string as `schema_str`:
 
-docs/snippets/guides/avro_and_pydantic.py:generated
-
 ```python
 generated_serializer = ConfluentAvroSerializer(
     registry_url="http://127.0.0.1:8081",
@@ -15625,8 +14649,6 @@ ______________________________________________________________________
 ## Run the Shop
 
 In this shop, each packed order's finished event is a prediction: the task returns an `MLPrediction`, and the router sends it to `ml-predictions` as Avro. The `queued` and `started` events go to `sim-events` as JSON. Before the run, the script creates the three topics, because `KafkaEgress` creates none when it has a router:
-
-docs/snippets/guides/avro_and_pydantic.py:shop
 
 ```python
 import logging
@@ -15675,8 +14697,6 @@ ______________________________________________________________________
 Full script
 
 The complete file. It needs the `kafka-lite` profile, which runs a Kafka broker and a schema registry:
-
-docs/snippets/guides/avro_and_pydantic.py
 
 ```python
 """The Pydantic models, topic router and Avro serializers of the Avro and Pydantic page.
@@ -15847,8 +14867,6 @@ ______________________________________________________________________
 
 For Confluent Cloud, or any cluster that uses SASL PLAIN or SCRAM, pass `security_protocol`, `sasl_mechanism` and the credentials:
 
-docs/snippets/guides/kafka_security.py:sasl
-
 ```python
 egress = KafkaEgress(
     bootstrap_servers="pkc-xxxx.us-east-1.aws.confluent.cloud:9092",
@@ -15867,8 +14885,6 @@ ______________________________________________________________________
 ## On-Premise Cluster (mTLS)
 
 For a cluster that requires mutual TLS, build an SSL context from your certificate files. `aiokafka` takes only `ssl_context`, not the certificate paths, and `kafka-python` accepts the same context, so one context serves every connector.
-
-docs/snippets/guides/kafka_security.py:mtls
 
 ```python
 from aiokafka.helpers import create_ssl_context
@@ -15896,8 +14912,6 @@ ______________________________________________________________________
 Amazon MSK with IAM access control uses `sasl_mechanism="OAUTHBEARER"` with a token provider. The token comes from the `aws-msk-iam-sasl-signer-python` package, which you install yourself.
 
 Each library checks the provider's type. `aiokafka` requires a subclass of `aiokafka.abc.AbstractTokenProvider` with an `async` `token()`. `kafka-python` requires a subclass of `kafka.sasl.oauth.AbstractTokenProvider` with a plain `token()`. One object cannot be both, so the connectors that use `aiokafka` get one provider, and `create_topics` gets the other.
-
-docs/snippets/guides/kafka_security.py:msk
 
 ```python
 from aiokafka.abc import AbstractTokenProvider as AsyncTokenProvider
@@ -15943,8 +14957,6 @@ ______________________________________________________________________
 
 A connector with security settings is added like any other. This simulation publishes its events through the SASL egress above:
 
-docs/snippets/guides/kafka_security.py:shop
-
 ```python
 app = (
     SimulationContext(sim_id="Shop", factor=1.0, random_seed=42)
@@ -15983,8 +14995,6 @@ ______________________________________________________________________
 Full script
 
 The complete file. It needs a Kafka cluster that uses SASL PLAIN:
-
-docs/snippets/guides/kafka_security.py
 
 ```python
 """The secured Kafka connections of the Secure Kafka page, and a shop that uses one.
@@ -16119,8 +15129,6 @@ ______________________________________________________________________
 
 ## Example
 
-docs/snippets/guides/multi_resource_handoffs.py
-
 ```python
 import logging
 
@@ -16184,8 +15192,6 @@ ______________________________________________________________________
 
 Here a packing station of two units fails about once a minute and takes 5 to 15 seconds to repair:
 
-examples/yaml/breakdowns.yaml:station
-
 ```yaml
 resources:
   station:
@@ -16199,8 +15205,6 @@ resources:
       work: interrupt
 ```
 
-examples/builder/breakdowns_example.py:station
-
 ```python
 .add_resource("station", current_cap=2, max_cap=3)
 .add_breakdown(
@@ -16212,8 +15216,6 @@ examples/builder/breakdowns_example.py:station
     work="interrupt",
 )
 ```
-
-examples/low-level/breakdowns_example.py:station
 
 ```python
 breakdowns={
@@ -16228,8 +15230,6 @@ breakdowns={
 ```
 
 The breakdowns run as a SimPy process, started beside the arrivals:
-
-examples/low-level/breakdowns_example.py:processes
 
 ```python
 def processes(env, sampler, station):
@@ -16252,8 +15252,6 @@ ______________________________________________________________________
 ## Check the Downtime
 
 With statistics at `minimal` or above, the station publishes `down`, 1 while it is down and 0 otherwise; from `basic`, `downtime`, the seconds it has been down, and `failures`, how many times it has failed. This function runs the example, finds the down periods from the events, and checks both counts against them:
-
-docs/snippets/guides/breakdowns.py:check
 
 ```python
 def availability(path: str) -> dict:
@@ -16394,8 +15392,6 @@ ______________________________________________________________________
 
 ## Example
 
-docs/snippets/guides/dynamic_topology.py
-
 ```python
 import logging
 
@@ -16503,8 +15499,6 @@ ______________________________________________________________________
 
 A task's `patience` is how long it may wait, for its `wait`, then its resource and then its `get`, before it leaves the queue and publishes `reneged`. It counts waiting time only: it pauses while the task is served, so a task that is preempted and queues again goes on with the time it has left; a get that gives up is cancelled, so it takes nothing later. Its `balk` is a condition checked before it joins the queue; when it holds, the task publishes `balked` and never asks for the resource. Here each order brings its own patience as an attribute, and no order joins after the courier's last collection at 100 seconds:
 
-examples/yaml/patience.yaml:pack
-
 ```yaml
 tasks:
   pack:
@@ -16516,8 +15510,6 @@ tasks:
     balk: t >= 100
     payload: {event_type: order_packed}
 ```
-
-examples/builder/patience_example.py:pack
 
 ```python
 @app.task(
@@ -16532,8 +15524,6 @@ def pack(task_id, context):
     """Packs one order."""
     return {"event_type": "order_packed"}
 ```
-
-examples/low-level/patience_example.py:pack
 
 ```python
 def pack(env, sampler, packers, key, patience, task_id):
@@ -16584,8 +15574,6 @@ A unit can come free at the same instant a waiting order's patience runs out. Pl
 
 This function runs both:
 
-docs/snippets/guides/reneging_and_balking.py:tie
-
 ```python
 def tie(waiter_at: float, patience: float) -> str:
     """The outcome of an order whose patience ends when the packer comes free."""
@@ -16628,8 +15616,6 @@ ______________________________________________________________________
 ## Check the Balance
 
 Every order that arrives ends in one of four places: packed, reneged, balked, or still in the shop when the run ends, waiting (`queued`) or being packed (`started`). The last event of each entity key says which. With statistics at `basic` or above, the `finished`, `reneged` and `balked` counts must match those events:
-
-docs/snippets/guides/reneging_and_balking.py:balance
 
 ```python
 def balance(path: str) -> Counter:
@@ -16757,8 +15743,6 @@ ______________________________________________________________________
 
 `wait: {any: {...}}` ends when the first branch happens, as SimPy's `AnyOf` (`a | b`) does. Name each branch; after the wait, `wait.<branch>.done` says which happened. Here an order waits for a restock or 30 seconds, and a builder function that declares `wait` reads the branches:
 
-docs/snippets/guides/wait_for_one_or_all.py:first
-
 ```python
 def first(gap: float) -> dict:
     """Which branches were done when the order's wait ended."""
@@ -16790,8 +15774,6 @@ def first(gap: float) -> dict:
 
 `first(10)` returns `{"stock": True, "limit": False}`: the restock came first. `first(50)` returns `{"stock": False, "limit": True}`. In YAML the same wait is
 
-examples/yaml/process_interaction.yaml:dispatch
-
 ```yaml
 dispatch:
   # The courier's departure, or 40 seconds, whichever comes first.
@@ -16814,8 +15796,6 @@ ______________________________________________________________________
 ## Two at the Same Instant
 
 Two branches can happen at the same simulation time. SimPy's `AnyOf` holds every event processed before the `AnyOf` itself, so both are in its value, and desflow reports both as done:
-
-docs/snippets/guides/wait_for_one_or_all.py:tie
 
 ```python
 def two_at_once() -> dict:
@@ -16857,8 +15837,6 @@ ______________________________________________________________________
 ## Wait for All
 
 `wait: {all: {...}}` ends when every branch has happened, as SimPy's `AllOf` (`a & b`) does. If a branch fails first, the wait fails at once, with that branch's reason, and the task publishes `failed`; branches still pending are cleaned up as for `any`, so a child flow runs on. Here the restock fails at 2 while the inspection, a child flow, runs until 4:
-
-docs/snippets/guides/wait_for_one_or_all.py:all
 
 ```python
 def all_with_a_failure() -> list:
@@ -16925,8 +15903,6 @@ ______________________________________________________________________
 
 Here orders arrive twice as fast from 120 to 180 seconds, and a second packer works for that time:
 
-examples/yaml/changing_demand.yaml:schedule
-
 ```yaml
 scenario:
   # The rush: twice the orders, and a second packer, from 120 to 180 seconds
@@ -16935,8 +15911,6 @@ scenario:
   - {at: 180, path: Shop.arrival.orders.rate, value: 0.4}
   - {at: 180, path: Shop.resources.packers.current_cap, value: 1}
 ```
-
-examples/builder/changing_demand_example.py:schedule
 
 ```python
 # The rush: twice the orders, and a second packer, from 120 to 180 seconds
@@ -16951,8 +15925,6 @@ app.add_scenario(
 ```
 
 `add_step(at, path=..., value=...)` adds one step; a step can also carry a `record`, a ground-truth label, or an `interrupt`.
-
-examples/low-level/changing_demand_example.py:schedule
 
 ```python
 # The rush: twice the orders, and a second packer, from 120 to 180 seconds
@@ -16979,8 +15951,6 @@ A step that applies at the same time as another event has to come first or secon
 - **A step at or after `until` never applies,** as an event due at exactly `until` does not run.
 
 This function runs orders every 10 seconds, with a step at 30 seconds that makes the gap 5:
-
-docs/snippets/guides/time_varying_arrivals.py:boundary
 
 ```python
 def arrivals(until: float) -> tuple:
@@ -17113,8 +16083,6 @@ ______________________________________________________________________
 
 This function runs a model with a counting sink in place of its own, and returns the records it published and how many a second, counted from the start of `run()` to the end of its teardown:
 
-docs/snippets/guides/performance_tuning.py:measure
-
 ```python
 def throughput(app: SimulationContext, until: float) -> dict:
     """Runs a model with a counting sink: the records and records per second."""
@@ -17130,8 +16098,6 @@ def throughput(app: SimulationContext, until: float) -> dict:
 ```
 
 For an hour of this shop, ten orders a second and 25 packers, it returns **108,688** records, at about 100,000 a second on the machine below:
-
-docs/snippets/guides/performance_tuning.py:shop
 
 ```python
 def shop() -> SimulationContext:
@@ -17296,8 +16262,6 @@ The blueprint declares one resource, one service and one arrival. `spawn` names 
 
 Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
-examples/yaml/local.yaml
-
 ```yaml
 # Local simulation in YAML, with no Python and no containers.
 #
@@ -17384,8 +16348,6 @@ python local_example.py
 This script builds the model, runs it for 30 simulation seconds, and streams events and telemetry directly to your terminal.
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
-
-examples/builder/local_example.py
 
 ```python
 """Local simulation, builder API, no containers.
@@ -17507,8 +16469,6 @@ python local_example.py
 This script builds the model and runs it for 30 simulation seconds. The `capacity_changes` process changes the number of packers from 1 to 3 at 10 seconds, then down to 2 at 20 seconds. Events and telemetry stream directly to your terminal, driven by plain SimPy generators.
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
-
-examples/low-level/local_example.py
 
 ```python
 """Local simulation, low-level API, no containers.
@@ -17686,8 +16646,6 @@ The blueprint wires both Kafka connectors and declares the packers, the packing 
 
 Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
-examples/yaml/kafka.yaml
-
 ```yaml
 # Kafka digital twin in YAML.
 #
@@ -17792,8 +16750,6 @@ The run keeps going until you stop it. It logs one line per order as a packer st
 This script connects the simulation to Kafka topics and utilizes Pydantic models for structured event logging.
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
-
-examples/builder/kafka_example.py
 
 ```python
 """Kafka Digital Twin, builder API.
@@ -17974,8 +16930,6 @@ The run keeps going until you stop it. It logs one line per order as a packer st
 This script connects the simulation to Kafka topics and utilizes Pydantic models for structured event logging.
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
-
-examples/low-level/kafka_example.py
 
 ```python
 """Kafka Digital Twin, low-level API.
@@ -18205,8 +17159,6 @@ Stop it with `odctl down storage --volumes` when you are finished.
 
 Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
-examples/yaml/parquet.yaml
-
 ```yaml
 # Historical data generation in YAML.
 #
@@ -18307,8 +17259,6 @@ Stop it with `odctl down storage --volumes` when you are finished.
 This script simulates the shop over a 7-day period. It demonstrates how to route lifecycle events to one Parquet dataset, flattened into rows, and write them out instantly.
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
-
-examples/builder/parquet_example.py
 
 ```python
 """
@@ -18499,8 +17449,6 @@ Stop it with `odctl down storage --volumes` when you are finished.
 This script simulates the shop over a 7-day period. It demonstrates how to route lifecycle events to one Parquet dataset, flattened into rows, and write them out.
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
-
-examples/low-level/parquet_example.py
 
 ```python
 """Historical data generation, low-level API.
@@ -18734,8 +17682,6 @@ The catalog is contacted on the first write, not when the blueprint is loaded, s
 
 Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
-examples/yaml/iceberg.yaml
-
 ```yaml
 # Lakehouse data generation in YAML.
 #
@@ -18850,8 +17796,6 @@ Running it twice appends to the same table rather than replacing it, which is wh
 This script simulates the shop over a 1-day period. It routes lifecycle events into one Iceberg table and pins the schema so the event time is a real timestamp rather than the string inference would give.
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
-
-examples/builder/iceberg_example.py
 
 ```python
 """
@@ -19082,8 +18026,6 @@ Running it twice appends to the same table rather than replacing it, which is wh
 This script simulates the shop over a 1-day period. It routes lifecycle events into one Iceberg table and pins the schema so the event time is a real timestamp rather than the string inference would give.
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
-
-examples/low-level/iceberg_example.py
 
 ```python
 """Lakehouse data generation, low-level API.
@@ -19336,8 +18278,6 @@ docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params
 
 Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
-examples/yaml/postgres.yaml
-
 ```yaml
 # Relational output in YAML.
 #
@@ -19391,8 +18331,6 @@ This example demonstrates how to integrate `desflow` into a relational database 
 
 `PostgresEgress` creates each table in `tables` when it does not exist, and writes each record as one row. Record fields the table has no column for, such as `sim_ts`, are left out.
 
-examples/builder/postgres_example.py:app
-
 ```python
 app = (
     SimulationContext(sim_id="Shop", factor=1.0, random_seed=42)
@@ -19405,8 +18343,6 @@ app = (
 **Generating Orders**
 
 `place_order` has no service or resource, so it publishes its payload as soon as the arrival loop spawns it. The task id is the order id:
-
-examples/builder/postgres_example.py:records
 
 ```python
 @app.task()
@@ -19492,8 +18428,6 @@ odctl down postgres --volumes
 This script connects the simulation to PostgreSQL, creates the `orders` table and writes a continuous stream of orders.
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
-
-examples/builder/postgres_example.py
 
 ```python
 """Relational output, builder API.
@@ -19579,8 +18513,6 @@ This example demonstrates how to integrate `desflow` into a relational database 
 
 `PostgresEgress` creates each table in `tables` when it does not exist, and writes each record as one row. `PostgresIngress` creates the `simulation_params` table it polls:
 
-examples/low-level/postgres_example.py:connectors
-
 ```python
 # PostgresEgress creates the orders table, and PostgresIngress creates the
 # simulation_params table it polls for parameter updates.
@@ -19591,8 +18523,6 @@ env.setup_ingress([PostgresIngress(DSN, table_name="simulation_params")])
 **Generating Orders**
 
 For each arriving order, the SimPy process publishes one record under the key the builder's task would use. The task id is the order id:
-
-examples/low-level/postgres_example.py:records
 
 ```python
 order = {
@@ -19670,8 +18600,6 @@ odctl down postgres --volumes
 This script connects the simulation to PostgreSQL, creates the `orders` table and writes a continuous stream of orders.
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
-
-examples/low-level/postgres_example.py
 
 ```python
 """Relational output, low-level API.
@@ -19833,8 +18761,6 @@ docker exec -it valkey valkey-cli --user user --pass password PUBLISH simulation
 
 Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
-examples/yaml/redis.yaml
-
 ```yaml
 # Redis Streams output with live parameter updates, in YAML.
 #
@@ -19884,8 +18810,6 @@ With `RedisIngress` and `RedisEgress`, the simulation reads parameter updates th
 
 `RedisEgress` writes each record to a Redis Stream with `XADD`. Its default stream is the one named in the constructor, `events` in this example, and a `__stream__` key in a record picks another.
 
-examples/builder/redis_example.py:app
-
 ```python
 app = (
     SimulationContext(sim_id="Shop", factor=1.0, random_seed=42)
@@ -19896,8 +18820,6 @@ app = (
 ```
 
 `record_order` has no service or resource, so its record is published as soon as the arrival loop spawns it, one per order:
-
-examples/builder/redis_example.py:records
 
 ```python
 @app.task()
@@ -19983,8 +18905,6 @@ odctl down valkey --volumes
 **Full Source Code**
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
-
-examples/builder/redis_example.py
 
 ```python
 """Redis Streams output with live parameter updates, builder API.
@@ -20114,8 +19034,6 @@ odctl down valkey --volumes
 **Full Source Code**
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
-
-examples/low-level/redis_example.py
 
 ```python
 """Redis Streams output with live parameter updates, low-level API.
@@ -20257,8 +19175,6 @@ Ten minutes of history are written to `data/backfill/` within the first second, 
 
 Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
-examples/yaml/backfill_live.yaml
-
 ```yaml
 # Backfill then go live in one run, in YAML.
 #
@@ -20368,8 +19284,6 @@ odctl down kafka-lite --volumes
 **Full Source Code**
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
-
-examples/builder/backfill_live_example.py
 
 ```python
 """
@@ -20584,8 +19498,6 @@ odctl down kafka-lite --volumes
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
-examples/low-level/backfill_live_example.py
-
 ```python
 """
 Backfill-then-live Example, low-level API.
@@ -20792,8 +19704,6 @@ They are independent. `go_live_at` changes pacing only; it never routes a record
 
 In the Builder version, the three settings make the run:
 
-examples/builder/backfill_live_example.py:builder
-
 ```python
 app = (
     SimulationContext(
@@ -20834,8 +19744,6 @@ ______________________________________________________________________
 
 **Predicates compare times read from the timestamp.** A record carries its logical time as an ISO string with its zone offset, such as `+00:00`, so `record["timestamp"] >= GO_LIVE_AT` raises a `TypeError`. Read it with `datetime.fromisoformat` and compare instants, which holds whatever zone each side is written in. Cut the go-live instant to milliseconds, as timestamps are, so a record stamped in the go-live millisecond counts as live. Take the instant with `datetime.now(timezone.utc)`: a datetime without an offset is read in the run's `timezone`, else in the zone of `logical_start_time`, else in UTC, not in the machine's local time.
 
-examples/builder/backfill_live_example.py:clock
-
 ```python
 GO_LIVE_AT = datetime.now(timezone.utc)
 # Cut to milliseconds, as timestamps are, so a record stamped in the go-live
@@ -20848,8 +19756,6 @@ LOGICAL_START_TIME = GO_LIVE_AT - HISTORY
 ```
 
 **`flush_interval` has no effect before `go_live_at`, so `batch_size` decides the history.** The interval flush is a simulation process, and it is only started if `factor` is non-zero when the egress is set up. This run starts at `factor=0.0`, so until go-live records leave the buffer only when it fills to `batch_size`. That sets the number of Parquet part files. From go-live the interval flush starts, so the live tail also flushes every `flush_interval`, and that decides how often Kafka sees anything. Give each sink its own `batch_size` and `flush_interval` to separate those two jobs:
-
-docs/snippets/pages/backfill_live.py:per-sink
 
 ```python
 app.add_egress(parquet, when=is_history, batch_size=200_000)
@@ -20867,8 +19773,6 @@ ______________________________________________________________________
 ## Low-level API
 
 `go_live_at` behaves identically on `DynamicRealtimeEnvironment`, alongside `logical_start_time`:
-
-docs/snippets/pages/backfill_live.py:low-level
 
 ```python
 go_live_at = datetime.now(timezone.utc)
@@ -20932,8 +19836,6 @@ The generator is listed under `processes` with `kwargs`, so it is called as `ord
 
 Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
-examples/yaml/advanced/postgres_orders.yaml
-
 ```yaml
 # Orders with random line items, in YAML with one Python function.
 #
@@ -20994,8 +19896,6 @@ processes:
   - function: !python postgres_orders_logic.order_generator
     kwargs: {arrival: orders, max_items: 5}
 ```
-
-examples/yaml/advanced/postgres_orders_logic.py
 
 ```python
 """Python for postgres_orders.yaml: an order generator with random line items."""
@@ -21089,8 +19989,6 @@ odctl down postgres --volumes
 **Full Source Code**
 
 The generator is added with `add_process`, so it is called as `order_generator(context, arrival="orders", max_items=5)`. It draws from `context.sampler.rng`, the generator seeded by `random_seed`, so a seeded run repeats the same orders.
-
-examples/builder/postgres_orders_example.py
 
 ```python
 """
@@ -21238,8 +20136,6 @@ odctl down postgres --volumes
 **Full Source Code**
 
 The generator is a SimPy process started with `env.process`. It draws the gaps and the order contents from one `Sampler` seeded with 42, in the same order as the other two, so it publishes the same orders.
-
-examples/low-level/postgres_orders_example.py
 
 ```python
 """
@@ -30549,8 +29445,6 @@ Each section becomes one builder call:
 
 A blueprint with logic in Python beside it, which the sections below refer to:
 
-docs/snippets/yaml/hybrid.yaml
-
 ```yaml
 # The shop with its logic in Python. YAML keeps the blueprint and the
 # experiment; shop_logic.py beside this file holds what YAML cannot express.
@@ -30681,8 +29575,6 @@ A list of `!python` generator functions, each written as `{function: ..., kwargs
 ## telemetry
 
 A list of custom readings, each `{interval, function}`: every `interval` simulation seconds, greater than 0, `function(context)` is called and publishes with `context.publish`. The built-in readings of resources, stores and containers come from `stats` instead.
-
-docs/snippets/yaml/telemetry.yaml:telemetry
 
 ```yaml
 telemetry:
@@ -30822,8 +29714,6 @@ ______________________________________________________________________
 - `task` is the name of a builder or YAML task; `instance` is its instance id, an integer from 0 for a builder or YAML task, or what a low-level process passes. `publish_event` and `publish_label` do not check `task`, `instance` or `path`, so a low-level process that passes another type writes that type; the types in the table are what the builder and YAML write.
 - `value`, `old`, `new` and `label` are converted to plain JSON values before any sink sees them. A Pydantic V2 model becomes a dictionary, a datetime an ISO string, and a NaN or an infinity `None`, in a model at any depth as in a plain dictionary.
 
-docs/snippets/pages/records.py:values
-
 ```python
 class Reading(BaseModel):
     sensor: str
@@ -30896,8 +29786,6 @@ ______________________________________________________________________
 | `env.publish_telemetry(path_id, value)`                                                                             | `path_id`, as given                                                                                                                                                                                                              |
 | the lag monitor                                                                                                     | `system.simulation.lag_seconds`, every `lag_interval`: by default every simulation second at a `factor` above 0, and none at `factor: 0` ([Time and Pacing](https://jaehyeon.me/desflow/latest/user-guide/time-and-pacing/#lag)) |
 
-docs/snippets/pages/records.py:telemetry
-
 ```python
 @app.telemetry_loop(interval=10.0)
 def report(context: SimulationContext):
@@ -30905,8 +29793,6 @@ def report(context: SimulationContext):
     packers = context.get_resource("packers")
     context.publish("packers_free", packers.capacity - packers.in_use)
 ```
-
-docs/snippets/pages/records.py:low-level
 
 ```python
 env = DynamicRealtimeEnvironment(factor=0.0)

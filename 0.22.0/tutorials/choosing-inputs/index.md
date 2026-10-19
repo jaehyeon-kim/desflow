@@ -19,21 +19,15 @@ ______________________________________________________________________
 
 Choosing a distribution for an input is called **input modelling**. Often there is no data yet, but someone who knows the work can say how long it takes at least, usually and at most. A **triangular** distribution takes exactly those three numbers, `low`, `mode` and `high`, and all three are required:
 
-docs/snippets/yaml/choosing_inputs.yaml:triangular
-
 ```yaml
 # An expert's estimate: at least 1 s, usually 1.25 s, at most 2.25 s
 triangular: {dist: triangular, low: 1 s, mode: 1.25 s, high: 2.25 s}
 ```
 
-docs/snippets/tutorials/choosing_inputs.py:triangular
-
 ```python
 # An expert's estimate: at least 1 s, usually 1.25 s, at most 2.25 s
 app.add_service("triangular", dist="triangular", low=1, mode=1.25, high=2.25)
 ```
-
-docs/snippets/tutorials/choosing_inputs_low_level.py:triangular
 
 ```python
 # An expert's estimate: at least 1 s, usually 1.25 s, at most 2.25 s
@@ -48,8 +42,6 @@ ______________________________________________________________________
 
 When times can be measured, use them. An **empirical** distribution draws from a list of measured `values`, each equally likely (or with `weights`, one per value). These are 40 packing times timed at the bench, with a mean of 1.5 seconds:
 
-docs/snippets/yaml/choosing_inputs.yaml:empirical
-
 ```yaml
 # 40 packing times measured at the bench, in seconds
 empirical:
@@ -59,8 +51,6 @@ empirical:
            1.1, 0.8, 1.7, 1.1, 0.7, 1.1, 1.2, 0.9, 0.8, 1.5,
            2.1, 1.3, 1.1, 1.7, 1.9, 1.3, 1.8, 2.2, 1.4, 1.1]
 ```
-
-docs/snippets/tutorials/choosing_inputs.py:empirical
 
 ```python
 # 40 packing times measured at the bench, in seconds
@@ -72,8 +62,6 @@ measured = [
 ]  # fmt: skip
 app.add_service("empirical", dist="empirical", values=measured)
 ```
-
-docs/snippets/tutorials/choosing_inputs_low_level.py:empirical
 
 ```python
 # 40 packing times measured at the bench, in seconds
@@ -94,8 +82,6 @@ ______________________________________________________________________
 
 All four candidates have the same mean, so the packers are equally busy with each: utilisation 0.9. Run the hour with each, and read the mean wait from the statistics at the `typical` level, which [Measuring a Run](https://jaehyeon.me/desflow/latest/tutorials/measuring-a-run/index.md) explains:
 
-docs/snippets/yaml/choosing_inputs.yaml:compare
-
 ```yaml
 tasks:
   pack_order:
@@ -114,8 +100,6 @@ for packing in constant triangular empirical exponential; do
 done
 ```
 
-docs/snippets/tutorials/choosing_inputs.py:compare
-
 ```python
 # The task packs with the candidate; the mean wait is read at the end
 @app.task(service_id=packing, resource_id="packers")
@@ -124,8 +108,6 @@ def pack_order(task_id):
 
 app.with_stats("typical", interval=3600)
 ```
-
-docs/snippets/tutorials/choosing_inputs_low_level.py:compare
 
 ```python
 def pack_order(env, sampler, packers, packing, task_id):
@@ -167,8 +149,6 @@ ______________________________________________________________________
 ## Full Files
 
 Full files
-
-docs/snippets/yaml/choosing_inputs.yaml
 
 ```yaml
 # The Choosing Inputs tutorial: the busy hour with four candidate packing times.
@@ -215,8 +195,6 @@ egress:
 run:
   until: 1 h
 ```
-
-docs/snippets/tutorials/choosing_inputs.py
 
 ```python
 """The Choosing Inputs tutorial: the busy hour with four candidate packing times.
@@ -280,8 +258,6 @@ if __name__ == "__main__":
     for packing in CANDIDATES:
         print(f"{packing:<12} mean wait {mean_wait(packing):5.2f} s")
 ```
-
-docs/snippets/tutorials/choosing_inputs_low_level.py
 
 ```python
 """The Choosing Inputs tutorial: the busy hour with four candidate packing times.

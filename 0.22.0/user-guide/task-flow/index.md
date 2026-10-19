@@ -23,8 +23,6 @@ ______________________________________________________________________
 - **Weights**, below.
 - **In the builder, a function** that takes the `Upstream` and returns a task name or `None`.
 
-docs/snippets/yaml/task_flow.yaml:condition
-
 ```yaml
 check_order:
   payload: {total: 80}
@@ -35,8 +33,6 @@ check_order:
       - {condition: "payload.total >= 100 or attr.gift == 1", task: wrap_gift}
     default: pack_order
 ```
-
-docs/snippets/pages/task_flow.py:builder-condition
 
 ```python
 # Rules are tried in order; the first match wins. Otherwise, use the default.
@@ -55,8 +51,6 @@ docs/snippets/pages/task_flow.py:builder-condition
 def check_order(task_id: int):
     return {"total": 80}
 ```
-
-docs/snippets/pages/task_flow.py:low-level-condition
 
 ```python
 # The same rules as next, as a Router; choose() returns the next task's name
@@ -79,8 +73,6 @@ The condition is evaluated when the task finishes, after its `set`. `payload.` r
 
 `weights` maps task names to numbers, and the next task is drawn in proportion to them. The draw comes from a random stream of the routing task's own, `route.<task>`, so a seeded run repeats it and it changes no other draw:
 
-docs/snippets/yaml/task_flow.yaml:weights
-
 ```yaml
 pack_order:
   service: packing
@@ -91,8 +83,6 @@ pack_order:
   next:
     weights: {ship_order: 9, pack_order: 1}
 ```
-
-docs/snippets/pages/task_flow.py:builder-weights
 
 ```python
 # A task drawn in proportion to its weight: one in ten is packed again
@@ -106,8 +96,6 @@ def pack_order(task_id: int):
     return {"event_type": "order_packed"}
 ```
 
-docs/snippets/pages/task_flow.py:low-level-weights
-
 ```python
 # Weights draw from a generator: the routing task's own stream, as the builder's do
 rework = Router({"weights": {"ship_order": 9, "pack_order": 1}})
@@ -119,16 +107,12 @@ choices = [rework.choose(finished) for _ in range(1000)]
 
 An arrival gives each new entity its starting `attributes`, and a task's `set` changes them when the task finishes. Each entity gets its own copy. Attributes are not published: a condition reads them as `attr.<name>`, and a payload includes them only when it asks.
 
-docs/snippets/yaml/task_flow.yaml:attributes
-
 ```yaml
 arrivals:
   # Each order starts with these attributes, read as attr.gift
   orders: {dist: exponential, rate: 0.5, spawn: check_order, attributes: {gift: 0}}
   gifts: {dist: exponential, rate: 0.1, spawn: check_order, attributes: {gift: 1}}
 ```
-
-docs/snippets/yaml/task_flow.yaml:set
 
 ```yaml
 # Applied to the order's attributes when the task finishes
@@ -137,15 +121,11 @@ set: {backordered: 1}
 
 A task's `attributes` list adds the named attributes to a mapping payload, as `ship_order` does in the full blueprint.
 
-docs/snippets/pages/task_flow.py:builder-attributes
-
 ```python
 # Each order starts with these attributes, read as attr.gift
 app.add_arrival("orders", dist="exponential", rate=0.5, attributes={"gift": 0})
 app.add_arrival("gifts", dist="exponential", rate=0.1, attributes={"gift": 1})
 ```
-
-docs/snippets/pages/task_flow.py:builder-set
 
 ```python
 # `set` is applied to the order's attributes when the task finishes
@@ -161,8 +141,6 @@ An `Entity(key, arrival, attributes)` carries them; the process updates `entity.
 Each arrival starts a new entity, keyed by the arrival's name and a counter from 1: `orders-1`, `orders-2`. Every event of every task in its flow carries that key as its record key, so a sink can follow one order through the whole flow, and Kafka keeps its events in order on one partition. The builder can replace the key with a function of the counter:
 
 A blueprint uses the default key.
-
-docs/snippets/pages/task_flow.py:builder-key
 
 ```python
 # Keys ret-00001, ret-00002 instead of returns-1, from the counter, which starts at 1
@@ -185,8 +163,6 @@ These are the finished events of `gifts-5` in the blueprint above: checked while
 ### Upstream
 
 A task started by `next` receives what the task before it handed on, the `Upstream`: the finished task's instance id, the entity's key and attributes, and its payload. A builder function gets it by declaring a parameter called `upstream`, and the entity by declaring `entity`; a function that declares neither works as before. The first task of a flow gets `upstream=None`.
-
-docs/snippets/pages/task_flow.py:builder-upstream
 
 ```python
 # A function declaring `upstream` receives what the previous task handed on,
@@ -238,8 +214,6 @@ cd flow/yaml
 # 3. Run it
 desflow run flow.yaml
 ```
-
-examples/yaml/flow.yaml:routes
 
 ```yaml
 tasks:
@@ -297,8 +271,6 @@ cd flow/builder
 # 3. Run it
 python flow_example.py
 ```
-
-examples/builder/flow_example.py:routes
 
 ```python
 @app.task(
@@ -361,8 +333,6 @@ cd flow/low-level
 python flow_example.py
 ```
 
-examples/low-level/flow_example.py:routes
-
 ```python
 ROUTES = {
     "pick": Router(
@@ -391,8 +361,6 @@ ______________________________________________________________________
 - `t`, the simulation time in seconds.
 
 A name carries its source so that adding a payload field cannot change what an attribute of the same name means, and so registry paths, which contain dots, can be written whole. Anything else is refused with a message that names it:
-
-docs/snippets/pages/task_flow.py:refused
 
 ```python
 for text in ("payload.total ** 2", "x > 1", "open('orders.csv')"):

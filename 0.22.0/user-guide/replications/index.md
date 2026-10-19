@@ -22,15 +22,11 @@ desflow run replications.yaml --replications 20 --measure tasks.pack.wait_mean
 
 `--seed` overrides `simulation.random_seed`, and `--until` overrides `run.until`, as for one run. `--level` sets the confidence level (0.95 when it is not given), `--workers` runs replications at once, each in its own process, and `--drain` drains every replication, as `run.drain: true` does. The command prints the summary, the seed of each replication and the command that repeats one. The blueprint's own `warmup` applies to every replication:
 
-examples/yaml/replications.yaml:seed
-
 ```yaml
 # The replications' seeds are spawned from this one; --seed overrides it
 random_seed: 42
 warmup: 3 min
 ```
-
-docs/snippets/pages/replications.py:builder
 
 ```python
 # shop is a function returning a new SimulationContext, called once per run
@@ -38,8 +34,6 @@ result = replicate(shop, 3, seed=42, until="1 h", warmup="3 min", measures=MEASU
 ```
 
 `shop` is a function with no arguments that returns a new `SimulationContext`, such as [the example's](https://github.com/jaehyeon-kim/desflow/blob/main/examples/builder/replications_example.py), because each replication starts from a new context. A blueprint path works here too.
-
-docs/snippets/pages/replications.py:low-level
 
 ```python
 def model(env, sampler):
@@ -79,8 +73,6 @@ A name that no replication publishes is refused, with the names the model does p
 ### Read the Result
 
 `replicate`, imported with `from desflow import replicate`, returns a `Replications`. Its `summary` has one row per measure, a mapping with `measure`, `n`, `mean`, `half_width` and `level`, and the interval runs from `mean - half_width` to `mean + half_width`; its `table` has one row per replication and measure, with the replication's number and seed; `seeds` lists the seeds in order:
-
-docs/snippets/pages/replications.py:read
 
 ```python
 print(result.summary_text())  # each measure's n, mean and half-width
@@ -159,8 +151,6 @@ cd replications/yaml
 desflow run replications.yaml --replications 20
 ```
 
-examples/yaml/replications.yaml:seed
-
 ```yaml
 # The replications' seeds are spawned from this one; --seed overrides it
 random_seed: 42
@@ -196,8 +186,6 @@ cd replications/builder
 # 3. Run it
 python replications_example.py
 ```
-
-examples/builder/replications_example.py:replicate
 
 ```python
 # 20 seeds spawned from 42; each replication runs unpaced, with no sinks
@@ -236,8 +224,6 @@ cd replications/low-level
 # 3. Run it
 python replications_example.py
 ```
-
-examples/low-level/replications_example.py:replicate
 
 ```python
 # 20 seeds spawned from 42; each replication runs unpaced, with no sinks

@@ -16,8 +16,6 @@ ______________________________________________________________________
 
 An experiment names its model, how long and how often to run it, what to measure, the designs and what to compare and check. In a file:
 
-examples/yaml/experiment.yaml
-
 ```yaml
 # An experiment in YAML: does a third packer keep the mean wait under 2 seconds?
 #
@@ -101,8 +99,6 @@ desflow experiment experiment.yaml
 
 `--output` writes the files to another folder. The command exits with status 1 when a check fails, after writing every file, and with status 2 when the experiment is invalid.
 
-docs/snippets/pages/experiments.py:run
-
 ```python
 EXPERIMENT = {
     "experiment": "packers",
@@ -130,8 +126,6 @@ except CheckFailed as failed:
 The same call, with `LowLevelModel(model, sim_id="Shop")` as the model, where `model` builds the shop in the environment and with the sampler it is given, as the [example](#example-an-experiment) shows.
 
 The result holds every row the files hold:
-
-docs/snippets/pages/experiments.py:read
 
 ```python
 for row in result.summary:  # one row per design and statistic, counts included
@@ -271,8 +265,6 @@ desflow experiment experiment.yaml
 
 The model is `experiment_shop.yaml`, beside the experiment file:
 
-examples/yaml/experiment_shop.yaml
-
 ```yaml
 # The model of the experiment in experiment.yaml: one hour of the shop.
 #
@@ -335,8 +327,6 @@ cd experiment/builder
 python experiment_example.py
 ```
 
-examples/builder/experiment_example.py:compare
-
 ```python
 # Both designs run with the same 20 seeds, so they are compared seed by seed
 "pairing": "common",
@@ -378,8 +368,6 @@ cd experiment/low-level
 # 3. Run it
 python experiment_example.py
 ```
-
-examples/low-level/experiment_example.py:compare
 
 ```python
 # Both designs run with the same 20 seeds, so they are compared seed by seed

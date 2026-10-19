@@ -61,6 +61,8 @@
     
       <link rel="stylesheet" href="../../css/tables.css">
     
+      <link rel="stylesheet" href="../../css/code-lines.css">
+    
     <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
@@ -2983,26 +2985,34 @@
 <div class="tabbed-set tabbed-alternate" data-tabs="1:3"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><input id="__tabbed_1_3" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">YAML</label><label for="__tabbed_1_2">Builder</label><label for="__tabbed_1_3">Low-level</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<div class="language-yaml highlight"><span class="filename">docs/snippets/yaml/patience.yaml:patience</span><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># A customer cancels an order not started within 30 seconds</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="nt">patience</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${PATIENCE:-30 s}</span>
-</span></code></pre></div>
+<div class="language-yaml highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/yaml/patience.yaml:patience</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-1">1</a></span>
+<span class="normal"><a href="#__codelineno-0-2">2</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1"></a><span class="c1"># A customer cancels an order not started within 30 seconds</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2"></a><span class="nt">patience</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${PATIENCE:-30 s}</span>
+</span></code></pre></div></td></tr></table></div>
 <p><code>${PATIENCE:-30 s}</code> reads the environment variable <code>PATIENCE</code>, 30 seconds when it is not set, so <code>PATIENCE="1 h" desflow run patience.yaml</code> runs the hour with no limit that matters. <code>patience</code> takes seconds, a duration, or an expression such as <code>attr.patience</code>, so each order can bring its own.</p>
 </div>
 <div class="tabbed-block">
-<div class="language-python highlight"><span class="filename">docs/snippets/tutorials/patience.py:patience</span><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># A customer cancels an order not started within 30 seconds</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="n">patience</span><span class="o">=</span><span class="n">patience</span><span class="p">,</span>
-</span></code></pre></div>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/tutorials/patience.py:patience</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-1-1">1</a></span>
+<span class="normal"><a href="#__codelineno-1-2">2</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1"></a><span class="c1"># A customer cancels an order not started within 30 seconds</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2"></a><span class="n">patience</span><span class="o">=</span><span class="n">patience</span><span class="p">,</span>
+</span></code></pre></div></td></tr></table></div>
 <p><code>patience</code> is 30 here, in seconds; it also takes a duration, as in YAML: <code>patience="30 s"</code>. A distribution's parameters in the builder take seconds only.</p>
 </div>
 <div class="tabbed-block">
-<div class="language-python highlight"><span class="filename">docs/snippets/tutorials/patience_low_level.py:patience</span><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># A customer cancels an order not started within 30 seconds</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">yield</span> <span class="n">request</span> <span class="o">|</span> <span class="n">env</span><span class="o">.</span><span class="n">timeout</span><span class="p">(</span><span class="n">patience</span><span class="p">)</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="k">if</span> <span class="ow">not</span> <span class="n">request</span><span class="o">.</span><span class="n">triggered</span><span class="p">:</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="c1"># Leaving the with block takes the request out of the queue</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>    <span class="n">publish</span><span class="p">(</span><span class="s2">&quot;reneged&quot;</span><span class="p">)</span>
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>    <span class="n">env</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">task_reneged</span><span class="p">(</span><span class="s2">&quot;pack_order&quot;</span><span class="p">,</span> <span class="n">task_id</span><span class="p">)</span>
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>    <span class="k">return</span>
-</span></code></pre></div>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/tutorials/patience_low_level.py:patience</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-2-1">1</a></span>
+<span class="normal"><a href="#__codelineno-2-2">2</a></span>
+<span class="normal"><a href="#__codelineno-2-3">3</a></span>
+<span class="normal"><a href="#__codelineno-2-4">4</a></span>
+<span class="normal"><a href="#__codelineno-2-5">5</a></span>
+<span class="normal"><a href="#__codelineno-2-6">6</a></span>
+<span class="normal"><a href="#__codelineno-2-7">7</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1"></a><span class="c1"># A customer cancels an order not started within 30 seconds</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2"></a><span class="k">yield</span> <span class="n">request</span> <span class="o">|</span> <span class="n">env</span><span class="o">.</span><span class="n">timeout</span><span class="p">(</span><span class="n">patience</span><span class="p">)</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3"></a><span class="k">if</span> <span class="ow">not</span> <span class="n">request</span><span class="o">.</span><span class="n">triggered</span><span class="p">:</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4"></a>    <span class="c1"># Leaving the with block takes the request out of the queue</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5"></a>    <span class="n">publish</span><span class="p">(</span><span class="s2">&quot;reneged&quot;</span><span class="p">)</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6"></a>    <span class="n">env</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">task_reneged</span><span class="p">(</span><span class="s2">&quot;pack_order&quot;</span><span class="p">,</span> <span class="n">task_id</span><span class="p">)</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7"></a>    <span class="k">return</span>
+</span></code></pre></div></td></tr></table></div>
 <p><code>request | env.timeout(patience)</code> is SimPy's <code>AnyOf</code>: it happens when either event does. <code>request.triggered</code> is true once the unit is granted. Leaving the <code>with</code> block takes a waiting request out of the queue at once, so the packer is never granted to an order that has gone. <a href="../../des/simpy-and-desflow/">SimPy and desflow</a> describes events and conditions.</p>
 </div>
 </div>
@@ -3015,22 +3025,28 @@
 <div class="tabbed-set tabbed-alternate" data-tabs="2:3"><input checked="checked" id="__tabbed_2_1" name="__tabbed_2" type="radio" /><input id="__tabbed_2_2" name="__tabbed_2" type="radio" /><input id="__tabbed_2_3" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="__tabbed_2_1">YAML</label><label for="__tabbed_2_2">Builder</label><label for="__tabbed_2_3">Low-level</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<div class="language-yaml highlight"><span class="filename">docs/snippets/yaml/patience.yaml:balk</span><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># The courier leaves at the hour, so the last 5 minutes take no new orders</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nt">balk</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">t &gt;= 3300</span>
-</span></code></pre></div>
+<div class="language-yaml highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/yaml/patience.yaml:balk</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-3-1">1</a></span>
+<span class="normal"><a href="#__codelineno-3-2">2</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1"></a><span class="c1"># The courier leaves at the hour, so the last 5 minutes take no new orders</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2"></a><span class="nt">balk</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">t &gt;= 3300</span>
+</span></code></pre></div></td></tr></table></div>
 </div>
 <div class="tabbed-block">
-<div class="language-python highlight"><span class="filename">docs/snippets/tutorials/patience.py:balk</span><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># The courier leaves at the hour, so the last 5 minutes take no new orders</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">balk</span><span class="o">=</span><span class="s2">&quot;t &gt;= 3300&quot;</span><span class="p">,</span>
-</span></code></pre></div>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/tutorials/patience.py:balk</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-4-1">1</a></span>
+<span class="normal"><a href="#__codelineno-4-2">2</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1"></a><span class="c1"># The courier leaves at the hour, so the last 5 minutes take no new orders</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2"></a><span class="n">balk</span><span class="o">=</span><span class="s2">&quot;t &gt;= 3300&quot;</span><span class="p">,</span>
+</span></code></pre></div></td></tr></table></div>
 </div>
 <div class="tabbed-block">
-<div class="language-python highlight"><span class="filename">docs/snippets/tutorials/patience_low_level.py:balk</span><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># The courier leaves at the hour, so the last 5 minutes take no new orders</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">now</span> <span class="o">&gt;=</span> <span class="mi">3300</span><span class="p">:</span>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>    <span class="n">publish</span><span class="p">(</span><span class="s2">&quot;balked&quot;</span><span class="p">)</span>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>    <span class="n">env</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">task_balked</span><span class="p">(</span><span class="s2">&quot;pack_order&quot;</span><span class="p">,</span> <span class="n">task_id</span><span class="p">)</span>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>    <span class="k">return</span>
-</span></code></pre></div>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/tutorials/patience_low_level.py:balk</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-5-1">1</a></span>
+<span class="normal"><a href="#__codelineno-5-2">2</a></span>
+<span class="normal"><a href="#__codelineno-5-3">3</a></span>
+<span class="normal"><a href="#__codelineno-5-4">4</a></span>
+<span class="normal"><a href="#__codelineno-5-5">5</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1"></a><span class="c1"># The courier leaves at the hour, so the last 5 minutes take no new orders</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2"></a><span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">now</span> <span class="o">&gt;=</span> <span class="mi">3300</span><span class="p">:</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3"></a>    <span class="n">publish</span><span class="p">(</span><span class="s2">&quot;balked&quot;</span><span class="p">)</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4"></a>    <span class="n">env</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">task_balked</span><span class="p">(</span><span class="s2">&quot;pack_order&quot;</span><span class="p">,</span> <span class="n">task_id</span><span class="p">)</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5"></a>    <span class="k">return</span>
+</span></code></pre></div></td></tr></table></div>
 </div>
 </div>
 </div>
@@ -3041,19 +3057,22 @@
 <div class="tabbed-set tabbed-alternate" data-tabs="3:3"><input checked="checked" id="__tabbed_3_1" name="__tabbed_3" type="radio" /><input id="__tabbed_3_2" name="__tabbed_3" type="radio" /><input id="__tabbed_3_3" name="__tabbed_3" type="radio" /><div class="tabbed-labels"><label for="__tabbed_3_1">YAML</label><label for="__tabbed_3_2">Builder</label><label for="__tabbed_3_3">Low-level</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<div class="language-yaml highlight"><span class="filename">docs/snippets/yaml/patience.yaml:watch</span><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Counts of finished, reneged and balked orders, and the mean wait, at the end</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nt">stats</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">level</span><span class="p">:</span><span class="w"> </span><span class="nv">typical</span><span class="p p-Indicator">,</span><span class="nt"> interval</span><span class="p">:</span><span class="w"> </span><span class="nv">1 h</span><span class="p p-Indicator">}</span>
-</span></code></pre></div>
+<div class="language-yaml highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/yaml/patience.yaml:watch</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-6-1">1</a></span>
+<span class="normal"><a href="#__codelineno-6-2">2</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1"></a><span class="c1"># Counts of finished, reneged and balked orders, and the mean wait, at the end</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2"></a><span class="nt">stats</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">level</span><span class="p">:</span><span class="w"> </span><span class="nv">typical</span><span class="p p-Indicator">,</span><span class="nt"> interval</span><span class="p">:</span><span class="w"> </span><span class="nv">1 h</span><span class="p p-Indicator">}</span>
+</span></code></pre></div></td></tr></table></div>
 </div>
 <div class="tabbed-block">
-<div class="language-python highlight"><span class="filename">docs/snippets/tutorials/patience.py:watch</span><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Counts of finished, reneged and balked orders, and the mean wait, at the end</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="o">.</span><span class="n">with_stats</span><span class="p">(</span><span class="s2">&quot;typical&quot;</span><span class="p">,</span> <span class="n">interval</span><span class="o">=</span><span class="mi">3600</span><span class="p">)</span>
-</span></code></pre></div>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/tutorials/patience.py:watch</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-7-1">1</a></span>
+<span class="normal"><a href="#__codelineno-7-2">2</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1"></a><span class="c1"># Counts of finished, reneged and balked orders, and the mean wait, at the end</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2"></a><span class="o">.</span><span class="n">with_stats</span><span class="p">(</span><span class="s2">&quot;typical&quot;</span><span class="p">,</span> <span class="n">interval</span><span class="o">=</span><span class="mi">3600</span><span class="p">)</span>
+</span></code></pre></div></td></tr></table></div>
 </div>
 <div class="tabbed-block">
-<div class="language-python highlight"><span class="filename">docs/snippets/tutorials/patience_low_level.py:watch</span><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># Counts of finished, reneged and balked orders, and the mean wait, at the end</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="n">env</span><span class="o">.</span><span class="n">setup_stats</span><span class="p">(</span><span class="s2">&quot;Shop&quot;</span><span class="p">,</span> <span class="s2">&quot;typical&quot;</span><span class="p">,</span> <span class="n">interval</span><span class="o">=</span><span class="mi">3600</span><span class="p">)</span>
-</span></code></pre></div>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/tutorials/patience_low_level.py:watch</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-8-1">1</a></span>
+<span class="normal"><a href="#__codelineno-8-2">2</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1"></a><span class="c1"># Counts of finished, reneged and balked orders, and the mean wait, at the end</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2"></a><span class="n">env</span><span class="o">.</span><span class="n">setup_stats</span><span class="p">(</span><span class="s2">&quot;Shop&quot;</span><span class="p">,</span> <span class="s2">&quot;typical&quot;</span><span class="p">,</span> <span class="n">interval</span><span class="o">=</span><span class="mi">3600</span><span class="p">)</span>
+</span></code></pre></div></td></tr></table></div>
 <p>A low-level process counts its own outcomes with <code>env.stats.task_reneged(task, instance)</code> and <code>env.stats.task_balked(task, instance)</code>, as the full file below does.</p>
 </div>
 </div>
@@ -3063,9 +3082,10 @@
 <p>Which orders leave or refuse to join, and what does that do to the others? With a patience of 30 seconds, <strong>69 orders</strong> leave the queue during the hour, and the mean wait of the packed orders falls from <strong>72.16 seconds</strong> to <strong>14.57 seconds</strong>; no packed order waits more than 30 seconds. In both runs the <strong>194 orders</strong> that arrive in the last five minutes refuse to join. The wait of each packed order over the hour shows why:</p>
 <p><img alt="Without patience, the wait of packed orders climbs from 0 to about 120 seconds over the hour; with a patience of 30 seconds it stays between 0 and 30 seconds" src="../../assets/charts/patience-waits.png" /></p>
 <p>The Builder and Low-level scripts print both runs:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>patience 30 s: 2173 packed, 69 reneged, 194 balked, mean wait 14.57 s
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>patience none: 2242 packed, 0 reneged, 194 balked, mean wait 72.16 s
-</span></code></pre></div>
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-9-1">1</a></span>
+<span class="normal"><a href="#__codelineno-9-2">2</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1"></a>patience 30 s: 2173 packed, 69 reneged, 194 balked, mean wait 14.57 s
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2"></a>patience none: 2242 packed, 0 reneged, 194 balked, mean wait 72.16 s
+</span></code></pre></div></td></tr></table></div>
 <h2 id="why-it-works">Why It Works</h2>
 <p>Orders arrive at 0.7 a second and bring 1.05 seconds of packing each second, more than one packer can do, so without patience the queue grows and every order waits longer than the one before. Patience removes the orders that have waited longest, which keeps the queue short for the rest: the shop packs 69 fewer orders, and every order it packs waits less. The mean wait of packed orders is then no longer the whole story, because it leaves out the orders that left; report the reneged and balked counts beside it. <a href="../../user-guide/statistics/">Statistics</a> describes what each count measures.</p>
 <hr />
@@ -3075,229 +3095,442 @@
 <div class="tabbed-set tabbed-alternate" data-tabs="4:3"><input checked="checked" id="__tabbed_4_1" name="__tabbed_4" type="radio" /><input id="__tabbed_4_2" name="__tabbed_4" type="radio" /><input id="__tabbed_4_3" name="__tabbed_4" type="radio" /><div class="tabbed-labels"><label for="__tabbed_4_1">YAML</label><label for="__tabbed_4_2">Builder</label><label for="__tabbed_4_3">Low-level</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<div class="language-yaml highlight"><span class="filename">docs/snippets/yaml/patience.yaml</span><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># The Patience tutorial: orders leave after waiting too long, and none join near closing.</span>
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="c1"># Run it with: desflow run patience.yaml</span>
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="c1"># With no time limit: PATIENCE=&quot;1 h&quot; desflow run patience.yaml</span>
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="nt">simulation</span><span class="p">:</span>
-</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">  </span><span class="nt">sim_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Shop</span>
-</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="w">  </span><span class="nt">factor</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
-</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="w">  </span><span class="nt">random_seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span>
-</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>
-</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="nt">resources</span><span class="p">:</span>
-</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="w">  </span><span class="nt">packers</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">current_cap</span><span class="p">:</span><span class="w"> </span><span class="nv">1</span><span class="p p-Indicator">,</span><span class="nt"> max_cap</span><span class="p">:</span><span class="w"> </span><span class="nv">4</span><span class="p p-Indicator">}</span>
-</span><span id="__span-10-11"><a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>
-</span><span id="__span-10-12"><a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a><span class="nt">services</span><span class="p">:</span>
-</span><span id="__span-10-13"><a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a><span class="w">  </span><span class="nt">packing</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">dist</span><span class="p">:</span><span class="w"> </span><span class="nv">constant</span><span class="p p-Indicator">,</span><span class="nt"> value</span><span class="p">:</span><span class="w"> </span><span class="nv">1.5 s</span><span class="p p-Indicator">}</span>
-</span><span id="__span-10-14"><a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a>
-</span><span id="__span-10-15"><a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a><span class="nt">arrivals</span><span class="p">:</span>
-</span><span id="__span-10-16"><a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a><span class="w">  </span><span class="c1"># 0.7 orders a second: more than one packer can pack</span>
-</span><span id="__span-10-17"><a id="__codelineno-10-17" name="__codelineno-10-17" href="#__codelineno-10-17"></a><span class="w">  </span><span class="nt">orders</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">dist</span><span class="p">:</span><span class="w"> </span><span class="nv">exponential</span><span class="p p-Indicator">,</span><span class="nt"> rate</span><span class="p">:</span><span class="w"> </span><span class="nv">0.7</span><span class="p p-Indicator">,</span><span class="nt"> spawn</span><span class="p">:</span><span class="w"> </span><span class="nv">pack_order</span><span class="p p-Indicator">}</span>
-</span><span id="__span-10-18"><a id="__codelineno-10-18" name="__codelineno-10-18" href="#__codelineno-10-18"></a>
-</span><span id="__span-10-19"><a id="__codelineno-10-19" name="__codelineno-10-19" href="#__codelineno-10-19"></a><span class="nt">tasks</span><span class="p">:</span>
-</span><span id="__span-10-20"><a id="__codelineno-10-20" name="__codelineno-10-20" href="#__codelineno-10-20"></a><span class="w">  </span><span class="nt">pack_order</span><span class="p">:</span>
-</span><span id="__span-10-21"><a id="__codelineno-10-21" name="__codelineno-10-21" href="#__codelineno-10-21"></a><span class="w">    </span><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">packing</span>
-</span><span id="__span-10-22"><a id="__codelineno-10-22" name="__codelineno-10-22" href="#__codelineno-10-22"></a><span class="w">    </span><span class="nt">resource</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">packers</span>
-</span><span id="__span-10-23"><a id="__codelineno-10-23" name="__codelineno-10-23" href="#__codelineno-10-23"></a><span class="w">    </span><span class="c1"># A customer cancels an order not started within 30 seconds</span>
-</span><span id="__span-10-24"><a id="__codelineno-10-24" name="__codelineno-10-24" href="#__codelineno-10-24"></a><span class="w">    </span><span class="nt">patience</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${PATIENCE:-30 s}</span>
-</span><span id="__span-10-25"><a id="__codelineno-10-25" name="__codelineno-10-25" href="#__codelineno-10-25"></a><span class="w">    </span><span class="c1"># The courier leaves at the hour, so the last 5 minutes take no new orders</span>
-</span><span id="__span-10-26"><a id="__codelineno-10-26" name="__codelineno-10-26" href="#__codelineno-10-26"></a><span class="w">    </span><span class="nt">balk</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">t &gt;= 3300</span>
-</span><span id="__span-10-27"><a id="__codelineno-10-27" name="__codelineno-10-27" href="#__codelineno-10-27"></a><span class="w">    </span><span class="nt">payload</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">event_type</span><span class="p">:</span><span class="w"> </span><span class="nv">order_packed</span><span class="p p-Indicator">}</span>
-</span><span id="__span-10-28"><a id="__codelineno-10-28" name="__codelineno-10-28" href="#__codelineno-10-28"></a>
-</span><span id="__span-10-29"><a id="__codelineno-10-29" name="__codelineno-10-29" href="#__codelineno-10-29"></a><span class="c1"># Counts of finished, reneged and balked orders, and the mean wait, at the end</span>
-</span><span id="__span-10-30"><a id="__codelineno-10-30" name="__codelineno-10-30" href="#__codelineno-10-30"></a><span class="nt">stats</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">level</span><span class="p">:</span><span class="w"> </span><span class="nv">typical</span><span class="p p-Indicator">,</span><span class="nt"> interval</span><span class="p">:</span><span class="w"> </span><span class="nv">1 h</span><span class="p p-Indicator">}</span>
-</span><span id="__span-10-31"><a id="__codelineno-10-31" name="__codelineno-10-31" href="#__codelineno-10-31"></a>
-</span><span id="__span-10-32"><a id="__codelineno-10-32" name="__codelineno-10-32" href="#__codelineno-10-32"></a><span class="nt">egress</span><span class="p">:</span>
-</span><span id="__span-10-33"><a id="__codelineno-10-33" name="__codelineno-10-33" href="#__codelineno-10-33"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Console</span>
-</span><span id="__span-10-34"><a id="__codelineno-10-34" name="__codelineno-10-34" href="#__codelineno-10-34"></a>
-</span><span id="__span-10-35"><a id="__codelineno-10-35" name="__codelineno-10-35" href="#__codelineno-10-35"></a><span class="nt">run</span><span class="p">:</span>
-</span><span id="__span-10-36"><a id="__codelineno-10-36" name="__codelineno-10-36" href="#__codelineno-10-36"></a><span class="w">  </span><span class="nt">until</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1 h</span>
-</span></code></pre></div>
+<div class="language-yaml highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/yaml/patience.yaml</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-10-1"> 1</a></span>
+<span class="normal"><a href="#__codelineno-10-2"> 2</a></span>
+<span class="normal"><a href="#__codelineno-10-3"> 3</a></span>
+<span class="normal"><a href="#__codelineno-10-4"> 4</a></span>
+<span class="normal"><a href="#__codelineno-10-5"> 5</a></span>
+<span class="normal"><a href="#__codelineno-10-6"> 6</a></span>
+<span class="normal"><a href="#__codelineno-10-7"> 7</a></span>
+<span class="normal"><a href="#__codelineno-10-8"> 8</a></span>
+<span class="normal"><a href="#__codelineno-10-9"> 9</a></span>
+<span class="normal"><a href="#__codelineno-10-10">10</a></span>
+<span class="normal"><a href="#__codelineno-10-11">11</a></span>
+<span class="normal"><a href="#__codelineno-10-12">12</a></span>
+<span class="normal"><a href="#__codelineno-10-13">13</a></span>
+<span class="normal"><a href="#__codelineno-10-14">14</a></span>
+<span class="normal"><a href="#__codelineno-10-15">15</a></span>
+<span class="normal"><a href="#__codelineno-10-16">16</a></span>
+<span class="normal"><a href="#__codelineno-10-17">17</a></span>
+<span class="normal"><a href="#__codelineno-10-18">18</a></span>
+<span class="normal"><a href="#__codelineno-10-19">19</a></span>
+<span class="normal"><a href="#__codelineno-10-20">20</a></span>
+<span class="normal"><a href="#__codelineno-10-21">21</a></span>
+<span class="normal"><a href="#__codelineno-10-22">22</a></span>
+<span class="normal"><a href="#__codelineno-10-23">23</a></span>
+<span class="normal"><a href="#__codelineno-10-24">24</a></span>
+<span class="normal"><a href="#__codelineno-10-25">25</a></span>
+<span class="normal"><a href="#__codelineno-10-26">26</a></span>
+<span class="normal"><a href="#__codelineno-10-27">27</a></span>
+<span class="normal"><a href="#__codelineno-10-28">28</a></span>
+<span class="normal"><a href="#__codelineno-10-29">29</a></span>
+<span class="normal"><a href="#__codelineno-10-30">30</a></span>
+<span class="normal"><a href="#__codelineno-10-31">31</a></span>
+<span class="normal"><a href="#__codelineno-10-32">32</a></span>
+<span class="normal"><a href="#__codelineno-10-33">33</a></span>
+<span class="normal"><a href="#__codelineno-10-34">34</a></span>
+<span class="normal"><a href="#__codelineno-10-35">35</a></span>
+<span class="normal"><a href="#__codelineno-10-36">36</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1"></a><span class="c1"># The Patience tutorial: orders leave after waiting too long, and none join near closing.</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2"></a><span class="c1"># Run it with: desflow run patience.yaml</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3"></a><span class="c1"># With no time limit: PATIENCE=&quot;1 h&quot; desflow run patience.yaml</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4"></a><span class="nt">simulation</span><span class="p">:</span>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5"></a><span class="w">  </span><span class="nt">sim_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Shop</span>
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6"></a><span class="w">  </span><span class="nt">factor</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7"></a><span class="w">  </span><span class="nt">random_seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span>
+</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8"></a>
+</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9"></a><span class="nt">resources</span><span class="p">:</span>
+</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10"></a><span class="w">  </span><span class="nt">packers</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">current_cap</span><span class="p">:</span><span class="w"> </span><span class="nv">1</span><span class="p p-Indicator">,</span><span class="nt"> max_cap</span><span class="p">:</span><span class="w"> </span><span class="nv">4</span><span class="p p-Indicator">}</span>
+</span><span id="__span-10-11"><a id="__codelineno-10-11" name="__codelineno-10-11"></a>
+</span><span id="__span-10-12"><a id="__codelineno-10-12" name="__codelineno-10-12"></a><span class="nt">services</span><span class="p">:</span>
+</span><span id="__span-10-13"><a id="__codelineno-10-13" name="__codelineno-10-13"></a><span class="w">  </span><span class="nt">packing</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">dist</span><span class="p">:</span><span class="w"> </span><span class="nv">constant</span><span class="p p-Indicator">,</span><span class="nt"> value</span><span class="p">:</span><span class="w"> </span><span class="nv">1.5 s</span><span class="p p-Indicator">}</span>
+</span><span id="__span-10-14"><a id="__codelineno-10-14" name="__codelineno-10-14"></a>
+</span><span id="__span-10-15"><a id="__codelineno-10-15" name="__codelineno-10-15"></a><span class="nt">arrivals</span><span class="p">:</span>
+</span><span id="__span-10-16"><a id="__codelineno-10-16" name="__codelineno-10-16"></a><span class="w">  </span><span class="c1"># 0.7 orders a second: more than one packer can pack</span>
+</span><span id="__span-10-17"><a id="__codelineno-10-17" name="__codelineno-10-17"></a><span class="w">  </span><span class="nt">orders</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">dist</span><span class="p">:</span><span class="w"> </span><span class="nv">exponential</span><span class="p p-Indicator">,</span><span class="nt"> rate</span><span class="p">:</span><span class="w"> </span><span class="nv">0.7</span><span class="p p-Indicator">,</span><span class="nt"> spawn</span><span class="p">:</span><span class="w"> </span><span class="nv">pack_order</span><span class="p p-Indicator">}</span>
+</span><span id="__span-10-18"><a id="__codelineno-10-18" name="__codelineno-10-18"></a>
+</span><span id="__span-10-19"><a id="__codelineno-10-19" name="__codelineno-10-19"></a><span class="nt">tasks</span><span class="p">:</span>
+</span><span id="__span-10-20"><a id="__codelineno-10-20" name="__codelineno-10-20"></a><span class="w">  </span><span class="nt">pack_order</span><span class="p">:</span>
+</span><span id="__span-10-21"><a id="__codelineno-10-21" name="__codelineno-10-21"></a><span class="w">    </span><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">packing</span>
+</span><span id="__span-10-22"><a id="__codelineno-10-22" name="__codelineno-10-22"></a><span class="w">    </span><span class="nt">resource</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">packers</span>
+</span><span id="__span-10-23"><a id="__codelineno-10-23" name="__codelineno-10-23"></a><span class="w">    </span><span class="c1"># A customer cancels an order not started within 30 seconds</span>
+</span><span id="__span-10-24"><a id="__codelineno-10-24" name="__codelineno-10-24"></a><span class="w">    </span><span class="nt">patience</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${PATIENCE:-30 s}</span>
+</span><span id="__span-10-25"><a id="__codelineno-10-25" name="__codelineno-10-25"></a><span class="w">    </span><span class="c1"># The courier leaves at the hour, so the last 5 minutes take no new orders</span>
+</span><span id="__span-10-26"><a id="__codelineno-10-26" name="__codelineno-10-26"></a><span class="w">    </span><span class="nt">balk</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">t &gt;= 3300</span>
+</span><span id="__span-10-27"><a id="__codelineno-10-27" name="__codelineno-10-27"></a><span class="w">    </span><span class="nt">payload</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">event_type</span><span class="p">:</span><span class="w"> </span><span class="nv">order_packed</span><span class="p p-Indicator">}</span>
+</span><span id="__span-10-28"><a id="__codelineno-10-28" name="__codelineno-10-28"></a>
+</span><span id="__span-10-29"><a id="__codelineno-10-29" name="__codelineno-10-29"></a><span class="c1"># Counts of finished, reneged and balked orders, and the mean wait, at the end</span>
+</span><span id="__span-10-30"><a id="__codelineno-10-30" name="__codelineno-10-30"></a><span class="nt">stats</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">level</span><span class="p">:</span><span class="w"> </span><span class="nv">typical</span><span class="p p-Indicator">,</span><span class="nt"> interval</span><span class="p">:</span><span class="w"> </span><span class="nv">1 h</span><span class="p p-Indicator">}</span>
+</span><span id="__span-10-31"><a id="__codelineno-10-31" name="__codelineno-10-31"></a>
+</span><span id="__span-10-32"><a id="__codelineno-10-32" name="__codelineno-10-32"></a><span class="nt">egress</span><span class="p">:</span>
+</span><span id="__span-10-33"><a id="__codelineno-10-33" name="__codelineno-10-33"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Console</span>
+</span><span id="__span-10-34"><a id="__codelineno-10-34" name="__codelineno-10-34"></a>
+</span><span id="__span-10-35"><a id="__codelineno-10-35" name="__codelineno-10-35"></a><span class="nt">run</span><span class="p">:</span>
+</span><span id="__span-10-36"><a id="__codelineno-10-36" name="__codelineno-10-36"></a><span class="w">  </span><span class="nt">until</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1 h</span>
+</span></code></pre></div></td></tr></table></div>
 </div>
 <div class="tabbed-block">
-<div class="language-python highlight"><span class="filename">docs/snippets/tutorials/patience.py</span><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="sd">&quot;&quot;&quot;The Patience tutorial: orders leave after waiting too long, and none join near closing.</span>
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>
-</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="sd">One packer, 0.7 orders a second and 1.5 seconds of packing. Every record is printed</span>
-</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="sd">to the terminal, and the script prints what happened to the orders with a patience</span>
-</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="sd">of 30 seconds and with none at the end: python patience.py 2&gt;/dev/null shows only</span>
-</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="sd">those lines.</span>
-</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="sd">&quot;&quot;&quot;</span>
-</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a>
-</span><span id="__span-11-9"><a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a><span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
-</span><span id="__span-11-10"><a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>
-</span><span id="__span-11-11"><a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a><span class="kn">from</span><span class="w"> </span><span class="nn">desflow</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConsoleEgress</span><span class="p">,</span> <span class="n">SimulationContext</span>
-</span><span id="__span-11-12"><a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>
-</span><span id="__span-11-13"><a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a><span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span>
-</span><span id="__span-11-14"><a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>    <span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%(levelname)s</span><span class="s2"> [</span><span class="si">%(asctime)s</span><span class="s2">] </span><span class="si">%(message)s</span><span class="s2">&quot;</span>
-</span><span id="__span-11-15"><a id="__codelineno-11-15" name="__codelineno-11-15" href="#__codelineno-11-15"></a><span class="p">)</span>
-</span><span id="__span-11-16"><a id="__codelineno-11-16" name="__codelineno-11-16" href="#__codelineno-11-16"></a>
-</span><span id="__span-11-17"><a id="__codelineno-11-17" name="__codelineno-11-17" href="#__codelineno-11-17"></a>
-</span><span id="__span-11-18"><a id="__codelineno-11-18" name="__codelineno-11-18" href="#__codelineno-11-18"></a><span class="k">def</span><span class="w"> </span><span class="nf">shop</span><span class="p">(</span><span class="n">patience</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">30</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SimulationContext</span><span class="p">:</span>
-</span><span id="__span-11-19"><a id="__codelineno-11-19" name="__codelineno-11-19" href="#__codelineno-11-19"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;The shop, where a customer waits at most `patience` seconds.&quot;&quot;&quot;</span>
-</span><span id="__span-11-20"><a id="__codelineno-11-20" name="__codelineno-11-20" href="#__codelineno-11-20"></a>    <span class="n">app</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="__span-11-21"><a id="__codelineno-11-21" name="__codelineno-11-21" href="#__codelineno-11-21"></a>        <span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_id</span><span class="o">=</span><span class="s2">&quot;Shop&quot;</span><span class="p">,</span> <span class="n">factor</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">random_seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
-</span><span id="__span-11-22"><a id="__codelineno-11-22" name="__codelineno-11-22" href="#__codelineno-11-22"></a>        <span class="o">.</span><span class="n">add_resource</span><span class="p">(</span><span class="s2">&quot;packers&quot;</span><span class="p">,</span> <span class="n">current_cap</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_cap</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
-</span><span id="__span-11-23"><a id="__codelineno-11-23" name="__codelineno-11-23" href="#__codelineno-11-23"></a>        <span class="o">.</span><span class="n">add_service</span><span class="p">(</span><span class="s2">&quot;packing&quot;</span><span class="p">,</span> <span class="n">dist</span><span class="o">=</span><span class="s2">&quot;constant&quot;</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="mf">1.5</span><span class="p">)</span>
-</span><span id="__span-11-24"><a id="__codelineno-11-24" name="__codelineno-11-24" href="#__codelineno-11-24"></a>        <span class="c1"># 0.7 orders a second: more than one packer can pack</span>
-</span><span id="__span-11-25"><a id="__codelineno-11-25" name="__codelineno-11-25" href="#__codelineno-11-25"></a>        <span class="o">.</span><span class="n">add_arrival</span><span class="p">(</span><span class="s2">&quot;orders&quot;</span><span class="p">,</span> <span class="n">dist</span><span class="o">=</span><span class="s2">&quot;exponential&quot;</span><span class="p">,</span> <span class="n">rate</span><span class="o">=</span><span class="mf">0.7</span><span class="p">)</span>
-</span><span id="__span-11-26"><a id="__codelineno-11-26" name="__codelineno-11-26" href="#__codelineno-11-26"></a>        <span class="c1"># Counts of finished, reneged and balked orders, and the mean wait, at the end</span>
-</span><span id="__span-11-27"><a id="__codelineno-11-27" name="__codelineno-11-27" href="#__codelineno-11-27"></a>        <span class="o">.</span><span class="n">with_stats</span><span class="p">(</span><span class="s2">&quot;typical&quot;</span><span class="p">,</span> <span class="n">interval</span><span class="o">=</span><span class="mi">3600</span><span class="p">)</span>
-</span><span id="__span-11-28"><a id="__codelineno-11-28" name="__codelineno-11-28" href="#__codelineno-11-28"></a>        <span class="o">.</span><span class="n">add_egress</span><span class="p">(</span><span class="n">ConsoleEgress</span><span class="p">())</span>
-</span><span id="__span-11-29"><a id="__codelineno-11-29" name="__codelineno-11-29" href="#__codelineno-11-29"></a>    <span class="p">)</span>
-</span><span id="__span-11-30"><a id="__codelineno-11-30" name="__codelineno-11-30" href="#__codelineno-11-30"></a>
-</span><span id="__span-11-31"><a id="__codelineno-11-31" name="__codelineno-11-31" href="#__codelineno-11-31"></a>    <span class="nd">@app</span><span class="o">.</span><span class="n">task</span><span class="p">(</span>
-</span><span id="__span-11-32"><a id="__codelineno-11-32" name="__codelineno-11-32" href="#__codelineno-11-32"></a>        <span class="n">service_id</span><span class="o">=</span><span class="s2">&quot;packing&quot;</span><span class="p">,</span>
-</span><span id="__span-11-33"><a id="__codelineno-11-33" name="__codelineno-11-33" href="#__codelineno-11-33"></a>        <span class="n">resource_id</span><span class="o">=</span><span class="s2">&quot;packers&quot;</span><span class="p">,</span>
-</span><span id="__span-11-34"><a id="__codelineno-11-34" name="__codelineno-11-34" href="#__codelineno-11-34"></a>        <span class="c1"># A customer cancels an order not started within 30 seconds</span>
-</span><span id="__span-11-35"><a id="__codelineno-11-35" name="__codelineno-11-35" href="#__codelineno-11-35"></a>        <span class="n">patience</span><span class="o">=</span><span class="n">patience</span><span class="p">,</span>
-</span><span id="__span-11-36"><a id="__codelineno-11-36" name="__codelineno-11-36" href="#__codelineno-11-36"></a>        <span class="c1"># The courier leaves at the hour, so the last 5 minutes take no new orders</span>
-</span><span id="__span-11-37"><a id="__codelineno-11-37" name="__codelineno-11-37" href="#__codelineno-11-37"></a>        <span class="n">balk</span><span class="o">=</span><span class="s2">&quot;t &gt;= 3300&quot;</span><span class="p">,</span>
-</span><span id="__span-11-38"><a id="__codelineno-11-38" name="__codelineno-11-38" href="#__codelineno-11-38"></a>    <span class="p">)</span>
-</span><span id="__span-11-39"><a id="__codelineno-11-39" name="__codelineno-11-39" href="#__codelineno-11-39"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">pack_order</span><span class="p">(</span><span class="n">task_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
-</span><span id="__span-11-40"><a id="__codelineno-11-40" name="__codelineno-11-40" href="#__codelineno-11-40"></a>        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;event_type&quot;</span><span class="p">:</span> <span class="s2">&quot;order_packed&quot;</span><span class="p">}</span>
-</span><span id="__span-11-41"><a id="__codelineno-11-41" name="__codelineno-11-41" href="#__codelineno-11-41"></a>
-</span><span id="__span-11-42"><a id="__codelineno-11-42" name="__codelineno-11-42" href="#__codelineno-11-42"></a>
-</span><span id="__span-11-43"><a id="__codelineno-11-43" name="__codelineno-11-43" href="#__codelineno-11-43"></a>    <span class="nd">@app</span><span class="o">.</span><span class="n">arrival_loop</span><span class="p">(</span><span class="s2">&quot;orders&quot;</span><span class="p">)</span>
-</span><span id="__span-11-44"><a id="__codelineno-11-44" name="__codelineno-11-44" href="#__codelineno-11-44"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">order_generator</span><span class="p">(</span><span class="n">context</span><span class="p">:</span> <span class="n">SimulationContext</span><span class="p">):</span>
-</span><span id="__span-11-45"><a id="__codelineno-11-45" name="__codelineno-11-45" href="#__codelineno-11-45"></a>        <span class="n">task_id</span> <span class="o">=</span> <span class="mi">0</span>
-</span><span id="__span-11-46"><a id="__codelineno-11-46" name="__codelineno-11-46" href="#__codelineno-11-46"></a>        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
-</span><span id="__span-11-47"><a id="__codelineno-11-47" name="__codelineno-11-47" href="#__codelineno-11-47"></a>            <span class="n">order</span> <span class="o">=</span> <span class="k">yield</span> <span class="n">context</span><span class="o">.</span><span class="n">wait_for_arrival</span><span class="p">(</span><span class="s2">&quot;orders&quot;</span><span class="p">)</span>
-</span><span id="__span-11-48"><a id="__codelineno-11-48" name="__codelineno-11-48" href="#__codelineno-11-48"></a>            <span class="n">context</span><span class="o">.</span><span class="n">spawn</span><span class="p">(</span><span class="n">pack_order</span><span class="p">(</span><span class="n">task_id</span><span class="p">,</span> <span class="n">entity</span><span class="o">=</span><span class="n">order</span><span class="p">))</span>
-</span><span id="__span-11-49"><a id="__codelineno-11-49" name="__codelineno-11-49" href="#__codelineno-11-49"></a>            <span class="n">task_id</span> <span class="o">+=</span> <span class="mi">1</span>
-</span><span id="__span-11-50"><a id="__codelineno-11-50" name="__codelineno-11-50" href="#__codelineno-11-50"></a>
-</span><span id="__span-11-51"><a id="__codelineno-11-51" name="__codelineno-11-51" href="#__codelineno-11-51"></a>    <span class="k">return</span> <span class="n">app</span>
-</span><span id="__span-11-52"><a id="__codelineno-11-52" name="__codelineno-11-52" href="#__codelineno-11-52"></a>
-</span><span id="__span-11-53"><a id="__codelineno-11-53" name="__codelineno-11-53" href="#__codelineno-11-53"></a>
-</span><span id="__span-11-54"><a id="__codelineno-11-54" name="__codelineno-11-54" href="#__codelineno-11-54"></a><span class="k">def</span><span class="w"> </span><span class="nf">outcomes</span><span class="p">(</span><span class="n">patience</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-</span><span id="__span-11-55"><a id="__codelineno-11-55" name="__codelineno-11-55" href="#__codelineno-11-55"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Runs one hour and returns what happened to the orders, and the mean wait.&quot;&quot;&quot;</span>
-</span><span id="__span-11-56"><a id="__codelineno-11-56" name="__codelineno-11-56" href="#__codelineno-11-56"></a>    <span class="n">app</span> <span class="o">=</span> <span class="n">shop</span><span class="p">(</span><span class="n">patience</span><span class="p">)</span>
-</span><span id="__span-11-57"><a id="__codelineno-11-57" name="__codelineno-11-57" href="#__codelineno-11-57"></a>    <span class="n">app</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">until</span><span class="o">=</span><span class="s2">&quot;1 h&quot;</span><span class="p">)</span>
-</span><span id="__span-11-58"><a id="__codelineno-11-58" name="__codelineno-11-58" href="#__codelineno-11-58"></a>    <span class="n">readings</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">readings</span><span class="p">()</span>
-</span><span id="__span-11-59"><a id="__codelineno-11-59" name="__codelineno-11-59" href="#__codelineno-11-59"></a>    <span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;Shop.stats.tasks.pack_order.</span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span>
-</span><span id="__span-11-60"><a id="__codelineno-11-60" name="__codelineno-11-60" href="#__codelineno-11-60"></a>    <span class="k">return</span> <span class="p">{</span>
-</span><span id="__span-11-61"><a id="__codelineno-11-61" name="__codelineno-11-61" href="#__codelineno-11-61"></a>        <span class="n">outcome</span><span class="p">:</span> <span class="n">readings</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="p">(</span><span class="n">outcome</span><span class="p">),</span> <span class="mi">0</span><span class="p">)</span>
-</span><span id="__span-11-62"><a id="__codelineno-11-62" name="__codelineno-11-62" href="#__codelineno-11-62"></a>        <span class="k">for</span> <span class="n">outcome</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;finished&quot;</span><span class="p">,</span> <span class="s2">&quot;reneged&quot;</span><span class="p">,</span> <span class="s2">&quot;balked&quot;</span><span class="p">,</span> <span class="s2">&quot;wait_mean&quot;</span><span class="p">)</span>
-</span><span id="__span-11-63"><a id="__codelineno-11-63" name="__codelineno-11-63" href="#__codelineno-11-63"></a>    <span class="p">}</span>
-</span><span id="__span-11-64"><a id="__codelineno-11-64" name="__codelineno-11-64" href="#__codelineno-11-64"></a>
-</span><span id="__span-11-65"><a id="__codelineno-11-65" name="__codelineno-11-65" href="#__codelineno-11-65"></a>
-</span><span id="__span-11-66"><a id="__codelineno-11-66" name="__codelineno-11-66" href="#__codelineno-11-66"></a><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
-</span><span id="__span-11-67"><a id="__codelineno-11-67" name="__codelineno-11-67" href="#__codelineno-11-67"></a>    <span class="k">for</span> <span class="n">patience</span><span class="p">,</span> <span class="n">label</span> <span class="ow">in</span> <span class="p">((</span><span class="mi">30</span><span class="p">,</span> <span class="s2">&quot;30 s&quot;</span><span class="p">),</span> <span class="p">(</span><span class="mi">3600</span><span class="p">,</span> <span class="s2">&quot;none&quot;</span><span class="p">)):</span>
-</span><span id="__span-11-68"><a id="__codelineno-11-68" name="__codelineno-11-68" href="#__codelineno-11-68"></a>        <span class="n">result</span> <span class="o">=</span> <span class="n">outcomes</span><span class="p">(</span><span class="n">patience</span><span class="p">)</span>
-</span><span id="__span-11-69"><a id="__codelineno-11-69" name="__codelineno-11-69" href="#__codelineno-11-69"></a>        <span class="nb">print</span><span class="p">(</span>
-</span><span id="__span-11-70"><a id="__codelineno-11-70" name="__codelineno-11-70" href="#__codelineno-11-70"></a>            <span class="sa">f</span><span class="s2">&quot;patience </span><span class="si">{</span><span class="n">label</span><span class="si">:</span><span class="s2">&gt;4</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;finished&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> packed, &quot;</span>
-</span><span id="__span-11-71"><a id="__codelineno-11-71" name="__codelineno-11-71" href="#__codelineno-11-71"></a>            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;reneged&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> reneged, </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;balked&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> balked, &quot;</span>
-</span><span id="__span-11-72"><a id="__codelineno-11-72" name="__codelineno-11-72" href="#__codelineno-11-72"></a>            <span class="sa">f</span><span class="s2">&quot;mean wait </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;wait_mean&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">5.2f</span><span class="si">}</span><span class="s2"> s&quot;</span>
-</span><span id="__span-11-73"><a id="__codelineno-11-73" name="__codelineno-11-73" href="#__codelineno-11-73"></a>        <span class="p">)</span>
-</span></code></pre></div>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/tutorials/patience.py</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-11-1"> 1</a></span>
+<span class="normal"><a href="#__codelineno-11-2"> 2</a></span>
+<span class="normal"><a href="#__codelineno-11-3"> 3</a></span>
+<span class="normal"><a href="#__codelineno-11-4"> 4</a></span>
+<span class="normal"><a href="#__codelineno-11-5"> 5</a></span>
+<span class="normal"><a href="#__codelineno-11-6"> 6</a></span>
+<span class="normal"><a href="#__codelineno-11-7"> 7</a></span>
+<span class="normal"><a href="#__codelineno-11-8"> 8</a></span>
+<span class="normal"><a href="#__codelineno-11-9"> 9</a></span>
+<span class="normal"><a href="#__codelineno-11-10">10</a></span>
+<span class="normal"><a href="#__codelineno-11-11">11</a></span>
+<span class="normal"><a href="#__codelineno-11-12">12</a></span>
+<span class="normal"><a href="#__codelineno-11-13">13</a></span>
+<span class="normal"><a href="#__codelineno-11-14">14</a></span>
+<span class="normal"><a href="#__codelineno-11-15">15</a></span>
+<span class="normal"><a href="#__codelineno-11-16">16</a></span>
+<span class="normal"><a href="#__codelineno-11-17">17</a></span>
+<span class="normal"><a href="#__codelineno-11-18">18</a></span>
+<span class="normal"><a href="#__codelineno-11-19">19</a></span>
+<span class="normal"><a href="#__codelineno-11-20">20</a></span>
+<span class="normal"><a href="#__codelineno-11-21">21</a></span>
+<span class="normal"><a href="#__codelineno-11-22">22</a></span>
+<span class="normal"><a href="#__codelineno-11-23">23</a></span>
+<span class="normal"><a href="#__codelineno-11-24">24</a></span>
+<span class="normal"><a href="#__codelineno-11-25">25</a></span>
+<span class="normal"><a href="#__codelineno-11-26">26</a></span>
+<span class="normal"><a href="#__codelineno-11-27">27</a></span>
+<span class="normal"><a href="#__codelineno-11-28">28</a></span>
+<span class="normal"><a href="#__codelineno-11-29">29</a></span>
+<span class="normal"><a href="#__codelineno-11-30">30</a></span>
+<span class="normal"><a href="#__codelineno-11-31">31</a></span>
+<span class="normal"><a href="#__codelineno-11-32">32</a></span>
+<span class="normal"><a href="#__codelineno-11-33">33</a></span>
+<span class="normal"><a href="#__codelineno-11-34">34</a></span>
+<span class="normal"><a href="#__codelineno-11-35">35</a></span>
+<span class="normal"><a href="#__codelineno-11-36">36</a></span>
+<span class="normal"><a href="#__codelineno-11-37">37</a></span>
+<span class="normal"><a href="#__codelineno-11-38">38</a></span>
+<span class="normal"><a href="#__codelineno-11-39">39</a></span>
+<span class="normal"><a href="#__codelineno-11-40">40</a></span>
+<span class="normal"><a href="#__codelineno-11-41">41</a></span>
+<span class="normal"><a href="#__codelineno-11-42">42</a></span>
+<span class="normal"><a href="#__codelineno-11-43">43</a></span>
+<span class="normal"><a href="#__codelineno-11-44">44</a></span>
+<span class="normal"><a href="#__codelineno-11-45">45</a></span>
+<span class="normal"><a href="#__codelineno-11-46">46</a></span>
+<span class="normal"><a href="#__codelineno-11-47">47</a></span>
+<span class="normal"><a href="#__codelineno-11-48">48</a></span>
+<span class="normal"><a href="#__codelineno-11-49">49</a></span>
+<span class="normal"><a href="#__codelineno-11-50">50</a></span>
+<span class="normal"><a href="#__codelineno-11-51">51</a></span>
+<span class="normal"><a href="#__codelineno-11-52">52</a></span>
+<span class="normal"><a href="#__codelineno-11-53">53</a></span>
+<span class="normal"><a href="#__codelineno-11-54">54</a></span>
+<span class="normal"><a href="#__codelineno-11-55">55</a></span>
+<span class="normal"><a href="#__codelineno-11-56">56</a></span>
+<span class="normal"><a href="#__codelineno-11-57">57</a></span>
+<span class="normal"><a href="#__codelineno-11-58">58</a></span>
+<span class="normal"><a href="#__codelineno-11-59">59</a></span>
+<span class="normal"><a href="#__codelineno-11-60">60</a></span>
+<span class="normal"><a href="#__codelineno-11-61">61</a></span>
+<span class="normal"><a href="#__codelineno-11-62">62</a></span>
+<span class="normal"><a href="#__codelineno-11-63">63</a></span>
+<span class="normal"><a href="#__codelineno-11-64">64</a></span>
+<span class="normal"><a href="#__codelineno-11-65">65</a></span>
+<span class="normal"><a href="#__codelineno-11-66">66</a></span>
+<span class="normal"><a href="#__codelineno-11-67">67</a></span>
+<span class="normal"><a href="#__codelineno-11-68">68</a></span>
+<span class="normal"><a href="#__codelineno-11-69">69</a></span>
+<span class="normal"><a href="#__codelineno-11-70">70</a></span>
+<span class="normal"><a href="#__codelineno-11-71">71</a></span>
+<span class="normal"><a href="#__codelineno-11-72">72</a></span>
+<span class="normal"><a href="#__codelineno-11-73">73</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1"></a><span class="sd">&quot;&quot;&quot;The Patience tutorial: orders leave after waiting too long, and none join near closing.</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2"></a>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3"></a><span class="sd">One packer, 0.7 orders a second and 1.5 seconds of packing. Every record is printed</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4"></a><span class="sd">to the terminal, and the script prints what happened to the orders with a patience</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5"></a><span class="sd">of 30 seconds and with none at the end: python patience.py 2&gt;/dev/null shows only</span>
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6"></a><span class="sd">those lines.</span>
+</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7"></a><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8"></a>
+</span><span id="__span-11-9"><a id="__codelineno-11-9" name="__codelineno-11-9"></a><span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+</span><span id="__span-11-10"><a id="__codelineno-11-10" name="__codelineno-11-10"></a>
+</span><span id="__span-11-11"><a id="__codelineno-11-11" name="__codelineno-11-11"></a><span class="kn">from</span><span class="w"> </span><span class="nn">desflow</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConsoleEgress</span><span class="p">,</span> <span class="n">SimulationContext</span>
+</span><span id="__span-11-12"><a id="__codelineno-11-12" name="__codelineno-11-12"></a>
+</span><span id="__span-11-13"><a id="__codelineno-11-13" name="__codelineno-11-13"></a><span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span>
+</span><span id="__span-11-14"><a id="__codelineno-11-14" name="__codelineno-11-14"></a>    <span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%(levelname)s</span><span class="s2"> [</span><span class="si">%(asctime)s</span><span class="s2">] </span><span class="si">%(message)s</span><span class="s2">&quot;</span>
+</span><span id="__span-11-15"><a id="__codelineno-11-15" name="__codelineno-11-15"></a><span class="p">)</span>
+</span><span id="__span-11-16"><a id="__codelineno-11-16" name="__codelineno-11-16"></a>
+</span><span id="__span-11-17"><a id="__codelineno-11-17" name="__codelineno-11-17"></a>
+</span><span id="__span-11-18"><a id="__codelineno-11-18" name="__codelineno-11-18"></a><span class="k">def</span><span class="w"> </span><span class="nf">shop</span><span class="p">(</span><span class="n">patience</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">30</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SimulationContext</span><span class="p">:</span>
+</span><span id="__span-11-19"><a id="__codelineno-11-19" name="__codelineno-11-19"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;The shop, where a customer waits at most `patience` seconds.&quot;&quot;&quot;</span>
+</span><span id="__span-11-20"><a id="__codelineno-11-20" name="__codelineno-11-20"></a>    <span class="n">app</span> <span class="o">=</span> <span class="p">(</span>
+</span><span id="__span-11-21"><a id="__codelineno-11-21" name="__codelineno-11-21"></a>        <span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_id</span><span class="o">=</span><span class="s2">&quot;Shop&quot;</span><span class="p">,</span> <span class="n">factor</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">random_seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
+</span><span id="__span-11-22"><a id="__codelineno-11-22" name="__codelineno-11-22"></a>        <span class="o">.</span><span class="n">add_resource</span><span class="p">(</span><span class="s2">&quot;packers&quot;</span><span class="p">,</span> <span class="n">current_cap</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_cap</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+</span><span id="__span-11-23"><a id="__codelineno-11-23" name="__codelineno-11-23"></a>        <span class="o">.</span><span class="n">add_service</span><span class="p">(</span><span class="s2">&quot;packing&quot;</span><span class="p">,</span> <span class="n">dist</span><span class="o">=</span><span class="s2">&quot;constant&quot;</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="mf">1.5</span><span class="p">)</span>
+</span><span id="__span-11-24"><a id="__codelineno-11-24" name="__codelineno-11-24"></a>        <span class="c1"># 0.7 orders a second: more than one packer can pack</span>
+</span><span id="__span-11-25"><a id="__codelineno-11-25" name="__codelineno-11-25"></a>        <span class="o">.</span><span class="n">add_arrival</span><span class="p">(</span><span class="s2">&quot;orders&quot;</span><span class="p">,</span> <span class="n">dist</span><span class="o">=</span><span class="s2">&quot;exponential&quot;</span><span class="p">,</span> <span class="n">rate</span><span class="o">=</span><span class="mf">0.7</span><span class="p">)</span>
+</span><span id="__span-11-26"><a id="__codelineno-11-26" name="__codelineno-11-26"></a>        <span class="c1"># Counts of finished, reneged and balked orders, and the mean wait, at the end</span>
+</span><span id="__span-11-27"><a id="__codelineno-11-27" name="__codelineno-11-27"></a>        <span class="o">.</span><span class="n">with_stats</span><span class="p">(</span><span class="s2">&quot;typical&quot;</span><span class="p">,</span> <span class="n">interval</span><span class="o">=</span><span class="mi">3600</span><span class="p">)</span>
+</span><span id="__span-11-28"><a id="__codelineno-11-28" name="__codelineno-11-28"></a>        <span class="o">.</span><span class="n">add_egress</span><span class="p">(</span><span class="n">ConsoleEgress</span><span class="p">())</span>
+</span><span id="__span-11-29"><a id="__codelineno-11-29" name="__codelineno-11-29"></a>    <span class="p">)</span>
+</span><span id="__span-11-30"><a id="__codelineno-11-30" name="__codelineno-11-30"></a>
+</span><span id="__span-11-31"><a id="__codelineno-11-31" name="__codelineno-11-31"></a>    <span class="nd">@app</span><span class="o">.</span><span class="n">task</span><span class="p">(</span>
+</span><span id="__span-11-32"><a id="__codelineno-11-32" name="__codelineno-11-32"></a>        <span class="n">service_id</span><span class="o">=</span><span class="s2">&quot;packing&quot;</span><span class="p">,</span>
+</span><span id="__span-11-33"><a id="__codelineno-11-33" name="__codelineno-11-33"></a>        <span class="n">resource_id</span><span class="o">=</span><span class="s2">&quot;packers&quot;</span><span class="p">,</span>
+</span><span id="__span-11-34"><a id="__codelineno-11-34" name="__codelineno-11-34"></a>        <span class="c1"># A customer cancels an order not started within 30 seconds</span>
+</span><span id="__span-11-35"><a id="__codelineno-11-35" name="__codelineno-11-35"></a>        <span class="n">patience</span><span class="o">=</span><span class="n">patience</span><span class="p">,</span>
+</span><span id="__span-11-36"><a id="__codelineno-11-36" name="__codelineno-11-36"></a>        <span class="c1"># The courier leaves at the hour, so the last 5 minutes take no new orders</span>
+</span><span id="__span-11-37"><a id="__codelineno-11-37" name="__codelineno-11-37"></a>        <span class="n">balk</span><span class="o">=</span><span class="s2">&quot;t &gt;= 3300&quot;</span><span class="p">,</span>
+</span><span id="__span-11-38"><a id="__codelineno-11-38" name="__codelineno-11-38"></a>    <span class="p">)</span>
+</span><span id="__span-11-39"><a id="__codelineno-11-39" name="__codelineno-11-39"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">pack_order</span><span class="p">(</span><span class="n">task_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+</span><span id="__span-11-40"><a id="__codelineno-11-40" name="__codelineno-11-40"></a>        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;event_type&quot;</span><span class="p">:</span> <span class="s2">&quot;order_packed&quot;</span><span class="p">}</span>
+</span><span id="__span-11-41"><a id="__codelineno-11-41" name="__codelineno-11-41"></a>
+</span><span id="__span-11-42"><a id="__codelineno-11-42" name="__codelineno-11-42"></a>
+</span><span id="__span-11-43"><a id="__codelineno-11-43" name="__codelineno-11-43"></a>    <span class="nd">@app</span><span class="o">.</span><span class="n">arrival_loop</span><span class="p">(</span><span class="s2">&quot;orders&quot;</span><span class="p">)</span>
+</span><span id="__span-11-44"><a id="__codelineno-11-44" name="__codelineno-11-44"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">order_generator</span><span class="p">(</span><span class="n">context</span><span class="p">:</span> <span class="n">SimulationContext</span><span class="p">):</span>
+</span><span id="__span-11-45"><a id="__codelineno-11-45" name="__codelineno-11-45"></a>        <span class="n">task_id</span> <span class="o">=</span> <span class="mi">0</span>
+</span><span id="__span-11-46"><a id="__codelineno-11-46" name="__codelineno-11-46"></a>        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+</span><span id="__span-11-47"><a id="__codelineno-11-47" name="__codelineno-11-47"></a>            <span class="n">order</span> <span class="o">=</span> <span class="k">yield</span> <span class="n">context</span><span class="o">.</span><span class="n">wait_for_arrival</span><span class="p">(</span><span class="s2">&quot;orders&quot;</span><span class="p">)</span>
+</span><span id="__span-11-48"><a id="__codelineno-11-48" name="__codelineno-11-48"></a>            <span class="n">context</span><span class="o">.</span><span class="n">spawn</span><span class="p">(</span><span class="n">pack_order</span><span class="p">(</span><span class="n">task_id</span><span class="p">,</span> <span class="n">entity</span><span class="o">=</span><span class="n">order</span><span class="p">))</span>
+</span><span id="__span-11-49"><a id="__codelineno-11-49" name="__codelineno-11-49"></a>            <span class="n">task_id</span> <span class="o">+=</span> <span class="mi">1</span>
+</span><span id="__span-11-50"><a id="__codelineno-11-50" name="__codelineno-11-50"></a>
+</span><span id="__span-11-51"><a id="__codelineno-11-51" name="__codelineno-11-51"></a>    <span class="k">return</span> <span class="n">app</span>
+</span><span id="__span-11-52"><a id="__codelineno-11-52" name="__codelineno-11-52"></a>
+</span><span id="__span-11-53"><a id="__codelineno-11-53" name="__codelineno-11-53"></a>
+</span><span id="__span-11-54"><a id="__codelineno-11-54" name="__codelineno-11-54"></a><span class="k">def</span><span class="w"> </span><span class="nf">outcomes</span><span class="p">(</span><span class="n">patience</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+</span><span id="__span-11-55"><a id="__codelineno-11-55" name="__codelineno-11-55"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Runs one hour and returns what happened to the orders, and the mean wait.&quot;&quot;&quot;</span>
+</span><span id="__span-11-56"><a id="__codelineno-11-56" name="__codelineno-11-56"></a>    <span class="n">app</span> <span class="o">=</span> <span class="n">shop</span><span class="p">(</span><span class="n">patience</span><span class="p">)</span>
+</span><span id="__span-11-57"><a id="__codelineno-11-57" name="__codelineno-11-57"></a>    <span class="n">app</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">until</span><span class="o">=</span><span class="s2">&quot;1 h&quot;</span><span class="p">)</span>
+</span><span id="__span-11-58"><a id="__codelineno-11-58" name="__codelineno-11-58"></a>    <span class="n">readings</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">readings</span><span class="p">()</span>
+</span><span id="__span-11-59"><a id="__codelineno-11-59" name="__codelineno-11-59"></a>    <span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;Shop.stats.tasks.pack_order.</span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span>
+</span><span id="__span-11-60"><a id="__codelineno-11-60" name="__codelineno-11-60"></a>    <span class="k">return</span> <span class="p">{</span>
+</span><span id="__span-11-61"><a id="__codelineno-11-61" name="__codelineno-11-61"></a>        <span class="n">outcome</span><span class="p">:</span> <span class="n">readings</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="p">(</span><span class="n">outcome</span><span class="p">),</span> <span class="mi">0</span><span class="p">)</span>
+</span><span id="__span-11-62"><a id="__codelineno-11-62" name="__codelineno-11-62"></a>        <span class="k">for</span> <span class="n">outcome</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;finished&quot;</span><span class="p">,</span> <span class="s2">&quot;reneged&quot;</span><span class="p">,</span> <span class="s2">&quot;balked&quot;</span><span class="p">,</span> <span class="s2">&quot;wait_mean&quot;</span><span class="p">)</span>
+</span><span id="__span-11-63"><a id="__codelineno-11-63" name="__codelineno-11-63"></a>    <span class="p">}</span>
+</span><span id="__span-11-64"><a id="__codelineno-11-64" name="__codelineno-11-64"></a>
+</span><span id="__span-11-65"><a id="__codelineno-11-65" name="__codelineno-11-65"></a>
+</span><span id="__span-11-66"><a id="__codelineno-11-66" name="__codelineno-11-66"></a><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+</span><span id="__span-11-67"><a id="__codelineno-11-67" name="__codelineno-11-67"></a>    <span class="k">for</span> <span class="n">patience</span><span class="p">,</span> <span class="n">label</span> <span class="ow">in</span> <span class="p">((</span><span class="mi">30</span><span class="p">,</span> <span class="s2">&quot;30 s&quot;</span><span class="p">),</span> <span class="p">(</span><span class="mi">3600</span><span class="p">,</span> <span class="s2">&quot;none&quot;</span><span class="p">)):</span>
+</span><span id="__span-11-68"><a id="__codelineno-11-68" name="__codelineno-11-68"></a>        <span class="n">result</span> <span class="o">=</span> <span class="n">outcomes</span><span class="p">(</span><span class="n">patience</span><span class="p">)</span>
+</span><span id="__span-11-69"><a id="__codelineno-11-69" name="__codelineno-11-69"></a>        <span class="nb">print</span><span class="p">(</span>
+</span><span id="__span-11-70"><a id="__codelineno-11-70" name="__codelineno-11-70"></a>            <span class="sa">f</span><span class="s2">&quot;patience </span><span class="si">{</span><span class="n">label</span><span class="si">:</span><span class="s2">&gt;4</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;finished&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> packed, &quot;</span>
+</span><span id="__span-11-71"><a id="__codelineno-11-71" name="__codelineno-11-71"></a>            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;reneged&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> reneged, </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;balked&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> balked, &quot;</span>
+</span><span id="__span-11-72"><a id="__codelineno-11-72" name="__codelineno-11-72"></a>            <span class="sa">f</span><span class="s2">&quot;mean wait </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;wait_mean&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">5.2f</span><span class="si">}</span><span class="s2"> s&quot;</span>
+</span><span id="__span-11-73"><a id="__codelineno-11-73" name="__codelineno-11-73"></a>        <span class="p">)</span>
+</span></code></pre></div></td></tr></table></div>
 </div>
 <div class="tabbed-block">
-<div class="language-python highlight"><span class="filename">docs/snippets/tutorials/patience_low_level.py</span><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="sd">&quot;&quot;&quot;The Patience tutorial: orders leave after waiting too long, and none join near closing.</span>
-</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
-</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="sd">One packer, 0.7 orders a second and 1.5 seconds of packing. Every record is printed</span>
-</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="sd">to the terminal, and the script prints what happened to the orders with a patience</span>
-</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="sd">of 30 seconds and with none at the end: python patience_low_level.py 2&gt;/dev/null</span>
-</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="sd">shows only those lines.</span>
-</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="sd">&quot;&quot;&quot;</span>
-</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>
-</span><span id="__span-12-9"><a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
-</span><span id="__span-12-10"><a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a>
-</span><span id="__span-12-11"><a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="kn">from</span><span class="w"> </span><span class="nn">desflow</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-</span><span id="__span-12-12"><a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a>    <span class="n">CapacityConfig</span><span class="p">,</span>
-</span><span id="__span-12-13"><a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a>    <span class="n">ConsoleEgress</span><span class="p">,</span>
-</span><span id="__span-12-14"><a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a>    <span class="n">DistributionConfig</span><span class="p">,</span>
-</span><span id="__span-12-15"><a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a>    <span class="n">DynamicRealtimeEnvironment</span><span class="p">,</span>
-</span><span id="__span-12-16"><a id="__codelineno-12-16" name="__codelineno-12-16" href="#__codelineno-12-16"></a>    <span class="n">DynamicResource</span><span class="p">,</span>
-</span><span id="__span-12-17"><a id="__codelineno-12-17" name="__codelineno-12-17" href="#__codelineno-12-17"></a>    <span class="n">Sampler</span><span class="p">,</span>
-</span><span id="__span-12-18"><a id="__codelineno-12-18" name="__codelineno-12-18" href="#__codelineno-12-18"></a>    <span class="n">SimParameter</span><span class="p">,</span>
-</span><span id="__span-12-19"><a id="__codelineno-12-19" name="__codelineno-12-19" href="#__codelineno-12-19"></a><span class="p">)</span>
-</span><span id="__span-12-20"><a id="__codelineno-12-20" name="__codelineno-12-20" href="#__codelineno-12-20"></a>
-</span><span id="__span-12-21"><a id="__codelineno-12-21" name="__codelineno-12-21" href="#__codelineno-12-21"></a><span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span>
-</span><span id="__span-12-22"><a id="__codelineno-12-22" name="__codelineno-12-22" href="#__codelineno-12-22"></a>    <span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%(levelname)s</span><span class="s2"> [</span><span class="si">%(asctime)s</span><span class="s2">] </span><span class="si">%(message)s</span><span class="s2">&quot;</span>
-</span><span id="__span-12-23"><a id="__codelineno-12-23" name="__codelineno-12-23" href="#__codelineno-12-23"></a><span class="p">)</span>
-</span><span id="__span-12-24"><a id="__codelineno-12-24" name="__codelineno-12-24" href="#__codelineno-12-24"></a>
-</span><span id="__span-12-25"><a id="__codelineno-12-25" name="__codelineno-12-25" href="#__codelineno-12-25"></a><span class="n">PARAMS</span> <span class="o">=</span> <span class="n">SimParameter</span><span class="p">(</span>
-</span><span id="__span-12-26"><a id="__codelineno-12-26" name="__codelineno-12-26" href="#__codelineno-12-26"></a>    <span class="n">sim_id</span><span class="o">=</span><span class="s2">&quot;Shop&quot;</span><span class="p">,</span>
-</span><span id="__span-12-27"><a id="__codelineno-12-27" name="__codelineno-12-27" href="#__codelineno-12-27"></a>    <span class="c1"># 0.7 orders a second: more than one packer can pack</span>
-</span><span id="__span-12-28"><a id="__codelineno-12-28" name="__codelineno-12-28" href="#__codelineno-12-28"></a>    <span class="n">arrival</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;orders&quot;</span><span class="p">:</span> <span class="n">DistributionConfig</span><span class="p">(</span><span class="n">dist</span><span class="o">=</span><span class="s2">&quot;exponential&quot;</span><span class="p">,</span> <span class="n">rate</span><span class="o">=</span><span class="mf">0.7</span><span class="p">)},</span>
-</span><span id="__span-12-29"><a id="__codelineno-12-29" name="__codelineno-12-29" href="#__codelineno-12-29"></a>    <span class="n">service</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;packing&quot;</span><span class="p">:</span> <span class="n">DistributionConfig</span><span class="p">(</span><span class="n">dist</span><span class="o">=</span><span class="s2">&quot;constant&quot;</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="mf">1.5</span><span class="p">)},</span>
-</span><span id="__span-12-30"><a id="__codelineno-12-30" name="__codelineno-12-30" href="#__codelineno-12-30"></a>    <span class="n">resources</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;packers&quot;</span><span class="p">:</span> <span class="n">CapacityConfig</span><span class="p">(</span><span class="n">current_cap</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_cap</span><span class="o">=</span><span class="mi">4</span><span class="p">)},</span>
-</span><span id="__span-12-31"><a id="__codelineno-12-31" name="__codelineno-12-31" href="#__codelineno-12-31"></a><span class="p">)</span>
-</span><span id="__span-12-32"><a id="__codelineno-12-32" name="__codelineno-12-32" href="#__codelineno-12-32"></a>
-</span><span id="__span-12-33"><a id="__codelineno-12-33" name="__codelineno-12-33" href="#__codelineno-12-33"></a>
-</span><span id="__span-12-34"><a id="__codelineno-12-34" name="__codelineno-12-34" href="#__codelineno-12-34"></a><span class="k">def</span><span class="w"> </span><span class="nf">pack_order</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">sampler</span><span class="p">,</span> <span class="n">packers</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">task_id</span><span class="p">,</span> <span class="n">patience</span><span class="p">):</span>
-</span><span id="__span-12-35"><a id="__codelineno-12-35" name="__codelineno-12-35" href="#__codelineno-12-35"></a>    <span class="n">path_id</span> <span class="o">=</span> <span class="s2">&quot;Shop.service.packing&quot;</span>
-</span><span id="__span-12-36"><a id="__codelineno-12-36" name="__codelineno-12-36" href="#__codelineno-12-36"></a>
-</span><span id="__span-12-37"><a id="__codelineno-12-37" name="__codelineno-12-37" href="#__codelineno-12-37"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">publish</span><span class="p">(</span><span class="n">status</span><span class="p">):</span>
-</span><span id="__span-12-38"><a id="__codelineno-12-38" name="__codelineno-12-38" href="#__codelineno-12-38"></a>        <span class="n">value</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;path_id&quot;</span><span class="p">:</span> <span class="n">path_id</span><span class="p">,</span> <span class="s2">&quot;status&quot;</span><span class="p">:</span> <span class="n">status</span><span class="p">}</span>
-</span><span id="__span-12-39"><a id="__codelineno-12-39" name="__codelineno-12-39" href="#__codelineno-12-39"></a>        <span class="n">env</span><span class="o">.</span><span class="n">publish_event</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">task</span><span class="o">=</span><span class="s2">&quot;pack_order&quot;</span><span class="p">,</span> <span class="n">instance</span><span class="o">=</span><span class="n">task_id</span><span class="p">)</span>
-</span><span id="__span-12-40"><a id="__codelineno-12-40" name="__codelineno-12-40" href="#__codelineno-12-40"></a>
-</span><span id="__span-12-41"><a id="__codelineno-12-41" name="__codelineno-12-41" href="#__codelineno-12-41"></a>    <span class="c1"># The courier leaves at the hour, so the last 5 minutes take no new orders</span>
-</span><span id="__span-12-42"><a id="__codelineno-12-42" name="__codelineno-12-42" href="#__codelineno-12-42"></a>    <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">now</span> <span class="o">&gt;=</span> <span class="mi">3300</span><span class="p">:</span>
-</span><span id="__span-12-43"><a id="__codelineno-12-43" name="__codelineno-12-43" href="#__codelineno-12-43"></a>        <span class="n">publish</span><span class="p">(</span><span class="s2">&quot;balked&quot;</span><span class="p">)</span>
-</span><span id="__span-12-44"><a id="__codelineno-12-44" name="__codelineno-12-44" href="#__codelineno-12-44"></a>        <span class="n">env</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">task_balked</span><span class="p">(</span><span class="s2">&quot;pack_order&quot;</span><span class="p">,</span> <span class="n">task_id</span><span class="p">)</span>
-</span><span id="__span-12-45"><a id="__codelineno-12-45" name="__codelineno-12-45" href="#__codelineno-12-45"></a>        <span class="k">return</span>
-</span><span id="__span-12-46"><a id="__codelineno-12-46" name="__codelineno-12-46" href="#__codelineno-12-46"></a>    <span class="n">publish</span><span class="p">(</span><span class="s2">&quot;queued&quot;</span><span class="p">)</span>
-</span><span id="__span-12-47"><a id="__codelineno-12-47" name="__codelineno-12-47" href="#__codelineno-12-47"></a>    <span class="n">env</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">task_queued</span><span class="p">(</span><span class="s2">&quot;pack_order&quot;</span><span class="p">,</span> <span class="n">task_id</span><span class="p">)</span>
-</span><span id="__span-12-48"><a id="__codelineno-12-48" name="__codelineno-12-48" href="#__codelineno-12-48"></a>    <span class="k">with</span> <span class="n">packers</span><span class="o">.</span><span class="n">request</span><span class="p">()</span> <span class="k">as</span> <span class="n">request</span><span class="p">:</span>
-</span><span id="__span-12-49"><a id="__codelineno-12-49" name="__codelineno-12-49" href="#__codelineno-12-49"></a>        <span class="c1"># A customer cancels an order not started within 30 seconds</span>
-</span><span id="__span-12-50"><a id="__codelineno-12-50" name="__codelineno-12-50" href="#__codelineno-12-50"></a>        <span class="k">yield</span> <span class="n">request</span> <span class="o">|</span> <span class="n">env</span><span class="o">.</span><span class="n">timeout</span><span class="p">(</span><span class="n">patience</span><span class="p">)</span>
-</span><span id="__span-12-51"><a id="__codelineno-12-51" name="__codelineno-12-51" href="#__codelineno-12-51"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">request</span><span class="o">.</span><span class="n">triggered</span><span class="p">:</span>
-</span><span id="__span-12-52"><a id="__codelineno-12-52" name="__codelineno-12-52" href="#__codelineno-12-52"></a>            <span class="c1"># Leaving the with block takes the request out of the queue</span>
-</span><span id="__span-12-53"><a id="__codelineno-12-53" name="__codelineno-12-53" href="#__codelineno-12-53"></a>            <span class="n">publish</span><span class="p">(</span><span class="s2">&quot;reneged&quot;</span><span class="p">)</span>
-</span><span id="__span-12-54"><a id="__codelineno-12-54" name="__codelineno-12-54" href="#__codelineno-12-54"></a>            <span class="n">env</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">task_reneged</span><span class="p">(</span><span class="s2">&quot;pack_order&quot;</span><span class="p">,</span> <span class="n">task_id</span><span class="p">)</span>
-</span><span id="__span-12-55"><a id="__codelineno-12-55" name="__codelineno-12-55" href="#__codelineno-12-55"></a>            <span class="k">return</span>
-</span><span id="__span-12-56"><a id="__codelineno-12-56" name="__codelineno-12-56" href="#__codelineno-12-56"></a>        <span class="n">publish</span><span class="p">(</span><span class="s2">&quot;started&quot;</span><span class="p">)</span>
-</span><span id="__span-12-57"><a id="__codelineno-12-57" name="__codelineno-12-57" href="#__codelineno-12-57"></a>        <span class="n">env</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">task_started</span><span class="p">(</span><span class="s2">&quot;pack_order&quot;</span><span class="p">,</span> <span class="n">task_id</span><span class="p">)</span>
-</span><span id="__span-12-58"><a id="__codelineno-12-58" name="__codelineno-12-58" href="#__codelineno-12-58"></a>        <span class="k">yield</span> <span class="n">env</span><span class="o">.</span><span class="n">timeout</span><span class="p">(</span><span class="n">sampler</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">registry</span><span class="o">.</span><span class="n">get_config</span><span class="p">(</span><span class="n">path_id</span><span class="p">)))</span>
-</span><span id="__span-12-59"><a id="__codelineno-12-59" name="__codelineno-12-59" href="#__codelineno-12-59"></a>        <span class="n">value</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;event_type&quot;</span><span class="p">:</span> <span class="s2">&quot;order_packed&quot;</span><span class="p">}</span>
-</span><span id="__span-12-60"><a id="__codelineno-12-60" name="__codelineno-12-60" href="#__codelineno-12-60"></a>        <span class="n">env</span><span class="o">.</span><span class="n">publish_event</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">task</span><span class="o">=</span><span class="s2">&quot;pack_order&quot;</span><span class="p">,</span> <span class="n">instance</span><span class="o">=</span><span class="n">task_id</span><span class="p">)</span>
-</span><span id="__span-12-61"><a id="__codelineno-12-61" name="__codelineno-12-61" href="#__codelineno-12-61"></a>    <span class="n">env</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">task_finished</span><span class="p">(</span><span class="s2">&quot;pack_order&quot;</span><span class="p">,</span> <span class="n">task_id</span><span class="p">)</span>
-</span><span id="__span-12-62"><a id="__codelineno-12-62" name="__codelineno-12-62" href="#__codelineno-12-62"></a>
-</span><span id="__span-12-63"><a id="__codelineno-12-63" name="__codelineno-12-63" href="#__codelineno-12-63"></a>
-</span><span id="__span-12-64"><a id="__codelineno-12-64" name="__codelineno-12-64" href="#__codelineno-12-64"></a><span class="k">def</span><span class="w"> </span><span class="nf">order_generator</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">sampler</span><span class="p">,</span> <span class="n">packers</span><span class="p">,</span> <span class="n">patience</span><span class="p">):</span>
-</span><span id="__span-12-65"><a id="__codelineno-12-65" name="__codelineno-12-65" href="#__codelineno-12-65"></a>    <span class="n">arrival</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">registry</span><span class="o">.</span><span class="n">get_config</span><span class="p">(</span><span class="s2">&quot;Shop.arrival.orders&quot;</span><span class="p">)</span>
-</span><span id="__span-12-66"><a id="__codelineno-12-66" name="__codelineno-12-66" href="#__codelineno-12-66"></a>    <span class="n">task_id</span> <span class="o">=</span> <span class="mi">0</span>
-</span><span id="__span-12-67"><a id="__codelineno-12-67" name="__codelineno-12-67" href="#__codelineno-12-67"></a>    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
-</span><span id="__span-12-68"><a id="__codelineno-12-68" name="__codelineno-12-68" href="#__codelineno-12-68"></a>        <span class="k">yield</span> <span class="n">env</span><span class="o">.</span><span class="n">timeout</span><span class="p">(</span><span class="n">sampler</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">arrival</span><span class="p">))</span>
-</span><span id="__span-12-69"><a id="__codelineno-12-69" name="__codelineno-12-69" href="#__codelineno-12-69"></a>        <span class="n">key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;orders-</span><span class="si">{</span><span class="n">task_id</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2">&quot;</span>
-</span><span id="__span-12-70"><a id="__codelineno-12-70" name="__codelineno-12-70" href="#__codelineno-12-70"></a>        <span class="n">env</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">pack_order</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">sampler</span><span class="p">,</span> <span class="n">packers</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">task_id</span><span class="p">,</span> <span class="n">patience</span><span class="p">))</span>
-</span><span id="__span-12-71"><a id="__codelineno-12-71" name="__codelineno-12-71" href="#__codelineno-12-71"></a>        <span class="n">task_id</span> <span class="o">+=</span> <span class="mi">1</span>
-</span><span id="__span-12-72"><a id="__codelineno-12-72" name="__codelineno-12-72" href="#__codelineno-12-72"></a>
-</span><span id="__span-12-73"><a id="__codelineno-12-73" name="__codelineno-12-73" href="#__codelineno-12-73"></a>
-</span><span id="__span-12-74"><a id="__codelineno-12-74" name="__codelineno-12-74" href="#__codelineno-12-74"></a><span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="n">patience</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span> <span class="n">until</span><span class="o">=</span><span class="mi">3600</span><span class="p">,</span> <span class="n">factor</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
-</span><span id="__span-12-75"><a id="__codelineno-12-75" name="__codelineno-12-75" href="#__codelineno-12-75"></a>    <span class="n">env</span> <span class="o">=</span> <span class="n">DynamicRealtimeEnvironment</span><span class="p">(</span><span class="n">factor</span><span class="o">=</span><span class="n">factor</span><span class="p">)</span>
-</span><span id="__span-12-76"><a id="__codelineno-12-76" name="__codelineno-12-76" href="#__codelineno-12-76"></a>    <span class="n">env</span><span class="o">.</span><span class="n">registry</span><span class="o">.</span><span class="n">register_sim_parameter</span><span class="p">(</span><span class="n">PARAMS</span><span class="p">)</span>
-</span><span id="__span-12-77"><a id="__codelineno-12-77" name="__codelineno-12-77" href="#__codelineno-12-77"></a>    <span class="n">env</span><span class="o">.</span><span class="n">setup_egress</span><span class="p">([</span><span class="n">ConsoleEgress</span><span class="p">()])</span>
-</span><span id="__span-12-78"><a id="__codelineno-12-78" name="__codelineno-12-78" href="#__codelineno-12-78"></a>    <span class="c1"># Counts of finished, reneged and balked orders, and the mean wait, at the end</span>
-</span><span id="__span-12-79"><a id="__codelineno-12-79" name="__codelineno-12-79" href="#__codelineno-12-79"></a>    <span class="n">env</span><span class="o">.</span><span class="n">setup_stats</span><span class="p">(</span><span class="s2">&quot;Shop&quot;</span><span class="p">,</span> <span class="s2">&quot;typical&quot;</span><span class="p">,</span> <span class="n">interval</span><span class="o">=</span><span class="mi">3600</span><span class="p">)</span>
-</span><span id="__span-12-80"><a id="__codelineno-12-80" name="__codelineno-12-80" href="#__codelineno-12-80"></a>    <span class="n">packers</span> <span class="o">=</span> <span class="n">DynamicResource</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="s2">&quot;Shop&quot;</span><span class="p">,</span> <span class="s2">&quot;packers&quot;</span><span class="p">)</span>
-</span><span id="__span-12-81"><a id="__codelineno-12-81" name="__codelineno-12-81" href="#__codelineno-12-81"></a>    <span class="n">sampler</span> <span class="o">=</span> <span class="n">Sampler</span><span class="p">(</span><span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
-</span><span id="__span-12-82"><a id="__codelineno-12-82" name="__codelineno-12-82" href="#__codelineno-12-82"></a>    <span class="n">env</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">order_generator</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">sampler</span><span class="p">,</span> <span class="n">packers</span><span class="p">,</span> <span class="n">patience</span><span class="p">))</span>
-</span><span id="__span-12-83"><a id="__codelineno-12-83" name="__codelineno-12-83" href="#__codelineno-12-83"></a>    <span class="k">try</span><span class="p">:</span>
-</span><span id="__span-12-84"><a id="__codelineno-12-84" name="__codelineno-12-84" href="#__codelineno-12-84"></a>        <span class="n">env</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">until</span><span class="o">=</span><span class="n">until</span><span class="p">)</span>
-</span><span id="__span-12-85"><a id="__codelineno-12-85" name="__codelineno-12-85" href="#__codelineno-12-85"></a>    <span class="k">finally</span><span class="p">:</span>
-</span><span id="__span-12-86"><a id="__codelineno-12-86" name="__codelineno-12-86" href="#__codelineno-12-86"></a>        <span class="n">env</span><span class="o">.</span><span class="n">teardown</span><span class="p">()</span>
-</span><span id="__span-12-87"><a id="__codelineno-12-87" name="__codelineno-12-87" href="#__codelineno-12-87"></a>    <span class="k">return</span> <span class="n">env</span>
-</span><span id="__span-12-88"><a id="__codelineno-12-88" name="__codelineno-12-88" href="#__codelineno-12-88"></a>
-</span><span id="__span-12-89"><a id="__codelineno-12-89" name="__codelineno-12-89" href="#__codelineno-12-89"></a>
-</span><span id="__span-12-90"><a id="__codelineno-12-90" name="__codelineno-12-90" href="#__codelineno-12-90"></a><span class="k">def</span><span class="w"> </span><span class="nf">outcomes</span><span class="p">(</span><span class="n">patience</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-</span><span id="__span-12-91"><a id="__codelineno-12-91" name="__codelineno-12-91" href="#__codelineno-12-91"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Runs one hour and returns what happened to the orders, and the mean wait.&quot;&quot;&quot;</span>
-</span><span id="__span-12-92"><a id="__codelineno-12-92" name="__codelineno-12-92" href="#__codelineno-12-92"></a>    <span class="n">readings</span> <span class="o">=</span> <span class="n">run</span><span class="p">(</span><span class="n">patience</span><span class="p">)</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">readings</span><span class="p">()</span>
-</span><span id="__span-12-93"><a id="__codelineno-12-93" name="__codelineno-12-93" href="#__codelineno-12-93"></a>    <span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;Shop.stats.tasks.pack_order.</span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span>
-</span><span id="__span-12-94"><a id="__codelineno-12-94" name="__codelineno-12-94" href="#__codelineno-12-94"></a>    <span class="k">return</span> <span class="p">{</span>
-</span><span id="__span-12-95"><a id="__codelineno-12-95" name="__codelineno-12-95" href="#__codelineno-12-95"></a>        <span class="n">outcome</span><span class="p">:</span> <span class="n">readings</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="p">(</span><span class="n">outcome</span><span class="p">),</span> <span class="mi">0</span><span class="p">)</span>
-</span><span id="__span-12-96"><a id="__codelineno-12-96" name="__codelineno-12-96" href="#__codelineno-12-96"></a>        <span class="k">for</span> <span class="n">outcome</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;finished&quot;</span><span class="p">,</span> <span class="s2">&quot;reneged&quot;</span><span class="p">,</span> <span class="s2">&quot;balked&quot;</span><span class="p">,</span> <span class="s2">&quot;wait_mean&quot;</span><span class="p">)</span>
-</span><span id="__span-12-97"><a id="__codelineno-12-97" name="__codelineno-12-97" href="#__codelineno-12-97"></a>    <span class="p">}</span>
-</span><span id="__span-12-98"><a id="__codelineno-12-98" name="__codelineno-12-98" href="#__codelineno-12-98"></a>
-</span><span id="__span-12-99"><a id="__codelineno-12-99" name="__codelineno-12-99" href="#__codelineno-12-99"></a>
-</span><span id="__span-12-100"><a id="__codelineno-12-100" name="__codelineno-12-100" href="#__codelineno-12-100"></a><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
-</span><span id="__span-12-101"><a id="__codelineno-12-101" name="__codelineno-12-101" href="#__codelineno-12-101"></a>    <span class="k">for</span> <span class="n">patience</span><span class="p">,</span> <span class="n">label</span> <span class="ow">in</span> <span class="p">((</span><span class="mi">30</span><span class="p">,</span> <span class="s2">&quot;30 s&quot;</span><span class="p">),</span> <span class="p">(</span><span class="mi">3600</span><span class="p">,</span> <span class="s2">&quot;none&quot;</span><span class="p">)):</span>
-</span><span id="__span-12-102"><a id="__codelineno-12-102" name="__codelineno-12-102" href="#__codelineno-12-102"></a>        <span class="n">result</span> <span class="o">=</span> <span class="n">outcomes</span><span class="p">(</span><span class="n">patience</span><span class="p">)</span>
-</span><span id="__span-12-103"><a id="__codelineno-12-103" name="__codelineno-12-103" href="#__codelineno-12-103"></a>        <span class="nb">print</span><span class="p">(</span>
-</span><span id="__span-12-104"><a id="__codelineno-12-104" name="__codelineno-12-104" href="#__codelineno-12-104"></a>            <span class="sa">f</span><span class="s2">&quot;patience </span><span class="si">{</span><span class="n">label</span><span class="si">:</span><span class="s2">&gt;4</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;finished&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> packed, &quot;</span>
-</span><span id="__span-12-105"><a id="__codelineno-12-105" name="__codelineno-12-105" href="#__codelineno-12-105"></a>            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;reneged&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> reneged, </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;balked&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> balked, &quot;</span>
-</span><span id="__span-12-106"><a id="__codelineno-12-106" name="__codelineno-12-106" href="#__codelineno-12-106"></a>            <span class="sa">f</span><span class="s2">&quot;mean wait </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;wait_mean&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">5.2f</span><span class="si">}</span><span class="s2"> s&quot;</span>
-</span><span id="__span-12-107"><a id="__codelineno-12-107" name="__codelineno-12-107" href="#__codelineno-12-107"></a>        <span class="p">)</span>
-</span></code></pre></div>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/tutorials/patience_low_level.py</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-12-1">  1</a></span>
+<span class="normal"><a href="#__codelineno-12-2">  2</a></span>
+<span class="normal"><a href="#__codelineno-12-3">  3</a></span>
+<span class="normal"><a href="#__codelineno-12-4">  4</a></span>
+<span class="normal"><a href="#__codelineno-12-5">  5</a></span>
+<span class="normal"><a href="#__codelineno-12-6">  6</a></span>
+<span class="normal"><a href="#__codelineno-12-7">  7</a></span>
+<span class="normal"><a href="#__codelineno-12-8">  8</a></span>
+<span class="normal"><a href="#__codelineno-12-9">  9</a></span>
+<span class="normal"><a href="#__codelineno-12-10"> 10</a></span>
+<span class="normal"><a href="#__codelineno-12-11"> 11</a></span>
+<span class="normal"><a href="#__codelineno-12-12"> 12</a></span>
+<span class="normal"><a href="#__codelineno-12-13"> 13</a></span>
+<span class="normal"><a href="#__codelineno-12-14"> 14</a></span>
+<span class="normal"><a href="#__codelineno-12-15"> 15</a></span>
+<span class="normal"><a href="#__codelineno-12-16"> 16</a></span>
+<span class="normal"><a href="#__codelineno-12-17"> 17</a></span>
+<span class="normal"><a href="#__codelineno-12-18"> 18</a></span>
+<span class="normal"><a href="#__codelineno-12-19"> 19</a></span>
+<span class="normal"><a href="#__codelineno-12-20"> 20</a></span>
+<span class="normal"><a href="#__codelineno-12-21"> 21</a></span>
+<span class="normal"><a href="#__codelineno-12-22"> 22</a></span>
+<span class="normal"><a href="#__codelineno-12-23"> 23</a></span>
+<span class="normal"><a href="#__codelineno-12-24"> 24</a></span>
+<span class="normal"><a href="#__codelineno-12-25"> 25</a></span>
+<span class="normal"><a href="#__codelineno-12-26"> 26</a></span>
+<span class="normal"><a href="#__codelineno-12-27"> 27</a></span>
+<span class="normal"><a href="#__codelineno-12-28"> 28</a></span>
+<span class="normal"><a href="#__codelineno-12-29"> 29</a></span>
+<span class="normal"><a href="#__codelineno-12-30"> 30</a></span>
+<span class="normal"><a href="#__codelineno-12-31"> 31</a></span>
+<span class="normal"><a href="#__codelineno-12-32"> 32</a></span>
+<span class="normal"><a href="#__codelineno-12-33"> 33</a></span>
+<span class="normal"><a href="#__codelineno-12-34"> 34</a></span>
+<span class="normal"><a href="#__codelineno-12-35"> 35</a></span>
+<span class="normal"><a href="#__codelineno-12-36"> 36</a></span>
+<span class="normal"><a href="#__codelineno-12-37"> 37</a></span>
+<span class="normal"><a href="#__codelineno-12-38"> 38</a></span>
+<span class="normal"><a href="#__codelineno-12-39"> 39</a></span>
+<span class="normal"><a href="#__codelineno-12-40"> 40</a></span>
+<span class="normal"><a href="#__codelineno-12-41"> 41</a></span>
+<span class="normal"><a href="#__codelineno-12-42"> 42</a></span>
+<span class="normal"><a href="#__codelineno-12-43"> 43</a></span>
+<span class="normal"><a href="#__codelineno-12-44"> 44</a></span>
+<span class="normal"><a href="#__codelineno-12-45"> 45</a></span>
+<span class="normal"><a href="#__codelineno-12-46"> 46</a></span>
+<span class="normal"><a href="#__codelineno-12-47"> 47</a></span>
+<span class="normal"><a href="#__codelineno-12-48"> 48</a></span>
+<span class="normal"><a href="#__codelineno-12-49"> 49</a></span>
+<span class="normal"><a href="#__codelineno-12-50"> 50</a></span>
+<span class="normal"><a href="#__codelineno-12-51"> 51</a></span>
+<span class="normal"><a href="#__codelineno-12-52"> 52</a></span>
+<span class="normal"><a href="#__codelineno-12-53"> 53</a></span>
+<span class="normal"><a href="#__codelineno-12-54"> 54</a></span>
+<span class="normal"><a href="#__codelineno-12-55"> 55</a></span>
+<span class="normal"><a href="#__codelineno-12-56"> 56</a></span>
+<span class="normal"><a href="#__codelineno-12-57"> 57</a></span>
+<span class="normal"><a href="#__codelineno-12-58"> 58</a></span>
+<span class="normal"><a href="#__codelineno-12-59"> 59</a></span>
+<span class="normal"><a href="#__codelineno-12-60"> 60</a></span>
+<span class="normal"><a href="#__codelineno-12-61"> 61</a></span>
+<span class="normal"><a href="#__codelineno-12-62"> 62</a></span>
+<span class="normal"><a href="#__codelineno-12-63"> 63</a></span>
+<span class="normal"><a href="#__codelineno-12-64"> 64</a></span>
+<span class="normal"><a href="#__codelineno-12-65"> 65</a></span>
+<span class="normal"><a href="#__codelineno-12-66"> 66</a></span>
+<span class="normal"><a href="#__codelineno-12-67"> 67</a></span>
+<span class="normal"><a href="#__codelineno-12-68"> 68</a></span>
+<span class="normal"><a href="#__codelineno-12-69"> 69</a></span>
+<span class="normal"><a href="#__codelineno-12-70"> 70</a></span>
+<span class="normal"><a href="#__codelineno-12-71"> 71</a></span>
+<span class="normal"><a href="#__codelineno-12-72"> 72</a></span>
+<span class="normal"><a href="#__codelineno-12-73"> 73</a></span>
+<span class="normal"><a href="#__codelineno-12-74"> 74</a></span>
+<span class="normal"><a href="#__codelineno-12-75"> 75</a></span>
+<span class="normal"><a href="#__codelineno-12-76"> 76</a></span>
+<span class="normal"><a href="#__codelineno-12-77"> 77</a></span>
+<span class="normal"><a href="#__codelineno-12-78"> 78</a></span>
+<span class="normal"><a href="#__codelineno-12-79"> 79</a></span>
+<span class="normal"><a href="#__codelineno-12-80"> 80</a></span>
+<span class="normal"><a href="#__codelineno-12-81"> 81</a></span>
+<span class="normal"><a href="#__codelineno-12-82"> 82</a></span>
+<span class="normal"><a href="#__codelineno-12-83"> 83</a></span>
+<span class="normal"><a href="#__codelineno-12-84"> 84</a></span>
+<span class="normal"><a href="#__codelineno-12-85"> 85</a></span>
+<span class="normal"><a href="#__codelineno-12-86"> 86</a></span>
+<span class="normal"><a href="#__codelineno-12-87"> 87</a></span>
+<span class="normal"><a href="#__codelineno-12-88"> 88</a></span>
+<span class="normal"><a href="#__codelineno-12-89"> 89</a></span>
+<span class="normal"><a href="#__codelineno-12-90"> 90</a></span>
+<span class="normal"><a href="#__codelineno-12-91"> 91</a></span>
+<span class="normal"><a href="#__codelineno-12-92"> 92</a></span>
+<span class="normal"><a href="#__codelineno-12-93"> 93</a></span>
+<span class="normal"><a href="#__codelineno-12-94"> 94</a></span>
+<span class="normal"><a href="#__codelineno-12-95"> 95</a></span>
+<span class="normal"><a href="#__codelineno-12-96"> 96</a></span>
+<span class="normal"><a href="#__codelineno-12-97"> 97</a></span>
+<span class="normal"><a href="#__codelineno-12-98"> 98</a></span>
+<span class="normal"><a href="#__codelineno-12-99"> 99</a></span>
+<span class="normal"><a href="#__codelineno-12-100">100</a></span>
+<span class="normal"><a href="#__codelineno-12-101">101</a></span>
+<span class="normal"><a href="#__codelineno-12-102">102</a></span>
+<span class="normal"><a href="#__codelineno-12-103">103</a></span>
+<span class="normal"><a href="#__codelineno-12-104">104</a></span>
+<span class="normal"><a href="#__codelineno-12-105">105</a></span>
+<span class="normal"><a href="#__codelineno-12-106">106</a></span>
+<span class="normal"><a href="#__codelineno-12-107">107</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1"></a><span class="sd">&quot;&quot;&quot;The Patience tutorial: orders leave after waiting too long, and none join near closing.</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2"></a>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3"></a><span class="sd">One packer, 0.7 orders a second and 1.5 seconds of packing. Every record is printed</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4"></a><span class="sd">to the terminal, and the script prints what happened to the orders with a patience</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5"></a><span class="sd">of 30 seconds and with none at the end: python patience_low_level.py 2&gt;/dev/null</span>
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6"></a><span class="sd">shows only those lines.</span>
+</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7"></a><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8"></a>
+</span><span id="__span-12-9"><a id="__codelineno-12-9" name="__codelineno-12-9"></a><span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+</span><span id="__span-12-10"><a id="__codelineno-12-10" name="__codelineno-12-10"></a>
+</span><span id="__span-12-11"><a id="__codelineno-12-11" name="__codelineno-12-11"></a><span class="kn">from</span><span class="w"> </span><span class="nn">desflow</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+</span><span id="__span-12-12"><a id="__codelineno-12-12" name="__codelineno-12-12"></a>    <span class="n">CapacityConfig</span><span class="p">,</span>
+</span><span id="__span-12-13"><a id="__codelineno-12-13" name="__codelineno-12-13"></a>    <span class="n">ConsoleEgress</span><span class="p">,</span>
+</span><span id="__span-12-14"><a id="__codelineno-12-14" name="__codelineno-12-14"></a>    <span class="n">DistributionConfig</span><span class="p">,</span>
+</span><span id="__span-12-15"><a id="__codelineno-12-15" name="__codelineno-12-15"></a>    <span class="n">DynamicRealtimeEnvironment</span><span class="p">,</span>
+</span><span id="__span-12-16"><a id="__codelineno-12-16" name="__codelineno-12-16"></a>    <span class="n">DynamicResource</span><span class="p">,</span>
+</span><span id="__span-12-17"><a id="__codelineno-12-17" name="__codelineno-12-17"></a>    <span class="n">Sampler</span><span class="p">,</span>
+</span><span id="__span-12-18"><a id="__codelineno-12-18" name="__codelineno-12-18"></a>    <span class="n">SimParameter</span><span class="p">,</span>
+</span><span id="__span-12-19"><a id="__codelineno-12-19" name="__codelineno-12-19"></a><span class="p">)</span>
+</span><span id="__span-12-20"><a id="__codelineno-12-20" name="__codelineno-12-20"></a>
+</span><span id="__span-12-21"><a id="__codelineno-12-21" name="__codelineno-12-21"></a><span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span>
+</span><span id="__span-12-22"><a id="__codelineno-12-22" name="__codelineno-12-22"></a>    <span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">%(levelname)s</span><span class="s2"> [</span><span class="si">%(asctime)s</span><span class="s2">] </span><span class="si">%(message)s</span><span class="s2">&quot;</span>
+</span><span id="__span-12-23"><a id="__codelineno-12-23" name="__codelineno-12-23"></a><span class="p">)</span>
+</span><span id="__span-12-24"><a id="__codelineno-12-24" name="__codelineno-12-24"></a>
+</span><span id="__span-12-25"><a id="__codelineno-12-25" name="__codelineno-12-25"></a><span class="n">PARAMS</span> <span class="o">=</span> <span class="n">SimParameter</span><span class="p">(</span>
+</span><span id="__span-12-26"><a id="__codelineno-12-26" name="__codelineno-12-26"></a>    <span class="n">sim_id</span><span class="o">=</span><span class="s2">&quot;Shop&quot;</span><span class="p">,</span>
+</span><span id="__span-12-27"><a id="__codelineno-12-27" name="__codelineno-12-27"></a>    <span class="c1"># 0.7 orders a second: more than one packer can pack</span>
+</span><span id="__span-12-28"><a id="__codelineno-12-28" name="__codelineno-12-28"></a>    <span class="n">arrival</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;orders&quot;</span><span class="p">:</span> <span class="n">DistributionConfig</span><span class="p">(</span><span class="n">dist</span><span class="o">=</span><span class="s2">&quot;exponential&quot;</span><span class="p">,</span> <span class="n">rate</span><span class="o">=</span><span class="mf">0.7</span><span class="p">)},</span>
+</span><span id="__span-12-29"><a id="__codelineno-12-29" name="__codelineno-12-29"></a>    <span class="n">service</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;packing&quot;</span><span class="p">:</span> <span class="n">DistributionConfig</span><span class="p">(</span><span class="n">dist</span><span class="o">=</span><span class="s2">&quot;constant&quot;</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="mf">1.5</span><span class="p">)},</span>
+</span><span id="__span-12-30"><a id="__codelineno-12-30" name="__codelineno-12-30"></a>    <span class="n">resources</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;packers&quot;</span><span class="p">:</span> <span class="n">CapacityConfig</span><span class="p">(</span><span class="n">current_cap</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_cap</span><span class="o">=</span><span class="mi">4</span><span class="p">)},</span>
+</span><span id="__span-12-31"><a id="__codelineno-12-31" name="__codelineno-12-31"></a><span class="p">)</span>
+</span><span id="__span-12-32"><a id="__codelineno-12-32" name="__codelineno-12-32"></a>
+</span><span id="__span-12-33"><a id="__codelineno-12-33" name="__codelineno-12-33"></a>
+</span><span id="__span-12-34"><a id="__codelineno-12-34" name="__codelineno-12-34"></a><span class="k">def</span><span class="w"> </span><span class="nf">pack_order</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">sampler</span><span class="p">,</span> <span class="n">packers</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">task_id</span><span class="p">,</span> <span class="n">patience</span><span class="p">):</span>
+</span><span id="__span-12-35"><a id="__codelineno-12-35" name="__codelineno-12-35"></a>    <span class="n">path_id</span> <span class="o">=</span> <span class="s2">&quot;Shop.service.packing&quot;</span>
+</span><span id="__span-12-36"><a id="__codelineno-12-36" name="__codelineno-12-36"></a>
+</span><span id="__span-12-37"><a id="__codelineno-12-37" name="__codelineno-12-37"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">publish</span><span class="p">(</span><span class="n">status</span><span class="p">):</span>
+</span><span id="__span-12-38"><a id="__codelineno-12-38" name="__codelineno-12-38"></a>        <span class="n">value</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;path_id&quot;</span><span class="p">:</span> <span class="n">path_id</span><span class="p">,</span> <span class="s2">&quot;status&quot;</span><span class="p">:</span> <span class="n">status</span><span class="p">}</span>
+</span><span id="__span-12-39"><a id="__codelineno-12-39" name="__codelineno-12-39"></a>        <span class="n">env</span><span class="o">.</span><span class="n">publish_event</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">task</span><span class="o">=</span><span class="s2">&quot;pack_order&quot;</span><span class="p">,</span> <span class="n">instance</span><span class="o">=</span><span class="n">task_id</span><span class="p">)</span>
+</span><span id="__span-12-40"><a id="__codelineno-12-40" name="__codelineno-12-40"></a>
+</span><span id="__span-12-41"><a id="__codelineno-12-41" name="__codelineno-12-41"></a>    <span class="c1"># The courier leaves at the hour, so the last 5 minutes take no new orders</span>
+</span><span id="__span-12-42"><a id="__codelineno-12-42" name="__codelineno-12-42"></a>    <span class="k">if</span> <span class="n">env</span><span class="o">.</span><span class="n">now</span> <span class="o">&gt;=</span> <span class="mi">3300</span><span class="p">:</span>
+</span><span id="__span-12-43"><a id="__codelineno-12-43" name="__codelineno-12-43"></a>        <span class="n">publish</span><span class="p">(</span><span class="s2">&quot;balked&quot;</span><span class="p">)</span>
+</span><span id="__span-12-44"><a id="__codelineno-12-44" name="__codelineno-12-44"></a>        <span class="n">env</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">task_balked</span><span class="p">(</span><span class="s2">&quot;pack_order&quot;</span><span class="p">,</span> <span class="n">task_id</span><span class="p">)</span>
+</span><span id="__span-12-45"><a id="__codelineno-12-45" name="__codelineno-12-45"></a>        <span class="k">return</span>
+</span><span id="__span-12-46"><a id="__codelineno-12-46" name="__codelineno-12-46"></a>    <span class="n">publish</span><span class="p">(</span><span class="s2">&quot;queued&quot;</span><span class="p">)</span>
+</span><span id="__span-12-47"><a id="__codelineno-12-47" name="__codelineno-12-47"></a>    <span class="n">env</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">task_queued</span><span class="p">(</span><span class="s2">&quot;pack_order&quot;</span><span class="p">,</span> <span class="n">task_id</span><span class="p">)</span>
+</span><span id="__span-12-48"><a id="__codelineno-12-48" name="__codelineno-12-48"></a>    <span class="k">with</span> <span class="n">packers</span><span class="o">.</span><span class="n">request</span><span class="p">()</span> <span class="k">as</span> <span class="n">request</span><span class="p">:</span>
+</span><span id="__span-12-49"><a id="__codelineno-12-49" name="__codelineno-12-49"></a>        <span class="c1"># A customer cancels an order not started within 30 seconds</span>
+</span><span id="__span-12-50"><a id="__codelineno-12-50" name="__codelineno-12-50"></a>        <span class="k">yield</span> <span class="n">request</span> <span class="o">|</span> <span class="n">env</span><span class="o">.</span><span class="n">timeout</span><span class="p">(</span><span class="n">patience</span><span class="p">)</span>
+</span><span id="__span-12-51"><a id="__codelineno-12-51" name="__codelineno-12-51"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">request</span><span class="o">.</span><span class="n">triggered</span><span class="p">:</span>
+</span><span id="__span-12-52"><a id="__codelineno-12-52" name="__codelineno-12-52"></a>            <span class="c1"># Leaving the with block takes the request out of the queue</span>
+</span><span id="__span-12-53"><a id="__codelineno-12-53" name="__codelineno-12-53"></a>            <span class="n">publish</span><span class="p">(</span><span class="s2">&quot;reneged&quot;</span><span class="p">)</span>
+</span><span id="__span-12-54"><a id="__codelineno-12-54" name="__codelineno-12-54"></a>            <span class="n">env</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">task_reneged</span><span class="p">(</span><span class="s2">&quot;pack_order&quot;</span><span class="p">,</span> <span class="n">task_id</span><span class="p">)</span>
+</span><span id="__span-12-55"><a id="__codelineno-12-55" name="__codelineno-12-55"></a>            <span class="k">return</span>
+</span><span id="__span-12-56"><a id="__codelineno-12-56" name="__codelineno-12-56"></a>        <span class="n">publish</span><span class="p">(</span><span class="s2">&quot;started&quot;</span><span class="p">)</span>
+</span><span id="__span-12-57"><a id="__codelineno-12-57" name="__codelineno-12-57"></a>        <span class="n">env</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">task_started</span><span class="p">(</span><span class="s2">&quot;pack_order&quot;</span><span class="p">,</span> <span class="n">task_id</span><span class="p">)</span>
+</span><span id="__span-12-58"><a id="__codelineno-12-58" name="__codelineno-12-58"></a>        <span class="k">yield</span> <span class="n">env</span><span class="o">.</span><span class="n">timeout</span><span class="p">(</span><span class="n">sampler</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">registry</span><span class="o">.</span><span class="n">get_config</span><span class="p">(</span><span class="n">path_id</span><span class="p">)))</span>
+</span><span id="__span-12-59"><a id="__codelineno-12-59" name="__codelineno-12-59"></a>        <span class="n">value</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;event_type&quot;</span><span class="p">:</span> <span class="s2">&quot;order_packed&quot;</span><span class="p">}</span>
+</span><span id="__span-12-60"><a id="__codelineno-12-60" name="__codelineno-12-60"></a>        <span class="n">env</span><span class="o">.</span><span class="n">publish_event</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">task</span><span class="o">=</span><span class="s2">&quot;pack_order&quot;</span><span class="p">,</span> <span class="n">instance</span><span class="o">=</span><span class="n">task_id</span><span class="p">)</span>
+</span><span id="__span-12-61"><a id="__codelineno-12-61" name="__codelineno-12-61"></a>    <span class="n">env</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">task_finished</span><span class="p">(</span><span class="s2">&quot;pack_order&quot;</span><span class="p">,</span> <span class="n">task_id</span><span class="p">)</span>
+</span><span id="__span-12-62"><a id="__codelineno-12-62" name="__codelineno-12-62"></a>
+</span><span id="__span-12-63"><a id="__codelineno-12-63" name="__codelineno-12-63"></a>
+</span><span id="__span-12-64"><a id="__codelineno-12-64" name="__codelineno-12-64"></a><span class="k">def</span><span class="w"> </span><span class="nf">order_generator</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">sampler</span><span class="p">,</span> <span class="n">packers</span><span class="p">,</span> <span class="n">patience</span><span class="p">):</span>
+</span><span id="__span-12-65"><a id="__codelineno-12-65" name="__codelineno-12-65"></a>    <span class="n">arrival</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">registry</span><span class="o">.</span><span class="n">get_config</span><span class="p">(</span><span class="s2">&quot;Shop.arrival.orders&quot;</span><span class="p">)</span>
+</span><span id="__span-12-66"><a id="__codelineno-12-66" name="__codelineno-12-66"></a>    <span class="n">task_id</span> <span class="o">=</span> <span class="mi">0</span>
+</span><span id="__span-12-67"><a id="__codelineno-12-67" name="__codelineno-12-67"></a>    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+</span><span id="__span-12-68"><a id="__codelineno-12-68" name="__codelineno-12-68"></a>        <span class="k">yield</span> <span class="n">env</span><span class="o">.</span><span class="n">timeout</span><span class="p">(</span><span class="n">sampler</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">arrival</span><span class="p">))</span>
+</span><span id="__span-12-69"><a id="__codelineno-12-69" name="__codelineno-12-69"></a>        <span class="n">key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;orders-</span><span class="si">{</span><span class="n">task_id</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2">&quot;</span>
+</span><span id="__span-12-70"><a id="__codelineno-12-70" name="__codelineno-12-70"></a>        <span class="n">env</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">pack_order</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">sampler</span><span class="p">,</span> <span class="n">packers</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">task_id</span><span class="p">,</span> <span class="n">patience</span><span class="p">))</span>
+</span><span id="__span-12-71"><a id="__codelineno-12-71" name="__codelineno-12-71"></a>        <span class="n">task_id</span> <span class="o">+=</span> <span class="mi">1</span>
+</span><span id="__span-12-72"><a id="__codelineno-12-72" name="__codelineno-12-72"></a>
+</span><span id="__span-12-73"><a id="__codelineno-12-73" name="__codelineno-12-73"></a>
+</span><span id="__span-12-74"><a id="__codelineno-12-74" name="__codelineno-12-74"></a><span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="n">patience</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span> <span class="n">until</span><span class="o">=</span><span class="mi">3600</span><span class="p">,</span> <span class="n">factor</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
+</span><span id="__span-12-75"><a id="__codelineno-12-75" name="__codelineno-12-75"></a>    <span class="n">env</span> <span class="o">=</span> <span class="n">DynamicRealtimeEnvironment</span><span class="p">(</span><span class="n">factor</span><span class="o">=</span><span class="n">factor</span><span class="p">)</span>
+</span><span id="__span-12-76"><a id="__codelineno-12-76" name="__codelineno-12-76"></a>    <span class="n">env</span><span class="o">.</span><span class="n">registry</span><span class="o">.</span><span class="n">register_sim_parameter</span><span class="p">(</span><span class="n">PARAMS</span><span class="p">)</span>
+</span><span id="__span-12-77"><a id="__codelineno-12-77" name="__codelineno-12-77"></a>    <span class="n">env</span><span class="o">.</span><span class="n">setup_egress</span><span class="p">([</span><span class="n">ConsoleEgress</span><span class="p">()])</span>
+</span><span id="__span-12-78"><a id="__codelineno-12-78" name="__codelineno-12-78"></a>    <span class="c1"># Counts of finished, reneged and balked orders, and the mean wait, at the end</span>
+</span><span id="__span-12-79"><a id="__codelineno-12-79" name="__codelineno-12-79"></a>    <span class="n">env</span><span class="o">.</span><span class="n">setup_stats</span><span class="p">(</span><span class="s2">&quot;Shop&quot;</span><span class="p">,</span> <span class="s2">&quot;typical&quot;</span><span class="p">,</span> <span class="n">interval</span><span class="o">=</span><span class="mi">3600</span><span class="p">)</span>
+</span><span id="__span-12-80"><a id="__codelineno-12-80" name="__codelineno-12-80"></a>    <span class="n">packers</span> <span class="o">=</span> <span class="n">DynamicResource</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="s2">&quot;Shop&quot;</span><span class="p">,</span> <span class="s2">&quot;packers&quot;</span><span class="p">)</span>
+</span><span id="__span-12-81"><a id="__codelineno-12-81" name="__codelineno-12-81"></a>    <span class="n">sampler</span> <span class="o">=</span> <span class="n">Sampler</span><span class="p">(</span><span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
+</span><span id="__span-12-82"><a id="__codelineno-12-82" name="__codelineno-12-82"></a>    <span class="n">env</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">order_generator</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">sampler</span><span class="p">,</span> <span class="n">packers</span><span class="p">,</span> <span class="n">patience</span><span class="p">))</span>
+</span><span id="__span-12-83"><a id="__codelineno-12-83" name="__codelineno-12-83"></a>    <span class="k">try</span><span class="p">:</span>
+</span><span id="__span-12-84"><a id="__codelineno-12-84" name="__codelineno-12-84"></a>        <span class="n">env</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">until</span><span class="o">=</span><span class="n">until</span><span class="p">)</span>
+</span><span id="__span-12-85"><a id="__codelineno-12-85" name="__codelineno-12-85"></a>    <span class="k">finally</span><span class="p">:</span>
+</span><span id="__span-12-86"><a id="__codelineno-12-86" name="__codelineno-12-86"></a>        <span class="n">env</span><span class="o">.</span><span class="n">teardown</span><span class="p">()</span>
+</span><span id="__span-12-87"><a id="__codelineno-12-87" name="__codelineno-12-87"></a>    <span class="k">return</span> <span class="n">env</span>
+</span><span id="__span-12-88"><a id="__codelineno-12-88" name="__codelineno-12-88"></a>
+</span><span id="__span-12-89"><a id="__codelineno-12-89" name="__codelineno-12-89"></a>
+</span><span id="__span-12-90"><a id="__codelineno-12-90" name="__codelineno-12-90"></a><span class="k">def</span><span class="w"> </span><span class="nf">outcomes</span><span class="p">(</span><span class="n">patience</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+</span><span id="__span-12-91"><a id="__codelineno-12-91" name="__codelineno-12-91"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Runs one hour and returns what happened to the orders, and the mean wait.&quot;&quot;&quot;</span>
+</span><span id="__span-12-92"><a id="__codelineno-12-92" name="__codelineno-12-92"></a>    <span class="n">readings</span> <span class="o">=</span> <span class="n">run</span><span class="p">(</span><span class="n">patience</span><span class="p">)</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">readings</span><span class="p">()</span>
+</span><span id="__span-12-93"><a id="__codelineno-12-93" name="__codelineno-12-93"></a>    <span class="n">name</span> <span class="o">=</span> <span class="s2">&quot;Shop.stats.tasks.pack_order.</span><span class="si">{}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span>
+</span><span id="__span-12-94"><a id="__codelineno-12-94" name="__codelineno-12-94"></a>    <span class="k">return</span> <span class="p">{</span>
+</span><span id="__span-12-95"><a id="__codelineno-12-95" name="__codelineno-12-95"></a>        <span class="n">outcome</span><span class="p">:</span> <span class="n">readings</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">name</span><span class="p">(</span><span class="n">outcome</span><span class="p">),</span> <span class="mi">0</span><span class="p">)</span>
+</span><span id="__span-12-96"><a id="__codelineno-12-96" name="__codelineno-12-96"></a>        <span class="k">for</span> <span class="n">outcome</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;finished&quot;</span><span class="p">,</span> <span class="s2">&quot;reneged&quot;</span><span class="p">,</span> <span class="s2">&quot;balked&quot;</span><span class="p">,</span> <span class="s2">&quot;wait_mean&quot;</span><span class="p">)</span>
+</span><span id="__span-12-97"><a id="__codelineno-12-97" name="__codelineno-12-97"></a>    <span class="p">}</span>
+</span><span id="__span-12-98"><a id="__codelineno-12-98" name="__codelineno-12-98"></a>
+</span><span id="__span-12-99"><a id="__codelineno-12-99" name="__codelineno-12-99"></a>
+</span><span id="__span-12-100"><a id="__codelineno-12-100" name="__codelineno-12-100"></a><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
+</span><span id="__span-12-101"><a id="__codelineno-12-101" name="__codelineno-12-101"></a>    <span class="k">for</span> <span class="n">patience</span><span class="p">,</span> <span class="n">label</span> <span class="ow">in</span> <span class="p">((</span><span class="mi">30</span><span class="p">,</span> <span class="s2">&quot;30 s&quot;</span><span class="p">),</span> <span class="p">(</span><span class="mi">3600</span><span class="p">,</span> <span class="s2">&quot;none&quot;</span><span class="p">)):</span>
+</span><span id="__span-12-102"><a id="__codelineno-12-102" name="__codelineno-12-102"></a>        <span class="n">result</span> <span class="o">=</span> <span class="n">outcomes</span><span class="p">(</span><span class="n">patience</span><span class="p">)</span>
+</span><span id="__span-12-103"><a id="__codelineno-12-103" name="__codelineno-12-103"></a>        <span class="nb">print</span><span class="p">(</span>
+</span><span id="__span-12-104"><a id="__codelineno-12-104" name="__codelineno-12-104"></a>            <span class="sa">f</span><span class="s2">&quot;patience </span><span class="si">{</span><span class="n">label</span><span class="si">:</span><span class="s2">&gt;4</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;finished&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> packed, &quot;</span>
+</span><span id="__span-12-105"><a id="__codelineno-12-105" name="__codelineno-12-105"></a>            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;reneged&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> reneged, </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;balked&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> balked, &quot;</span>
+</span><span id="__span-12-106"><a id="__codelineno-12-106" name="__codelineno-12-106"></a>            <span class="sa">f</span><span class="s2">&quot;mean wait </span><span class="si">{</span><span class="n">result</span><span class="p">[</span><span class="s1">&#39;wait_mean&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">5.2f</span><span class="si">}</span><span class="s2"> s&quot;</span>
+</span><span id="__span-12-107"><a id="__codelineno-12-107" name="__codelineno-12-107"></a>        <span class="p">)</span>
+</span></code></pre></div></td></tr></table></div>
 </div>
 </div>
 </div>
@@ -3356,10 +3589,12 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.tabs.link"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.tabs.link", "content.code.copy", "content.code.select"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
       <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../js/code-lines.js"></script>
       
     
   </body>

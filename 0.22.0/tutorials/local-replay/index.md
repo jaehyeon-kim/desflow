@@ -20,8 +20,6 @@ ______________________________________________________________________
 
 Each row becomes one arrival at its time, and the fields named in `fields` become the order's attributes. `unit` says what the time column holds: `ms`, `s`, `min` or `h` from the start of the run, or `timestamp`, a date and time read from the run's `logical_start_time`, here 09:00 on the recorded day:
 
-docs/snippets/tutorials/local_replay.yaml:replay
-
 ```yaml
 arrivals:
   orders:
@@ -38,8 +36,6 @@ arrivals:
 
 The `path` is relative to the blueprint.
 
-docs/snippets/tutorials/local_replay.py:replay
-
 ```python
 # Each row is one order, at its recorded time, carrying its order_id and items
 app.add_arrival_replay(
@@ -55,8 +51,6 @@ app.add_arrival_replay(
 
 The source can also be a list of dicts. The arrival loop is written as for any other arrival:
 
-docs/snippets/tutorials/local_replay.py:loop
-
 ```python
 @app.arrival_loop("orders")
 def order_generator(context: SimulationContext):
@@ -67,8 +61,6 @@ def order_generator(context: SimulationContext):
         context.spawn(pack_order(task_id, entity=order))
         task_id += 1
 ```
-
-docs/snippets/tutorials/local_replay_low_level.py:replay
 
 ```python
 def replayed_orders(env, sampler, packers):
@@ -132,8 +124,6 @@ ______________________________________________________________________
 
 Full files
 
-docs/snippets/tutorials/local_replay.yaml
-
 ```yaml
 # The Local Replay tutorial: a recorded morning of orders, at their recorded times.
 # Run it with: desflow run local_replay.yaml
@@ -177,8 +167,6 @@ egress:
 run:
   until: 1 h
 ```
-
-docs/snippets/tutorials/local_replay.py
 
 ```python
 """The Local Replay tutorial: a recorded morning of orders, against a model of it.
@@ -273,8 +261,6 @@ if __name__ == "__main__":
             f"mean wait {r['wait_mean']:5.2f} s, longest {r['wait_max']:6.2f} s"
         )
 ```
-
-docs/snippets/tutorials/local_replay_low_level.py
 
 ```python
 """The Local Replay tutorial: a recorded morning of orders, against a model of it.

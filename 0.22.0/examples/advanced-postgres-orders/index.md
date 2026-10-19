@@ -48,8 +48,6 @@ The generator is listed under `processes` with `kwargs`, so it is called as `ord
 
 Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
-examples/yaml/advanced/postgres_orders.yaml
-
 ```yaml
 # Orders with random line items, in YAML with one Python function.
 #
@@ -110,8 +108,6 @@ processes:
   - function: !python postgres_orders_logic.order_generator
     kwargs: {arrival: orders, max_items: 5}
 ```
-
-examples/yaml/advanced/postgres_orders_logic.py
 
 ```python
 """Python for postgres_orders.yaml: an order generator with random line items."""
@@ -205,8 +201,6 @@ odctl down postgres --volumes
 **Full Source Code**
 
 The generator is added with `add_process`, so it is called as `order_generator(context, arrival="orders", max_items=5)`. It draws from `context.sampler.rng`, the generator seeded by `random_seed`, so a seeded run repeats the same orders.
-
-examples/builder/postgres_orders_example.py
 
 ```python
 """
@@ -354,8 +348,6 @@ odctl down postgres --volumes
 **Full Source Code**
 
 The generator is a SimPy process started with `env.process`. It draws the gaps and the order contents from one `Sampler` seeded with 42, in the same order as the other two, so it publishes the same orders.
-
-examples/low-level/postgres_orders_example.py
 
 ```python
 """

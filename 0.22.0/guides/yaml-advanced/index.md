@@ -47,8 +47,6 @@ ______________________________________________________________________
 
 This blueprint keeps the shop in YAML and moves three pieces of logic into Python: a payload that picks each order's delivery, a breaks process with arguments, and a predicate that keeps telemetry off the terminal:
 
-docs/snippets/yaml/hybrid.yaml
-
 ```yaml
 # The shop with its logic in Python. YAML keeps the blueprint and the
 # experiment; shop_logic.py beside this file holds what YAML cannot express.
@@ -89,8 +87,6 @@ scenario:
 run:
   until: 3 min
 ```
-
-docs/snippets/yaml/shop_logic.py
 
 ```python
 """Python for the blueprints beside it: a payload, a process with arguments, a
@@ -147,8 +143,6 @@ The run shows both:
 
 A process is written either as a bare reference, `- !python module.func`, which is called as `func(context)`, or as a mapping with `function` and `kwargs`, which is called as `func(context, **kwargs)`. `kwargs` is what lets a blueprint start a process whose signature is not `(context)`. When the signature differs more, write a small adapter: a generator function that takes the context, picks out what the process needs, and hands over with `yield from`.
 
-docs/snippets/hot_rolling/hot_rolling_adapter.py:arrivals
-
 ```python
 def arrivals(context, product):
     yield from arrival_process(
@@ -181,8 +175,6 @@ ______________________________________________________________________
 
 Put such setup in a function rather than at the top of the module. The module is imported when the file is loaded, so its top-level code runs even when the file is loaded and never run.
 
-docs/snippets/yaml_build/connectors.yaml:before
-
 ```yaml
 run:
   until: 1 hour
@@ -191,8 +183,6 @@ run:
 ```
 
 The module beside the blueprint holds the setup function, and the `path_router` its `Jsonl` sink uses:
-
-docs/snippets/yaml_build/routing_logic.py
 
 ```python
 """Python for docs/snippets/yaml_build/connectors.yaml: a router and a setup step."""
@@ -219,8 +209,6 @@ ______________________________________________________________________
 The [OML hot rolling digital twin](https://github.com/jaehyeon-kim/oml-digital-twin-hotrolling) is a steel mill written with the low-level API. Its `generator.py` builds a `SimParameter` with three arrivals, three services, three resources, three containers and three variables, wires Kafka in both directions with a topic router, and starts the processes in `sim_logic.py`. Those processes take `(env, sampler, resource, ...)`, not a context, and `sim_logic.py` runs to 262 lines of multi-stage routing, wear and physics.
 
 The configuration moves to YAML. The processes keep their logic, and a small adapter changes only how they are called.
-
-docs/snippets/hot_rolling/hot_rolling.yaml
 
 ```yaml
 # The OML hot rolling digital twin as a blueprint. The parameters and the Kafka
@@ -304,8 +292,6 @@ run:
   before:
     - !python hot_rolling_adapter.create_topics
 ```
-
-docs/snippets/hot_rolling/hot_rolling_adapter.py
 
 ```python
 """Adapts the hot rolling processes to the calls a blueprint makes.

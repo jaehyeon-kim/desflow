@@ -14,8 +14,6 @@ ______________________________________________________________________
 
 An experiment runs a model written in any of the three ways, for a number of replications from one seed:
 
-docs/snippets/yaml/comparing_designs_experiment.yaml:model
-
 ```yaml
 # The busy hour of Trusting Results, with its 2-minute warm-up
 model: trusting_results.yaml
@@ -26,8 +24,6 @@ seed: 42
 
 The path is read from the experiment file's folder.
 
-docs/snippets/tutorials/comparing_designs.py:model
-
 ```python
 # A function returning a new busy hour, with its 2-minute warm-up
 "model": shop,
@@ -37,8 +33,6 @@ docs/snippets/tutorials/comparing_designs.py:model
 ```
 
 `shop` is the function of Trusting Results that returns a new busy hour; the experiment calls it once per run.
-
-docs/snippets/tutorials/comparing_designs_low_level.py:model
 
 ```python
 # The function that builds the busy hour, and its 2-minute warm-up
@@ -57,8 +51,6 @@ ______________________________________________________________________
 
 Each variant names the registry values it changes before the clock starts. `three` changes nothing, so it is the busy hour as written; `four` sets the packers' capacity to 4. `pairing: common` gives both designs the same 20 seeds, and `compare` asks for their difference seed by seed:
 
-docs/snippets/yaml/comparing_designs_experiment.yaml:compare
-
 ```yaml
 # Every design runs with the same 20 seeds, so they are compared seed by seed
 pairing: common
@@ -69,8 +61,6 @@ variants:
 compare:
   - {baseline: three, variant: four}
 ```
-
-docs/snippets/tutorials/comparing_designs.py:compare
 
 ```python
 # Every design runs with the same 20 seeds, so they are compared seed by seed
@@ -120,15 +110,11 @@ ______________________________________________________________________
 
 A check states what the answer must be. This one asks for a mean wait under half a second with four packers:
 
-docs/snippets/yaml/comparing_designs_experiment.yaml:checks
-
 ```yaml
 checks:
   # The upper end of the interval must be under half a second
   - {measure: tasks.pack_order.wait_mean, variant: four, max: 0.5}
 ```
-
-docs/snippets/tutorials/comparing_designs.py:checks
 
 ```python
 # The upper end of the interval must be under half a second
@@ -146,8 +132,6 @@ ______________________________________________________________________
 ## Read the Report
 
 The experiment writes `report.md` beside its results. It states the question, the model and its versions, the assumptions, each input distribution with where it came from, the run settings, the counts, the results, the comparison and the checks, and what the experiment does not state. The experiment names its assumptions, the source of its inputs and its limits:
-
-docs/snippets/yaml/comparing_designs_experiment.yaml:report
 
 ```yaml
 assumptions:
@@ -177,8 +161,6 @@ ______________________________________________________________________
 ## Full Files
 
 Full files
-
-docs/snippets/yaml/comparing_designs_experiment.yaml
 
 ```yaml
 # The Comparing Designs tutorial: does a fourth packer cut the busy hour's mean wait?
@@ -213,8 +195,6 @@ output: results/four-packers
 ```
 
 The model, `trusting_results.yaml`, is in the full files of [Trusting Results](https://jaehyeon.me/desflow/latest/tutorials/trusting-results/#full-files).
-
-docs/snippets/tutorials/comparing_designs.py
 
 ```python
 """The Comparing Designs tutorial: a fourth packer, builder.
@@ -279,8 +259,6 @@ if __name__ == "__main__":
 ```
 
 It imports from `trusting_results.py`, which is in the full files of [Trusting Results](https://jaehyeon.me/desflow/latest/tutorials/trusting-results/#full-files).
-
-docs/snippets/tutorials/comparing_designs_low_level.py
 
 ```python
 """The Comparing Designs tutorial: a fourth packer, low-level.

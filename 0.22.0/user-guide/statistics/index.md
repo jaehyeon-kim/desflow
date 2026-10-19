@@ -26,8 +26,6 @@ A level switches them on. Each level publishes what the levels before it publish
 
 They are published every `interval` of simulation time, 10 seconds when it is not given, starting one interval after the start, and once more at the end of the run:
 
-docs/snippets/yaml/statistics.yaml:levels
-
 ```yaml
 # none (the default), minimal, basic, typical or all, each adding to the one before;
 # published every interval of simulation time and once at the end
@@ -36,23 +34,17 @@ stats: {level: typical, interval: 1 min}
 
 `stats: typical` is the short form, with the 10-second interval. The interval takes seconds or a duration.
 
-docs/snippets/pages/built_in_statistics.py:builder-levels
-
 ```python
 # none (the default), minimal, basic, typical or all, each adding to the one before;
 # published every interval of simulation seconds and once at the end
 app.with_stats("typical", interval=60)
 ```
 
-docs/snippets/pages/built_in_statistics.py:low-level-levels
-
 ```python
 env.setup_stats("Shop", "typical", interval=60)  # before or after the resources
 ```
 
 Resources, stores and containers add themselves to `env.stats` when they are built. Tasks are your own processes, so each reports its steps:
-
-docs/snippets/pages/built_in_statistics.py:low-level-report
 
 ```python
 # A low-level task reports its own steps to the statistics
@@ -89,8 +81,6 @@ Every statistic is published as telemetry named `<sim_id>.stats.<kind>.<name>.<s
 
 In Python the same values are in `env.stats.readings()`, by name, during or after the run:
 
-docs/snippets/pages/built_in_statistics.py:low-level-read
-
 ```python
 # Every statistic the level publishes, by its published name
 readings = env.stats.readings()
@@ -118,8 +108,6 @@ Without a warm-up, `started` is `finished` plus `in_system` plus the entities th
 
 Anything else is a custom reading: a function called at an interval of simulation time, which publishes with `context.publish(name, value)` as `<sim_id>.<name>`. It can read resources, stores, containers or any registry value.
 
-docs/snippets/yaml/statistics.yaml:custom
-
 ```yaml
 telemetry:
   # Readings of your own: called as packers_report(context) every 30 seconds
@@ -128,8 +116,6 @@ telemetry:
 ```
 
 The function is in `shop_logic.py`, beside the blueprint:
-
-docs/snippets/yaml/shop_logic.py:packers-report
 
 ```python
 def packers_report(context):
@@ -140,8 +126,6 @@ def packers_report(context):
     rate = context.env.registry.get(f"{context.sim_id}.arrival.orders.rate").value
     context.publish("arrival_rate", rate)  # as Shop.arrival_rate
 ```
-
-docs/snippets/pages/built_in_statistics.py:builder-custom
 
 ```python
 @app.telemetry_loop(interval=30.0)
@@ -188,8 +172,6 @@ cd measuring/yaml
 desflow run measuring.yaml
 ```
 
-examples/yaml/measuring.yaml:measure
-
 ```yaml
 # Every level: readings, counts and time averages, mean and maximum wait and service,
 # and their 50th, 95th and 99th percentiles, such as Shop.stats.tasks.pack.wait_p95.
@@ -232,8 +214,6 @@ cd measuring/builder
 # 3. Run it
 python measuring_example.py
 ```
-
-examples/builder/measuring_example.py:fault
 
 ```python
 def slow_packing(context):
@@ -283,8 +263,6 @@ cd measuring/low-level
 # 3. Run it
 python measuring_example.py
 ```
-
-examples/low-level/measuring_example.py:measure
 
 ```python
 # Every level, published every 5 minutes, such as Shop.stats.tasks.pack.wait_p95

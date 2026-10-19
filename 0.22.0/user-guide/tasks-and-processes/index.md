@@ -16,8 +16,6 @@ ______________________________________________________________________
 
 A task with a service and a resource asks for a unit of the resource, holds it for a time drawn from the service, and releases it. A task with neither takes no time and holds nothing: it publishes its payload at once, which suits an entity that only records that it happened, such as a return logged.
 
-docs/snippets/yaml/tasks.yaml:task
-
 ```yaml
 tasks:
   pack_order:
@@ -32,8 +30,6 @@ tasks:
 
 `payload` is a fixed mapping. A payload that changes per entity is a Python function, called as `function(task_id, context)`:
 
-docs/snippets/yaml/tasks.yaml:payload-function
-
 ```yaml
 # also under tasks: a payload computed by a Python function
 pack_with_delivery:
@@ -42,8 +38,6 @@ pack_with_delivery:
   # Called as choose_delivery(task_id, context) when the order gets a packer
   payload: !python shop_logic.choose_delivery
 ```
-
-docs/snippets/pages/tasks.py:builder-task
 
 ```python
 @app.task(service_id="packing", resource_id="packers", next="print_label")
@@ -59,8 +53,6 @@ def return_logged(task_id: int):
 ```
 
 The function is called with the task id and whatever the caller passes. It also receives `entity`, `upstream` and `item` by keyword when it declares a parameter of that name: the entity, what the previous task handed on, and what a store `get` took. A function that declares none of them works as before.
-
-docs/snippets/pages/tasks.py:low-level-task
 
 ```python
 def pack_order_process(env, sampler, packers, key, task_id, label_ids):
@@ -89,8 +81,6 @@ A task can also take from or add to a store or container (`get`, `put`), rank it
 
 A task with a `service` and no `resource` is a **timed step**: work that takes time but needs nothing that can be busy, such as printing a label or waiting for a supplier. It publishes `started` at once, with no `queued` event, waits the sampled time, and publishes its finished event. Its wait is 0. It is SimPy's `env.timeout`: the tests check that it ends at the same simulation time as a plain SimPy timeout in all three APIs ([SimPy Compatibility](https://jaehyeon.me/desflow/latest/reference/simpy-compatibility/index.md)).
 
-docs/snippets/yaml/tasks.yaml:timed-step
-
 ```yaml
 print_label:
   # A service and no resource: a timed step that starts at once
@@ -98,15 +88,11 @@ print_label:
   payload: {event_type: label_printed}
 ```
 
-docs/snippets/pages/tasks.py:builder-timed-step
-
 ```python
 @app.task(service_id="labelling")  # a service and no resource: starts at once
 def print_label(task_id: int):
     return {"event_type": "label_printed"}
 ```
-
-docs/snippets/pages/tasks.py:low-level-timed-step
 
 ```python
 def print_label_process(env, sampler, key, task_id):
@@ -125,16 +111,12 @@ def print_label_process(env, sampler, key, task_id):
 
 An arrival starts one task per arrival. The loop draws a gap from the arrival's distribution, waits for that duration, starts a task for the new entity, and repeats; the task runs on its own while the loop waits for the next arrival.
 
-docs/snippets/yaml/tasks.yaml:arrival
-
 ```yaml
 arrivals:
   # Each arrival spawns one pack_order, and one return_logged
   orders: {dist: exponential, rate: 0.2, spawn: pack_order}
   returns: {dist: exponential, rate: 0.1, spawn: return_logged}
 ```
-
-docs/snippets/pages/tasks.py:builder-arrival
 
 ```python
 @app.arrival_loop("orders")
@@ -148,8 +130,6 @@ def orders(context: SimulationContext):
 ```
 
 `context.wait_for_arrival` returns the new `Entity`, whose key is the arrival name and a counter: `orders-1`, `orders-2`. Pass it to the task with `entity=`. A task called without one starts an entity of its own, keyed by the task's name and a counter, such as `pack_order-1`. The `task_id` becomes the record's `instance`. When `next` or a second arrival also starts the task, take the id from `context.next_instance("pack_order")` instead: it is the task's one counter, which `next` uses too, so no two runs of the task share an id.
-
-docs/snippets/pages/tasks.py:low-level-arrival
 
 ```python
 def orders_process(env, sampler, packers):
@@ -166,8 +146,6 @@ def orders_process(env, sampler, packers):
 
 In the low-level API every loop is started once, before the run:
 
-docs/snippets/pages/tasks.py:low-level-start
-
 ```python
 env.process(orders_process(env, sampler, packers))  # start each loop once
 env.process(breaks_process(env, "packers", every=50, duration=5))
@@ -177,16 +155,12 @@ env.process(breaks_process(env, "packers", every=50, duration=5))
 
 A process runs alongside the tasks. This one sends the packers on a 5-second break every 50 seconds:
 
-docs/snippets/yaml/tasks.yaml:process
-
 ```yaml
 processes:
   # Called as breaks(context, resource="packers", every=50, duration=5)
   - function: !python shop_logic.breaks
     kwargs: {resource: packers, every: 50, duration: 5}
 ```
-
-docs/snippets/pages/tasks.py:builder-process
 
 ```python
 def breaks(context: SimulationContext, resource: str, every: float, duration: float):
@@ -203,8 +177,6 @@ def breaks(context: SimulationContext, resource: str, every: float, duration: fl
 
 app.add_process(breaks, resource="packers", every=50, duration=5)
 ```
-
-docs/snippets/pages/tasks.py:low-level-process
 
 ```python
 def breaks_process(env, resource: str, every: float, duration: float):
@@ -233,8 +205,6 @@ A task can wait for something before it queues for its resource: its `wait`. A w
 
 A single branch is named after its signal or task, or `timeout` or `condition`. After the wait, `wait.<branch>.done` says whether the branch happened before the wait ended, `.ok` whether it succeeded, and `.value` (or `.value.<field>`) is its value; `next`, `fail` and amounts read them, and a builder function that declares `wait` receives them as a mapping. A task fires a signal with `signal: name` when it finishes, with its payload as the value, and `signal.<name>.count`, `.ok` and `.value` read the signal in any condition. The `process-interaction` example waits for a child flow, then for the first of a courier's signal and a time limit:
 
-examples/yaml/process_interaction.yaml:check
-
 ```yaml
 check:
   # Starts the child flow inspect and waits for it to end.
@@ -253,8 +223,6 @@ wrap:
   payload: {event_type: wrapped}
 ```
 
-examples/yaml/process_interaction.yaml:dispatch
-
 ```yaml
 dispatch:
   # The courier's departure, or 40 seconds, whichever comes first.
@@ -268,16 +236,12 @@ dispatch:
     default: by_post
 ```
 
-examples/yaml/process_interaction.yaml:courier
-
 ```yaml
 courier:
   payload: {event_type: courier_left}
   # Fires courier_left with this payload; every order waiting for it resumes.
   signal: courier_left
 ```
-
-examples/builder/process_interaction_example.py:check
 
 ```python
 # Starts the child flow inspect and waits for it to end
@@ -302,8 +266,6 @@ def wrap(task_id, context):
     return {"event_type": "wrapped"}
 ```
 
-examples/builder/process_interaction_example.py:dispatch
-
 ```python
 # The courier's departure, or 40 seconds, whichever comes first
 @app.task(
@@ -317,8 +279,6 @@ def dispatch(task_id, context):
     return {"event_type": "dispatched"}
 ```
 
-examples/builder/process_interaction_example.py:courier
-
 ```python
 # Fires courier_left with this payload; every order waiting for it resumes
 @app.task(signal="courier_left")
@@ -327,8 +287,6 @@ def courier(task_id, context):
 ```
 
 `context.signal(name)` returns the `Signal` a process can fire, fail or wait for, and `context.call(task, entity=...)` starts a child flow from a process and returns its SimPy process, which a process can yield. `context.spawn` returns the process it starts too, so `is_alive`, `triggered`, `ok` and `value` inspect it, as in SimPy.
-
-examples/low-level/process_interaction_example.py:check
 
 ```python
 def check(shop, key, arrival):
@@ -378,8 +336,6 @@ def wrap(shop, key):
     return payload
 ```
 
-examples/low-level/process_interaction_example.py:dispatch
-
 ```python
 def dispatch(shop, key, arrival):
     """The courier's departure, or 40 seconds, whichever comes first."""
@@ -395,8 +351,6 @@ def dispatch(shop, key, arrival):
     task = "by_courier" if courier in done else "by_post"
     env.process(send(shop, key, arrival, task))
 ```
-
-examples/low-level/process_interaction_example.py:courier
 
 ```python
 def courier(shop, key):

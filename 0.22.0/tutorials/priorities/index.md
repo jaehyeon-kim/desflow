@@ -16,22 +16,16 @@ Which waiting entity a resource serves next is its **queue discipline**. The usu
 
 SimPy has a `PriorityResource` for the priority discipline, and a `PriorityStore` for items. In desflow every resource has a `queue`: `fifo` (the default), `lifo` or `priority`. Under `priority` the lowest number goes first, and requests with the same priority are served first in, first out:
 
-docs/snippets/yaml/priorities.yaml:queue
-
 ```yaml
 resources:
   # The packer serves the lowest priority first, the oldest first among equals
   packers: {current_cap: 1, max_cap: 4, queue: priority}
 ```
 
-docs/snippets/tutorials/priorities.py:queue
-
 ```python
 # The packer serves the lowest priority first, the oldest first among equals
 app.add_resource("packers", current_cap=1, max_cap=4, queue=queue)
 ```
-
-docs/snippets/tutorials/priorities_low_level.py:queue
 
 ```python
 # The packer serves the lowest priority first, the oldest first among equals
@@ -43,8 +37,6 @@ ______________________________________________________________________
 ## Give Express Orders Priority
 
 Each task gives its requests a priority. Express orders get 0, so they are served before any regular order that is waiting; regular orders get 1:
-
-docs/snippets/yaml/priorities.yaml:priority
 
 ```yaml
 tasks:
@@ -62,8 +54,6 @@ tasks:
 
 Here each task has a fixed number. A priority can also be an expression read from the entity's attributes, which [Task Flow](https://jaehyeon.me/desflow/latest/user-guide/task-flow/#attributes) describes, such as `priority: attr.priority`, so each order gets its own. A `priority` on a task whose resource does not have `queue: priority` is refused when the file loads, so to run the shop under `fifo`, remove `queue: priority` and both `priority` lines.
 
-docs/snippets/tutorials/priorities.py:priority
-
 ```python
 @app.task(service_id="packing", resource_id="packers", priority=rank(1))
 def pack_order(task_id: int):
@@ -77,14 +67,10 @@ def pack_express(task_id: int):
 
 `rank` gives each task its priority under `priority` and none under `fifo`, because a priority on a resource of another order is refused when the run starts. A task's priority can also be an expression such as `priority="attr.tier"`, or a function of the task id and the entity's attributes, such as `priority=lambda task_id, attributes: attributes["tier"]`, so each order gets its own; the attributes exist before the order joins the queue, while its payload does not.
 
-docs/snippets/tutorials/priorities_low_level.py:priority
-
 ```python
 # Express orders are served before any regular order that is waiting
 TASKS = {"orders": ("pack_order", 1), "express": ("pack_express", 0)}
 ```
-
-docs/snippets/tutorials/priorities_low_level.py:request
 
 ```python
 # Under fifo and lifo the priority is ignored
@@ -125,8 +111,6 @@ ______________________________________________________________________
 ## Full Files
 
 Full files
-
-docs/snippets/yaml/priorities.yaml
 
 ```yaml
 # The Priorities tutorial: express orders go before regular ones.
@@ -169,8 +153,6 @@ egress:
 run:
   until: 1 h
 ```
-
-docs/snippets/tutorials/priorities.py
 
 ```python
 """The Priorities tutorial: express orders go before regular ones, builder.
@@ -251,8 +233,6 @@ if __name__ == "__main__":
         for task, wait in mean_waits(queue).items():
             print(f"{queue:<8} {task:<12} mean wait {wait:5.2f} s")
 ```
-
-docs/snippets/tutorials/priorities_low_level.py
 
 ```python
 """The Priorities tutorial: express orders go before regular ones, low-level.

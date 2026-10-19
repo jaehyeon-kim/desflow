@@ -36,8 +36,6 @@ ______________________________________________________________________
 
 Set the seed once, and every run draws the same numbers:
 
-docs/snippets/yaml/randomness_and_seeds.yaml:seed
-
 ```yaml
 # The same random numbers on every run; leave it out to draw a new seed
 random_seed: 42
@@ -45,14 +43,10 @@ random_seed: 42
 
 `desflow run randomness_and_seeds.yaml --seed 7` runs with another seed without editing the file; `--seed` overrides `random_seed`.
 
-docs/snippets/tutorials/randomness_and_seeds.py:seed
-
 ```python
 # The same random numbers on every run; leave it out to draw a new seed
 SimulationContext(sim_id="Shop", factor=0, random_seed=42)
 ```
-
-docs/snippets/tutorials/randomness_and_seeds_low_level.py:seed
 
 ```python
 # The same random numbers on every run, passed to Sampler(seed=SEED) in run below
@@ -75,8 +69,6 @@ ______________________________________________________________________
 
 Now add returned parcels: about one every 5 seconds, recorded as they arrive. They do not use the packers.
 
-docs/snippets/yaml/randomness_and_seeds.yaml:returns
-
 ```yaml
 arrivals:
   orders: {dist: exponential, rate: 1.8, spawn: pack_order}
@@ -88,8 +80,6 @@ tasks:
   receive_return:
     payload: {event_type: return_received}
 ```
-
-docs/snippets/tutorials/randomness_and_seeds.py:returns
 
 ```python
 # Returned parcels: about one every 5 seconds
@@ -110,8 +100,6 @@ def return_generator(context: SimulationContext):
         context.spawn(receive_return(task_id, entity=parcel))
         task_id += 1
 ```
-
-docs/snippets/tutorials/randomness_and_seeds_low_level.py:returns
 
 ```python
 # Returned parcels: about one every 5 seconds
@@ -155,8 +143,6 @@ ______________________________________________________________________
 
 Full files
 
-docs/snippets/yaml/randomness_and_seeds.yaml
-
 ```yaml
 # The Randomness and Seeds tutorial: the busy shop, seeded, with returns.
 # Run it with: desflow run randomness_and_seeds.yaml
@@ -193,8 +179,6 @@ egress:
 run:
   until: 1 min
 ```
-
-docs/snippets/tutorials/randomness_and_seeds.py
 
 ```python
 """The Randomness and Seeds tutorial: the busy shop, seeded, with returns, builder.
@@ -259,8 +243,6 @@ def return_generator(context: SimulationContext):
 if __name__ == "__main__":
     app.run(until="1 min")
 ```
-
-docs/snippets/tutorials/randomness_and_seeds_low_level.py
 
 ```python
 """The Randomness and Seeds tutorial: the busy shop, seeded, with returns, low-level.

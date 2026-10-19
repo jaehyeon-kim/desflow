@@ -23,20 +23,14 @@ Every distribution is a family, `dist`, and the parameters that family takes. Th
 
 Gaps between arrivals that happen independently of each other: orders, calls, visits. Many short gaps and a few long ones, with mean `1 / rate`.
 
-docs/snippets/yaml/arrivals_services.yaml:exponential
-
 ```yaml
 # under arrivals: an order every 2 seconds on average
 orders: {dist: exponential, rate: 0.5, spawn: pack}
 ```
 
-docs/snippets/pages/arrivals_services.py:builder-exponential
-
 ```python
 app.add_arrival("orders", dist="exponential", rate=0.5)  # an order every 2 s on average
 ```
-
-docs/snippets/pages/arrivals_services.py:low-level-exponential
 
 ```python
 gap = DistributionConfig(dist="exponential", rate=0.5)  # an order every 2 s on average
@@ -48,20 +42,14 @@ gap = DistributionConfig(dist="exponential", rate=0.5)  # an order every 2 s on 
 
 Work with a typical time and a small, symmetric spread.
 
-docs/snippets/yaml/arrivals_services.yaml:normal
-
 ```yaml
 # under services: 3 s on average, give or take 0.5 s
 packing: {dist: normal, mean: 3 s, std: 0.5 s}
 ```
 
-docs/snippets/pages/arrivals_services.py:builder-normal
-
 ```python
 app.add_service("packing", dist="normal", mean=3.0, std=0.5)  # 3 s, give or take 0.5 s
 ```
-
-docs/snippets/pages/arrivals_services.py:low-level-normal
 
 ```python
 # 3 s, give or take 0.5 s
@@ -74,20 +62,14 @@ packing = DistributionConfig(dist="normal", mean=3.0, std=0.5)
 
 Work with a typical time and a hard minimum.
 
-docs/snippets/yaml/arrivals_services.yaml:truncated-normal
-
 ```yaml
 # under services: 1 s on average, spread 1 s, never below 0.2 s
 labelling: {dist: truncated_normal, mean: 1 s, std: 1 s, low: 0.2 s}
 ```
 
-docs/snippets/pages/arrivals_services.py:builder-truncated-normal
-
 ```python
 app.add_service("labelling", dist="truncated_normal", mean=1.0, std=1.0, low=0.2)
 ```
-
-docs/snippets/pages/arrivals_services.py:low-level-truncated-normal
 
 ```python
 labelling = DistributionConfig(dist="truncated_normal", mean=1.0, std=1.0, low=0.2)
@@ -99,21 +81,15 @@ labelling = DistributionConfig(dist="truncated_normal", mean=1.0, std=1.0, low=0
 
 Times that are never negative and now and then much longer: repairs, support calls.
 
-docs/snippets/yaml/arrivals_services.yaml:lognormal
-
 ```yaml
 # under services: 4 s on average, now and then much longer
 repair: {dist: lognormal, mean: 4 s, std: 3 s}
 ```
 
-docs/snippets/pages/arrivals_services.py:builder-lognormal
-
 ```python
 # Now and then much longer
 app.add_service("repair", dist="lognormal", mean=4.0, std=3.0)
 ```
-
-docs/snippets/pages/arrivals_services.py:low-level-lognormal
 
 ```python
 # Now and then much longer
@@ -126,20 +102,14 @@ repair = DistributionConfig(dist="lognormal", mean=4.0, std=3.0)
 
 Fixed times: a conveyor, a set-up, a step that takes no time.
 
-docs/snippets/yaml/arrivals_services.yaml:constant
-
 ```yaml
 # under services: always 0.5 s, with no random draw
 inspection: {dist: constant, value: 0.5 s}
 ```
 
-docs/snippets/pages/arrivals_services.py:builder-constant
-
 ```python
 app.add_service("inspection", dist="constant", value=0.5)  # always 0.5 s, no draw
 ```
-
-docs/snippets/pages/arrivals_services.py:low-level-constant
 
 ```python
 inspection = DistributionConfig(dist="constant", value=0.5)  # always 0.5 s, no draw
@@ -151,20 +121,14 @@ inspection = DistributionConfig(dist="constant", value=0.5)  # always 0.5 s, no 
 
 Any time in a range, all equally likely, when only the range is known.
 
-docs/snippets/yaml/arrivals_services.yaml:uniform
-
 ```yaml
 # under services: any time from 1 to 2 s, all equally likely
 scanning: {dist: uniform, low: 1 s, high: 2 s}
 ```
 
-docs/snippets/pages/arrivals_services.py:builder-uniform
-
 ```python
 app.add_service("scanning", dist="uniform", low=1.0, high=2.0)  # any time from 1 to 2 s
 ```
-
-docs/snippets/pages/arrivals_services.py:low-level-uniform
 
 ```python
 scanning = DistributionConfig(dist="uniform", low=1.0, high=2.0)  # from 1 to 2 s
@@ -176,21 +140,15 @@ scanning = DistributionConfig(dist="uniform", low=1.0, high=2.0)  # from 1 to 2 
 
 An expert's estimate: the shortest, the most likely and the longest time.
 
-docs/snippets/yaml/arrivals_services.yaml:triangular
-
 ```yaml
 # under services: at least 1 s, usually 1.25 s, at most 2.25 s
 wrapping: {dist: triangular, low: 1 s, mode: 1.25 s, high: 2.25 s}
 ```
 
-docs/snippets/pages/arrivals_services.py:builder-triangular
-
 ```python
 # At least 1 s, usually 1.25 s, at most 2.25 s
 app.add_service("wrapping", dist="triangular", low=1.0, mode=1.25, high=2.25)
 ```
-
-docs/snippets/pages/arrivals_services.py:low-level-triangular
 
 ```python
 # At least 1 s, usually 1.25 s, at most 2.25 s
@@ -203,21 +161,15 @@ wrapping = DistributionConfig(dist="triangular", low=1.0, mode=1.25, high=2.25)
 
 Times less variable than exponential. A whole-number shape is the Erlang distribution: that many exponential steps in a row.
 
-docs/snippets/yaml/arrivals_services.yaml:gamma
-
 ```yaml
 # under services: three exponential steps of 0.5 s each, a mean of 1.5 s
 checking: {dist: gamma, shape: 3, scale: 0.5 s}
 ```
 
-docs/snippets/pages/arrivals_services.py:builder-gamma
-
 ```python
 # Three exponential steps of 0.5 s each: a mean of 1.5 s
 app.add_service("checking", dist="gamma", shape=3, scale=0.5)
 ```
-
-docs/snippets/pages/arrivals_services.py:low-level-gamma
 
 ```python
 # Three exponential steps of 0.5 s each: a mean of 1.5 s
@@ -230,21 +182,15 @@ checking = DistributionConfig(dist="gamma", shape=3, scale=0.5)
 
 Time to failure: a shape below 1 fails early, a shape above 1 wears out.
 
-docs/snippets/yaml/arrivals_services.yaml:weibull
-
 ```yaml
 # under services: time to a printer jam; a shape above 1 means it wears out
 jamming: {dist: weibull, shape: 1.5, scale: 1 h}
 ```
 
-docs/snippets/pages/arrivals_services.py:builder-weibull
-
 ```python
 # Time to a printer jam: a shape above 1 means it wears out
 app.add_service("jamming", dist="weibull", shape=1.5, scale=3600)
 ```
-
-docs/snippets/pages/arrivals_services.py:low-level-weibull
 
 ```python
 # Time to a printer jam: a shape above 1 means it wears out
@@ -257,8 +203,6 @@ jamming = DistributionConfig(dist="weibull", shape=1.5, scale=3600)
 
 Times taken from real data, when no family fits.
 
-docs/snippets/yaml/arrivals_services.yaml:empirical
-
 ```yaml
 # under services: measured times, each equally likely; or weights, one per value
 loading: {dist: empirical, values: [1.2 s, 1.5 s, 1.5 s, 2.1 s, 3 s]}
@@ -266,16 +210,12 @@ loading: {dist: empirical, values: [1.2 s, 1.5 s, 1.5 s, 2.1 s, 3 s]}
 sealing: {dist: empirical, edges: [0, 1 s, 2 s, 4 s], counts: [10, 30, 5]}
 ```
 
-docs/snippets/pages/arrivals_services.py:builder-empirical
-
 ```python
 # Measured times, each equally likely; or weights=[...], one per value
 app.add_service("loading", dist="empirical", values=[1.2, 1.5, 1.5, 2.1, 3.0])
 # A histogram: 10 times from 0 to 1 s, 30 from 1 to 2 s, 5 from 2 to 4 s
 app.add_service("sealing", dist="empirical", edges=[0, 1, 2, 4], counts=[10, 30, 5])
 ```
-
-docs/snippets/pages/arrivals_services.py:low-level-empirical
 
 ```python
 # Measured times, each equally likely; or weights=[...], one per value
@@ -290,8 +230,6 @@ Either `values`, each equally likely, with optional `weights`, one per value; or
 
 In a blueprint, every time-valued parameter takes a duration as well as a number of seconds: `mean`, `std`, `low`, `mode`, `high`, `scale` and `value`, and the `values` and `edges` of an `empirical`. A plain number is seconds. `rate` stays a number per second.
 
-docs/snippets/yaml/arrivals_services.yaml:durations
-
 ```yaml
 # under services: every time-valued parameter takes a duration
 support_call: {dist: lognormal, mean: 5 min, std: 3 min}
@@ -303,8 +241,6 @@ The builder and the low-level API take seconds.
 
 A seed makes every draw the same on every run:
 
-docs/snippets/yaml/arrivals_services.yaml:seed
-
 ```yaml
 # The same draws on every run; leave it out to draw a seed and log it
 random_seed: 42
@@ -312,22 +248,16 @@ random_seed: 42
 
 `desflow run arrivals_services.yaml --seed 7` overrides it without editing the file.
 
-docs/snippets/pages/arrivals_services.py:builder-seed
-
 ```python
 # The same draws on every run; leave it out to draw a seed and log it
 app = SimulationContext(sim_id="Shop", factor=0.0, random_seed=42)
 ```
-
-docs/snippets/pages/arrivals_services.py:low-level-seed
 
 ```python
 sampler = Sampler(seed=42)  # the same draws on every run
 ```
 
 In the low-level API you draw yourself, from the current values:
-
-docs/snippets/pages/arrivals_services.py:low-level-draw
 
 ```python
 seconds = sampler.sample(packing)  # one draw, in seconds, from the current values
@@ -345,8 +275,6 @@ A low-level `Sampler()` with no seed draws nothing at random, as How It Works ex
 
 An arrival can take its times from recorded rows instead of a distribution: each row of a CSV or Parquet file, or of a list of dicts, becomes one entity at the row's time, and the fields named in `fields` become its attributes. Here each row of `local_replay_orders.csv` is an order, at its time in seconds from the start of the run:
 
-examples/yaml/local_replay.yaml:replay
-
 ```yaml
 arrivals:
   orders:
@@ -359,8 +287,6 @@ arrivals:
     spawn: pack
 ```
 
-examples/builder/local_replay_example.py:replay
-
 ```python
 # A CSV or Parquet file, or a list of dicts
 .add_arrival_replay(
@@ -369,8 +295,6 @@ examples/builder/local_replay_example.py:replay
 ```
 
 `wait_for_arrival("orders")` then waits for the next row, so the arrival loop is written as for any other arrival.
-
-examples/low-level/local_replay_example.py:replay
 
 ```python
 def replay(env, sampler, packers):
@@ -486,8 +410,6 @@ ______________________________________________________________________
 
 In the low-level API, a `DistributionConfig` that was never registered draws from the `Sampler`'s main generator instead. Your own code can take a stream of its own with `sampler.generator("<name>")`:
 
-docs/snippets/pages/arrivals_services.py:streams
-
 ```python
 # Each registered distribution draws from the stream named by its path without
 # the sim id; register the parameters, and sample() picks the stream
@@ -501,8 +423,6 @@ assert stream is not None and sampler.sample(gap) == stream.exponential(2.0)
 `Sampler(rng=np.random.default_rng(42))` draws the same numbers as `Sampler(seed=42)`, because the streams come from the generator's seed.
 
 **No random generator.** A `Sampler()` with neither a seed nor a generator draws nothing at random: every sample is the distribution's mean, or its value, which gives the time a model takes on average and suits a test. A `truncated_normal` gives its `mean` or its `low`, whichever is higher.
-
-docs/snippets/pages/arrivals_services.py:no-generator
 
 ```python
 fixed = Sampler()  # no random generator: every draw is the mean, or the value
@@ -520,8 +440,6 @@ Each scalar parameter a family takes has a path in the registry: `<sim_id>.arriv
 
 - The next draw uses the new value. An order already being packed keeps the time it drew, and the arrival already being waited for keeps its gap.
 - An update is checked on a copy of the configuration, by the same rules as at build. A value outside the range is refused with an error log line, and the old value stays:
-
-docs/snippets/pages/arrivals_services.py:refused
 
 ```python
 packing_path = "Shop.service.packing.std"
@@ -544,8 +462,6 @@ ______________________________________________________________________
 ## Stability and Limits
 
 - **Refused at build.** The same checks refuse a bad distribution when the model is built. These three are an out-of-range `std`, a parameter `normal` does not take, and a `mode` above `high`:
-
-  docs/snippets/pages/arrivals_services.py:invalid
 
   ```python
   refused: List[Dict[str, Any]] = [

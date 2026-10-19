@@ -14,22 +14,16 @@ ______________________________________________________________________
 
 A store holds items, each a value of its own; here each shirt is a mapping such as `{size: M}`, put on the shelf by a restock task. [Stores and Containers](https://jaehyeon.me/desflow/latest/user-guide/stores-and-containers/index.md) describes stores:
 
-docs/snippets/yaml/filtered_inventory.yaml:shelf
-
 ```yaml
 stores:
   # Shirts of every size on one shelf, each item a mapping such as {size: M}
   shelf: {current_cap: 1000, max_cap: 1000}
 ```
 
-docs/snippets/tutorials/filtered_inventory.py:shelf
-
 ```python
 # Shirts of every size on one shelf, each item a mapping such as {"size": "M"}
 app.add_store("shelf", current_cap=1000, max_cap=1000)
 ```
-
-docs/snippets/tutorials/filtered_inventory_low_level.py:shelf
 
 ```python
 # Shirts of every size on one shelf, each item a mapping such as {"size": "M"}
@@ -37,8 +31,6 @@ stores={"shelf": CapacityConfig(current_cap=1000, max_cap=1000)},
 ```
 
 The shirts and the orders arrive from six arrivals, one per size, each with a `size` attribute. The YAML is below; the builder and low-level versions add the same six arrivals, and their full files are at the end of the page:
-
-docs/snippets/yaml/filtered_inventory.yaml:arrivals
 
 ```yaml
 # A shirt every 10 seconds: 3 in 10 small, 4 medium, 3 large
@@ -57,8 +49,6 @@ ______________________________________________________________________
 
 A plain `get` takes the oldest item, whatever it is. A `get` with a `filter` takes the oldest item the filter accepts and waits while none does. In SimPy this is a `FilterStore`, whose `get` takes a function of the item. In desflow the filter is a condition in which `item.<field>` reads the item offered, beside the other names a condition reads, such as `attr.size` for the order's own size:
 
-docs/snippets/yaml/filtered_inventory.yaml:take
-
 ```yaml
 take_shirt:
   # Takes the oldest shirt of the order's own size; waits while there is none
@@ -71,8 +61,6 @@ take_shirt:
 ```
 
 `item_field: shirt` adds the shirt the get took to the finished event's payload under the key `shirt`, as `id_field` adds the task id under the key it names ([YAML Format](https://jaehyeon.me/desflow/latest/reference/yaml-format/#tasks) lists both).
-
-docs/snippets/tutorials/filtered_inventory.py:take
 
 ```python
 @app.task(
@@ -87,8 +75,6 @@ def take_shirt(task_id: int, item):
 ```
 
 The builder also takes a function of the item, such as `"filter": lambda shirt: shirt["size"] == "M"`.
-
-docs/snippets/tutorials/filtered_inventory_low_level.py:take
 
 ```python
 def take_shirt(env, shelf, key, size, task_id):
@@ -138,8 +124,6 @@ ______________________________________________________________________
 
 Full files
 
-docs/snippets/yaml/filtered_inventory.yaml
-
 ```yaml
 # The Filtered Inventory tutorial: each order waits for a shirt of its own size.
 # Run it with: desflow run filtered_inventory.yaml
@@ -183,8 +167,6 @@ egress:
 run:
   until: 8 h
 ```
-
-docs/snippets/tutorials/filtered_inventory.py
 
 ```python
 """The Filtered Inventory tutorial: each order waits for a shirt of its own size.
@@ -305,8 +287,6 @@ if __name__ == "__main__":
             f"{counts[(size, 'cancelled')]:4} cancelled"
         )
 ```
-
-docs/snippets/tutorials/filtered_inventory_low_level.py
 
 ```python
 """The Filtered Inventory tutorial: each order waits for a shirt of its own size.

@@ -14,21 +14,15 @@ ______________________________________________________________________
 
 An end condition decides which entities a run's results describe. With statistics at `basic` or above, `flows.orders.started` counts the orders that entered the shop, when their first task began, before any queue, `flows.orders.finished` the orders that left, and `flows.orders.in_system` those still in the shop; from `minimal`, `tasks.pack_order.in_progress` counts the orders waiting for or being packed:
 
-docs/snippets/yaml/end_conditions.yaml:watch
-
 ```yaml
 # Orders started, finished and still in the shop, and the mean wait, at the end
 stats: {level: typical, interval: 2 h}
 ```
 
-docs/snippets/tutorials/end_conditions.py:watch
-
 ```python
 # Orders started, finished and still in the shop, and the mean wait, at the end
 .with_stats("typical", interval=7200)
 ```
-
-docs/snippets/tutorials/end_conditions_low_level.py:watch
 
 ```python
 # Orders started, finished and still in the shop, and the mean wait, at the end
@@ -45,8 +39,6 @@ ______________________________________________________________________
 
 A **fixed horizon** stops the clock at `until`, whatever is still going on. A **drain** stops only the arrivals at `until` and keeps running until every entity in the model has left. In SimPy that is two steps: interrupt the source process, then run until every admitted process has ended. desflow writes both with `drain`:
 
-docs/snippets/yaml/end_conditions.yaml:run
-
 ```yaml
 run:
   # No new orders after one hour
@@ -57,14 +49,10 @@ run:
 
 `${DRAIN:-false}` reads the environment variable `DRAIN`, so `DRAIN=true desflow run end_conditions.yaml` runs the drain, as `desflow run end_conditions.yaml --drain` does.
 
-docs/snippets/tutorials/end_conditions.py:run
-
 ```python
 # No new orders after one hour; with drain, pack every order already in the shop
 app.run(until="1 h", drain=drain or None)
 ```
-
-docs/snippets/tutorials/end_conditions_low_level.py:run
 
 ```python
 env.run(until=3600)  # no new orders after one hour
@@ -100,8 +88,6 @@ ______________________________________________________________________
 ## Full Files
 
 Full files
-
-docs/snippets/yaml/end_conditions.yaml
 
 ```yaml
 # The End Conditions tutorial: a fixed horizon against a drain.
@@ -139,8 +125,6 @@ run:
   # true: pack every order already in the shop before the run ends
   drain: ${DRAIN:-false}
 ```
-
-docs/snippets/tutorials/end_conditions.py
 
 ```python
 """The End Conditions tutorial: a fixed horizon against a drain.
@@ -213,8 +197,6 @@ if __name__ == "__main__":
             f"mean wait {r['wait_mean']:5.2f} s"
         )
 ```
-
-docs/snippets/tutorials/end_conditions_low_level.py
 
 ```python
 """The End Conditions tutorial: a fixed horizon against a drain.

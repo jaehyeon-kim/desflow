@@ -16,8 +16,6 @@ ______________________________________________________________________
 
 This function runs a model with a counting sink in place of its own, and returns the records it published and how many a second, counted from the start of `run()` to the end of its teardown:
 
-docs/snippets/guides/performance_tuning.py:measure
-
 ```python
 def throughput(app: SimulationContext, until: float) -> dict:
     """Runs a model with a counting sink: the records and records per second."""
@@ -33,8 +31,6 @@ def throughput(app: SimulationContext, until: float) -> dict:
 ```
 
 For an hour of this shop, ten orders a second and 25 packers, it returns **108,688** records, at about 100,000 a second on the machine below:
-
-docs/snippets/guides/performance_tuning.py:shop
 
 ```python
 def shop() -> SimulationContext:

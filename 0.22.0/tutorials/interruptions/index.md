@@ -14,15 +14,11 @@ ______________________________________________________________________
 
 Priority so far decided only who goes next. **Preemption** also stops the work in progress: SimPy's `PreemptiveResource` takes a unit from the user with the highest priority value when a request with a lower one finds every unit busy, and that user's process receives an `Interrupt`. In desflow it is `preempt: true` on a resource whose queue is `priority`:
 
-docs/snippets/yaml/interruptions.yaml:packers
-
 ```yaml
 resources:
   # An express order takes the packer from a regular one being packed
   packers: {current_cap: 1, max_cap: 4, queue: priority, preempt: true}
 ```
-
-docs/snippets/tutorials/interruptions.py:packers
 
 ```python
 # An express order takes the packer from a regular one being packed
@@ -30,8 +26,6 @@ docs/snippets/tutorials/interruptions.py:packers
     "packers", current_cap=1, max_cap=4, queue="priority", preempt=True
 )
 ```
-
-docs/snippets/tutorials/interruptions_low_level.py:packers
 
 ```python
 # An express order takes the packer from a regular one being packed
@@ -54,8 +48,6 @@ A preempted or interrupted task first gives back everything it holds and stops w
 
 It publishes `preempted` (or `interrupted`) when it loses the packer, and `resumed` when it has it again:
 
-docs/snippets/yaml/interruptions.yaml:policy
-
 ```yaml
 pack_order:
   service: packing
@@ -68,8 +60,6 @@ pack_order:
 
 `${POLICY:-resume}` reads the environment variable `POLICY`, so `POLICY=restart desflow run interruptions.yaml` runs the second policy.
 
-docs/snippets/tutorials/interruptions.py:policy
-
 ```python
 @app.task(
     service_id="packing",
@@ -81,8 +71,6 @@ docs/snippets/tutorials/interruptions.py:policy
 def pack_order(task_id: int):
     return {"event_type": "order_packed"}
 ```
-
-docs/snippets/tutorials/interruptions_low_level.py:policy
 
 ```python
 def pack(env, sampler, shop, arrival, key, task_id, policy):
@@ -144,21 +132,15 @@ The process catches `simpy.Interrupt`, whose cause is SimPy's `Preempted` for a 
 
 The statistics count each `preempted`, `interrupted` and `resumed`; a resumed order's wait is the sum of its waits, and its packing time is the time it was packed:
 
-docs/snippets/yaml/interruptions.yaml:watch
-
 ```yaml
 # Counts of preemptions and resumptions, and the mean wait and service, at the end
 stats: {level: typical, interval: 1 h}
 ```
 
-docs/snippets/tutorials/interruptions.py:watch
-
 ```python
 # Counts of preemptions and resumptions, and the mean wait and service, at the end
 .with_stats("typical", interval=3600)
 ```
-
-docs/snippets/tutorials/interruptions_low_level.py:watch
 
 ```python
 # Counts of preemptions and resumptions, and the mean wait and service, at the end
@@ -171,8 +153,6 @@ ______________________________________________________________________
 
 Preemption is one source of interrupts; a model can send others. An `interrupt` names a task, and every instance of it that is running, waiting or being served, receives an interrupt with the `cause` given, and follows its `on_interrupt`. A `where` condition, such as `attr.order == 3`, limits it to the instances it holds for. Here the packer is called away at 30 minutes:
 
-docs/snippets/yaml/interruptions.yaml:interrupt
-
 ```yaml
 scenario:
   # The packer is called away at 30 minutes: every regular order in the shop,
@@ -181,8 +161,6 @@ scenario:
 ```
 
 A task can carry the same `interrupt`, applied when it finishes.
-
-docs/snippets/tutorials/interruptions.py:interrupt
 
 ```python
 def called_away(context: SimulationContext):
@@ -195,8 +173,6 @@ app.add_process(called_away)
 ```
 
 `context.interrupt(task, where=None, cause=None)` returns how many instances it reached; it never reaches the instance that calls it.
-
-docs/snippets/tutorials/interruptions_low_level.py:interrupt
 
 ```python
 def called_away(env, shop):
@@ -215,8 +191,6 @@ ______________________________________________________________________
 
 A machine that fails interrupts the work it was doing in the same way. A resource's `breakdown` makes it fail at random times and be repaired: here a packing station fails about once a minute and takes 5 to 15 seconds to repair:
 
-examples/yaml/breakdowns.yaml:station
-
 ```yaml
 resources:
   station:
@@ -230,8 +204,6 @@ resources:
       work: interrupt
 ```
 
-examples/builder/breakdowns_example.py:station
-
 ```python
 .add_resource("station", current_cap=2, max_cap=3)
 .add_breakdown(
@@ -243,8 +215,6 @@ examples/builder/breakdowns_example.py:station
     work="interrupt",
 )
 ```
-
-examples/low-level/breakdowns_example.py:station
 
 ```python
 breakdowns={
@@ -285,8 +255,6 @@ ______________________________________________________________________
 ## Full Files
 
 Full files
-
-docs/snippets/yaml/interruptions.yaml
 
 ```yaml
 # The Interruptions tutorial: express orders take the packer from regular ones.
@@ -337,8 +305,6 @@ egress:
 run:
   until: 1 h
 ```
-
-docs/snippets/tutorials/interruptions.py
 
 ```python
 """The Interruptions tutorial: express orders take the packer from regular ones.
@@ -435,8 +401,6 @@ if __name__ == "__main__":
             f"mean wait {r['wait_mean']:5.2f} s, mean packing {r['service_mean']:4.2f} s"
         )
 ```
-
-docs/snippets/tutorials/interruptions_low_level.py
 
 ```python
 """The Interruptions tutorial: express orders take the packer from regular ones.

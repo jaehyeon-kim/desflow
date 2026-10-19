@@ -54,8 +54,6 @@ Stop it with `odctl down storage --volumes` when you are finished.
 
 Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
-examples/yaml/parquet.yaml
-
 ```yaml
 # Historical data generation in YAML.
 #
@@ -156,8 +154,6 @@ Stop it with `odctl down storage --volumes` when you are finished.
 This script simulates the shop over a 7-day period. It demonstrates how to route lifecycle events to one Parquet dataset, flattened into rows, and write them out instantly.
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
-
-examples/builder/parquet_example.py
 
 ```python
 """
@@ -348,8 +344,6 @@ Stop it with `odctl down storage --volumes` when you are finished.
 This script simulates the shop over a 7-day period. It demonstrates how to route lifecycle events to one Parquet dataset, flattened into rows, and write them out.
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
-
-examples/low-level/parquet_example.py
 
 ```python
 """Historical data generation, low-level API.

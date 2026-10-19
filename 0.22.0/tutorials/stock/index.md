@@ -16,22 +16,16 @@ So far each order needed only a packer, a **resource** that it holds and gives b
 
 In desflow it is a container in the `containers` section. Its `current_cap` is the capacity, the most it can hold, and `level` is what it holds when the run starts:
 
-docs/snippets/yaml/stock.yaml:container
-
 ```yaml
 containers:
   # Boxes on the shelf: room for 200, and 50 when the run starts
   stock: {current_cap: 200, max_cap: 200, level: 50}
 ```
 
-docs/snippets/tutorials/stock.py:container
-
 ```python
 # Boxes on the shelf: room for 200, and 50 when the run starts
 app.add_container("stock", current_cap=200, max_cap=200, level=50)
 ```
-
-docs/snippets/tutorials/stock_low_level.py:container
 
 ```python
 # Boxes on the shelf: room for 200, and 50 when the run starts
@@ -48,8 +42,6 @@ ______________________________________________________________________
 
 Packing an order takes one box. The task gets its packer first and then its box, so an order that finds the shelf empty waits for stock while it holds the packer:
 
-docs/snippets/yaml/stock.yaml:take
-
 ```yaml
 pack_order:
   service: packing
@@ -58,8 +50,6 @@ pack_order:
   get: {container: stock, amount: 1}
   payload: {event_type: order_packed}
 ```
-
-docs/snippets/tutorials/stock.py:take
 
 ```python
 # One box per order, taken once the order has a packer; waits while stock is 0
@@ -72,8 +62,6 @@ def pack_order(task_id: int):
     return {"event_type": "order_packed"}
 ```
 
-docs/snippets/tutorials/stock_low_level.py:take
-
 ```python
 with shop["packers"].request() as request:
     yield request
@@ -83,14 +71,10 @@ with shop["packers"].request() as request:
 
 A delivery arrives every 100 seconds, and its task puts the boxes on the shelf. It waits while there is no room for all of them. It has no service and no resource, so it takes no time and publishes its payload once the boxes are on the shelf:
 
-docs/snippets/yaml/stock.yaml:restock
-
 ```yaml
 # A delivery every 100 seconds
 deliveries: {dist: constant, value: 100 s, spawn: restock}
 ```
-
-docs/snippets/yaml/stock.yaml:delivery
 
 ```yaml
 restock:
@@ -102,8 +86,6 @@ restock:
 ```
 
 `${DELIVERY:-60}` reads the environment variable `DELIVERY`, 60 when it is not set, so `DELIVERY=40 desflow run stock.yaml` runs the smaller deliveries.
-
-docs/snippets/tutorials/stock.py:restock
 
 ```python
 # A delivery every 100 seconds
@@ -122,8 +104,6 @@ def delivery_generator(context: SimulationContext):
         context.spawn(restock(task_id, entity=delivery))
         task_id += 1
 ```
-
-docs/snippets/tutorials/stock_low_level.py:restock
 
 ```python
 def restock(env, shop, delivery, key, task_id):
@@ -149,21 +129,15 @@ ______________________________________________________________________
 
 The built-in statistics, which [Statistics](https://jaehyeon.me/desflow/latest/user-guide/statistics/index.md) describes, at the `minimal` level and above publish each container's `capacity`, `level`, `getters_waiting` and `putters_waiting`. `typical` adds the mean wait:
 
-docs/snippets/yaml/stock.yaml:watch
-
 ```yaml
 # The stock's level and waiting tasks every 10 seconds, and the mean wait at the end
 stats: typical
 ```
 
-docs/snippets/tutorials/stock.py:watch
-
 ```python
 # The stock's level and waiting tasks every 10 seconds, and the mean wait
 .with_stats("typical")
 ```
-
-docs/snippets/tutorials/stock_low_level.py:watch
 
 ```python
 # The stock's level and waiting tasks every 10 seconds, and the mean wait
@@ -214,8 +188,6 @@ ______________________________________________________________________
 
 Full files
 
-docs/snippets/yaml/stock.yaml
-
 ```yaml
 # The Stock tutorial: packing takes a box from stock, and deliveries restock it.
 # Run it with: desflow run stock.yaml
@@ -264,8 +236,6 @@ egress:
 run:
   until: 1 h
 ```
-
-docs/snippets/tutorials/stock.py
 
 ```python
 """The Stock tutorial: packing takes a box from stock, and deliveries restock it.
@@ -348,8 +318,6 @@ if __name__ == "__main__":
     for delivery in (60, 40):
         print(f"deliveries of {delivery}: mean wait {mean_wait(delivery):6.2f} s")
 ```
-
-docs/snippets/tutorials/stock_low_level.py
 
 ```python
 """The Stock tutorial: packing takes a box from stock, and deliveries restock it.

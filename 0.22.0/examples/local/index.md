@@ -56,8 +56,6 @@ The blueprint declares one resource, one service and one arrival. `spawn` names 
 
 Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
-examples/yaml/local.yaml
-
 ```yaml
 # Local simulation in YAML, with no Python and no containers.
 #
@@ -144,8 +142,6 @@ python local_example.py
 This script builds the model, runs it for 30 simulation seconds, and streams events and telemetry directly to your terminal.
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
-
-examples/builder/local_example.py
 
 ```python
 """Local simulation, builder API, no containers.
@@ -267,8 +263,6 @@ python local_example.py
 This script builds the model and runs it for 30 simulation seconds. The `capacity_changes` process changes the number of packers from 1 to 3 at 10 seconds, then down to 2 at 20 seconds. Events and telemetry stream directly to your terminal, driven by plain SimPy generators.
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
-
-examples/low-level/local_example.py
 
 ```python
 """Local simulation, low-level API, no containers.

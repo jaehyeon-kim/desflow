@@ -14,8 +14,6 @@ A topic router is a Python function that receives one record, as a dictionary wi
 
 This router sends telemetry, alarms and other events to three topics:
 
-docs/snippets/guides/complex_routing.py:router
-
 ```python
 def custom_kafka_router(data: Dict[str, Any]) -> str:
     """Picks a topic for each record by its kind and its value."""
@@ -38,8 +36,6 @@ ______________________________________________________________________
 
 Pass the router as `topic_router` to `KafkaEgress`:
 
-docs/snippets/guides/complex_routing.py:egress
-
 ```python
 app = (
     SimulationContext(sim_id="Shop", factor=1.0)
@@ -58,8 +54,6 @@ ______________________________________________________________________
 ## Run the Shop
 
 The shop packs an order about every 2 seconds, and every tenth order fails, so all three topics receive records. The minimal statistics give `shop-telemetry` a reading every 10 seconds:
-
-docs/snippets/guides/complex_routing.py:shop
 
 ```python
 app.add_arrival("orders", dist="exponential", rate=0.5)
@@ -83,8 +77,6 @@ def orders(context: SimulationContext):
 
 Before the run, the script creates the three topics with `KafkaAdminConnector`:
 
-docs/snippets/guides/complex_routing.py:run
-
 ```python
 if __name__ == "__main__":
     logging.basicConfig(
@@ -105,8 +97,6 @@ ______________________________________________________________________
 Full script
 
 The complete file. It needs the `kafka-lite` profile:
-
-docs/snippets/guides/complex_routing.py
 
 ```python
 """The Complex Routing guide: a shop whose records go to three Kafka topics.

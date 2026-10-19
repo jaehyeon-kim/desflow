@@ -14,8 +14,6 @@ ______________________________________________________________________
 
 A sweep runs every variant at every value of its paths. Here that is two variants at four rates, 8 designs, each run 20 times with the same 20 seeds:
 
-docs/snippets/yaml/parameter_sweeps_experiment.yaml:sweep
-
 ```yaml
 variants:
   three: {}
@@ -25,15 +23,11 @@ sweep:
   Shop.arrival.orders.rate: [1.6, 1.7, 1.8, 1.9]
 ```
 
-docs/snippets/tutorials/parameter_sweeps.py:sweep
-
 ```python
 "variants": {"three": {}, "four": {"Shop.resources.packers.current_cap": 4}},
 # Each variant at each rate: 8 designs, all run with the same 20 seeds
 "sweep": {"Shop.arrival.orders.rate": [1.6, 1.7, 1.8, 1.9]},
 ```
-
-docs/snippets/tutorials/parameter_sweeps_low_level.py:sweep
 
 ```python
 "variants": {"three": {}, "four": {"Shop.resources.packers.current_cap": 4}},
@@ -68,8 +62,6 @@ ______________________________________________________________________
 
 Full files
 
-docs/snippets/yaml/parameter_sweeps_experiment.yaml
-
 ```yaml
 # The Parameter Sweeps tutorial: how much does the mean wait depend on the demand?
 # Run it with: desflow experiment parameter_sweeps_experiment.yaml
@@ -91,8 +83,6 @@ output: results/demand
 ```
 
 The model, `trusting_results.yaml`, is in the full files of [Trusting Results](https://jaehyeon.me/desflow/latest/tutorials/trusting-results/#full-files).
-
-docs/snippets/tutorials/parameter_sweeps.py
 
 ```python
 """The Parameter Sweeps tutorial: the wait at four arrival rates, builder.
@@ -137,8 +127,6 @@ if __name__ == "__main__":
 ```
 
 It imports from `trusting_results.py`, which is in the full files of [Trusting Results](https://jaehyeon.me/desflow/latest/tutorials/trusting-results/#full-files).
-
-docs/snippets/tutorials/parameter_sweeps_low_level.py
 
 ```python
 """The Parameter Sweeps tutorial: the wait at four arrival rates, low-level.

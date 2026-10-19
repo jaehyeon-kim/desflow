@@ -54,8 +54,6 @@ Ten minutes of history are written to `data/backfill/` within the first second, 
 
 Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
-examples/yaml/backfill_live.yaml
-
 ```yaml
 # Backfill then go live in one run, in YAML.
 #
@@ -165,8 +163,6 @@ odctl down kafka-lite --volumes
 **Full Source Code**
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
-
-examples/builder/backfill_live_example.py
 
 ```python
 """
@@ -381,8 +377,6 @@ odctl down kafka-lite --volumes
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
-examples/low-level/backfill_live_example.py
-
 ```python
 """
 Backfill-then-live Example, low-level API.
@@ -589,8 +583,6 @@ They are independent. `go_live_at` changes pacing only; it never routes a record
 
 In the Builder version, the three settings make the run:
 
-examples/builder/backfill_live_example.py:builder
-
 ```python
 app = (
     SimulationContext(
@@ -631,8 +623,6 @@ ______________________________________________________________________
 
 **Predicates compare times read from the timestamp.** A record carries its logical time as an ISO string with its zone offset, such as `+00:00`, so `record["timestamp"] >= GO_LIVE_AT` raises a `TypeError`. Read it with `datetime.fromisoformat` and compare instants, which holds whatever zone each side is written in. Cut the go-live instant to milliseconds, as timestamps are, so a record stamped in the go-live millisecond counts as live. Take the instant with `datetime.now(timezone.utc)`: a datetime without an offset is read in the run's `timezone`, else in the zone of `logical_start_time`, else in UTC, not in the machine's local time.
 
-examples/builder/backfill_live_example.py:clock
-
 ```python
 GO_LIVE_AT = datetime.now(timezone.utc)
 # Cut to milliseconds, as timestamps are, so a record stamped in the go-live
@@ -645,8 +635,6 @@ LOGICAL_START_TIME = GO_LIVE_AT - HISTORY
 ```
 
 **`flush_interval` has no effect before `go_live_at`, so `batch_size` decides the history.** The interval flush is a simulation process, and it is only started if `factor` is non-zero when the egress is set up. This run starts at `factor=0.0`, so until go-live records leave the buffer only when it fills to `batch_size`. That sets the number of Parquet part files. From go-live the interval flush starts, so the live tail also flushes every `flush_interval`, and that decides how often Kafka sees anything. Give each sink its own `batch_size` and `flush_interval` to separate those two jobs:
-
-docs/snippets/pages/backfill_live.py:per-sink
 
 ```python
 app.add_egress(parquet, when=is_history, batch_size=200_000)
@@ -664,8 +652,6 @@ ______________________________________________________________________
 ## Low-level API
 
 `go_live_at` behaves identically on `DynamicRealtimeEnvironment`, alongside `logical_start_time`:
-
-docs/snippets/pages/backfill_live.py:low-level
 
 ```python
 go_live_at = datetime.now(timezone.utc)

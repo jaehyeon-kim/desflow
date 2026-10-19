@@ -26,15 +26,11 @@ A path is the `sim_id`, the kind of parameter, its name and the field:
 
 [Arrivals and Services](https://jaehyeon.me/desflow/latest/user-guide/arrivals-and-services/index.md) lists each family's parameters. An update to a path that does not exist, including a parameter the family does not take, is logged as a warning and ignored, so a misspelt path changes nothing. `compile_parameters()` returns the `SimParameter` a `SimulationContext` will register, which shows the names to use:
 
-docs/snippets/pages/live_parameters.py:compile
-
 ```python
 print(app.compile_parameters())
 ```
 
 In the low-level API you register the parameters yourself, and read a value with `registry.get(path).value`:
-
-docs/snippets/pages/registry.py:paths
 
 ```python
 params = SimParameter(
@@ -69,8 +65,6 @@ Each source of a change suits a different job and lands at a different moment:
 
 [Ingress](https://jaehyeon.me/desflow/latest/user-guide/ingress/index.md) gives the message each connector reads. A process changes a value directly:
 
-docs/snippets/pages/registry.py:update
-
 ```python
 env.registry.update("Shop.resources.packers.current_cap", 3)  # applied
 env.registry.update("Shop.resources.packers.current_cap", 9)  # stored as 5, the max_cap
@@ -83,8 +77,6 @@ env.registry.update("Shop.containers.stock.level", 150)  # stored as 100, the ca
 ### Script an Experiment
 
 A blueprint's `scenario` lists changes, each with the simulation time it applies at. Here a second packer starts at 30 seconds, orders arrive twice as fast from one minute, and the extra packer leaves at two minutes:
-
-docs/snippets/yaml/scenario.yaml
 
 ```yaml
 # The first blueprint with a scripted experiment: a second packer starts at 30 s,
@@ -127,8 +119,6 @@ run:
 
 The builder and the low-level API take the same steps, as a list of mappings. Here are the steps of the `changing_demand` example in each API:
 
-examples/yaml/changing_demand.yaml:schedule
-
 ```yaml
 scenario:
   # The rush: twice the orders, and a second packer, from 120 to 180 seconds
@@ -137,8 +127,6 @@ scenario:
   - {at: 180, path: Shop.arrival.orders.rate, value: 0.4}
   - {at: 180, path: Shop.resources.packers.current_cap, value: 1}
 ```
-
-examples/builder/changing_demand_example.py:schedule
 
 ```python
 # The rush: twice the orders, and a second packer, from 120 to 180 seconds
@@ -153,8 +141,6 @@ app.add_scenario(
 ```
 
 `add_step(at, path=..., value=..., record=...)` adds one step.
-
-examples/low-level/changing_demand_example.py:schedule
 
 ```python
 # The rush: twice the orders, and a second packer, from 120 to 180 seconds
@@ -174,8 +160,6 @@ A scenario is not a connector. It is a SimPy process that waits on the simulatio
 
 A detector or an agent that watches the data is scored against what really happened. A scenario step with a `record` publishes a **ground-truth record** of it: `stream_type: "label"`, with the step's `path`, the value before (`old`) and after (`new`), and the step's `record` mapping as `label`. A step can have a `record` and no `path`, for something that happened outside the model, and then `path`, `old` and `new` are null.
 
-docs/snippets/yaml/ground_truth.yaml:record
-
 ```yaml
 scenario:
   # Changes the rate and publishes a ground-truth record of the change
@@ -189,8 +173,6 @@ scenario:
 ```
 
 Labels go only to sinks with `when: labels`, and those sinks receive nothing else, so the labels never reach the pipeline under test and a scorer reads them apart from the data:
-
-docs/snippets/yaml/ground_truth.yaml:sinks
 
 ```yaml
 egress:
@@ -228,8 +210,6 @@ ______________________________________________________________________
 
 **Change Signal.** Each value has a SimPy `Store` with one slot as its signal. An update puts a token in it if it is empty, and `wait_for_change()` waits for that token, so several changes before a waiter wakes give one signal, and one waiting process takes it. Resources, stores and containers already wait on their own paths, so wait only on paths nothing else waits on, such as variables:
 
-docs/snippets/pages/registry.py:wait
-
 ```python
 def watch_speed(env):
     """Logs the conveyor speed every time it changes."""
@@ -263,8 +243,6 @@ A change is easiest to see in the telemetry. With `stats: minimal`, the scenario
 ```
 
 The reading at 30 seconds still shows 1: the resource applies a change within the same simulation instant, but after the step that made it, and the reading was taken first. The builder publishes the same readings with `with_stats`:
-
-docs/snippets/pages/live_parameters.py:telemetry
 
 ```python
 # The packers' capacity, in use, queue and utilization every 2 seconds

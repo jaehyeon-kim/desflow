@@ -24,21 +24,15 @@ desflow keeps statistics about a run as it goes, and publishes them as telemetry
 
 Each level includes the ones above it. Switch on `typical`:
 
-docs/snippets/yaml/measuring_a_run.yaml:stats
-
 ```yaml
 # Counts, time averages, and the mean and maximum wait and service, every 10 s
 stats: typical
 ```
 
-docs/snippets/tutorials/measuring_a_run.py:stats
-
 ```python
 # Counts, time averages, and the mean and maximum wait and service, every 10 s
 .with_stats("typical")
 ```
-
-docs/snippets/tutorials/measuring_a_run_low_level.py:stats
 
 ```python
 # Counts, time averages, and the mean and maximum wait and service, every 10 s
@@ -49,15 +43,11 @@ The environment keeps the statistics in `env.stats`. Resources report their own 
 
 The statistics are telemetry, so they reach every sink, and they can also be read in Python at the end of the run:
 
-docs/snippets/yaml/measuring_a_run.yaml:read
-
 ```yaml
 # The statistics are telemetry, so every sink receives them
 egress:
   - type: Console
 ```
-
-docs/snippets/tutorials/measuring_a_run.py:read
 
 ```python
 if __name__ == "__main__":
@@ -66,8 +56,6 @@ if __name__ == "__main__":
     for name, value in app.env.stats.readings().items():
         print(f"{name} = {value}")
 ```
-
-docs/snippets/tutorials/measuring_a_run_low_level.py:read
 
 ```python
 if __name__ == "__main__":
@@ -136,8 +124,6 @@ ______________________________________________________________________
 
 Full files
 
-docs/snippets/yaml/measuring_a_run.yaml
-
 ```yaml
 # The Measuring a Run tutorial: the busy hour, with built-in statistics.
 # Run it with: desflow run measuring_a_run.yaml
@@ -177,8 +163,6 @@ egress:
 run:
   until: 1 h
 ```
-
-docs/snippets/tutorials/measuring_a_run.py
 
 ```python
 """The Measuring a Run tutorial: the busy hour, with built-in statistics, builder.
@@ -235,8 +219,6 @@ if __name__ == "__main__":
     for name, value in app.env.stats.readings().items():
         print(f"{name} = {value}")
 ```
-
-docs/snippets/tutorials/measuring_a_run_low_level.py
 
 ```python
 """The Measuring a Run tutorial: the busy hour, with built-in statistics, low-level.

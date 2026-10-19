@@ -10,8 +10,6 @@ ______________________________________________________________________
 
 ## Create the Environment
 
-docs/snippets/pages/low_level.py:imports
-
 ```python
 import logging
 
@@ -30,8 +28,6 @@ from desflow import (
 )
 ```
 
-docs/snippets/pages/low_level.py:environment
-
 ```python
 env = DynamicRealtimeEnvironment(factor=0.0)  # unpaced; 1.0 follows the wall clock
 ```
@@ -39,8 +35,6 @@ env = DynamicRealtimeEnvironment(factor=0.0)  # unpaced; 1.0 follows the wall cl
 `factor` sets the pacing: `1.0` follows the wall clock, and `0.0` runs as fast as possible. `logical_start_time` and `go_live_at` work as [Time and Pacing](https://jaehyeon.me/desflow/latest/user-guide/time-and-pacing/index.md) describes.
 
 ## Register the Parameters
-
-docs/snippets/pages/low_level.py:parameters
 
 ```python
 env.registry.register_sim_parameter(
@@ -60,8 +54,6 @@ One `SimParameter` holds every parameter of one simulation under its `sim_id`. R
 
 ## Attach the Connectors
 
-docs/snippets/pages/low_level.py:connectors
-
 ```python
 env.setup_egress([ConsoleEgress()])  # starts the egress thread
 # env.setup_ingress([KafkaIngress(...)]) would start the ingress thread
@@ -71,8 +63,6 @@ env.setup_stats("Shop", "basic", interval=60)  # readings and counts every minut
 `setup_egress` starts the egress thread, which writes every record the processes publish. `setup_ingress` starts the ingress thread for parameter changes from outside, and `setup_stats` switches on the built-in statistics. [Egress](https://jaehyeon.me/desflow/latest/user-guide/egress/index.md) lists the arguments of `setup_egress`, including a warm-up and labels sinks.
 
 ## Create Resources, Containers and Stores
-
-docs/snippets/pages/low_level.py:resources
 
 ```python
 packers = DynamicResource(env, "Shop", "packers")  # reads Shop.resources.packers.*
@@ -86,8 +76,6 @@ Each reads its capacity from the registry when it is created, so the parameters 
 ## Write the Processes
 
 A process is a SimPy generator: it `yield`s to wait, and publishes records as it goes. This one does what `@app.task` does in the builder, with a box from stock and a store for the result. It publishes each event with the entity key, the task's name and its instance id, and reports each step to the statistics:
-
-docs/snippets/pages/low_level.py:order
 
 ```python
 def order(env, key, task_id):
@@ -116,8 +104,6 @@ The service time is drawn once the order has a packer and a box, from the config
 
 The arrival loop keeps the configuration object rather than a copy of the rate, so the next draw uses whatever rate the registry holds. It gives each order its key, `orders-1`, `orders-2`:
 
-docs/snippets/pages/low_level.py:arrivals
-
 ```python
 def arrivals(env):
     gap = env.registry.get_config("Shop.arrival.orders")  # the live config object
@@ -130,8 +116,6 @@ def arrivals(env):
 
 A reading of your own is a process that publishes at an interval; `publish_telemetry` uses the name exactly as given:
 
-docs/snippets/pages/low_level.py:telemetry
-
 ```python
 def telemetry(env):
     """A reading of your own, beside the built-in statistics."""
@@ -141,8 +125,6 @@ def telemetry(env):
 ```
 
 A process can also change the simulation itself, through the registry, as a connector or a scenario would:
-
-docs/snippets/pages/low_level.py:control
 
 ```python
 def refill_and_rush(env):
@@ -159,15 +141,11 @@ def refill_and_rush(env):
 
 ## Start the Processes and Run
 
-docs/snippets/pages/low_level.py:start
-
 ```python
 env.process(arrivals(env))
 env.process(telemetry(env))
 env.process(refill_and_rush(env))
 ```
-
-docs/snippets/pages/low_level.py:run
 
 ```python
 logging.basicConfig(
@@ -206,8 +184,6 @@ ______________________________________________________________________
 Full script
 
 The complete file, which the documentation tests run:
-
-docs/snippets/pages/low_level.py
 
 ```python
 """A complete low-level simulation, as the Low-level API page explains it step by step.

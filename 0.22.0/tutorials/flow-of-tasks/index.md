@@ -16,8 +16,6 @@ ______________________________________________________________________
 
 Choosing where an entity goes next is called **routing**. In desflow a task, which [Tasks and Processes](https://jaehyeon.me/desflow/latest/user-guide/tasks-and-processes/index.md) describes, names what follows it with `next`. `next` is a task name, which always leads there; a list of `when` rules, each a condition and a task, where the first rule that holds wins and `default` catches the rest; or `weights`, below. A task with no `next` ends the order's flow.
 
-docs/snippets/yaml/flow_of_tasks.yaml:chain
-
 ```yaml
 pick_order:
   service: picking
@@ -29,8 +27,6 @@ pick_order:
       - {condition: "level.stock == 0", task: backorder}
     default: pack_order
 ```
-
-docs/snippets/tutorials/flow_of_tasks.py:chain
 
 ```python
 # The first rule that holds wins; default catches the rest
@@ -46,8 +42,6 @@ def pick_order(task_id: int, context: SimulationContext):
     return {"event_type": "order_picked"}
 ```
 
-docs/snippets/tutorials/flow_of_tasks_low_level.py:chain
-
 ```python
 # The first rule that holds wins; default catches the rest
 "pick_order": Router(
@@ -59,8 +53,6 @@ docs/snippets/tutorials/flow_of_tasks_low_level.py:chain
 ```
 
 A `Router` takes the same rules as `next` and returns the name of the task to start. When a task finishes, its process asks the router and starts the next task as a new process, with the same entity:
-
-docs/snippets/tutorials/flow_of_tasks_low_level.py:next
 
 ```python
 entity.attributes.update(SETS.get(name, {}))
@@ -85,8 +77,6 @@ ______________________________________________________________________
 
 An order picked while the shelf is empty waits for the supplier for a minute, then is picked again. The wait uses no picker or packer, so `backorder` has a `service` and no `resource`: a **timed step**. It publishes `started` at once, with no `queued` event, waits the sampled time, and publishes its finished event:
 
-docs/snippets/yaml/flow_of_tasks.yaml:backorder
-
 ```yaml
 backorder:
   # A timed step: a service and no resource, so it starts at once
@@ -97,8 +87,6 @@ backorder:
   next: pick_order
 ```
 
-docs/snippets/tutorials/flow_of_tasks.py:backorder
-
 ```python
 # A timed step: a service and no resource, so it starts at once. `set` is applied
 # to the order's attributes when the step finishes.
@@ -107,13 +95,9 @@ def backorder(task_id: int, context: SimulationContext):
     return {"event_type": "order_backordered"}
 ```
 
-docs/snippets/tutorials/flow_of_tasks_low_level.py:backorder
-
 ```python
 "backorder": Router("pick_order"),
 ```
-
-docs/snippets/tutorials/flow_of_tasks_low_level.py:set
 
 ```python
 # Applied to the order's attributes when the step finishes
@@ -128,8 +112,6 @@ ______________________________________________________________________
 
 One parcel in 20 fails its check and is packed again. Sending work back to a task it has passed is called **rework**. `weights` chooses the next task at random, in proportion to the weights, from a random stream of the routing task's own, `route.pack_order`, so a seeded run repeats and the choice does not change any other draw:
 
-docs/snippets/yaml/flow_of_tasks.yaml:rework
-
 ```yaml
 pack_order:
   service: packing
@@ -140,8 +122,6 @@ pack_order:
   next:
     weights: {ship_order: 95, pack_order: 5}
 ```
-
-docs/snippets/tutorials/flow_of_tasks.py:rework
 
 ```python
 # One parcel in 20 fails its check and is packed again
@@ -154,8 +134,6 @@ docs/snippets/tutorials/flow_of_tasks.py:rework
 def pack_order(task_id: int, context: SimulationContext):
     return {"event_type": "order_packed"}
 ```
-
-docs/snippets/tutorials/flow_of_tasks_low_level.py:rework
 
 ```python
 # One parcel in 20 fails its check and is packed again; the generator is set
@@ -171,8 +149,6 @@ ______________________________________________________________________
 
 An order is an **entity** with **attributes**: values it carries from task to task, such as whether it is express. The arrival gives each new entity its starting attributes, and `set` on a task changes them when the task finishes, as `backorder` does with `backordered: 1`:
 
-docs/snippets/yaml/flow_of_tasks.yaml:attributes
-
 ```yaml
 arrivals:
   # Each order starts with the attributes given here, read as attr.<name>
@@ -180,15 +156,11 @@ arrivals:
   express: {dist: exponential, rate: 0.1, spawn: pick_order, attributes: {express: 1}}
 ```
 
-docs/snippets/tutorials/flow_of_tasks.py:attributes
-
 ```python
 # Each order starts with the attributes given here, read as attr.<name>
 app.add_arrival("orders", dist="exponential", rate=0.4, attributes={"express": 0})
 app.add_arrival("express", dist="exponential", rate=0.1, attributes={"express": 1})
 ```
-
-docs/snippets/tutorials/flow_of_tasks_low_level.py:attributes
 
 ```python
 # Each order starts with the attributes given here, read as attr.<name>
@@ -241,8 +213,6 @@ ______________________________________________________________________
 ## Full Files
 
 Full files
-
-docs/snippets/yaml/flow_of_tasks.yaml
 
 ```yaml
 # The A Flow of Tasks tutorial: orders are picked, packed and shipped.
@@ -314,8 +284,6 @@ egress:
 run:
   until: 1 h
 ```
-
-docs/snippets/tutorials/flow_of_tasks.py
 
 ```python
 """The A Flow of Tasks tutorial: orders are picked, packed and shipped, builder.
@@ -416,8 +384,6 @@ app.arrival_loop("deliveries")(spawn("deliveries", restock, "restock"))
 if __name__ == "__main__":
     app.run(until="1 h")
 ```
-
-docs/snippets/tutorials/flow_of_tasks_low_level.py
 
 ```python
 """The A Flow of Tasks tutorial: orders are picked, packed and shipped, low-level.

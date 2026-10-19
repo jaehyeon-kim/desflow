@@ -14,8 +14,6 @@ ______________________________________________________________________
 
 An entity that leaves a queue after waiting too long **reneges**. In SimPy it waits for whichever comes first, the unit or a timeout, with the `|` of two events (an `AnyOf`), then checks which one happened. In desflow it is the task's `patience`: how long the task may wait, for its `wait`, then its resource and then its `get` from a store or container, before it leaves the queue and publishes `reneged`. It counts waiting time only and pauses while the task is served, as SimPy's pattern does when a preempted process waits again with the patience it has left:
 
-docs/snippets/yaml/patience.yaml:patience
-
 ```yaml
 # A customer cancels an order not started within 30 seconds
 patience: ${PATIENCE:-30 s}
@@ -23,16 +21,12 @@ patience: ${PATIENCE:-30 s}
 
 `${PATIENCE:-30 s}` reads the environment variable `PATIENCE`, 30 seconds when it is not set, so `PATIENCE="1 h" desflow run patience.yaml` runs the hour with no limit that matters. `patience` takes seconds, a duration, or an expression such as `attr.patience`, so each order can bring its own.
 
-docs/snippets/tutorials/patience.py:patience
-
 ```python
 # A customer cancels an order not started within 30 seconds
 patience=patience,
 ```
 
 `patience` is 30 here, in seconds; it also takes a duration, as in YAML: `patience="30 s"`. A distribution's parameters in the builder take seconds only.
-
-docs/snippets/tutorials/patience_low_level.py:patience
 
 ```python
 # A customer cancels an order not started within 30 seconds
@@ -56,21 +50,15 @@ ______________________________________________________________________
 
 An entity that does not join a queue at all **balks**. In SimPy it is an `if` before the request. In desflow it is the task's `balk`, a condition checked before the task joins the queue; when it holds, the task publishes `balked` and never asks for the resource. Here `t`, the simulation time, stops new orders in the last five minutes:
 
-docs/snippets/yaml/patience.yaml:balk
-
 ```yaml
 # The courier leaves at the hour, so the last 5 minutes take no new orders
 balk: t >= 3300
 ```
 
-docs/snippets/tutorials/patience.py:balk
-
 ```python
 # The courier leaves at the hour, so the last 5 minutes take no new orders
 balk="t >= 3300",
 ```
-
-docs/snippets/tutorials/patience_low_level.py:balk
 
 ```python
 # The courier leaves at the hour, so the last 5 minutes take no new orders
@@ -88,21 +76,15 @@ ______________________________________________________________________
 
 With statistics at `basic` and above, each task publishes how many instances reneged and balked, as `Shop.stats.tasks.pack_order.reneged` and `.balked`, once the first one happens. `typical` adds the mean and longest wait of the orders that were served:
 
-docs/snippets/yaml/patience.yaml:watch
-
 ```yaml
 # Counts of finished, reneged and balked orders, and the mean wait, at the end
 stats: {level: typical, interval: 1 h}
 ```
 
-docs/snippets/tutorials/patience.py:watch
-
 ```python
 # Counts of finished, reneged and balked orders, and the mean wait, at the end
 .with_stats("typical", interval=3600)
 ```
-
-docs/snippets/tutorials/patience_low_level.py:watch
 
 ```python
 # Counts of finished, reneged and balked orders, and the mean wait, at the end
@@ -133,8 +115,6 @@ ______________________________________________________________________
 ## Full Files
 
 Full files
-
-docs/snippets/yaml/patience.yaml
 
 ```yaml
 # The Patience tutorial: orders leave after waiting too long, and none join near closing.
@@ -174,8 +154,6 @@ egress:
 run:
   until: 1 h
 ```
-
-docs/snippets/tutorials/patience.py
 
 ```python
 """The Patience tutorial: orders leave after waiting too long, and none join near closing.
@@ -252,8 +230,6 @@ if __name__ == "__main__":
             f"mean wait {result['wait_mean']:5.2f} s"
         )
 ```
-
-docs/snippets/tutorials/patience_low_level.py
 
 ```python
 """The Patience tutorial: orders leave after waiting too long, and none join near closing.

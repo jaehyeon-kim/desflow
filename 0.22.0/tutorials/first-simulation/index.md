@@ -26,8 +26,6 @@ In discrete-event simulation (DES), an **entity** is a thing that moves through 
 
 In desflow these are parameters of one simulation, named by a `sim_id`, here `Shop`: a resource called `packers` with one unit, a service called `packing`, and an arrival stream called `orders`.
 
-docs/snippets/yaml/first_shop.yaml:shop
-
 ```yaml
 simulation:
   sim_id: Shop
@@ -46,8 +44,6 @@ arrivals:
   orders: {dist: exponential, rate: 0.5, spawn: pack_order}
 ```
 
-docs/snippets/tutorials/first_shop.py:shop
-
 ```python
 app = (
     # 1 simulated second = 1 real second; a seed gives the same arrivals every run
@@ -59,8 +55,6 @@ app = (
     .add_arrival("orders", dist="exponential", rate=0.5)
 )
 ```
-
-docs/snippets/tutorials/first_shop_low_level.py:shop
 
 ```python
 PARAMS = SimParameter(
@@ -82,8 +76,6 @@ ______________________________________________________________________
 
 In DES terms an order **queues** for the packer, **seizes** it when it is free, is **delayed** for the service time, and **releases** the packer. desflow calls this a **task**. It publishes three events: `queued` when the order asks for a packer, `started` when it gets one, and a finished event at the end, whose value is the task's payload.
 
-docs/snippets/yaml/first_shop.yaml:order
-
 ```yaml
 tasks:
   pack_order:
@@ -94,8 +86,6 @@ tasks:
 ```
 
 `spawn: pack_order` on the arrival, in the step above, starts the task for every order.
-
-docs/snippets/tutorials/first_shop.py:order
 
 ```python
 @app.task(service_id="packing", resource_id="packers")
@@ -116,8 +106,6 @@ def order_generator(context: SimulationContext):
 ```
 
 `@app.task` publishes the three events and handles the packer for you. The arrival loop waits for each arrival and starts one `pack_order` for the order it returns.
-
-docs/snippets/tutorials/first_shop_low_level.py:order
 
 ```python
 def pack_order(env, sampler, packers, key, task_id):
@@ -155,20 +143,14 @@ ______________________________________________________________________
 
 A sink, called an egress, receives every record the simulation publishes. `ConsoleEgress` prints them; [Egress](https://jaehyeon.me/desflow/latest/user-guide/egress/index.md) lists the others.
 
-docs/snippets/yaml/first_shop.yaml:records
-
 ```yaml
 egress:
   - type: Console
 ```
 
-docs/snippets/tutorials/first_shop.py:records
-
 ```python
 app.add_egress(ConsoleEgress())
 ```
-
-docs/snippets/tutorials/first_shop_low_level.py:records
 
 ```python
 SINKS = [ConsoleEgress()]  # passed to env.setup_egress in run below
@@ -180,21 +162,15 @@ ______________________________________________________________________
 
 ## Run It
 
-docs/snippets/yaml/first_shop.yaml:run
-
 ```yaml
 run:
   until: 20
 ```
 
-docs/snippets/tutorials/first_shop.py:run
-
 ```python
 if __name__ == "__main__":
     app.run(until=20)
 ```
-
-docs/snippets/tutorials/first_shop_low_level.py:run
 
 ```python
 def run(until=20, factor=1.0):
@@ -269,8 +245,6 @@ Full files
 
 The complete first shop, which the documentation tests run:
 
-docs/snippets/yaml/first_shop.yaml
-
 ```yaml
 # The First Simulation tutorial: the shop as a blueprint.
 # Run it with: desflow run first_shop.yaml
@@ -303,8 +277,6 @@ egress:
 run:
   until: 20
 ```
-
-docs/snippets/tutorials/first_shop.py
 
 ```python
 """The First Simulation tutorial: the shop, with the SimulationContext builder.
@@ -354,8 +326,6 @@ app.add_egress(ConsoleEgress())
 if __name__ == "__main__":
     app.run(until=20)
 ```
-
-docs/snippets/tutorials/first_shop_low_level.py
 
 ```python
 """The First Simulation tutorial: the shop, on the low-level API.

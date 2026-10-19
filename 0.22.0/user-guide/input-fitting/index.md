@@ -22,15 +22,11 @@ desflow fit packing_times.csv --column packing_seconds --unit s --lower 0 --out 
 
 The command prints the table, writes the best candidate's settings to `--out` and the plot to `--plot`. It exits with status 1 when no candidate is usable, and with status 2 when the input is invalid.
 
-examples/builder/fitting_example.py:fit
-
 ```python
 times = read_column(DATA, "packing_seconds")
 result = fit_column(times, unit="s", lower=0)
 print(result.text())  # every candidate, its status and diagnostics
 ```
-
-examples/low-level/fitting_example.py:fit
 
 ```python
 result = fit_column(read_column(DATA, "packing_seconds"), unit="s", lower=0)
@@ -104,8 +100,6 @@ The command fails only when no candidate is usable, `empirical` included, which 
 
 `!include` reads a mapping from another file, relative to the blueprint, so the file `--out` wrote is loaded and checked as if it were written in place:
 
-examples/yaml/fitting.yaml:include
-
 ```yaml
 services:
   # The fitted distribution, read from the file desflow fit wrote
@@ -113,8 +107,6 @@ services:
 ```
 
 An arrival also needs its `spawn`, so the include names the file and adds keys to it: `orders: !include {file: fitted/orders.yaml, spawn: pack}`. A YAML syntax error in the included file, or a file that is not a mapping, names that file and its line. A wrong key or value in it is reported at the blueprint's `!include` line, and so is a missing file. A file that includes itself, directly or through another, is refused at the `!include` that closes the loop.
-
-examples/builder/fitting_example.py:service
 
 ```python
 # The best candidate's settings, such as dist="triangular", low=0.546332
@@ -156,8 +148,6 @@ desflow fit ../packing_times.csv --column packing_seconds --lower 0 --out packin
 ```
 
 The file the fit writes, which the download already holds:
-
-examples/yaml/packing_fit.yaml
 
 ```yaml
 # Fitted by desflow fit from packing_times.csv, column packing_seconds: triangular, from 40 values in s, written in seconds.

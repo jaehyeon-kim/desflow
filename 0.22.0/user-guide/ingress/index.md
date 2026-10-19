@@ -25,8 +25,6 @@ Each connector is attached with `add_ingress` in the builder, passed to `env.set
 
 `LocalIngress` applies changes after set delays in wall-clock seconds from the start of the run. It suits a local run; for a change at an exact simulation time, use a scenario step.
 
-docs/snippets/pages/connectors.py:local-ingress
-
 ```python
 # 10 wall-clock seconds after the start, set the packers capacity to 3
 app.add_ingress(
@@ -38,16 +36,12 @@ app.add_ingress(
 
 `KafkaIngress` consumes a topic and reads each message as a JSON object with `path` and `value`, or through a deserializer of your own, such as Avro, as [Avro and Pydantic](https://jaehyeon.me/desflow/latest/guides/avro-and-pydantic/index.md) shows.
 
-docs/snippets/pages/connectors.py:kafka-ingress
-
 ```python
 # Reads {"path": ..., "value": ...} messages from the sim-config topic
 app.add_ingress(KafkaIngress(topic="sim-config", bootstrap_servers="localhost:9092"))
 ```
 
 `KafkaAdminConnector.send_config(topic, path, value)` sends one such message. The [Kafka example](https://jaehyeon.me/desflow/latest/examples/kafka/index.md) listens on `sim-config`, and this sets its number of packers:
-
-docs/snippets/pages/live_parameters_kafka.py
 
 ```python
 """Sets the packers capacity of the running Kafka example.
@@ -71,8 +65,6 @@ def set_packer_capacity(value: int) -> None:
 
 From any Kafka client, the message is the JSON object itself:
 
-docs/snippets/pages/ingress_senders.py:kafka
-
 ```python
 async def send_with_kafka(rate: float) -> None:
     """A JSON object with path and value, to the topic KafkaIngress reads."""
@@ -91,8 +83,6 @@ async def send_with_kafka(rate: float) -> None:
 
 `RedisIngress` subscribes to a Pub/Sub channel and reads each message as the same JSON object.
 
-docs/snippets/pages/connectors.py:redis-ingress
-
 ```python
 # Reads {"path": ..., "value": ...} messages from a Pub/Sub channel
 app.add_ingress(
@@ -101,8 +91,6 @@ app.add_ingress(
     )
 )
 ```
-
-docs/snippets/pages/ingress_senders.py:redis
 
 ```python
 async def send_with_redis(rate: float) -> None:
@@ -125,8 +113,6 @@ docker exec -it valkey valkey-cli --user user --pass password PUBLISH simulation
 
 `PostgresIngress` polls a table, `simulation_params` by default, every `poll_interval` seconds, 2 by default. It creates the table when it is missing, with the columns `id`, `path`, `value`, `is_applied` and `created_at`. At the start it applies the latest applied value of each path, so a restarted run resumes from the last settings; then it applies every row whose `is_applied` is false and marks it true, so the table keeps the history of every change. `value` is read as JSON, and as plain text when it is not JSON.
 
-docs/snippets/pages/connectors.py:postgres-ingress
-
 ```python
 # Applies new rows (path, value) of simulation_params, checking every 2 seconds
 app.add_ingress(
@@ -137,8 +123,6 @@ app.add_ingress(
     )
 )
 ```
-
-docs/snippets/pages/ingress_senders.py:postgres
 
 ```python
 async def send_with_postgres(rate: float) -> None:
@@ -177,8 +161,6 @@ ______________________________________________________________________
 - **A bad message is skipped.** A message that cannot be decoded, that is not an object, or that lacks a non-empty `path` or a non-null `value` is logged as one WARNING line and skipped; the run goes on. A PostgreSQL row like that is marked applied, so it is read once. A path the model does not have is a warning from the registry.
 
 - **Old keys get a hint.** Before 0.21.0, Kafka read `path_id`, and Redis and PostgreSQL read `param_path` and `param_value`. A message with the old keys is skipped with a line that says so:
-
-  docs/snippets/pages/ingress_senders.py:old-keys
 
   ```python
   # Every connector reads a message with the same check; one written for desflow

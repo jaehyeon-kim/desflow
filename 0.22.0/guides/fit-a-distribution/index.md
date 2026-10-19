@@ -10,8 +10,6 @@ ______________________________________________________________________
 
 A service is fitted to its durations. An arrival is fitted to the gaps between arrivals, not to the times they happened, so turn an order log's times into gaps first:
 
-docs/snippets/guides/fit_a_distribution.py:gaps
-
 ```python
 with LOG.open(newline="", encoding="utf-8") as handle:
     placed = [
@@ -30,8 +28,6 @@ ______________________________________________________________________
 ## Fit It
 
 State the unit and the bounds. The gaps are in seconds and none can be below 0:
-
-docs/snippets/guides/fit_a_distribution.py:fit
 
 ```python
 result = fit_column(gaps(), unit="s", lower=0)
@@ -73,8 +69,6 @@ ______________________________________________________________________
 
 Write the best fit with `--out`, or from Python:
 
-docs/snippets/guides/fit_a_distribution.py:write
-
 ```python
 path = Path(folder) / "fitted" / "orders.yaml"
 path.parent.mkdir(parents=True, exist_ok=True)
@@ -82,8 +76,6 @@ path.write_text(result.yaml(source="order_log.csv, gaps between placed_at"))
 ```
 
 and include it. An arrival also needs the task it spawns, so the include names the file and adds `spawn`:
-
-docs/snippets/yaml/fit_a_distribution.yaml:include
 
 ```yaml
 arrivals:
@@ -93,15 +85,11 @@ arrivals:
 
 The file:
 
-docs/snippets/yaml/fitted/orders.yaml
-
 ```yaml
 # Fitted by desflow fit from order_log.csv, gaps between placed_at: exponential, from 299 values in s, written in seconds.
 dist: exponential
 rate: 0.36388
 ```
-
-docs/snippets/guides/fit_a_distribution.py:load
 
 ```python
 # The best fit's settings, such as dist="exponential", rate=0.4
@@ -118,8 +106,6 @@ ______________________________________________________________________
 
 When every family is skipped, rejected or did not fit, the best is the `empirical` distribution: the data itself, which a run draws from at random. For many values, a histogram is shorter:
 
-docs/snippets/guides/fit_a_distribution.py:empirical
-
 ```python
 result = fit_column(gaps(), unit="s", candidates=["empirical"], bins=10)
 ```
@@ -131,8 +117,6 @@ ______________________________________________________________________
 ## Example
 
 The whole script fits the gaps and runs the shop for an hour with the fitted arrivals; one packer packs 1,302 orders. Run it from `docs/snippets/guides/` with `python fit_a_distribution.py`:
-
-docs/snippets/guides/fit_a_distribution.py
 
 ```python
 """Fit a Distribution: the gaps between orders in an order log, fitted and loaded.

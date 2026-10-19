@@ -14,8 +14,6 @@ ______________________________________________________________________
 
 Here orders arrive twice as fast from 120 to 180 seconds, and a second packer works for that time:
 
-examples/yaml/changing_demand.yaml:schedule
-
 ```yaml
 scenario:
   # The rush: twice the orders, and a second packer, from 120 to 180 seconds
@@ -24,8 +22,6 @@ scenario:
   - {at: 180, path: Shop.arrival.orders.rate, value: 0.4}
   - {at: 180, path: Shop.resources.packers.current_cap, value: 1}
 ```
-
-examples/builder/changing_demand_example.py:schedule
 
 ```python
 # The rush: twice the orders, and a second packer, from 120 to 180 seconds
@@ -40,8 +36,6 @@ app.add_scenario(
 ```
 
 `add_step(at, path=..., value=...)` adds one step; a step can also carry a `record`, a ground-truth label, or an `interrupt`.
-
-examples/low-level/changing_demand_example.py:schedule
 
 ```python
 # The rush: twice the orders, and a second packer, from 120 to 180 seconds
@@ -68,8 +62,6 @@ A step that applies at the same time as another event has to come first or secon
 - **A step at or after `until` never applies,** as an event due at exactly `until` does not run.
 
 This function runs orders every 10 seconds, with a step at 30 seconds that makes the gap 5:
-
-docs/snippets/guides/time_varying_arrivals.py:boundary
 
 ```python
 def arrivals(until: float) -> tuple:

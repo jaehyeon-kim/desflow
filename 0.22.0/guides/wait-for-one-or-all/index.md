@@ -10,8 +10,6 @@ ______________________________________________________________________
 
 `wait: {any: {...}}` ends when the first branch happens, as SimPy's `AnyOf` (`a | b`) does. Name each branch; after the wait, `wait.<branch>.done` says which happened. Here an order waits for a restock or 30 seconds, and a builder function that declares `wait` reads the branches:
 
-docs/snippets/guides/wait_for_one_or_all.py:first
-
 ```python
 def first(gap: float) -> dict:
     """Which branches were done when the order's wait ended."""
@@ -43,8 +41,6 @@ def first(gap: float) -> dict:
 
 `first(10)` returns `{"stock": True, "limit": False}`: the restock came first. `first(50)` returns `{"stock": False, "limit": True}`. In YAML the same wait is
 
-examples/yaml/process_interaction.yaml:dispatch
-
 ```yaml
 dispatch:
   # The courier's departure, or 40 seconds, whichever comes first.
@@ -67,8 +63,6 @@ ______________________________________________________________________
 ## Two at the Same Instant
 
 Two branches can happen at the same simulation time. SimPy's `AnyOf` holds every event processed before the `AnyOf` itself, so both are in its value, and desflow reports both as done:
-
-docs/snippets/guides/wait_for_one_or_all.py:tie
 
 ```python
 def two_at_once() -> dict:
@@ -110,8 +104,6 @@ ______________________________________________________________________
 ## Wait for All
 
 `wait: {all: {...}}` ends when every branch has happened, as SimPy's `AllOf` (`a & b`) does. If a branch fails first, the wait fails at once, with that branch's reason, and the task publishes `failed`; branches still pending are cleaned up as for `any`, so a child flow runs on. Here the restock fails at 2 while the inspection, a child flow, runs until 4:
-
-docs/snippets/guides/wait_for_one_or_all.py:all
 
 ```python
 def all_with_a_failure() -> list:

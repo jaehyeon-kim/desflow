@@ -25,8 +25,6 @@ So the shop needs at least 3 packers (2.7 ÷ 3 = 0.9). Each resource in a model 
 
 Here is the busy hour. The arrival rate is 1.8, and `until` is one hour of simulation time:
 
-docs/snippets/yaml/queues_and_capacity.yaml:load
-
 ```yaml
 simulation:
   sim_id: Shop
@@ -53,16 +51,12 @@ run:
   until: 1 h
 ```
 
-docs/snippets/tutorials/queues_and_capacity.py:load
-
 ```python
 app = SimulationContext(sim_id="Shop", factor=0, random_seed=42)  # unpaced
 app.add_service("packing", dist="constant", value=1.5)
 # The busy hour: 1.8 orders a second, more than one packer can pack
 app.add_arrival("orders", dist="exponential", rate=1.8)
 ```
-
-docs/snippets/tutorials/queues_and_capacity_low_level.py:load
 
 ```python
 service={"packing": DistributionConfig(dist="constant", value=1.5)},
@@ -78,8 +72,6 @@ ______________________________________________________________________
 
 The number of packers is the resource's `current_cap`. Each run sets it once:
 
-docs/snippets/yaml/queues_and_capacity.yaml:packers
-
 ```yaml
 resources:
   # The number of packers comes from the PACKERS variable, 1 when it is not set
@@ -90,13 +82,9 @@ resources:
 
 `${PACKERS:-1}` reads the environment variable `PACKERS`, and uses 1 when it is not set.
 
-docs/snippets/tutorials/queues_and_capacity.py:packers
-
 ```python
 app.add_resource("packers", current_cap=packers, max_cap=10)
 ```
-
-docs/snippets/tutorials/queues_and_capacity_low_level.py:packers
 
 ```python
 resources={"packers": CapacityConfig(current_cap=packers, max_cap=10)},
@@ -106,21 +94,15 @@ A `DynamicResource` with a `current_cap` of 3 behaves like a SimPy resource with
 
 To read the mean wait, switch on the built-in statistics at the `typical` level, which keeps the mean wait of every task; [Measuring a Run](https://jaehyeon.me/desflow/latest/tutorials/measuring-a-run/index.md) explains the levels.
 
-docs/snippets/yaml/queues_and_capacity.yaml:stats
-
 ```yaml
 # The mean wait of pack_order, published once an hour and at the end
 stats: {level: typical, interval: 1 h}
 ```
 
-docs/snippets/tutorials/queues_and_capacity.py:stats
-
 ```python
 # The mean wait of pack_order, kept by the run and read at the end
 app.with_stats("typical", interval=3600)
 ```
-
-docs/snippets/tutorials/queues_and_capacity_low_level.py:stats
 
 ```python
 # The mean wait of pack_order, kept by the environment and read at the end
@@ -137,8 +119,6 @@ for n in 1 2 3 4; do
 done
 ```
 
-docs/snippets/tutorials/queues_and_capacity.py:table
-
 ```python
 def mean_wait(packers: int) -> float:
     """Runs the busy hour with `packers` packers and returns the mean wait."""
@@ -151,8 +131,6 @@ if __name__ == "__main__":
     for packers in range(1, 5):
         print(f"packers {packers}: mean wait {mean_wait(packers):8.2f} s")
 ```
-
-docs/snippets/tutorials/queues_and_capacity_low_level.py:table
 
 ```python
 def mean_wait(packers: int) -> float:
@@ -204,8 +182,6 @@ ______________________________________________________________________
 
 Full files
 
-docs/snippets/yaml/queues_and_capacity.yaml
-
 ```yaml
 # The Queues and Capacity tutorial: the shop in its busy hour, as a blueprint.
 # Run it once per number of packers, and read the mean wait from the last lines:
@@ -243,8 +219,6 @@ resources:
 # The mean wait of pack_order, published once an hour and at the end
 stats: {level: typical, interval: 1 h}
 ```
-
-docs/snippets/tutorials/queues_and_capacity.py
 
 ```python
 """The Queues and Capacity tutorial: the shop's busy hour, with the builder.
@@ -294,8 +268,6 @@ if __name__ == "__main__":
     for packers in range(1, 5):
         print(f"packers {packers}: mean wait {mean_wait(packers):8.2f} s")
 ```
-
-docs/snippets/tutorials/queues_and_capacity_low_level.py
 
 ```python
 """The Queues and Capacity tutorial: the shop's busy hour, on the low-level API.

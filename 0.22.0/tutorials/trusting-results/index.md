@@ -16,8 +16,6 @@ Some runs have a natural start and end, such as a shop that opens empty at 9:00 
 
 To see how long the distortion lasts, plot an output over time and look for where it stops trending. Publish the statistics every 10 seconds: `wait_mean` is then the mean wait of every order so far, and `queue_length` is the queue at that moment.
 
-docs/snippets/yaml/trusting_results.yaml:plot
-
 ```yaml
 # wait_mean every 10 seconds is the mean wait so far: plot it against sim_ts
 stats: {level: typical, interval: 10}
@@ -26,15 +24,11 @@ egress:
   - type: Console
 ```
 
-docs/snippets/tutorials/trusting_results.py:plot
-
 ```python
 # wait_mean every 10 seconds is the mean wait so far: plot it against sim_ts
 .with_stats("typical", interval=10)
 .add_egress(ConsoleEgress())
 ```
-
-docs/snippets/tutorials/trusting_results_low_level.py:plot
 
 ```python
 # wait_mean every 10 seconds is the mean wait so far: plot it against sim_ts
@@ -54,21 +48,15 @@ ______________________________________________________________________
 
 A `warmup` time leaves the start out of everything the run reports:
 
-docs/snippets/yaml/trusting_results.yaml:warmup
-
 ```yaml
 # Records and statistics start after the first 2 minutes; 0 keeps everything
 warmup: ${WARMUP:-2 min}
 ```
 
-docs/snippets/tutorials/trusting_results.py:warmup
-
 ```python
 # Records and statistics start after the first 2 minutes; None keeps everything
 SimulationContext(sim_id="Shop", factor=0, random_seed=42, warmup=warmup)
 ```
-
-docs/snippets/tutorials/trusting_results_low_level.py:warmup
 
 ```python
 # Records and statistics start after the first 2 minutes; None keeps everything
@@ -98,8 +86,6 @@ Run the busy hour 40 times. The 40 seeds are spawned from the seed 42, so the se
 desflow run trusting_results.yaml --replications 40 --measure tasks.pack_order.wait_mean --measure resources.packers.utilization_avg
 ```
 
-docs/snippets/tutorials/trusting_results.py:replicate
-
 ```python
 MEASURES = ["tasks.pack_order.wait_mean", "resources.packers.utilization_avg"]
 
@@ -108,8 +94,6 @@ def replications(n=40):
     """Runs the busy hour n times, each after the warm-up, with seeds spawned from 42."""
     return replicate(shop, n, seed=42, until="1 h", measures=MEASURES)
 ```
-
-docs/snippets/tutorials/trusting_results_low_level.py:replicate
 
 ```python
 MEASURES = ["tasks.pack_order.wait_mean", "resources.packers.utilization_avg"]
@@ -169,8 +153,6 @@ ______________________________________________________________________
 
 Full files
 
-docs/snippets/yaml/trusting_results.yaml
-
 ```yaml
 # The Trusting Results tutorial: the busy hour, measured after a warm-up.
 # Run it with: desflow run trusting_results.yaml
@@ -212,8 +194,6 @@ egress:
 run:
   until: 1 h
 ```
-
-docs/snippets/tutorials/trusting_results.py
 
 ```python
 """The Trusting Results tutorial: the busy hour, measured after a warm-up, builder.
@@ -303,8 +283,6 @@ if __name__ == "__main__":
             f"{measure}, {n} runs: {result.mean:.2f} ± {result.half_width:.2f} ({share:.1%})"
         )
 ```
-
-docs/snippets/tutorials/trusting_results_low_level.py
 
 ```python
 """The Trusting Results tutorial: the busy hour, measured after a warm-up, low-level.

@@ -10,8 +10,6 @@ ______________________________________________________________________
 
 ## Example
 
-docs/snippets/guides/dynamic_topology.py
-
 ```python
 import logging
 

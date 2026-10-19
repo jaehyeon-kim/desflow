@@ -14,22 +14,16 @@ ______________________________________________________________________
 
 So far a process has waited for time, a resource or an item. Processes can also wait for each other. In SimPy one process yields an event, and another succeeds it; every process waiting for the event resumes. desflow gives such an event a name, a **signal**: declared once, fired by a task when it finishes, and fired again later, each firing waking every waiter that waits at that moment:
 
-docs/snippets/yaml/process_interaction.yaml:signal
-
 ```yaml
 signals:
   # Fired by the courier as it leaves with every order that waits for it
   - courier_left
 ```
 
-docs/snippets/tutorials/process_interaction.py:signal
-
 ```python
 # Fired by the courier as it leaves with every order that waits for it
 app.add_signal("courier_left")
 ```
-
-docs/snippets/tutorials/process_interaction_low_level.py:signal
 
 ```python
 # Fired by the courier as it leaves with every order that waits for it
@@ -40,14 +34,10 @@ docs/snippets/tutorials/process_interaction_low_level.py:signal
 
 The courier arrives every 10 minutes, and its task fires the signal with its payload:
 
-docs/snippets/yaml/process_interaction.yaml:courier
-
 ```yaml
 # A courier every 10 minutes
 couriers: {dist: constant, value: 10 min, spawn: collect}
 ```
-
-docs/snippets/yaml/process_interaction.yaml:collect
 
 ```yaml
 collect:
@@ -56,14 +46,10 @@ collect:
   signal: courier_left
 ```
 
-docs/snippets/tutorials/process_interaction.py:courier
-
 ```python
 # A courier every 10 minutes
 .add_arrival("couriers", dist="constant", value=600)
 ```
-
-docs/snippets/tutorials/process_interaction.py:collect
 
 ```python
 # Fires courier_left with this payload, so every waiting order resumes
@@ -72,14 +58,10 @@ def collect(task_id: int):
     return {"event_type": "courier_left"}
 ```
 
-docs/snippets/tutorials/process_interaction_low_level.py:courier
-
 ```python
 # A courier every 10 minutes
 "couriers": DistributionConfig(dist="constant", value=600),
 ```
-
-docs/snippets/tutorials/process_interaction_low_level.py:collect
 
 ```python
 def collect(env, shop, key, ids):
@@ -99,8 +81,6 @@ ______________________________________________________________________
 
 A packed order waits for the courier or for its limit. SimPy waits for the first of several events with `a | b`, an `AnyOf`; desflow's `wait` takes the same with `any` and a name for each branch. After the wait, `wait.<branch>.done` says whether that branch happened, so `next` can route on it:
 
-docs/snippets/yaml/process_interaction.yaml:dispatch
-
 ```yaml
 dispatch:
   # The courier's departure, or the limit, whichever comes first
@@ -117,8 +97,6 @@ dispatch:
 
 `"${LIMIT:-5 min}"` reads the environment variable `LIMIT`, 5 minutes when it is not set, so `LIMIT="8 min" desflow run process_interaction.yaml` runs the longer limit.
 
-docs/snippets/tutorials/process_interaction.py:dispatch
-
 ```python
 @app.task(
     # The courier's departure, or the limit, whichever comes first
@@ -134,8 +112,6 @@ docs/snippets/tutorials/process_interaction.py:dispatch
 def dispatch(task_id: int):
     return {"event_type": "dispatched"}
 ```
-
-docs/snippets/tutorials/process_interaction_low_level.py:dispatch
 
 ```python
 def dispatch(env, shop, key, ids):
@@ -158,21 +134,15 @@ def dispatch(env, shop, key, ids):
 
 The task publishes `queued` when it starts waiting and `started` when the wait ends, so its wait statistics measure the time waiting for the courier:
 
-docs/snippets/yaml/process_interaction.yaml:watch
-
 ```yaml
 # How many orders went each way, and the mean wait for dispatch, at the end
 stats: {level: typical, interval: 8 h}
 ```
 
-docs/snippets/tutorials/process_interaction.py:watch
-
 ```python
 # How many orders went each way, and the mean wait for dispatch, at the end
 .with_stats("typical", interval=8 * 3600)
 ```
-
-docs/snippets/tutorials/process_interaction_low_level.py:watch
 
 ```python
 # How many orders went each way, and the mean wait for dispatch, at the end
@@ -201,8 +171,6 @@ ______________________________________________________________________
 ## Full Files
 
 Full files
-
-docs/snippets/yaml/process_interaction.yaml
 
 ```yaml
 # The Process Interaction tutorial: packed orders wait for the courier, with a limit.
@@ -263,8 +231,6 @@ egress:
 run:
   until: 8 h
 ```
-
-docs/snippets/tutorials/process_interaction.py
 
 ```python
 """The Process Interaction tutorial: packed orders wait for the courier, with a limit.
@@ -368,8 +334,6 @@ if __name__ == "__main__":
             f"{result['by_post']} by post, mean wait {result['wait_mean']:6.1f} s"
         )
 ```
-
-docs/snippets/tutorials/process_interaction_low_level.py
 
 ```python
 """The Process Interaction tutorial: packed orders wait for the courier, with a limit.

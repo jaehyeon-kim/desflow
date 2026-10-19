@@ -32,8 +32,6 @@ desflow --version
 
 From Python:
 
-docs/snippets/pages/yaml_loading.py:from-yaml
-
 ```python
 from desflow import SimulationContext
 
@@ -52,8 +50,6 @@ A time in a blueprint is a number of seconds or a duration such as `90 s`, `10 m
 ### Settings per Environment
 
 `${VAR}` in a value is replaced with the environment variable, so one file can serve several environments. `${VAR:-default}` uses the default when the variable is unset or empty, as in a shell, and `$${` writes a literal `${`. An unquoted value is read as YAML reads it after the replacement, so `factor: ${SIM_FACTOR:-0}` is the number 0; a quoted value stays a string. A variable without a default that is unset stops the load with its line.
-
-docs/snippets/yaml/environment.yaml
 
 ```yaml
 # Settings that change per environment, read from environment variables.
@@ -103,8 +99,6 @@ ______________________________________________________________________
 
 An error at any step is mapped back to its line through the source map:
 
-docs/snippets/pages/blueprint_error.yaml
-
 ```yaml
 # A blueprint with a mistake, for the YAML Blueprints page: pack_order has a priority,
 # but its resource serves its queue in the default order, fifo.
@@ -128,8 +122,6 @@ tasks:
     priority: 0
     payload: {event_type: order_packed}
 ```
-
-docs/snippets/pages/blueprint_errors.py:load
 
 ```python
 try:

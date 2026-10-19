@@ -16,8 +16,6 @@ ______________________________________________________________________
 
 A resource has a `current_cap`, the number of units now, and a `max_cap`, the most a live change can set. `run()` builds a `DynamicResource` for each one the context declares; in the low-level API you build it after registering the parameters:
 
-docs/snippets/yaml/resources.yaml:queue-order
-
 ```yaml
 resources:
   # fifo (the default), lifo or priority; priority serves the lowest number first,
@@ -25,15 +23,11 @@ resources:
   packers: {current_cap: 1, max_cap: 4, queue: priority}
 ```
 
-docs/snippets/pages/resources.py:declare
-
 ```python
 app = SimulationContext(sim_id="Shop", factor=0.0)
 # fifo (the default), lifo or priority
 app.add_resource("packers", current_cap=1, max_cap=4, queue="priority")
 ```
-
-docs/snippets/pages/resources.py:resource
 
 ```python
 packers = DynamicResource(env, "Shop", "packers")  # capacity from the registry: 2
@@ -57,8 +51,6 @@ def order(env, order_id):
 - `priority`: the lowest priority number first, and the oldest first among equal priorities.
 
 Four requests that join while the only unit is busy are served in these orders:
-
-docs/snippets/pages/resources.py:queue-order
 
 ```python
 def served_order(queue):
@@ -110,8 +102,6 @@ The last line is the capacity drop that Under Live Changes describes, below. The
 
 Under `queue: priority`, each task gives its requests a priority: a number, the same for every run of the task; an expression, read when the task joins the queue, such as `attr.tier` for the entity's attribute `tier`; or, in the builder, a function of the task id and the entity's attributes. The attributes exist before the request queues, and the task's own payload does not, so a priority cannot read it; an expression can read the previous task's payload as `payload.<field>`. The lowest priority is served first, and equal priorities first in, first out, which is the order of SimPy's `PriorityResource`: it ranks a request by `(priority, time, not preempt)`, so among equal priorities and times a request that may preempt goes before one with `preempt: false`. The tests check it, ties included, in all three APIs ([SimPy Compatibility](https://jaehyeon.me/desflow/latest/reference/simpy-compatibility/index.md)).
 
-docs/snippets/yaml/resources.yaml:priority
-
 ```yaml
 tasks:
   pack_order:
@@ -121,8 +111,6 @@ tasks:
     priority: attr.tier
     payload: {event_type: order_packed}
 ```
-
-docs/snippets/pages/resources.py:priority
 
 ```python
 app = (
@@ -152,14 +140,10 @@ A `priority` on a task whose resource does not have `queue: priority` is refused
 
 On a resource with `preempt: true`, which needs `queue: priority`, a request that finds every unit busy takes a unit from a task of a higher priority value, as SimPy's `PreemptiveResource` does. The task that loses the unit is chosen by SimPy's rule: the user whose `(priority, request time, may not preempt)` sorts last, and only when that sorts after the new request, so equal priorities do not preempt; the one exception is a user whose request was made at the same moment as the new one with `preempt: false`, which sorts after a request that may preempt. The task publishes `preempted` with the resource's name and follows its `on_interrupt`, as an interrupt would ([Interruptions](https://jaehyeon.me/desflow/latest/tutorials/interruptions/index.md)); a task with `preempt: false` never takes a unit this way. The `interruptions` example lets express orders preempt regular ones:
 
-examples/yaml/interruptions.yaml:packers
-
 ```yaml
 # A lower priority value takes the packer from a higher one.
 packers: {current_cap: 1, max_cap: 4, queue: priority, preempt: true}
 ```
-
-examples/yaml/interruptions.yaml:pack
 
 ```yaml
 tasks:
@@ -173,14 +157,10 @@ tasks:
     attributes: [priority]
 ```
 
-examples/builder/interruptions_example.py:packers
-
 ```python
 # A lower priority value takes the packer from a higher one
 .add_resource("packers", current_cap=1, max_cap=4, queue="priority", preempt=True)
 ```
-
-examples/builder/interruptions_example.py:pack
 
 ```python
 @app.task(
@@ -193,8 +173,6 @@ examples/builder/interruptions_example.py:pack
 def pack(task_id, context, entity):
     return {"event_type": "order_packed", "priority": entity.attributes["priority"]}
 ```
-
-examples/low-level/interruptions_example.py:pack
 
 ```python
 def pack(env, sampler, shop, key, priority, task_id):
@@ -258,8 +236,6 @@ def pack(env, sampler, shop, key, priority, task_id):
 
 A task that leaves a queue cancels its request, so the request is never granted later: patience that runs out, an interrupt, and an `on_interrupt: abandon` all do. Once a unit is granted, the task gives it back when it finishes, when it is interrupted, and when it is preempted (the preempting task has it then). In the low-level API these are SimPy's calls:
 
-docs/snippets/pages/resource_cancel.py:cancel
-
 ```python
 held = packers.request()  # granted at once: the packer was free
 waiting = packers.request()  # waits behind it
@@ -279,8 +255,6 @@ packers.release(held)  # a second release does nothing
 A task can hold several resources at once: `resource: [picker, bench]` asks for a picker, then, while it holds the picker, for the bench. The task is served once it holds all of them, and it releases all of them when it finishes. While it waits for the bench it holds the picker: the holding is partial, and nothing is granted to several resources at once. `patience` covers the whole acquisition, and an interrupt gives back every unit held.
 
 A task can also hand a unit to the next task of its flow with `keep`: the next task holds it from the start and gives it back once it publishes `started`, so an order keeps the picker until it is on the packing bench. The `competing-resources` example does both:
-
-examples/yaml/competing_resources.yaml:tasks
 
 ```yaml
 tasks:
@@ -302,8 +276,6 @@ tasks:
     payload: {event_type: gift_wrapped}
 ```
 
-examples/builder/competing_resources_example.py:tasks
-
 ```python
 # The picker stays with the order until pack has started
 @app.task(service_id="picking", resource_id="picker", keep=["picker"], next="pack")
@@ -321,8 +293,6 @@ def pack(task_id, context):
 def wrap(task_id, context):
     return {"event_type": "gift_wrapped"}
 ```
-
-examples/low-level/competing_resources_example.py:tasks
 
 ```python
 def pick(shop, key):
@@ -385,8 +355,6 @@ In the low-level API several resources are nested requests, and a handoff is a r
 
 A `breakdown` makes a resource fail at random and be repaired. `time_to_failure` is the time from the start, or from a repair, to the next failure, on calendar time, busy or idle; `repair` is how long a repair takes. While the resource is down its effective capacity is 0 and no request is granted:
 
-examples/yaml/breakdowns.yaml:station
-
 ```yaml
 resources:
   station:
@@ -400,8 +368,6 @@ resources:
       work: interrupt
 ```
 
-examples/builder/breakdowns_example.py:station
-
 ```python
 .add_resource("station", current_cap=2, max_cap=3)
 .add_breakdown(
@@ -413,8 +379,6 @@ examples/builder/breakdowns_example.py:station
     work="interrupt",
 )
 ```
-
-examples/low-level/breakdowns_example.py:station
 
 ```python
 breakdowns={
@@ -650,8 +614,6 @@ A change to `current_cap` takes effect at once, without stopping any work:
 - **During a repair** the capacity is 0 and `current_cap` keeps the planned value. A change to it sets the capacity the resource returns to and does not end the repair.
 
 The example below takes three of five packers off the floor while four orders are being packed: the capacity is 2 at once, and `in_use` stays 4 until two orders finish. The animation steps through it:
-
-docs/snippets/pages/resources.py:shrink
 
 ```python
 def capacity_drop(env):

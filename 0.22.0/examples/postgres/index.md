@@ -62,8 +62,6 @@ docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params
 
 Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
-examples/yaml/postgres.yaml
-
 ```yaml
 # Relational output in YAML.
 #
@@ -117,8 +115,6 @@ This example demonstrates how to integrate `desflow` into a relational database 
 
 `PostgresEgress` creates each table in `tables` when it does not exist, and writes each record as one row. Record fields the table has no column for, such as `sim_ts`, are left out.
 
-examples/builder/postgres_example.py:app
-
 ```python
 app = (
     SimulationContext(sim_id="Shop", factor=1.0, random_seed=42)
@@ -131,8 +127,6 @@ app = (
 **Generating Orders**
 
 `place_order` has no service or resource, so it publishes its payload as soon as the arrival loop spawns it. The task id is the order id:
-
-examples/builder/postgres_example.py:records
 
 ```python
 @app.task()
@@ -218,8 +212,6 @@ odctl down postgres --volumes
 This script connects the simulation to PostgreSQL, creates the `orders` table and writes a continuous stream of orders.
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
-
-examples/builder/postgres_example.py
 
 ```python
 """Relational output, builder API.
@@ -305,8 +297,6 @@ This example demonstrates how to integrate `desflow` into a relational database 
 
 `PostgresEgress` creates each table in `tables` when it does not exist, and writes each record as one row. `PostgresIngress` creates the `simulation_params` table it polls:
 
-examples/low-level/postgres_example.py:connectors
-
 ```python
 # PostgresEgress creates the orders table, and PostgresIngress creates the
 # simulation_params table it polls for parameter updates.
@@ -317,8 +307,6 @@ env.setup_ingress([PostgresIngress(DSN, table_name="simulation_params")])
 **Generating Orders**
 
 For each arriving order, the SimPy process publishes one record under the key the builder's task would use. The task id is the order id:
-
-examples/low-level/postgres_example.py:records
 
 ```python
 order = {
@@ -396,8 +384,6 @@ odctl down postgres --volumes
 This script connects the simulation to PostgreSQL, creates the `orders` table and writes a continuous stream of orders.
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
-
-examples/low-level/postgres_example.py
 
 ```python
 """Relational output, low-level API.

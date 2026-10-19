@@ -19,15 +19,11 @@ ______________________________________________________________________
 
 A container has a `current_cap`, its capacity, the largest amount it holds; a `max_cap`, the largest capacity a live change can set; and a `level`, the amount it holds when the run starts, 0 when left out. A store has a `current_cap` and a `max_cap`, in whole items, and starts empty unless it lists `items` ([Start With Items and Serve by Priority](#start-with-items-and-serve-by-priority)). `run()` builds a `DynamicContainer` and a `DynamicStore` for each one the context declares; a store and a container cannot share a name.
 
-docs/snippets/yaml/stores_containers.yaml:container
-
 ```yaml
 containers:
   # An amount: room for 100 boxes, 20 when the run starts
   stock: {current_cap: 100, max_cap: 100, level: 20}
 ```
-
-docs/snippets/yaml/stores_containers.yaml:store
 
 ```yaml
 stores:
@@ -35,21 +31,15 @@ stores:
   parcels: {current_cap: 5, max_cap: 10}
 ```
 
-docs/snippets/pages/stores_containers.py:builder-container
-
 ```python
 # An amount: room for 100 boxes, 20 when the run starts
 app.add_container("stock", current_cap=100, max_cap=100, level=20)
 ```
 
-docs/snippets/pages/stores_containers.py:builder-store
-
 ```python
 # Items: room for 5 parcels, empty when the run starts
 app.add_store("parcels", current_cap=5, max_cap=10)
 ```
-
-docs/snippets/pages/stores_containers.py:low-level-container
 
 ```python
 env = DynamicRealtimeEnvironment(factor=0.0)
@@ -72,8 +62,6 @@ A `DynamicContainer` built with no `init` starts at the level its `ContainerConf
 
 A task takes with `get` and adds with `put`. For a container, each names the container and an `amount`: a number; an expression, such as `payload.boxes` for a field of the previous task's payload; or in the builder, a function of the task id and the previous task's payload. The amount is 1 when left out. For a store, each names the store: a `put` adds the task's finished payload as the item, and a `get` takes the oldest item and passes it to the task's function as `item`.
 
-docs/snippets/yaml/stores_containers.yaml:take
-
 ```yaml
 pack_order:
   service: packing
@@ -82,15 +70,11 @@ pack_order:
   get: {container: stock, amount: payload.boxes}
 ```
 
-docs/snippets/yaml/stores_containers.yaml:put
-
 ```yaml
 # Adds its finished payload to the store as an item
 put: {store: parcels}
 payload: {event_type: order_packed}
 ```
-
-docs/snippets/pages/stores_containers.py:builder-take
 
 ```python
 # Takes the boxes the previous task's payload names, once it has a packer.
@@ -112,8 +96,6 @@ def collect(task_id: int, item):
     return {"event_type": "parcel_collected", "parcel": item["event_type"]}
 ```
 
-docs/snippets/pages/stores_containers.py:low-level-take
-
 ```python
 def pack(env, order_id):
     yield stock.get(2)  # takes 2 boxes, waiting while fewer are left
@@ -133,8 +115,6 @@ A task with a resource gets its unit first and then takes its `get`, so it waits
 
 A store can hold items when the run starts, as parcels left from yesterday: `items` lists them in the order a get returns them. A store with `priority` returns the item with the lowest priority first, as SimPy's `PriorityStore` does; its items are `[priority, item]` pairs, and a task's `put` gives each new item its `priority`, a number or an expression such as `attr.priority`. Items of equal priority come out in the order they went in. A store cannot start with more items than its `current_cap`; the blueprint or `add_store` is refused with the reason.
 
-docs/snippets/yaml/parcel_store.yaml:store
-
 ```yaml
 stores:
   parcels:
@@ -148,8 +128,6 @@ stores:
       - [1, {order: express-0}]
 ```
 
-docs/snippets/yaml/parcel_store.yaml:put
-
 ```yaml
 pack:
   # Each parcel's priority, read when it is put in the store
@@ -157,8 +135,6 @@ pack:
   payload: {order: standard}
   id_field: number
 ```
-
-docs/snippets/pages/parcel_store.py:builder-store
 
 ```python
 app = SimulationContext(sim_id="Shop", factor=0.0)
@@ -174,8 +150,6 @@ app.add_store(
 ```
 
 A task's `put` takes the priority the same way: `put={"store": "parcels", "priority": "attr.priority"}`.
-
-docs/snippets/pages/parcel_store.py:low-level-store
 
 ```python
 parcels = DynamicStore(
@@ -205,8 +179,6 @@ A store `get` can take a `filter`, a condition that picks which item it takes, a
 
 A task's `patience` covers its whole wait, for its `wait`, then its resource and then its `get`. When it runs out, the task publishes `reneged` and its get is cancelled, so it takes nothing later. In the low-level API, `cancel()` on a put or get event that has not succeeded takes it out of its queue, as in SimPy: a cancelled get takes nothing, and a cancelled put adds nothing. `item_field` adds the item a YAML task's get took to its payload, and a builder function receives it as `item`:
 
-examples/yaml/filtered_inventory.yaml:collect
-
 ```yaml
 tasks:
   pack:
@@ -226,8 +198,6 @@ tasks:
     payload: {event_type: parcel_collected}
 ```
 
-examples/builder/filtered_inventory_example.py:collect
-
 ```python
 @app.task(
     # The oldest parcel for the courier's own area
@@ -241,8 +211,6 @@ def collect(task_id, context, item):
 ```
 
 A filter can also be a function of the item: `"filter": lambda parcel: parcel["area"] == "north"`.
-
-examples/low-level/filtered_inventory_example.py:collect
 
 ```python
 def collect(env, sampler, shop, key, area, task_id):
@@ -332,8 +300,6 @@ cd stock/yaml
 desflow run stock.yaml
 ```
 
-examples/yaml/stock.yaml:pack
-
 ```yaml
 tasks:
   pack:
@@ -378,8 +344,6 @@ cd stock/builder
 # 3. Run it
 python stock_example.py
 ```
-
-examples/builder/stock_example.py:pack
 
 ```python
 @app.task(
@@ -426,8 +390,6 @@ cd stock/low-level
 # 3. Run it
 python stock_example.py
 ```
-
-examples/low-level/stock_example.py:pack
 
 ```python
 def pack(env, sampler, shop, key, priority, task_id):
@@ -569,15 +531,11 @@ ______________________________________________________________________
 
 The stock count in the blueprint above, in each way of writing:
 
-docs/snippets/yaml/stores_containers.yaml:level
-
 ```yaml
 scenario:
   # A stock count at 30 seconds: the level path sets what the container holds
   - {at: 30, path: Shop.containers.stock.level, value: 50}
 ```
-
-docs/snippets/pages/stores_containers.py:builder-level
 
 ```python
 def stock_count(context: SimulationContext):
@@ -588,8 +546,6 @@ def stock_count(context: SimulationContext):
 
 app.add_process(stock_count)
 ```
-
-docs/snippets/pages/stores_containers.py:low-level-level
 
 ```python
 def stock_count_process(env):

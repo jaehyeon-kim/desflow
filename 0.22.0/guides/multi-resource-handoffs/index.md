@@ -18,8 +18,6 @@ ______________________________________________________________________
 
 ## Example
 
-docs/snippets/guides/multi_resource_handoffs.py
-
 ```python
 import logging
 

@@ -14,8 +14,6 @@ ______________________________________________________________________
 
 In SimPy a process holds a resource for as long as its request is granted and not released, and it can ask for a second resource while it holds the first: nested `with` blocks. A desflow task does the same in two ways. It can list several resources, `resource: [picker, bench]`, and hold them all while it works; or it can hand a unit to the next task of its flow with `keep`, and that task gives it back once it starts:
 
-docs/snippets/yaml/competing_resources.yaml:handoff
-
 ```yaml
 pick_order:
   service: picking
@@ -31,8 +29,6 @@ pack_order:
 ```
 
 Remove `keep: [picker]` to run it without the handoff: `pick_order` then gives the picker back when it finishes, as every task does.
-
-docs/snippets/tutorials/competing_resources.py:handoff
 
 ```python
 @app.task(
@@ -51,8 +47,6 @@ def pack_order(task_id: int):
 ```
 
 Without `keep`, `pick_order` gives the picker back when it finishes, as every task does.
-
-docs/snippets/tutorials/competing_resources_low_level.py:handoff
 
 ```python
 def pick_order(env, sampler, shop, key, task_id, keep):
@@ -97,21 +91,15 @@ The picker's request is not in a `with` block, because the next process releases
 
 While the order waits for the bench it holds the picker: a **partial holding**. Nothing grants the picker and the bench together; each is acquired in turn, and the units already held stay held while the task waits for the next. The picker's busy share counts that waiting time:
 
-docs/snippets/yaml/competing_resources.yaml:watch
-
 ```yaml
 # The mean wait of each task and the picker's busy share, at the end
 stats: {level: typical, interval: 1 h}
 ```
 
-docs/snippets/tutorials/competing_resources.py:watch
-
 ```python
 # The mean wait of each task and the picker's busy share, at the end
 .with_stats("typical", interval=3600)
 ```
-
-docs/snippets/tutorials/competing_resources_low_level.py:watch
 
 ```python
 # The mean wait of each task and the picker's busy share, at the end
@@ -146,8 +134,6 @@ ______________________________________________________________________
 ## Full Files
 
 Full files
-
-docs/snippets/yaml/competing_resources.yaml
 
 ```yaml
 # The Competing Resources tutorial: an order keeps the picker until it is on the bench.
@@ -190,8 +176,6 @@ egress:
 run:
   until: 1 h
 ```
-
-docs/snippets/tutorials/competing_resources.py
 
 ```python
 """The Competing Resources tutorial: an order keeps the picker until it is on the bench.
@@ -272,8 +256,6 @@ if __name__ == "__main__":
             f"{r['pack_wait']:5.2f} s, picker busy {r['picker_busy']:4.1f}%"
         )
 ```
-
-docs/snippets/tutorials/competing_resources_low_level.py
 
 ```python
 """The Competing Resources tutorial: an order keeps the picker until it is on the bench.

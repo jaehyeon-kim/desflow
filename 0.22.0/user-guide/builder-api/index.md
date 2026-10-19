@@ -12,8 +12,6 @@ ______________________________________________________________________
 
 The context names the simulation and sets its clock: `factor` for the pacing, `random_seed` for the draws, `logical_start_time` for the timestamps. It also takes `go_live_at` and `warmup`, which [Time and Pacing](https://jaehyeon.me/desflow/latest/user-guide/time-and-pacing/index.md) describes.
 
-docs/snippets/pages/builder.py:clock
-
 ```python
 app = SimulationContext(
     sim_id="Shop",
@@ -27,8 +25,6 @@ app = SimulationContext(
 
 A resource is held while a task works; a container holds an amount and a store holds items, which tasks take and add. `add_variable` registers any other live value. [Resources](https://jaehyeon.me/desflow/latest/user-guide/resources/index.md) and [Stores and Containers](https://jaehyeon.me/desflow/latest/user-guide/stores-and-containers/index.md) describe each.
 
-docs/snippets/pages/builder.py:resources
-
 ```python
 app.add_resource("packers", current_cap=2, max_cap=5)  # 2 packers now, room for 5
 app.add_container("boxes", current_cap=200, max_cap=200, level=100)  # an amount
@@ -40,8 +36,6 @@ app.add_variable("conveyor_speed", 1.5)  # any other live value
 
 Each arrival and service is a distribution, with its parameters by keyword. A parameter out of range, or one the family does not take, raises `ValueError` here, before the run. [Arrivals and Services](https://jaehyeon.me/desflow/latest/user-guide/arrivals-and-services/index.md) lists the ten families.
 
-docs/snippets/pages/builder.py:distributions
-
 ```python
 app.add_arrival("orders", dist="exponential", rate=0.5)  # an order every 2 s on average
 app.add_arrival("couriers", dist="constant", value=10)  # a courier every 10 s
@@ -52,8 +46,6 @@ app.add_service("labelling", dist="constant", value=0.5)
 ## Write the Tasks
 
 `@app.task` turns a function into a task: it publishes `queued`, waits for its resource and its `get`, publishes `started`, waits the service time, adds its `put`, and publishes what the function returns as the finished event. `next` names the task that follows, and the function receives `upstream`, `entity` or `item` when it declares them. [Task Flow](https://jaehyeon.me/desflow/latest/user-guide/task-flow/index.md) covers rules and weights.
-
-docs/snippets/pages/builder.py:tasks
 
 ```python
 @app.task(
@@ -82,8 +74,6 @@ def collect(task_id: int, item):
 
 An arrival loop waits for each arrival and starts a task for the entity it returns, keyed `orders-1`, `orders-2` and so on.
 
-docs/snippets/pages/builder.py:arrivals
-
 ```python
 @app.arrival_loop("orders")
 def orders(context: SimulationContext):
@@ -107,8 +97,6 @@ def couriers(context: SimulationContext):
 
 `with_stats` switches on the built-in statistics, published as telemetry; [Statistics](https://jaehyeon.me/desflow/latest/user-guide/statistics/index.md) lists the levels.
 
-docs/snippets/pages/builder.py:stats
-
 ```python
 app.with_stats("typical", interval=30)  # readings, counts, waits, every 30 s
 ```
@@ -116,8 +104,6 @@ app.with_stats("typical", interval=30)  # readings, counts, waits, every 30 s
 ## Add a Process
 
 `add_process` starts any generator when the run starts, called with the context, for anything that is not a task: here a speed that drifts.
-
-docs/snippets/pages/builder.py:process
 
 ```python
 def speed_drift(context: SimulationContext, step: float):
@@ -136,8 +122,6 @@ app.add_process(speed_drift, step=0.1)
 
 `add_ingress` brings parameter changes in, and `add_egress` writes records out, each with its own batching if it needs it. [Ingress](https://jaehyeon.me/desflow/latest/user-guide/ingress/index.md) and [Egress](https://jaehyeon.me/desflow/latest/user-guide/egress/index.md) list the connectors.
 
-docs/snippets/pages/builder.py:connectors
-
 ```python
 app.add_ingress(LocalIngress(schedule=[(5.0, "Shop.resources.packers.current_cap", 3)]))
 app.add_egress(ConsoleEgress(), batch_size=100, flush_interval=1.0)
@@ -148,15 +132,11 @@ app.with_batching(batch_size=1_000, flush_interval=5.0)  # defaults for other si
 
 `compile_parameters()` returns the `SimParameter` that `run()` will register, to check the registry paths before a run:
 
-docs/snippets/pages/builder.py:compile
-
 ```python
 paths = app.compile_parameters()  # the SimParameter that run() registers
 ```
 
 ## Run It
-
-docs/snippets/pages/builder.py:run
 
 ```python
 if __name__ == "__main__":
@@ -208,8 +188,6 @@ ______________________________________________________________________
 Full script
 
 The complete file, which the documentation tests run:
-
-docs/snippets/pages/builder.py
 
 ```python
 """The Builder API page: a whole simulation in one Python file, step by step.

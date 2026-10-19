@@ -14,8 +14,6 @@ ______________________________________________________________________
 
 A schedule is a list of steps, each a registry path, a value and the simulation time it applies at. The rush is four steps: the rate and the packers change at 20 minutes and change back at 40:
 
-docs/snippets/yaml/changing_demand.yaml:schedule
-
 ```yaml
 # The rush: 0.9 orders a second from 20 to 40 minutes, and RUSH_PACKERS for it
 scenario:
@@ -26,8 +24,6 @@ scenario:
 ```
 
 `${RUSH_PACKERS:-1}` reads the environment variable `RUSH_PACKERS`, so `RUSH_PACKERS=2 desflow run changing_demand.yaml` runs the second plan.
-
-docs/snippets/tutorials/changing_demand.py:schedule
 
 ```python
 # The rush: 0.9 orders a second from 20 to 40 minutes, and rush_packers for it
@@ -49,8 +45,6 @@ docs/snippets/tutorials/changing_demand.py:schedule
 )
 ```
 
-docs/snippets/tutorials/changing_demand_low_level.py:schedule
-
 ```python
 def schedule(rush_packers):
     """The rush: 0.9 orders a second from 20 to 40 minutes, and rush_packers for it."""
@@ -67,8 +61,6 @@ def schedule(rush_packers):
 ```
 
 `run_scenario` is the SimPy process that applies the steps:
-
-docs/snippets/tutorials/changing_demand_low_level.py:run
 
 ```python
 # Each step applies before every other event at its time
@@ -99,8 +91,6 @@ ______________________________________________________________________
 ## Full Files
 
 Full files
-
-docs/snippets/yaml/changing_demand.yaml
 
 ```yaml
 # The Changing Demand tutorial: a 20-minute rush, with one packer or two.
@@ -142,8 +132,6 @@ egress:
 run:
   until: 1 h
 ```
-
-docs/snippets/tutorials/changing_demand.py
 
 ```python
 """The Changing Demand tutorial: a 20-minute rush, with one packer or two.
@@ -229,8 +217,6 @@ if __name__ == "__main__":
             f"mean wait {r['wait_mean']:5.2f} s, longest {r['wait_max']:6.2f} s"
         )
 ```
-
-docs/snippets/tutorials/changing_demand_low_level.py
 
 ```python
 """The Changing Demand tutorial: a 20-minute rush, with one packer or two.

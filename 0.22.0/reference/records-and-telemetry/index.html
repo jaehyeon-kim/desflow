@@ -61,6 +61,8 @@
     
       <link rel="stylesheet" href="../../css/tables.css">
     
+      <link rel="stylesheet" href="../../css/code-lines.css">
+    
     <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
@@ -3054,16 +3056,20 @@
 </table>
 <p>As <code>ConsoleEgress</code> prints them, a statistic and the three events of one task:</p>
 <!-- records: record-examples -->
-<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>[TEL] {&#39;sim_ts&#39;: 10.0, &#39;timestamp&#39;: &#39;...&#39;, &#39;path_id&#39;: &#39;Shop.stats.resources.packers.in_use&#39;, &#39;value&#39;: 0}
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>[EVT] {&#39;sim_ts&#39;: 3.672, &#39;timestamp&#39;: &#39;...&#39;, &#39;key&#39;: &#39;orders-1&#39;, &#39;task&#39;: &#39;pack_order&#39;, &#39;instance&#39;: 0, &#39;value&#39;: {&#39;path_id&#39;: &#39;Shop.service.packing&#39;, &#39;status&#39;: &#39;queued&#39;}}
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>[EVT] {&#39;sim_ts&#39;: 3.672, &#39;timestamp&#39;: &#39;...&#39;, &#39;key&#39;: &#39;orders-1&#39;, &#39;task&#39;: &#39;pack_order&#39;, &#39;instance&#39;: 0, &#39;value&#39;: {&#39;path_id&#39;: &#39;Shop.service.packing&#39;, &#39;status&#39;: &#39;started&#39;}}
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>[EVT] {&#39;sim_ts&#39;: 5.369, &#39;timestamp&#39;: &#39;...&#39;, &#39;key&#39;: &#39;orders-1&#39;, &#39;task&#39;: &#39;pack_order&#39;, &#39;instance&#39;: 0, &#39;value&#39;: {&#39;event_type&#39;: &#39;order_packed&#39;}}
-</span></code></pre></div>
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-1">1</a></span>
+<span class="normal"><a href="#__codelineno-0-2">2</a></span>
+<span class="normal"><a href="#__codelineno-0-3">3</a></span>
+<span class="normal"><a href="#__codelineno-0-4">4</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1"></a>[TEL] {&#39;sim_ts&#39;: 10.0, &#39;timestamp&#39;: &#39;...&#39;, &#39;path_id&#39;: &#39;Shop.stats.resources.packers.in_use&#39;, &#39;value&#39;: 0}
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2"></a>[EVT] {&#39;sim_ts&#39;: 3.672, &#39;timestamp&#39;: &#39;...&#39;, &#39;key&#39;: &#39;orders-1&#39;, &#39;task&#39;: &#39;pack_order&#39;, &#39;instance&#39;: 0, &#39;value&#39;: {&#39;path_id&#39;: &#39;Shop.service.packing&#39;, &#39;status&#39;: &#39;queued&#39;}}
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3"></a>[EVT] {&#39;sim_ts&#39;: 3.672, &#39;timestamp&#39;: &#39;...&#39;, &#39;key&#39;: &#39;orders-1&#39;, &#39;task&#39;: &#39;pack_order&#39;, &#39;instance&#39;: 0, &#39;value&#39;: {&#39;path_id&#39;: &#39;Shop.service.packing&#39;, &#39;status&#39;: &#39;started&#39;}}
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4"></a>[EVT] {&#39;sim_ts&#39;: 5.369, &#39;timestamp&#39;: &#39;...&#39;, &#39;key&#39;: &#39;orders-1&#39;, &#39;task&#39;: &#39;pack_order&#39;, &#39;instance&#39;: 0, &#39;value&#39;: {&#39;event_type&#39;: &#39;order_packed&#39;}}
+</span></code></pre></div></td></tr></table></div>
 <p>And two labels, as a JSON Lines sink writes them:</p>
 <!-- records: label-records -->
-<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>{&quot;stream_type&quot;:&quot;label&quot;,&quot;sim_ts&quot;:30.0,&quot;timestamp&quot;:&quot;...&quot;,&quot;path&quot;:&quot;Shop.arrival.orders.rate&quot;,&quot;old&quot;:0.5,&quot;new&quot;:1.5,&quot;label&quot;:{&quot;fault&quot;:&quot;order_surge&quot;,&quot;cause&quot;:&quot;flash sale&quot;}}
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>{&quot;stream_type&quot;:&quot;label&quot;,&quot;sim_ts&quot;:45.0,&quot;timestamp&quot;:&quot;...&quot;,&quot;path&quot;:null,&quot;old&quot;:null,&quot;new&quot;:null,&quot;label&quot;:{&quot;fault&quot;:&quot;label_printer_offline&quot;}}
-</span></code></pre></div>
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-1-1">1</a></span>
+<span class="normal"><a href="#__codelineno-1-2">2</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1"></a>{&quot;stream_type&quot;:&quot;label&quot;,&quot;sim_ts&quot;:30.0,&quot;timestamp&quot;:&quot;...&quot;,&quot;path&quot;:&quot;Shop.arrival.orders.rate&quot;,&quot;old&quot;:0.5,&quot;new&quot;:1.5,&quot;label&quot;:{&quot;fault&quot;:&quot;order_surge&quot;,&quot;cause&quot;:&quot;flash sale&quot;}}
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2"></a>{&quot;stream_type&quot;:&quot;label&quot;,&quot;sim_ts&quot;:45.0,&quot;timestamp&quot;:&quot;...&quot;,&quot;path&quot;:null,&quot;old&quot;:null,&quot;new&quot;:null,&quot;label&quot;:{&quot;fault&quot;:&quot;label_printer_offline&quot;}}
+</span></code></pre></div></td></tr></table></div>
 <p><code>sim_ts</code> is simulation seconds. <code>timestamp</code> is <code>logical_start_time</code> plus the simulation time, as an ISO 8601 string with milliseconds and the offset of the run's time zone, such as <code>2026-10-03T12:00:00.000+10:00</code>, or <code>+00:00</code> in UTC, the default; <a href="../../user-guide/time-and-pacing/#time-zone">Time and Pacing</a> describes the zone. <code>sim_ts</code> is rounded to the millisecond and <code>timestamp</code> cut to it, so their milliseconds can differ by 1.</p>
 <hr />
 <h2 id="field-values">Field Values</h2>
@@ -3073,21 +3079,34 @@
 <li><code>task</code> is the name of a builder or YAML task; <code>instance</code> is its instance id, an integer from 0 for a builder or YAML task, or what a low-level process passes. <code>publish_event</code> and <code>publish_label</code> do not check <code>task</code>, <code>instance</code> or <code>path</code>, so a low-level process that passes another type writes that type; the types in the table are what the builder and YAML write.</li>
 <li><code>value</code>, <code>old</code>, <code>new</code> and <code>label</code> are converted to plain JSON values before any sink sees them. A Pydantic V2 model becomes a dictionary, a datetime an ISO string, and a NaN or an infinity <code>None</code>, in a model at any depth as in a plain dictionary.</li>
 </ul>
-<div class="language-python highlight"><span class="filename">docs/snippets/pages/records.py:values</span><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">Reading</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>    <span class="n">sensor</span><span class="p">:</span> <span class="nb">str</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>    <span class="n">celsius</span><span class="p">:</span> <span class="nb">float</span>
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="n">taken_at</span><span class="p">:</span> <span class="n">datetime</span>
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="k">def</span><span class="w"> </span><span class="nf">readings</span><span class="p">(</span><span class="n">context</span><span class="p">:</span> <span class="n">SimulationContext</span><span class="p">):</span>
-</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
-</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>        <span class="k">yield</span> <span class="n">context</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">timeout</span><span class="p">(</span><span class="mf">30.0</span><span class="p">)</span>
-</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>        <span class="n">reading</span> <span class="o">=</span> <span class="n">Reading</span><span class="p">(</span>
-</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a>            <span class="n">sensor</span><span class="o">=</span><span class="s2">&quot;spindle&quot;</span><span class="p">,</span> <span class="n">celsius</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="s2">&quot;nan&quot;</span><span class="p">),</span> <span class="n">taken_at</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
-</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>        <span class="p">)</span>
-</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>        <span class="c1"># The model becomes a dict, taken_at an ISO string, and NaN becomes None</span>
-</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>        <span class="n">context</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">publish_event</span><span class="p">(</span><span class="s2">&quot;sensor-spindle&quot;</span><span class="p">,</span> <span class="n">reading</span><span class="p">)</span>
-</span></code></pre></div>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/pages/records.py:values</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-2-1"> 1</a></span>
+<span class="normal"><a href="#__codelineno-2-2"> 2</a></span>
+<span class="normal"><a href="#__codelineno-2-3"> 3</a></span>
+<span class="normal"><a href="#__codelineno-2-4"> 4</a></span>
+<span class="normal"><a href="#__codelineno-2-5"> 5</a></span>
+<span class="normal"><a href="#__codelineno-2-6"> 6</a></span>
+<span class="normal"><a href="#__codelineno-2-7"> 7</a></span>
+<span class="normal"><a href="#__codelineno-2-8"> 8</a></span>
+<span class="normal"><a href="#__codelineno-2-9"> 9</a></span>
+<span class="normal"><a href="#__codelineno-2-10">10</a></span>
+<span class="normal"><a href="#__codelineno-2-11">11</a></span>
+<span class="normal"><a href="#__codelineno-2-12">12</a></span>
+<span class="normal"><a href="#__codelineno-2-13">13</a></span>
+<span class="normal"><a href="#__codelineno-2-14">14</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1"></a><span class="k">class</span><span class="w"> </span><span class="nc">Reading</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2"></a>    <span class="n">sensor</span><span class="p">:</span> <span class="nb">str</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3"></a>    <span class="n">celsius</span><span class="p">:</span> <span class="nb">float</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4"></a>    <span class="n">taken_at</span><span class="p">:</span> <span class="n">datetime</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5"></a>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6"></a>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7"></a><span class="k">def</span><span class="w"> </span><span class="nf">readings</span><span class="p">(</span><span class="n">context</span><span class="p">:</span> <span class="n">SimulationContext</span><span class="p">):</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8"></a>    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9"></a>        <span class="k">yield</span> <span class="n">context</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">timeout</span><span class="p">(</span><span class="mf">30.0</span><span class="p">)</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10"></a>        <span class="n">reading</span> <span class="o">=</span> <span class="n">Reading</span><span class="p">(</span>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11"></a>            <span class="n">sensor</span><span class="o">=</span><span class="s2">&quot;spindle&quot;</span><span class="p">,</span> <span class="n">celsius</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="s2">&quot;nan&quot;</span><span class="p">),</span> <span class="n">taken_at</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12"></a>        <span class="p">)</span>
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13"></a>        <span class="c1"># The model becomes a dict, taken_at an ISO string, and NaN becomes None</span>
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14"></a>        <span class="n">context</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">publish_event</span><span class="p">(</span><span class="s2">&quot;sensor-spindle&quot;</span><span class="p">,</span> <span class="n">reading</span><span class="p">)</span>
+</span></code></pre></div></td></tr></table></div>
 <hr />
 <h2 id="task-events">Task Events</h2>
 <p><code>@app.task</code> and a YAML task publish three events for each run that is served, all with the entity's key, the task's name and its instance id:</p>
@@ -3226,25 +3245,35 @@
 </tr>
 </tbody>
 </table>
-<div class="language-python highlight"><span class="filename">docs/snippets/pages/records.py:telemetry</span><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nd">@app</span><span class="o">.</span><span class="n">telemetry_loop</span><span class="p">(</span><span class="n">interval</span><span class="o">=</span><span class="mf">10.0</span><span class="p">)</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">report</span><span class="p">(</span><span class="n">context</span><span class="p">:</span> <span class="n">SimulationContext</span><span class="p">):</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="c1"># path_id is Shop.packers_free: the sim_id is added in front</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">packers</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">get_resource</span><span class="p">(</span><span class="s2">&quot;packers&quot;</span><span class="p">)</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    <span class="n">context</span><span class="o">.</span><span class="n">publish</span><span class="p">(</span><span class="s2">&quot;packers_free&quot;</span><span class="p">,</span> <span class="n">packers</span><span class="o">.</span><span class="n">capacity</span> <span class="o">-</span> <span class="n">packers</span><span class="o">.</span><span class="n">in_use</span><span class="p">)</span>
-</span></code></pre></div>
-<div class="language-python highlight"><span class="filename">docs/snippets/pages/records.py:low-level</span><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="n">env</span> <span class="o">=</span> <span class="n">DynamicRealtimeEnvironment</span><span class="p">(</span><span class="n">factor</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">env</span><span class="o">.</span><span class="n">setup_egress</span><span class="p">([</span><span class="n">ConsoleEgress</span><span class="p">()])</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">env</span><span class="o">.</span><span class="n">publish_telemetry</span><span class="p">(</span><span class="s2">&quot;plant.power_kw&quot;</span><span class="p">,</span> <span class="mf">412.5</span><span class="p">)</span>  <span class="c1"># path_id exactly as given</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="c1"># key, task, instance and value as given; task and instance are optional</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="n">env</span><span class="o">.</span><span class="n">publish_event</span><span class="p">(</span><span class="s2">&quot;orders-17&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;status&quot;</span><span class="p">:</span> <span class="s2">&quot;shipped&quot;</span><span class="p">},</span> <span class="n">task</span><span class="o">=</span><span class="s2">&quot;ship&quot;</span><span class="p">,</span> <span class="n">instance</span><span class="o">=</span><span class="mi">16</span><span class="p">)</span>
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="c1"># A ground-truth label, which only a when: labels sink receives</span>
-</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="n">env</span><span class="o">.</span><span class="n">publish_label</span><span class="p">({</span><span class="s2">&quot;fault&quot;</span><span class="p">:</span> <span class="s2">&quot;slow_packing&quot;</span><span class="p">},</span> <span class="n">path</span><span class="o">=</span><span class="s2">&quot;Shop.service.packing.scale&quot;</span><span class="p">)</span>
-</span></code></pre></div>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/pages/records.py:telemetry</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-3-1">1</a></span>
+<span class="normal"><a href="#__codelineno-3-2">2</a></span>
+<span class="normal"><a href="#__codelineno-3-3">3</a></span>
+<span class="normal"><a href="#__codelineno-3-4">4</a></span>
+<span class="normal"><a href="#__codelineno-3-5">5</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1"></a><span class="nd">@app</span><span class="o">.</span><span class="n">telemetry_loop</span><span class="p">(</span><span class="n">interval</span><span class="o">=</span><span class="mf">10.0</span><span class="p">)</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2"></a><span class="k">def</span><span class="w"> </span><span class="nf">report</span><span class="p">(</span><span class="n">context</span><span class="p">:</span> <span class="n">SimulationContext</span><span class="p">):</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3"></a>    <span class="c1"># path_id is Shop.packers_free: the sim_id is added in front</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4"></a>    <span class="n">packers</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">get_resource</span><span class="p">(</span><span class="s2">&quot;packers&quot;</span><span class="p">)</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5"></a>    <span class="n">context</span><span class="o">.</span><span class="n">publish</span><span class="p">(</span><span class="s2">&quot;packers_free&quot;</span><span class="p">,</span> <span class="n">packers</span><span class="o">.</span><span class="n">capacity</span> <span class="o">-</span> <span class="n">packers</span><span class="o">.</span><span class="n">in_use</span><span class="p">)</span>
+</span></code></pre></div></td></tr></table></div>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/pages/records.py:low-level</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-4-1">1</a></span>
+<span class="normal"><a href="#__codelineno-4-2">2</a></span>
+<span class="normal"><a href="#__codelineno-4-3">3</a></span>
+<span class="normal"><a href="#__codelineno-4-4">4</a></span>
+<span class="normal"><a href="#__codelineno-4-5">5</a></span>
+<span class="normal"><a href="#__codelineno-4-6">6</a></span>
+<span class="normal"><a href="#__codelineno-4-7">7</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1"></a><span class="n">env</span> <span class="o">=</span> <span class="n">DynamicRealtimeEnvironment</span><span class="p">(</span><span class="n">factor</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2"></a><span class="n">env</span><span class="o">.</span><span class="n">setup_egress</span><span class="p">([</span><span class="n">ConsoleEgress</span><span class="p">()])</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3"></a><span class="n">env</span><span class="o">.</span><span class="n">publish_telemetry</span><span class="p">(</span><span class="s2">&quot;plant.power_kw&quot;</span><span class="p">,</span> <span class="mf">412.5</span><span class="p">)</span>  <span class="c1"># path_id exactly as given</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4"></a><span class="c1"># key, task, instance and value as given; task and instance are optional</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5"></a><span class="n">env</span><span class="o">.</span><span class="n">publish_event</span><span class="p">(</span><span class="s2">&quot;orders-17&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;status&quot;</span><span class="p">:</span> <span class="s2">&quot;shipped&quot;</span><span class="p">},</span> <span class="n">task</span><span class="o">=</span><span class="s2">&quot;ship&quot;</span><span class="p">,</span> <span class="n">instance</span><span class="o">=</span><span class="mi">16</span><span class="p">)</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6"></a><span class="c1"># A ground-truth label, which only a when: labels sink receives</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7"></a><span class="n">env</span><span class="o">.</span><span class="n">publish_label</span><span class="p">({</span><span class="s2">&quot;fault&quot;</span><span class="p">:</span> <span class="s2">&quot;slow_packing&quot;</span><span class="p">},</span> <span class="n">path</span><span class="o">=</span><span class="s2">&quot;Shop.service.packing.scale&quot;</span><span class="p">)</span>
+</span></code></pre></div></td></tr></table></div>
 <hr />
 <h2 id="reserved-payload-keys">Reserved Payload Keys</h2>
 <p>A key of a record's <code>value</code>, an event's or a telemetry value that is a mapping, that is two underscores, a name of at least one character, then two underscores, such as <code>__table__</code> or <code>__stream__</code>, belongs to desflow, not to the data. A sink that routes by one uses it and removes it: <code>PostgresEgress</code> writes the record to the table its <code>__table__</code> names, and <code>RedisEgress</code> to the stream its <code>__stream__</code> names. Every other sink, <code>KafkaEgress</code>, the Parquet, JSON Lines and Iceberg sinks and <code>ConsoleEgress</code>, drops every such key and logs one warning per key the first time it meets it:</p>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>KafkaEgress drops the payload key &#39;__table__&#39;: keys that start and end with two underscores are reserved for desflow, and only a sink that routes by one, such as PostgreSQL&#39;s __table__ or Redis&#39;s __stream__, uses it. Rename the key to keep it as data.
-</span></code></pre></div>
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-5-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1"></a>KafkaEgress drops the payload key &#39;__table__&#39;: keys that start and end with two underscores are reserved for desflow, and only a sink that routes by one, such as PostgreSQL&#39;s __table__ or Redis&#39;s __stream__, uses it. Rename the key to keep it as data.
+</span></code></pre></div></td></tr></table></div>
 <p>The record itself is not changed, so a PostgreSQL sink on the same run still finds its <code>__table__</code>. A sink drops the keys before its router sees the record, so a Kafka <code>topic_router</code> or a storage <code>path_router</code> cannot route by such a key. <code>PostgresEgress</code> and <code>RedisEgress</code> drop only their own routing key, so any other such key reaches their rows as data. Rename a key such as <code>__source__</code> to <code>source</code> to keep it as data.</p>
 <h2 id="what-each-sink-writes">What Each Sink Writes</h2>
 <p>Every sink receives the events and telemetry above, and a <code>when: labels</code> sink receives the labels instead. What each writes differs:</p>
@@ -3332,10 +3361,12 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.tabs.link"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.tabs.link", "content.code.copy", "content.code.select"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
       <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../js/code-lines.js"></script>
       
     
   </body>

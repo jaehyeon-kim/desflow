@@ -14,8 +14,6 @@ ______________________________________________________________________
 
 Here a packing station of two units fails about once a minute and takes 5 to 15 seconds to repair:
 
-examples/yaml/breakdowns.yaml:station
-
 ```yaml
 resources:
   station:
@@ -29,8 +27,6 @@ resources:
       work: interrupt
 ```
 
-examples/builder/breakdowns_example.py:station
-
 ```python
 .add_resource("station", current_cap=2, max_cap=3)
 .add_breakdown(
@@ -42,8 +38,6 @@ examples/builder/breakdowns_example.py:station
     work="interrupt",
 )
 ```
-
-examples/low-level/breakdowns_example.py:station
 
 ```python
 breakdowns={
@@ -58,8 +52,6 @@ breakdowns={
 ```
 
 The breakdowns run as a SimPy process, started beside the arrivals:
-
-examples/low-level/breakdowns_example.py:processes
 
 ```python
 def processes(env, sampler, station):
@@ -82,8 +74,6 @@ ______________________________________________________________________
 ## Check the Downtime
 
 With statistics at `minimal` or above, the station publishes `down`, 1 while it is down and 0 otherwise; from `basic`, `downtime`, the seconds it has been down, and `failures`, how many times it has failed. This function runs the example, finds the down periods from the events, and checks both counts against them:
-
-docs/snippets/guides/breakdowns.py:check
 
 ```python
 def availability(path: str) -> dict:

@@ -52,8 +52,6 @@ ______________________________________________________________________
 - `task` is the name of a builder or YAML task; `instance` is its instance id, an integer from 0 for a builder or YAML task, or what a low-level process passes. `publish_event` and `publish_label` do not check `task`, `instance` or `path`, so a low-level process that passes another type writes that type; the types in the table are what the builder and YAML write.
 - `value`, `old`, `new` and `label` are converted to plain JSON values before any sink sees them. A Pydantic V2 model becomes a dictionary, a datetime an ISO string, and a NaN or an infinity `None`, in a model at any depth as in a plain dictionary.
 
-docs/snippets/pages/records.py:values
-
 ```python
 class Reading(BaseModel):
     sensor: str
@@ -126,8 +124,6 @@ ______________________________________________________________________
 | `env.publish_telemetry(path_id, value)`                                                                             | `path_id`, as given                                                                                                                                                                                                              |
 | the lag monitor                                                                                                     | `system.simulation.lag_seconds`, every `lag_interval`: by default every simulation second at a `factor` above 0, and none at `factor: 0` ([Time and Pacing](https://jaehyeon.me/desflow/latest/user-guide/time-and-pacing/#lag)) |
 
-docs/snippets/pages/records.py:telemetry
-
 ```python
 @app.telemetry_loop(interval=10.0)
 def report(context: SimulationContext):
@@ -135,8 +131,6 @@ def report(context: SimulationContext):
     packers = context.get_resource("packers")
     context.publish("packers_free", packers.capacity - packers.in_use)
 ```
-
-docs/snippets/pages/records.py:low-level
 
 ```python
 env = DynamicRealtimeEnvironment(factor=0.0)

@@ -61,6 +61,8 @@
     
       <link rel="stylesheet" href="../../css/tables.css">
     
+      <link rel="stylesheet" href="../../css/code-lines.css">
+    
     <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
@@ -3060,31 +3062,42 @@
 <div class="tabbed-set tabbed-alternate" data-tabs="1:3"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><input id="__tabbed_1_3" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">YAML</label><label for="__tabbed_1_2">Builder</label><label for="__tabbed_1_3">Low-level</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>desflow<span class="w"> </span>run<span class="w"> </span>replications.yaml<span class="w"> </span>--replications<span class="w"> </span><span class="m">20</span><span class="w"> </span>--measure<span class="w"> </span>tasks.pack.wait_mean
-</span></code></pre></div>
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1"></a>desflow<span class="w"> </span>run<span class="w"> </span>replications.yaml<span class="w"> </span>--replications<span class="w"> </span><span class="m">20</span><span class="w"> </span>--measure<span class="w"> </span>tasks.pack.wait_mean
+</span></code></pre></div></td></tr></table></div>
 <p><code>--seed</code> overrides <code>simulation.random_seed</code>, and <code>--until</code> overrides <code>run.until</code>, as for one run. <code>--level</code> sets the confidence level (0.95 when it is not given), <code>--workers</code> runs replications at once, each in its own process, and <code>--drain</code> drains every replication, as <code>run.drain: true</code> does. The command prints the summary, the seed of each replication and the command that repeats one. The blueprint's own <code>warmup</code> applies to every replication:</p>
-<div class="language-yaml highlight"><span class="filename">examples/yaml/replications.yaml:seed</span><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># The replications&#39; seeds are spawned from this one; --seed overrides it</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nt">random_seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span>
-</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="nt">warmup</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3 min</span>
-</span></code></pre></div>
+<div class="language-yaml highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">examples/yaml/replications.yaml:seed</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-1-1">1</a></span>
+<span class="normal"><a href="#__codelineno-1-2">2</a></span>
+<span class="normal"><a href="#__codelineno-1-3">3</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1"></a><span class="c1"># The replications&#39; seeds are spawned from this one; --seed overrides it</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2"></a><span class="nt">random_seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3"></a><span class="nt">warmup</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3 min</span>
+</span></code></pre></div></td></tr></table></div>
 </div>
 <div class="tabbed-block">
-<div class="language-python highlight"><span class="filename">docs/snippets/pages/replications.py:builder</span><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># shop is a function returning a new SimulationContext, called once per run</span>
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">result</span> <span class="o">=</span> <span class="n">replicate</span><span class="p">(</span><span class="n">shop</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">,</span> <span class="n">until</span><span class="o">=</span><span class="s2">&quot;1 h&quot;</span><span class="p">,</span> <span class="n">warmup</span><span class="o">=</span><span class="s2">&quot;3 min&quot;</span><span class="p">,</span> <span class="n">measures</span><span class="o">=</span><span class="n">MEASURES</span><span class="p">)</span>
-</span></code></pre></div>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/pages/replications.py:builder</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-2-1">1</a></span>
+<span class="normal"><a href="#__codelineno-2-2">2</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1"></a><span class="c1"># shop is a function returning a new SimulationContext, called once per run</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2"></a><span class="n">result</span> <span class="o">=</span> <span class="n">replicate</span><span class="p">(</span><span class="n">shop</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">,</span> <span class="n">until</span><span class="o">=</span><span class="s2">&quot;1 h&quot;</span><span class="p">,</span> <span class="n">warmup</span><span class="o">=</span><span class="s2">&quot;3 min&quot;</span><span class="p">,</span> <span class="n">measures</span><span class="o">=</span><span class="n">MEASURES</span><span class="p">)</span>
+</span></code></pre></div></td></tr></table></div>
 <p><code>shop</code> is a function with no arguments that returns a new <code>SimulationContext</code>, such as <a href="https://github.com/jaehyeon-kim/desflow/blob/main/examples/builder/replications_example.py">the example's</a>, because each replication starts from a new context. A blueprint path works here too.</p>
 </div>
 <div class="tabbed-block">
-<div class="language-python highlight"><span class="filename">docs/snippets/pages/replications.py:low-level</span><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">model</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">sampler</span><span class="p">):</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Builds the shop in the environment it is given, drawing from sampler.&quot;&quot;&quot;</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>    <span class="n">env</span><span class="o">.</span><span class="n">registry</span><span class="o">.</span><span class="n">register_sim_parameter</span><span class="p">(</span><span class="n">PARAMS</span><span class="p">)</span>
-</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>    <span class="n">env</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">orders</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">sampler</span><span class="p">,</span> <span class="n">DynamicResource</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="s2">&quot;Shop&quot;</span><span class="p">,</span> <span class="s2">&quot;packers&quot;</span><span class="p">)))</span>
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="k">def</span><span class="w"> </span><span class="nf">low_level</span><span class="p">():</span>
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    <span class="n">shop</span> <span class="o">=</span> <span class="n">LowLevelModel</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">sim_id</span><span class="o">=</span><span class="s2">&quot;Shop&quot;</span><span class="p">)</span>
-</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    <span class="k">return</span> <span class="n">replicate</span><span class="p">(</span><span class="n">shop</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">,</span> <span class="n">until</span><span class="o">=</span><span class="mi">3600</span><span class="p">,</span> <span class="n">warmup</span><span class="o">=</span><span class="mi">180</span><span class="p">,</span> <span class="n">measures</span><span class="o">=</span><span class="n">MEASURES</span><span class="p">)</span>
-</span></code></pre></div>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/pages/replications.py:low-level</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-3-1">1</a></span>
+<span class="normal"><a href="#__codelineno-3-2">2</a></span>
+<span class="normal"><a href="#__codelineno-3-3">3</a></span>
+<span class="normal"><a href="#__codelineno-3-4">4</a></span>
+<span class="normal"><a href="#__codelineno-3-5">5</a></span>
+<span class="normal"><a href="#__codelineno-3-6">6</a></span>
+<span class="normal"><a href="#__codelineno-3-7">7</a></span>
+<span class="normal"><a href="#__codelineno-3-8">8</a></span>
+<span class="normal"><a href="#__codelineno-3-9">9</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">model</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">sampler</span><span class="p">):</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Builds the shop in the environment it is given, drawing from sampler.&quot;&quot;&quot;</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3"></a>    <span class="n">env</span><span class="o">.</span><span class="n">registry</span><span class="o">.</span><span class="n">register_sim_parameter</span><span class="p">(</span><span class="n">PARAMS</span><span class="p">)</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4"></a>    <span class="n">env</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">orders</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">sampler</span><span class="p">,</span> <span class="n">DynamicResource</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="s2">&quot;Shop&quot;</span><span class="p">,</span> <span class="s2">&quot;packers&quot;</span><span class="p">)))</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5"></a>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6"></a>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7"></a><span class="k">def</span><span class="w"> </span><span class="nf">low_level</span><span class="p">():</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8"></a>    <span class="n">shop</span> <span class="o">=</span> <span class="n">LowLevelModel</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">sim_id</span><span class="o">=</span><span class="s2">&quot;Shop&quot;</span><span class="p">)</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9"></a>    <span class="k">return</span> <span class="n">replicate</span><span class="p">(</span><span class="n">shop</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">,</span> <span class="n">until</span><span class="o">=</span><span class="mi">3600</span><span class="p">,</span> <span class="n">warmup</span><span class="o">=</span><span class="mi">180</span><span class="p">,</span> <span class="n">measures</span><span class="o">=</span><span class="n">MEASURES</span><span class="p">)</span>
+</span></code></pre></div></td></tr></table></div>
 <p><code>LowLevelModel</code> names a function that builds the model in the environment and with the sampler it is given, and the <code>sim_id</code> its statistics are published under. The function registers the parameters, builds the resources and starts the processes; it sets up no statistics, because <code>replicate</code> does, and no sinks. Its tasks report their steps to <code>env.stats</code>, as <a href="../statistics/">Statistics</a> shows.</p>
 </div>
 </div>
@@ -3156,39 +3169,58 @@
 <p>A name that no replication publishes is refused, with the names the model does publish. A count that is published only once it is above 0, such as <code>reneged</code>, is 0 in a replication without one. A mean with no observation in a replication, such as the wait of a task that never started, is refused with the replication's number rather than left out.</p>
 <h3 id="read-the-result">Read the Result</h3>
 <p><code>replicate</code>, imported with <code>from desflow import replicate</code>, returns a <code>Replications</code>. Its <code>summary</code> has one row per measure, a mapping with <code>measure</code>, <code>n</code>, <code>mean</code>, <code>half_width</code> and <code>level</code>, and the interval runs from <code>mean - half_width</code> to <code>mean + half_width</code>; its <code>table</code> has one row per replication and measure, with the replication's number and seed; <code>seeds</code> lists the seeds in order:</p>
-<div class="language-python highlight"><span class="filename">docs/snippets/pages/replications.py:read</span><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">summary_text</span><span class="p">())</span>  <span class="c1"># each measure&#39;s n, mean and half-width</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">summary</span><span class="p">:</span>  <span class="c1"># measure, n, mean, half_width and level</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>    <span class="n">low</span><span class="p">,</span> <span class="n">high</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;mean&quot;</span><span class="p">]</span> <span class="o">-</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;half_width&quot;</span><span class="p">],</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;mean&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;half_width&quot;</span><span class="p">]</span>
-</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;measure&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">low</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> to </span><span class="si">{</span><span class="n">high</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;level&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">.0%</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
-</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">seeds</span><span class="p">)</span>  <span class="c1"># replication i ran with seeds[i - 1]</span>
-</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">table</span><span class="p">:</span>  <span class="c1"># one row per replication and measure</span>
-</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">&quot;replication&quot;</span><span class="p">],</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;seed&quot;</span><span class="p">],</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;measure&quot;</span><span class="p">],</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;value&quot;</span><span class="p">])</span>
-</span></code></pre></div>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/pages/replications.py:read</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-4-1">1</a></span>
+<span class="normal"><a href="#__codelineno-4-2">2</a></span>
+<span class="normal"><a href="#__codelineno-4-3">3</a></span>
+<span class="normal"><a href="#__codelineno-4-4">4</a></span>
+<span class="normal"><a href="#__codelineno-4-5">5</a></span>
+<span class="normal"><a href="#__codelineno-4-6">6</a></span>
+<span class="normal"><a href="#__codelineno-4-7">7</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">summary_text</span><span class="p">())</span>  <span class="c1"># each measure&#39;s n, mean and half-width</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2"></a><span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">summary</span><span class="p">:</span>  <span class="c1"># measure, n, mean, half_width and level</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3"></a>    <span class="n">low</span><span class="p">,</span> <span class="n">high</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;mean&quot;</span><span class="p">]</span> <span class="o">-</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;half_width&quot;</span><span class="p">],</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;mean&quot;</span><span class="p">]</span> <span class="o">+</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;half_width&quot;</span><span class="p">]</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;measure&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">low</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> to </span><span class="si">{</span><span class="n">high</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">row</span><span class="p">[</span><span class="s1">&#39;level&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">.0%</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">seeds</span><span class="p">)</span>  <span class="c1"># replication i ran with seeds[i - 1]</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6"></a><span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">table</span><span class="p">:</span>  <span class="c1"># one row per replication and measure</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">&quot;replication&quot;</span><span class="p">],</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;seed&quot;</span><span class="p">],</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;measure&quot;</span><span class="p">],</span> <span class="n">row</span><span class="p">[</span><span class="s2">&quot;value&quot;</span><span class="p">])</span>
+</span></code></pre></div></td></tr></table></div>
 <p>The summary of the three replications above:</p>
 <!-- records: replications-summary -->
-<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>measure                               n          mean    half-width (95%)
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>tasks.pack.wait_mean                  3          4.16                2.22
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>resources.packers.utilization_avg     3         78.51               4.363
-</span></code></pre></div>
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-5-1">1</a></span>
+<span class="normal"><a href="#__codelineno-5-2">2</a></span>
+<span class="normal"><a href="#__codelineno-5-3">3</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1"></a>measure                               n          mean    half-width (95%)
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2"></a>tasks.pack.wait_mean                  3          4.16                2.22
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3"></a>resources.packers.utilization_avg     3         78.51               4.363
+</span></code></pre></div></td></tr></table></div>
 <p>Three replications give a wide interval; <a href="../../tutorials/trusting-results/#choose-the-precision">Trusting Results</a> shows how to choose enough.</p>
 <h3 id="repeat-one-replication">Repeat One Replication</h3>
 <p>Each replication's seed is a plain integer, recorded in <code>seeds</code> and in every row of the table, so any replication repeats on its own: <code>desflow run shop.yaml --seed &lt;its seed&gt;</code>, <code>random_seed</code> in a builder context, or <code>Sampler(seed=...)</code> in the low-level API, with the same end time, drain and warm-up. That run publishes its event records, which replications do not.</p>
 <h3 id="what-the-sinks-receive">What the Sinks Receive</h3>
 <p>When the model has sinks, a blueprint's <code>egress</code> or a builder's <code>add_egress</code>, they receive the result once, as telemetry stamped at the end time: each replication's value, then each measure's mean, half-width and count. A low-level model has no sinks of its own. These are the records a Console sink receives from the three replications above:</p>
 <!-- records: replications-telemetry -->
-<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>[TEL] {&#39;sim_ts&#39;: 3600.0, &#39;timestamp&#39;: &#39;...&#39;, &#39;path_id&#39;: &#39;Shop.stats.tasks.pack.wait_mean.replication.1&#39;, &#39;value&#39;: 3.1279921040674012}
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>[TEL] {&#39;sim_ts&#39;: 3600.0, &#39;timestamp&#39;: &#39;...&#39;, &#39;path_id&#39;: &#39;Shop.stats.tasks.pack.wait_mean.replication.2&#39;, &#39;value&#39;: 4.692163115004602}
-</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>[TEL] {&#39;sim_ts&#39;: 3600.0, &#39;timestamp&#39;: &#39;...&#39;, &#39;path_id&#39;: &#39;Shop.stats.tasks.pack.wait_mean.replication.3&#39;, &#39;value&#39;: 4.6595156392512935}
-</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>[TEL] {&#39;sim_ts&#39;: 3600.0, &#39;timestamp&#39;: &#39;...&#39;, &#39;path_id&#39;: &#39;Shop.stats.resources.packers.utilization_avg.replication.1&#39;, &#39;value&#39;: 77.72020813552408}
-</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>[TEL] {&#39;sim_ts&#39;: 3600.0, &#39;timestamp&#39;: &#39;...&#39;, &#39;path_id&#39;: &#39;Shop.stats.resources.packers.utilization_avg.replication.2&#39;, &#39;value&#39;: 77.2928455841536}
-</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>[TEL] {&#39;sim_ts&#39;: 3600.0, &#39;timestamp&#39;: &#39;...&#39;, &#39;path_id&#39;: &#39;Shop.stats.resources.packers.utilization_avg.replication.3&#39;, &#39;value&#39;: 80.52596995922565}
-</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>[TEL] {&#39;sim_ts&#39;: 3600.0, &#39;timestamp&#39;: &#39;...&#39;, &#39;path_id&#39;: &#39;Shop.stats.tasks.pack.wait_mean.mean&#39;, &#39;value&#39;: 4.159890286107766}
-</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>[TEL] {&#39;sim_ts&#39;: 3600.0, &#39;timestamp&#39;: &#39;...&#39;, &#39;path_id&#39;: &#39;Shop.stats.tasks.pack.wait_mean.half_width&#39;, &#39;value&#39;: 2.2203200883243843}
-</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>[TEL] {&#39;sim_ts&#39;: 3600.0, &#39;timestamp&#39;: &#39;...&#39;, &#39;path_id&#39;: &#39;Shop.stats.tasks.pack.wait_mean.n&#39;, &#39;value&#39;: 3}
-</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>[TEL] {&#39;sim_ts&#39;: 3600.0, &#39;timestamp&#39;: &#39;...&#39;, &#39;path_id&#39;: &#39;Shop.stats.resources.packers.utilization_avg.mean&#39;, &#39;value&#39;: 78.51300789296778}
-</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>[TEL] {&#39;sim_ts&#39;: 3600.0, &#39;timestamp&#39;: &#39;...&#39;, &#39;path_id&#39;: &#39;Shop.stats.resources.packers.utilization_avg.half_width&#39;, &#39;value&#39;: 4.362949200693404}
-</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12" href="#__codelineno-6-12"></a>[TEL] {&#39;sim_ts&#39;: 3600.0, &#39;timestamp&#39;: &#39;...&#39;, &#39;path_id&#39;: &#39;Shop.stats.resources.packers.utilization_avg.n&#39;, &#39;value&#39;: 3}
-</span></code></pre></div>
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-6-1"> 1</a></span>
+<span class="normal"><a href="#__codelineno-6-2"> 2</a></span>
+<span class="normal"><a href="#__codelineno-6-3"> 3</a></span>
+<span class="normal"><a href="#__codelineno-6-4"> 4</a></span>
+<span class="normal"><a href="#__codelineno-6-5"> 5</a></span>
+<span class="normal"><a href="#__codelineno-6-6"> 6</a></span>
+<span class="normal"><a href="#__codelineno-6-7"> 7</a></span>
+<span class="normal"><a href="#__codelineno-6-8"> 8</a></span>
+<span class="normal"><a href="#__codelineno-6-9"> 9</a></span>
+<span class="normal"><a href="#__codelineno-6-10">10</a></span>
+<span class="normal"><a href="#__codelineno-6-11">11</a></span>
+<span class="normal"><a href="#__codelineno-6-12">12</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1"></a>[TEL] {&#39;sim_ts&#39;: 3600.0, &#39;timestamp&#39;: &#39;...&#39;, &#39;path_id&#39;: &#39;Shop.stats.tasks.pack.wait_mean.replication.1&#39;, &#39;value&#39;: 3.1279921040674012}
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2"></a>[TEL] {&#39;sim_ts&#39;: 3600.0, &#39;timestamp&#39;: &#39;...&#39;, &#39;path_id&#39;: &#39;Shop.stats.tasks.pack.wait_mean.replication.2&#39;, &#39;value&#39;: 4.692163115004602}
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3"></a>[TEL] {&#39;sim_ts&#39;: 3600.0, &#39;timestamp&#39;: &#39;...&#39;, &#39;path_id&#39;: &#39;Shop.stats.tasks.pack.wait_mean.replication.3&#39;, &#39;value&#39;: 4.6595156392512935}
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4"></a>[TEL] {&#39;sim_ts&#39;: 3600.0, &#39;timestamp&#39;: &#39;...&#39;, &#39;path_id&#39;: &#39;Shop.stats.resources.packers.utilization_avg.replication.1&#39;, &#39;value&#39;: 77.72020813552408}
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5"></a>[TEL] {&#39;sim_ts&#39;: 3600.0, &#39;timestamp&#39;: &#39;...&#39;, &#39;path_id&#39;: &#39;Shop.stats.resources.packers.utilization_avg.replication.2&#39;, &#39;value&#39;: 77.2928455841536}
+</span><span id="__span-6-6"><a id="__codelineno-6-6" name="__codelineno-6-6"></a>[TEL] {&#39;sim_ts&#39;: 3600.0, &#39;timestamp&#39;: &#39;...&#39;, &#39;path_id&#39;: &#39;Shop.stats.resources.packers.utilization_avg.replication.3&#39;, &#39;value&#39;: 80.52596995922565}
+</span><span id="__span-6-7"><a id="__codelineno-6-7" name="__codelineno-6-7"></a>[TEL] {&#39;sim_ts&#39;: 3600.0, &#39;timestamp&#39;: &#39;...&#39;, &#39;path_id&#39;: &#39;Shop.stats.tasks.pack.wait_mean.mean&#39;, &#39;value&#39;: 4.159890286107766}
+</span><span id="__span-6-8"><a id="__codelineno-6-8" name="__codelineno-6-8"></a>[TEL] {&#39;sim_ts&#39;: 3600.0, &#39;timestamp&#39;: &#39;...&#39;, &#39;path_id&#39;: &#39;Shop.stats.tasks.pack.wait_mean.half_width&#39;, &#39;value&#39;: 2.2203200883243843}
+</span><span id="__span-6-9"><a id="__codelineno-6-9" name="__codelineno-6-9"></a>[TEL] {&#39;sim_ts&#39;: 3600.0, &#39;timestamp&#39;: &#39;...&#39;, &#39;path_id&#39;: &#39;Shop.stats.tasks.pack.wait_mean.n&#39;, &#39;value&#39;: 3}
+</span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10"></a>[TEL] {&#39;sim_ts&#39;: 3600.0, &#39;timestamp&#39;: &#39;...&#39;, &#39;path_id&#39;: &#39;Shop.stats.resources.packers.utilization_avg.mean&#39;, &#39;value&#39;: 78.51300789296778}
+</span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11"></a>[TEL] {&#39;sim_ts&#39;: 3600.0, &#39;timestamp&#39;: &#39;...&#39;, &#39;path_id&#39;: &#39;Shop.stats.resources.packers.utilization_avg.half_width&#39;, &#39;value&#39;: 4.362949200693404}
+</span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12"></a>[TEL] {&#39;sim_ts&#39;: 3600.0, &#39;timestamp&#39;: &#39;...&#39;, &#39;path_id&#39;: &#39;Shop.stats.resources.packers.utilization_avg.n&#39;, &#39;value&#39;: 3}
+</span></code></pre></div></td></tr></table></div>
 <p><a href="../../reference/records-and-telemetry/#telemetry-names">Records and Telemetry</a> lists the names.</p>
 <h3 id="example-replications">Example: Replications</h3>
 <p>The <code>replications</code> example runs one hour of the shop 20 times, with seeds spawned from 42 and a 3-minute warm-up, and prints the mean and half-width of every statistic up to <code>typical</code>. It needs no Docker service and ends on its own.</p>
@@ -3200,35 +3232,53 @@
 <div class="tabbed-set tabbed-alternate" data-tabs="3:2"><input checked="checked" id="__tabbed_3_1" name="__tabbed_3" type="radio" /><input id="__tabbed_3_2" name="__tabbed_3" type="radio" /><div class="tabbed-labels"><label for="__tabbed_3_1">uv</label><label for="__tabbed_3_2">pip</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># 1. Install</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>desflow
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
-</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="c1"># 2. Download the example</span>
-</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a>desflow<span class="w"> </span>examples<span class="w"> </span>get<span class="w"> </span>replications<span class="w"> </span>--api<span class="w"> </span>yaml
-</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="nb">cd</span><span class="w"> </span>replications/yaml
-</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>
-</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="c1"># 3. Run it</span>
-</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>desflow<span class="w"> </span>run<span class="w"> </span>replications.yaml<span class="w"> </span>--replications<span class="w"> </span><span class="m">20</span>
-</span></code></pre></div>
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-7-1">1</a></span>
+<span class="normal"><a href="#__codelineno-7-2">2</a></span>
+<span class="normal"><a href="#__codelineno-7-3">3</a></span>
+<span class="normal"><a href="#__codelineno-7-4">4</a></span>
+<span class="normal"><a href="#__codelineno-7-5">5</a></span>
+<span class="normal"><a href="#__codelineno-7-6">6</a></span>
+<span class="normal"><a href="#__codelineno-7-7">7</a></span>
+<span class="normal"><a href="#__codelineno-7-8">8</a></span>
+<span class="normal"><a href="#__codelineno-7-9">9</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1"></a><span class="c1"># 1. Install</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2"></a>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>desflow
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3"></a>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4"></a><span class="c1"># 2. Download the example</span>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5"></a>desflow<span class="w"> </span>examples<span class="w"> </span>get<span class="w"> </span>replications<span class="w"> </span>--api<span class="w"> </span>yaml
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6"></a><span class="nb">cd</span><span class="w"> </span>replications/yaml
+</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7"></a>
+</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8"></a><span class="c1"># 3. Run it</span>
+</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9"></a>desflow<span class="w"> </span>run<span class="w"> </span>replications.yaml<span class="w"> </span>--replications<span class="w"> </span><span class="m">20</span>
+</span></code></pre></div></td></tr></table></div>
 </div>
 <div class="tabbed-block">
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># 1. Install</span>
-</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>pip<span class="w"> </span>install<span class="w"> </span>desflow
-</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
-</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="c1"># 2. Download the example</span>
-</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>desflow<span class="w"> </span>examples<span class="w"> </span>get<span class="w"> </span>replications<span class="w"> </span>--api<span class="w"> </span>yaml
-</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="nb">cd</span><span class="w"> </span>replications/yaml
-</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>
-</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="c1"># 3. Run it</span>
-</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>desflow<span class="w"> </span>run<span class="w"> </span>replications.yaml<span class="w"> </span>--replications<span class="w"> </span><span class="m">20</span>
-</span></code></pre></div>
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-8-1">1</a></span>
+<span class="normal"><a href="#__codelineno-8-2">2</a></span>
+<span class="normal"><a href="#__codelineno-8-3">3</a></span>
+<span class="normal"><a href="#__codelineno-8-4">4</a></span>
+<span class="normal"><a href="#__codelineno-8-5">5</a></span>
+<span class="normal"><a href="#__codelineno-8-6">6</a></span>
+<span class="normal"><a href="#__codelineno-8-7">7</a></span>
+<span class="normal"><a href="#__codelineno-8-8">8</a></span>
+<span class="normal"><a href="#__codelineno-8-9">9</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1"></a><span class="c1"># 1. Install</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2"></a>pip<span class="w"> </span>install<span class="w"> </span>desflow
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3"></a>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4"></a><span class="c1"># 2. Download the example</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5"></a>desflow<span class="w"> </span>examples<span class="w"> </span>get<span class="w"> </span>replications<span class="w"> </span>--api<span class="w"> </span>yaml
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6"></a><span class="nb">cd</span><span class="w"> </span>replications/yaml
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7"></a>
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8"></a><span class="c1"># 3. Run it</span>
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9"></a>desflow<span class="w"> </span>run<span class="w"> </span>replications.yaml<span class="w"> </span>--replications<span class="w"> </span><span class="m">20</span>
+</span></code></pre></div></td></tr></table></div>
 </div>
 </div>
 </div>
-<div class="language-yaml highlight"><span class="filename">examples/yaml/replications.yaml:seed</span><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># The replications&#39; seeds are spawned from this one; --seed overrides it</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="nt">random_seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span>
-</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="nt">warmup</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3 min</span>
-</span></code></pre></div>
+<div class="language-yaml highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">examples/yaml/replications.yaml:seed</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-9-1">1</a></span>
+<span class="normal"><a href="#__codelineno-9-2">2</a></span>
+<span class="normal"><a href="#__codelineno-9-3">3</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1"></a><span class="c1"># The replications&#39; seeds are spawned from this one; --seed overrides it</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2"></a><span class="nt">random_seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3"></a><span class="nt">warmup</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3 min</span>
+</span></code></pre></div></td></tr></table></div>
 <p>The whole file is <a href="https://github.com/jaehyeon-kim/desflow/blob/main/examples/yaml/replications.yaml"><code>examples/yaml/replications.yaml</code></a>.</p>
 </div>
 <div class="tabbed-block">
@@ -3237,37 +3287,57 @@
 <div class="tabbed-set tabbed-alternate" data-tabs="4:2"><input checked="checked" id="__tabbed_4_1" name="__tabbed_4" type="radio" /><input id="__tabbed_4_2" name="__tabbed_4" type="radio" /><div class="tabbed-labels"><label for="__tabbed_4_1">uv</label><label for="__tabbed_4_2">pip</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="c1"># 1. Install</span>
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>desflow
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a>
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="c1"># 2. Download the example</span>
-</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>desflow<span class="w"> </span>examples<span class="w"> </span>get<span class="w"> </span>replications<span class="w"> </span>--api<span class="w"> </span>builder
-</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="nb">cd</span><span class="w"> </span>replications/builder
-</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>
-</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="c1"># 3. Run it</span>
-</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a>uv<span class="w"> </span>run<span class="w"> </span>--no-project<span class="w"> </span>--with<span class="w"> </span>desflow<span class="w"> </span>replications_example.py
-</span></code></pre></div>
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-10-1">1</a></span>
+<span class="normal"><a href="#__codelineno-10-2">2</a></span>
+<span class="normal"><a href="#__codelineno-10-3">3</a></span>
+<span class="normal"><a href="#__codelineno-10-4">4</a></span>
+<span class="normal"><a href="#__codelineno-10-5">5</a></span>
+<span class="normal"><a href="#__codelineno-10-6">6</a></span>
+<span class="normal"><a href="#__codelineno-10-7">7</a></span>
+<span class="normal"><a href="#__codelineno-10-8">8</a></span>
+<span class="normal"><a href="#__codelineno-10-9">9</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1"></a><span class="c1"># 1. Install</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2"></a>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>desflow
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3"></a>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4"></a><span class="c1"># 2. Download the example</span>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5"></a>desflow<span class="w"> </span>examples<span class="w"> </span>get<span class="w"> </span>replications<span class="w"> </span>--api<span class="w"> </span>builder
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6"></a><span class="nb">cd</span><span class="w"> </span>replications/builder
+</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7"></a>
+</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8"></a><span class="c1"># 3. Run it</span>
+</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9"></a>uv<span class="w"> </span>run<span class="w"> </span>--no-project<span class="w"> </span>--with<span class="w"> </span>desflow<span class="w"> </span>replications_example.py
+</span></code></pre></div></td></tr></table></div>
 </div>
 <div class="tabbed-block">
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># 1. Install</span>
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>pip<span class="w"> </span>install<span class="w"> </span>desflow
-</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>
-</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="c1"># 2. Download the example</span>
-</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>desflow<span class="w"> </span>examples<span class="w"> </span>get<span class="w"> </span>replications<span class="w"> </span>--api<span class="w"> </span>builder
-</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="nb">cd</span><span class="w"> </span>replications/builder
-</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>
-</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="c1"># 3. Run it</span>
-</span><span id="__span-11-9"><a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>python<span class="w"> </span>replications_example.py
-</span></code></pre></div>
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-11-1">1</a></span>
+<span class="normal"><a href="#__codelineno-11-2">2</a></span>
+<span class="normal"><a href="#__codelineno-11-3">3</a></span>
+<span class="normal"><a href="#__codelineno-11-4">4</a></span>
+<span class="normal"><a href="#__codelineno-11-5">5</a></span>
+<span class="normal"><a href="#__codelineno-11-6">6</a></span>
+<span class="normal"><a href="#__codelineno-11-7">7</a></span>
+<span class="normal"><a href="#__codelineno-11-8">8</a></span>
+<span class="normal"><a href="#__codelineno-11-9">9</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1"></a><span class="c1"># 1. Install</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2"></a>pip<span class="w"> </span>install<span class="w"> </span>desflow
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3"></a>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4"></a><span class="c1"># 2. Download the example</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5"></a>desflow<span class="w"> </span>examples<span class="w"> </span>get<span class="w"> </span>replications<span class="w"> </span>--api<span class="w"> </span>builder
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6"></a><span class="nb">cd</span><span class="w"> </span>replications/builder
+</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7"></a>
+</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8"></a><span class="c1"># 3. Run it</span>
+</span><span id="__span-11-9"><a id="__codelineno-11-9" name="__codelineno-11-9"></a>python<span class="w"> </span>replications_example.py
+</span></code></pre></div></td></tr></table></div>
 </div>
 </div>
 </div>
-<div class="language-python highlight"><span class="filename">examples/builder/replications_example.py:replicate</span><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># 20 seeds spawned from 42; each replication runs unpaced, with no sinks</span>
-</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="n">result</span> <span class="o">=</span> <span class="n">replicate</span><span class="p">(</span><span class="n">shop</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">,</span> <span class="n">until</span><span class="o">=</span><span class="s2">&quot;1 h&quot;</span><span class="p">)</span>
-</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">summary_text</span><span class="p">())</span>
-</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="c1"># Any replication repeats on its own: run shop() with its seed</span>
-</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;replication seeds:&quot;</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">seeds</span><span class="p">)</span>
-</span></code></pre></div>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">examples/builder/replications_example.py:replicate</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-12-1">1</a></span>
+<span class="normal"><a href="#__codelineno-12-2">2</a></span>
+<span class="normal"><a href="#__codelineno-12-3">3</a></span>
+<span class="normal"><a href="#__codelineno-12-4">4</a></span>
+<span class="normal"><a href="#__codelineno-12-5">5</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1"></a><span class="c1"># 20 seeds spawned from 42; each replication runs unpaced, with no sinks</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2"></a><span class="n">result</span> <span class="o">=</span> <span class="n">replicate</span><span class="p">(</span><span class="n">shop</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">,</span> <span class="n">until</span><span class="o">=</span><span class="s2">&quot;1 h&quot;</span><span class="p">)</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">summary_text</span><span class="p">())</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4"></a><span class="c1"># Any replication repeats on its own: run shop() with its seed</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;replication seeds:&quot;</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">seeds</span><span class="p">)</span>
+</span></code></pre></div></td></tr></table></div>
 <p>The whole file is <a href="https://github.com/jaehyeon-kim/desflow/blob/main/examples/builder/replications_example.py"><code>examples/builder/replications_example.py</code></a>.</p>
 </div>
 <div class="tabbed-block">
@@ -3276,38 +3346,59 @@
 <div class="tabbed-set tabbed-alternate" data-tabs="5:2"><input checked="checked" id="__tabbed_5_1" name="__tabbed_5" type="radio" /><input id="__tabbed_5_2" name="__tabbed_5" type="radio" /><div class="tabbed-labels"><label for="__tabbed_5_1">uv</label><label for="__tabbed_5_2">pip</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># 1. Install</span>
-</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>desflow
-</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>
-</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="c1"># 2. Download the example</span>
-</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>desflow<span class="w"> </span>examples<span class="w"> </span>get<span class="w"> </span>replications<span class="w"> </span>--api<span class="w"> </span>low-level
-</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="nb">cd</span><span class="w"> </span>replications/low-level
-</span><span id="__span-13-7"><a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a>
-</span><span id="__span-13-8"><a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="c1"># 3. Run it</span>
-</span><span id="__span-13-9"><a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>uv<span class="w"> </span>run<span class="w"> </span>--no-project<span class="w"> </span>--with<span class="w"> </span>desflow<span class="w"> </span>replications_example.py
-</span></code></pre></div>
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-13-1">1</a></span>
+<span class="normal"><a href="#__codelineno-13-2">2</a></span>
+<span class="normal"><a href="#__codelineno-13-3">3</a></span>
+<span class="normal"><a href="#__codelineno-13-4">4</a></span>
+<span class="normal"><a href="#__codelineno-13-5">5</a></span>
+<span class="normal"><a href="#__codelineno-13-6">6</a></span>
+<span class="normal"><a href="#__codelineno-13-7">7</a></span>
+<span class="normal"><a href="#__codelineno-13-8">8</a></span>
+<span class="normal"><a href="#__codelineno-13-9">9</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1"></a><span class="c1"># 1. Install</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2"></a>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span>desflow
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3"></a>
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4"></a><span class="c1"># 2. Download the example</span>
+</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5"></a>desflow<span class="w"> </span>examples<span class="w"> </span>get<span class="w"> </span>replications<span class="w"> </span>--api<span class="w"> </span>low-level
+</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6"></a><span class="nb">cd</span><span class="w"> </span>replications/low-level
+</span><span id="__span-13-7"><a id="__codelineno-13-7" name="__codelineno-13-7"></a>
+</span><span id="__span-13-8"><a id="__codelineno-13-8" name="__codelineno-13-8"></a><span class="c1"># 3. Run it</span>
+</span><span id="__span-13-9"><a id="__codelineno-13-9" name="__codelineno-13-9"></a>uv<span class="w"> </span>run<span class="w"> </span>--no-project<span class="w"> </span>--with<span class="w"> </span>desflow<span class="w"> </span>replications_example.py
+</span></code></pre></div></td></tr></table></div>
 </div>
 <div class="tabbed-block">
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="c1"># 1. Install</span>
-</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a>pip<span class="w"> </span>install<span class="w"> </span>desflow
-</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a>
-</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="c1"># 2. Download the example</span>
-</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a>desflow<span class="w"> </span>examples<span class="w"> </span>get<span class="w"> </span>replications<span class="w"> </span>--api<span class="w"> </span>low-level
-</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="nb">cd</span><span class="w"> </span>replications/low-level
-</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a>
-</span><span id="__span-14-8"><a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="c1"># 3. Run it</span>
-</span><span id="__span-14-9"><a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a>python<span class="w"> </span>replications_example.py
-</span></code></pre></div>
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-14-1">1</a></span>
+<span class="normal"><a href="#__codelineno-14-2">2</a></span>
+<span class="normal"><a href="#__codelineno-14-3">3</a></span>
+<span class="normal"><a href="#__codelineno-14-4">4</a></span>
+<span class="normal"><a href="#__codelineno-14-5">5</a></span>
+<span class="normal"><a href="#__codelineno-14-6">6</a></span>
+<span class="normal"><a href="#__codelineno-14-7">7</a></span>
+<span class="normal"><a href="#__codelineno-14-8">8</a></span>
+<span class="normal"><a href="#__codelineno-14-9">9</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1"></a><span class="c1"># 1. Install</span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2"></a>pip<span class="w"> </span>install<span class="w"> </span>desflow
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3"></a>
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4"></a><span class="c1"># 2. Download the example</span>
+</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5"></a>desflow<span class="w"> </span>examples<span class="w"> </span>get<span class="w"> </span>replications<span class="w"> </span>--api<span class="w"> </span>low-level
+</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6"></a><span class="nb">cd</span><span class="w"> </span>replications/low-level
+</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7"></a>
+</span><span id="__span-14-8"><a id="__codelineno-14-8" name="__codelineno-14-8"></a><span class="c1"># 3. Run it</span>
+</span><span id="__span-14-9"><a id="__codelineno-14-9" name="__codelineno-14-9"></a>python<span class="w"> </span>replications_example.py
+</span></code></pre></div></td></tr></table></div>
 </div>
 </div>
 </div>
-<div class="language-python highlight"><span class="filename">examples/low-level/replications_example.py:replicate</span><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="c1"># 20 seeds spawned from 42; each replication runs unpaced, with no sinks</span>
-</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="n">shop</span> <span class="o">=</span> <span class="n">LowLevelModel</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">sim_id</span><span class="o">=</span><span class="s2">&quot;Shop&quot;</span><span class="p">)</span>
-</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="n">result</span> <span class="o">=</span> <span class="n">replicate</span><span class="p">(</span><span class="n">shop</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">,</span> <span class="n">until</span><span class="o">=</span><span class="mi">3600</span><span class="p">,</span> <span class="n">warmup</span><span class="o">=</span><span class="n">WARMUP</span><span class="p">)</span>
-</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">summary_text</span><span class="p">())</span>
-</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="c1"># Any replication repeats on its own: call model with Sampler(seed=...)</span>
-</span><span id="__span-15-6"><a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;replication seeds:&quot;</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">seeds</span><span class="p">)</span>
-</span></code></pre></div>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">examples/low-level/replications_example.py:replicate</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-15-1">1</a></span>
+<span class="normal"><a href="#__codelineno-15-2">2</a></span>
+<span class="normal"><a href="#__codelineno-15-3">3</a></span>
+<span class="normal"><a href="#__codelineno-15-4">4</a></span>
+<span class="normal"><a href="#__codelineno-15-5">5</a></span>
+<span class="normal"><a href="#__codelineno-15-6">6</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1"></a><span class="c1"># 20 seeds spawned from 42; each replication runs unpaced, with no sinks</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2"></a><span class="n">shop</span> <span class="o">=</span> <span class="n">LowLevelModel</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">sim_id</span><span class="o">=</span><span class="s2">&quot;Shop&quot;</span><span class="p">)</span>
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3"></a><span class="n">result</span> <span class="o">=</span> <span class="n">replicate</span><span class="p">(</span><span class="n">shop</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">,</span> <span class="n">until</span><span class="o">=</span><span class="mi">3600</span><span class="p">,</span> <span class="n">warmup</span><span class="o">=</span><span class="n">WARMUP</span><span class="p">)</span>
+</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">summary_text</span><span class="p">())</span>
+</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5"></a><span class="c1"># Any replication repeats on its own: call model with Sampler(seed=...)</span>
+</span><span id="__span-15-6"><a id="__codelineno-15-6" name="__codelineno-15-6"></a><span class="nb">print</span><span class="p">(</span><span class="s2">&quot;replication seeds:&quot;</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">seeds</span><span class="p">)</span>
+</span></code></pre></div></td></tr></table></div>
 <p>The whole file is <a href="https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/replications_example.py"><code>examples/low-level/replications_example.py</code></a>.</p>
 </div>
 </div>
@@ -3381,10 +3472,12 @@
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.tabs.link"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.tabs.link", "content.code.copy", "content.code.select"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
     
     
       <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="../../js/code-lines.js"></script>
       
     
   </body>

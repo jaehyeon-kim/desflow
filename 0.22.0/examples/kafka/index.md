@@ -66,8 +66,6 @@ The blueprint wires both Kafka connectors and declares the packers, the packing 
 
 Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
-examples/yaml/kafka.yaml
-
 ```yaml
 # Kafka digital twin in YAML.
 #
@@ -172,8 +170,6 @@ The run keeps going until you stop it. It logs one line per order as a packer st
 This script connects the simulation to Kafka topics and utilizes Pydantic models for structured event logging.
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
-
-examples/builder/kafka_example.py
 
 ```python
 """Kafka Digital Twin, builder API.
@@ -354,8 +350,6 @@ The run keeps going until you stop it. It logs one line per order as a packer st
 This script connects the simulation to Kafka topics and utilizes Pydantic models for structured event logging.
 
 Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
-
-examples/low-level/kafka_example.py
 
 ```python
 """Kafka Digital Twin, low-level API.

@@ -14,8 +14,6 @@ ______________________________________________________________________
 
 `publish_event` turns a Pydantic V2 model into a JSON-ready dict before any egress sees it, so you do not convert it yourself. Pydantic V1 models, including `pydantic.v1`, are not supported and raise a `PydanticSerializationError`.
 
-docs/snippets/guides/avro_and_pydantic.py:model
-
 ```python
 from pydantic import BaseModel
 
@@ -41,8 +39,6 @@ ______________________________________________________________________
 A topic router picks the topic of each record, and `topic_serializers` names the serializer of each topic. A topic with no serializer in the mapping uses the default, `JsonSerializer`.
 
 `KafkaEgress` serializes the whole record, not only its `value`: `key`, `task`, `instance`, `sim_ts`, `timestamp` and `value`, without `stream_type`. `task` and `instance` are null on an event published without them, so the schema makes both nullable. An Avro schema therefore describes that record, with your payload as the `value` field. `ConfluentAvroSerializer` uses a Confluent Schema Registry, and `GlueAvroSerializer` uses an AWS Glue Schema Registry.
-
-docs/snippets/guides/avro_and_pydantic.py:router
 
 ```python
 from desflow import KafkaEgress
@@ -97,8 +93,6 @@ ______________________________________________________________________
 
 A schema written by hand as a JSON string can drift from the model it describes. The `dataclasses-avroschema` package generates it from a Pydantic model instead. `AvroBaseModel` is a Pydantic model that can also write its Avro schema:
 
-docs/snippets/guides/avro_and_pydantic.py:schema
-
 ```python
 from typing import Optional
 
@@ -134,8 +128,6 @@ schema_string = PredictionRecord.avro_schema()
 
 Both `ConfluentAvroSerializer` and `GlueAvroSerializer` take the generated string as `schema_str`:
 
-docs/snippets/guides/avro_and_pydantic.py:generated
-
 ```python
 generated_serializer = ConfluentAvroSerializer(
     registry_url="http://127.0.0.1:8081",
@@ -154,8 +146,6 @@ ______________________________________________________________________
 ## Run the Shop
 
 In this shop, each packed order's finished event is a prediction: the task returns an `MLPrediction`, and the router sends it to `ml-predictions` as Avro. The `queued` and `started` events go to `sim-events` as JSON. Before the run, the script creates the three topics, because `KafkaEgress` creates none when it has a router:
-
-docs/snippets/guides/avro_and_pydantic.py:shop
 
 ```python
 import logging
@@ -204,8 +194,6 @@ ______________________________________________________________________
 Full script
 
 The complete file. It needs the `kafka-lite` profile, which runs a Kafka broker and a schema registry:
-
-docs/snippets/guides/avro_and_pydantic.py
 
 ```python
 """The Pydantic models, topic router and Avro serializers of the Avro and Pydantic page.
