@@ -262,6 +262,48 @@ GROUPS: Dict[str, str] = {
     "D": "Differences Kept by Design",
 }
 
+# One or two sentences under each group's heading: what the group covers.
+GROUP_INTROS: Dict[str, str] = {
+    "C1": (
+        "Waiting a fixed time, events a task can fire or fail, and processes: "
+        "starting one, waiting for it, reading its return value or its failure, and "
+        "inspecting an event or a process while it runs."
+    ),
+    "C2": (
+        "Waiting for the first of several events, or for all of them, as SimPy's "
+        "`AnyOf` and `AllOf` conditions do."
+    ),
+    "C3": (
+        "Interrupting a task while it waits or while it is in service, and a "
+        "higher-priority request taking a resource unit from a lower-priority user."
+    ),
+    "C4": (
+        "Requesting and releasing resource units, in order of arrival or of "
+        "priority, cancelling a request before or after its grant, and holding "
+        "several resources at once."
+    ),
+    "C5": (
+        "Putting and getting items in a store and amounts in a container, with "
+        "capacity limits, priority items, filtered gets, cancelled puts and gets, "
+        "and the order of puts and gets at the same time."
+    ),
+    "C6": (
+        "Starting a run from a given time and state, ending it at a time, at an "
+        "event or on a condition, draining it, and stepping through it one event "
+        "at a time."
+    ),
+    "C7": (
+        "Customers who give up after waiting too long (reneging) and customers "
+        "who do not join a queue that is too long (balking)."
+    ),
+    "S1": "A resource that fails and is repaired, with the work it interrupts.",
+    "S2": (
+        "A schedule of times at which an arrival rate or a capacity changes during "
+        "a run."
+    ),
+    "S3": "Arrivals read from a local CSV or Parquet file instead of drawn at random.",
+}
+
 
 def _cell(text: str) -> str:
     """A table cell: a `|` inside code would end the cell, so it is escaped."""
@@ -331,6 +373,8 @@ def compatibility_page() -> str:
         lines += [
             "",
             f"## {group}: {GROUPS[group]}",
+            "",
+            GROUP_INTROS[group],
             "",
             "| Operation | SimPy | YAML | Builder | Low-level | Checks |",
             "|---|---|---|---|---|---|",
