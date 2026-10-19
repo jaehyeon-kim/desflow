@@ -24,6 +24,22 @@ The control dashboard changes simulation parameters while a run is going, and th
 
 ---
 
+## What Do You Want to Do?
+
+| To | Start with |
+|---|---|
+| Build a first model and run it | [First Simulation](tutorials/first-simulation.md) |
+| Find how many servers keep a queue short | [Queues and Capacity](tutorials/queues-and-capacity.md) |
+| Stream events to Kafka | [Kafka Digital Twin](examples/kafka.md) |
+| Write days of history to Parquet or Iceberg at full speed | [Fast-Forward to Parquet](examples/parquet.md) |
+| Write history, then keep streaming in real time | [Parquet History, Kafka Live](examples/backfill-live.md) |
+| Change parameters while a run is going | [Changing Demand](tutorials/changing-demand.md) for timed changes, [Live Parameters](user-guide/live-parameters.md) for changes from Kafka, Redis or PostgreSQL |
+| Compare two designs and say which is better | [Comparing Designs](tutorials/comparing-designs.md) |
+| Fit service times to measured data | [Fit the Inputs](tutorials/fit-the-inputs.md) |
+| Model customers who give up waiting | [Patience](tutorials/patience.md) |
+| Model machines that break down | [Breakdowns](guides/breakdowns.md) |
+| Look up a YAML key or a builder call | [Cheat Sheet](reference/cheat-sheet.md) |
+
 ## Key Features
 
 - **Real time or full speed**: `DynamicRealtimeEnvironment` runs SimPy in step with the system clock, or unpaced, and reports how far the simulation lags behind real time.

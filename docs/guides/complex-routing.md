@@ -1,5 +1,7 @@
 # Complex Routing (Kafka)
 
+**Level:** Intermediate
+
 Records often belong in different Kafka topics: task events in one, telemetry in another, and alarms in a topic that someone watches. `KafkaEgress` takes a `topic_router` function that picks the topic for each record, instead of one event topic and one telemetry topic.
 
 With a router, `KafkaEgress` does not create topics at start, because only the router knows which ones it uses, so create them first. The snippets below publish to Kafka, so start a broker first with `odctl up kafka-lite`. See [Installation](../getting-started.md) for the one-time odctl install. Tear it down with `odctl down kafka-lite --volumes`.

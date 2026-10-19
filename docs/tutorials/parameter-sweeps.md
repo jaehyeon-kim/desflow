@@ -1,5 +1,7 @@
 # Parameter Sweeps
 
+**Level:** Intermediate
+
 [Comparing Designs](comparing-designs.md) found that a fourth packer cuts the busy hour's mean wait from 2.48 to 0.27 seconds, at 1.8 orders a second. That rate is an estimate, and demand moves from day to day. This page asks: **how much does the answer depend on the arrival rate?** It runs both designs at four rates around the estimate.
 
 ## What You Add

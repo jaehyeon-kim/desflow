@@ -229,6 +229,7 @@ nav:
       - Distributions: reference/distributions.md
       - Statistics: reference/statistics.md
       - SimPy Compatibility: reference/simpy-compatibility.md
+      - Cheat Sheet: reference/cheat-sheet.md
   - About:
       - Roadmap: about/roadmap.md
       - Changelog: about/changelog.md

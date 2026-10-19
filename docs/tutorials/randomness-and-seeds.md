@@ -1,5 +1,7 @@
 # Randomness and Seeds
 
+**Level:** Basics
+
 Run the busy shop twice: orders arrive at different times and packing durations vary. That is what a stochastic model does, but it makes a result hard to check or to compare. This page asks: **why do runs differ, and how can you reproduce one?**
 
 ## What You Add

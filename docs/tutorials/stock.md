@@ -1,5 +1,7 @@
 # Stock
 
+**Level:** Basics
+
 Every order needs a box, and boxes come from a shelf that a delivery fills every 100 seconds. Orders take about 50 boxes in that time. This page asks: **what happens when stock runs out?** It compares deliveries of 60 boxes with deliveries of 40.
 
 ## What You Add

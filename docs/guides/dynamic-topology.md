@@ -1,5 +1,7 @@
 # Dynamic Topology: Resources Changed Mid-run
 
+**Level:** Intermediate
+
 Sometimes the layout itself changes during a run: a dock opens a new bay, or a shop adds a gift wrapping station. Here a supervisor process adds gift wrappers at 12 seconds, and from then on new jobs go to the wrappers as well as the packers.
 
 ![A supervisor process registers the new wrappers paths in the registry, creates a DynamicResource for them, and new workers request the wrappers](../assets/diagrams/topology-change.png)
