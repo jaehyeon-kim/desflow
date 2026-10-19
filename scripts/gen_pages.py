@@ -388,7 +388,7 @@ def compatibility_page() -> str:
         f"| [{GROUPS['N']}](#{_anchor('N')}) | none; {count(not_yet)} SimPy features to come |",
         f"| [{GROUPS['D']}](#{_anchor('D')}) | {len(kept)} differences |",
         "",
-        "Under each feature, How to write it, and its tests opens to show its SimPy construct, "
+        "Under each feature, API details opens to show its SimPy construct, "
         "its form in YAML, the builder and the low-level API, and the conformance "
         "tests that check it.",
     ]
@@ -399,7 +399,7 @@ def compatibility_page() -> str:
             lines += [
                 f"**{row['operation']}**: {row['description']}",
                 "",
-                '??? note "How to write it, and its tests"',
+                '??? note "API details"',
                 "",
                 f"    - **SimPy:** {row['simpy']}",
                 f"    - **YAML:** {row['yaml']}",
