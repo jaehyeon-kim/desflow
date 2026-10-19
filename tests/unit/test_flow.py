@@ -400,10 +400,10 @@ def test_a_child_flow_that_raises_gives_its_unit_back():
     """A child flow whose payload cannot be published raises; the wait that started
     it fails, and the unit the child held goes back, as a `with` block gives it
     back, so the next order is packed."""
-    from desflow import SimulationContext
-
     import asyncio
     import queue
+
+    from desflow import SimulationContext
 
     class Sink:
         async def run(self, egress_queue):

@@ -19,10 +19,10 @@ An experiment names its model, how long and how often to run it, what to measure
 ```yaml title="examples/yaml/experiment.yaml"
 # An experiment in YAML: does a third packer keep the mean wait under 2 seconds?
 #
-# The twin of examples/builder/experiment_example.py. The model is experiment_shop.yaml. The
-# experiment runs one hour of it 20 times with two packers and 20 times with three, with
-# the same seeds, after a 3-minute warm-up. It compares the two designs seed by
-# seed, checks the three-packer design against a 2-second bound, and compares the
+# The twin of examples/builder/experiment_example.py. The model is
+# experiment_shop.yaml. The experiment runs one hour of it 20 times with two packers
+# and 20 times with three, with the same seeds, after a 3-minute warm-up. It
+# compares the two designs seed by seed, checks the three-packer design against a 2-second bound, and compares the
 # two-packer design with the mean wait observed in the real shop. It writes its
 # artifacts and report to results/packers, and exits 1 if the check fails.
 #
@@ -124,7 +124,7 @@ A key the experiment does not know is refused with its line, as in a blueprint. 
         print(failed)
     ```
 
-    `run_experiment` takes an experiment file, a mapping or a `ExperimentSpec`, and returns a `ExperimentResult`. With `raise_on_failure=False` a failed check raises nothing, and `result.failed` lists it. `output=` writes the files to another folder.
+    `run_experiment` takes an experiment file, a mapping or an `ExperimentSpec`, and returns an `ExperimentResult`. With `raise_on_failure=False` a failed check raises nothing, and `result.failed` lists it. `output=` writes the files to another folder.
 
 === "Low-level"
 

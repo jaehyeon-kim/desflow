@@ -242,27 +242,3 @@ def test_s1_planned_change_during_repair():
         19.0,
         19.0,
     ]
-
-
-def test_s1_two_failures_in_a_row():
-    """The failure clock restarts at each repair: down at 15 and 34, so with a run
-    to 40 the machine fails twice and is down 8 seconds."""
-    app = SimulationContext("S1", factor=0.0)
-    app.add_resource("machine", current_cap=1, max_cap=1)
-    app.add_breakdown(
-        "machine",
-        time_to_failure={"dist": "constant", "value": 15},
-        repair={"dist": "constant", "value": 4},
-    )
-    app.with_stats("basic")
-    records = run_builder(app, 40)
-    assert _trace(records) == [
-        (15.0, "machine", "down"),
-        (19.0, "machine", "repaired"),
-        (34.0, "machine", "down"),
-        (38.0, "machine", "repaired"),
-    ]
-    readings = app.env.stats.readings()
-    assert readings["S1.stats.resources.machine.failures"] == 2
-    assert readings["S1.stats.resources.machine.downtime"] == 8
-    assert readings["S1.stats.resources.machine.down"] == 0

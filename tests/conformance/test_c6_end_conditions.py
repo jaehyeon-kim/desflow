@@ -472,12 +472,33 @@ def test_c6_step_one_event():
 
 def test_c6_inspect_next_event_time():
     """peek gives the time of the next event SimPy would process, stepping the same
-    model in the same way."""
+    model in the same way, in all three APIs; with no event left it gives
+    infinity."""
     env = simpy.Environment()
     env.process(_periodic(env, 10, lambda: iter(())))
     while env.peek() < 5:
         env.step()
     expected = env.peek()
+    assert simpy.Environment().peek() == float("inf")
+
+    low = DynamicRealtimeEnvironment(factor=0.0)
+    low.process(_periodic(low, 10, lambda: iter(())))
+    while low.peek() < 5:
+        low.step()
+    assert low.peek() == expected
+    low.teardown()
+    empty = DynamicRealtimeEnvironment(factor=0.0)
+    assert empty.peek() == float("inf")
+    empty.teardown()
+
+    from tests.conformance.harness import BLUEPRINTS
+
+    yaml_app = SimulationContext.from_yaml(BLUEPRINTS / "c6_step.yaml")
+    yaml_app.start()
+    while yaml_app.peek() < 5:
+        yaml_app.step()
+    assert yaml_app.peek() == expected
+    yaml_app.close()
 
     app = SimulationContext("C6", factor=0.0)
     app.add_arrival("pings", dist="constant", value=10)
@@ -537,6 +558,3 @@ def test_c6_stopped_and_resumed_run():
     env = DynamicRealtimeEnvironment(factor=0.0)
     assert _stopped_and_resumed(env) == expected
     env.teardown()
-
-    empty = DynamicRealtimeEnvironment(factor=0.0)
-    assert empty.peek() == float("inf")

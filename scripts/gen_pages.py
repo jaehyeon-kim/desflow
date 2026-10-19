@@ -341,17 +341,24 @@ def compatibility_page() -> str:
         "",
         f"## {GROUPS['N']}",
         "",
-        "These features are not yet native and checked in all three APIs. The "
-        "inventory id names the feature in desflow's list of SimPy's features.",
+        "These features are not yet native and checked in all three APIs. "
+        '"Exists, not checked" marks an API that has a form, which no conformance '
+        "test compares with SimPy yet; the low-level API is SimPy, so many work "
+        "there already. The inventory id names the feature in desflow's list of "
+        "SimPy's features.",
         "",
         "| Feature | Inventory | SimPy | YAML | Builder | Low-level | Release |",
         "|---|---|---|---|---|---|---|",
     ]
     for row in not_yet:
+        exists = row.get("exists", [])
+        status = [
+            "exists, not checked" if api in exists else "not yet"
+            for api in ("yaml", "builder", "low_level")
+        ]
         lines.append(
             f"| {row['operation']} | {', '.join(row['inventory'])} "
-            f"| {_cell(row['simpy'])} | not yet | not yet | not yet "
-            f"| {row['release']} |"
+            f"| {_cell(row['simpy'])} | {' | '.join(status)} | {row['release']} |"
         )
     lines += ["", f"## {GROUPS['D']}", ""]
     for row in kept:

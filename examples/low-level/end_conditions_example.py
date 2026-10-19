@@ -96,8 +96,11 @@ def run_to_end(env, shop, source):
             out_of_boxes.succeed()
 
     env.watch_changes(check)
-    env.run(until=120)  # no new orders after closing time
-    source.interrupt()
+    # Closing time, unless the boxes run out first, which ends the run at once
+    env.run(until=env.timeout(120) | out_of_boxes)
+    if out_of_boxes.triggered:
+        return
+    source.interrupt()  # no new orders after closing time
     packed = env.all_of([p for p in shop["orders"] if p.is_alive])
     env.run(until=packed | env.timeout(60) | out_of_boxes)
 

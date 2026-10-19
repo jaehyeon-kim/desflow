@@ -66,6 +66,8 @@ The arguments of `SimulationContext`. [Time and Pacing](../user-guide/time-and-p
 | `go_live_at` | the instant from which the run is paced in real time |
 | `warmup` | a time, 0 or more, before which no sink receives a record and at which the statistics restart |
 | `initial_time` | the simulation clock's reading when the run starts, in seconds or a duration; 0 by default |
+| `timezone` | an IANA name, such as `Australia/Melbourne`, that timestamps are written in, with their offset; a `logical_start_time` or `go_live_at` without an offset, and `now`, are read in it; the zone of `logical_start_time`, or UTC, by default |
+| `lag_interval` | simulation seconds or a duration between `system.simulation.lag_seconds` readings; 0 turns them off; by default off at `factor: 0` and every second otherwise |
 
 ## resources, stores and containers
 
@@ -206,7 +208,9 @@ The arguments of `with_batching`, the defaults for every sink: `batch_size` and 
 
 | Key | Value |
 |---|---|
-| `until` | a time greater than 0; `desflow run --until` overrides it |
+| `until` | a time greater than `initial_time`; `desflow run --until` overrides it |
+| `stop` | ends the run before `until` when it happens: `{signal: name}`, the next firing of a signal, or `{condition: ...}`, the first moment a condition holds |
+| `drain` | `true` stops the arrivals at `until` and runs on until no entity is left; `{limit: 1 h}` stops at the latest that long after `until`; `desflow run --drain` sets it |
 | `before` | a list of `!python` functions called with no arguments before the run, for setup such as creating topics |
 
 ---

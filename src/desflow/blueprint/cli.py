@@ -160,17 +160,17 @@ def _run(
         )
         return
     try:
-        context.run(until=stop_at, drain=True if drain else None)
-    except KeyboardInterrupt:
-        logger.info("Simulation stopped by user.")
+        context.start(until=stop_at, drain=True if drain else None)
     except ValueError as exc:
         # A run value refused before the run starts, such as --drain without an
         # until, is reported as a blueprint error is; an error inside the run keeps
         # its traceback
-        if context.started:
-            raise
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(code=1) from None
+    try:
+        context.finish()
+    except KeyboardInterrupt:
+        logger.info("Simulation stopped by user.")
 
 
 def _replicate(
@@ -227,7 +227,10 @@ def _experiment(
         ),
     ] = None,
 ) -> None:
-    """Run the experiment in FILE, write its artifacts and report, and exit 1 if a check fails."""
+    """Run the experiment in FILE and write its artifacts and report.
+
+    Exits 1 if a check fails.
+    """
     from desflow.analysis.runner import run_experiment
 
     logging.basicConfig(

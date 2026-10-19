@@ -294,7 +294,8 @@ def test_every_example_is_compared():
 
 
 def test_experiment_example_gives_the_same_results_in_every_api(tmp_path):
-    """The experiment's results and checks are the same whichever way its model is written."""
+    """The experiment's results and checks are the same in every API its model is
+    written in."""
     from desflow import run_experiment
 
     results = {}
@@ -332,3 +333,26 @@ def test_fitting_example_writes_the_file_its_blueprint_loads(tmp_path):
     )
     assert run.exit_code == 0, run.output
     assert out.read_text() == (EXAMPLES / "yaml" / "packing_fit.yaml").read_text()
+
+
+def test_end_conditions_stop_when_the_boxes_run_out_before_closing():
+    """With 3 boxes left from 1 s, the boxes run out before closing time, and every
+    version stops at once, the low-level one included, with the same records."""
+    from desflow import run_scenario
+
+    step = {"at": 1, "path": "Shop.containers.boxes.level", "value": 3}
+    builder = _load(EXAMPLES / "builder" / "end_conditions_example.py")
+    builder.app.add_scenario([step])
+    expected = _run_builder(builder.app, 120, **RUN["end_conditions"])
+    assert expected and max(r["sim_ts"] for r in expected) < 120
+
+    yaml_app = _from_yaml(EXAMPLES / "yaml" / "end_conditions.yaml")
+    yaml_app.add_scenario([step])
+    assert _run_builder(yaml_app, 120) == expected
+
+    low = _load(EXAMPLES / "low-level" / "end_conditions_example.py")
+
+    def processes(env, sampler):
+        return [*_ending(low, env, sampler), run_scenario(env, [step], until=120)]
+
+    assert _run_low_level(low, 120, processes) == expected

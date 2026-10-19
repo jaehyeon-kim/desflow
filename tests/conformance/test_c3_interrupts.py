@@ -42,7 +42,7 @@ def _trace(records, key, queued=False):
     return out
 
 
-def _machine(sim_id, cap=1, queue="fifo"):
+def _machine(sim_id, cap=1):
     return SimParameter(
         sim_id=sim_id,
         resources={"machine": CapacityConfig(current_cap=cap, max_cap=cap)},
@@ -489,7 +489,8 @@ def test_c3_priority_preemption():
 
 
 def test_c3_priority_preemption_equal_priorities():
-    """Equal priorities never preempt: the second waits until 20."""
+    """Equal priorities do not preempt, the requests being made at different
+    times: the second waits until 20."""
     assert _check_preemption((1,), (1,), 1, "c3_preemption_equal.yaml") == [
         (10, "low0", "started"),
     ]

@@ -201,3 +201,11 @@ def test_a_store_and_a_container_start_at_capacity_0():
     env.run(until=20)
     env.teardown()
     assert done == [("box", 5), ("oil", 10)]
+
+
+def test_a_priority_store_gives_equal_priorities_in_put_order():
+    """Six items of one priority come out in put order. A `PriorityItem` compares
+    only its priority, so without the put order heapq returns them mixed."""
+    from tests.conformance.test_c5_priority_store import _builder_order
+
+    assert _builder_order([3] * 6) == [0, 1, 2, 3, 4, 5]

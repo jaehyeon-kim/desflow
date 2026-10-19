@@ -1,4 +1,5 @@
-"""The experiment report: a Markdown file built from the experiment's saved artifacts only.
+"""The experiment report: a Markdown file built only from the experiment's saved
+artifacts.
 
 `run_experiment` writes the artifacts and then this report, and `desflow report` builds
 it again from the same files, so the two never differ. Every section says so when
@@ -93,7 +94,8 @@ def build_report(folder: Union[str, Path]) -> str:
     Builds the report of the experiment whose artifacts are in `folder`.
 
     Args:
-        folder: The experiment's output folder, holding `experiment.json` and the CSV files.
+        folder: The experiment's output folder, holding `experiment.json` and the
+            CSV files.
 
     Returns:
         str: The report, as Markdown.

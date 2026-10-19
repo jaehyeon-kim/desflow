@@ -2,8 +2,8 @@
 
 An experiment file is YAML read with the blueprint loader, so `!python` references and
 `${VAR}` work as in a blueprint, and every model here forbids unknown keys, so a
-misspelt key is reported with its line. `load_experiment` reads a file; `ExperimentSpec` also
-takes the same settings as a Python mapping.
+misspelt key is reported with its line. `load_experiment` reads a file;
+`ExperimentSpec` also takes the same settings as a Python mapping.
 """
 
 from pathlib import Path

@@ -139,9 +139,9 @@ Error: blueprint_error.yaml:20: task 'pack_order' has a priority, but resource '
 
 A blueprint covers configuration. These stay in Python:
 
-- **Values computed per entity.** A mapping payload is a constant, apart from the task id that `id_field` adds and the attributes that `attributes` adds. Random choices, derived fields and state carried between events are a Python payload or process, as [Python in a Blueprint](../guides/yaml-advanced.md) shows. A task's `priority` and a `get` or `put` amount can be an expression, and `next` rules read attributes, payload fields, levels and registry values, as [Task Flow](task-flow.md) describes.
+- **Values computed per entity.** A mapping payload is a constant, apart from the task id that `id_field` adds, the attributes that `attributes` adds and the item a `get` took, which `item_field` adds. Random choices, derived fields and state carried between events are a Python payload or process, as [Python in a Blueprint](../guides/yaml-advanced.md) shows. A task's `priority` and a `get` or `put` amount can be an expression, and `next` rules read attributes, payload fields, levels, registry values, the item a `get` took (`item.<field>`), the wait's branches (`wait.<branch>.done`) and signals (`signal.<name>.count`), as [Task Flow](task-flow.md) describes.
 - **Entity keys.** A blueprint uses the default key, `<arrival>-<n>`; a key function is builder only.
-- **More than one resource per task, preemption, batching.** These are processes in Python.
-- **One simulation per file.** A blueprint has one `sim_id`, and there is no include of another file.
+- **Batching.** Collecting several entities into one is a process in Python. Several resources per task (`resource: [picker, bench]` and `keep`), preemption (`preempt: true`) and breakdowns (`breakdown:`) are plain YAML.
+- **One simulation per file.** A blueprint has one `sim_id`. `!include` puts a mapping from another file in place, such as fitted settings, but not a second simulation.
 
 A file with no `!python` references is read entirely by `yaml.SafeLoader`, and loading it imports only the connector modules its `type` entries name. A file that references Python runs the imports it names, so it is as trusted as a Python script; [YAML Format](../reference/yaml-format.md#security) explains.

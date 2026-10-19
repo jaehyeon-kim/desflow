@@ -308,6 +308,46 @@ def _low_level_cancel():
     return seen
 
 
+def _reference_abandon(target):
+    """Plain SimPy: a holder from 10 for 10 s and a waiter from 11, each leaving its
+    `with` block when interrupted; `target` is interrupted at 13. Returns the
+    waiter's start times and the machine's use after 13."""
+    env = simpy.Environment()
+    machine = simpy.Resource(env, capacity=1)
+    starts, seen, processes = [], {}, {}
+
+    def holder():
+        yield env.timeout(10)
+        try:
+            with machine.request() as req:
+                yield req
+                yield env.timeout(10)
+        except simpy.Interrupt:
+            pass
+
+    def waiter():
+        yield env.timeout(11)
+        try:
+            with machine.request() as req:
+                yield req
+                starts.append(env.now)
+                yield env.timeout(1)
+        except simpy.Interrupt:
+            pass
+
+    def script():
+        yield env.timeout(13)
+        processes[target].interrupt("recall")
+        yield env.timeout(0.5)
+        seen["in use"], seen["queue"] = machine.count, len(machine.queue)
+
+    processes["holder"] = env.process(holder())
+    processes["waiter"] = env.process(waiter())
+    env.process(script())
+    env.run(until=25)
+    return starts, seen
+
+
 def _builder_abandon(target):
     """A holder from 10 for 10 s and a waiter from 11; `target` is interrupted with
     abandon at 13. Returns the waiter's events and the machine's use after 13."""
@@ -357,11 +397,12 @@ def test_c4_cancel_before_a_grant():
     assert _reference_cancel()["waiter granted"] is False
     seen = _low_level_cancel()
     assert seen["queue after cancel"] == 0 and seen["waiter granted"] is False
+    starts, expected = _reference_abandon("waiter")
     records, after = _builder_abandon("waiter")
-    assert after == {"in use": 1, "queue": 0}
-    assert _started_of(records, "waiters-1") == []
+    assert after == expected
+    assert _started_of(records, "waiters-1") == starts
     yaml_records, app = run_yaml("c4_cancel_waiting.yaml")
-    assert _started_of(yaml_records, "waiters-1") == []
+    assert _started_of(yaml_records, "waiters-1") == starts
     assert app.get_resource("machine").queue.items == []
 
 
@@ -370,11 +411,13 @@ def test_c4_cancel_after_a_grant():
     the unit back at 13, so the waiter starts at 13, not at 20."""
     assert _reference_cancel()["after cancel"] == 1
     assert _low_level_cancel()["after cancel"] == 1
+    starts, expected = _reference_abandon("holder")
+    assert starts == [13]
     records, after = _builder_abandon("holder")
-    assert after == {"in use": 1, "queue": 0}
-    assert _started_of(records, "waiters-1") == [13.0]
+    assert after == expected
+    assert _started_of(records, "waiters-1") == starts
     yaml_records, _app = run_yaml("c4_cancel_granted.yaml")
-    assert _started_of(yaml_records, "waiters-1") == [13.0]
+    assert _started_of(yaml_records, "waiters-1") == starts
 
 
 # Hold several resources: an order acquires the picker, then the bench, holding the

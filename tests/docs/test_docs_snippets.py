@@ -12,8 +12,8 @@ import pytest
 from desflow import SimulationContext
 
 ROOT = Path(__file__).resolve().parents[2]
-# Experiment files sit beside the blueprints they name; they are experiments, not models, and
-# the tutorial tests run them
+# Experiment files sit beside the blueprints they name; they are experiments, not
+# models, and the tutorial tests run them
 EXPERIMENTS = sorted((ROOT / "docs" / "snippets" / "yaml").glob("*_experiment.yaml"))
 SNIPPETS = sorted(
     set((ROOT / "docs" / "snippets" / "yaml").glob("*.yaml")) - set(EXPERIMENTS)

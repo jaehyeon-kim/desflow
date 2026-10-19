@@ -497,3 +497,31 @@ def test_grant_order_matches_simpy(env, registry, sample_params):
     assert _grant_order(lambda: DynamicResource(env, "Shop", "packers"), env) == (
         expected
     )
+
+
+def test_two_failures_in_a_row_restart_the_failure_clock():
+    """The failure clock restarts at each repair: down at 15 and 34, so with a run
+    to 40 the machine fails twice and is down 8 seconds."""
+    from desflow.core.context import SimulationContext
+    from tests.conformance.harness import run_builder
+    from tests.conformance.test_s1_breakdowns import _trace
+
+    app = SimulationContext("S1", factor=0.0)
+    app.add_resource("machine", current_cap=1, max_cap=1)
+    app.add_breakdown(
+        "machine",
+        time_to_failure={"dist": "constant", "value": 15},
+        repair={"dist": "constant", "value": 4},
+    )
+    app.with_stats("basic")
+    records = run_builder(app, 40)
+    assert _trace(records) == [
+        (15.0, "machine", "down"),
+        (19.0, "machine", "repaired"),
+        (34.0, "machine", "down"),
+        (38.0, "machine", "repaired"),
+    ]
+    readings = app.env.stats.readings()
+    assert readings["S1.stats.resources.machine.failures"] == 2
+    assert readings["S1.stats.resources.machine.downtime"] == 8
+    assert readings["S1.stats.resources.machine.down"] == 0

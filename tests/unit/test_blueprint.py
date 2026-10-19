@@ -1,7 +1,7 @@
 """YAML blueprints: validation, error lines and the builder calls they make."""
 
 import textwrap
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pytest
 from typer.testing import CliRunner
@@ -607,13 +607,13 @@ def _with_times(start, live):
     ],
 )
 def test_relative_times_read_one_now(tmp_path, start, live, start_offset, live_offset):
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     # `now` is an instant, read in the run's zone, UTC by default
-    before = datetime.now(timezone.utc)
+    before = datetime.now(UTC)
     app = SimulationContext.from_yaml(write(tmp_path, _with_times(start, live)))
-    after = datetime.now(timezone.utc)
-    assert app.logical_start_time.tzinfo is timezone.utc
+    after = datetime.now(UTC)
+    assert app.logical_start_time.tzinfo is UTC
 
     assert app.go_live_at - app.logical_start_time == timedelta(
         seconds=live_offset - start_offset
@@ -947,3 +947,40 @@ def test_lag_interval_in_a_blueprint_and_the_builder(tmp_path):
     assert lags(SimulationContext("Shop", factor=0, lag_interval=2)) == [0.0, 2.0, 4.0]
     with pytest.raises(ValueError, match="lag_interval must be 0 or more"):
         SimulationContext("Shop", lag_interval=-1)
+
+
+@pytest.mark.parametrize(
+    "run,line,fragment",
+    [
+        ("run: {until: 30, stop: {signal: closing}}\n", 18, "signal 'closing'"),
+        ("run: {until: 30, stop: {condition: level.bins == 0}}\n", 18, "level.bins"),
+        ("run: {until: 30, stop: {condition: attr.size > 1}}\n", 18, "attr.<...>"),
+        ("simulation:\n  initial_time: 30\nrun: {until: 30}\n", 18, "until (30)"),
+    ],
+)
+def test_run_section_errors_name_the_line(tmp_path, run, line, fragment):
+    """A stop that names nothing or reads an entity, and an until not after the
+    initial time, are refused when the file loads, with their line."""
+    text = MINIMAL.replace("run:\n  until: 30\n", run)
+    if run.startswith("simulation:"):
+        text = MINIMAL.replace(
+            "  random_seed: 7\n", "  random_seed: 7\n  initial_time: 30\n"
+        )
+    path = write(tmp_path, text)
+    with pytest.raises(BlueprintError) as error:
+        SimulationContext.from_yaml(path)
+    assert str(error.value).startswith(f"{path}:"), str(error.value)
+    assert fragment in str(error.value)
+
+
+@pytest.mark.parametrize("key", ["balk", "patience"])
+def test_balk_and_patience_cannot_read_the_wait(tmp_path, key):
+    """balk and patience are read before the wait starts, so wait.<branch> in them
+    is refused when the file loads."""
+    value = "wait.stock.done" if key == "balk" else "1 if wait.stock.done else 5"
+    text = MINIMAL.replace(
+        "    id_field: order_id\n",
+        f"    id_field: order_id\n    wait: {{any: {{stock: {{timeout: 5}}}}}}\n    {key}: {value}\n",
+    )
+    with pytest.raises(BlueprintError, match="wait.stock is not a branch"):
+        SimulationContext.from_yaml(write(tmp_path, text))

@@ -74,22 +74,25 @@ def test_every_register_page_exists_and_every_group_has_a_heading():
             assert entry["operation"] in page
 
 
-# The 98 modelling features of SimPy 4.1.2, by the inventory id of
-# planning research/simpy-4.1.2-inventory.md
-INVENTORY = (
-    [f"E{n}" for n in range(1, 18) if n != 11]
-    + ["E11"]
-    + [f"R{n}" for n in range(1, 5)]
-    + [f"V{n}" for n in range(1, 12)]
-    + [f"P{n}" for n in range(1, 13)]
-    + [f"C{n}" for n in range(1, 9)]
-    + [f"B{n}" for n in range(1, 9)]
-    + [f"S{n}" for n in range(1, 15)]
-    + [f"Q{n}" for n in range(1, 9)]
-    + [f"K{n}" for n in range(1, 6)]
-    + [f"T{n}" for n in range(1, 10)]
-    + ["U1", "U2"]
-)
+# The 98 modelling features of SimPy 4.1.2, by inventory id; the SP- prefix keeps
+# them apart from the register's own group ids
+INVENTORY = [
+    f"SP-{i}"
+    for i in (
+        [f"E{n}" for n in range(1, 18) if n != 11]
+        + ["E11"]
+        + [f"R{n}" for n in range(1, 5)]
+        + [f"V{n}" for n in range(1, 12)]
+        + [f"P{n}" for n in range(1, 13)]
+        + [f"C{n}" for n in range(1, 9)]
+        + [f"B{n}" for n in range(1, 9)]
+        + [f"S{n}" for n in range(1, 15)]
+        + [f"Q{n}" for n in range(1, 9)]
+        + [f"K{n}" for n in range(1, 6)]
+        + [f"T{n}" for n in range(1, 10)]
+        + ["U1", "U2"]
+    )
+]
 
 
 def test_the_register_is_the_full_simpy_matrix():

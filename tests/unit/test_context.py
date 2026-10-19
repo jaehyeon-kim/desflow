@@ -627,11 +627,13 @@ def test_a_failed_start_tears_the_connectors_down():
     """An error after the connectors start stops their thread, as run() would."""
     app = SimulationContext("Shop", factor=0).add_egress(_Sink())
     app.add_resource("packers", current_cap=1, max_cap=1)
-    with patch(
-        "desflow.core.context.DynamicResource", side_effect=RuntimeError("broken")
+    with (
+        patch(
+            "desflow.core.context.DynamicResource", side_effect=RuntimeError("broken")
+        ),
+        pytest.raises(RuntimeError, match="broken"),
     ):
-        with pytest.raises(RuntimeError, match="broken"):
-            app.run(until=10)
+        app.run(until=10)
     thread = app._env._egress_thread
     thread.join(timeout=5)
     assert not thread.is_alive()
@@ -738,3 +740,104 @@ def test_an_error_in_an_arrival_loop_stops_the_run():
 
     with pytest.raises(RuntimeError, match="the loop broke"):
         app.run(until=10)
+
+
+def test_the_builder_stop_takes_a_signal_name_or_a_function():
+    """A stop given by the signal's name or by a function of the context ends the
+    run when its event happens; the function is called once the run exists."""
+    for stop in ("closing", lambda context: context.env.timeout(7)):
+        app = SimulationContext("Shop", factor=0)
+        app.add_signal("closing")
+
+        def close_at_7(context):
+            yield context.env.timeout(7)
+            context.signal("closing").fire(None)
+
+        app.add_process(close_at_7)
+        app.add_arrival("orders", dist="constant", value=1)
+        app.run(until=100, stop=stop)
+        assert app.env.now == 7
+
+
+def test_a_second_run_numbers_entities_and_instances_from_the_start():
+    """Two runs of one context with the same seed give the same records: entity
+    keys and instance ids start again at orders-1 and 0."""
+    records = []
+
+    class Keep:
+        async def run(self, egress_queue):
+            while True:
+                try:
+                    records.extend(egress_queue.get_nowait())
+                except queue.Empty:
+                    await asyncio.sleep(0.01)
+
+    app = SimulationContext("Shop", factor=0, random_seed=3).add_egress(Keep())
+    app.add_arrival("orders", dist="exponential", rate=1.0)
+
+    @app.task()
+    def take(task_id):
+        return {"event": "taken"}
+
+    @app.arrival_loop("orders")
+    def loop(context):
+        while True:
+            entity = yield context.wait_for_arrival("orders")
+            context.spawn(take(context.next_instance("take"), entity=entity))
+
+    runs = []
+    for _ in range(2):
+        records.clear()
+        app.run(until=5)
+        runs.append([(r["key"], r["instance"]) for r in records])
+    assert runs[0] and runs[0] == runs[1]
+
+
+def test_starting_again_closes_the_run_still_open():
+    """start() on a run not closed closes it first, so its egress thread stops;
+    close() leaves `started` False."""
+    app = SimulationContext("Shop", factor=0).add_egress(_Sink())
+    app.start(until=10)
+    first = app._env
+    app.start(until=10)
+    first._egress_thread.join(timeout=5)
+    assert not first._egress_thread.is_alive()
+    assert app.started
+    app.close()
+    assert not app.started
+
+
+def test_the_builder_refuses_patience_reading_the_wait():
+    """patience is read before the wait starts, so wait.<branch> in it is
+    refused."""
+    app = SimulationContext("Shop", factor=0)
+
+    @app.task(
+        wait={"any": {"stock": {"timeout": 5}}},
+        patience="1 if wait.stock.done else 5",
+    )
+    def order(task_id):
+        return {}
+
+    with pytest.raises(ValueError, match="reads wait.stock"):
+        app.run(until=10)
+
+
+def test_equal_time_scenario_steps_apply_in_order():
+    """Two steps at 25 set the packers to 3, then 2: the last one given wins."""
+    app = SimulationContext("S2", factor=0.0)
+    app.add_resource("packers", current_cap=1, max_cap=4)
+    app.add_step(25, path="S2.resources.packers.current_cap", value=3)
+    app.add_step(25, path="S2.resources.packers.current_cap", value=2)
+    app.run(until=30)
+    assert app.env.registry.get("S2.resources.packers.current_cap").value == 2
+
+
+def test_a_scenario_step_at_until_does_not_apply():
+    """A step at exactly until is dropped; one just before applies."""
+    for at, expected in ((40, 1), (39.9, 4)):
+        app = SimulationContext("S2", factor=0.0)
+        app.add_resource("packers", current_cap=1, max_cap=4)
+        app.add_step(at, path="S2.resources.packers.current_cap", value=4)
+        app.run(until=40)
+        assert app.get_resource("packers").capacity == expected

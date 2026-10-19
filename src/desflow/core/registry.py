@@ -130,8 +130,8 @@ class SimulationRegistry:
         """
         Returns every configuration object by its path, such as `Shop.service.packing`.
 
-        An experiment records them as the model's compiled parameters. The objects are the
-        live ones, so read them rather than change them.
+        An experiment records them as the model's compiled parameters. The objects
+        are the live ones, so read them rather than change them.
 
         Returns:
             Dict[str, Any]: Path to `DistributionConfig`, `CapacityConfig` or the

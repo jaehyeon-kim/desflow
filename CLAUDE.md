@@ -35,7 +35,7 @@ uv run mkdocs serve -a 127.0.0.1:8001             # docs at http://127.0.0.1:800
 
 A plain `uv run` without `--all-extras` removes the extras from the venv, and the connector tests then fail to import.
 
-`tests/docs` is the slowest suite. While working, run only the docs tests for the pages, snippets and examples you changed (`pytest tests/docs -k <name>`), and the full `tests/docs` and the strict build before a merge or a release; CI runs everything on every push.
+Run tests as often as a change needs. While fixing, rerun only the failed tests (`pytest --lf`) and the test files for the code changed; run `tests/unit tests/conformance` in full once before each commit, and not `tests/conformance` again on its own. `tests/docs` is the slowest suite: while working, run only the docs tests for the pages, snippets and examples you changed (`pytest tests/docs -k <name>`), plus `test_docs_record_blocks.py` and `test_example_twins.py` when a commit changes behaviour (not for a rename or a docstring); run the full `tests/docs` before a merge or a release. Run the strict build only when `docs/`, `mkdocs.yml`, a docstring or a `scripts/gen_pages.py` input (`tests/conformance/register.yaml`, `uv.lock`, the distribution list, the statistic names) changed, at most once per commit. CI runs everything on every push.
 
 ## Rules
 

@@ -14,7 +14,7 @@ A replication is one run of the model with a seed of its own. N replications giv
 
 ### Run Replications
 
-Give the model, the number of replications, the seed they are spawned from and the end time:
+Give the model, the number of replications, the seed they are spawned from and the time the arrivals stop:
 
 === "YAML"
 
@@ -22,7 +22,7 @@ Give the model, the number of replications, the seed they are spawned from and t
     desflow run shop.yaml --replications 20 --measure tasks.pack.wait_mean
     ```
 
-    `--seed` overrides `simulation.random_seed`, and `--until` overrides `run.until`, as for one run. `--level` sets the confidence level (0.95 when it is not given), and `--workers` runs replications at once, each in its own process. The command prints the summary, the seed of each replication and the command that repeats one. The blueprint's own `warmup` applies to every replication:
+    `--seed` overrides `simulation.random_seed`, and `--until` overrides `run.until`, as for one run. `--level` sets the confidence level (0.95 when it is not given), `--workers` runs replications at once, each in its own process, and `--drain` drains every replication, as `run.drain: true` does. The command prints the summary, the seed of each replication and the command that repeats one. The blueprint's own `warmup` applies to every replication:
 
     ```yaml title="examples/yaml/replications.yaml:seed"
     # The replications' seeds are spawned from this one; --seed overrides it

@@ -4,7 +4,7 @@ import logging
 import queue
 import time
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from datetime import time as dt_time
 from decimal import Decimal
 
@@ -375,10 +375,10 @@ def test_go_live_without_an_offset_is_read_in_the_zone():
     env = DynamicRealtimeEnvironment(
         factor=0.0,
         logical_start_time=LOGICAL_START,
-        go_live_at=LOGICAL_START.replace(tzinfo=timezone.utc) + timedelta(seconds=10),
+        go_live_at=LOGICAL_START.replace(tzinfo=UTC) + timedelta(seconds=10),
     )
     assert env._go_live_sim_time == 10.0
-    assert env.start_datetime.tzinfo is timezone.utc
+    assert env.start_datetime.tzinfo is UTC
 
 
 def test_the_clock_runs_in_utc_across_a_daylight_saving_change():
@@ -928,7 +928,7 @@ def test_lag_monitor_runs_with_a_start_time_in_a_time_zone():
     env = DynamicRealtimeEnvironment(
         factor=0,
         strict=False,
-        logical_start_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        logical_start_time=datetime(2026, 1, 1, tzinfo=UTC),
     )
     env.setup_egress(providers=[tracker], batch_size=1, lag_monitor_interval=1.0)
     env.run(until=3)
@@ -989,17 +989,17 @@ def test_cached_timestamp_is_the_isoformat_text():
 
     env = DynamicRealtimeEnvironment(factor=0)
     starts = [
-        datetime(2026, 10, 1, 9, 0, 0, 999_500, tzinfo=timezone.utc),
+        datetime(2026, 10, 1, 9, 0, 0, 999_500, tzinfo=UTC),
         datetime(2026, 10, 3, 12, 0, tzinfo=ZoneInfo("Australia/Melbourne")),
-        datetime(2026, 1, 1, tzinfo=timezone.utc),
+        datetime(2026, 1, 1, tzinfo=UTC),
     ]
     times = [float(s) for s in range(86_400)] + [ms / 1000 for ms in range(3_600_000)]
     times += [s + 0.0005 for s in range(1000)] + [s + 0.9995 for s in range(1000)]
     for start in starts:
         env.zone = start.tzinfo
-        for now in times[:: 1 if start.tzinfo is timezone.utc else 7]:
+        for now in times[:: 1 if start.tzinfo is UTC else 7]:
             # The clock runs in UTC and the text is written in the zone
-            utc = start.astimezone(timezone.utc) + timedelta(seconds=now)
+            utc = start.astimezone(UTC) + timedelta(seconds=now)
             moment = utc.astimezone(start.tzinfo)
             expected = moment.isoformat(timespec="milliseconds")
             assert env._get_iso_timestamp(start, now) == expected, (start, now)

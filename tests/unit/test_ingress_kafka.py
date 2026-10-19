@@ -16,30 +16,34 @@ from desflow.connectors.ingress.kafka import (
 def test_missing_avro_deserializer_dependencies():
     """Verify that using Avro deserializers without the extras raises an explicit ImportError."""
     # Hide confluent_kafka
-    with patch.dict(
-        sys.modules,
-        {
-            "confluent_kafka": None,
-            "confluent_kafka.schema_registry": None,
-            "confluent_kafka.schema_registry.avro": None,
-            "confluent_kafka.serialization": None,
-        },
+    with (
+        patch.dict(
+            sys.modules,
+            {
+                "confluent_kafka": None,
+                "confluent_kafka.schema_registry": None,
+                "confluent_kafka.schema_registry.avro": None,
+                "confluent_kafka.serialization": None,
+            },
+        ),
+        pytest.raises(ImportError, match=r"pip install desflow\[confluent\]"),
     ):
-        with pytest.raises(ImportError, match=r"pip install desflow\[confluent\]"):
-            ConfluentAvroDeserializer(registry_url="http://mock")
+        ConfluentAvroDeserializer(registry_url="http://mock")
 
     # Hide boto3
-    with patch.dict(
-        sys.modules,
-        {
-            "boto3": None,
-            "aws_schema_registry": None,
-            "aws_schema_registry.adapter.kafka": None,
-            "aws_schema_registry.avro": None,
-        },
+    with (
+        patch.dict(
+            sys.modules,
+            {
+                "boto3": None,
+                "aws_schema_registry": None,
+                "aws_schema_registry.adapter.kafka": None,
+                "aws_schema_registry.avro": None,
+            },
+        ),
+        pytest.raises(ImportError, match=r"pip install desflow\[glue\]"),
     ):
-        with pytest.raises(ImportError, match=r"pip install desflow\[glue\]"):
-            GlueAvroDeserializer(registry_name="mock")
+        GlueAvroDeserializer(registry_name="mock")
 
 
 @pytest.mark.asyncio

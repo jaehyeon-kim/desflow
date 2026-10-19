@@ -8,12 +8,14 @@
 # every check names a test function, every test function here is listed, and every
 # page exists.
 #
-# The register is the full list of SimPy 4.1.2's modelling features, 98 in all
-# (planning research/simpy-4.1.2-inventory.md names each by its inventory id).
+# The register is the full list of SimPy 4.1.2's modelling features, 98 in all,
+# each named by an inventory id with the prefix SP-, such as SP-E1.
 #
 # id: the capability group (C1 to C7 core, S1 to S3 bounded support), N for a
 #   feature not yet native, D for a difference kept by design
 # inventory: the inventory ids of the SimPy features the row covers
+# exists: for a row not yet native, the APIs where a form exists but no
+#   conformance test checks it yet
 # status: native (the default: native in all three APIs and checked against
 #   SimPy), not yet, or difference
 # release: for a row not yet native, the release that makes it native
@@ -25,7 +27,7 @@
 # differences: an intentional difference from SimPy, when there is one
 
 - id: C1
-  inventory: [V10]
+  inventory: [SP-V10]
   operation: Timed wait
   simpy: "`simpy.events.Timeout`"
   yaml: a task with `service` and no `resource`
@@ -36,7 +38,7 @@
   page: user-guide/tasks-and-processes.md#a-timed-step
 
 - id: C1
-  inventory: [V1]
+  inventory: [SP-V1]
   operation: Signal event success and value
   simpy: "`simpy.events.Event.succeed(value)`"
   yaml: "`signals: [restocked]`, `signal: restocked` on the firing task and `wait: {signal: restocked}`"
@@ -44,11 +46,10 @@
   low_level: "`Signal(env, name)`: `yield signal.wait()` and `signal.fire(value)`"
   checks:
     - tests/conformance/test_c1_process_interaction.py::test_c1_signal_event_success_and_value
-    - tests/conformance/test_c1_process_interaction.py::test_c1_signal_waiter_after_a_firing_waits_for_the_next
   page: user-guide/tasks-and-processes.md#wait-signals-and-child-flows
 
 - id: C1
-  inventory: [V2]
+  inventory: [SP-V2]
   operation: Signal event failure
   simpy: "`simpy.events.Event.fail(exception)`"
   yaml: "a failing task with `signal`; its waiters fail with its reason"
@@ -59,7 +60,7 @@
   page: user-guide/tasks-and-processes.md#wait-signals-and-child-flows
 
 - id: C1
-  inventory: [P1]
+  inventory: [SP-P1]
   operation: Start and wait for a process
   simpy: "`yield env.process(child())`"
   yaml: "`wait: {task: inspect}`"
@@ -70,7 +71,7 @@
   page: user-guide/tasks-and-processes.md#wait-signals-and-child-flows
 
 - id: C1
-  inventory: [P2]
+  inventory: [SP-P2]
   operation: Process return value
   simpy: "a process's `return` value"
   yaml: "`wait.inspect.value.<field>`, the last payload of the child flow"
@@ -81,7 +82,7 @@
   page: user-guide/tasks-and-processes.md#wait-signals-and-child-flows
 
 - id: C1
-  inventory: [P3]
+  inventory: [SP-P3]
   operation: Process failure
   simpy: "an exception raised in a process reaches the process that waits for it"
   yaml: "`fail`, `fail_reason` and `on_fail` on a task; a failure no `on_fail` handles fails the waiting task"
@@ -94,7 +95,7 @@
   differences: In YAML and the builder a failure no task waits for ends the entity's flow, publishes `failed` and is counted, and the run goes on; in SimPy, and in the low-level API, an exception nobody handles stops the run.
 
 - id: C1
-  inventory: [V8]
+  inventory: [SP-V8]
   operation: Event inspection
   simpy: "`Event.triggered`, `.processed`, `.ok`, `.value`"
   yaml: "`signal.<name>.count`, `.ok` and `.value` in a condition"
@@ -105,7 +106,7 @@
   page: user-guide/tasks-and-processes.md#wait-signals-and-child-flows
 
 - id: C1
-  inventory: [P4]
+  inventory: [SP-P4]
   operation: Process inspection
   simpy: "`Process.is_alive`, `.triggered`, `.ok`, `.value`"
   yaml: "`wait.<branch>.done`, `.ok` and `.value` after the wait"
@@ -116,7 +117,7 @@
   page: user-guide/tasks-and-processes.md#wait-signals-and-child-flows
 
 - id: C1
-  inventory: [K4]
+  inventory: [SP-K4]
   operation: Wait for a shared condition
   simpy: "a loop over a fresh \"changed\" event"
   yaml: "`wait: {condition: level.stock >= 5}`"
@@ -127,7 +128,7 @@
   page: user-guide/tasks-and-processes.md#wait-signals-and-child-flows
 
 - id: C2
-  inventory: [V9, C1, C3, E7]
+  inventory: [SP-V9, SP-C1, SP-C3, SP-E7]
   operation: Wait for one event
   simpy: "`simpy.events.AnyOf`, `a | b`"
   yaml: "`wait: {any: {stock: {signal: restocked}, limit: {timeout: 3}}}`"
@@ -140,7 +141,7 @@
   differences: Losing signal, timeout and condition branches are dropped when the wait ends; losing child flows keep running, as SimPy leaves processes running.
 
 - id: C2
-  inventory: [C2, C4]
+  inventory: [SP-C2, SP-C4]
   operation: Wait for all events
   simpy: "`simpy.events.AllOf`, `a & b`"
   yaml: "`wait: {all: {...}}`"
@@ -152,7 +153,7 @@
   page: guides/wait-for-one-or-all.md#wait-for-all
 
 - id: C3
-  inventory: [P8, P12]
+  inventory: [SP-P8, SP-P12]
   operation: Interrupt while waiting
   simpy: "`simpy.Process.interrupt` while the process waits for a request"
   yaml: "`interrupt: {task: waiter}` on a scenario step or a task; `on_interrupt` on the task"
@@ -163,7 +164,7 @@
   page: tutorials/interruptions.md#interrupt-a-task
 
 - id: C3
-  inventory: [P9, P10, P11]
+  inventory: [SP-P9, SP-P10, SP-P11]
   operation: Interrupt during service
   simpy: "`simpy.Process.interrupt` while the process holds a unit"
   yaml: "`on_interrupt: resume`, `restart` or `abandon`"
@@ -175,7 +176,7 @@
   page: tutorials/interruptions.md#resume-restart-or-abandon
 
 - id: C3
-  inventory: [Q4, Q5]
+  inventory: [SP-Q4, SP-Q5]
   operation: Priority preemption
   simpy: "`simpy.resources.resource.PreemptiveResource`"
   yaml: "`resources.<name>.preempt: true` with `queue: priority`; `preempt: false` on a task opts out"
@@ -190,7 +191,7 @@
   page: user-guide/resources.md#preemption
 
 - id: C4
-  inventory: [S1]
+  inventory: [SP-S1]
   operation: Ordinary request and release
   simpy: "`simpy.resources.resource.Resource`"
   yaml: "`resource: packers` on a task"
@@ -201,7 +202,7 @@
   page: user-guide/resources.md#declare-a-resource
 
 - id: C4
-  inventory: [Q1, Q3]
+  inventory: [SP-Q1, SP-Q3]
   operation: Priority request
   simpy: "`simpy.resources.resource.PriorityResource`"
   yaml: "`queue: priority` on the resource and `priority` on a task"
@@ -214,7 +215,7 @@
   differences: Equal priorities are served first in, first out, as in SimPy; desflow also offers `fifo` and `lifo` queues, under which a request's priority is ignored.
 
 - id: C4
-  inventory: [S7, S8]
+  inventory: [SP-S7, SP-S8]
   operation: Cancel before a grant
   simpy: "`Request.cancel()` before it is granted"
   yaml: "`patience`, or an interrupt with `on_interrupt: abandon`"
@@ -226,7 +227,7 @@
   page: user-guide/resources.md#cancel-and-release
 
 - id: C4
-  inventory: [S9]
+  inventory: [SP-S9]
   operation: Cancel after a grant
   simpy: "`Request.cancel()` after the grant releases nothing; `Resource.release(request)` does"
   yaml: "an interrupt with `on_interrupt: abandon` gives the unit back"
@@ -237,7 +238,7 @@
   page: user-guide/resources.md#cancel-and-release
 
 - id: C4
-  inventory: [S12]
+  inventory: [SP-S12]
   operation: Hold several resources
   simpy: nested requests, each held while the next is awaited
   yaml: "`resource: [picker, bench]`, acquired in that order; `keep` hands units to the next task"
@@ -250,7 +251,7 @@
   differences: A model whose tasks acquire two resources in opposite orders is refused when it is built, because those tasks could each wait for ever; SimPy runs it.
 
 - id: C5
-  inventory: [T1]
+  inventory: [SP-T1]
   operation: Bounded store put
   simpy: "`simpy.resources.store.Store.put`"
   yaml: "`put: {store: parcels}` on a task"
@@ -261,7 +262,7 @@
   page: user-guide/stores-and-containers.md#take-and-add
 
 - id: C5
-  inventory: [T2]
+  inventory: [SP-T2]
   operation: Bounded store get
   simpy: "`simpy.resources.store.Store.get`"
   yaml: "`get: {store: parcels}` on a task"
@@ -272,7 +273,7 @@
   page: user-guide/stores-and-containers.md#take-and-add
 
 - id: C5
-  inventory: [B4, T3]
+  inventory: [SP-B4, SP-T3]
   operation: Equal-time puts and gets
   simpy: "`simpy.resources.store.Store`, one waiting get granted per trigger"
   yaml: "`get: {store: parcels}` and `put: {store: parcels}` on tasks"
@@ -285,7 +286,7 @@
   differences: "While a get with a filter waits, the store grants as SimPy's `FilterStore` does, looking at every waiting get each time."
 
 - id: C5
-  inventory: [K1]
+  inventory: [SP-K1]
   operation: Bounded quantity put
   simpy: "`simpy.resources.container.Container.put`"
   yaml: "`put: {container: stock, amount: 2}` on a task"
@@ -296,7 +297,7 @@
   page: tutorials/stock.md#take-and-restock
 
 - id: C5
-  inventory: [K2]
+  inventory: [SP-K2]
   operation: Bounded quantity get
   simpy: "`simpy.resources.container.Container.get`"
   yaml: "`get: {container: stock, amount: 1}` on a task"
@@ -307,7 +308,7 @@
   page: tutorials/stock.md#take-and-restock
 
 - id: C5
-  inventory: [T7]
+  inventory: [SP-T7]
   operation: Priority item storage
   simpy: "`simpy.resources.store.PriorityStore`"
   yaml: "`stores.<name>.priority: true` and a `put` with `priority`"
@@ -315,12 +316,11 @@
   low_level: "`DynamicStore(..., priority=True)` with `simpy.PriorityItem`"
   checks:
     - tests/conformance/test_c5_priority_store.py::test_c5_priority_item_storage
-    - tests/conformance/test_c5_priority_store.py::test_c5_priority_item_storage_equal_priorities
   page: user-guide/stores-and-containers.md#start-with-items-and-serve-by-priority
   differences: Equal priorities come out in put order in the builder and YAML, which add a rising put order to the priority; a plain SimPy `PriorityStore` gives no order among equal priorities.
 
 - id: C5
-  inventory: [T9]
+  inventory: [SP-T9]
   operation: Filtered retrieval
   simpy: "`simpy.resources.store.FilterStore.get(filter)`"
   yaml: "`get: {store: parcels, filter: item.area == attr.area}`"
@@ -332,7 +332,7 @@
   differences: A priority store takes no filter, because SimPy has no store that both ranks and filters.
 
 - id: C5
-  inventory: [B3]
+  inventory: [SP-B3]
   operation: Cancel store get
   simpy: "`simpy.resources.base.Get.cancel()`"
   yaml: "`patience` on a task with a store `get`"
@@ -376,7 +376,7 @@
   page: user-guide/stores-and-containers.md#pick-an-item-or-give-up-waiting
 
 - id: C6
-  inventory: [E1]
+  inventory: [SP-E1]
   operation: Initial time
   simpy: "`simpy.core.Environment(initial_time=...)`"
   yaml: "`simulation.initial_time`"
@@ -387,7 +387,7 @@
   page: user-guide/time-and-pacing.md#initial-time
 
 - id: C6
-  inventory: [B1]
+  inventory: [SP-B1]
   operation: Initial resources
   simpy: "`simpy.resources.resource.Resource(capacity=...)`"
   yaml: "`resources.<name>.current_cap`"
@@ -398,7 +398,7 @@
   page: user-guide/time-and-pacing.md#initial-time
 
 - id: C6
-  inventory: [K3, T4]
+  inventory: [SP-K3, SP-T4]
   operation: Initial inventory
   simpy: "`Container(init=...)`; items in a `Store`"
   yaml: "`containers.<name>.level` and `stores.<name>.items`"
@@ -420,7 +420,7 @@
   page: user-guide/task-flow.md#attributes
 
 - id: C6
-  inventory: [E12]
+  inventory: [SP-E12]
   operation: Stop at a time
   simpy: "`simpy.core.Environment.run(until=...)`"
   yaml: "`run.until`"
@@ -431,7 +431,7 @@
   page: user-guide/time-and-pacing.md#run-length
 
 - id: C7
-  inventory: [S13]
+  inventory: [SP-S13]
   operation: Reneging
   simpy: "`simpy.events.AnyOf` of a request and a timeout"
   yaml: "`patience: 3 min` on a task"
@@ -446,7 +446,7 @@
   page: tutorials/patience.md#leave-after-a-wait
 
 - id: C7
-  inventory: [S14]
+  inventory: [SP-S14]
   operation: Balking
   simpy: "a check before `Resource.request`"
   yaml: "`balk: <condition>` on a task"
@@ -457,11 +457,11 @@
   page: tutorials/patience.md#refuse-to-join
 
 - id: C6
-  inventory: [E13, E16]
+  inventory: [SP-E13]
   operation: Stop at an event
   simpy: "`simpy.core.Environment.run(until=event)`"
   yaml: "`run.stop: {signal: closing}` beside `run.until`"
-  builder: "`app.run(until=..., stop={\"signal\": \"closing\"})`, or a `Signal` or SimPy event"
+  builder: "`app.run(until=..., stop={\"signal\": \"closing\"})`, a signal's name, or a function returning an event"
   low_level: "`env.run(until=event)`"
   checks:
     - tests/conformance/test_c6_end_conditions.py::test_c6_stop_at_an_event
@@ -494,7 +494,7 @@
   page: user-guide/time-and-pacing.md#drain
 
 - id: C6
-  inventory: [E9]
+  inventory: [SP-E9]
   operation: Step one event
   simpy: "`simpy.core.Environment.step()`"
   yaml: "`SimulationContext.from_yaml(path).start()`, then `.step()`"
@@ -506,7 +506,7 @@
   differences: A blueprint has no stepping key; its context, from `from_yaml`, steps as a builder context does.
 
 - id: C6
-  inventory: [E8]
+  inventory: [SP-E8]
   operation: Inspect next event time
   simpy: "`simpy.core.Environment.peek()`"
   yaml: "`SimulationContext.from_yaml(path).start()`, then `.peek()`"
@@ -527,7 +527,6 @@
     - tests/conformance/test_s1_breakdowns.py::test_s1_failure_during_service
     - tests/conformance/test_s1_breakdowns.py::test_s1_failure_during_service_work_finishes
     - tests/conformance/test_s1_breakdowns.py::test_s1_planned_change_during_repair
-    - tests/conformance/test_s1_breakdowns.py::test_s1_two_failures_in_a_row
   page: guides/breakdowns.md#steps
   differences: "The resource is down on a calendar clock, from the failure to the repair, even while it waits for the work in service to finish with `work: finish`."
 
@@ -540,8 +539,6 @@
   low_level: "`run_scenario(env, steps, until=...)`"
   checks:
     - tests/conformance/test_s2_schedules.py::test_s2_step_at_an_arrival_time
-    - tests/conformance/test_s2_schedules.py::test_s2_equal_time_steps_apply_in_order
-    - tests/conformance/test_s2_schedules.py::test_s2_step_at_until_does_not_apply
   page: guides/time-varying-arrivals.md#boundaries
   differences: A step applies before every other event at its time, so the arrival gap drawn then uses the new value.
 
@@ -554,15 +551,14 @@
   low_level: "`read_trace(source, ...)` and a SimPy loop over its rows"
   checks:
     - tests/conformance/test_s3_replay.py::test_s3_replay_equal_times_invalid_rows_and_the_horizon
-    - tests/conformance/test_s3_replay.py::test_s3_replay_refuses_unsorted_and_invalid_rows
-    - tests/conformance/test_s3_replay.py::test_s3_replay_stops_at_the_end_of_the_input
   page: tutorials/local-replay.md#replay-the-rows
 
 # SimPy 4.1.2 features not yet native and checked in all three APIs. Roadmap
 # step 14 builds each one, released as 0.23.0, with a conformance check.
 
 - id: N
-  inventory: [E2]
+  inventory: [SP-E2]
+  exists: [yaml, builder, low_level]
   status: not yet
   operation: Current time
   simpy: "`core.Environment.now`"
@@ -570,7 +566,8 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [E3]
+  inventory: [SP-E3]
+  exists: [low_level]
   status: not yet
   operation: Active process
   simpy: "`core.Environment.active_process`"
@@ -578,7 +575,8 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [E4]
+  inventory: [SP-E4]
+  exists: [builder, low_level]
   status: not yet
   operation: Start a process without waiting for it
   simpy: "`core.Environment.process`"
@@ -586,7 +584,8 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [E5]
+  inventory: [SP-E5]
+  exists: [low_level]
   status: not yet
   operation: Schedule an event with a priority
   simpy: "`core.Environment.schedule`"
@@ -594,7 +593,8 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [E6]
+  inventory: [SP-E6]
+  exists: [low_level]
   status: not yet
   operation: Urgent and normal event priorities
   simpy: "`events.URGENT`, `events.NORMAL`"
@@ -602,7 +602,7 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [E10]
+  inventory: [SP-E10]
   status: not yet
   operation: A step processes only the model's events
   simpy: "`core.Environment.step`"
@@ -610,7 +610,8 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [E14]
+  inventory: [SP-E14]
+  exists: [low_level]
   status: not yet
   operation: Value of a run stopped at an event
   simpy: "`core.Environment.run`"
@@ -618,7 +619,8 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [E15]
+  inventory: [SP-E15, SP-E16]
+  exists: [low_level]
   status: not yet
   operation: Run in segments
   simpy: "`core.Environment.run`, called again"
@@ -626,7 +628,8 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [E17]
+  inventory: [SP-E17]
+  exists: [low_level]
   status: not yet
   operation: Subclass the environment
   simpy: "`core.Environment`"
@@ -634,7 +637,8 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [R1]
+  inventory: [SP-R1]
+  exists: [yaml, builder, low_level]
   status: not yet
   operation: Real-time factor
   simpy: "`rt.RealtimeEnvironment(factor)`"
@@ -642,7 +646,8 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [R2]
+  inventory: [SP-R2]
+  exists: [low_level]
   status: not yet
   operation: Strict pacing
   simpy: "`rt.RealtimeEnvironment.strict`"
@@ -650,7 +655,7 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [R3]
+  inventory: [SP-R3]
   status: not yet
   operation: Strict by default
   simpy: "`rt.RealtimeEnvironment(strict=True)`"
@@ -658,7 +663,8 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [R4]
+  inventory: [SP-R4]
+  exists: [low_level]
   status: not yet
   operation: Sync with the wall clock
   simpy: "`rt.RealtimeEnvironment.sync`"
@@ -666,7 +672,8 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [V3]
+  inventory: [SP-V3]
+  exists: [low_level]
   status: not yet
   operation: One-shot event
   simpy: "`events.Event`"
@@ -674,7 +681,8 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [V4]
+  inventory: [SP-V4]
+  exists: [low_level]
   status: not yet
   operation: Trigger from another event
   simpy: "`events.Event.trigger`"
@@ -682,7 +690,8 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [V5]
+  inventory: [SP-V5]
+  exists: [low_level]
   status: not yet
   operation: Callbacks
   simpy: "`events.Event.callbacks`"
@@ -690,7 +699,8 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [V6]
+  inventory: [SP-V6]
+  exists: [low_level]
   status: not yet
   operation: Defused failure
   simpy: "`events.Event.defused`"
@@ -698,7 +708,8 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [V7]
+  inventory: [SP-V7]
+  exists: [low_level]
   status: not yet
   operation: Failure nobody handles
   simpy: "`core.Environment.run`"
@@ -706,7 +717,8 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [V11]
+  inventory: [SP-V11]
+  exists: [low_level]
   status: not yet
   operation: Timeout value
   simpy: "`events.Timeout(delay, value)`"
@@ -714,7 +726,8 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [P5]
+  inventory: [SP-P5]
+  exists: [low_level]
   status: not yet
   operation: Process target
   simpy: "`events.Process.target`"
@@ -722,7 +735,8 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [P6]
+  inventory: [SP-P6]
+  exists: [low_level]
   status: not yet
   operation: Process name
   simpy: "`events.Process.name`"
@@ -730,7 +744,8 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [P7]
+  inventory: [SP-P7]
+  exists: [builder, low_level]
   status: not yet
   operation: Wait for a process already running
   simpy: "`yield process`"
@@ -738,7 +753,8 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [C5]
+  inventory: [SP-C5]
+  exists: [low_level]
   status: not yet
   operation: Nested and mixed conditions
   simpy: "`events.Condition`, `&` and `|`"
@@ -746,7 +762,8 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [C6]
+  inventory: [SP-C6]
+  exists: [low_level]
   status: not yet
   operation: A condition with a custom rule
   simpy: "`events.Condition(env, evaluate, events)`"
@@ -754,7 +771,8 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [C7]
+  inventory: [SP-C7]
+  exists: [low_level]
   status: not yet
   operation: A condition over no events
   simpy: "`events.AnyOf(env, [])`"
@@ -762,7 +780,8 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [C8]
+  inventory: [SP-C8]
+  exists: [low_level]
   status: not yet
   operation: Request, put or get as a wait branch
   simpy: "`resources.base.Put`, `resources.base.Get`, `events.AnyOf`"
@@ -770,7 +789,7 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [B2]
+  inventory: [SP-B2]
   status: not yet
   operation: Put and get queues of a store or container
   simpy: "`resources.base.BaseResource.put_queue`, `.get_queue`"
@@ -778,7 +797,7 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [B5]
+  inventory: [SP-B5]
   status: not yet
   operation: Custom resource types
   simpy: "`resources.base.BaseResource._do_put`, `._do_get`"
@@ -786,7 +805,7 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [B6]
+  inventory: [SP-B6]
   status: not yet
   operation: Custom put and get queue types
   simpy: "`resources.base.BaseResource.PutQueue`, `.GetQueue`"
@@ -794,7 +813,7 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [B7]
+  inventory: [SP-B7]
   status: not yet
   operation: Custom put and get event classes
   simpy: "`resources.base.BaseResource.put`, `.get`"
@@ -802,7 +821,8 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [B8]
+  inventory: [SP-B8]
+  exists: [low_level]
   status: not yet
   operation: A put or get the process does not wait for
   simpy: "`resources.base.Put` without `yield`"
@@ -810,7 +830,7 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [S2]
+  inventory: [SP-S2]
   status: not yet
   operation: Resource capacity defaults to 1
   simpy: "`resources.resource.Resource(capacity=1)`"
@@ -818,7 +838,7 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [S4]
+  inventory: [SP-S4]
   status: not yet
   operation: Resource count
   simpy: "`resources.resource.Resource.count`"
@@ -826,7 +846,7 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [S5]
+  inventory: [SP-S5]
   status: not yet
   operation: Resource queue
   simpy: "`resources.resource.Resource.queue`"
@@ -834,7 +854,8 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [S6]
+  inventory: [SP-S6]
+  exists: [builder, low_level]
   status: not yet
   operation: Resource users
   simpy: "`resources.resource.Resource.users`"
@@ -842,7 +863,7 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [S10]
+  inventory: [SP-S10]
   status: not yet
   operation: Release event and its request
   simpy: "`resources.resource.Release.request`"
@@ -850,7 +871,8 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [S11]
+  inventory: [SP-S11]
+  exists: [low_level]
   status: not yet
   operation: Usage since
   simpy: "`resources.resource.Request.usage_since`"
@@ -858,7 +880,7 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [Q2]
+  inventory: [SP-Q2]
   status: not yet
   operation: Default request priority 0
   simpy: "`resources.resource.PriorityRequest(priority=0)`"
@@ -866,7 +888,8 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [Q6]
+  inventory: [SP-Q6]
+  exists: [low_level]
   status: not yet
   operation: Preemption cause
   simpy: "`resources.resource.Preempted`"
@@ -874,7 +897,7 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [Q7]
+  inventory: [SP-Q7]
   status: not yet
   operation: A waiting line with a limit
   simpy: "`resources.resource.SortedQueue(maxlen)`"
@@ -882,7 +905,7 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [Q8]
+  inventory: [SP-Q8]
   status: not yet
   operation: Subclass a resource to change its rules
   simpy: "`resources.resource.PreemptiveResource`"
@@ -890,7 +913,7 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [K5]
+  inventory: [SP-K5]
   status: not yet
   operation: Container with no capacity limit
   simpy: "`resources.container.Container(capacity=inf)`"
@@ -898,7 +921,8 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [T5]
+  inventory: [SP-T5]
+  exists: [builder, low_level]
   status: not yet
   operation: Read a store's items
   simpy: "`resources.store.Store.items`"
@@ -906,7 +930,7 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [T6]
+  inventory: [SP-T6]
   status: not yet
   operation: Store with no capacity limit
   simpy: "`resources.store.Store(capacity=inf)`"
@@ -914,7 +938,8 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [T8]
+  inventory: [SP-T8]
+  exists: [low_level]
   status: not yet
   operation: Priorities of any orderable type
   simpy: "`resources.store.PriorityItem`"
@@ -922,7 +947,8 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [U1]
+  inventory: [SP-U1]
+  exists: [low_level]
   status: not yet
   operation: Start a process after a delay
   simpy: "`util.start_delayed`"
@@ -930,7 +956,8 @@
   release: 0.23.0, roadmap step 14
 
 - id: N
-  inventory: [U2]
+  inventory: [SP-U2]
+  exists: [low_level]
   status: not yet
   operation: Be told when an event happens
   simpy: "`util.subscribe_at`"
@@ -940,17 +967,17 @@
 # Differences kept by design, approved by the owner on 18 Oct 2026.
 
 - id: D
-  inventory: [E11]
+  inventory: [SP-E11]
   status: difference
   operation: A run with no until
   simpy: "`core.Environment.run()` returns when no event is left"
   checks: []
-  differences: "A run with a sink or an ingress connector and no `until` runs for ever, because a live run has no end: the connectors keep events coming. Give it an `until`, a `stop` or a `drain` to end it, or stop it with Ctrl+C."
+  differences: "A run with a sink or an ingress connector and no `until` runs for ever, because a live run has no end: the connectors keep events coming. Give it an `until`, with a `drain` when it should finish its work, or a `stop` that is sure to happen, or stop it with Ctrl+C."
 
 - id: D
-  inventory: [S3]
+  inventory: [SP-S3]
   status: difference
   operation: Capacity 0
   simpy: "`resources.resource.Resource(capacity=0)` raises `ValueError`, and so do `Store` and `Container`"
   checks: []
-  differences: "A resource, store or container may have a capacity of 0, at the start or later, because its capacity changes during a run: a shift with no packers, a shelf that is closed. It grants nothing until the capacity rises."
+  differences: "A resource, store or container may have a capacity of 0, at the start or later, because its capacity changes during a run: a shift with no packers, a shelf that is closed. At capacity 0 a resource grants no request, and a store or container accepts no put, until the capacity rises; a get still takes what a store or container holds."

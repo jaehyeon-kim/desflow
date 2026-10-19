@@ -145,7 +145,7 @@ def designs(spec: ExperimentSpec) -> List[Design]:
 
 
 def count_names(runs: Sequence[RunResult]) -> List[str]:
-    """Returns every count the runs published: whole-number statistics of tasks and flows.
+    """Returns every count the runs published: whole-number task and flow statistics.
 
     Args:
         runs: The runs of every design.
@@ -171,7 +171,7 @@ def _count(run: RunResult, name: str) -> int:
 def result_rows(
     all_designs: Sequence[Design], measures: Sequence[str], counts: Sequence[str]
 ) -> List[Dict[str, Any]]:
-    """Returns one row per design, replication and statistic: the measures, then the counts.
+    """Returns one row per design, replication and statistic, measures then counts.
 
     Args:
         all_designs: The designs, with their runs.
@@ -422,7 +422,7 @@ def read_observed(spec: ExperimentSpec, folder: Path) -> List[Dict[str, Any]]:
 def observed_rows(
     spec: ExperimentSpec, observed: Sequence[Dict[str, Any]], summary: Sequence[Dict]
 ) -> List[Dict[str, Any]]:
-    """Returns each observed value beside the simulated interval of the observed variant.
+    """Returns each observed value beside the observed variant's simulated interval.
 
     Args:
         spec: The experiment's settings.

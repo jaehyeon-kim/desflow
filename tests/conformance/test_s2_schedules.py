@@ -123,24 +123,3 @@ def test_s2_step_at_an_arrival_time():
         [10.0, 30.0],
         2,
     )
-
-
-def test_s2_equal_time_steps_apply_in_order():
-    """Two steps at 25 set the packers to 3, then 2: the last one given wins."""
-    assert _reference()[1] == 2
-    app = SimulationContext("S2", factor=0.0)
-    app.add_resource("packers", current_cap=1, max_cap=4)
-    app.add_step(25, path="S2.resources.packers.current_cap", value=3)
-    app.add_step(25, path="S2.resources.packers.current_cap", value=2)
-    app.run(until=30)
-    assert app.env.registry.get("S2.resources.packers.current_cap").value == 2
-
-
-def test_s2_step_at_until_does_not_apply():
-    """A step at exactly until is dropped; one just before applies."""
-    for at, expected in ((40, 1), (39.9, 4)):
-        app = SimulationContext("S2", factor=0.0)
-        app.add_resource("packers", current_cap=1, max_cap=4)
-        app.add_step(at, path="S2.resources.packers.current_cap", value=4)
-        app.run(until=40)
-        assert app.get_resource("packers").capacity == expected

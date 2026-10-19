@@ -6,7 +6,7 @@ A run has two clocks, and a run can follow the wall clock, ignore it, or switch 
 
 ## What It Is
 
-**Simulation time** is the number of seconds SimPy has advanced, starting at 0; every record carries it as `sim_ts`. **Logical time** is the date and time a record carries as `timestamp`: `logical_start_time` plus the simulation time. `factor` sets how simulation time relates to the wall clock, and `go_live_at` switches that relation once during a run. One hour of simulation time is one hour of logical time, and takes as long on the wall clock as `factor` says:
+**Simulation time** is the number of seconds SimPy has advanced, starting at `initial_time`, 0 by default; every record carries it as `sim_ts`. **Logical time** is the date and time a record carries as `timestamp`: `logical_start_time` plus the simulation time. `factor` sets how simulation time relates to the wall clock, and `go_live_at` switches that relation once during a run. One hour of simulation time is one hour of logical time, and takes as long on the wall clock as `factor` says:
 
 ![Simulation time 0 to 3,600 seconds maps to logical time 09:00 to 10:00; on the wall clock it takes an hour at factor 1.0, 30 minutes at 0.5, and no waiting at 0.0](../assets/diagrams/two-clocks.png)
 
@@ -197,7 +197,7 @@ Without `until`, SimPy runs until no events remain, and a run with an arrival ne
 
 ### Stop Early
 
-`stop` ends the run before `until` when something happens: `{signal: name}`, the next firing of a signal, or `{condition: ...}`, the first moment a condition holds, checked after every change of a level, a capacity, a registry value or a signal, and after every finished task. The builder's `run(stop=...)` also takes a `Signal` or any SimPy event. The run ends at whichever comes first, `stop` or `until`, and no other event at that moment runs after it; when both fall at the same moment, `until` ends the run, as SimPy's own `until` would. In the low-level API it is SimPy's `env.run(until=event)`.
+`stop` ends the run before `until` when something happens: `{signal: name}`, the next firing of a signal, or `{condition: ...}`, the first moment a condition holds, checked after every change of a level, a capacity, a registry value or a signal, and after every finished task. The builder's `run(stop=...)` also takes a signal's name, or a function of the context, called once the run is built, that returns any SimPy event, such as `lambda context: context.env.timeout(30)`. The run ends at whichever comes first, `stop` or `until`, and no other event at that moment runs after it; when both fall at the same moment, `until` ends the run, as SimPy's own `until` would. In the low-level API it is SimPy's `env.run(until=event)`.
 
 ### Drain
 
@@ -242,8 +242,11 @@ A fixed horizon cuts the run at `until` with orders still in the shop. A **drain
                 out_of_boxes.succeed()
 
         env.watch_changes(check)
-        env.run(until=120)  # no new orders after closing time
-        source.interrupt()
+        # Closing time, unless the boxes run out first, which ends the run at once
+        env.run(until=env.timeout(120) | out_of_boxes)
+        if out_of_boxes.triggered:
+            return
+        source.interrupt()  # no new orders after closing time
         packed = env.all_of([p for p in shop["orders"] if p.is_alive])
         env.run(until=packed | env.timeout(60) | out_of_boxes)
     ```
@@ -254,7 +257,7 @@ With statistics at `basic` or above, `flows.<arrival>.started`, `finished` and `
 
 ### Step and Peek
 
-`start()` builds everything `run()` builds and starts every process, with the clock still at its start. `step()` then processes one event, and `peek()` gives the time of the next one, infinity when none is left, as SimPy's `env.step()` and `env.peek()` do. The event can be one of desflow's own, such as the statistics timer or a resource's capacity watcher, as well as one of the model's; `close()` ends the run, which `run()` does in a `finally` block. A context from `from_yaml` steps the same way:
+`start()` builds everything `run()` builds and starts every process, with the clock still at its start. `step()` then processes one event, and `peek()` gives the time of the next one, infinity when none is left, as SimPy's `env.step()` and `env.peek()` do. The event can be one of desflow's own, such as the statistics timer or a resource's capacity watcher, as well as one of the model's; `finish()` runs a started run on to the end `run()` would reach, `until`, the `stop` or the end of the drain, then closes it, so `run()` is `start()` then `finish()`; `close()` ends the run where it is. A context from `from_yaml` steps the same way:
 
 ```python title="docs/snippets/pages/pacing.py:step"
 def every_ten(context):

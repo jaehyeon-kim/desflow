@@ -1,4 +1,5 @@
-"""One way to run a model written in any of the three APIs, for replications and experiments.
+"""One way to run a model written in any of the three APIs, for replications and
+experiments.
 
 A model is a YAML blueprint path, a builder factory (a function with no arguments
 that returns a new `SimulationContext`), or a `LowLevelModel`: a function that builds

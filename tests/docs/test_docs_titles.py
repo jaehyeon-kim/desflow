@@ -9,16 +9,15 @@ diagram, never box characters in a text block.
 import re
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[2]
 MAX_TITLE = 24
 
 # Kept on purpose: the example names both halves of its run.
 LONG_TITLES_ALLOWED = {"Parquet History, Kafka Live"}
 
-FENCE = re.compile(r"^```.*?^```", re.S | re.M)
+FENCE = re.compile(r"^```.*?^```", re.DOTALL | re.MULTILINE)
 BOX_CHARACTERS = re.compile(r"[\u2500-\u257f]")
-NUMBERED = re.compile(r"^#{1,6} \d", re.M)
+NUMBERED = re.compile(r"^#{1,6} \d", re.MULTILINE)
 
 
 def _nav_titles(items):

@@ -16,11 +16,11 @@ from desflow import (
     SimulationContext,
     replicate,
 )
+from desflow.analysis.intervals import interval, t_quantile
+from desflow.analysis.runner import level_for, spawn_seeds
 from desflow.blueprint.cli import app as cli
 from desflow.connectors.egress.base import BaseEgress
 from desflow.connectors.ingress.base import BaseIngress
-from desflow.analysis.intervals import interval, t_quantile
-from desflow.analysis.runner import level_for, spawn_seeds
 
 BLUEPRINT = """\
 simulation: {sim_id: Shop, factor: 0}
@@ -537,3 +537,25 @@ def test_replications_of_a_blueprint_with_sinks_and_a_drain(tmp_path):
         assert len(capture_sink.RECORDS) == 5
     finally:
         sys.path.remove(str(tmp_path))
+
+
+def test_cli_drains_every_replication(blueprint):
+    """`--drain` with `--replications` drains each replication: no order is left."""
+    result = CliRunner().invoke(
+        cli,
+        [
+            "run",
+            str(blueprint),
+            "--replications",
+            "2",
+            "--until",
+            "100",
+            "--drain",
+            "--measure",
+            "flows.orders.in_system",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    row = next(line for line in result.output.splitlines() if "in_system" in line)
+    # measure, n, mean, half-width
+    assert row.split() == ["flows.orders.in_system", "2", "0", "0"]

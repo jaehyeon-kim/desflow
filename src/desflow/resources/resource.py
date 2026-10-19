@@ -72,9 +72,9 @@ class _RequestQueue:
     """
 
     def __init__(self) -> None:
-        self.items: List[Tuple[Tuple[float, int], DynamicResourceRequest]] = []
+        self.items: List[Tuple[Tuple[Any, ...], DynamicResourceRequest]] = []
 
-    def push(self, rank: Tuple[float, int], request: DynamicResourceRequest) -> None:
+    def push(self, rank: Tuple[Any, ...], request: DynamicResourceRequest) -> None:
         heapq.heappush(self.items, (rank, request))
 
     def head(self) -> Optional[DynamicResourceRequest]:
@@ -104,13 +104,16 @@ class DynamicResource(BaseDynamicResource):
 
     Grants follow SimPy's `Resource`: a request is granted when it is made if a unit
     is free and nothing waits ahead of it, and a release grants the head of the
-    queue one event later, when its release event is processed. Equal-time grants
-    therefore happen in the order SimPy gives them.
+    queue one event later, when its release event is processed; a release that
+    gives back nothing tries the head too. Equal-time grants therefore happen in
+    the order SimPy gives them.
 
     Waiting requests are served in the resource's queue order: `fifo` (the
-    default) serves the oldest first, `lifo` the newest first, and `priority` the
-    lowest `priority` value first. A sequence number breaks ties, so requests of
-    equal priority are served first in, first out.
+    default) serves the oldest first, `lifo` the newest first, and `priority` by
+    the request's key, `(priority, time, not preempt)`, as SimPy's
+    `PriorityResource` does: the lowest `priority` value first, then the earliest,
+    then one that may preempt. A sequence number breaks the remaining ties, so
+    such requests are served first in, first out.
 
     Attributes:
         env (DynamicRealtimeEnvironment): The active simulation environment.

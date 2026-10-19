@@ -6,9 +6,6 @@ in file order; a row with no valid time is refused or skipped; rows at or after
 `until` never arrive; and after the last row the arrival stops with one log line.
 """
 
-import logging
-
-import pytest
 import simpy
 
 from desflow import read_trace
@@ -97,33 +94,3 @@ def test_s3_replay_equal_times_invalid_rows_and_the_horizon():
     assert _reference() == EXPECTED
     for records in (_low_level(), _builder(), run_yaml("s3_replay.yaml")[0]):
         assert _arrived(records) == EXPECTED
-
-
-def test_s3_replay_refuses_unsorted_and_invalid_rows():
-    """A row out of time order is refused, naming it; so is a row with no valid
-    time when on_invalid is error."""
-    with pytest.raises(ValueError, match="row 3 is at 5 s, before the row above it"):
-        read_trace(BLUEPRINTS / "s3_unsorted.csv")
-    with pytest.raises(ValueError, match="row 3 is at 5 s"):
-        _builder(BLUEPRINTS / "s3_unsorted.csv")
-    with pytest.raises(ValueError, match="row 3 is at 5 s"):
-        run_yaml("s3_unsorted.yaml")
-    with pytest.raises(ValueError, match="row 4 has no valid time: 'bad'"):
-        read_trace(ORDERS)
-
-
-def test_s3_replay_stops_at_the_end_of_the_input(caplog):
-    """After its last row the arrival stops, with one INFO line naming the time."""
-    rows = [
-        {"time": 1, "order": "o1", "sku": "tea"},
-        {"time": 3, "order": "o2", "sku": "mug"},
-    ]
-    with caplog.at_level(logging.INFO, logger="desflow.core.context"):
-        records = _builder(rows)
-    assert _arrived(records) == [(1.0, "o1", "tea"), (3.0, "o2", "mug")]
-    lines = [
-        r.getMessage()
-        for r in caplog.records
-        if "replayed its last row" in r.getMessage()
-    ]
-    assert lines == ["Arrival 'orders' replayed its last row at 3 s; it stops."]

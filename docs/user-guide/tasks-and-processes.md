@@ -401,7 +401,7 @@ The task publishes `queued` when its wait starts, so the wait counts in its wait
 
 ### Failures
 
-A task fails when its `fail` condition holds after its service, when the wait it needs fails, or, in the builder, when its function raises. `fail` reads the task's own payload as `payload.<field>`, as `next` does. A failed task publishes `failed` with a `reason`, the condition's text or its `fail_reason`, instead of its finished payload; it fails its `signal`, so every waiter of the signal fails too; and it goes to its `on_fail` task. Without `on_fail` the entity's flow ends, and a child flow fails the task waiting for it, with the same reason. Each failure is counted as `tasks.<task>.failed`, and a flow that ends in one as `flows.<arrival>.failed`, at `basic` and above. The `inspect` task of the example above fails a gift and sends it to be wrapped.
+A task fails when its `fail` condition holds after its service, when the wait it needs fails, or when its function raises: a builder task's function, or a YAML task's `!python` payload function. `fail` reads the task's own payload as `payload.<field>`, as `next` does. A failed task publishes `failed` with a `reason`, the condition's text or its `fail_reason`, instead of its finished payload; it fails its `signal`, so every waiter of the signal fails too; and it goes to its `on_fail` task. Without `on_fail` the entity's flow ends, and a child flow fails the task waiting for it, with the same reason. Each failure is counted as `tasks.<task>.failed`, and a flow that ends in one as `flows.<arrival>.failed`, at `basic` and above. The `inspect` task of the example above fails a gift and sends it to be wrapped.
 
 In the low-level API a failure is SimPy's: an exception raised in a process reaches the process that yields it, and one nobody handles stops the run. The builder and YAML end only the entity's flow, because a data generator should not stop on one failed order.
 
@@ -557,7 +557,7 @@ Until `run()` is called nothing exists but the description: `context.env`, `cont
 5. It waits the service time, drawn from the live distribution.
 6. It adds its `put` to a store or container, waiting while there is no room, and checks its `fail` condition.
 7. It publishes the payload as the finished event, or `failed`, and releases the resource.
-8. It fires its `signal` (or fails it), applies `set` to the entity's attributes, and starts the next task its `next` chooses, or its `on_fail` task, as a new instance for the same entity.
+8. It fires its `signal` (or fails it), sends its `interrupt` action to the tasks it names, applies `set` to the entity's attributes, and starts the next task its `next` chooses, or its `on_fail` task, as a new instance for the same entity.
 
 A YAML task and its `spawn` make the same task and arrival loop that the builder code above makes. The code that runs these steps is `TaskRun` in `desflow/core/task.py`. In SimPy terms each task run is one process started with `env.process`, and each arrival loop is another; [SimPy and desflow](../des/simpy-and-desflow.md) describes processes.
 

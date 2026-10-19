@@ -11,7 +11,7 @@ The [advanced Postgres example](../examples/advanced-postgres-orders.md) is a co
 Use `!python` when a blueprint needs one of these:
 
 - **Field values with logic.** Random or weighted choices, fields derived from other fields and state carried from one event to the next are a payload function or a process.
-- **More than a task can describe.** A task that holds several resources at once, or a breakdown that interrupts work in progress, is a process. Routing (`next`), priorities (`priority` and `queue: priority`) and stores and containers are plain YAML.
+- **More than a task can describe.** Collecting several entities into one, such as a batch, is a process. Routing (`next`), priorities (`priority` and `queue: priority`), stores and containers, several resources per task (`resource: [...]` and `keep`), preemption (`preempt: true`) and breakdowns (`breakdown:`) are plain YAML.
 - **Readings other than the built-in statistics.** `stats: minimal` publishes resource, store and container readings, a container's `level` among them. Use a telemetry function to publish variables and derived metrics.
 - **Routing over several destinations, and serializers.** A router or an Avro serializer is a Python object.
 - **Setup a connector does not do itself**, such as topics that only a router knows about.

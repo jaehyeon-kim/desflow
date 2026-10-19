@@ -152,13 +152,11 @@ def _tab(text: str, title: str) -> str:
     title is searched.
     """
     bodies = re.findall(
-        rf'^=== "{title}"\n(.*?)(?=^=== "|^---$|^#|\Z)', text, re.S | re.M
+        rf'^=== "{title}"\n(.*?)(?=^=== "|^---$|^#|\Z)', text, re.DOTALL | re.MULTILINE
     )
     assert bodies, f"no {title} tab"
     return "\n".join(
-        row[4:] if row.startswith("    ") else row
-        for body in bodies
-        for row in body.split("\n")
+        row.removeprefix("    ") for body in bodies for row in body.split("\n")
     )
 
 

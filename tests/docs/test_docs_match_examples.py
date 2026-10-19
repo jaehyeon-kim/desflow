@@ -28,7 +28,7 @@ ROOT = Path(__file__).resolve().parents[2]
 # closing fence must carry the same one. Options such as hl_lines follow the title.
 BLOCK = re.compile(
     r'^( *)```(?:python|yaml) title="((?:examples|docs/snippets)/[^"]+)"[^\n]*\n(.*?)\n\1```$',
-    re.S | re.M,
+    re.DOTALL | re.MULTILINE,
 )
 # A named section of a file, between its start and end comment lines.
 SECTION = r"^[ \t]*# --8<-- \[{kind}:{name}\][ \t]*$"
@@ -72,8 +72,12 @@ def _source(script, section):
             line for line in text.rstrip("\n").split("\n") if not MARKER.match(line)
         )
         return re.sub(r"\n{4,}", "\n\n\n", code)
-    start = re.search(SECTION.format(kind="start", name=re.escape(section)), text, re.M)
-    end = re.search(SECTION.format(kind="end", name=re.escape(section)), text, re.M)
+    start = re.search(
+        SECTION.format(kind="start", name=re.escape(section)), text, re.MULTILINE
+    )
+    end = re.search(
+        SECTION.format(kind="end", name=re.escape(section)), text, re.MULTILINE
+    )
     assert start and end, f"{script.relative_to(ROOT)} has no section '{section}'"
     # A section inside a function is shown without the function's indent
     return textwrap.dedent(text[start.end() : end.start()]).strip("\n")

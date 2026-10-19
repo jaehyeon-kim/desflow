@@ -1,7 +1,8 @@
 import asyncio
 import queue
-import pytest
+
 import asyncpg
+import pytest
 
 from desflow.connectors.egress.postgres import PostgresEgress
 from desflow.connectors.ingress.postgres import PostgresIngress

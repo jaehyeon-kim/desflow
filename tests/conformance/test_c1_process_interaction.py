@@ -17,7 +17,6 @@ from desflow import (
 )
 from desflow.core.context import SimulationContext
 from tests.conformance.harness import (
-    event_trace,
     run_builder,
     run_low_level,
     run_yaml,
@@ -32,9 +31,13 @@ def _events(records, task, status=None):
             continue
         value = r["value"]
         is_status = isinstance(value, dict) and "status" in value
-        if status is None and not is_status:
-            found.append((r["sim_ts"], value))
-        elif status is not None and is_status and value["status"] == status:
+        if (
+            status is None
+            and not is_status
+            or status is not None
+            and is_status
+            and value["status"] == status
+        ):
             found.append((r["sim_ts"], value))
     return found
 
@@ -137,7 +140,8 @@ def _builder_signals():
 
 
 def test_c1_signal_event_success_and_value():
-    """Every waiter of a firing resumes with its value: the waiter of 3 at 5."""
+    """Every waiter of a firing resumes with its value: the waiter of 3 at 5, and
+    the waiters of 6 and 9, which start after that firing, at the next, at 10."""
     assert _reference_signals() == [(5, 3), (10, 3), (10, 3)]
     for records in (
         _low_level_signals(),
@@ -146,21 +150,6 @@ def test_c1_signal_event_success_and_value():
     ):
         assert _times(records, "waiter") == SIGNAL_RESUMED
         assert _times(records, "noted") == SIGNAL_RESUMED  # the value was {qty: 3}
-
-
-def test_c1_signal_waiter_after_a_firing_waits_for_the_next():
-    """The waiters of 6 and 9 start after the firing at 5, so they resume at 10."""
-    for records in (
-        _low_level_signals(),
-        _builder_signals(),
-        run_yaml("c1_signals.yaml")[0],
-    ):
-        resumed = sorted(
-            (t, key)
-            for t, key, task, status in event_trace(records)
-            if task == "waiter" and status is None
-        )
-        assert [t for t, _key in resumed][1:] == [10.0, 10.0]
 
 
 def _reference_signal_failure():
@@ -487,6 +476,9 @@ def test_c1_event_inspection():
     assert seen["builder after"] == (True, {"qty": 3})
     assert _times(records, "noted") == [1.0]
 
+    # YAML reads the same signal as signal.restocked.count, .ok and .value
+    assert _times(run_yaml("c1_event_inspection.yaml")[0], "noted") == [1.0]
+
 
 def test_c1_process_inspection():
     """A child flow's process is alive until it ends, then holds its value."""
@@ -502,6 +494,25 @@ def test_c1_process_inspection():
     env.run(until=5)
     assert reference == (True, False)
     assert (proc.is_alive, proc.ok, proc.value) == (False, True, {"grade": "A"})
+
+    low = {}
+
+    def start(env):
+        def child():
+            yield env.timeout(4)
+            return {"grade": "A"}
+
+        def watch():
+            process = env.process(child())
+            yield env.timeout(1)
+            low["during"] = (process.is_alive, process.triggered)
+            yield process
+            low["after"] = (process.is_alive, process.ok, process.value)
+
+        env.process(watch())
+
+    run_low_level(None, start, 6)
+    assert low == {"during": reference, "after": (False, True, {"grade": "A"})}
 
     app = SimulationContext("C1", factor=0.0)
     app.add_service("inspecting", dist="constant", value=4)

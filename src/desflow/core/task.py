@@ -3,8 +3,8 @@
 `TaskSpec` holds what a task is, checked once when it is declared. `TaskRun` runs one
 instance of it as a SimPy process, in this order: the balk check; `queued`; the
 `wait`; the resource; the `get`; `started`; the user function; the service time;
-the `put`; the `fail` check; the finished payload, or `failed`; the `signal`; `set`;
-then `next`, or `on_fail`, or the end of the flow. The context keeps the decorator
+the `put`; the `fail` check; the finished payload, or `failed`; the `signal`; the
+`interrupt` action; `set`; then `next`, or `on_fail`, or the end of the flow. The context keeps the decorator
 and the checks made before the clock starts.
 """
 

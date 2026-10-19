@@ -1,0 +1,23 @@
+# A restock fires the signal restocked at 0; a check at 1 reads its count, ok and
+# value and goes on to noted. See test_c1_process_interaction.py.
+simulation:
+  sim_id: C1
+  factor: 0
+signals: [restocked]
+arrivals:
+  restocks: {replay: {path: c1_restock.csv}, spawn: restock}
+  checks: {replay: {path: c1_check.csv}, spawn: check}
+tasks:
+  restock:
+    signal: restocked
+    payload: {qty: 3}
+  check:
+    payload: {event: checked}
+    next:
+      when:
+        - condition: signal.restocked.count == 1 and signal.restocked.ok and signal.restocked.value.qty == 3
+          task: noted
+  noted:
+    payload: {event: noted}
+run:
+  until: 3

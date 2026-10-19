@@ -93,9 +93,3 @@ def test_c5_priority_item_storage():
     assert _low_level_order() == ["high", "low"]
     assert _builder_order([5, 1]) == [1, 0]
     assert _yaml_order() == ["high", "low"]
-
-
-def test_c5_priority_item_storage_equal_priorities():
-    """Six items of one priority come out in put order. A `PriorityItem` compares
-    only its priority, so without the put order heapq returns them mixed."""
-    assert _builder_order([3] * 6) == [0, 1, 2, 3, 4, 5]

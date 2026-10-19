@@ -433,7 +433,7 @@ class Statistics:
 
     def flow_started(self, flow: str) -> None:
         """
-        Records that an entity entered the model: its first task started.
+        Records that an entity entered the model: its first task instance began.
 
         Args:
             flow: The arrival that started the entity.

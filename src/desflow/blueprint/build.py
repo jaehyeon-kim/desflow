@@ -206,7 +206,12 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                         location, f"signal.{signal} names no signal under signals"
                     )
             for branch in expression.references["wait"]:
-                if branch not in branches or location[2] == "wait":
+                # balk and patience are read before the wait starts
+                if branch not in branches or location[2] in (
+                    "wait",
+                    "balk",
+                    "patience",
+                ):
                     raise source.error(
                         location,
                         f"wait.{branch} is not a branch of this task's wait, read "
@@ -230,6 +235,8 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                         location,
                         f"level.{level} names no store or container",
                     )
+
+    _check_run(blueprint, source)
 
     try:
         check_acquisition_order(
@@ -285,6 +292,54 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                 ("egress", index, "when"),
                 f"when: {egress.when} needs simulation.go_live_at",
             )
+
+
+def _check_run(blueprint: Blueprint, source: SourceMap) -> None:
+    """Checks the `run` section against the rest of the blueprint, when it loads.
+
+    A stop names a signal under `signals`, or a condition whose names exist and
+    that reads no entity, as it is checked outside every task; `until` is after
+    the initial time, as SimPy's `run(until=)` needs.
+    """
+    run, simulation = blueprint.run, blueprint.simulation
+    if run.until is not None and run.until <= simulation.initial_time:
+        raise source.error(
+            ("run", "until"),
+            f"until ({run.until:g}) must be greater than the initial time "
+            f"({simulation.initial_time:g}); set until later, or initial_time earlier",
+        )
+    if not run.stop:
+        return
+    ((kind, target),) = run.stop.items()
+    where = ("run", "stop", kind)
+    if kind == "signal":
+        if target not in blueprint.signals:
+            raise source.error(
+                where,
+                f"stop names signal '{target}', which is not defined under signals",
+            )
+        return
+    try:
+        expression = Expression(target)
+    except ValueError as exc:
+        raise source.error(where, str(exc)) from None
+    for signal in expression.references["signal"]:
+        if signal not in blueprint.signals:
+            raise source.error(where, f"signal.{signal} names no signal under signals")
+    for level in expression.references["level"]:
+        if level not in blueprint.stores and level not in blueprint.containers:
+            raise source.error(where, f"level.{level} names no store or container")
+    entity = [
+        f"{kind}.<...>"
+        for kind in ("payload", "attr", "item", "wait")
+        if expression.references.get(kind)
+    ]
+    if entity:
+        raise source.error(
+            where,
+            f"a stop condition is checked outside every task, so it cannot read "
+            f"{', '.join(entity)}; read levels, registry values, signals or t",
+        )
 
 
 def _routes(name: str, task: Any) -> List[Tuple[str, Tuple[Union[str, int], ...]]]:

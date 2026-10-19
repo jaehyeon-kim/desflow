@@ -240,6 +240,26 @@ def _yaml_cancel_get(kind):
     return records, (list(holder.items) if kind == "store" else holder.level)
 
 
+def _reference_gave_up(kind, get_at):
+    """Plain SimPy: when a get made at `get_at` with a patience of 2 gives up, on
+    an empty holder."""
+    env = simpy.Environment()
+    holder = simpy.Store(env, 1) if kind == "store" else simpy.Container(env, 4)
+    gave_up = []
+
+    def taker():
+        yield env.timeout(get_at)
+        event = holder.get() if kind == "store" else holder.get(3)
+        yield event | env.timeout(2)
+        if not event.triggered:
+            event.cancel()
+            gave_up.append(env.now)
+
+    env.process(taker())
+    env.run(until=get_at + 5)
+    return gave_up
+
+
 def _reneged_at(records):
     return [
         r["sim_ts"]
@@ -252,12 +272,12 @@ def test_c5_cancel_store_get():
     """The get gives up at 3, so the parcel put at 5 stays in the store."""
     assert _reference_cancel("store", "get") == ["parcel"]
     assert _low_level_cancel("store", "get") == ["parcel"]
-    # YAML arrivals start at their first gap, so its get gives up at 12
+    # YAML arrivals start at their first gap, so its get is made at 10
     for (records, items), reneged in (
-        (_builder_cancel_get("store"), 3.0),
-        (_yaml_cancel_get("store"), 12.0),
+        (_builder_cancel_get("store"), _reference_gave_up("store", 1)),
+        (_yaml_cancel_get("store"), _reference_gave_up("store", 10)),
     ):
-        assert _reneged_at(records) == [reneged]
+        assert _reneged_at(records) == reneged
         assert items == [{"event": "filled"}]  # the payload of the put
 
 
@@ -266,10 +286,10 @@ def test_c5_cancel_quantity_get():
     assert _reference_cancel("container", "get") == 2
     assert _low_level_cancel("container", "get") == 2
     for (records, level), reneged in (
-        (_builder_cancel_get("container"), 3.0),
-        (_yaml_cancel_get("container"), 12.0),
+        (_builder_cancel_get("container"), _reference_gave_up("container", 1)),
+        (_yaml_cancel_get("container"), _reference_gave_up("container", 10)),
     ):
-        assert _reneged_at(records) == [reneged]
+        assert _reneged_at(records) == reneged
         assert level == 2
 
 

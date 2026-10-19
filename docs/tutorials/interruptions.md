@@ -40,7 +40,7 @@ Priority so far decided only who goes next. **Preemption** also stops the work i
     ),
     ```
 
-Equal priorities never preempt, so one express order never takes the packer from another.
+Equal priorities do not preempt, so one express order does not take the packer from another; SimPy's one exception, a user whose request with `preempt: false` was made at the same moment, does not arise here.
 
 ---
 

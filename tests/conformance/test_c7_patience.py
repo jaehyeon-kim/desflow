@@ -162,7 +162,8 @@ def test_c7_reneging_tie_timeout_scheduled_after_the_grant():
     yaml, _app = run_yaml("patience_tie_served.yaml")
     assert _waiter_outcome(low) == expected
     assert _waiter_outcome(builder) == expected
-    assert _waiter_outcome(yaml) == [("started", 16.0)]
+    # The same tie, from SimPy, 10 s later
+    assert _waiter_outcome(yaml) == _reference(10, 6, 13, 3, 18)
 
 
 def test_c7_reneging_tie_timeout_scheduled_before_the_grant():
@@ -176,7 +177,7 @@ def test_c7_reneging_tie_timeout_scheduled_before_the_grant():
     yaml, _app = run_yaml("patience_tie_reneged.yaml")
     assert _waiter_outcome(low) == expected
     assert _waiter_outcome(builder) == expected
-    assert _waiter_outcome(yaml) == [("reneged", 16.0)]
+    assert _waiter_outcome(yaml) == _reference(10, 6, 10, 6, 18)
 
 
 def test_c7_reneged_request_leaves_the_queue():

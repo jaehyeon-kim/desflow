@@ -2,9 +2,9 @@
 
 The low-level twin of `builder/experiment_example.py`. `model` builds the shop in an
 environment and with a sampler it is given; `LowLevelModel` names it with its sim
-id. The experiment runs one hour of it 20 times with two packers and 20 times with three,
-with the same seeds, after a 3-minute warm-up. It compares the two designs seed by
-seed, checks the three-packer design against a 2-second bound, and compares the
+id. The experiment runs one hour of it 20 times with two packers and 20 times with
+three, with the same seeds, after a 3-minute warm-up. It compares the two designs
+seed by seed, checks the three-packer design against a 2-second bound, and compares the
 two-packer design with the mean wait observed in the real shop. It writes its
 artifacts and report to results/packers beside this file, and prints the
 comparison and the check.

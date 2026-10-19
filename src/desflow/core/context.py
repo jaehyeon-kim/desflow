@@ -238,8 +238,9 @@ class SimulationContext:
 
         Returns:
             SimulationContext: The built context. Its `run()` calls the blueprint's
-                `run.before` functions first, and uses `run.until` when no `until`
-                is passed.
+                `run.before` functions first, and uses `run.until`, `run.stop` and
+                `run.drain` for whichever of `until`, `stop` and `drain` it is not
+                passed.
 
         Raises:
             BlueprintError: If the blueprint is invalid.
@@ -835,8 +836,9 @@ class SimulationContext:
         6. Samples the live `service_id` distribution and yields the timeout.
         7. Adds its `put`, waiting for room, and checks `fail`.
         8. Emits its finished event with the user's payload, or `failed`.
-        9. Fires its `signal` (or fails it), applies `set` to the entity's
-           attributes and starts the `next` task, or `on_fail`.
+        9. Fires its `signal` (or fails it), sends its `interrupt` action, applies
+           `set` to the entity's attributes and starts the `next` task, or
+           `on_fail`.
 
         Every event carries the entity's key as its record key, and the task's name
         and instance id as the record's `task` and `instance` fields.
@@ -1142,9 +1144,10 @@ class SimulationContext:
             raise RuntimeError("Environment is not attached until context is run.")
         return self._env
 
-    def wait_for_arrival(self, arrival_id: str) -> Any:
+    def wait_for_arrival(self, arrival_id: str) -> simpy.Event:
         """
-        Yields a dynamic SimPy timeout based on the live arrival distribution.
+        Returns the wait for the next arrival: a timeout from the live distribution,
+        or for a replayed arrival the wait for its next row.
 
         The timeout's value is the new `Entity`, so an arrival loop writes
         `entity = yield context.wait_for_arrival("orders")` and passes
@@ -1154,7 +1157,9 @@ class SimulationContext:
             arrival_id: The arrival's name.
 
         Returns:
-            simpy.events.Timeout: The gap to the next arrival, valued with its entity.
+            simpy.Event: A timeout for the gap to the next arrival, or the wait for
+                the next replayed row, which succeeds with the new `Entity`; after a
+                replay's last row the wait never ends.
 
         Raises:
             RuntimeError: If called during the Builder Phase (before `.run()`).
@@ -1556,10 +1561,12 @@ class SimulationContext:
                 built by `from_yaml` uses the blueprint's `run.until`, and otherwise
                 the simulation runs infinitely. An event due at exactly `until` does
                 not run, as in SimPy.
-            stop: Ends the run before `until` when it happens: `{"signal": name}`
-                for the next firing of a signal, `{"condition": "..."}` for the
-                first moment a condition holds, a `Signal`, or a SimPy event. When
-                it happens at the same time as `until`, `until` ends the run.
+            stop: Ends the run before `until` when it happens: `{"signal": name}`,
+                or the signal's name, for the next firing of a signal;
+                `{"condition": "..."}` for the first moment a condition holds; or
+                a function of the context, called once the run is built, that
+                returns a SimPy event, such as `lambda c: c.signal("closing").wait()`.
+                When it happens at the same time as `until`, `until` ends the run.
             drain: At `until`, stop the arrivals and keep running until no entity
                 is in the model: True, or `{"limit": duration}` to stop at the
                 latest that long after `until`. Needs `until`.
@@ -1669,10 +1676,16 @@ class SimulationContext:
         self._check_tasks()
         for setup in self._before_run:
             setup()
-        # A second run of the same context starts with no entity and no task
+        # A run started and not closed is closed first, so its connectors stop
+        if self._env is not None and not self._closed:
+            self.close()
+        # A second run of the same context starts with no entity and no task, and
+        # numbers its entities and instances from the start again, so it repeats
         self._in_system = 0
         self._draining = False
         self._running = {}
+        self._entity_counters = {}
+        self._instance_counters = {}
         self._env = None
         self.started = False
 
@@ -1857,6 +1870,7 @@ class SimulationContext:
         """
         if self._env is not None and not self._closed:
             self._closed = True
+            self.started = False
             self._env.teardown()
 
     def stop_arrivals(self) -> None:
@@ -1923,10 +1937,16 @@ class SimulationContext:
 
     def _stop_event(self, stop: Any) -> simpy.Event:
         """The event a `stop` names: a signal's next firing, a condition, or an event."""
-        if isinstance(stop, Signal):
-            return stop.wait()
-        if isinstance(stop, simpy.Event):
-            return stop
+        if isinstance(stop, str):
+            stop = {"signal": stop}
+        elif callable(stop):
+            # Built once the run exists, so it can read the run's own objects
+            event = stop(self)
+            if not isinstance(event, simpy.Event):
+                raise ValueError(
+                    f"a stop function returns a SimPy event, got {type(event).__name__}"
+                )
+            return event
         if not isinstance(stop, Mapping) or len(stop) != 1:
             raise ValueError(
                 f"stop takes {{'signal': name}} or {{'condition': '...'}}, got {stop!r}"
@@ -1953,7 +1973,7 @@ class SimulationContext:
         return event
 
     def _entity_entered(self, entity: Entity) -> None:
-        """Counts an entity whose first task started as in the model."""
+        """Counts an entity whose first task instance has begun as in the model."""
         self._in_system += 1
         self.env.stats.flow_started(entity.arrival)
 
@@ -2069,11 +2089,13 @@ class SimulationContext:
             branches = set(spec.wait.branches) if spec.wait else set()
             for key, expression in spec.expressions:
                 unknown = expression.references["wait"] - branches
-                if unknown or (expression.references["wait"] and key == "wait"):
+                # balk and patience are read before the wait starts
+                early = key in ("wait", "balk", "patience")
+                if unknown or (expression.references["wait"] and early):
+                    branch = sorted(unknown or expression.references["wait"])[0]
                     raise ValueError(
-                        f"task '{name}' reads wait.{sorted(unknown or expression.references['wait'])[0]} "
-                        f"in '{expression.text}', which is not a branch of its wait "
-                        f"read after it"
+                        f"task '{name}' reads wait.{branch} in '{expression.text}', "
+                        f"which is not a branch of its wait read after it"
                     )
                 # item.<field> reads what the task's store get took, so it means
                 # nothing before the get, and nothing without one
@@ -2113,7 +2135,9 @@ def _check_end(until: Any, stop: Any, drain: Any, signals: List[str]) -> None:
         raise ValueError(
             f"drain takes a limit, not {', '.join(sorted({*drain} - {'limit'}))}"
         )
-    if stop is None or isinstance(stop, (Signal, simpy.Event)):
+    if isinstance(stop, str):
+        stop = {"signal": stop}
+    if stop is None or (callable(stop) and not isinstance(stop, Mapping)):
         return
     if not isinstance(stop, Mapping) or len(stop) != 1:
         raise ValueError(

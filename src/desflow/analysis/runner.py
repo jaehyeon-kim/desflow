@@ -3,8 +3,8 @@
 `replicate` runs a model N times with seeds spawned from one seed, each unpaced with
 no ingress and no egress, and reads the built-in statistics at the end of each run.
 It returns every value with its seed, and the mean and Student t half-width of each
-measure. `run_experiment` runs each design of an experiment the same way, then compares and
-checks them and writes the experiment's artifacts.
+measure. `run_experiment` runs each design of an experiment the same way, then
+compares and checks them and writes the experiment's artifacts.
 """
 
 import hashlib
@@ -441,7 +441,8 @@ def run_experiment(
     `comparisons.csv`, `checks.csv` and `report.md`.
 
     Args:
-        spec: An experiment file, a mapping of the same settings, or a `ExperimentSpec`.
+        spec: An experiment file, a mapping of the same settings, or an
+            `ExperimentSpec`.
             Relative paths in a file are read from the file's folder, and in a
             mapping from the working directory.
         raise_on_failure: When True, a failed check raises `CheckFailed`, which

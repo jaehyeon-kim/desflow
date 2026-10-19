@@ -1,7 +1,6 @@
-"""Experiments: designs, pairing, comparisons, checks, observed values and the report."""
+"""Experiments: designs, pairing, comparisons, checks, observed values, the report."""
 
 from pathlib import Path
-from typing import Optional
 
 import pytest
 from typer.testing import CliRunner
@@ -16,11 +15,11 @@ from desflow import (
     SimulationContext,
     run_experiment,
 )
-from desflow.blueprint.cli import app as cli
-from desflow.blueprint.loader import BlueprintError
 from desflow.analysis import results as found
 from desflow.analysis.models import RunResult
 from desflow.analysis.spec import ExperimentSpec
+from desflow.blueprint.cli import app as cli
+from desflow.blueprint.loader import BlueprintError
 
 SHOP = """\
 simulation: {sim_id: Shop, factor: 0}
@@ -48,7 +47,7 @@ limits: ["Thirty minutes of one shop only."]
 MEASURES = ["tasks.pack.wait_mean", "resources.packers.utilization_avg"]
 
 
-def shop(orders: Optional[int] = None) -> SimulationContext:
+def shop(orders: int | None = None) -> SimulationContext:
     """The blueprint's shop, written with the builder; `orders` stops the arrivals
     after that many."""
     app = (
@@ -175,7 +174,7 @@ def test_one_factor_sensitivity_changes_only_that_factor(tmp_path):
     )
 
 
-def test_a_study_repeats_and_the_three_forms_agree(folder, tmp_path):
+def test_an_experiment_repeats_and_the_three_forms_agree(folder, tmp_path):
     first = run_experiment(folder / "experiment.yaml")
     again = run_experiment(folder / "experiment.yaml")
     assert first.results == again.results
@@ -432,7 +431,10 @@ def test_bad_settings_are_refused_with_their_line(folder):
     experiment.write_text(EXPERIMENT.replace("current_cap: 3", "capacity: 3"))
     with pytest.raises(
         BlueprintError,
-        match=r"experiment.yaml:11: three: 'Shop.resources.packers.capacity' is not a registry path",
+        match=(
+            r"experiment.yaml:11: three: 'Shop.resources.packers.capacity' is not a "
+            r"registry path"
+        ),
     ):
         run_experiment(experiment)
     experiment.write_text(
@@ -461,7 +463,8 @@ def test_bad_settings_are_refused_with_their_line(folder):
 
 def test_a_python_reference_names_a_builder_factory(folder):
     (folder / "shop_model.py").write_text(
-        "from tests.unit.test_experiment import shop\n\ndef make_shop():\n    return shop()\n"
+        "from tests.unit.test_experiment import shop\n\n"
+        "def make_shop():\n    return shop()\n"
     )
     experiment = folder / "experiment.yaml"
     experiment.write_text(
@@ -482,7 +485,7 @@ def test_a_python_reference_names_a_builder_factory(folder):
     }
 
 
-def test_report_needs_a_study_folder(tmp_path):
+def test_report_needs_an_experiment_folder(tmp_path):
     run = CliRunner().invoke(cli, ["report", str(tmp_path)])
     assert run.exit_code == 2 and "experiment.json" in run.output
 

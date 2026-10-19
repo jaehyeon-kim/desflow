@@ -206,8 +206,9 @@ def test_cli_seed_overrides_the_file_and_an_unseeded_run_names_the_command(
     seeds = []
     monkeypatch.setattr(
         SimulationContext,
-        "run",
+        "start",
         lambda self, until=None, drain=None: seeds.append(self.random_seed),
     )
+    monkeypatch.setattr(SimulationContext, "finish", lambda self: None)
     CliRunner().invoke(cli, ["run", str(path), "--seed", match.group(1)])
     assert seeds == [int(match.group(1))]

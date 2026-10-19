@@ -12,7 +12,7 @@ A **drain** at the end of the run, and the counts that show which orders each wa
 
 ## Count Who Is Still There
 
-An end condition decides which entities a run's results describe. With statistics at `basic` or above, `flows.orders.started` counts the orders whose first task started, `flows.orders.finished` the orders that left, and `flows.orders.in_system` those still in the shop; from `minimal`, `tasks.pack_order.in_progress` counts the orders waiting for or being packed:
+An end condition decides which entities a run's results describe. With statistics at `basic` or above, `flows.orders.started` counts the orders that entered the shop, when their first task began, before any queue, `flows.orders.finished` the orders that left, and `flows.orders.in_system` those still in the shop; from `minimal`, `tasks.pack_order.in_progress` counts the orders waiting for or being packed:
 
 === "YAML"
 

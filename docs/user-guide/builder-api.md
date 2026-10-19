@@ -130,7 +130,7 @@ app.add_egress(ConsoleEgress(), batch_size=100, flush_interval=1.0)
 app.with_batching(batch_size=1_000, flush_interval=5.0)  # defaults for other sinks
 ```
 
-`LocalIngress` counts its delays in wall-clock seconds. This unpaced run ends in under a second, so the change to 3 packers never lands; at `factor=1.0` it lands 5 seconds into the run. A change at an exact simulation time is a process that waits and then updates the registry, as `speed_drift` above does.
+`LocalIngress` counts its delays in wall-clock seconds. This unpaced run ends in under a second, so the change to 3 packers never lands; at `factor=1.0` it lands 5 seconds into the run. A change at an exact simulation time is a scenario step, `add_step(at, path=..., value=...)` or `add_scenario(steps)`, which [Live Parameters](live-parameters.md#script-an-experiment) describes, or a process that waits and then updates the registry, as `speed_drift` above does.
 
 `compile_parameters()` returns the `SimParameter` that `run()` will register, to check the registry paths before a run:
 
