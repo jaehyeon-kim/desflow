@@ -72,8 +72,8 @@ app.add_egress(
 # --8<-- [end:kafka-egress]
 
 # --8<-- [start:storage-egress]
-# Parquet files on the local disk
-app.add_egress(ParquetStorageEgress(default_path="output/events"))
+# Parquet files on the local disk, output/events_<8 hex digits>.parquet
+app.add_egress(ParquetStorageEgress(default_path="output/events.parquet"))
 
 # JSON Lines files on S3-compatible storage, here SeaweedFS from odctl
 seaweedfs = fs.S3FileSystem(
@@ -83,7 +83,7 @@ seaweedfs = fs.S3FileSystem(
     scheme="http",
 )
 app.add_egress(
-    JsonlStorageEgress(default_path="warehouse/events", filesystem=seaweedfs)
+    JsonlStorageEgress(default_path="warehouse/events.jsonl", filesystem=seaweedfs)
 )
 # --8<-- [end:storage-egress]
 

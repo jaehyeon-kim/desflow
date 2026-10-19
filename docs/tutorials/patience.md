@@ -30,6 +30,8 @@ An entity that leaves a queue after waiting too long **reneges**. In SimPy it wa
     patience=patience,
     ```
 
+    `patience` is 30 here, in seconds; it also takes a duration, as in YAML: `patience="30 s"`. A distribution's parameters in the builder take seconds only.
+
 === "Low-level"
 
     ```python title="docs/snippets/tutorials/patience_low_level.py:patience"

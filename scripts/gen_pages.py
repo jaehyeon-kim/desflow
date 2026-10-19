@@ -109,7 +109,10 @@ def distributions_page() -> str:
         "value with no random generator are computed by the family's own functions for "
         "the example given. In a blueprint, a time-valued parameter "
         f"({', '.join(f'`{p}`' for p in TIME_PARAMETERS + TIME_LIST_PARAMETERS)}) also takes "
-        "a duration such as `5 min`.",
+        "a duration such as `5 min`. The builder and the low-level API take these "
+        'parameters in seconds only, so `add_service("packing", dist="constant", '
+        'value=120)`, not `value="2 min"`; a task\'s `patience` takes a duration in '
+        "the builder as well.",
         "",
         "| Family | Parameters | Live paths |",
         "|---|---|---|",

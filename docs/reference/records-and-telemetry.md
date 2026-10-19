@@ -167,8 +167,10 @@ Every sink receives the events and telemetry above, and a `when: labels` sink re
 
 | Sink | Writes |
 |---|---|
-| `ConsoleEgress` | one log line per record, `[TEL]`, `[EVT]` or `[LBL]` followed by the record without `stream_type`; one log call per batch |
+| `ConsoleEgress` | one line per record, `[TEL]`, `[EVT]` or `[LBL]` followed by the record without `stream_type`, in one INFO log call per batch, so only a batch's first line carries the logging format's prefix and the other lines are bare |
 | `KafkaEgress` | the record as JSON, without `stream_type` unless `include_stream_type=True`; the message key is `path_id` for telemetry and `key` for an event. A label goes to `event_topic` with no key |
 | `RedisEgress` | the record as JSON in one `payload` field, with any `__stream__` key removed |
 | `ParquetStorageEgress`, `JsonlStorageEgress`, `IcebergStorageEgress` | without a router, one flat row per event or label, with an event's `value` mapping unpacked into columns, and no telemetry; with a router, each record as the router leaves it |
 | `PostgresEgress` | an event or telemetry record whose value is a mapping, routed by its `__table__` key, which is removed, with `sim_ts`, `timestamp`, `key` as `event_id`, `task` and `instance`, or `path_id`, added to it, as [Egress](../user-guide/egress.md#postgresql) describes; a label as the columns `sim_ts`, `timestamp`, `path`, `old`, `new` and `label`, the last three as JSON text |
+
+In a flat row, a finished event's columns are its task's payload only: the `queued` and `started` rows of a task carry `path_id` and `status`, and its finished row has them null unless the payload holds them. [Egress](../user-guide/egress.md#parquet-and-json-lines) describes the file sinks.

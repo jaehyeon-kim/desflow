@@ -78,10 +78,13 @@ A name that no replication publishes is refused, with the names the model does p
 
 ### Read the Result
 
-`replicate` returns a `Replications`. Its `summary` has one row per measure, with `n`, `mean`, `half_width` and `level`; its `table` has one row per replication and measure, with the replication's number and seed; `seeds` lists the seeds in order:
+`replicate`, imported with `from desflow import replicate`, returns a `Replications`. Its `summary` has one row per measure, a mapping with `measure`, `n`, `mean`, `half_width` and `level`, and the interval runs from `mean - half_width` to `mean + half_width`; its `table` has one row per replication and measure, with the replication's number and seed; `seeds` lists the seeds in order:
 
 ```python title="docs/snippets/pages/replications.py:read"
 print(result.summary_text())  # each measure's n, mean and half-width
+for row in result.summary:  # measure, n, mean, half_width and level
+    low, high = row["mean"] - row["half_width"], row["mean"] + row["half_width"]
+    print(f"{row['measure']}: {low:.2f} to {high:.2f} ({row['level']:.0%})")
 print(result.seeds)  # replication i ran with seeds[i - 1]
 for row in result.table:  # one row per replication and measure
     print(row["replication"], row["seed"], row["measure"], row["value"])

@@ -148,7 +148,7 @@ if __name__ == "__main__":
     app.run(until="2 min")
 ```
 
-`ConsoleEgress` writes each record as a log line at INFO level, so the script switches logging on before it runs. The first events of the run:
+`ConsoleEgress` writes each batch of records in one INFO log call, one line per record, so the script switches logging on before it runs. Only the first line of a batch carries the logging format's prefix, such as the time and the level; the other lines are bare. The first events of the run:
 
 <!-- records: builder-first -->
 ```text

@@ -42,7 +42,7 @@ desflow is built for real-time digital twins, but the same model can also run fa
 
     **What It Does**
 
-    The run writes Parquet chunks to a local `data/` folder by default and ends on its own. The folder is created on the first write. On a laptop a week of simulated time takes about 20 seconds and writes 725 files with 3.6 million rows, one row per lifecycle event. Without a router, the egress drops telemetry and writes each event as one flat row, so the columns are `stream_type`, `sim_ts`, `timestamp`, `key`, `task`, `instance`, `path_id` and `status`. `logical_start_time: -7d` stamps the week as history that ends now.
+    The run writes each batch as a Parquet file of its own, such as `data/events_1a2b3c4d.parquet`, and ends on its own: `default_path` is a file name prefix, not a folder, as [Egress](../user-guide/egress.md#parquet-and-json-lines) explains, with how to read the files back as one table. A second run adds its files beside the first run's, so delete `data/` before running again, or set `DEST_PATH` to a new folder. On a laptop a week of simulated time takes about 20 seconds and writes 725 files with 3.6 million rows, one row per lifecycle event. Without a router, the egress drops telemetry and writes each event as one flat row, so the columns are `stream_type`, `sim_ts`, `timestamp`, `key`, `task`, `instance`, `path_id` and `status`. `logical_start_time: -7d` stamps the week as history that ends now.
 
     To write to S3 instead, install `odctl` (`uv tool install "odctl>=1.0,<2"` or `pip install "odctl>=1.0,<2"`), start the object store, and set these variables before the run command. All three versions read the same ones. The chunks land under the `odctl-dev/history/` prefix, browsable at <http://localhost:8889>.
 
@@ -66,7 +66,8 @@ desflow is built for real-time digital twins, but the same model can also run fa
     # The YAML version of examples/builder/parquet_example.py. With factor 0 the
     # clock is detached from the wall clock, so a week of shop orders is written to
     # Parquet as fast as the machine allows. Without a router, each event is written as
-    # one flat row and telemetry is left out. The folder is created on the first write.
+    # one flat row and telemetry is left out. Each batch is a file of its own,
+    # data/events_<8 hex digits>.parquet.
     #
     # Writes to ./data by default. To write to the odctl storage profile instead (odctl
     # up storage), set PARQUET_FILESYSTEM=s3, DEST_PATH=odctl-dev/history,

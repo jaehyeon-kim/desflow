@@ -42,9 +42,13 @@ app.add_egress(
 
 `ParquetStorageEgress` and `JsonlStorageEgress` write each batch as a file of its own, on a local disk or S3-compatible storage, through PyArrow. Without a `path_router`, each event is one flat row in `default_path`, with its `value` mapping unpacked into columns, and telemetry is left out. A Parquet file has a column for every key of any row in its batch. A key that first appears in a later batch adds a column to the later files, and a reader that unifies the files' schemas reads it as null in the earlier rows. A batch that cannot be written is logged at ERROR, and the sink goes on with the next one.
 
+**File names.** `default_path`, and any path a `path_router` returns, is a file name prefix, not a folder. Each batch is written as a file of its own, `<stem>_<8 hex digits><extension>`, in the path's folder, so `output/events.parquet` gives files such as `output/events_1a2b3c4d.parquet`. Give the extension in the path: `output/events` gives files with none. The folder is created on the first write.
+
+**Columns of a finished event.** A task's `queued` and `started` events carry `path_id` and `status`, but its finished event's value is the task's payload only, so in a finished event's row `path_id` and `status` are null unless the payload has them. The [Parquet example](../examples/parquet.md) adds them to its payload for that reason.
+
 ```python title="docs/snippets/pages/connectors.py:storage-egress"
-# Parquet files on the local disk
-app.add_egress(ParquetStorageEgress(default_path="output/events"))
+# Parquet files on the local disk, output/events_<8 hex digits>.parquet
+app.add_egress(ParquetStorageEgress(default_path="output/events.parquet"))
 
 # JSON Lines files on S3-compatible storage, here SeaweedFS from odctl
 seaweedfs = fs.S3FileSystem(
@@ -54,9 +58,22 @@ seaweedfs = fs.S3FileSystem(
     scheme="http",
 )
 app.add_egress(
-    JsonlStorageEgress(default_path="warehouse/events", filesystem=seaweedfs)
+    JsonlStorageEgress(default_path="warehouse/events.jsonl", filesystem=seaweedfs)
 )
 ```
+
+Read the files back as one table with `pyarrow.dataset`, which reads every file in the folder:
+
+```python title="docs/snippets/pages/file_sink.py:read"
+def read_events(folder="output"):
+    """Every file the sink wrote under `folder`, as one table."""
+    import pyarrow.dataset as ds
+
+    # format="json" reads the files of a JsonlStorageEgress the same way
+    return ds.dataset(folder, format="parquet").to_table()
+```
+
+A second run adds its files beside the first run's, so reading the folder then counts both runs. Give each run a folder of its own, or clear the folder before a run.
 
 ### Redis
 
