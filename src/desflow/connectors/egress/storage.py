@@ -9,7 +9,14 @@ from typing import Any, Callable, Dict, Optional
 
 import orjson
 
-from desflow.connectors.egress.base import BaseEgress, drop_reserved_keys, group_rows
+from desflow.connectors.egress.base import (
+    BaseEgress,
+    drop_reserved_keys,
+    group_rows,
+    rows_table,
+    to_schema,
+    widen_schema,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -272,9 +279,9 @@ class ParquetStorageEgress(BaseEgress):
 
     To support massive parallel processing (e.g., Athena, Databricks), it
     implements file rotation (chunking), creating a uniquely named Parquet
-    part-file for every flush of the buffer. Schemas are inferred from the
-    first batch of data and strictly enforced on subsequent batches to prevent
-    schema drift across chunks.
+    part-file for every flush of the buffer. A file's columns come from every row
+    of its batch; a column a later batch adds widens the path's schema, and each
+    batch is cast to it, so a column keeps its type across chunks.
 
     Without a `path_router`, events are written to `default_path` as flat rows:
     each event's `value` mapping becomes columns, and telemetry is left out. With a
@@ -372,6 +379,9 @@ class ParquetStorageEgress(BaseEgress):
                     self.active_tasks = getattr(self, "active_tasks", 0) + 1
                     try:
                         await asyncio.to_thread(self._write_batch, batch, pa, pq)
+                    except Exception as exc:
+                        # A batch that fails is logged, and the sink goes on
+                        logger.error(f"Parquet Writer: batch not written: {exc}")
                     finally:
                         self.active_tasks -= 1
                     # Log a progress heartbeat every 10 batches
@@ -395,10 +405,11 @@ class ParquetStorageEgress(BaseEgress):
         """
         Groups a batch of records, enforces strict schema typing, and writes Parquet chunks.
 
-        This method dynamically infers the PyArrow schema from the first chunk of data
-        destined for a specific path. It caches this schema and safely casts all
-        subsequent chunks to match, preventing pipeline-breaking schema drift
-        (e.g., if a float unexpectedly arrives as an integer in a later batch).
+        Each batch's columns come from all its rows. The schema of a path is kept
+        from one batch to the next and widened by any column a later batch adds, and
+        each batch is cast to it, so an integer that arrives where a float was
+        written stays a float. A batch that cannot be written is logged at ERROR and
+        skipped, and the sink goes on.
 
         Args:
             batch (list): A list of dictionaries or Pydantic models to be written.
@@ -412,19 +423,20 @@ class ParquetStorageEgress(BaseEgress):
         for target_path, records in grouped_batches.items():
             if not self.filesystem:
                 continue
-
-            table = pa.Table.from_pylist(records)
-
-            # Infer schema on first batch and cache it
-            if target_path not in self.schemas:
-                self.schemas[target_path] = table.schema
-
-            # Cast current batch to match the canonical schema
-            expected_schema = self.schemas[target_path]
-            if table.schema != expected_schema:
-                table = table.cast(expected_schema)
-
-            chunk_path = _generate_chunk_filename(target_path)
-            _ensure_folder(self.filesystem, chunk_path, self._folders)
-
-            pq.write_table(table, chunk_path, filesystem=self.filesystem)
+            try:
+                table = rows_table(records, pa)
+                # A column a later batch adds widens the schema; earlier files
+                # lack it, so a reader that unifies them reads it as null
+                schema = widen_schema(self.schemas.get(target_path), table.schema, pa)
+                table = to_schema(table, schema, pa)
+                chunk_path = _generate_chunk_filename(target_path)
+                _ensure_folder(self.filesystem, chunk_path, self._folders)
+                pq.write_table(table, chunk_path, filesystem=self.filesystem)
+            except Exception as exc:
+                # One batch that cannot be written does not stop the sink
+                logger.error(
+                    f"Parquet Writer: could not write {len(records)} rows to "
+                    f"{target_path}: {exc}"
+                )
+                continue
+            self.schemas[target_path] = schema

@@ -360,3 +360,45 @@ def test_storage_sinks_drop_reserved_keys(tmp_path: Path, caplog):
         "JsonlStorageEgress",
     ]
     assert record["value"]["__stream__"] == "orders"
+
+
+def test_parquet_writes_every_column_of_every_batch(tmp_path: Path):
+    """Columns come from every row, not the first, and a column that first appears
+    in a later batch widens the file schema; earlier rows read it as null."""
+    import pyarrow.dataset as ds
+
+    egress = ParquetStorageEgress(default_path=str(tmp_path / "events.parquet"))
+    egress.filesystem = fs.LocalFileSystem()
+    egress._write_batch([{"a": 1}, {"a": 2, "b": "x"}], pa, pq)
+    egress._write_batch([{"a": 3, "c": 1.5}], pa, pq)
+
+    # The file names carry a random id, so each file is told by its first value
+    files = sorted(
+        tmp_path.glob("events_*.parquet"),
+        key=lambda f: pq.read_table(f).column("a")[0].as_py(),
+    )
+    assert len(files) == 2
+    assert pq.read_table(files[0]).column_names == ["a", "b"]
+    assert pq.read_table(files[1]).column_names == ["a", "b", "c"]
+    schema = pa.unify_schemas([pq.read_schema(f) for f in files])
+    rows = ds.dataset(files, schema=schema).to_table().to_pylist()
+    assert sorted(rows, key=lambda r: r["a"]) == [
+        {"a": 1, "b": None, "c": None},
+        {"a": 2, "b": "x", "c": None},
+        {"a": 3, "b": None, "c": 1.5},
+    ]
+
+
+def test_parquet_write_error_is_logged_and_the_sink_goes_on(tmp_path: Path, caplog):
+    """A batch that cannot be written is logged at ERROR; later batches still are."""
+    egress = ParquetStorageEgress(default_path=str(tmp_path / "events.parquet"))
+    egress.filesystem = fs.LocalFileSystem()
+    egress._write_batch([{"a": 1}], pa, pq)
+    with caplog.at_level("ERROR"):
+        egress._write_batch([{"a": "not a number"}], pa, pq)
+    assert any(
+        r.levelname == "ERROR" and "events.parquet" in r.getMessage()
+        for r in caplog.records
+    )
+    egress._write_batch([{"a": 2}], pa, pq)
+    assert len(list(tmp_path.glob("events_*.parquet"))) == 2

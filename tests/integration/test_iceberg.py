@@ -120,3 +120,24 @@ async def test_upsert_updates_rows_and_a_rerun_adds_none(iceberg_catalog, namesp
         (2, "processing"),
         (3, "processing"),
     ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_a_column_a_later_batch_adds_reaches_the_table(
+    iceberg_catalog, namespace
+):
+    """The catalog accepts the new optional column, and earlier rows read null."""
+    identifier = f"{namespace}.events"
+    egress = IcebergStorageEgress(catalog=iceberg_catalog, default_table=identifier)
+    q: queue.Queue = queue.Queue()
+    q.put([{"stream_type": "event", "key": "o-1", "value": {"a": 1}}])
+    q.put([{"stream_type": "event", "key": "o-2", "value": {"a": 2, "b": "x"}}])
+
+    await _drain(egress, q)
+
+    rows = iceberg_catalog.load_table(identifier).scan().to_arrow().to_pylist()
+    assert sorted((r["key"], r["a"], r["b"]) for r in rows) == [
+        ("o-1", 1, None),
+        ("o-2", 2, "x"),
+    ]

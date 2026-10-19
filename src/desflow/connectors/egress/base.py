@@ -164,6 +164,72 @@ def group_rows(
     return grouped
 
 
+def rows_table(records: List[dict], pa: Any) -> Any:
+    """
+    Builds an Arrow table with a column for every key of every row.
+
+    `pa.Table.from_pylist` takes its columns from the first row only, so a key that
+    first appears in a later row would be dropped. A row without a column holds null.
+
+    Args:
+        records (List[dict]): The rows of one destination.
+        pa (Any): Injected reference to the `pyarrow` module.
+
+    Returns:
+        Any: The `pyarrow.Table`, its columns in the order they first appear.
+    """
+    columns = dict.fromkeys(key for record in records for key in record)
+    return pa.Table.from_pydict(
+        {column: [record.get(column) for record in records] for column in columns}
+    )
+
+
+def widen_schema(known: Any, batch: Any, pa: Any) -> Any:
+    """
+    Returns `known` with the columns of `batch` it lacks added at the end.
+
+    A column `known` has only as null, because every value so far was missing,
+    takes the batch's type.
+
+    Args:
+        known (Any): The schema written so far, or None before the first write.
+        batch (Any): The schema of the batch to write.
+        pa (Any): Injected reference to the `pyarrow` module.
+
+    Returns:
+        Any: The `pyarrow.Schema` to cast the batch to.
+    """
+    if known is None:
+        return batch
+    fields = []
+    for field in known:
+        if pa.types.is_null(field.type) and field.name in batch.names:
+            field = batch.field(field.name)
+        fields.append(field)
+    fields += [field for field in batch if field.name not in known.names]
+    return pa.schema(fields)
+
+
+def to_schema(table: Any, schema: Any, pa: Any) -> Any:
+    """
+    Casts `table` to `schema`, adding a null column for each one it lacks.
+
+    Args:
+        table (Any): The batch's `pyarrow.Table`.
+        schema (Any): The target `pyarrow.Schema`, a superset of its columns.
+        pa (Any): Injected reference to the `pyarrow` module.
+
+    Returns:
+        Any: The cast `pyarrow.Table`, its columns in the schema's order.
+    """
+    for field in schema:
+        if field.name not in table.column_names:
+            table = table.append_column(
+                field.name, pa.nulls(table.num_rows, type=field.type)
+            )
+    return table.select(schema.names).cast(schema)
+
+
 def parse_iso_time(value: Any, kind: str) -> Any:
     """
     Converts an ISO time string into the Python value a time column takes.

@@ -48,6 +48,7 @@ class FakeTable:
         self._schema = FakeSchema(arrow_schema)
         self.appended: list = []
         self.upserted: list = []
+        self.unions: list = []
 
     def schema(self):
         return self._schema
@@ -57,6 +58,23 @@ class FakeTable:
 
     def upsert(self, df, join_cols=None):
         self.upserted.append((df, join_cols))
+
+    def update_schema(self):
+        table = self
+
+        class Update:
+            def __enter__(self):
+                return self
+
+            def union_by_name(self, schema):
+                table.unions.append(schema)
+                merged = pa.unify_schemas([table._schema.as_arrow(), schema])
+                table._schema = FakeSchema(merged)
+
+            def __exit__(self, *exc):
+                return False
+
+        return Update()
 
 
 class FakeCatalog:
@@ -482,3 +500,39 @@ def test_reserved_keys_are_dropped(caplog):
     rows = catalog.tables["sim.events"].appended[0].to_pylist()
     assert rows == [{"stream_type": "event", "key": "orders-1", "n": 1}]
     assert "IcebergStorageEgress drops the payload key '__table__'" in caplog.text
+
+
+def test_an_inferred_table_has_every_column_and_gains_new_ones():
+    """The created schema has the columns of every row of the first batch, and a
+    column that first appears later is added to the table, not dropped."""
+    catalog = FakeCatalog()
+    egress = IcebergStorageEgress(catalog=catalog, default_table="sim.orders")
+    egress._write_batch(
+        [
+            {"stream_type": "event", "key": "o-1", "value": {"a": 1}},
+            {"stream_type": "event", "key": "o-2", "value": {"a": 2, "b": "x"}},
+        ],
+        pa,
+    )
+    table = catalog.tables["sim.orders"]
+    assert "b" in table.schema().as_arrow().names
+    egress._write_batch(
+        [{"stream_type": "event", "key": "o-3", "value": {"a": 3, "c": 1.5}}], pa
+    )
+    assert len(table.unions) == 1
+    assert table.appended[-1].to_pylist()[0]["c"] == 1.5
+
+
+def test_an_iceberg_write_error_is_logged(caplog):
+    """A batch the table refuses is logged at ERROR, and the sink goes on."""
+    catalog = FakeCatalog()
+    egress = IcebergStorageEgress(catalog=catalog, default_table="sim.orders")
+    egress._write_batch([{"stream_type": "event", "key": "o-1", "value": {"a": 1}}], pa)
+    with caplog.at_level("ERROR"):
+        egress._write_batch(
+            [{"stream_type": "event", "key": "o-2", "value": {"a": "text"}}], pa
+        )
+    assert any(
+        r.levelname == "ERROR" and "sim.orders" in r.getMessage()
+        for r in caplog.records
+    )

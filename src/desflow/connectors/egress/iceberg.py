@@ -9,6 +9,7 @@ from desflow.connectors.egress.base import (
     drop_reserved_keys,
     group_rows,
     parse_iso_columns,
+    rows_table,
 )
 
 logger = logging.getLogger(__name__)
@@ -123,8 +124,9 @@ class IcebergStorageEgress(BaseEgress):
     supported catalog is Iceberg REST, which is what the integration tests run
     against.
 
-    Schemas are inferred from the first batch per table and reused for later ones,
-    exactly as the Parquet writer does. Inference reads an ISO timestamp as a string,
+    A table without a schema in `schemas` is created with the columns of every row of
+    its first batch, and a column a later batch adds is added to the table, as the
+    Parquet writer widens its schema. Inference reads an ISO timestamp as a string,
     so a table whose consumer expects a real timestamp needs an explicit schema. An
     ISO string bound for a timestamp or date column of the table is converted to a
     `datetime` or `date` before the write, because PyArrow rejects the string itself.
@@ -239,6 +241,9 @@ class IcebergStorageEgress(BaseEgress):
             identifier: _arrow_schema(identifier, schema)
             for identifier, schema in (schemas or {}).items()
         }
+        # A table whose schema the caller gave keeps it; an inferred one gains the
+        # columns later batches add
+        self._pinned = set(self.schemas)
         self.locations: Dict[str, str] = dict(locations or {})
         self.upsert_keys: Dict[str, list] = {
             identifier: list(keys) for identifier, keys in (upsert_keys or {}).items()
@@ -294,6 +299,9 @@ class IcebergStorageEgress(BaseEgress):
                     self.active_tasks = getattr(self, "active_tasks", 0) + 1
                     try:
                         await asyncio.to_thread(self._write_batch, batch, pa)
+                    except Exception as exc:
+                        # A batch that fails is logged, and the sink goes on
+                        logger.error(f"Iceberg Writer: batch not written: {exc}")
                     finally:
                         self.active_tasks -= 1
                     # Log a progress heartbeat every 10 batches
@@ -328,17 +336,20 @@ class IcebergStorageEgress(BaseEgress):
             pa (Any): Injected reference to the `pyarrow` module.
 
         Raises:
-            ValueError: If a record for an upserted table lacks a key column.
+            ValueError: If an identifier names no namespace, or a record for an
+                upserted table lacks a key column. A batch the table refuses is
+                logged at ERROR instead.
         """
         # A table routes by no reserved key, so it writes none
         batch = drop_reserved_keys(batch, self)
         grouped_batches = group_rows(batch, self.table_router, self.default_table)
 
         for identifier, records in grouped_batches.items():
-            table = self._resolve_table(identifier, records, pa)
-            records = parse_iso_columns(
-                records, _time_columns(self.schemas[identifier], pa)
-            )
+            if "." not in identifier:
+                raise ValueError(
+                    f"'{identifier}' names no namespace; Iceberg identifiers are "
+                    "'namespace.table'"
+                )
             keys = self.upsert_keys.get(identifier)
             if keys:
                 missing = sorted({k for r in records for k in keys if r.get(k) is None})
@@ -347,24 +358,51 @@ class IcebergStorageEgress(BaseEgress):
                     raise ValueError(
                         f"Records for {identifier} lack the upsert key column(s) {missing}"
                     )
-                latest = {tuple(r[k] for k in keys): r for r in records}
-                df = pa.Table.from_pylist(
-                    list(latest.values()), schema=self.schemas[identifier]
+            try:
+                self._write_table(identifier, records, keys, pa)
+            except Exception as exc:
+                # One batch the table refuses does not stop the sink
+                logger.error(
+                    f"Iceberg Writer: could not write {len(records)} rows to "
+                    f"{identifier}: {exc}"
                 )
-                table.upsert(df, join_cols=keys)
-            else:
-                table.append(
-                    pa.Table.from_pylist(records, schema=self.schemas[identifier])
-                )
+
+    def _write_table(
+        self, identifier: str, records: list, keys: Optional[list], pa: Any
+    ) -> None:
+        """Writes one table's rows in one commit, adding any new column first."""
+        table = self._resolve_table(identifier, records, pa)
+        if identifier not in self._pinned:
+            known = self.schemas[identifier].names
+            new = [
+                field
+                for field in rows_table(records, pa).schema
+                if field.name not in known and not pa.types.is_null(field.type)
+            ]
+            if new:
+                with table.update_schema() as update:
+                    update.union_by_name(pa.schema(new))
+                self.schemas[identifier] = table.schema().as_arrow()
+        records = parse_iso_columns(
+            records, _time_columns(self.schemas[identifier], pa)
+        )
+        if keys:
+            latest = {tuple(r[k] for k in keys): r for r in records}
+            df = pa.Table.from_pylist(
+                list(latest.values()), schema=self.schemas[identifier]
+            )
+            table.upsert(df, join_cols=keys)
+        else:
+            table.append(pa.Table.from_pylist(records, schema=self.schemas[identifier]))
 
     def _resolve_table(self, identifier: str, records: list, pa: Any) -> Any:
         """
         Returns the loaded table for an identifier, creating it on first use.
 
-        The schema comes from `schemas` when the caller pinned one, and is inferred
-        from this first batch otherwise. Either way the created table's own schema
-        becomes the cast target for every later batch, so a table that already
-        existed governs rather than the records that happen to arrive first.
+        The schema comes from `schemas` when the caller pinned one, and from every
+        row of this first batch otherwise. Either way the created table's own schema
+        becomes the cast target for later batches, so a table that already existed
+        governs rather than the records that happen to arrive first.
 
         Args:
             identifier (str): A `namespace.table` identifier.
@@ -373,22 +411,14 @@ class IcebergStorageEgress(BaseEgress):
 
         Returns:
             Any: The pyiceberg `Table` to append to.
-
-        Raises:
-            ValueError: If the identifier names no namespace.
         """
         table = self._tables.get(identifier)
         if table is not None:
             return table
 
-        if "." not in identifier:
-            raise ValueError(
-                f"'{identifier}' names no namespace; Iceberg identifiers are "
-                "'namespace.table'"
-            )
         namespace = identifier.rsplit(".", 1)[0]
 
-        schema = self.schemas.get(identifier) or pa.Table.from_pylist(records).schema
+        schema = self.schemas.get(identifier) or rows_table(records, pa).schema
         catalog = self._load_catalog()
         catalog.create_namespace_if_not_exists(namespace)
         table = catalog.create_table_if_not_exists(

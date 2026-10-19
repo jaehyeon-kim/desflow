@@ -40,7 +40,7 @@ app.add_egress(
 
 ### Parquet and JSON Lines
 
-`ParquetStorageEgress` and `JsonlStorageEgress` write each batch as a file of its own, on a local disk or S3-compatible storage, through PyArrow. Without a `path_router`, each event is one flat row in `default_path`, with its `value` mapping unpacked into columns, and telemetry is left out.
+`ParquetStorageEgress` and `JsonlStorageEgress` write each batch as a file of its own, on a local disk or S3-compatible storage, through PyArrow. Without a `path_router`, each event is one flat row in `default_path`, with its `value` mapping unpacked into columns, and telemetry is left out. A Parquet file has a column for every key of any row in its batch. A key that first appears in a later batch adds a column to the later files, and a reader that unifies the files' schemas reads it as null in the earlier rows. A batch that cannot be written is logged at ERROR, and the sink goes on with the next one.
 
 ```python title="docs/snippets/pages/connectors.py:storage-egress"
 # Parquet files on the local disk
@@ -86,7 +86,7 @@ app.add_egress(PostgresEgress(dsn, table_name="orders", upsert_keys=["order_id"]
 
 ### Iceberg
 
-`IcebergStorageEgress` appends records to an Apache Iceberg table through a REST catalog. One flush is one commit, so this sink wants a large `batch_size` of its own: every commit writes new metadata, and many small commits slow down queries.
+`IcebergStorageEgress` appends records to an Apache Iceberg table through a REST catalog. One flush is one commit, so this sink wants a large `batch_size` of its own: every commit writes new metadata, and many small commits slow down queries. A table the sink creates has a column for every key of any row in its first batch. A key that first appears in a later batch is added to the table as an optional column, unless the table is named in `schemas`, which keeps the columns it gives. A batch the table refuses is logged at ERROR.
 
 ```python title="docs/snippets/pages/connectors.py:iceberg-egress"
 catalog = RestCatalog(
@@ -199,7 +199,7 @@ egress:
     when: labels
 ```
 
-A run's `warmup` applies to every sink: none receives a record or telemetry stamped before it. [Time and Pacing](time-and-pacing.md#warm-up) describes it.
+A file sink such as this one writes one file per batch under `labels/`, such as `labels/labels_1a2b3c4d.jsonl`. A run's `warmup` applies to every sink: none receives a record or telemetry stamped before it. [Time and Pacing](time-and-pacing.md#warm-up) describes it.
 
 ### Batch Size and Flush Interval
 
