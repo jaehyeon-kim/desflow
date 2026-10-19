@@ -195,7 +195,7 @@ A `get` on a priority store takes no `priority` of its own and is refused with o
 
 A store `get` can take a `filter`, a condition that picks which item it takes, as SimPy's `FilterStore` does. `item.<field>` reads the item offered, beside the names any condition reads, such as `attr.area` for the entity's own attribute. The get takes the oldest item that matches and waits while none does; a waiting get that matches nothing does not stop a later one from taking an item that matches it. A priority store takes no filter, because SimPy has no store that both ranks and filters; the blueprint or `run()` refuses one with the task's name.
 
-A task's `patience` covers its whole wait, for a resource and then for its `get`. When it runs out, the task publishes `reneged` and its get is cancelled, so it takes nothing later. In the low-level API, `cancel()` on a put or get event that has not succeeded takes it out of its queue, as in SimPy: a cancelled get takes nothing, and a cancelled put adds nothing. `item_field` adds the item a YAML task's get took to its payload, and a builder function receives it as `item`:
+A task's `patience` covers its whole wait, for its `wait`, then its resource and then its `get`. When it runs out, the task publishes `reneged` and its get is cancelled, so it takes nothing later. In the low-level API, `cancel()` on a put or get event that has not succeeded takes it out of its queue, as in SimPy: a cancelled get takes nothing, and a cancelled put adds nothing. `item_field` adds the item a YAML task's get took to its payload, and a builder function receives it as `item`:
 
 === "YAML"
 
@@ -295,7 +295,7 @@ A condition in a task's `next` reads a level as `level.<name>`, so an order can 
 
 ### Example: Stock, Parcels and Express Orders
 
-The `stock` example puts it together: packing takes a box from a container and puts the parcel in a store, which starts with two parcels from yesterday, a courier collects them, and express orders go first. The stock runs out, so packing waits until a restock at 40 seconds sets the level to 30. It needs no Docker service and ends on its own.
+The `stock` example puts it together: packing takes a box from a container and puts the parcel in a store, which starts with two parcels from yesterday, and a courier collects them. Express orders go first, at the packers and, as the parcels store is a priority store, at the courier. The stock runs out, so packing waits until a restock at 40 seconds sets the level to 30. It needs no Docker service and ends on its own.
 
 === "YAML"
 
@@ -340,8 +340,8 @@ The `stock` example puts it together: packing takes a box from a container and p
         priority: attr.priority
         # Takes one box once it has a packer, and waits while the stock is empty.
         get: {container: stock, amount: 1}
-        # Puts the finished payload in the store as a parcel.
-        put: {store: parcels}
+        # Puts the finished payload in the store as a parcel of the order's priority.
+        put: {store: parcels, priority: attr.priority}
         payload: {event_type: order_packed}
         attributes: [priority]
     ```
@@ -390,8 +390,8 @@ The `stock` example puts it together: packing takes a box from a container and p
         priority="attr.priority",
         # Takes one box once it has a packer, and waits while the stock is empty
         get={"container": "stock", "amount": 1},
-        # Puts the finished payload in the store as a parcel
-        put={"store": "parcels"},
+        # Puts the finished payload in the store as a parcel of the order's priority
+        put={"store": "parcels", "priority": "attr.priority"},
     )
     def pack(task_id, context, entity):
         """Packs one order."""
@@ -452,8 +452,8 @@ The `stock` example puts it together: packing takes a box from a container and p
             env.stats.task_started("pack", task_id)
             payload = {"event_type": "order_packed", "priority": priority}
             yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
-            # Waits while the store is full
-            yield shop["parcels"].put(payload)
+            # Waits while the store is full; wrap ranks the parcel by its priority
+            yield shop["parcels"].put(shop["parcels"].wrap(payload, priority))
             publish(payload)
             env.stats.task_finished("pack", task_id)
     ```

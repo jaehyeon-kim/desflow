@@ -4,7 +4,8 @@ The low-level twin of `builder/stock_example.py`. Packing an order takes one box
 the `stock` container and puts the packed parcel in the `parcels` store, where a
 courier collects it; two parcels packed yesterday are already there. The packers'
 queue order is `priority`, so express orders (priority 1) are served before standard
-ones (priority 2). The stock runs out, so packing waits until a restock at 40 seconds
+ones (priority 2), and the parcels store is a priority store, so a courier takes an
+express parcel first. The stock runs out, so packing waits until a restock at 40 seconds
 sets the level to 30.
 
 Needs no containers. Runs unpaced and ends after 60 simulation seconds.
@@ -47,9 +48,10 @@ PARAMS = SimParameter(
     containers={"stock": ContainerConfig(current_cap=50, max_cap=50, level=15)},
 )
 PRIORITIES = {"orders": 2, "express": 1}
+# Two standard parcels packed yesterday: (priority, item) pairs
 YESTERDAY = [
-    {"event_type": "order_packed", "order": "yesterday-1"},
-    {"event_type": "order_packed", "order": "yesterday-2"},
+    (2, {"event_type": "order_packed", "order": "yesterday-1"}),
+    (2, {"event_type": "order_packed", "order": "yesterday-2"}),
 ]
 
 
@@ -71,8 +73,8 @@ def pack(env, sampler, shop, key, priority, task_id):
         env.stats.task_started("pack", task_id)
         payload = {"event_type": "order_packed", "priority": priority}
         yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
-        # Waits while the store is full
-        yield shop["parcels"].put(payload)
+        # Waits while the store is full; wrap ranks the parcel by its priority
+        yield shop["parcels"].put(shop["parcels"].wrap(payload, priority))
         publish(payload)
         env.stats.task_finished("pack", task_id)
 
@@ -87,11 +89,12 @@ def collect(env, sampler, shop, key, task_id):
 
     publish({"path_id": path_id, "status": "queued"})
     env.stats.task_queued("collect", task_id)
-    yield shop["parcels"].get()
+    # A PriorityItem; .item is the parcel
+    parcel = yield shop["parcels"].get()
     publish({"path_id": path_id, "status": "started"})
     env.stats.task_started("collect", task_id)
     yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
-    publish({"event_type": "parcel_collected"})
+    publish({"event_type": "parcel_collected", "parcel": parcel.item})
     env.stats.task_finished("collect", task_id)
 
 
@@ -122,8 +125,8 @@ def build(env):
     """Builds the packers, the store and the container, in the builder's order."""
     return {
         "packers": DynamicResource(env, "Shop", "packers", queue="priority"),
-        # Two parcels packed yesterday are there when the run starts
-        "parcels": DynamicStore(env, "Shop", "parcels", items=YESTERDAY),
+        # A courier takes the lowest priority first, the oldest first among equals
+        "parcels": DynamicStore(env, "Shop", "parcels", priority=True, items=YESTERDAY),
         "stock": DynamicContainer(env, "Shop", "stock"),
     }
 
