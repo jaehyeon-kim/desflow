@@ -894,3 +894,25 @@ def test_calls_that_need_a_running_model_say_where_to_make_them():
         app.signal("closing")
     with pytest.raises(RuntimeError, match="from a task, a process or a scenario"):
         app.interrupt("pack")
+
+
+def test_a_task_called_with_any_instance_id_runs_with_statistics_off():
+    """A builder task whose first argument is a dict, as some projects pass their
+    event, runs when statistics are off, as in 0.21.0: nothing hashes the id."""
+    app = SimulationContext("Shop", factor=0)
+    app.add_arrival("orders", dist="constant", value=1)
+    emitted = []
+
+    @app.task()
+    def emit_event(event, context):
+        emitted.append(event)
+        return event
+
+    @app.arrival_loop("orders")
+    def loop(context):
+        while True:
+            yield context.wait_for_arrival("orders")
+            context.spawn(emit_event({"event_type": "order_placed"}, context))
+
+    app.run(until=3)
+    assert len(emitted) == 2

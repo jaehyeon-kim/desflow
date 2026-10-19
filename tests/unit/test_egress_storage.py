@@ -442,3 +442,23 @@ def test_an_integer_column_widens_to_float(tmp_path: Path):
     )
     values = ds.dataset(files, schema=schema).to_table().column("a").to_pylist()
     assert sorted(values) == [1.0, 1.5]
+
+
+def test_a_file_sink_without_pyarrow_says_so_at_error(tmp_path: Path, caplog):
+    """Without pyarrow, JsonlStorageEgress stops at once; the run logs why at ERROR,
+    with the install hint, rather than only that the queues stopped draining."""
+    import sys
+    from unittest import mock
+
+    from desflow import DynamicRealtimeEnvironment
+
+    env = DynamicRealtimeEnvironment(factor=0)
+    with mock.patch.dict(sys.modules, {"pyarrow": None}):
+        env.setup_egress(
+            [JsonlStorageEgress(default_path=str(tmp_path / "events.jsonl"))]
+        )
+        with caplog.at_level("ERROR"):
+            env.run(until=1)
+            env.teardown()
+    errors = [r.getMessage() for r in caplog.records if r.levelname == "ERROR"]
+    assert any("pip install desflow[parquet]" in m for m in errors), errors

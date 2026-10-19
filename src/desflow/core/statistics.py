@@ -260,7 +260,10 @@ class Statistics:
             self._in_progress[task] = self._in_progress.get(task, 0) + 1
 
     def _leave(self, task: str, instance: Hashable) -> None:
-        """Stops counting an instance as in progress."""
+        """Stops counting an instance as in progress, at `minimal` and above."""
+        # Below minimal nothing was counted, and the id may not be hashable
+        if self._rank < _MINIMAL:
+            return
         if (task, instance) in self._active:
             self._active.discard((task, instance))
             self._in_progress[task] -= 1
@@ -304,7 +307,9 @@ class Statistics:
                 stats.preempted += 1
             else:
                 stats.interrupted += 1
-        flight = self._in_flight.get((task, instance))
+        flight = (
+            self._in_flight.get((task, instance)) if self._rank >= _TYPICAL else None
+        )
         if flight is None:
             return
         now = self.env.now
@@ -323,7 +328,8 @@ class Statistics:
             task: The task's name.
             instance: The instance's id.
         """
-        self._in_flight.pop((task, instance), None)
+        if self._rank >= _TYPICAL:
+            self._in_flight.pop((task, instance), None)
         self._leave(task, instance)
 
     def task_resumed(self, task: str, instance: Hashable) -> None:
@@ -339,7 +345,9 @@ class Statistics:
         """
         if self._rank >= _BASIC:
             self._task(task).resumed += 1
-        flight = self._in_flight.get((task, instance))
+        flight = (
+            self._in_flight.get((task, instance)) if self._rank >= _TYPICAL else None
+        )
         if flight is None:
             return
         now = self.env.now
@@ -365,7 +373,11 @@ class Statistics:
             return
         stats = self._task(task)
         stats.finished += 1
-        flight = self._in_flight.pop((task, instance), None)
+        flight = (
+            self._in_flight.pop((task, instance), None)
+            if self._rank >= _TYPICAL
+            else None
+        )
         if flight is not None and (flight.started is not None or flight.served):
             served = flight.served
             if flight.started is not None:
@@ -397,7 +409,8 @@ class Statistics:
             task: The task's name.
             instance: Its instance id.
         """
-        self._in_flight.pop((task, instance), None)
+        if self._rank >= _TYPICAL:
+            self._in_flight.pop((task, instance), None)
         self._leave(task, instance)
         if self._rank >= _BASIC:
             self._task(task).reneged += 1
@@ -414,7 +427,8 @@ class Statistics:
             task: The task's name.
             instance: Its instance id.
         """
-        self._in_flight.pop((task, instance), None)
+        if self._rank >= _TYPICAL:
+            self._in_flight.pop((task, instance), None)
         self._leave(task, instance)
         if self._rank >= _BASIC:
             self._task(task).failed += 1

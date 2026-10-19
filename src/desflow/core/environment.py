@@ -56,6 +56,21 @@ def resolve_zone(name: Optional[str], start: Optional[datetime] = None) -> tzinf
     return dt_timezone.utc
 
 
+def _report_stopped(kind: str, provider: Any) -> Callable[[Any], None]:
+    """A callback that logs, at ERROR, a connector task that stopped with an error.
+
+    A connector runs as an asyncio task nobody awaits, so an error such as a
+    missing package would otherwise stop it with no message.
+    """
+
+    def report(task: Any) -> None:
+        if task.cancelled() or task.exception() is None:
+            return
+        logger.error(f"{kind} {type(provider).__name__} stopped: {task.exception()}")
+
+    return report
+
+
 def in_zone(moment: datetime, zone: tzinfo) -> datetime:
     """Returns a datetime without an offset read in `zone`; one with an offset as given.
 
@@ -165,6 +180,8 @@ class IngressMixIn:
             loop.create_task(provider.run(self.ingress_queue))
             for provider in self.ingress_providers
         ]
+        for provider, task in zip(self.ingress_providers, tasks):
+            task.add_done_callback(_report_stopped("Ingress", provider))
 
         try:
             # Run the loop until teardown() calls loop.stop()
@@ -420,6 +437,8 @@ class EgressMixIn:
                 self.egress_providers, self.egress_queues
             )
         ]
+        for provider, task in zip(self.egress_providers, tasks):
+            task.add_done_callback(_report_stopped("Egress", provider))
 
         try:
             # Run the loop until teardown() calls loop.stop()
