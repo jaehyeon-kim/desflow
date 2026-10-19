@@ -267,21 +267,22 @@ def download(
         List[Path]: The files written.
 
     Raises:
-        FileExistsError: If a file is already there and `force` is not set.
+        FileExistsError: If a file is already there and `force` is not set. A shared
+            file that is already there unchanged is kept, so versions share it.
         RuntimeError: If a file cannot be downloaded, naming the URL.
     """
     plan = []
     for api in apis:
         for path in example.files[api]:
             plan.append((path, dest / example.name / api / Path(path).name))
-    for path in example.shared:
-        plan.append((path, dest / example.name / Path(path).name))
+    shared = [(path, dest / example.name / Path(path).name) for path in example.shared]
 
     existing = [str(target) for _, target in plan if target.exists()]
     if existing and not force:
         raise FileExistsError(
             f"already there: {', '.join(existing)}. Use --force to replace them."
         )
+    plan += shared
 
     # Everything is downloaded before anything is written, so a failure leaves no
     # half-copied example behind.
@@ -302,6 +303,28 @@ def download(
             ) from None
         except urllib.error.URLError as exc:
             raise RuntimeError(f"could not reach {url}: {exc.reason}") from None
+    # A shared file another version downloaded is kept when it is unchanged, so
+    # versions can share a folder; one that differs is refused like any other
+    shared_targets = {target for _, target in shared}
+    contents = [
+        (target, content)
+        for target, content in contents
+        if not (
+            target in shared_targets
+            and target.exists()
+            and target.read_bytes() == content
+        )
+    ]
+    changed = [
+        str(target)
+        for target, _ in contents
+        if target in shared_targets and target.exists()
+    ]
+    if changed and not force:
+        raise FileExistsError(
+            f"already there, and changed: {', '.join(changed)}. Use --force to "
+            f"replace them."
+        )
     for target, content in contents:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(content)

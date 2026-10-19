@@ -54,6 +54,12 @@ def test_list_names_every_example():
     assert result.exit_code == 0
     for name in examples.EXAMPLES:
         assert name in result.output
+    # Every description starts in one column, however long the names
+    lines = result.output.splitlines()[: len(examples.EXAMPLES)]
+    starts = {
+        len(line) - len(line.split(maxsplit=1)[1]) for line in lines if line.strip()
+    }
+    assert len(starts) == 1, lines
 
 
 def test_get_writes_each_version_in_its_folder(tmp_path):
@@ -113,3 +119,19 @@ def test_a_missing_file_writes_nothing(tmp_path):
 def test_unknown_example_is_refused():
     result = runner.invoke(app, ["examples", "get", "nope"])
     assert result.exit_code != 0
+
+
+def test_a_second_version_shares_the_files_already_there(tmp_path):
+    """A shared file already downloaded and unchanged is left as it is, so a second
+    version downloads into the same folder; one that was changed is refused."""
+    get = ["examples", "get", "kafka", "--dest", str(tmp_path), "--api"]
+    with mock.patch.object(examples, "_fetch", side_effect=_local_fetch):
+        first = runner.invoke(app, [*get, "yaml"])
+        second = runner.invoke(app, [*get, "low-level"])
+        (tmp_path / "kafka" / "kafka_dashboard.py").write_text("# changed\n")
+        third = runner.invoke(app, [*get, "builder"])
+    assert first.exit_code == 0, first.output
+    assert second.exit_code == 0, second.output
+    assert (tmp_path / "kafka" / "low-level" / "kafka_example.py").is_file()
+    assert third.exit_code == 1 and "kafka_dashboard.py" in third.output
+    assert not (tmp_path / "kafka" / "builder").exists()

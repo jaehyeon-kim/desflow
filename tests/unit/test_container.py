@@ -181,3 +181,14 @@ def test_resource_classes_are_exported_from_the_package():
     assert {"DynamicResource", "DynamicContainer", "DynamicStore"} <= set(
         desflow.__all__
     )
+
+
+def test_a_whole_starting_level_stays_whole_as_in_simpy(env, registry, sample_params):
+    """An int level stays an int, as `simpy.Container(init=1)` keeps 1, not 1.0."""
+    import simpy
+
+    registry.register_sim_parameter(sample_params)
+    cont = DynamicContainer(env, "Shop", "tank1", init=1)
+    reference = simpy.Container(simpy.Environment(), init=1)
+    assert cont.level == reference.level
+    assert type(cont.level) is type(reference.level) is int

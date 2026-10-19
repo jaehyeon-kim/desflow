@@ -76,7 +76,10 @@ class DynamicContainer(BaseDynamicResource):
         max_cap = float(self._max_cap_val.value)
         # Prevent initialization out-of-bounds
         initial_capacity = max(0.0, min(float(self._current_cap_val.value), max_cap))
-        start = float(self._level_val.value if init is None else init)
+        start = self._level_val.value if init is None else init
+        # A number keeps its type, so a whole level stays an int, as SimPy keeps it
+        if isinstance(start, bool) or not isinstance(start, (int, float)):
+            start = float(start)
 
         if start > initial_capacity:
             # SimPy's own check, which the capacity of 1 below would not make

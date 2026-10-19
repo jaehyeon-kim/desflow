@@ -404,9 +404,10 @@ def _examples_list(ctx: typer.Context) -> None:
         return
     from desflow.blueprint.examples import EXAMPLES
 
+    width = max(len(name) for name in EXAMPLES)
     for example in EXAMPLES.values():
         needs = f"odctl up {example.profile}" if example.profile else "no service"
-        typer.echo(f"{example.name:<16} {example.shows} ({needs})")
+        typer.echo(f"{example.name:<{width}}  {example.shows} ({needs})")
     typer.echo("\nDownload one with: desflow examples get <name>")
 
 
