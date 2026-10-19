@@ -20,9 +20,20 @@
 - [Choosing Inputs](https://jaehyeon.me/desflow/latest/tutorials/choosing-inputs/index.md)
 - [Measuring a Run](https://jaehyeon.me/desflow/latest/tutorials/measuring-a-run/index.md)
 - [Trusting Results](https://jaehyeon.me/desflow/latest/tutorials/trusting-results/index.md)
+- [End Conditions](https://jaehyeon.me/desflow/latest/tutorials/end-conditions/index.md)
+- [Fit the Inputs](https://jaehyeon.me/desflow/latest/tutorials/fit-the-inputs/index.md)
 - [Stock](https://jaehyeon.me/desflow/latest/tutorials/stock/index.md)
 - [Priorities](https://jaehyeon.me/desflow/latest/tutorials/priorities/index.md)
 - [A Flow of Tasks](https://jaehyeon.me/desflow/latest/tutorials/flow-of-tasks/index.md)
+- [Process Interaction](https://jaehyeon.me/desflow/latest/tutorials/process-interaction/index.md)
+- [Patience](https://jaehyeon.me/desflow/latest/tutorials/patience/index.md)
+- [Interruptions](https://jaehyeon.me/desflow/latest/tutorials/interruptions/index.md)
+- [Competing Resources](https://jaehyeon.me/desflow/latest/tutorials/competing-resources/index.md)
+- [Filtered Inventory](https://jaehyeon.me/desflow/latest/tutorials/filtered-inventory/index.md)
+- [Changing Demand](https://jaehyeon.me/desflow/latest/tutorials/changing-demand/index.md)
+- [Local Replay](https://jaehyeon.me/desflow/latest/tutorials/local-replay/index.md)
+- [Comparing Designs](https://jaehyeon.me/desflow/latest/tutorials/comparing-designs/index.md)
+- [Parameter Sweeps](https://jaehyeon.me/desflow/latest/tutorials/parameter-sweeps/index.md)
 
 ## User Guide
 
@@ -37,6 +48,9 @@
 - [Stores and Containers](https://jaehyeon.me/desflow/latest/user-guide/stores-and-containers/index.md)
 - [Task Flow](https://jaehyeon.me/desflow/latest/user-guide/task-flow/index.md)
 - [Statistics](https://jaehyeon.me/desflow/latest/user-guide/statistics/index.md)
+- [Replications](https://jaehyeon.me/desflow/latest/user-guide/replications/index.md)
+- [Experiments](https://jaehyeon.me/desflow/latest/user-guide/experiments/index.md)
+- [Input Fitting](https://jaehyeon.me/desflow/latest/user-guide/input-fitting/index.md)
 - [Live Parameters](https://jaehyeon.me/desflow/latest/user-guide/live-parameters/index.md)
 - [Time and Pacing](https://jaehyeon.me/desflow/latest/user-guide/time-and-pacing/index.md)
 - [Ingress](https://jaehyeon.me/desflow/latest/user-guide/ingress/index.md)
@@ -45,12 +59,17 @@
 ## How-To
 
 - [Python in a Blueprint](https://jaehyeon.me/desflow/latest/guides/yaml-advanced/index.md)
+- [Fit a Distribution](https://jaehyeon.me/desflow/latest/guides/fit-a-distribution/index.md)
 - [Complex Routing (Kafka)](https://jaehyeon.me/desflow/latest/guides/complex-routing/index.md)
 - [Avro and Pydantic](https://jaehyeon.me/desflow/latest/guides/avro-and-pydantic/index.md)
 - [Secure Kafka](https://jaehyeon.me/desflow/latest/guides/kafka-security/index.md)
 - [Multi-Resource Handoffs](https://jaehyeon.me/desflow/latest/guides/multi-resource-handoffs/index.md)
-- [Preemptive Breakdowns](https://jaehyeon.me/desflow/latest/guides/preemptive-breakdowns/index.md)
+- [Breakdowns](https://jaehyeon.me/desflow/latest/guides/breakdowns/index.md)
 - [Dynamic Topology](https://jaehyeon.me/desflow/latest/guides/dynamic-topology/index.md)
+- [Reneging and Balking](https://jaehyeon.me/desflow/latest/guides/reneging-and-balking/index.md)
+- [Wait for One or All](https://jaehyeon.me/desflow/latest/guides/wait-for-one-or-all/index.md)
+- [Time-varying Arrivals](https://jaehyeon.me/desflow/latest/guides/time-varying-arrivals/index.md)
+- [Performance Tuning](https://jaehyeon.me/desflow/latest/guides/performance-tuning/index.md)
 
 ## Examples
 
@@ -71,6 +90,8 @@
 - [Records and Telemetry](https://jaehyeon.me/desflow/latest/reference/records-and-telemetry/index.md)
 - [Distributions](https://jaehyeon.me/desflow/latest/reference/distributions/index.md)
 - [Statistics](https://jaehyeon.me/desflow/latest/reference/statistics/index.md)
+- [SimPy Compatibility](https://jaehyeon.me/desflow/latest/reference/simpy-compatibility/index.md)
+- [Cheat Sheet](https://jaehyeon.me/desflow/latest/reference/cheat-sheet/index.md)
 
 ## About
 
