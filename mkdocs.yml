@@ -29,6 +29,10 @@ theme:
     # Choosing YAML, Builder or Low-level in one set of tabs switches every set on
     # the site, so a reader follows one way of writing throughout.
     - content.tabs.link
+    # Each code block gets a copy button and a button to select lines by their
+    # numbers; docs/js/code-lines.js adds a third that hides the line numbers.
+    - content.code.copy
+    - content.code.select
 
 plugins:
   - search
@@ -246,6 +250,7 @@ markdown_extensions:
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
   - pymdownx.highlight:
       anchor_linenums: true
+      linenums: true
       line_spans: __span
       pygments_lang_class: true
   - pymdownx.inlinehilite
@@ -258,3 +263,7 @@ extra_css:
   - css/neoteroi-mkdocs.css
   - css/roadmap.css
   - css/tables.css
+  - css/code-lines.css
+
+extra_javascript:
+  - js/code-lines.js
