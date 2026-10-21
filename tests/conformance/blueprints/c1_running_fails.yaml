@@ -1,0 +1,24 @@
+# The charge fails at 2; the driver's running wait fails with its reason at 2.
+# See test_c1_processes.py.
+simulation:
+  sim_id: C1
+  factor: 0
+services:
+  charging: {dist: constant, value: 2}
+tasks:
+  start:
+    spawn: {task: charge}
+    payload: {event: started}
+    next: driver
+  charge:
+    service: charging
+    payload: {event: charged}
+    fail: "t >= 0"
+    fail_reason: flat_battery
+  driver:
+    wait: {running: {task: charge}}
+    payload: {event: drove}
+processes:
+  - !python tests.conformance.batch2_scripts.one_start
+run:
+  until: 10

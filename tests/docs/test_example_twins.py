@@ -167,6 +167,10 @@ def _interaction(m, env, sampler):
     return m.processes(env, sampler, m.build(env, sampler))
 
 
+def _events(m, env, sampler):
+    return m.processes(env, sampler, m.build(env, sampler))
+
+
 def _competing(m, env, sampler):
     env.setup_stats("Shop", "basic", interval=30.0)
     return m.processes(env, sampler, m.build(env, sampler))
@@ -230,6 +234,7 @@ EXAMPLE_CASES = [
     ("patience", "patience.yaml", None, 120, _patience),
     ("filtered_inventory", "filtered_inventory.yaml", None, 120, _patience),
     ("process_interaction", "process_interaction.yaml", None, 300, _interaction),
+    ("process_events", "process_events.yaml", None, 12, _events),
     ("interruptions", "interruptions.yaml", None, 120, _patience),
     ("competing_resources", "competing_resources.yaml", None, 120, _competing),
     ("end_conditions", "end_conditions.yaml", None, 120, _ending),

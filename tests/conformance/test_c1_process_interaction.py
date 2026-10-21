@@ -524,7 +524,8 @@ def test_c1_process_inspection():
     app.add_process(script)
     run_builder(app, 6)
     assert seen["during"] == (True, False, True)
-    # A spawned task returns nothing; a called one returns its flow's last payload
+    # A task's process ends with its finished payload; a called flow returns its
+    # last payload
     assert seen["after"] == (False, True, {"grade": "A"}, False)
 
     # YAML reads a child's state after the wait as wait.inspect.done and .value
@@ -628,3 +629,127 @@ def test_c1_wait_for_a_shared_condition():
         run_yaml("c1_condition.yaml")[0],
     ):
         assert times(records, "waiter") == [9.0, 9.0]
+
+
+# -------------------------------------------------- active process (E3, P5, P6)
+
+
+def test_c1_active_process():
+    """`active_process` is the running process during a resume, named after the task,
+    and None between events, as SimPy's `active_process`."""
+    env = simpy.Environment()
+    names = []
+
+    def worker():
+        names.append(env.active_process.name)
+        yield env.timeout(1)
+
+    env.process(worker())
+    assert env.active_process is None  # None outside a step
+    env.run()
+    assert names == ["worker"]
+
+    # a desflow low-level process reads its own name from active_process
+    seen = {}
+
+    def start(env):
+        def step():
+            seen["name"] = env.active_process.name
+            yield env.timeout(1)
+
+        env.process(step())
+
+    run_low_level(None, start, 2)
+    assert seen["name"] == "step"
+
+
+def _builder_process_name():
+    app = SimulationContext("C1", factor=0.0)
+    app.add_service("working", dist="constant", value=1)
+
+    @app.task(
+        service_id="working",
+        name="step",
+        next={
+            "when": [{"condition": 'process.name == "step"', "task": "same"}],
+            "default": "other",
+        },
+    )
+    def step(task_id):
+        return {"n": task_id}
+
+    @app.task(name="same")
+    def same(task_id):
+        return {"event": "same"}
+
+    @app.task(name="other")
+    def other(task_id):
+        return {"event": "other"}
+
+    def script(context):
+        context.spawn(step(0))
+        yield context.env.event()
+
+    app.add_process(script)
+    return run_builder(app, 3)
+
+
+def test_c1_process_name():
+    """`process.name` reads the running task's name in a condition, routing next to
+    same at 1."""
+    for records in (_builder_process_name(), run_yaml("c1_process.yaml")[0]):
+        assert times(records, "same") == [1.0]
+        assert times(records, "other") == []
+
+
+def test_c1_process_target():
+    """`process.target` reads what the process waits on. In SimPy it is the event
+    being yielded; in desflow it is the kind, `service` during a service, and a
+    service task's next reads it."""
+    env = simpy.Environment()
+    captured = {}
+
+    def worker():
+        yield env.timeout(2)
+
+    def probe(proc):
+        yield env.timeout(1)  # worker is waiting on its timeout now
+        captured["target"] = proc.target
+
+    proc = env.process(worker())
+    env.process(probe(proc))
+    env.run()
+    assert isinstance(captured["target"], simpy.events.Timeout)  # the event yielded
+    assert proc.target is None  # None once the process ended
+
+    # a desflow service task reads process.target as "service" in its next rule
+    app = SimulationContext("C1", factor=0.0)
+    app.add_service("working", dist="constant", value=1)
+
+    @app.task(
+        service_id="working",
+        name="step",
+        next={
+            "when": [{"condition": 'process.target == "service"', "task": "served"}],
+            "default": "idle",
+        },
+    )
+    def step(task_id):
+        return {"n": task_id}
+
+    @app.task(name="served")
+    def served(task_id):
+        return {"event": "served"}
+
+    @app.task(name="idle")
+    def idle(task_id):
+        return {"event": "idle"}
+
+    def script(context):
+        context.spawn(step(0))
+        yield context.env.event()
+
+    app.add_process(script)
+    records = run_builder(app, 3)
+    assert times(records, "served") == [1.0]
+    assert times(records, "idle") == []

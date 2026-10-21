@@ -28,7 +28,7 @@ from desflow.core.sampler import Sampler
 from desflow.models.flow import Entity, Upstream
 from desflow.core.breakdowns import run_breakdowns
 from desflow.core.replay import UNITS, Row, read_trace
-from desflow.core.scenario import check_step, run_scenario
+from desflow.core.scenario import apply_step, check_step, run_scenario
 from desflow.models.params import (
     BreakdownConfig,
     CapacityConfig,
@@ -189,7 +189,16 @@ class SimulationContext:
         self._tasks: Dict[str, Callable] = {}
         self._task_specs: Dict[str, TaskSpec] = {}
         self._signal_names: List[str] = []
+        self._signal_once: Dict[str, bool] = {}
+        # Each signal's `on:` actions, in normalized form, run when it fires
+        self._signal_on: Dict[str, List[Dict[str, Any]]] = {}
         self._signals: Dict[str, Signal] = {}
+        # Tasks whose instances need an end event, filled by _check_tasks: those a
+        # `running` branch or `subscribe` names (_tracked), those a `fire from`
+        # copies (_copied), and every task with `on:` actions (_ended, the union)
+        self._tracked: set = set()
+        self._copied: set = set()
+        self._ended: set = set()
         # Task instances running now, by task, which interrupt() reaches
         self._running: Dict[str, List[TaskRun]] = {}
         # The positional arguments a YAML task's function takes after its id
@@ -212,6 +221,8 @@ class SimulationContext:
         self._default_until: Any = None
         self._default_stop: Any = None
         self._default_drain: Any = None
+        self._default_unhandled: str = "continue"
+        self._on_unhandled_failure: str = "continue"
         # The run's end, entities in the model, and the drain state, set by start()
         self._until: Any = None
         self._end: Optional[simpy.Event] = None
@@ -257,6 +268,7 @@ class SimulationContext:
         context._default_until = run.until
         context._default_stop = run.stop
         context._default_drain = run.drain_setting()
+        context._default_unhandled = run.on_unhandled_failure
         context._before_run = list(run.before)
         context._repeat_hint = f"Repeat it with: desflow run {path} --seed {{seed}}"
         return context
@@ -818,6 +830,9 @@ class SimulationContext:
         on_interrupt: str = "resume",
         on_interrupt_next: Optional[str] = None,
         interrupt: Optional[Mapping[str, Any]] = None,
+        spawn: Optional[Mapping[str, Any]] = None,
+        subscribe: Optional[Mapping[str, Any]] = None,
+        on: Optional[List[Mapping[str, Any]]] = None,
     ) -> Callable:
         """
         Transforms a standard Python function into an event-driven SimPy task.
@@ -1019,6 +1034,9 @@ class SimulationContext:
             on_interrupt=on_interrupt,
             on_interrupt_next=on_interrupt_next,
             interrupt=interrupt,
+            spawn=None if spawn is None else _parse_spawn(spawn),
+            subscribe=None if subscribe is None else Wait(subscribe),
+            on=[_parse_on_action(entry) for entry in on or []],
         )
         router = Router(next)
 
@@ -1356,7 +1374,7 @@ class SimulationContext:
             raise RuntimeError("Cannot publish telemetry before context is run.")
         self._env.publish_telemetry(f"{self.sim_id}.{metric_name}", value)
 
-    def spawn(self, process: Any) -> simpy.Process:
+    def spawn(self, process: Any, delay: Optional[float] = None) -> simpy.Process:
         """
         Starts a generator as a SimPy process, such as a task instance.
 
@@ -1365,15 +1383,63 @@ class SimulationContext:
 
         Args:
             process: A generator, such as `pack_order(task_id, entity=entity)`.
+            delay: Seconds to wait before starting it, as SimPy's `start_delayed`.
+                None starts it now; a value of 0 or less is refused.
 
         Returns:
             simpy.Process: The process. Yield it to wait until it ends; its value is
                 what the generator returns, and `is_alive`, `triggered`, `ok` and
-                `value` inspect it, as in SimPy.
+                `value` inspect it, as in SimPy. With `delay` the returned process is
+                the helper whose value is the started process.
+
+        Raises:
+            ValueError: If `delay` is 0 or less, as SimPy's `start_delayed` does.
         """
         if not self._env:
             raise RuntimeError("Cannot spawn processes before context is run.")
-        return self._env.process(process)
+        if delay is None:
+            return self._env.process(process)
+        import simpy.util
+
+        return simpy.util.start_delayed(self._env, process, delay)
+
+    def subscribe(self, event: Any) -> None:
+        """
+        Asks to be interrupted when `event` happens, as SimPy's `subscribe_at`.
+
+        The calling process keeps running; when `event` fires it is interrupted one
+        urgent step later with the cause `{"event": name, "value": value}`, where
+        `name` is the process's name for a process and None for any other event.
+
+        Args:
+            event: Any SimPy event, a process included.
+
+        Raises:
+            RuntimeError: If called outside a process, or `event` has already
+                happened, as SimPy's `subscribe_at` refuses a processed event.
+        """
+        if not self._env:
+            raise RuntimeError("Cannot subscribe before context is run.")
+        subscriber = self._env.active_process
+        if subscriber is None:
+            raise RuntimeError("subscribe must be called from inside a process")
+        if event.processed:
+            raise RuntimeError("subscribe cannot be used for a processed event")
+        name = getattr(event, "name", None)
+
+        def signaller(signal: Any, receiver: Any):
+            try:
+                result = yield signal
+            except Exception as error:  # noqa: BLE001: the event failed
+                # Under `continue` the subscriber is told; under `stop` the failure
+                # is left undefused, so it stops the run as SimPy's does.
+                if getattr(self.env, "on_unhandled_failure", "stop") == "stop":
+                    raise
+                result = getattr(error, "reason", str(error))
+            if receiver.is_alive:
+                receiver.interrupt({"event": name, "value": result})
+
+        self._env.process(signaller(event, subscriber))
 
     def call(
         self,
@@ -1448,14 +1514,176 @@ class SimulationContext:
             kwargs or {},
             child=child,
         )
-        process = self.env.process(run.run())
-        if child:
-            # A child flow that fails with no task waiting for it ends that flow,
-            # not the run
+        generator = run.run()
+        # SimPy names a process after its generator's __name__; name it after the
+        # task, not `run`, so `active_process.name` and records read the task (P6).
+        generator.__name__ = spec.name  # type: ignore[attr-defined]
+        process = self.env.process(generator)
+        if child and self._on_unhandled_failure == "continue":
+            # Under `continue`, a child flow that fails with no task waiting for it
+            # ends that flow, not the run; under `stop` the failure stops the run.
             process.callbacks.append(_defuse)
         return process
 
-    def add_signal(self, name: str) -> "SimulationContext":
+    def _spawn_entity(
+        self,
+        task: str,
+        parent: Optional[Entity],
+        upstream: Optional[Upstream],
+        after: Optional[float],
+    ) -> simpy.Process:
+        """Starts `task` as the first task of a new entity, keyed `<task>-n`, with
+        `parent` as its `spawned_by` and `attr.parent` the parent's key.
+
+        Without `after` the entity is made and counted in now; with `after` a wrapper
+        named after the task makes and counts it in when the task starts, built with
+        SimPy's `start_delayed` so the events order as SimPy's.
+        """
+        parent_key = parent.key if parent is not None else None
+
+        def make() -> Any:
+            entity = self._new_entity(task, ({"parent": parent_key}, None))
+            entity.spawned_by = parent
+            entity.entered = True
+            self._entity_entered(entity)
+            run = TaskRun(
+                self,
+                self._task_specs[task],
+                self.next_instance(task),
+                entity,
+                upstream,
+                self._task_args,
+                {},
+                child=False,
+            )
+            gen = run.run()
+            gen.__name__ = task  # type: ignore[attr-defined]
+            return gen
+
+        if after is None:
+            return self.env.process(make())
+
+        def wrapper() -> Any:
+            return (yield from make())
+
+        delayed = wrapper()
+        delayed.__name__ = task  # type: ignore[attr-defined]
+        import simpy.util
+
+        return simpy.util.start_delayed(self.env, delayed, after)
+
+    def _fire_signal(
+        self, name: str, ok: bool, value: Any, entity: Optional[Entity]
+    ) -> None:
+        """Fires or fails a signal through one path, counting its `on:` actions
+        against `entity` so a drain waits for them.
+
+        When the firing is new, the signal has `on:` actions, and `entity` has not
+        left, 1 is added to `entity.ends_pending` and the entity is stored on the
+        pending event, so the signal's last callback counts it back out.
+        """
+        signal = self._signals[name]
+        pending = signal.wait()
+        if (
+            not pending.triggered
+            and self._signal_on.get(name)
+            and entity is not None
+            and not entity.left
+        ):
+            entity.ends_pending += 1
+            pending._desflow_entity = entity  # type: ignore[attr-defined]
+        if ok:
+            signal.fire(value)
+        else:
+            signal.fail(value)
+
+    def _signal_fired(self, name: str, event: Any) -> None:
+        """The signal's last `on:` callback: runs its actions, then counts the firing
+        task's entity out, as a pending `ended` is counted out."""
+        entity = getattr(event, "_desflow_entity", None)
+        for action in self._signal_on.get(name, []):
+            self._run_on_action(action, f"signal '{name}'", entity, None)
+        if entity is not None:
+            self._end_processed(entity)
+
+    def _end_processed(self, entity: Entity, _event: Any = None) -> None:
+        """Takes 1 from `entity.ends_pending`; when it reaches 0 and the flow has
+        ended, counts the entity out."""
+        entity.ends_pending -= 1
+        if entity.ends_pending == 0 and entity.ending:
+            self._entity_left(entity)
+
+    def _run_on_action(
+        self,
+        action: Dict[str, Any],
+        owner: str,
+        entity: Optional[Entity],
+        upstream: Optional[Upstream],
+    ) -> None:
+        """Runs one `on:` action: fire a signal, spawn a new entity, interrupt a
+        task, or set a registry value. `owner` labels the action for a warning,
+        `entity` is the entity it runs for, and `upstream` is what a spawn hands on.
+        """
+        if "fire" in action:
+            spec = action["fire"]
+            copied = self._copy_outcome(spec, entity)
+            if copied is None:
+                logger.warning(
+                    "the on: action of %s fires '%s' from '%s', which has nothing "
+                    "to copy yet; it fires nothing",
+                    owner,
+                    spec["signal"],
+                    spec["from"],
+                )
+                return
+            ok, value = copied
+            self._fire_signal(spec["signal"], ok, value, entity)
+        elif "spawn" in action:
+            spec = action["spawn"]
+            self._spawn_entity(spec["task"], entity, upstream, spec["after"])
+        elif "interrupt" in action:
+            spec = action["interrupt"]
+            where = spec.get("where")
+            self.interrupt(
+                spec["task"],
+                where=Expression(where) if isinstance(where, str) else where,
+                cause=spec.get("cause"),
+            )
+        else:
+            apply_step(self.env, action["path"], action["value"])
+
+    def _copy_outcome(
+        self, fire: Dict[str, Any], entity: Optional[Entity]
+    ) -> Optional[Tuple[bool, Any]]:
+        """The outcome a `fire` action fires with: its literal `value`, or the
+        outcome `from` copies from a signal or a task. None when there is nothing to
+        copy (a signal not fired, a task with no ended instance, or no entity)."""
+        source = fire["from"]
+        if source is None:
+            return True, fire["value"]
+        if source in self._signals:
+            signal = self._signals[source]
+            if signal.ok is None:
+                return None
+            return signal.ok, signal.value
+        # a task: copy its last-ended instance on this entity
+        if (
+            entity is None
+            or entity.last_ended is None
+            or source not in entity.last_ended
+        ):
+            return None
+        event = entity.last_ended[source]
+        if event.ok:
+            return True, event.value
+        return False, getattr(event.value, "reason", event.value)
+
+    def add_signal(
+        self,
+        name: str,
+        once: bool = False,
+        on: Optional[List[Mapping[str, Any]]] = None,
+    ) -> "SimulationContext":
         """
         Declares a signal that tasks fire and wait for.
 
@@ -1465,12 +1693,19 @@ class SimulationContext:
 
         Args:
             name: The signal's name.
+            once: When True the signal fires once, as SimPy's `Event` does: it does
+                not re-arm, a wait after the firing resumes at once, and a second
+                firing is refused.
+            on: Actions run when the signal fires, each a mapping with one of `fire`,
+                `spawn`, `interrupt` or `path`, as a task's `on` takes them.
 
         Returns:
             SimulationContext: The current instance for method chaining.
         """
         if name not in self._signal_names:
             self._signal_names.append(name)
+        self._signal_once[name] = once
+        self._signal_on[name] = [_parse_on_action(entry) for entry in on or []]
         return self
 
     def signal(self, name: str) -> Signal:
@@ -1564,7 +1799,13 @@ class SimulationContext:
             variables=self._variables_config,
         )
 
-    def run(self, until: Any = None, stop: Any = None, drain: Any = None) -> None:
+    def run(
+        self,
+        until: Any = None,
+        stop: Any = None,
+        drain: Any = None,
+        on_unhandled_failure: Optional[str] = None,
+    ) -> None:
         """
         Compiles the defined infrastructure architecture and triggers the simulation loop.
 
@@ -1592,7 +1833,7 @@ class SimulationContext:
             ValueError: If a task's `next`, `priority`, `get` or `put` names something
                 the context does not define, or `stop` or `drain` is malformed.
         """
-        self.start(until, stop, drain)
+        self.start(until, stop, drain, on_unhandled_failure=on_unhandled_failure)
         self.finish()
 
     def finish(self) -> None:
@@ -1624,6 +1865,7 @@ class SimulationContext:
         egress: bool = True,
         ingress: bool = True,
         run_settings: bool = True,
+        on_unhandled_failure: Optional[str] = None,
     ) -> DynamicRealtimeEnvironment:
         """
         Builds and starts everything `run()` does before the clock moves.
@@ -1672,6 +1914,11 @@ class SimulationContext:
             stop = self._default_stop
         if drain is None and run_settings:
             drain = self._default_drain
+        if on_unhandled_failure is None:
+            on_unhandled_failure = (
+                self._default_unhandled if run_settings else "continue"
+            )
+        self._on_unhandled_failure = on_unhandled_failure
         # Read before any connector starts its thread, so a bad value stops the run
         # with nothing to tear down
         if isinstance(until, str):
@@ -1740,6 +1987,7 @@ class SimulationContext:
             env_kwargs["go_live_at"] = self.go_live_at
         if self.timezone is not None:
             env_kwargs["timezone"] = self.timezone
+        env_kwargs["on_unhandled_failure"] = self._on_unhandled_failure
         self._env = DynamicRealtimeEnvironment(**env_kwargs)
 
         # One random sequence per distribution, all from the run's seed
@@ -1769,7 +2017,15 @@ class SimulationContext:
             # Without sinks nothing receives a publication, so no timer runs and
             # the statistics are read at the end
             self._env.stats.configure(self.sim_id, level, self._stats_interval)
-        self._signals = {name: Signal(self._env, name) for name in self._signal_names}
+        self._signals = {
+            name: Signal(self._env, name, once=self._signal_once.get(name, False))
+            for name in self._signal_names
+        }
+        for name, actions in self._signal_on.items():
+            if actions:
+                self._signals[name].attach(
+                    [functools.partial(self._signal_fired, name)]
+                )
         self._replay_rows = {
             name: read_trace(
                 **spec,
@@ -1999,8 +2255,15 @@ class SimulationContext:
         self.env.stats.flow_started(entity.arrival)
 
     def _entity_left(self, entity: Entity) -> None:
-        """Counts an entity out; a drain ends when the last one leaves."""
+        """Counts an entity out; a drain ends when the last one leaves.
+
+        It drops the entity's instance lists, so a live run keeps lists only for
+        entities still in the model and a `running` branch reads None as no instance.
+        """
         self._in_system -= 1
+        entity.instances = None
+        entity.spawned_by = None
+        entity.last_ended = None
         if self._draining and self._in_system == 0 and self._finish_run is not None:
             self._finish_run()
 
@@ -2009,8 +2272,115 @@ class SimulationContext:
         yield self.env.timeout(warmup)
         self.env.stats.reset()
 
+    def _build_end_sets(self) -> None:
+        """Fills `_tracked`, `_copied` and `_ended` and checks the `spawn` and `on:`
+        names, so a task knows at build time whether its instances need an end event.
+        """
+        self._tracked = set()
+        self._copied = set()
+        has_on = set()
+        arrivals = set(self._arrival_entities)
+
+        def fire_sources(actions: Iterable[Mapping[str, Any]]) -> Iterable[str]:
+            for action in actions:
+                source = (
+                    action.get("fire", {}).get("from") if "fire" in action else None
+                )
+                if source is not None:
+                    yield source
+
+        def check_spawn(task: str, owner: str, spawned: str) -> None:
+            if spawned not in self._task_specs:
+                raise ValueError(
+                    f"{owner} spawns task '{spawned}', "
+                    + _not_added(spawned, self._task_specs, "@app.task()")
+                )
+            if spawned in arrivals:
+                raise ValueError(
+                    f"task '{spawned}', which {owner} spawns, has the name of arrival "
+                    f"'{spawned}'; rename the task or the arrival, because their flow "
+                    f"statistics and entity numbers would merge"
+                )
+
+        def check_action(name: str, action: Mapping[str, Any], owner: str) -> None:
+            if "spawn" in action:
+                check_spawn(name, owner, action["spawn"]["task"])
+            if "interrupt" in action:
+                target = action["interrupt"]["task"]
+                if target not in self._task_specs:
+                    raise ValueError(
+                        f"the on: action of {owner} interrupts task '{target}', "
+                        + _not_added(target, self._task_specs, "@app.task()")
+                    )
+            if "fire" in action:
+                signal = action["fire"]["signal"]
+                if signal not in self._signal_names:
+                    raise ValueError(
+                        f"the on: action of {owner} fires signal '{signal}', "
+                        + _not_added(
+                            signal, self._signal_names, f"add_signal('{signal}')"
+                        )
+                    )
+                if action["fire"]["from"] is not None:
+                    check_from(action["fire"]["from"], owner)
+
+        def check_from(source: str, owner: str) -> None:
+            is_signal = source in self._signal_names
+            is_task = source in self._task_specs
+            if is_signal and is_task:
+                raise ValueError(
+                    f"the on: action of {owner} fires from '{source}', which is both "
+                    f"a signal and a task; rename one"
+                )
+            if not is_signal and not is_task:
+                raise ValueError(
+                    f"the on: action of {owner} fires from '{source}', which is "
+                    f"neither a signal nor a task"
+                )
+
+        for name, spec in self._task_specs.items():
+            owner = f"task '{name}'"
+            if spec.wait is not None:
+                self._tracked |= spec.wait.targets("running")
+            if spec.subscribe is not None:
+                self._tracked |= spec.subscribe.targets("running")
+                for target in spec.subscribe.targets("task"):
+                    if target not in self._task_specs:
+                        raise ValueError(
+                            f"task '{name}' subscribes to task '{target}', "
+                            + _not_added(target, self._task_specs, "@app.task()")
+                        )
+                for target in spec.subscribe.targets("signal"):
+                    if target not in self._signal_names:
+                        raise ValueError(
+                            f"task '{name}' subscribes to signal '{target}', "
+                            + _not_added(
+                                target, self._signal_names, f"add_signal('{target}')"
+                            )
+                        )
+            if spec.on:
+                has_on.add(name)
+            if spec.spawn is not None:
+                check_spawn(name, owner, spec.spawn["task"])
+            for action in spec.on:
+                check_action(name, action, owner)
+            for source in fire_sources(spec.on):
+                if source in self._task_specs:
+                    self._copied.add(source)
+
+        for name, actions in self._signal_on.items():
+            owner = f"signal '{name}'"
+            for action in actions:
+                check_action(name, action, owner)
+            for source in fire_sources(actions):
+                if source in self._task_specs:
+                    self._copied.add(source)
+
+        self._ended = self._tracked | self._copied | has_on
+
     def _check_tasks(self) -> None:
         """Checks what each task names, before the clock or any connector starts."""
+        self._build_end_sets()
         if self._scenario_steps:
             known = SimulationRegistry(simpy.Environment())
             known.register_sim_parameter(self.compile_parameters())
@@ -2228,6 +2598,64 @@ def _defuse(event: Any) -> None:
     flow and not the run, as the builder and YAML treat every task failure."""
     if not event.ok:
         event.defused = True
+
+
+def _parse_spawn(spec: Mapping[str, Any]) -> Dict[str, Any]:
+    """Checks a `spawn:` key or spawn action and returns `{task, after}`."""
+    if not isinstance(spec, Mapping):
+        raise ValueError(f"a spawn is a mapping with a task, got {spec!r}")
+    extra = set(spec) - {"task", "after"}
+    if extra:
+        raise ValueError(
+            f"a spawn takes task and after, not {', '.join(sorted(extra))}"
+        )
+    task = spec.get("task")
+    if not isinstance(task, str):
+        raise ValueError(f"a spawn names a task, got {task!r}")
+    after = spec.get("after")
+    if isinstance(after, str):
+        after = time_to_seconds(after)
+    if isinstance(after, bool):
+        raise ValueError(f"a spawn after is seconds or a duration, got {after!r}")
+    if after is not None and not after > 0:
+        raise ValueError(f"a spawn after is more than 0, got {after:g}")
+    return {"task": task, "after": after}
+
+
+def _parse_on_action(entry: Mapping[str, Any]) -> Dict[str, Any]:
+    """Checks one `on:` action and returns it normalized: `{fire: {signal, value,
+    from}}`, `{spawn: {task, after}}`, `{interrupt: {...}}` or `{path, value}`."""
+    if not isinstance(entry, Mapping):
+        raise ValueError(f"an on: action is a mapping, got {entry!r}")
+    present = [
+        k for k in ("fire", "spawn", "interrupt", "path") if entry.get(k) is not None
+    ]
+    if len(present) != 1:
+        raise ValueError(
+            "an on: action takes exactly one of fire, spawn, interrupt or path"
+        )
+    kind = present[0]
+    if kind == "fire":
+        fire = dict(entry["fire"])
+        signal = fire.get("signal")
+        if not isinstance(signal, str):
+            raise ValueError(f"a fire action names a signal, got {signal!r}")
+        value, source = fire.get("value"), fire.get("from")
+        if value is not None and source is not None:
+            raise ValueError("a fire action takes value or from, not both")
+        return {"fire": {"signal": signal, "value": value, "from": source}}
+    if kind == "spawn":
+        return {"spawn": _parse_spawn(entry["spawn"])}
+    if kind == "interrupt":
+        action = dict(entry["interrupt"])
+        if "task" not in action or set(action) - {"task", "where", "cause"}:
+            raise ValueError(
+                "an interrupt action takes a task, and an optional where and cause"
+            )
+        if action.get("where") is not None:
+            Expression(action["where"])
+        return {"interrupt": action}
+    return {"path": entry["path"], "value": entry.get("value")}
 
 
 def _seconds(value: Union[float, str]) -> float:

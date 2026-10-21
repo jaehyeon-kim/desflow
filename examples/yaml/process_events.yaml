@@ -1,0 +1,70 @@
+# Process events: a one-shot signal, a spawn after a delay, a subscribe and an on: action, in YAML.
+#
+# The twin of examples/builder/process_events_example.py. A guard starts an alarm
+# round and is told when it ends (subscribe); a packed order fires the ready signal
+# from its own payload (on: with fire ... from), which a shipper waiting for it reads;
+# and closing time fires the one-shot closing signal, whose on: spawns a sweep one
+# second later (spawn with after). The arrival gaps are set so each happens once.
+#
+# Needs no containers. Runs unpaced and ends after 12 simulation seconds.
+# Run it from its folder with: desflow run process_events.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+egress:
+  - type: Console
+
+services:
+  packing: {dist: constant, value: 2 s}
+  alarming: {dist: constant, value: 2 s}
+  sweeping: {dist: constant, value: 1 s}
+  guarding: {dist: constant, value: 100 s}
+
+# --8<-- [start:events]
+signals:
+  # A plain signal re-arms; the one-shot closing fires once and spawns a sweep
+  ready: {}
+  closing:
+    once: true
+    on:
+      - spawn: {task: sweep, after: 1 s}
+
+arrivals:
+  orders: {dist: constant, value: 6, spawn: pack}
+  shippers: {dist: constant, value: 7, spawn: ship}
+  closers: {dist: constant, value: 9, spawn: close}
+  guards: {dist: constant, value: 8, spawn: guard}
+
+tasks:
+  # A packed order fires ready from its own finished payload; a shipper reads it
+  pack:
+    service: packing
+    payload: {event_type: order_packed}
+    on:
+      - fire: {signal: ready, from: pack}
+  ship:
+    wait: {signal: ready}
+    payload: {event_type: order_shipped}
+  # Fires the one-shot closing when the shop closes
+  close:
+    signal: closing
+    payload: {event_type: shop_closed}
+  sweep:
+    service: sweeping
+    payload: {event_type: floor_swept}
+  # The guard starts an alarm round and is interrupted when it ends
+  guard:
+    service: guarding
+    subscribe: {task: alarm}
+    on_interrupt: abandon
+    payload: {event_type: shift_done}
+  alarm:
+    service: alarming
+    payload: {event_type: alarm_rang}
+# --8<-- [end:events]
+
+run:
+  until: 12

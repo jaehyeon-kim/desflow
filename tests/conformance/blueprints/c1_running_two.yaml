@@ -1,0 +1,18 @@
+# Two charge instances run on one car; the driver's running wait resumes when both
+# end, at 6, with a mapping from instance id to payload. See test_c1_processes.py.
+simulation:
+  sim_id: C1
+  factor: 0
+services:
+  charging: {dist: constant, value: 6}
+tasks:
+  charge:
+    service: charging
+    payload: {event: charged}
+  driver:
+    wait: {running: {task: charge}}
+    payload: {event: drove}
+processes:
+  - !python tests.conformance.batch2_scripts.two_charges
+run:
+  until: 10

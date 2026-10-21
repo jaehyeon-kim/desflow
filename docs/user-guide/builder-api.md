@@ -178,11 +178,12 @@ if __name__ == "__main__":
 
 ## Errors and Limits
 
-A mistake stops the script before the clock starts. A method raises `ValueError` when it is called with a value it cannot take: a distribution parameter out of range or one its family does not take, an unknown queue order, a task with a resource but no service, a priority without a resource, an unknown `on_interrupt`, or a second task with the same name. `run()` then checks what each task names, before the clock or any connector starts, and raises `ValueError` for a resource, service, store, container, signal or task that was not added, a priority on a resource that does not queue by priority, two tasks that acquire resources in opposite orders, and a `level.<name>`, `signal.<name>`, `wait.<branch>` or `registry["..."]` that an expression reads but that does not exist.
+A mistake stops the script before the clock starts. A method raises `ValueError` when it is called with a value it cannot take: a distribution parameter out of range or one its family does not take, an unknown queue order, a task with a resource but no service, a priority without a resource, an unknown `on_interrupt`, a second task with the same name, a `spawn` with an `after` of 0 or less, or a `fire` action given both `value` and `from`. `run()` then checks what each task names, before the clock or any connector starts, and raises `ValueError` for a resource, service, store, container, signal or task that was not added, a priority on a resource that does not queue by priority, two tasks that acquire resources in opposite orders, a spawned task that shares an arrival's name, a `fire` action's `from` that names both a signal and a task or neither, and a `level.<name>`, `signal.<name>`, `wait.<branch>` or `registry["..."]` that an expression reads but that does not exist.
 
 The builder's limits are those of its tasks and its resources:
 
 - **Resources are fixed when the run starts.** `run()` creates every resource, store and container before the clock starts, and has no call to add one later; [Dynamic Topology](../guides/dynamic-topology.md) adds one with the low-level API.
+- **A subscribe refuses a processed event.** `context.subscribe(event)` raises `RuntimeError` when the event has already happened, or when it is called outside a process.
 
 ---
 

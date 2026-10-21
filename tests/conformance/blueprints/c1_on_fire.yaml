@@ -1,0 +1,25 @@
+# measure finishes at 2 and its on: action fires ready from itself, copying its
+# payload; watcher resumes and routes to noted. See test_c1_events.py.
+simulation:
+  sim_id: C1
+  factor: 0
+services:
+  measuring: {dist: constant, value: 1}
+signals: [ready]
+tasks:
+  measure:
+    service: measuring
+    payload: {grade: A}
+    on:
+      - fire: {signal: ready, from: measure}
+  watcher:
+    wait: {signal: ready}
+    payload: {event: seen}
+    next:
+      when: [{condition: wait.ready.value.grade == "A", task: noted}]
+  noted:
+    payload: {event: noted}
+processes:
+  - !python tests.conformance.batch2_scripts.on_fire_model
+run:
+  until: 6

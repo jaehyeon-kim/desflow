@@ -1,0 +1,27 @@
+# The charge (1 s) ends at 2, and the driver starts after a 3 s hold, at 4, so its
+# running wait resumes at once with the ended value. See test_c1_processes.py.
+simulation:
+  sim_id: C1
+  factor: 0
+services:
+  charging: {dist: constant, value: 1}
+  holding: {dist: constant, value: 3}
+tasks:
+  start:
+    spawn: {task: charge}
+    payload: {event: started}
+    next: hold
+  charge:
+    service: charging
+    payload: {event: charged}
+  hold:
+    service: holding
+    payload: {event: held}
+    next: driver
+  driver:
+    wait: {running: {task: charge}}
+    payload: {event: drove}
+processes:
+  - !python tests.conformance.batch2_scripts.one_start
+run:
+  until: 10

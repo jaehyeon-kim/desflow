@@ -14,7 +14,7 @@ from pydantic_core import to_jsonable_python
 
 from simpy import Environment, RealtimeEnvironment
 
-from desflow.config import DEFAULT_STATS_INTERVAL
+from desflow.config import DEFAULT_STATS_INTERVAL, UNHANDLED_FAILURE_POLICIES
 from desflow.core.registry import SimulationRegistry
 from desflow.core.statistics import Statistics
 
@@ -873,6 +873,7 @@ class DynamicRealtimeEnvironment(
         logical_start_time: Optional[datetime] = None,
         go_live_at: Optional[datetime] = None,
         timezone: Optional[str] = None,
+        on_unhandled_failure: str = "stop",
     ):
         """
         Initializes the real-time simulation environment.
@@ -893,14 +894,25 @@ class DynamicRealtimeEnvironment(
                 offset. By default the zone of `logical_start_time`, or UTC. A
                 `logical_start_time` or `go_live_at` without an offset is read in it,
                 and the default start is now in it.
+            on_unhandled_failure (str, optional): `stop` or `continue`. Under `stop`
+                a one-shot signal failure that nobody waits for raises `SignalFailed`
+                and stops the run. Under `continue` it is defused and the run goes on.
+                Defaults to `stop`.
 
         The clock runs in UTC, so a daylight-saving change in the zone never adds or
         drops simulation time. An instant at or before the start of the run makes the
         whole run real time, which is the degenerate case of the same rule.
 
         Raises:
-            ValueError: If `timezone` is not an IANA time zone name.
+            ValueError: If `timezone` is not an IANA time zone name, or
+                `on_unhandled_failure` is not `stop` or `continue`.
         """
+        if on_unhandled_failure not in UNHANDLED_FAILURE_POLICIES:
+            raise ValueError(
+                "on_unhandled_failure must be one of "
+                + ", ".join(UNHANDLED_FAILURE_POLICIES)
+            )
+        self.on_unhandled_failure = on_unhandled_failure
         self.zone: tzinfo = resolve_zone(timezone, logical_start_time)
         # The custom time, or the moment the script runs, in the run's zone
         self.start_datetime = (

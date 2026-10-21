@@ -118,6 +118,12 @@ def test_tasks_spawned_from_an_arrival_publish_the_payload(tmp_path):
             17,
             "tasks.part.patiense: unknown key 'patiense'; did you mean 'patience'?",
         ),
+        (
+            "    id_field: order_id",
+            "    id_field: order_id\n    spawn: {task: part, after: 0}",
+            17,
+            "a spawn after is more than 0, got 0",
+        ),
         ("run:", "storez: {}\nrun:", 17, "did you mean 'stores'?"),
         ("until: 30", "until: 30\n  zzz: 1", 19, "this place takes before, drain"),
     ],

@@ -14,6 +14,7 @@ compared with `==` or `!=`. Each name carries its source as a prefix:
 | `item.size` | the field `size` of the item a store `get` took, or in a get's `filter` the item it is offered |
 | `wait.restock.done`, `.ok`, `.value`, `.value.qty` | whether the task's `wait` branch `restock` happened before the wait ended, whether it succeeded, and its value or a field of it |
 | `signal.restocked.count`, `.ok`, `.value` | how many times the signal `restocked` has fired, whether its last firing succeeded, and its value |
+| `process.name`, `.instance`, `.target` | the running task's name, its instance id, and what it waits on now (`timeout`, `signal.<n>`, `task.<n>`, `condition`, `resource.<n>`, `get.<n>`, `put.<n>`, `service`), None once ended |
 | `registry["Shop.arrival.orders.rate"]` | a registry value, by path |
 | `t` | the simulation time in seconds |
 """
@@ -23,6 +24,8 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Mapping, Optional, Set, Tuple
 
 _PREFIXES = ("payload", "attr", "level", "item")
+# A two-part source with a fixed set of attributes, unlike the open `_PREFIXES`.
+_PROCESS = ("name", "instance", "target")
 _ARITHMETIC: Dict[type, Callable[[Any, Any], Any]] = {
     ast.Add: lambda a, b: a + b,
     ast.Sub: lambda a, b: a - b,
@@ -90,6 +93,8 @@ class Scope:
         waits: The task's `wait` branches by name, each a mapping of `done`, `ok`
             and `value`, read as `wait.<branch>.<part>`.
         signals: Signals by name, read as `signal.<name>.<part>`.
+        process: The running task's `name`, `instance` and `target`, read as
+            `process.<part>`.
     """
 
     payload: Mapping[str, Any] = field(default_factory=dict)
@@ -100,6 +105,7 @@ class Scope:
     item: Optional[Mapping[str, Any]] = None
     waits: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
     signals: Mapping[str, Any] = field(default_factory=dict)
+    process: Mapping[str, Any] = field(default_factory=dict)
 
 
 class Expression:
@@ -138,6 +144,7 @@ class Expression:
             "item": set(),
             "wait": set(),
             "signal": set(),
+            "process": set(),
             "registry": set(),
         }
         self._check(tree.body, strings=False)
@@ -182,9 +189,17 @@ class Expression:
             raise self._refuse(
                 f"the name '{node.id}' (write payload.<field>, attr.<name>, "
                 f"level.<name>, item.<field>, wait.<branch>.<part>, "
-                f'signal.<name>.<part>, registry["<path>"] or t)'
+                f'signal.<name>.<part>, process.<name>, registry["<path>"] or t)'
             )
         if isinstance(node, ast.Attribute):
+            if isinstance(node.value, ast.Name) and node.value.id == "process":
+                if node.attr not in _PROCESS:
+                    raise self._refuse(
+                        f"'process.{node.attr}' (write process."
+                        f"{', process.'.join(_PROCESS)})"
+                    )
+                self.references["process"].add(node.attr)
+                return
             nested = _nested(node)
             if nested is not None:
                 source, parts = nested
@@ -206,7 +221,7 @@ class Expression:
                 self.references[node.value.id].add(node.attr)
                 return
             raise self._refuse(
-                "an attribute that is not payload., attr., level. or item."
+                "an attribute that is not payload., attr., level., item. or process."
             )
         if isinstance(node, ast.Subscript):
             index = node.slice
@@ -255,6 +270,10 @@ class Expression:
         if isinstance(node, ast.Name):
             return scope.now
         if isinstance(node, ast.Attribute):
+            if isinstance(node.value, ast.Name) and node.value.id == "process":
+                if node.attr not in scope.process:
+                    raise KeyError(f"the process has no '{node.attr}'")
+                return scope.process[node.attr]
             nested = _nested(node)
             if nested is not None:
                 return _read_nested(scope, *nested)

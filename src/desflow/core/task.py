@@ -10,6 +10,7 @@ context keeps the decorator and the checks made before the clock starts.
 
 from __future__ import annotations
 
+import functools
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 from simpy import Interrupt
@@ -79,6 +80,9 @@ class TaskSpec:
         on_interrupt: str = "resume",
         on_interrupt_next: Optional[str] = None,
         interrupt: Optional[Dict[str, Any]] = None,
+        spawn: Optional[Dict[str, Any]] = None,
+        subscribe: Optional[Wait] = None,
+        on: Optional[List[Dict[str, Any]]] = None,
     ):
         self.name = name
         self.service_id = service_id
@@ -92,6 +96,11 @@ class TaskSpec:
         self.on_interrupt = on_interrupt
         self.on_interrupt_next = on_interrupt_next
         self.interrupt = interrupt
+        # Start a new entity on success (`spawn:` key); subscribe to an event; run
+        # `on:` actions on every end. `on` is a list of normalized action mappings.
+        self.spawn = spawn
+        self.subscribe = subscribe
+        self.on: List[Dict[str, Any]] = list(on or [])
         self.interrupt_where = (
             Expression(interrupt["where"])
             if interrupt is not None and interrupt.get("where") is not None
@@ -175,6 +184,8 @@ class TaskRun:
         self._pending: Any = None
         # The child flows a `{task}` wait started, by branch, kept for a resume
         self._children: Dict[str, Any] = {}
+        # The exception a task function raised, to chain the TaskFailed it causes
+        self._fail_error: Optional[BaseException] = None
         # Units won by a `request` wait branch, held through the service and given
         # back when the task ends, as a `resource:` unit is
         self._wait_held: List[Any] = []
@@ -184,6 +195,35 @@ class TaskRun:
         # The patience still to use, and when the current wait began
         self._patience_left: Optional[float] = None
         self._patience_since: Optional[float] = None
+        # What the instance waits on now, read as `process.target`; None once ended
+        self._target: Optional[str] = None
+        # The instance's end event (for `on:`, `running`, `subscribe`), and the
+        # Upstream it hands on for that end; both None when nothing reads the end
+        self.ended: Any = None
+        self.outcome: Optional[Upstream] = None
+        # The running instances a `running` branch selected, by branch name, kept
+        # so the branch's value reads their end events after the wait
+        self._running_runs: Dict[str, List["TaskRun"]] = {}
+        # An instance whose task needs an end event (for `running`, `subscribe`, a
+        # `fire from`, or its own `on:` actions) gets one, defused so its failure
+        # stops the run only through the task process.
+        if spec.name in context._ended:
+            make_event = getattr(self.env, "internal_event", self.env.event)
+            self.ended = make_event()  # type: ignore[misc]
+            self.ended.defused = True
+            for action in spec.on:
+                self.ended.callbacks.append(
+                    functools.partial(self._run_end_action, action)
+                )
+            if not child:
+                # Count one pending end against the entity, taken back when the end
+                # event is processed, so a drain waits for the `on:` actions.
+                entity.ends_pending += 1
+                self.ended.callbacks.append(
+                    functools.partial(context._end_processed, entity)
+                )
+        if spec.name in context._tracked:
+            self._list_instance()
 
     # ------------------------------------------------------------------ records
 
@@ -233,7 +273,115 @@ class TaskRun:
             item=self.item,
             waits=self.waits,
             signals=self.context._signals,
+            process={
+                "name": self.spec.name,
+                "instance": self.task_id,
+                "target": self._target,
+            },
         )
+
+    # ----------------------------------------------------------- end event
+
+    def _list_instance(self) -> None:
+        """Lists this instance under its task on its entity, and on the entity that
+        spawned it while that entity's flow has not ended, for a `running` wait."""
+        if self.entity.left:
+            return
+        if self.entity.instances is None:
+            self.entity.instances = {}
+        self.entity.instances.setdefault(self.spec.name, []).append(self)
+        parent = self.entity.spawned_by
+        if parent is not None and not parent.ending:
+            if parent.instances is None:
+                parent.instances = {}
+            parent.instances.setdefault(self.spec.name, []).append(self)
+
+    def _set_ended(self, outcome: Optional[Upstream], ok: bool, result: Any) -> None:
+        """Sets `outcome` and triggers the end event, if this instance has one and it
+        has not been triggered. A success carries the finished payload or None; a
+        failure carries the exception a waiter receives."""
+        if self.ended is None:
+            return
+        self.outcome = outcome
+        if self.ended.triggered:
+            return
+        self._record_last_ended()
+        if ok:
+            self.ended.succeed(result)
+        else:
+            self.ended.fail(result)
+
+    def _record_last_ended(self) -> None:
+        """Records this instance as the last-ended of its task on its entity, for a
+        `fire from` that copies it, unless the entity has left."""
+        if self.spec.name in self.context._copied and not self.entity.left:
+            if self.entity.last_ended is None:
+                self.entity.last_ended = {}
+            self.entity.last_ended[self.spec.name] = self.ended
+
+    def _end_default(self, ok: bool, error: Any = None) -> None:
+        """Triggers the end event for a balk, a renege or an error, when no other end
+        triggered it: a success with None, or a failure with the error."""
+        if self.ended is None or self.ended.triggered:
+            return
+        self._record_last_ended()
+        if ok:
+            self.ended.succeed(None)
+        else:
+            self.ended.fail(error)
+
+    def _run_end_action(self, action: Dict[str, Any], _event: Any = None) -> None:
+        """Runs one of the task's `on:` actions when its end event is processed."""
+        self.context._run_on_action(
+            action, f"task '{self.spec.name}'", self.entity, self.outcome
+        )
+
+    def _running_event(self, node: Any) -> Any:
+        """The `AllOf` of the end events of a `running` branch's selected instances:
+        the task's instances on this entity and the entities it spawned, ended ones
+        included, skipping this instance, each narrowed by `where` in its scope."""
+        target = node.target
+        where = target["where"]
+        selected = [
+            run
+            for run in (self.entity.instances or {}).get(target["task"], [])
+            if run is not self
+            and run.ended is not None
+            and (where is None or where.evaluate(run.scope()))
+        ]
+        self._running_runs[node.name] = selected
+        return self.env.all_of([run.ended for run in selected])
+
+    def _running_value(self, node: Any, done: bool) -> Any:
+        """A `running` branch's value: the one instance's payload, a mapping of id to
+        payload for several in start order, or an empty mapping when none matched."""
+        if not done:
+            return None
+        selected = self._running_runs.get(node.name, [])
+        if not selected:
+            return {}
+        if len(selected) == 1:
+            return selected[0].ended.value
+        return {run.task_id: run.ended.value for run in selected}
+
+    def _subscribe_event(self, wait: Wait) -> Any:
+        """The event a `subscribe:` key subscribes the instance to: a child flow for
+        a task branch, a signal's firing, or the running instances of a task."""
+        node = wait.root
+        if node.kind == "task":
+            return self.context._start(
+                node.target,
+                self.entity,
+                self.upstream,
+                child=True,
+                args=self.args,
+                kwargs=self.kwargs,
+            )
+        if node.kind == "signal":
+            return self.context._signals[node.target].wait()
+        if node.kind == "running":
+            return self._running_event(node)
+        raise ValueError(f"subscribe does not take a {node.kind} branch")
 
     # --------------------------------------------------------------------- run
 
@@ -248,11 +396,38 @@ class TaskRun:
         running.append(self)
         if not self.child and not self.entity.entered:
             self.entity.entered = True
+            # A spawn without `after` has already counted the entity in; the first
+            # instance of any other entity counts it in here.
             self.context._entity_entered(self.entity)
         try:
-            return (yield from self._run())
+            result = yield from self._run()
+        except BaseException as error:
+            # An error ends the instance: the end event fails with it, so a waiter
+            # receives it. The run still raises, as before.
+            self._end_default(ok=False, error=error)
+            raise
         finally:
+            self._target = None
             self._stop_running()
+        # A balk or a renege returns with the end event not yet triggered: it
+        # succeeds with None, so a `running` waiter resumes with no value.
+        self._end_default(ok=True)
+        return result
+
+    @staticmethod
+    def _target_label(node: Any) -> Optional[str]:
+        """What `process.target` reads for a wait node: None for a group."""
+        if node.is_group:
+            return None
+        if node.kind in ("signal", "task"):
+            return f"{node.kind}.{node.target}"
+        if node.kind == "request":
+            return f"resource.{node.target}"
+        if node.kind in ("get", "put"):
+            return f"{node.kind}.{node.target.target}"
+        if node.kind == "running":
+            return f"task.{node.target['task']}"
+        return node.kind  # timeout or condition
 
     def _stop_running(self) -> None:
         running = self.context._running.get(self.spec.name, [])
@@ -264,8 +439,17 @@ class TaskRun:
         if spec.balk_of is not None and spec.balk_of.evaluate(self.scope()):
             self.publish(self.status("balked"))
             stats.task_balked(spec.name, self.task_id)
+            self.outcome = Upstream(
+                self.task_id,
+                self.entity.key,
+                self.entity.attributes,
+                self.status("balked"),
+            )
             self._end_flow("ended")
             return None
+        if spec.subscribe is not None:
+            # Be told when the event happens: subscribe this instance, then go on.
+            self.context.subscribe(self._subscribe_event(spec.subscribe))
         # The patience counts waiting time only: it runs while the task waits for
         # its wait, its resources or its get, and pauses while it is served, so a
         # preempted task that queues again goes on from the time it had used, as
@@ -315,6 +499,7 @@ class TaskRun:
                         self._wait_held[index] = fresh
                         yield fresh
                 for resource in spec.resources:
+                    self._target = f"resource.{resource}"
                     request = self.context._resources_map[resource].request(
                         rank, preempt=spec.preempt
                     )
@@ -332,6 +517,7 @@ class TaskRun:
                             self._renege()
                             return None
                 if spec.get is not None and not got_item:
+                    self._target = f"get.{spec.get.target}"
                     got = yield from self._transfer(
                         spec.get, "get", None, self._deadline()
                     )
@@ -354,6 +540,7 @@ class TaskRun:
                         )
                     except Exception as error:  # noqa: BLE001: a task's failure
                         failure = f"{type(error).__name__}: {error}"
+                        self._fail_error = error
                 else:
                     self.publish(self.status("resumed"))
                     stats.task_resumed(spec.name, self.task_id)
@@ -365,6 +552,7 @@ class TaskRun:
                             )
                             remaining = float(self.context.sampler.sample(config))
                         service_from = env.now
+                        self._target = "service"
                         yield env.timeout(remaining)
                         remaining, service_from = 0.0, None
                     if spec.put is not None and not put_done:
@@ -406,27 +594,47 @@ class TaskRun:
         self._end_wait()
         if failure is not None:
             if spec.signal is not None:
-                self.context._signals[spec.signal].fail(failure)
+                self.context._fire_signal(spec.signal, False, failure, self.entity)
             failed = Upstream(
                 self.task_id,
                 self.entity.key,
                 self.entity.attributes,
                 self.status("failed", reason=failure),
             )
+            # The end event fails whether or not on_fail handles the task, so a
+            # waiter and the `on:` actions see the failure.
+            self._set_ended(failed, ok=False, result=TaskFailed(spec.name, failure))
             if spec.on_fail is not None:
                 return (yield from self._follow(spec.on_fail, failed))
             if self.child:
-                raise TaskFailed(spec.name, failure)
+                raise TaskFailed(spec.name, failure) from self._fail_error
+            # Under `continue` a root task's failure ends the flow and the run goes
+            # on; under `stop` it raises, so the exception reaches the caller of
+            # `run()`, as SimPy's unhandled failure does.
+            if getattr(self.env, "on_unhandled_failure", "stop") == "stop":
+                raise TaskFailed(spec.name, failure) from self._fail_error
             self._end_flow("failed")
             return None
 
         if spec.signal is not None:
-            self.context._signals[spec.signal].fire(payload)
+            self.context._fire_signal(spec.signal, True, payload, self.entity)
         if spec.interrupt is not None:
             self.context.interrupt(
                 spec.interrupt["task"],
                 where=spec.interrupt_where,
                 cause=spec.interrupt.get("cause"),
+            )
+        if spec.spawn is not None:
+            # Start a new entity on success, after the signal and interrupt actions
+            # and before `set`, so its upstream shares the spawning entity's
+            # attributes dictionary as later `set` calls change it.
+            self.context._spawn_entity(
+                spec.spawn["task"],
+                self.entity,
+                Upstream(
+                    self.task_id, self.entity.key, self.entity.attributes, payload
+                ),
+                spec.spawn["after"],
             )
         self.entity.attributes.update(spec.attribute_changes)
         handed = Upstream(
@@ -439,12 +647,17 @@ class TaskRun:
             item=self.item,
             scope=self.scope(handed) if spec.router.conditions else None,
         )
+        # The end event succeeds once the next task is chosen, before the hand-on.
+        self._set_ended(handed, ok=True, result=payload)
         if following is None:
             if self.child:
                 return payload
             self._end_flow("finished")
-            return None
-        return (yield from self._follow(following, handed))
+            return payload
+        result = yield from self._follow(following, handed)
+        # A root task's process ends with its own finished payload, also when it
+        # hands on; a child flow's process ends with the flow's last payload.
+        return result if self.child else payload
 
     def _deadline(self) -> Any:
         """A timer for the patience left, started now, or None without patience."""
@@ -534,16 +747,25 @@ class TaskRun:
         self._end_wait()
         stats.task_dropped(spec.name, self.task_id)
         self._stop_running()
+        handed = Upstream(
+            self.task_id,
+            self.entity.key,
+            self.entity.attributes,
+            self.status("interrupted", cause=_cause(interrupt)),
+        )
         if spec.on_interrupt_next is not None:
-            handed = Upstream(
-                self.task_id,
-                self.entity.key,
-                self.entity.attributes,
-                self.status("interrupted", cause=_cause(interrupt)),
-            )
+            self._set_ended(handed, ok=True, result=None)
             return (yield from self._follow(spec.on_interrupt_next, handed))
         if self.child:
+            # In a child flow with no on_interrupt_next, the end event fails with
+            # the TaskFailed the abandon raises, so a waiter fails with it.
+            self._set_ended(
+                handed,
+                ok=False,
+                result=TaskFailed(spec.name, f"interrupted: {_cause(interrupt)}"),
+            )
             raise TaskFailed(spec.name, f"interrupted: {_cause(interrupt)}")
+        self._set_ended(handed, ok=True, result=None)
         self._end_flow("ended")
         return None
 
@@ -583,11 +805,21 @@ class TaskRun:
         self._end_wait()
         self.publish(self.status("reneged"))
         self.env.stats.task_reneged(self.spec.name, self.task_id)
+        self.outcome = Upstream(
+            self.task_id,
+            self.entity.key,
+            self.entity.attributes,
+            self.status("reneged"),
+        )
         self._end_flow("ended")
 
     def _end_flow(self, how: str) -> None:
         """Records the end of the entity's flow: `finished`, `failed`, or `ended`
-        for a balk, a renege or an abandon. A child flow's end is its parent's."""
+        for a balk, a renege or an abandon. A child flow's end is its parent's.
+
+        The entity leaves once its own flow has ended and no end event or counted
+        signal firing is still pending, so a drain waits for the `on:` actions.
+        """
         if self.child:
             return
         stats, arrival = self.env.stats, self.entity.arrival
@@ -597,7 +829,9 @@ class TaskRun:
             stats.flow_failed(arrival)
         else:
             stats.flow_ended(arrival)
-        self.context._entity_left(self.entity)
+        self.entity.ending = True
+        if self.entity.ends_pending == 0:
+            self.context._entity_left(self.entity)
 
     def _failure(self, payload: Any) -> Any:
         """The reason the task fails after its service, or None when it does not."""
@@ -701,6 +935,7 @@ class TaskRun:
         """
         env, wait = self.env, self.spec.wait
         assert wait is not None
+        self._target = self._target_label(wait.root)
         events: Dict[str, Any] = {}
         stop_watching: List[Callable[[], None]] = []
 
@@ -733,7 +968,8 @@ class TaskRun:
                     self._children[node.name] = child
                 event = child
             elif node.kind == "timeout":
-                event = env.timeout(node.target)
+                seconds, timeout_value = node.target
+                event = env.timeout(seconds, timeout_value)
             elif node.kind == "request":
                 # Kept across a resume, as a `task` branch's child flow is, so the
                 # task does not queue a second request each time it waits again.
@@ -752,6 +988,8 @@ class TaskRun:
                     )
                     event = self._transfer_event(node.target, node.kind, payload)
                     self._wait_events[node.name] = event
+            elif node.kind == "running":
+                event = self._running_event(node)
             else:
                 event, stop = self._condition(node.target)
                 stop_watching.append(stop)
@@ -797,6 +1035,12 @@ class TaskRun:
             elif node.kind in ("request", "get", "put"):
                 done = (event in joined.value) if joined.ok else event.processed
                 value = self._resolve_branch(node, event, done)
+            elif node.kind == "running":
+                # The branch event is an `AllOf` condition, so the wait's value holds
+                # its leaves, not the condition itself; `processed` is the done flag,
+                # as for a group node.
+                done = event.processed
+                value = self._running_value(node, done)
             else:
                 done = (event in joined.value) if joined.ok else event.processed
                 value = _branch_value(event) if done else None

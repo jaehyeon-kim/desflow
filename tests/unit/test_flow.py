@@ -569,13 +569,14 @@ def test_a_negative_wait_timeout_is_refused():
         {"any": {"a": {"running": {"task": "inspect"}}}},
     ],
 )
-def test_wait_refuses_a_kind_a_later_batch_adds(spec):
-    """A wait kind a later 0.23.0 batch adds, `running`, is refused with a clear
-    message, in a single branch and inside a group."""
+def test_running_branch_parses(spec):
+    """A `running` branch parses, named after its task, in a single branch and inside
+    a group, and `targets("running")` and `targets("task")` name its task."""
     from desflow.core.flow import Wait
 
-    with pytest.raises(ValueError, match="is not built yet"):
-        Wait(spec)
+    wait = Wait(spec)
+    assert wait.targets("running") == {"inspect"}
+    assert "inspect" in wait.targets("task")
 
 
 def test_at_least_above_its_branches_is_refused():

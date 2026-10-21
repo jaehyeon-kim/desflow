@@ -6,9 +6,12 @@ one at once, so the signal can fire again. Every waiter of one firing resumes; a
 waiter that starts after a firing waits for the next.
 """
 
-from typing import Any, Optional
+import logging
+from typing import Any, Callable, List, Optional
 
 from simpy import Environment, Event
+
+logger = logging.getLogger(__name__)
 
 
 class SignalFailed(Exception):
@@ -42,20 +45,39 @@ class Signal:
         value (Any): The value of the last firing, or the failure reason.
     """
 
-    def __init__(self, env: Environment, name: str = "signal"):
+    def __init__(self, env: Environment, name: str = "signal", once: bool = False):
         """
         Creates a signal that has not fired yet.
 
         Args:
             env: The environment.
             name: Its name, as a blueprint's `signals` and `signal.<name>` use it.
+            once: When True the signal fires once, as SimPy's `Event` does: it does
+                not re-arm, so a wait after the firing resumes at once, and a second
+                firing is refused.
         """
         self.env = env
         self.name = name
+        self.once = once
         self.count = 0
         self.ok: Optional[bool] = None
         self.value: Any = None
+        # Callbacks run when the signal fires, copied onto each new pending event
+        self.callbacks: List[Callable[[Any], None]] = []
         self._event = env.event()
+
+    def attach(self, callbacks: List[Callable[[Any], None]]) -> None:
+        """Keeps `callbacks` as the signal's `on:` callbacks and adds them to the
+        current pending event, so they run when the signal next fires, before any
+        waiter, as SimPy runs a callback added before the waiters.
+
+        Args:
+            callbacks: Functions called with the fired event, copied onto each new
+                pending event so they run on every firing.
+        """
+        self.callbacks = list(callbacks)
+        for callback in self.callbacks:
+            self._event.callbacks.append(callback)
 
     def wait(self) -> Event:
         """
@@ -74,10 +96,27 @@ class Signal:
         Args:
             value: What the waiters receive, such as a task's finished payload.
         """
+        if self.once and self.count >= 1:
+            # A one-shot signal fires once. A second firing is SimPy's RuntimeError
+            # under `stop`; under `continue` it is dropped with a log line.
+            if getattr(self.env, "on_unhandled_failure", "stop") == "stop":
+                raise RuntimeError(f"signal '{self.name}' is one-shot and has fired")
+            logger.warning(
+                "signal '%s' is one-shot and has already fired; the second firing "
+                "is dropped",
+                self.name,
+            )
+            return
         self.count += 1
         self.ok, self.value = True, value
-        event, self._event = self._event, self.env.event()
-        event.succeed(value)
+        if self.once:
+            # Keep the triggered event, so a later wait resumes at once.
+            self._event.succeed(value)
+        else:
+            event, self._event = self._event, self.env.event()
+            for callback in self.callbacks:
+                self._event.callbacks.append(callback)
+            event.succeed(value)
         self._notify()
 
     def fail(self, reason: Any) -> None:
@@ -90,10 +129,30 @@ class Signal:
         Args:
             reason: Why it failed, such as a task's failure reason.
         """
+        if self.once and self.count >= 1:
+            if getattr(self.env, "on_unhandled_failure", "stop") == "stop":
+                raise RuntimeError(f"signal '{self.name}' is one-shot and has fired")
+            logger.warning(
+                "signal '%s' is one-shot and has already fired; the second failure "
+                "is dropped",
+                self.name,
+            )
+            return
         self.count += 1
         self.ok, self.value = False, reason
-        event, self._event = self._event, self.env.event()
-        event.defused = True
+        if self.once:
+            event = self._event
+        else:
+            event, self._event = self._event, self.env.event()
+            for callback in self.callbacks:
+                self._event.callbacks.append(callback)
+        # A re-arming signal's failure is always defused, so a firing nobody waits
+        # for is not an error. A one-shot signal's failure is defused only under
+        # `continue`; under `stop` it is left to stop the run, as SimPy's event does.
+        if not self.once or getattr(self.env, "on_unhandled_failure", "stop") == (
+            "continue"
+        ):
+            event.defused = True
         event.fail(SignalFailed(self.name, reason))
         self._notify()
 

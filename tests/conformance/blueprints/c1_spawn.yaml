@@ -1,0 +1,19 @@
+# An order arrives at 2 and packs for 1 s; on success pack spawns a courier as a new
+# entity keyed courier-1, with attr.parent the order's key. See test_c1_processes.py.
+simulation:
+  sim_id: C1
+  factor: 0
+services:
+  packing: {dist: constant, value: 1}
+arrivals:
+  orders: {dist: constant, value: 2, spawn: pack}
+tasks:
+  pack:
+    service: packing
+    payload: {event: packed}
+    spawn: {task: courier}
+  courier:
+    payload: {parent: null}
+    attributes: [parent]
+run:
+  until: 4

@@ -253,6 +253,8 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                         ),
                     )
 
+    _check_events(blueprint, source)
+
     _check_run(blueprint, source)
 
     try:
@@ -309,6 +311,188 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                 ("egress", index, "when"),
                 f"when: {egress.when} needs simulation.go_live_at",
             )
+
+
+def _check_events(blueprint: Blueprint, source: SourceMap) -> None:
+    """Checks the `spawn`, `subscribe` and `on:` names a task or signal uses, at the
+    line of each action.
+
+    A spawned task must exist and must not share an arrival's name; a `subscribe`
+    target, an `on:` fire's signal and an `on:` interrupt's task must exist; and an
+    `on:` fire's `from` must be a signal or a task, and, for a task, one that runs on
+    the same entity as the task or firing the `on:` list hangs on.
+    """
+    tasks, signals = blueprint.tasks, blueprint.signals
+    arrivals = set(blueprint.arrivals)
+
+    def spawn_clash(spawned: str, owner: str, location: tuple) -> None:
+        if spawned not in tasks:
+            raise source.error(
+                location,
+                f"{owner} spawns task '{spawned}', "
+                + _undefined(spawned, tasks, "tasks"),
+            )
+        if spawned in arrivals:
+            raise source.error(
+                location,
+                f"task '{spawned}', which {owner} spawns, has the name of arrival "
+                f"'{spawned}'; rename the task or the arrival, because their flow "
+                f"statistics and entity numbers would merge",
+            )
+
+    # The tasks an entity can start a flow from: an arrival's task, or one a spawn
+    # starts. Each spawn begins a new entity, so a spawn target is a start of its own.
+    starts = {a.spawn for a in blueprint.arrivals.values() if a.spawn is not None}
+    for task in tasks.values():
+        if task.spawn is not None:
+            starts.add(task.spawn.task)
+        starts.update(e.spawn.task for e in task.on if e.spawn is not None)
+    for signal in signals.values():
+        starts.update(e.spawn.task for e in signal.on if e.spawn is not None)
+
+    def reach_from(start: str) -> tuple:
+        """The tasks reachable on one entity from `start`, and whether a reached task
+        has a `!python` payload, which can start any task with `context.call`."""
+        seen: set = set()
+        unknown = False
+        frontier = [start]
+        while frontier:
+            name = frontier.pop()
+            if name in seen or name not in tasks:
+                continue
+            seen.add(name)
+            task = tasks[name]
+            if callable(task.payload):
+                unknown = True
+            frontier.extend(target for target, _ in _routes(name, task))
+            frontier.extend(n for n in (task.on_fail, task.on_interrupt_next) if n)
+            if task.wait is not None:
+                frontier.extend(Wait(task.wait).targets("task"))
+            if task.subscribe is not None:
+                frontier.extend(Wait(task.subscribe).targets("task"))
+        return seen, unknown
+
+    reach = {start: reach_from(start) for start in starts}
+
+    def firing_tasks(signal_name: str) -> set:
+        """The tasks whose end fires `signal_name`, directly or through a chain of
+        signals' `on:` fire actions."""
+        direct: Dict[str, set] = {}
+        chain: Dict[str, set] = {}
+        for name, task in tasks.items():
+            if task.signal is not None:
+                direct.setdefault(task.signal, set()).add(name)
+            for entry in task.on:
+                if entry.fire is not None:
+                    direct.setdefault(entry.fire.signal, set()).add(name)
+        for name, signal in signals.items():
+            for entry in signal.on:
+                if entry.fire is not None:
+                    chain.setdefault(entry.fire.signal, set()).add(name)
+        found: set = set()
+        queue, seen = [signal_name], set()
+        while queue:
+            current = queue.pop()
+            if current in seen:
+                continue
+            seen.add(current)
+            found |= direct.get(current, set())
+            queue.extend(chain.get(current, set()))
+        return found
+
+    def check_fire(fire: Any, owner: str, location: tuple, anchors: set) -> None:
+        """Checks a fire action's signal exists, and its `from` names a signal or a
+        task that runs on the same entity as the `anchors` the `on:` list hangs on."""
+        if fire.signal not in signals:
+            raise source.error(
+                location,
+                f"the on: action of {owner} fires signal '{fire.signal}', "
+                + _undefined(fire.signal, signals, "signals"),
+            )
+        source_name = fire.from_
+        if source_name is None:
+            return
+        is_signal, is_task = source_name in signals, source_name in tasks
+        if is_signal and is_task:
+            raise source.error(
+                location,
+                f"the on: action of {owner} fires from '{source_name}', which is both "
+                f"a signal and a task; rename one",
+            )
+        if not is_signal and not is_task:
+            raise source.error(
+                location,
+                f"the on: action of {owner} fires from '{source_name}', which is "
+                f"neither a signal nor a task",
+            )
+        if not is_task:
+            return
+        anchored = [s for s in starts if reach[s][0] & anchors]
+        if not anchored:
+            return  # the task or firing never starts statically; nothing to refuse
+        if any(source_name in reach[s][0] for s in anchored):
+            return  # some start reaches the from task together with the anchor
+        if any(reach[s][1] for s in anchored):
+            return  # a reached !python payload could start the from task
+        if not any(source_name in reach[s][0] for s in starts):
+            return  # no start reaches the from task, so there is nothing to copy
+        raise source.error(
+            location,
+            f"the on: action of {owner} fires '{fire.signal}' from task "
+            f"'{source_name}', which never runs on the same entity; name a task of "
+            f"the same flow",
+        )
+
+    for name, task in tasks.items():
+        owner = f"task '{name}'"
+        if task.spawn is not None:
+            spawn_clash(task.spawn.task, owner, ("tasks", name, "spawn"))
+        if task.subscribe is not None:
+            branches = Wait(task.subscribe)
+            for target in branches.targets("task"):
+                if target not in tasks:
+                    raise source.error(
+                        ("tasks", name, "subscribe"),
+                        f"task '{name}' subscribes to task '{target}', "
+                        + _undefined(target, tasks, "tasks"),
+                    )
+            for target in branches.targets("signal"):
+                if target not in signals:
+                    raise source.error(
+                        ("tasks", name, "subscribe"),
+                        f"task '{name}' subscribes to signal '{target}', "
+                        + _undefined(target, signals, "signals"),
+                    )
+        for index, entry in enumerate(task.on):
+            location = ("tasks", name, "on", index)
+            if entry.spawn is not None:
+                spawn_clash(entry.spawn.task, owner, location + ("spawn",))
+            if entry.interrupt is not None and entry.interrupt.task not in tasks:
+                raise source.error(
+                    location + ("interrupt",),
+                    f"the on: action of {owner} interrupts task "
+                    f"'{entry.interrupt.task}', "
+                    + _undefined(entry.interrupt.task, tasks, "tasks"),
+                )
+            if entry.fire is not None:
+                check_fire(entry.fire, owner, location + ("fire",), {name})
+
+    for name, signal in signals.items():
+        owner = f"signal '{name}'"
+        anchors = firing_tasks(name)
+        for index, entry in enumerate(signal.on):
+            location = ("signals", name, "on", index)
+            if entry.spawn is not None:
+                spawn_clash(entry.spawn.task, owner, location + ("spawn",))
+            if entry.interrupt is not None and entry.interrupt.task not in tasks:
+                raise source.error(
+                    location + ("interrupt",),
+                    f"the on: action of {owner} interrupts task "
+                    f"'{entry.interrupt.task}', "
+                    + _undefined(entry.interrupt.task, tasks, "tasks"),
+                )
+            if entry.fire is not None:
+                check_fire(entry.fire, owner, location + ("fire",), anchors)
 
 
 def _undefined(name: str, defined: Iterable[str], section: str) -> str:
@@ -495,8 +679,10 @@ def _build_context(blueprint: Blueprint, source: SourceMap) -> SimulationContext
         )
     for name, value in blueprint.variables.items():
         context.add_variable(name, value)
-    for name in blueprint.signals:
-        context.add_signal(name)
+    for name, signal in blueprint.signals.items():
+        context.add_signal(
+            name, once=signal.once, on=[entry.entry() for entry in signal.on]
+        )
     # A YAML task's function takes the context after its id, also in a child flow
     context._task_args = (context,)
     for name, dist in blueprint.services.items():
@@ -541,6 +727,13 @@ def _build_context(blueprint: Blueprint, source: SourceMap) -> SimulationContext
             fail=task.fail,
             fail_reason=task.fail_reason,
             on_fail=task.on_fail,
+            spawn=(
+                None
+                if task.spawn is None
+                else {"task": task.spawn.task, "after": task.spawn.after}
+            ),
+            subscribe=task.subscribe,
+            on=[entry.entry() for entry in task.on],
         )(_payload(task.payload, task.id_field, task.attributes, task.item_field))
         for name, task in blueprint.tasks.items()
     }

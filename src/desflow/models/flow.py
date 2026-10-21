@@ -31,6 +31,26 @@ class Entity:
     held: Dict[str, Any] = field(default_factory=dict, repr=False, compare=False)
     # Whether its first task has started, so it counts as in the model
     entered: bool = field(default=False, repr=False, compare=False)
+    # The running instances of its tracked tasks, by task name, for a `running`
+    # wait or a `subscribe`; None until the first is listed
+    instances: Optional[Dict[str, Any]] = field(default=None, repr=False, compare=False)
+    # The entity whose flow spawned this one, so a `running` wait on the spawner
+    # sees the instances it started; None for an arrival or a spawn from a signal
+    spawned_by: Optional["Entity"] = field(default=None, repr=False, compare=False)
+    # End events still to be processed before the entity leaves (Counting out)
+    ends_pending: int = field(default=0, repr=False, compare=False)
+    # Whether the entity's own flow has ended, so no new own-flow instance comes
+    ending: bool = field(default=False, repr=False, compare=False)
+    # The end event of the last-ended instance of each copied task, for `fire from`
+    last_ended: Optional[Dict[str, Any]] = field(
+        default=None, repr=False, compare=False
+    )
+
+    @property
+    def left(self) -> bool:
+        """True once `_entity_left` has run: the flow has ended and nothing is
+        pending."""
+        return self.ending and self.ends_pending == 0
 
 
 @dataclass

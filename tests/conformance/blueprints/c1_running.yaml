@@ -1,0 +1,22 @@
+# A car spawns a charge (5 s) on a new entity, then its driver waits for that
+# running instance, which ends at 6. See test_c1_processes.py.
+simulation:
+  sim_id: C1
+  factor: 0
+services:
+  charging: {dist: constant, value: 5}
+tasks:
+  start:
+    spawn: {task: charge}
+    payload: {event: started}
+    next: driver
+  charge:
+    service: charging
+    payload: {event: charged}
+  driver:
+    wait: {running: {task: charge}}
+    payload: {event: drove}
+processes:
+  - !python tests.conformance.batch2_scripts.one_start
+run:
+  until: 10

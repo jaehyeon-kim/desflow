@@ -176,8 +176,9 @@ Nothing is checked before the run as a whole. Each call checks only what it read
 - **An unregistered path raises `KeyError`** when a resource, a process or a `registry.get` asks for it, so register the parameters before creating anything that reads them.
 - **A record without egress is dropped.** Until `setup_egress` runs, `publish_event` and `publish_telemetry` do nothing, without an error.
 - **A `Sampler()` with no seed draws nothing at random.** Every sample is the distribution's mean (for a `truncated_normal`, its `mean` or its `low`, whichever is higher), so give it a seed.
+- **An unhandled failure stops the run under `stop`.** `DynamicRealtimeEnvironment(on_unhandled_failure=...)` is `stop` by default, as a plain SimPy environment is: a one-shot `Signal` failure that nobody waits for raises `SignalFailed`, so the run stops. Pass `"continue"` to defuse such a failure and let the run go on. A re-arming signal's failure is always defused, and an exception raised in a process stops the run under both. The keyword must be `stop` or `continue`.
 
-The low-level API has no limits of its own: anything SimPy can model, a process can do.
+Beyond those, a process can do anything SimPy can model.
 
 ---
 

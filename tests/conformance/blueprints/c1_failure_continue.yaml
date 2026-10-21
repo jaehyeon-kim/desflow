@@ -1,0 +1,19 @@
+# Under continue a root task failing with no on_fail ends its flow and the run goes
+# on. See test_c1_events.py.
+simulation:
+  sim_id: C1
+  factor: 0
+services:
+  working: {dist: constant, value: 2}
+tasks:
+  work:
+    service: working
+    payload: {event: done}
+    fail: "t >= 0"
+    fail_reason: scratched
+processes:
+  - function: !python tests.conformance.batch2_scripts.start_task
+    kwargs: {task: work, at: 0}
+run:
+  until: 6
+  on_unhandled_failure: continue

@@ -99,7 +99,7 @@
     - tests/conformance/test_c1_process_interaction.py::test_c1_process_failure
     - tests/conformance/test_c1_process_interaction.py::test_c1_process_failure_handled_by_on_fail
   page: user-guide/tasks-and-processes.md#wait-signals-and-child-flows
-  differences: In YAML and the builder a failure no task waits for ends the entity's flow, publishes `failed` and is counted, and the run goes on; in SimPy, and in the low-level API, an exception nobody handles stops the run.
+  differences: "By default (`on_unhandled_failure` is `continue`) a failure no task waits for ends the entity's flow in YAML and the builder, publishes `failed` and is counted, and the run goes on; under `on_unhandled_failure` of `stop` it stops the run, matching SimPy and the low-level API, where an exception nobody handles stops the run."
 
 - id: C1
   inventory: [SP-V8]
@@ -613,23 +613,32 @@
     - tests/conformance/test_c6_run_control.py::test_c6_current_time
   page: user-guide/time-and-pacing.md#read-the-current-time
 
-- id: N
-  inventory: [SP-E3]
-  exists: [low_level]
-  status: not yet
-  operation: Active process
-  simpy: "`core.Environment.active_process`"
-  checks: []
-  release: 0.23.0
+- id: C1
+  inventory: [SP-E3, SP-P5, SP-P6]
+  operation: The running process
+  description: "`process.name`, `process.instance` and `process.target` read the running task's name, instance id and what it waits on now, as SimPy's active process, its name and its target."
+  simpy: "`core.Environment.active_process`, `events.Process.name`, `events.Process.target`"
+  yaml: "`process.name`, `process.instance`, `process.target` in a condition"
+  builder: "`context.env.active_process`; `.name` and `.target` on a process"
+  low_level: "`env.active_process.name`, `.target`"
+  checks:
+    - tests/conformance/test_c1_process_interaction.py::test_c1_active_process
+    - tests/conformance/test_c1_process_interaction.py::test_c1_process_name
+    - tests/conformance/test_c1_process_interaction.py::test_c1_process_target
+  page: user-guide/tasks-and-processes.md#processes-and-the-low-level-api
 
-- id: N
+- id: C1
   inventory: [SP-E4]
-  exists: [builder, low_level]
-  status: not yet
-  operation: Start a process without waiting for it
+  operation: Start a flow without waiting for it
+  description: "A task spawns another task as a new entity, keyed `<task>-n`, with the spawning entity's key in `attr.parent`, and goes on without waiting."
   simpy: "`core.Environment.process`"
-  checks: []
-  release: 0.23.0
+  yaml: "`spawn: {task: courier}`"
+  builder: "`@app.task(spawn=...)`, or `context.spawn(generator)`"
+  low_level: "`env.process(generator)`"
+  checks:
+    - tests/conformance/test_c1_processes.py::test_c1_start_a_process_without_waiting_for_it
+    - tests/conformance/test_c1_processes.py::test_c1_start_a_process_without_waiting_for_it_drain
+  page: user-guide/tasks-and-processes.md#start-a-flow-without-waiting
 
 - id: N
   inventory: [SP-E5]
@@ -725,86 +734,84 @@
   checks: []
   release: 0.23.0
 
-- id: N
+- id: C1
   inventory: [SP-V3]
-  exists: [low_level]
-  status: not yet
   operation: One-shot event
+  description: "A one-shot signal fires once, as SimPy's `Event` does: it does not re-arm, a wait after the firing resumes at once, and a second firing is refused."
   simpy: "`events.Event`"
-  checks: []
-  release: 0.23.0
+  yaml: "`signals: {closing: {once: true}}`"
+  builder: "`add_signal(name, once=True)`"
+  low_level: "`Signal(env, name, once=True)`"
+  checks:
+    - tests/conformance/test_c1_events.py::test_c1_one_shot_event
+    - tests/conformance/test_c1_events.py::test_c1_one_shot_event_fired_twice
+  page: user-guide/tasks-and-processes.md#one-shot-signals
 
-- id: N
-  inventory: [SP-V4]
-  exists: [low_level]
-  status: not yet
-  operation: Trigger from another event
-  simpy: "`events.Event.trigger`"
-  checks: []
-  release: 0.23.0
+- id: C1
+  inventory: [SP-V4, SP-V5, SP-V6]
+  operation: Actions when an event happens
+  description: "An `on:` list runs actions when a signal fires or a task ends: fire a signal (copying another outcome), spawn a flow, interrupt a task, or set a value, as SimPy's callbacks, `trigger` and defused failures."
+  simpy: "`events.Event.callbacks`, `events.Event.trigger`, `events.Event.defused`"
+  yaml: "`on: [{fire: {signal, from}}, {spawn: {...}}]` on a task or a signal"
+  builder: "`on=[...]` on `@app.task` and `add_signal`"
+  low_level: "`event.callbacks.append(fn)`, `ev.trigger(other)`, `ev.defused = True`"
+  checks:
+    - tests/conformance/test_c1_events.py::test_c1_callbacks
+    - tests/conformance/test_c1_events.py::test_c1_trigger_from_another_event
+    - tests/conformance/test_c1_events.py::test_c1_trigger_from_another_event_failure
+    - tests/conformance/test_c1_events.py::test_c1_defused_failure
+    - tests/conformance/test_c1_events.py::test_c1_drain_waits_for_an_on_spawn
+    - tests/conformance/test_c1_events.py::test_c1_drain_waits_for_a_signals_on_actions
+    - tests/conformance/test_c1_events.py::test_c1_drain_waits_through_a_balking_next
+    - tests/conformance/test_c1_events.py::test_c1_drain_waits_through_a_chain_of_firings
+    - tests/conformance/test_c1_events.py::test_c1_process_signal_fire_is_not_counted
+    - tests/conformance/test_c1_events.py::test_c1_on_spawn_upstream_after_each_end
+    - tests/conformance/test_c1_events.py::test_c1_losing_child_flow_fire_after_left_is_not_counted
+  page: user-guide/tasks-and-processes.md#actions-when-an-event-happens
 
-- id: N
-  inventory: [SP-V5]
-  exists: [low_level]
-  status: not yet
-  operation: Callbacks
-  simpy: "`events.Event.callbacks`"
-  checks: []
-  release: 0.23.0
-
-- id: N
-  inventory: [SP-V6]
-  exists: [low_level]
-  status: not yet
-  operation: Defused failure
-  simpy: "`events.Event.defused`"
-  checks: []
-  release: 0.23.0
-
-- id: N
+- id: C1
   inventory: [SP-V7]
-  exists: [low_level]
-  status: not yet
   operation: Failure nobody handles
+  description: "Under `on_unhandled_failure: stop` a task, child flow or one-shot signal failure nobody handles stops the run, as SimPy; under `continue`, the default, it is defused and the run goes on."
   simpy: "`core.Environment.run`"
-  checks: []
-  release: 0.23.0
+  yaml: "`run: {on_unhandled_failure: stop}`"
+  builder: "`run(on_unhandled_failure=...)` or `start(on_unhandled_failure=...)`"
+  low_level: "`DynamicRealtimeEnvironment(on_unhandled_failure=...)`"
+  checks:
+    - tests/conformance/test_c1_events.py::test_c1_failure_nobody_handles
+    - tests/conformance/test_c1_events.py::test_c1_failure_nobody_handles_continue
+    - tests/conformance/test_c1_events.py::test_c1_failure_nobody_handles_losing_child_flow
+  page: user-guide/tasks-and-processes.md#failures
 
-- id: N
+- id: C1
   inventory: [SP-V11]
-  exists: [low_level]
-  status: not yet
   operation: Timeout value
+  description: "A wait timeout carries a value the waiter receives, as SimPy's `env.timeout(delay, value)`."
   simpy: "`events.Timeout(delay, value)`"
-  checks: []
-  release: 0.23.0
+  yaml: "`wait: {timeout: {after: 40 s, value: ...}}`"
+  builder: "the same mapping in `wait=`"
+  low_level: "`env.timeout(delay, value)`"
+  checks:
+    - tests/conformance/test_c1_events.py::test_c1_timeout_value
+  page: user-guide/tasks-and-processes.md#wait-signals-and-child-flows
 
-- id: N
-  inventory: [SP-P5]
-  exists: [low_level]
-  status: not yet
-  operation: Process target
-  simpy: "`events.Process.target`"
-  checks: []
-  release: 0.23.0
-
-- id: N
-  inventory: [SP-P6]
-  exists: [low_level]
-  status: not yet
-  operation: Process name
-  simpy: "`events.Process.name`"
-  checks: []
-  release: 0.23.0
-
-- id: N
+- id: C1
   inventory: [SP-P7]
-  exists: [builder, low_level]
-  status: not yet
   operation: Wait for a process already running
+  description: "A `running` wait holds until the running instances of a task on the waiter's entity, and the entities it spawned, all end, as SimPy's `yield process`."
   simpy: "`yield process`"
-  checks: []
-  release: 0.23.0
+  yaml: "`wait: {running: {task: charge, where: ...}}`"
+  builder: "the same in `wait=`, or `yield` a process from `context.spawn` or `call`"
+  low_level: "`yield process`"
+  checks:
+    - tests/conformance/test_c1_processes.py::test_c1_wait_for_a_process_already_running
+    - tests/conformance/test_c1_processes.py::test_c1_wait_for_a_process_that_has_ended
+    - tests/conformance/test_c1_processes.py::test_c1_wait_for_a_process_that_fails
+    - tests/conformance/test_c1_processes.py::test_c1_wait_for_a_process_two_instances
+    - tests/conformance/test_c1_processes.py::test_c1_wait_for_a_process_that_hands_on
+    - tests/conformance/test_c1_processes.py::test_c1_wait_for_a_process_that_it_spawned
+    - tests/conformance/test_c1_processes.py::test_c1_wait_for_a_process_abandoned_in_a_child_flow
+  page: user-guide/tasks-and-processes.md#wait-signals-and-child-flows
 
 - id: C2
   inventory: [SP-C5]
@@ -1026,23 +1033,32 @@
   checks: []
   release: 0.23.0
 
-- id: N
+- id: C1
   inventory: [SP-U1]
-  exists: [low_level]
-  status: not yet
   operation: Start a process after a delay
+  description: "A spawn with `after` starts the new entity that long after the task finishes, as SimPy's `start_delayed`."
   simpy: "`util.start_delayed`"
-  checks: []
-  release: 0.23.0
+  yaml: "`spawn: {task: courier, after: 3 s}`"
+  builder: "`spawn={\"task\", \"after\"}`, or `context.spawn(generator, delay=3)`"
+  low_level: "`simpy.util.start_delayed(env, generator, 3)`"
+  checks:
+    - tests/conformance/test_c1_processes.py::test_c1_start_a_process_after_a_delay
+    - tests/conformance/test_c1_processes.py::test_c1_start_a_process_after_a_delay_at_a_tie
+    - tests/conformance/test_c1_processes.py::test_c1_start_a_process_after_a_delay_refuses_zero
+  page: user-guide/tasks-and-processes.md#start-a-flow-without-waiting
 
-- id: N
+- id: C1
   inventory: [SP-U2]
-  exists: [low_level]
-  status: not yet
   operation: Be told when an event happens
+  description: "A `subscribe` interrupts the task when an event happens, carrying the event and its value, as SimPy's `subscribe_at`."
   simpy: "`util.subscribe_at`"
-  checks: []
-  release: 0.23.0
+  yaml: "`subscribe: {task: charger}`"
+  builder: "`@app.task(subscribe=...)`, or `context.subscribe(event)`"
+  low_level: "`simpy.util.subscribe_at(event)`"
+  checks:
+    - tests/conformance/test_c1_processes.py::test_c1_be_told_when_an_event_happens
+    - tests/conformance/test_c1_processes.py::test_c1_be_told_when_an_event_happens_after_the_subscriber_ended
+  page: user-guide/tasks-and-processes.md#be-told-when-a-flow-ends
 
 # Differences kept by design, approved by the owner on 18 Oct 2026.
 

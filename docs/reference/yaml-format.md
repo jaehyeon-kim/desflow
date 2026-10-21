@@ -85,6 +85,13 @@ A store and a container cannot share a name.
 
 A list of names, each a signal that tasks fire with `signal` and wait for with `wait: {signal: name}`. [Tasks and Processes](../user-guide/tasks-and-processes.md#wait-signals-and-child-flows) describes them.
 
+A signal may also be written as a mapping, `{name: {once, on}}`, with the list form still accepted:
+
+| Key | Value |
+|---|---|
+| `once` | `true` makes the signal fire once, as SimPy's `Event` does: it does not re-arm, a wait after the firing resumes at once, and a second firing is refused |
+| `on` | a list of actions run when the signal fires, in the same form as a task's `on` |
+
 ## variables
 
 `name: value` entries, any YAML value, each at the registry path `<sim_id>.variables.<name>`. [Live Parameters](../user-guide/live-parameters.md) describes them.
@@ -117,8 +124,11 @@ An arrival also takes:
 | `priority` | a number or an expression such as `attr.tier`, for a resource with `queue: priority` |
 | `patience` | seconds, a duration or an expression: how long the task may wait for its `wait`, its resource and its `get`, all together, before it leaves and publishes `reneged`; it pauses while the task is served |
 | `balk` | a condition checked before the task joins a queue; when it holds, the task publishes `balked` |
-| `wait` | what the task waits for before its resource: a leaf `{signal: name}`, `{task: name}`, `{timeout: ...}`, `{condition: ...}`, `{request: name}` (a resource unit), `{get: {...}}` or `{put: {...}}` (a store or container); or a group `{any: {name: branch, ...}}`, `{all: {...}}` or `{at_least: n, of: {...}}`, which nest; read after it as `wait.<branch>.done`, `.ok` and `.value` |
+| `wait` | what the task waits for before its resource: a leaf `{signal: name}`, `{task: name}`, `{timeout: ...}` (seconds, a duration, or `{after, value}` where `value` reaches the waiter), `{condition: ...}`, `{request: name}` (a resource unit), `{get: {...}}` or `{put: {...}}` (a store or container), or `{running: {task, where}}` (the running instances of a task); or a group `{any: {name: branch, ...}}`, `{all: {...}}` or `{at_least: n, of: {...}}`, which nest; read after it as `wait.<branch>.done`, `.ok` and `.value` |
 | `signal` | a signal under `signals` the task fires with its payload when it finishes, and fails when it fails |
+| `spawn` | `{task, after}`: on success the task starts `task` as a new entity keyed `<task>-n`, with its own key and `attr.parent` the spawning entity's key, after an optional `after` delay |
+| `subscribe` | a wait branch such as `{task: name}` or `{running: {...}}`: the task is interrupted when that event happens, with the cause `{event, value}` |
+| `on` | a list of actions run on every end of the task: each `{fire: {signal, value, from}}`, `{spawn: {task, after}}`, `{interrupt: {task, where, cause}}`, or a `{path, value}` registry change. A fire action takes a literal `value`, or `from` (the field `from_`), a signal or task name whose last outcome it copies, not both |
 | `fail` | a condition checked after the service, reading the task's own payload; when it holds the task publishes `failed` |
 | `fail_reason` | the `reason` a failure publishes; the `fail` condition's text by default |
 | `on_fail` | the task a failed instance goes to; without it the flow ends |
@@ -211,6 +221,7 @@ The arguments of `with_batching`, the defaults for every sink: `batch_size` and 
 | `until` | a time greater than `initial_time`; `desflow run --until` overrides it |
 | `stop` | ends the run before `until` when it happens: `{signal: name}`, the next firing of a signal, or `{condition: ...}`, the first moment a condition holds |
 | `drain` | `true` stops the arrivals at `until` and runs on until no entity is left; `{limit: 1 h}` stops at the latest that long after `until`; `desflow run --drain` sets it |
+| `on_unhandled_failure` | `continue` (the default) defuses a task, child flow or one-shot signal failure nobody handles, so the run goes on; `stop` lets such a failure stop the run, as plain SimPy does |
 | `before` | a list of `!python` functions called with no arguments before the run, for setup such as creating topics |
 
 ---

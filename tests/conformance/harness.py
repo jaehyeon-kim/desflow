@@ -175,6 +175,7 @@ def run_low_level(
     initial_time: float = 0.0,
     factor: float = 0.0,
     strict: bool = False,
+    on_unhandled_failure: str = "stop",
     raises: bool = False,
 ) -> Union[Tuple[List[Dict[str, Any]], DynamicRealtimeEnvironment], Outcome]:
     """Runs a low-level model into a recording egress.
@@ -182,12 +183,18 @@ def run_low_level(
     `start(env)` builds the resources and starts the processes, after the
     parameters are registered and the egress and statistics are set up. The run
     is unpaced by default (`factor=0.0`); pass `factor` and `strict` for a paced
-    run. With `raises=True` the run's exception is caught and returned in an
-    `Outcome`, with the records written before it; otherwise it propagates, as
-    today. The environment is always torn down.
+    run. `on_unhandled_failure` is `stop` by default, as a plain SimPy
+    environment is, so a one-shot signal's failure nobody waits for stops the
+    run; pass `continue` for the defusing behaviour. With `raises=True` the
+    run's exception is caught and returned in an `Outcome`, with the records
+    written before it; otherwise it propagates. The environment is always torn
+    down.
     """
     env = DynamicRealtimeEnvironment(
-        initial_time=initial_time, factor=factor, strict=strict
+        initial_time=initial_time,
+        factor=factor,
+        strict=strict,
+        on_unhandled_failure=on_unhandled_failure,
     )
     if params is not None:
         env.registry.register_sim_parameter(params)

@@ -146,6 +146,12 @@ EXAMPLES: Dict[str, Example] = {
             _three("process_interaction.yaml", "process_interaction_example.py"),
         ),
         Example(
+            "process-events",
+            "Process Events",
+            "a one-shot closing signal, a spawn after a delay, a subscribe, and an on: action that fires a signal from a payload",
+            _three("process_events.yaml", "process_events_example.py"),
+        ),
+        Example(
             "interruptions",
             "Interruptions",
             "express orders preempt regular ones, and a fire drill interrupts packing; each resumes",

@@ -98,6 +98,7 @@ def test_references_name_each_source():
         "item": {"size"},
         "wait": {"restock"},
         "signal": {"restocked"},
+        "process": set(),
         "registry": {"Shop.arrival.orders.rate"},
     }
 

@@ -42,7 +42,12 @@ The common YAML keys and builder calls side by side, each linked to the page tha
 | Go on to another task | `next` | `next=` | [Task Flow](../user-guide/task-flow.md) |
 | Give up waiting, or refuse to join | `patience`, `balk` | `patience=`, `balk=` | [Patience](../tutorials/patience.md) |
 | Wait for a signal, a task, a timeout or a condition | `wait` | `wait=` | [Process Interaction](../tutorials/process-interaction.md) |
+| Wait for a running task, or a timeout with a value | `wait: {running: {task}}`, `wait: {timeout: {after, value}}` | the same in `wait=` | [Tasks and Processes](../user-guide/tasks-and-processes.md#wait-signals-and-child-flows) |
 | Fire a signal, or fail | `signal`, `fail`, `on_fail` | `signal=`, `fail=`, `on_fail=` | [Tasks and Processes](../user-guide/tasks-and-processes.md#wait-signals-and-child-flows) |
+| Fire a signal once | `signals: {closing: {once: true}}` | `add_signal(name, once=True)` | [Tasks and Processes](../user-guide/tasks-and-processes.md#one-shot-signals) |
+| Start a new flow, now or after a delay | `spawn: {task, after}` | `spawn=`, or `context.spawn(gen, delay=)` | [Tasks and Processes](../user-guide/tasks-and-processes.md#start-a-flow-without-waiting) |
+| Be told when a flow ends | `subscribe: {task}` | `subscribe=`, or `context.subscribe(event)` | [Tasks and Processes](../user-guide/tasks-and-processes.md#be-told-when-a-flow-ends) |
+| Run actions when a task or signal fires | `on: [{fire}, {spawn}, {interrupt}]` | `on=` on `@app.task` and `add_signal` | [Tasks and Processes](../user-guide/tasks-and-processes.md#actions-when-an-event-happens) |
 | Interrupt other tasks | `interrupt`, `on_interrupt` | `interrupt=`, `on_interrupt=` | [Interruptions](../tutorials/interruptions.md) |
 | Hold several resources | `resource: [picker, bench]`, `keep` | `resource_id=["picker", "bench"]`, `keep=` | [Competing Resources](../tutorials/competing-resources.md) |
 
@@ -69,5 +74,6 @@ The common YAML keys and builder calls side by side, each linked to the page tha
 | Run to a time | `run: {until: 1 h}` | `app.run(until=3600)` | [Time and Pacing](../user-guide/time-and-pacing.md) |
 | Stop at a signal or a condition | `run.stop` | `app.run(until=, stop=)` | [End Conditions](../tutorials/end-conditions.md) |
 | Finish the entities already in the model | `run.drain: true` | `app.run(until=, drain=True)` | [End Conditions](../tutorials/end-conditions.md) |
+| Stop the run on a failure nobody handles | `run: {on_unhandled_failure: stop}` | `app.run(on_unhandled_failure="stop")` | [Tasks and Processes](../user-guide/tasks-and-processes.md#failures) |
 | Repeat a run with other seeds | `desflow run FILE --replications 20` | `replicate(model, 20, seed=, until=)` | [Replications](../user-guide/replications.md) |
 | Compare designs | `desflow experiment FILE` | `run_experiment(spec)` | [Experiments](../user-guide/experiments.md) |

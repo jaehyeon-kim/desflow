@@ -1,0 +1,21 @@
+# A driver starts a 20 s task and subscribes to a charger child flow; the charger
+# ends at 3, interrupting the driver, which abandons. See test_c1_processes.py.
+simulation:
+  sim_id: C1
+  factor: 0
+services:
+  charging: {dist: constant, value: 3}
+  driving: {dist: constant, value: 20}
+tasks:
+  driver:
+    service: driving
+    subscribe: {task: charger}
+    on_interrupt: abandon
+    payload: {event: drove}
+  charger:
+    service: charging
+    payload: {event: charged}
+processes:
+  - !python tests.conformance.batch2_scripts.one_driver
+run:
+  until: 30

@@ -1,0 +1,21 @@
+# A one-shot signal closing fires once at 2; early, which waits before it, resumes
+# at 2, and late, which starts at 5, resumes at once. See test_c1_events.py.
+simulation:
+  sim_id: C1
+  factor: 0
+signals:
+  closing: {once: true}
+tasks:
+  close:
+    signal: closing
+    payload: {event: closed}
+  early:
+    wait: {signal: closing}
+    payload: {event: early}
+  late:
+    wait: {signal: closing}
+    payload: {event: late}
+processes:
+  - !python tests.conformance.batch2_scripts.one_shot_model
+run:
+  until: 8

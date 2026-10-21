@@ -1,0 +1,17 @@
+# pack finishes at 3 and spawns a courier 3 s later, at 6. See test_c1_processes.py.
+simulation:
+  sim_id: C1
+  factor: 0
+services:
+  packing: {dist: constant, value: 1}
+arrivals:
+  orders: {dist: constant, value: 2, spawn: pack}
+tasks:
+  pack:
+    service: packing
+    payload: {event: packed}
+    spawn: {task: courier, after: 3}
+  courier:
+    payload: {event: delivered}
+run:
+  until: 8

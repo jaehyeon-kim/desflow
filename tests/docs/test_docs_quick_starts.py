@@ -32,6 +32,7 @@ PAGES = {
     "patience": "docs/guides/reneging-and-balking.md",
     "filtered-inventory": "docs/user-guide/stores-and-containers.md",
     "process-interaction": "docs/user-guide/tasks-and-processes.md",
+    "process-events": "docs/user-guide/tasks-and-processes.md",
     "interruptions": "docs/user-guide/resources.md",
     "competing-resources": "docs/user-guide/resources.md",
     "end-conditions": "docs/user-guide/time-and-pacing.md",

@@ -94,7 +94,7 @@ def test_simulation_execution_wiring(MockEnv):
     app.run(until=10)
 
     # Validate that Engine was created and run
-    MockEnv.assert_called_once_with(factor=0.0)
+    MockEnv.assert_called_once_with(factor=0.0, on_unhandled_failure="continue")
     mock_env_instance.run.assert_called_once_with(until=10)
     mock_env_instance.teardown.assert_called_once()
 
@@ -991,6 +991,42 @@ def test_a_misspelt_name_names_the_closest_or_how_to_add_it():
         app.add_scenario([{"at": 1, "pth": "Shop.service.packing.value", "value": 2}])
     with pytest.raises(ValueError, match="got 'timout'; did you mean 'timeout'"):
         app.task(wait={"timout": 3})
+
+
+def test_run_refuses_an_on_or_subscribe_name_nothing_added():
+    """`run()` refuses, as YAML does at load, an on: fire signal, an on: interrupt
+    task, a subscribe task and a subscribe signal that nothing added, on a task or a
+    signal."""
+    on_task = "the on: action of task 'pack' "
+    on_signal = "the on: action of signal 's' "
+    cases = [
+        ({"on": [{"fire": {"signal": "nope"}}]}, on_task + "fires signal 'nope'"),
+        (
+            {"on": [{"interrupt": {"task": "nope"}}]},
+            on_task + "interrupts task 'nope'",
+        ),
+        ({"subscribe": {"task": "nope"}}, "subscribes to task 'nope'"),
+        ({"subscribe": {"signal": "nope"}}, "subscribes to signal 'nope'"),
+    ]
+    for options, message in cases:
+        app = SimulationContext("S", factor=0.0)
+
+        @app.task(name="pack", **options)
+        def pack(task_id):
+            return {}
+
+        with pytest.raises(ValueError, match=f"{message}, which is not added"):
+            app.run(until=5)
+
+    signal_cases = [
+        ([{"fire": {"signal": "nope"}}], on_signal + "fires signal 'nope'"),
+        ([{"interrupt": {"task": "nope"}}], on_signal + "interrupts task 'nope'"),
+    ]
+    for on, message in signal_cases:
+        app = SimulationContext("S", factor=0.0)
+        app.add_signal("s", on=on)
+        with pytest.raises(ValueError, match=f"{message}, which is not added"):
+            app.run(until=5)
 
 
 def test_calls_that_need_a_running_model_say_where_to_make_them():

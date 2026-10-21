@@ -14,6 +14,7 @@ DEFAULT_QUEUE_ORDER = "fifo"
 # serves the remaining time, `restart` queues again with a new service time, and
 # `abandon` ends the task.
 INTERRUPT_POLICIES = ("resume", "restart", "abandon")
+UNHANDLED_FAILURE_POLICIES = ("stop", "continue")
 
 # The built-in statistics levels, from none to every statistic. Each level publishes
 # what the levels before it publish, and more.

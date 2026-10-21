@@ -1,0 +1,18 @@
+# A wait timeout carries a value the waiter reads, routing next at 2. See
+# test_c1_events.py.
+simulation:
+  sim_id: C1
+  factor: 0
+tasks:
+  hold:
+    wait: {timeout: {after: 2, value: {reason: late}}}
+    payload: {event: held}
+    next:
+      when: [{condition: wait.timeout.value.reason == "late", task: gave_up}]
+  gave_up:
+    payload: {event: gave_up}
+processes:
+  - function: !python tests.conformance.batch2_scripts.start_task
+    kwargs: {task: hold, at: 0}
+run:
+  until: 6

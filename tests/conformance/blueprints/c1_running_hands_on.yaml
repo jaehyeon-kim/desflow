@@ -1,0 +1,28 @@
+# start spawns a relay that hands on to more; the driver's running wait on relay
+# resumes when relay finishes at 4, not when the flow ends at 7. See
+# test_c1_processes.py.
+simulation:
+  sim_id: C1
+  factor: 0
+services:
+  relaying: {dist: constant, value: 3}
+  moreing: {dist: constant, value: 3}
+tasks:
+  start:
+    spawn: {task: relay}
+    payload: {event: started}
+    next: driver
+  relay:
+    service: relaying
+    payload: {event: relayed}
+    next: more
+  more:
+    service: moreing
+    payload: {event: more_done}
+  driver:
+    wait: {running: {task: relay}}
+    payload: {event: drove}
+processes:
+  - !python tests.conformance.batch2_scripts.one_start
+run:
+  until: 10

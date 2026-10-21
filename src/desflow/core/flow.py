@@ -24,6 +24,7 @@ def make_scope(
     item: Any = None,
     waits: Optional[Mapping[str, Mapping[str, Any]]] = None,
     signals: Optional[Mapping[str, Any]] = None,
+    process: Optional[Mapping[str, Any]] = None,
 ) -> Scope:
     """
     Builds what an expression's names read.
@@ -37,6 +38,7 @@ def make_scope(
         item: The item a store get took, for `item`.
         waits: The task's wait branches, for `wait`.
         signals: Signals by name, for `signal`.
+        process: The running task's `name`, `instance` and `target`, for `process`.
 
     Returns:
         Scope: The scope.
@@ -52,6 +54,7 @@ def make_scope(
         item=item,
         waits=waits or {},
         signals=signals or {},
+        process=process or {},
     )
 
 
@@ -390,12 +393,20 @@ class Transfer:
 
 
 # The kinds of branch a task's `wait` takes
-WAIT_KINDS = ("signal", "task", "timeout", "condition", "request", "get", "put")
+WAIT_KINDS = (
+    "signal",
+    "task",
+    "timeout",
+    "condition",
+    "request",
+    "get",
+    "put",
+    "running",
+)
 
-# Kinds a later 0.23.0 batch adds. They are refused until then, so a blueprint
-# written against the finished release fails with a clear message rather than the
-# one-branch or length error. The check reads the mapping's keys.
-NOT_YET_KINDS = ("running",)
+# Kinds a later SimPy release may add, refused until then with a clear message
+# rather than the one-branch or length error. The check reads the mapping's keys.
+NOT_YET_KINDS: Tuple[str, ...] = ()
 
 # Group kinds: a branch that holds named child branches.
 GROUP_KINDS = ("any", "all", "at_least")
@@ -505,11 +516,14 @@ class Wait:
             node = WaitNode(name, kind, children=self._children(kind, spec[kind]))
         else:
             kind, target = _wait_branch(spec)
-            node_name = (
-                name
-                if name is not None
-                else (target if kind in ("signal", "task", "request") else kind)
-            )
+            if name is not None:
+                node_name: Optional[str] = name
+            elif kind in ("signal", "task", "request"):
+                node_name = target
+            elif kind == "running":
+                node_name = target["task"]
+            else:
+                node_name = kind
             node = WaitNode(node_name, kind, target=target)
         if node.name is not None:
             if node.name in self.branches:
@@ -546,12 +560,19 @@ class Wait:
         """Returns the signals or the tasks the wait's leaves name.
 
         Args:
-            kind: `signal` or `task`.
+            kind: `signal`, `task` or `running`. `task` also returns the tasks a
+                `running` branch names, so a load check finds them all.
 
         Returns:
             Set[str]: The names the leaves of that kind name.
         """
-        return {n.target for n in self.branches.values() if n.kind == kind}
+        running = {
+            n.target["task"] for n in self.branches.values() if n.kind == "running"
+        }
+        if kind == "running":
+            return running
+        found = {n.target for n in self.branches.values() if n.kind == kind}
+        return found | running if kind == "task" else found
 
     @property
     def conditions(self) -> List[Expression]:
@@ -575,12 +596,23 @@ def _wait_branch(branch: Any) -> Tuple[str, Any]:
             + suggestion(kind, WAIT_KINDS)
         )
     if kind == "timeout":
-        seconds = time_to_seconds(target) if isinstance(target, str) else target
+        delay, value = target, None
+        if isinstance(target, Mapping):
+            extra = set(target) - {"after", "value"}
+            if extra:
+                raise ValueError(
+                    f"a wait timeout takes after and value, not "
+                    f"{', '.join(sorted(extra))}"
+                )
+            if "after" not in target:
+                raise ValueError("a wait timeout mapping needs after")
+            delay, value = target["after"], target.get("value")
+        seconds = time_to_seconds(delay) if isinstance(delay, str) else delay
         if isinstance(seconds, bool) or not isinstance(seconds, (int, float)):
             raise ValueError(f"a wait timeout is seconds or a duration, got {target!r}")
         if seconds < 0:
             raise ValueError(f"a wait timeout must be 0 or more, got {target!r}")
-        return kind, float(seconds)
+        return kind, (float(seconds), value)
     if kind == "condition":
         return kind, Expression(target)
     if kind in ("get", "put"):
@@ -588,6 +620,28 @@ def _wait_branch(branch: Any) -> Tuple[str, Any]:
             return kind, Transfer.of(target)
         except ValueError as exc:
             raise ValueError(f"wait {kind} branch: {exc}") from None
+    if kind == "running":
+        if not isinstance(target, Mapping):
+            raise ValueError(
+                f"a wait running branch takes {{task: name, where: ...}}, got "
+                f"{target!r}"
+            )
+        extra = set(target) - {"task", "where"}
+        if extra:
+            raise ValueError(
+                f"a wait running branch takes task and where, not "
+                f"{', '.join(sorted(extra))}"
+            )
+        running_task = target.get("task")
+        if not isinstance(running_task, str):
+            raise ValueError(
+                f"a wait running branch names a task, got {running_task!r}"
+            )
+        where = target.get("where")
+        return kind, {
+            "task": running_task,
+            "where": Expression(where) if where is not None else None,
+        }
     if not isinstance(target, str):
         raise ValueError(f"a wait {kind} branch names a {kind}, got {target!r}")
     return kind, target

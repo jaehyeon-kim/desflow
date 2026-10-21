@@ -224,11 +224,12 @@ A task can wait for something before it queues for its resource: its `wait`. A w
 |---|---|---|
 | `{signal: name}` | the next firing of a signal declared under `signals` (builder `add_signal`) | the firing's value, the payload of the task that fired it |
 | `{task: name}` | a **child flow**: that task, started for the same entity with its own instance id, and the tasks its `next` leads to, until the flow ends | the last task's finished payload |
-| `{timeout: 40 s}` | a time | none |
+| `{timeout: 40 s}`, or `{timeout: {after: 40 s, value: ...}}` | a time; `value` is carried to the waiter, as SimPy's `env.timeout(delay, value)` | `None`, or the `value` given |
 | `{condition: level.stock >= 5}` | a condition to hold, checked when the wait starts and again after every store or container change, registry update, signal firing and finished task | `True` |
 | `{request: name}` | a unit of a resource; a won unit is held through the service and given back when the task ends | the request |
 | `{get: {store: name}}` or `{get: {container: name, amount: 2}}` | an item or an amount, as a task `get` does | the item taken |
 | `{put: {store: name}}` or `{put: {container: name, amount: 2}}` | room to add the task's payload or an amount | none |
+| `{running: {task: name, where: ...}}` | the running instances of a task on the waiter's entity and the entities it spawned to all end, as SimPy's `yield process`; `where` narrows them, read in each instance's scope; none matching is done at once | the one instance's finished payload, or a mapping from instance id to payload for several, in start order |
 
 A single branch is named after its signal, task or resource, or `timeout`, `condition`, `get` or `put`. After the wait, `wait.<branch>.done` says whether the branch happened before the wait ended, `.ok` whether it succeeded, and `.value` (or `.value.<field>`) is its value; `next`, `fail` and amounts read them, and a builder function that declares `wait` receives them as a mapping. A task fires a signal with `signal: name` when it finishes, with its payload as the value, and `signal.<name>.count`, `.ok` and `.value` read the signal in any condition. The `process-interaction` example waits for a child flow, then for the first of a courier's signal and a time limit:
 
@@ -402,11 +403,36 @@ A single branch is named after its signal, task or resource, or `timeout`, `cond
 
 The task publishes `queued` when its wait starts, so the wait counts in its wait statistics, and its `patience` covers the wait as well as its resource and its `get`. When an `any` wait ends, its losing signal, timeout and condition branches are dropped, and its losing child flows keep running, as SimPy leaves processes running; [Wait for One or All](../guides/wait-for-one-or-all.md) shows ties and failures. A wait holds no resource, so waiting for all of several things grants nothing at once.
 
+### One-Shot Signals
+
+A signal written as a mapping with `once: true` (builder `add_signal(name, once=True)`) fires once, as SimPy's `Event` does: it does not re-arm, so a task that waits for it after it has fired resumes at once, and a second firing is refused. A plain signal keeps re-arming after each firing, so a waiter that starts later waits for the next. A closing-time signal is a one-shot: `signals: {closing: {once: true}}`.
+
+### Start a Flow Without Waiting
+
+A task's `spawn` starts another task as a **new entity**, keyed `<task>-n`, and goes on at once, as SimPy's `env.process` starts a process without yielding it. A courier that leaves once an order is packed is a spawn: `spawn: {task: courier}` on the pack task, or `@app.task(spawn={"task": "courier"})`; a process spawns a generator with `context.spawn(generator)`. The spawned entity enters and leaves the model as any entity does, so a drain waits for it, and it counts as a flow of its own under the spawned task's name. Its records carry its own key, and the spawning entity's key is read as `attr.parent`. A spawned task cannot share its name with an arrival, because their flow statistics and entity numbers would merge.
+
+`spawn: {task: courier, after: 3 s}` starts the new entity that long after the task finishes, as SimPy's `start_delayed`; `context.spawn(generator, delay=3)` does the same for a process. A drain that ends during the delay ends the run before the spawned entity starts, as it does for an arrival not yet due. An `after` of 0 or less is refused.
+
+### Be Told When a Flow Ends
+
+A task's `subscribe` asks to be interrupted when something happens, rather than pausing for it: `subscribe: {task: charger}` starts the `charger` child flow and interrupts the task when it ends, with the cause `{"event": "charger", "value": <charger's payload>}`. The task follows its `on_interrupt` then, as it does for any interrupt. `context.subscribe(event)` subscribes a process to any SimPy event, a process included, as SimPy's `subscribe_at`; it refuses an event that has already happened.
+
+### Actions When an Event Happens
+
+An `on:` list runs actions when a signal fires or a task ends, before any waiter, as a SimPy callback runs when its event fires. It hangs on a task (every end: finish, balk, renege, abandon, failure) or on a signal, and each entry is one of:
+
+- `fire: {signal: name}` fires a signal. `value` fires it with a literal value; `from: name` instead copies the latest outcome of a signal, or the finished payload (or failure reason) of the task with that name that last ended on the entity, as SimPy's `trigger` copies another event's outcome. With nothing to copy yet it fires nothing and logs a warning. `value` and `from` together are refused.
+- `spawn: {task, after}` starts a new entity, as the `spawn` key does.
+- `interrupt: {task, where, cause}` interrupts running instances, as a task's `interrupt` does.
+- `path` with `value` sets a registry value, as a scenario step does.
+
+A drain waits for a task's `on:` actions and for the `on:` actions of signals its tasks fire, so a final task that fires a signal with `on:` actions leaves only after they have run.
+
 ### Failures
 
 A task fails when its `fail` condition holds after its service, when the wait it needs fails, or when its function raises: a builder task's function, or a YAML task's `!python` payload function. `fail` reads the task's own payload as `payload.<field>`, as `next` does. A failed task publishes `failed` with a `reason`, the condition's text or its `fail_reason`, instead of its finished payload; it fails its `signal`, so every waiter of the signal fails too; and it goes to its `on_fail` task. Without `on_fail` the entity's flow ends, and a child flow fails the task waiting for it, with the same reason. Each failure is counted as `tasks.<task>.failed`, and a flow that ends in one as `flows.<arrival>.failed`, at `basic` and above. The `inspect` task of the example above fails a gift and sends it to be wrapped.
 
-In the low-level API a failure is SimPy's: an exception raised in a process reaches the process that yields it, and one nobody handles stops the run. The builder and YAML end only the entity's flow, because a data generator should not stop on one failed order.
+What a failure nobody handles does is set by `run.on_unhandled_failure`. Under `continue`, the default, a task, child flow or one-shot signal failure that nobody handles is defused and the run goes on, because a data generator should not stop on one failed order. Under `stop` such a failure stops the run, as plain SimPy does: a root task failing with no `on_fail` raises, a one-shot signal failed with nobody waiting raises, and the exception reaches the caller of `run()`. The builder and YAML take it as `run(on_unhandled_failure="stop")` or `run: {on_unhandled_failure: stop}`; the low-level API as `DynamicRealtimeEnvironment(on_unhandled_failure="stop")`. In the low-level API an exception raised in a process always reaches the process that yields it, and one nobody handles stops the run, as SimPy.
 
 ### Example: Process Interaction
 
@@ -520,6 +546,161 @@ The `process-interaction` example puts these together: a child flow, a failure t
 
     The whole file is [`examples/low-level/process_interaction_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/process_interaction_example.py).
 
+### Example: Process Events
+
+The `process-events` example puts the event features together: a guard who starts an alarm round and is told when it ends (`subscribe`), a packed order that fires the `ready` signal from its own payload (an `on:` action with `fire ... from`) for a waiting shipper, and a one-shot `closing` signal whose `on:` spawns a sweep one second later (`spawn` with `after`). The arrival gaps are set so each happens once. It needs no Docker service and ends on its own after 12 simulation seconds.
+
+```yaml title="examples/yaml/process_events.yaml:events"
+signals:
+  # A plain signal re-arms; the one-shot closing fires once and spawns a sweep
+  ready: {}
+  closing:
+    once: true
+    on:
+      - spawn: {task: sweep, after: 1 s}
+
+arrivals:
+  orders: {dist: constant, value: 6, spawn: pack}
+  shippers: {dist: constant, value: 7, spawn: ship}
+  closers: {dist: constant, value: 9, spawn: close}
+  guards: {dist: constant, value: 8, spawn: guard}
+
+tasks:
+  # A packed order fires ready from its own finished payload; a shipper reads it
+  pack:
+    service: packing
+    payload: {event_type: order_packed}
+    on:
+      - fire: {signal: ready, from: pack}
+  ship:
+    wait: {signal: ready}
+    payload: {event_type: order_shipped}
+  # Fires the one-shot closing when the shop closes
+  close:
+    signal: closing
+    payload: {event_type: shop_closed}
+  sweep:
+    service: sweeping
+    payload: {event_type: floor_swept}
+  # The guard starts an alarm round and is interrupted when it ends
+  guard:
+    service: guarding
+    subscribe: {task: alarm}
+    on_interrupt: abandon
+    payload: {event_type: shift_done}
+  alarm:
+    service: alarming
+    payload: {event_type: alarm_rang}
+```
+
+=== "YAML"
+
+    **Quick Start**
+
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+    === "uv"
+
+        ```bash
+        # 1. Install
+        uv tool install desflow
+
+        # 2. Download the example
+        desflow examples get process-events --api yaml
+        cd process-events/yaml
+
+        # 3. Run it
+        desflow run process_events.yaml
+        ```
+
+    === "pip"
+
+        ```bash
+        # 1. Install
+        pip install desflow
+
+        # 2. Download the example
+        desflow examples get process-events --api yaml
+        cd process-events/yaml
+
+        # 3. Run it
+        desflow run process_events.yaml
+        ```
+
+    The whole file is [`examples/yaml/process_events.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/yaml/process_events.yaml).
+
+=== "Builder"
+
+    **Quick Start**
+
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+    === "uv"
+
+        ```bash
+        # 1. Install
+        uv tool install desflow
+
+        # 2. Download the example
+        desflow examples get process-events --api builder
+        cd process-events/builder
+
+        # 3. Run it
+        uv run --no-project --with desflow process_events_example.py
+        ```
+
+    === "pip"
+
+        ```bash
+        # 1. Install
+        pip install desflow
+
+        # 2. Download the example
+        desflow examples get process-events --api builder
+        cd process-events/builder
+
+        # 3. Run it
+        python process_events_example.py
+        ```
+
+    The whole file is [`examples/builder/process_events_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/builder/process_events_example.py).
+
+=== "Low-level"
+
+    **Quick Start**
+
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+    === "uv"
+
+        ```bash
+        # 1. Install
+        uv tool install desflow
+
+        # 2. Download the example
+        desflow examples get process-events --api low-level
+        cd process-events/low-level
+
+        # 3. Run it
+        uv run --no-project --with desflow process_events_example.py
+        ```
+
+    === "pip"
+
+        ```bash
+        # 1. Install
+        pip install desflow
+
+        # 2. Download the example
+        desflow examples get process-events --api low-level
+        cd process-events/low-level
+
+        # 3. Run it
+        python process_events_example.py
+        ```
+
+    The whole file is [`examples/low-level/process_events_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/process_events_example.py).
+
 ### Records of a Task
 
 Every event of a task carries three fields beside its value: `key`, the entity's key; `task`, the task's name; and `instance`, the number of this run of the task, counted from 0 for each task. The first order of the blueprint in [A Task](#a-task), packed and then labelled:
@@ -567,6 +748,8 @@ A YAML task and its `spawn` make the same task and arrival loop that the builder
 ### Processes and the Low-level API
 
 `add_process(func, **kwargs)` starts `func(context, **kwargs)` when the run starts, and a YAML `processes` entry does the same with a `!python` function. Inside it, `context.env` is the `DynamicRealtimeEnvironment`, so a process can do anything a low-level script does: `context.env.timeout`, `context.env.registry.update`, `context.env.publish_event`. This is how low-level code joins a builder or YAML model.
+
+`context.env.active_process` is the running SimPy process. Its `name` is the task's name, because a task's process is named after the task, and its `target` is the event it waits on now, None once it has ended. A condition reads the same three as `process.name`, `process.instance` (the task's instance id, the `instance` field of its records) and `process.target`, a string such as `timeout`, `signal.<name>`, `task.<name>`, `condition`, `resource.<name>`, `get.<name>`, `put.<name>` or `service`. In a task's own expressions they name that task; in an `interrupt` or `running` `where` they name each instance tested.
 
 ---
 

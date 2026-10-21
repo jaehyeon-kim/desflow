@@ -81,7 +81,6 @@ def run_scenario(
     ordered: List[dict] = sorted(
         (check_step(step) for step in steps), key=lambda step: step["at"]
     )
-    registry = env.registry
     # `at` counts from the start of the run, the moment this process starts, so a
     # run with an initial_time of 8 h applies a step at 30 min at 8.5 h
     origin = env.now
@@ -91,21 +90,47 @@ def run_scenario(
             return
         if at > env.now:
             yield _urgent_timeout(env, at - env.now)
-        path, record = step.get("path"), step.get("record")
-        old = new = None
-        if path is not None:
-            old = registry.get(path).value
-            registry.update(path, step["value"])
-            new = registry.get(path).value
-        if record is not None:
-            env.publish_label(record, path=path, old=old, new=new)
-        action = step.get("interrupt")
-        if action is not None:
-            if interrupt is None:
-                raise ValueError("an interrupt step needs an interrupt function")
-            interrupt(
-                action["task"], where=action.get("where"), cause=action.get("cause")
-            )
+        apply_step(
+            env,
+            step.get("path"),
+            step.get("value"),
+            record=step.get("record"),
+            interrupt=interrupt,
+            action=step.get("interrupt"),
+        )
+
+
+def apply_step(
+    env: Any,
+    path: Optional[str],
+    value: Any = None,
+    record: Optional[Mapping[str, Any]] = None,
+    interrupt: Optional[Callable[..., Any]] = None,
+    action: Optional[Mapping[str, Any]] = None,
+) -> None:
+    """Applies one change: a registry `path` and `value`, a ground-truth `record`,
+    and an `interrupt` action. Shared by `run_scenario` and an `on:` list's actions,
+    so the registry changes by one path.
+
+    Args:
+        env: The environment, for the registry and `publish_label`.
+        path: A registry path to set, or None.
+        value: The value to set at `path`.
+        record: A ground-truth record to publish, or None.
+        interrupt: The function an `action` calls, as `run_scenario` takes it.
+        action: An `{task, where, cause}` interrupt, or None.
+    """
+    old = new = None
+    if path is not None:
+        old = env.registry.get(path).value
+        env.registry.update(path, value)
+        new = env.registry.get(path).value
+    if record is not None:
+        env.publish_label(record, path=path, old=old, new=new)
+    if action is not None:
+        if interrupt is None:
+            raise ValueError("an interrupt step needs an interrupt function")
+        interrupt(action["task"], where=action.get("where"), cause=action.get("cause"))
 
 
 def _urgent_timeout(env: Any, delay: float) -> Event:

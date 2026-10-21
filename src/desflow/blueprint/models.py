@@ -418,6 +418,106 @@ class InterruptAction(_Model):
         return {"task": self.task, "where": self.where, "cause": self.cause}
 
 
+class SpawnAction(_Model):
+    """A `spawn:` key or an `on:` spawn action: start `task` as a new entity, after
+    an optional delay."""
+
+    task: str
+    after: Optional[Union[float, str]] = None
+
+    @field_validator("after", mode="before")
+    @classmethod
+    def _after_duration(cls, value: Any) -> Any:
+        if isinstance(value, bool):
+            raise ValueError(f"a spawn after is seconds or a duration, got {value!r}")
+        return _seconds(value) if isinstance(value, str) else value
+
+    @field_validator("after")
+    @classmethod
+    def _after_positive(cls, value: Any) -> Any:
+        if value is not None and not value > 0:
+            raise ValueError(f"a spawn after is more than 0, got {value:g}")
+        return value
+
+
+class FireAction(_Model):
+    """An `on:` fire action: fire `signal` with a literal `value`, or with the
+    outcome `from` copies from a signal or a task."""
+
+    signal: str
+    value: Any = None
+    from_: Optional[str] = Field(default=None, alias="from")
+
+    @model_validator(mode="after")
+    def _value_or_from(self) -> "FireAction":
+        if self.value is not None and self.from_ is not None:
+            raise ValueError("a fire action takes value or from, not both")
+        return self
+
+
+class OnEntry(_Model):
+    """One entry of an `on:` list: exactly one of a fire, spawn or interrupt action,
+    or a `path` with a `value` as a scenario step sets a registry value."""
+
+    fire: Optional[FireAction] = None
+    spawn: Optional[SpawnAction] = None
+    interrupt: Optional[InterruptAction] = None
+    path: Optional[str] = None
+    value: Any = None
+
+    @model_validator(mode="after")
+    def _one_action(self) -> "OnEntry":
+        actions = [
+            name
+            for name in ("fire", "spawn", "interrupt", "path")
+            if getattr(self, name) is not None
+        ]
+        if len(actions) != 1:
+            raise ValueError(
+                "an on: entry takes exactly one of fire, spawn, interrupt or path"
+            )
+        if self.value is not None and self.path is None and self.fire is None:
+            raise ValueError("on: value belongs to a path or a fire action")
+        return self
+
+    def entry(self) -> Dict[str, Any]:
+        """The normalized mapping the builder and the runtime take."""
+        if self.fire is not None:
+            return {
+                "fire": {
+                    "signal": self.fire.signal,
+                    "value": self.fire.value,
+                    "from": self.fire.from_,
+                }
+            }
+        if self.spawn is not None:
+            return {"spawn": {"task": self.spawn.task, "after": self.spawn.after}}
+        if self.interrupt is not None:
+            return {"interrupt": self.interrupt.action()}
+        return {"path": self.path, "value": self.value}
+
+
+class RunningTarget(_Model):
+    """A `running` wait branch target: the task whose running instances to wait for,
+    narrowed by an optional `where` condition read in each instance's scope."""
+
+    task: str
+    where: Optional[str] = None
+
+    @field_validator("where")
+    @classmethod
+    def _where_parses(cls, value: Any) -> Any:
+        if value is not None:
+            Expression(value)
+        return value
+
+
+class RunningWait(_Model):
+    """A `wait` branch for the running instances of a task: done when they all end."""
+
+    running: RunningTarget
+
+
 class SignalWait(_Model):
     """A `wait` branch for a signal's next firing."""
 
@@ -430,10 +530,19 @@ class TaskWait(_Model):
     task: str
 
 
-class TimeoutWait(_Model):
-    """A `wait` branch of a number of seconds or a duration such as `30 s`."""
+class TimeoutAfter(_Model):
+    """A `wait` timeout with a value: `{after: 40 s, value: ...}`, as SimPy's
+    `env.timeout(delay, value)` carries a value the waiter receives."""
 
-    timeout: Union[float, str]
+    after: Union[float, str]
+    value: Any = None
+
+
+class TimeoutWait(_Model):
+    """A `wait` branch of a number of seconds, a duration such as `30 s`, or
+    `{after, value}` with a value the waiter receives."""
+
+    timeout: Union[float, str, TimeoutAfter]
 
 
 class ConditionWait(_Model):
@@ -481,8 +590,7 @@ class PutWait(_Model):
 
 # The kinds a 0.23.0 wait takes. A plain union, no discriminator: each model
 # accepts only its own key under extra="forbid", so exactly one matches a valid
-# mapping, on every Pydantic from 2.6.0. The kind a later batch adds (running) is
-# not here yet, and `Wait` refuses it.
+# mapping, on every Pydantic from 2.6.0.
 WaitBranch = Union[
     SignalWait,
     TaskWait,
@@ -494,6 +602,7 @@ WaitBranch = Union[
     RequestWait,
     GetWait,
     PutWait,
+    RunningWait,
 ]
 
 AnyWait.model_rebuild()
@@ -552,6 +661,16 @@ class Task(_Model):
     on_interrupt: str = "resume"
     on_interrupt_next: Optional[str] = None
     interrupt: Optional[InterruptAction] = None
+    spawn: Optional[SpawnAction] = None
+    subscribe: Optional[Dict[str, Any]] = None
+    on: List[OnEntry] = Field(default_factory=list)
+
+    @field_validator("subscribe")
+    @classmethod
+    def _subscribe_parses(cls, value: Any) -> Any:
+        if value is not None:
+            Wait(value)
+        return value
 
     def resources(self) -> List[str]:
         """The resources the task holds, in the order it acquires them."""
@@ -827,6 +946,7 @@ class Run(_Model):
     before: List[Callable[[], Any]] = Field(default_factory=list)
     stop: Optional[Dict[str, str]] = None
     drain: Union[bool, Drain] = False
+    on_unhandled_failure: Literal["stop", "continue"] = "continue"
 
     @field_validator("stop")
     @classmethod
@@ -857,6 +977,17 @@ class Run(_Model):
         return None if value is None else _seconds(value)
 
 
+class SignalSpec(_Model):
+    """A `signals` entry in the mapping form: `{closing: {once: true, on: [...]}}`.
+
+    `once` makes the signal fire once, as SimPy's `Event` does; `on` lists actions
+    run when the signal fires, as a task's `on` lists actions run when it ends.
+    """
+
+    once: bool = False
+    on: List[OnEntry] = Field(default_factory=list)
+
+
 class Blueprint(_Model):
     """A whole blueprint file."""
 
@@ -867,7 +998,7 @@ class Blueprint(_Model):
     services: Dict[str, Distribution] = Field(default_factory=dict)
     arrivals: Dict[str, Arrival] = Field(default_factory=dict)
     variables: Dict[str, Any] = Field(default_factory=dict)
-    signals: List[str] = Field(default_factory=list)
+    signals: Dict[str, SignalSpec] = Field(default_factory=dict)
     tasks: Dict[str, Task] = Field(default_factory=dict)
     telemetry: List[Telemetry] = Field(default_factory=list)
     processes: List[Process] = Field(default_factory=list)
@@ -877,6 +1008,15 @@ class Blueprint(_Model):
     batching: Optional[Batching] = None
     stats: Optional[Stats] = None
     run: Run = Field(default_factory=Run)
+
+    @field_validator("signals", mode="before")
+    @classmethod
+    def _signal_mapping(cls, value: Any) -> Any:
+        """Lets `signals` be written as a list of names, as before, or a mapping of
+        name to `{once, on}`."""
+        if isinstance(value, list):
+            return {name: {} for name in value}
+        return value
 
     @field_validator("stats", mode="before")
     @classmethod
