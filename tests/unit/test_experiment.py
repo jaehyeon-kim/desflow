@@ -20,7 +20,7 @@ from desflow.blueprint.cli import app as cli
 from desflow.blueprint.loader import BlueprintError
 from desflow.analysis import results as found
 from desflow.analysis.models import RunResult
-from desflow.analysis.spec import ExperimentSpec
+from desflow.analysis.spec import ExperimentSpec, load_experiment
 
 SHOP = """\
 simulation: {sim_id: Shop, factor: 0}
@@ -261,6 +261,23 @@ def test_a_failed_check_writes_everything_then_fails(folder):
     cli_run = CliRunner().invoke(cli, ["experiment", str(experiment)])
     assert cli_run.exit_code == 1 and "FAILED: base" in cli_run.output
     assert not run_experiment(experiment, raise_on_failure=False).failed == []
+
+
+def test_a_check_with_an_unquoted_on_key_loads(tmp_path):
+    """YAML 1.1 reads the bare word `on` as True, so a check with `on: mean` failed
+    to load with "Keys should be strings"; the loader now keeps `on` as a string."""
+    (tmp_path / "shop.yaml").write_text(SHOP)
+    experiment = EXPERIMENT.replace(
+        "checks: [{measure: tasks.pack.wait_mean, variant: three, max: 2}]",
+        "checks:\n"
+        "  - measure: tasks.pack.wait_mean\n"
+        "    variant: three\n"
+        "    max: 2\n"
+        "    on: mean",
+    )
+    (tmp_path / "experiment.yaml").write_text(experiment)
+    spec, _ = load_experiment(tmp_path / "experiment.yaml")
+    assert spec.checks[0].on == "mean"
 
 
 def test_a_check_on_the_interval_is_stricter_than_on_the_mean(tmp_path):

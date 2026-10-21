@@ -21,23 +21,7 @@ from desflow import (
     SimParameter,
 )
 from desflow.core.context import SimulationContext
-from tests.conformance.harness import RecordingEgress, run_yaml
-
-
-def _times(records, task):
-    return [
-        r["sim_ts"]
-        for r in records
-        if r["stream_type"] == "event"
-        and r["task"] == task
-        and "status" not in r["value"]
-    ]
-
-
-def _periodic(env, gap, start):
-    while True:
-        yield env.timeout(gap)
-        env.process(start())
+from tests.conformance.harness import RecordingEgress, periodic, run_yaml, times
 
 
 # ------------------------------------------------------- stop at an event
@@ -56,7 +40,7 @@ def _reference_signal(close_at, until):
         yield env.timeout(close_at)
         closing.succeed()
 
-    env.process(_periodic(env, 10, ping))
+    env.process(periodic(env, 10, ping))
     env.process(close())
     closing.callbacks.append(StopSimulation.callback)
     env.run(until=until)
@@ -107,7 +91,7 @@ def _low_level_signal(close_at, until):
             yield env.timeout(close_at)
             closing.fire()
 
-        env.process(_periodic(env, 10, ping))
+        env.process(periodic(env, 10, ping))
         env.process(close())
         built["stop"] = closing.wait()
 
@@ -132,7 +116,7 @@ def test_c6_stop_at_an_event():
         _builder_signal(25, 100),
         (lambda r: (r[0], r[1].env.now))(run_yaml("c6_stop_signal.yaml")),
     ):
-        assert (_times(records, "ping"), now) == ([10.0, 20.0], 25)
+        assert (times(records, "ping"), now) == ([10.0, 20.0], 25)
 
 
 def test_c6_stop_at_an_event_at_the_same_instant_as_until():
@@ -145,8 +129,8 @@ def test_c6_stop_at_an_event_at_the_same_instant_as_until():
         _builder_signal(30, 30),
         (lambda r: (r[0], r[1].env.now))(run_yaml("c6_stop_signal_tie.yaml")),
     ):
-        assert _times(records, "close") == []
-        assert (_times(records, "ping"), now) == ([10.0, 20.0], 30)
+        assert times(records, "close") == []
+        assert (times(records, "ping"), now) == ([10.0, 20.0], 30)
 
 
 # ----------------------------------------------------- explicit condition
@@ -167,8 +151,8 @@ def _reference_condition():
         pings.append(env.now)
         yield env.timeout(0)
 
-    env.process(_periodic(env, 3, restock))
-    env.process(_periodic(env, 4, ping))
+    env.process(periodic(env, 3, restock))
+    env.process(periodic(env, 4, ping))
     env.run(until=full)
     return pings, env.now, stock.level
 
@@ -199,8 +183,8 @@ def test_c6_explicit_stop_condition():
             env.publish_event(f"p-{i}", {"event": "ping"}, task="ping", instance=i)
             yield env.timeout(0)
 
-        env.process(_periodic(env, 3, restock))
-        env.process(_periodic(env, 4, ping))
+        env.process(periodic(env, 3, restock))
+        env.process(periodic(env, 4, ping))
 
     env = DynamicRealtimeEnvironment(factor=0.0)
     env.registry.register_sim_parameter(
@@ -217,7 +201,7 @@ def test_c6_explicit_stop_condition():
         env.run(until=full)
     finally:
         env.teardown()
-    assert (_times(rec.records, "ping"), env.now, stock.level) == ([4.0, 8.0], 9, 6)
+    assert (times(rec.records, "ping"), env.now, stock.level) == ([4.0, 8.0], 9, 6)
 
     app = SimulationContext("C6", factor=0.0)
     app.add_container("stock", current_cap=20, max_cap=20)
@@ -247,13 +231,13 @@ def test_c6_explicit_stop_condition():
     app.add_egress(rec)
     app.run(until=100, stop={"condition": "level.stock >= 5"})
     builder = (
-        _times(rec.records, "ping"),
+        times(rec.records, "ping"),
         app.env.now,
         app.get_container("stock").level,
     )
     records, yaml_app = run_yaml("c6_stop_condition.yaml")
     yaml = (
-        _times(records, "ping"),
+        times(records, "ping"),
         yaml_app.env.now,
         yaml_app.get_container("stock").level,
     )
@@ -370,9 +354,9 @@ def test_c6_stop_arrivals_and_drain():
     done, end, left = _reference_drain()
     assert (done, end, left) == ([7, 12, 17, 22], 22, 0)
     records, now, alive = _low_level_drain()
-    assert (_times(records, "work"), now, alive) == ([7.0, 12.0, 17.0, 22.0], 22, 0)
+    assert (times(records, "work"), now, alive) == ([7.0, 12.0, 17.0, 22.0], 22, 0)
     for records, app in (_builder_drain(True), run_yaml("c6_drain.yaml")):
-        assert (_times(records, "work"), app.env.now) == ([7.0, 12.0, 17.0, 22.0], 22)
+        assert (times(records, "work"), app.env.now) == ([7.0, 12.0, 17.0, 22.0], 22)
         assert _in_system(app) == 0
 
 
@@ -382,9 +366,9 @@ def test_c6_stop_arrivals_and_drain_with_a_limit():
     done, end, left = _reference_drain(limit=5)
     assert (done, end, left) == ([7, 12], 15, 2)
     records, now, alive = _low_level_drain(limit=5)
-    assert (_times(records, "work"), now, alive) == ([7.0, 12.0], 15, 2)
+    assert (times(records, "work"), now, alive) == ([7.0, 12.0], 15, 2)
     for records, app in (_builder_drain({"limit": 5}), run_yaml("c6_drain_limit.yaml")):
-        assert (_times(records, "work"), app.env.now) == ([7.0, 12.0], 15)
+        assert (times(records, "work"), app.env.now) == ([7.0, 12.0], 15)
         readings = app.env.stats.readings()
         assert readings["C6.stats.flows.orders.started"] == 4
         assert readings["C6.stats.flows.orders.finished"] == 2
@@ -415,7 +399,7 @@ def _reference_steps():
         while True:
             yield env.timeout(10)
 
-    env.process(_periodic(env, 10, ping))
+    env.process(periodic(env, 10, ping))
     env.process(stats())
     return _stepped(env.peek, env.step, lambda: env.now, 40)
 
@@ -437,7 +421,7 @@ def test_c6_step_one_event():
     def ping():
         yield env.timeout(0)
 
-    env.process(_periodic(env, 10, ping))
+    env.process(periodic(env, 10, ping))
     low = _stepped(env.peek, env.step, lambda: env.now, 40)
     env.teardown()
 
@@ -475,14 +459,14 @@ def test_c6_inspect_next_event_time():
     model in the same way, in all three APIs; with no event left it gives
     infinity."""
     env = simpy.Environment()
-    env.process(_periodic(env, 10, lambda: iter(())))
+    env.process(periodic(env, 10, lambda: iter(())))
     while env.peek() < 5:
         env.step()
     expected = env.peek()
     assert simpy.Environment().peek() == float("inf")
 
     low = DynamicRealtimeEnvironment(factor=0.0)
-    low.process(_periodic(low, 10, lambda: iter(())))
+    low.process(periodic(low, 10, lambda: iter(())))
     while low.peek() < 5:
         low.step()
     assert low.peek() == expected

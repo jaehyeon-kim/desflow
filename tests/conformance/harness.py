@@ -9,8 +9,9 @@ test exercises what a run actually writes.
 
 import asyncio
 import queue
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from desflow import DynamicRealtimeEnvironment, SimParameter
 from desflow.core.context import SimulationContext
@@ -68,21 +69,102 @@ def at(records: List[Dict[str, Any]], status: Any) -> List[Tuple[float, str]]:
     return [(t, key) for t, key, _task, s in event_trace(records) if s == status]
 
 
-def run_yaml(name: str) -> Tuple[List[Dict[str, Any]], SimulationContext]:
-    """Runs a blueprint from `blueprints/` into a recording egress."""
+def times(
+    records: List[Dict[str, Any]], task: str, status: Optional[str] = None
+) -> List[float]:
+    """The simulation times of a task's events, by status.
+
+    With `status` None it returns the payload events (a mapping with no
+    `status` key); with a status it returns the events of that status.
+    """
+    found: List[float] = []
+    for record in records:
+        if record["stream_type"] != "event" or record["task"] != task:
+            continue
+        value = record["value"]
+        is_status = isinstance(value, dict) and "status" in value
+        if (status is None and not is_status) or (
+            status is not None and is_status and value["status"] == status
+        ):
+            found.append(record["sim_ts"])
+    return found
+
+
+def periodic(env: Any, gap: float, start: Callable[[], Any]) -> Any:
+    """Starts `start()` as a process every `gap` seconds, from `gap`."""
+    while True:
+        yield env.timeout(gap)
+        env.process(start())
+
+
+@dataclass
+class Outcome:
+    """A run's result when a runner is called with `raises=True`.
+
+    `records` are the records written before the run ended, kept even when it
+    raised; `value` is what the run returned (None when it raised); `error` is
+    what it raised (None when it returned); `app_or_env` is the context or the
+    environment the run used.
+    """
+
+    records: List[Dict[str, Any]]
+    value: Any
+    error: Optional[BaseException]
+    app_or_env: Union[SimulationContext, DynamicRealtimeEnvironment]
+
+
+def run_yaml(
+    name: str,
+    prepare: Optional[Callable[[SimulationContext], None]] = None,
+    until: Optional[float] = None,
+    raises: bool = False,
+) -> Union[Tuple[List[Dict[str, Any]], SimulationContext], Outcome]:
+    """Runs a blueprint from `blueprints/` into a recording egress.
+
+    `prepare(app)` runs after `from_yaml` and `add_egress`, before the run, for
+    example to add a probe process. `until` None keeps the blueprint's
+    `run.until`, as `app.run()` does. With `raises=True` the run's exception is
+    caught and returned in an `Outcome`; otherwise it propagates, as today.
+    """
     rec = RecordingEgress()
     app = SimulationContext.from_yaml(BLUEPRINTS / name)
     app.add_egress(rec)
-    app.run()
-    return rec.records, app
+    if prepare is not None:
+        prepare(app)
+    if not raises:
+        app.run(until=until)
+        return rec.records, app
+    value: Any = None
+    error: Optional[BaseException] = None
+    try:
+        # run() returns the stop event's value from Batch 5 (E14); None until then.
+        value = app.run(until=until)  # type: ignore[func-returns-value]
+    except Exception as exc:  # noqa: BLE001: kept for the caller to assert on
+        error = exc
+    return Outcome(rec.records, value, error, app)
 
 
-def run_builder(app: SimulationContext, until: float) -> List[Dict[str, Any]]:
-    """Runs a builder model into a recording egress."""
+def run_builder(
+    app: SimulationContext, until: float, raises: bool = False
+) -> Union[List[Dict[str, Any]], Outcome]:
+    """Runs a builder model into a recording egress.
+
+    With `raises=True` the run's exception is caught and returned in an
+    `Outcome`; otherwise it propagates, as today.
+    """
     rec = RecordingEgress()
     app.add_egress(rec)
-    app.run(until=until)
-    return rec.records
+    if not raises:
+        app.run(until=until)
+        return rec.records
+    value: Any = None
+    error: Optional[BaseException] = None
+    try:
+        # run() returns the stop event's value from Batch 5 (E14); None until then.
+        value = app.run(until=until)  # type: ignore[func-returns-value]
+    except Exception as exc:  # noqa: BLE001: kept for the caller to assert on
+        error = exc
+    return Outcome(rec.records, value, error, app)
 
 
 def run_low_level(
@@ -91,13 +173,22 @@ def run_low_level(
     until: float,
     stats: Optional[str] = None,
     initial_time: float = 0.0,
-) -> Tuple[List[Dict[str, Any]], DynamicRealtimeEnvironment]:
-    """Runs a low-level model, unpaced, into a recording egress.
+    factor: float = 0.0,
+    strict: bool = False,
+    raises: bool = False,
+) -> Union[Tuple[List[Dict[str, Any]], DynamicRealtimeEnvironment], Outcome]:
+    """Runs a low-level model into a recording egress.
 
     `start(env)` builds the resources and starts the processes, after the
-    parameters are registered and the egress and statistics are set up.
+    parameters are registered and the egress and statistics are set up. The run
+    is unpaced by default (`factor=0.0`); pass `factor` and `strict` for a paced
+    run. With `raises=True` the run's exception is caught and returned in an
+    `Outcome`, with the records written before it; otherwise it propagates, as
+    today. The environment is always torn down.
     """
-    env = DynamicRealtimeEnvironment(initial_time=initial_time, factor=0.0)
+    env = DynamicRealtimeEnvironment(
+        initial_time=initial_time, factor=factor, strict=strict
+    )
     if params is not None:
         env.registry.register_sim_parameter(params)
     rec = RecordingEgress()
@@ -105,8 +196,99 @@ def run_low_level(
     if stats is not None:
         env.setup_stats(params.sim_id if params else "Sim", stats)
     start(env)
+    value: Any = None
+    error: Optional[BaseException] = None
     try:
-        env.run(until=until)
+        value = env.run(until=until)
+    except Exception as exc:  # noqa: BLE001: returned when raises, else re-raised
+        if not raises:
+            raise
+        error = exc
     finally:
         env.teardown()
+    if raises:
+        return Outcome(rec.records, value, error, env)
     return rec.records, env
+
+
+def probe(
+    read_at: List[float], read: Callable[[SimulationContext], Any]
+) -> Tuple[Callable[[SimulationContext], Any], List[Tuple[float, Any]]]:
+    """A builder process that reads the model at each time in `read_at`.
+
+    Returns the generator function and the list of `(now, reading)` pairs it
+    fills, in time order. Add it with `app.add_process(func)`, or pass it in a
+    `run_yaml` `prepare`.
+    """
+    readings: List[Tuple[float, Any]] = []
+
+    def func(context: SimulationContext) -> Any:
+        for moment in read_at:
+            yield context.env.timeout(moment - context.env.now)
+            readings.append((context.env.now, read(context)))
+
+    return func, readings
+
+
+def probe_env(
+    read_at: List[float], read: Callable[[DynamicRealtimeEnvironment], Any]
+) -> Tuple[Callable[[DynamicRealtimeEnvironment], Any], List[Tuple[float, Any]]]:
+    """The low-level form of `probe`: its generator function takes `env`.
+
+    Start it with `env.process(func(env))` in `run_low_level`'s `start`.
+    """
+    readings: List[Tuple[float, Any]] = []
+
+    def func(env: DynamicRealtimeEnvironment) -> Any:
+        for moment in read_at:
+            yield env.timeout(moment - env.now)
+            readings.append((env.now, read(env)))
+
+    return func, readings
+
+
+class FakeClock:
+    """A controllable stand-in for simpy.rt's wall clock.
+
+    A paced run reads `simpy.rt.monotonic` and `simpy.rt.sleep`; patching them
+    with this clock advances the wall time in sleep itself, so a factor test
+    runs with no real waiting and a deterministic wall trace. Only those two
+    names are patched, never `time.monotonic`, which the egress asyncio thread
+    uses. Install it before the environment is built, because the environment
+    reads the clock in its constructor.
+    """
+
+    def __init__(self) -> None:
+        self._now = 0.0
+        self.wall: List[Tuple[float, float]] = []
+
+    def monotonic(self) -> float:
+        return self._now
+
+    def sleep(self, delta: float) -> None:
+        if delta > 0:
+            self._now += delta
+
+    def advance(self, delta: float) -> None:
+        self._now += delta
+
+    def install(self, monkeypatch: Any) -> "FakeClock":
+        import simpy.rt
+
+        monkeypatch.setattr(simpy.rt, "monotonic", self.monotonic)
+        monkeypatch.setattr(simpy.rt, "sleep", self.sleep)
+        return self
+
+    def trace(self, env: DynamicRealtimeEnvironment) -> List[Tuple[float, float]]:
+        """Wraps `env.publish_event` so each event records its simulation time
+        and the fake wall offset from the run's start. Returns the list it fills.
+        """
+        start = env.real_start
+        original = env.publish_event
+
+        def wrapped(*args: Any, **kwargs: Any) -> Any:
+            self.wall.append((round(env.now, 3), round(self._now - start, 6)))
+            return original(*args, **kwargs)
+
+        env.publish_event = wrapped  # type: ignore[method-assign]
+        return self.wall

@@ -1,0 +1,18 @@
+# `at_least: 2` of three timeouts at 2, 5 and 9 resolves at the second, 5.
+# See test_c2_conditions.py.
+simulation:
+  sim_id: C2
+  factor: 0
+arrivals:
+  orders: {replay: {path: c2_once.csv}, spawn: order}
+tasks:
+  order:
+    wait:
+      at_least: 2
+      of:
+        a: {timeout: 2}
+        b: {timeout: 5}
+        c: {timeout: 9}
+    payload: {event: went_on}
+run:
+  until: 20

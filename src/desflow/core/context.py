@@ -2087,6 +2087,24 @@ class SimulationContext:
                         f"task '{name}' filters priority store '{transfer.target}'; "
                         f"SimPy has no store that both ranks and filters its items"
                     )
+            for node in spec.wait.branches.values() if spec.wait else ():
+                if node.kind == "request" and node.target not in self._resources_config:
+                    raise ValueError(
+                        f"task '{name}' requests resource '{node.target}' in a wait, "
+                        "which is not added"
+                    )
+                if node.kind in ("get", "put"):
+                    kind = "store" if node.target.store is not None else "container"
+                    config = (
+                        self._stores_config
+                        if kind == "store"
+                        else self._containers_config
+                    )
+                    if node.target.target not in config:
+                        raise ValueError(
+                            f"task '{name}' {node.kind}s from {kind} "
+                            f"'{node.target.target}' in a wait, which is not added"
+                        )
             for target in spec.router.tasks or ():
                 if target not in self._tasks:
                     raise ValueError(

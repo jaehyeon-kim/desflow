@@ -1,0 +1,20 @@
+# With the clock started at 100, an order at 105 reads t < 110 and routes to early;
+# one at 110 reads t == 110 and routes to late. See test_c6_run_control.py.
+simulation:
+  sim_id: C6
+  factor: 0
+  initial_time: 100
+arrivals:
+  orders: {replay: {path: c6_boundary.csv}, spawn: order}
+tasks:
+  order:
+    payload: {event: ordered}
+    next:
+      when: [{condition: "t < 110", task: early}]
+      default: late
+  early:
+    payload: {event: early}
+  late:
+    payload: {event: late}
+run:
+  until: 120

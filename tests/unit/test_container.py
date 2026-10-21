@@ -171,6 +171,53 @@ def test_the_level_path_follows_the_container_and_sets_it(env, registry):
     assert level.value == 50.0
 
 
+def test_a_level_update_notifies_a_condition_between_two_grants(env, registry):
+    """A restock grants two waiting gets. The level is notified once per grant, so a
+    condition on the level is re-checked between the grants and sees the in-between
+    level. Moving the notification to the end of the trigger loop would skip it."""
+    from desflow.models.params import ContainerConfig, SimParameter
+
+    registry.register_sim_parameter(
+        SimParameter(
+            sim_id="Shop",
+            containers={"stock": ContainerConfig(current_cap=50, max_cap=50, level=0)},
+        )
+    )
+    stock = DynamicContainer(env, "Shop", "stock")
+    served = []
+
+    def taker(name):
+        yield stock.get(1)
+        served.append(name)
+
+    env.process(taker("first"))
+    env.process(taker("second"))
+    env.run(until=1)
+    assert stock.getters_waiting == 2
+
+    # A condition on the level, re-checked on every change, as a task's
+    # `wait: {condition}` is: `env.watch_changes` and `notify_change`.
+    levels = []
+    between_grants = []
+
+    def check():
+        levels.append(round(stock.level, 3))
+        if stock.level == 1:
+            between_grants.append(env.now)
+
+    env.watch_changes(check)
+    registry.update("Shop.containers.stock.level", 2)  # grants both gets
+    env.run(until=2)
+
+    # The level is notified at 0 (the update itself, before the container level
+    # moves), 2 (the restock), 1 (after the first grant) and 0 (after the second).
+    # The 1 between the grants is what the per-grant notification protects.
+    assert levels == [0, 2.0, 1.0, 0.0]
+    assert between_grants  # the condition `level == 1` held between the two grants
+    assert served == ["first", "second"]
+    assert stock.level == 0.0
+
+
 def test_resource_classes_are_exported_from_the_package():
     """Verify all three dynamic resource classes import from desflow."""
     import desflow

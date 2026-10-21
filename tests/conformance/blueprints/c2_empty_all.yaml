@@ -1,0 +1,14 @@
+# An empty `all` succeeds at once; with patience 0 the wait wins the tie, so the
+# order goes on rather than reneging. See test_c2_wait_for_one_or_all.py.
+simulation:
+  sim_id: C2
+  factor: 0
+arrivals:
+  orders: {dist: constant, value: 1, spawn: order}
+tasks:
+  order:
+    wait: {all: {}}
+    patience: 0
+    payload: {event: went_on}
+run:
+  until: 1.5

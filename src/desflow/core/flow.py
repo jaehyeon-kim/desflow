@@ -390,13 +390,58 @@ class Transfer:
 
 
 # The kinds of branch a task's `wait` takes
-WAIT_KINDS = ("signal", "task", "timeout", "condition")
+WAIT_KINDS = ("signal", "task", "timeout", "condition", "request", "get", "put")
+
+# Kinds a later 0.23.0 batch adds. They are refused until then, so a blueprint
+# written against the finished release fails with a clear message rather than the
+# one-branch or length error. The check reads the mapping's keys.
+NOT_YET_KINDS = ("running",)
+
+# Group kinds: a branch that holds named child branches.
+GROUP_KINDS = ("any", "all", "at_least")
+
+
+def _refuse_not_yet(spec: Any) -> None:
+    """Refuses a wait kind a later batch adds, before the length checks."""
+    if isinstance(spec, Mapping):
+        for kind in spec:
+            if kind in NOT_YET_KINDS:
+                raise ValueError(
+                    f"wait kind '{kind}' comes with desflow 0.23.0 and is not built yet"
+                )
+
+
+class WaitNode:
+    """One node of a parsed wait: a leaf, with a kind and a target, or a group, with
+    a mode (`any`, `all` or `at_least`), named child nodes, and a count for
+    `at_least`."""
+
+    __slots__ = ("name", "kind", "target", "children", "count")
+
+    def __init__(
+        self,
+        name: Optional[str],
+        kind: str,
+        target: Any = None,
+        children: Optional[List["WaitNode"]] = None,
+        count: int = 0,
+    ):
+        self.name = name
+        self.kind = kind
+        self.target = target
+        self.children: List[WaitNode] = children if children is not None else []
+        self.count = count
+
+    @property
+    def is_group(self) -> bool:
+        """True for a group node (`any`, `all` or `at_least`), False for a leaf."""
+        return self.kind in GROUP_KINDS
 
 
 class Wait:
     """
-    What a task waits for before it queues for its resource: one branch, or any or
-    all of several.
+    What a task waits for before it queues for its resource: one branch, or any,
+    all or at least some of several, nested to any depth.
 
     The forms, in every API:
 
@@ -405,67 +450,120 @@ class Wait:
       signal or task, or `timeout` or `condition`;
     - `{"any": {name: branch, ...}}`: done when the first branch is, as SimPy's
       `AnyOf`;
-    - `{"all": {name: branch, ...}}`: done when every branch is, as SimPy's `AllOf`.
+    - `{"all": {name: branch, ...}}`: done when every branch is, as SimPy's `AllOf`;
+    - `{"at_least": n, "of": {name: branch, ...}}`: done when `n` branches are;
+    - a branch in a group may itself be a group, so waits nest.
 
     A `task` branch starts that task for the same entity and waits for its flow to
     end; its value is the last task's finished payload. A `timeout` takes seconds or
-    a duration such as `"5 min"`.
+    a duration such as `"5 min"`. An empty `any` or `all`, or an empty `of`, succeeds
+    at once with an empty value, as SimPy's `any_of([])` does.
 
     Attributes:
-        mode (str): `any` or `all`.
-        branches (Dict[str, Tuple[str, Any]]): Branch name to its kind and target:
-            a name, seconds, or a parsed `Expression`.
+        mode (str): The top node's mode, `any`, `all` or `at_least`.
+        root (WaitNode): The top of the tree.
+        branches (Dict[str, WaitNode]): Every named node, by name, leaves and groups,
+            so `wait.<name>` reads any node in the tree.
     """
 
     def __init__(self, spec: Mapping[str, Any]):
         """
-        Checks the wait and parses its conditions.
+        Checks the wait and parses its conditions into a tree.
 
         Args:
             spec: The wait, in one of the forms above.
 
         Raises:
-            ValueError: If the form, a branch or a condition is malformed.
+            ValueError: If the form, a branch or a condition is malformed, or a
+                branch name is used more than once.
         """
-        if not isinstance(spec, Mapping) or len(spec) != 1:
+        _refuse_not_yet(spec)
+        if not isinstance(spec, Mapping) or not spec:
             raise ValueError(
                 f"wait takes one branch, or any or all of named branches, got {spec!r}"
             )
-        ((key, value),) = spec.items()
-        self.branches: Dict[str, Tuple[str, Any]] = {}
-        if key in ("any", "all"):
-            self.mode = key
-            if not isinstance(value, Mapping) or not value:
-                raise ValueError(f"wait.{key} takes a mapping of named branches")
-            for name, branch in value.items():
-                self.branches[str(name)] = _wait_branch(branch)
+        self.branches: Dict[str, WaitNode] = {}
+        self.root = self._node(spec, None)
+        self.mode = self.root.kind if self.root.is_group else "any"
+
+    def _node(self, spec: Any, name: Optional[str]) -> WaitNode:
+        """Parses one branch spec, a leaf or a group, under branch name `name` (None
+        at the top of a single-branch wait), and registers every named node."""
+        if not isinstance(spec, Mapping):
+            raise ValueError(f"a wait branch is a mapping, got {spec!r}")
+        _refuse_not_yet(spec)
+        keys = set(spec)
+        if "at_least" in keys:
+            node = self._at_least(spec, name)
+        elif "any" in keys or "all" in keys:
+            if len(spec) != 1:
+                raise ValueError(
+                    "wait takes one branch, or any or all of named branches, "
+                    f"got {spec!r}"
+                )
+            kind = "any" if "any" in keys else "all"
+            node = WaitNode(name, kind, children=self._children(kind, spec[kind]))
         else:
-            self.mode = "any"
             kind, target = _wait_branch(spec)
-            name = target if kind in ("signal", "task") else kind
-            self.branches[name] = (kind, target)
+            node_name = (
+                name
+                if name is not None
+                else (target if kind in ("signal", "task", "request") else kind)
+            )
+            node = WaitNode(node_name, kind, target=target)
+        if node.name is not None:
+            if node.name in self.branches:
+                raise ValueError(
+                    f"wait branch name '{node.name}' is used more than once"
+                )
+            self.branches[node.name] = node
+        return node
+
+    def _children(self, kind: str, members: Any) -> List[WaitNode]:
+        """Parses the named child branches of a group."""
+        if not isinstance(members, Mapping):
+            raise ValueError(f"wait.{kind} takes a mapping of named branches")
+        return [self._node(branch, str(name)) for name, branch in members.items()]
+
+    def _at_least(self, spec: Mapping[str, Any], name: Optional[str]) -> WaitNode:
+        """Parses an `{at_least: n, of: {...}}` group."""
+        extra = set(spec) - {"at_least", "of"}
+        if extra:
+            raise ValueError(
+                f"at_least takes at_least and of, not {', '.join(sorted(extra))}"
+            )
+        count = spec["at_least"]
+        if isinstance(count, bool) or not isinstance(count, int) or count < 1:
+            raise ValueError(f"at_least is a whole number of 1 or more, got {count!r}")
+        children = self._children("at_least", spec.get("of", {}))
+        if children and count > len(children):
+            raise ValueError(
+                f"at_least {count} is above the {len(children)} branches it waits for"
+            )
+        return WaitNode(name, "at_least", children=children, count=count)
 
     def targets(self, kind: str) -> Set[str]:
-        """Returns the signals or the tasks the wait's branches name.
+        """Returns the signals or the tasks the wait's leaves name.
 
         Args:
             kind: `signal` or `task`.
 
         Returns:
-            Set[str]: The names the branches of that kind name.
+            Set[str]: The names the leaves of that kind name.
         """
-        return {target for k, target in self.branches.values() if k == kind}
+        return {n.target for n in self.branches.values() if n.kind == kind}
 
     @property
     def conditions(self) -> List[Expression]:
-        """The parsed conditions of the `condition` branches."""
-        return [target for k, target in self.branches.values() if k == "condition"]
+        """The parsed conditions of the `condition` leaves."""
+        return [n.target for n in self.branches.values() if n.kind == "condition"]
 
 
 def _wait_branch(branch: Any) -> Tuple[str, Any]:
     """One branch of a wait, as its kind and its checked target."""
     from desflow.utils import suggestion, time_to_seconds
 
+    _refuse_not_yet(branch)
     if not isinstance(branch, Mapping) or len(branch) != 1:
         raise ValueError(
             f"a wait branch is one of {', '.join(WAIT_KINDS)}, got {branch!r}"
@@ -485,6 +583,11 @@ def _wait_branch(branch: Any) -> Tuple[str, Any]:
         return kind, float(seconds)
     if kind == "condition":
         return kind, Expression(target)
+    if kind in ("get", "put"):
+        try:
+            return kind, Transfer.of(target)
+        except ValueError as exc:
+            raise ValueError(f"wait {kind} branch: {exc}") from None
     if not isinstance(target, str):
         raise ValueError(f"a wait {kind} branch names a {kind}, got {target!r}")
     return kind, target

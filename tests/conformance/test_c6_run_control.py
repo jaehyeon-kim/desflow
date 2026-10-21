@@ -11,7 +11,13 @@ import simpy
 
 from desflow import DynamicRealtimeEnvironment
 from desflow.core.context import SimulationContext
-from tests.conformance.harness import RecordingEgress, event_trace
+from tests.conformance.harness import (
+    RecordingEgress,
+    event_trace,
+    run_builder,
+    run_yaml,
+    times,
+)
 
 EXPECTED_TIMES = [110.0, 115.0]
 
@@ -177,3 +183,60 @@ def test_c6_stop_at_a_time():
         _stop_yaml_records(),
     ):
         assert [sim_ts for sim_ts, *_ in event_trace(records)] == EXPECTED_STOP
+
+
+def _reference_current_time():
+    env = simpy.Environment(initial_time=100)
+    seen = []
+
+    def order(n):
+        seen.append((env.now, "early" if env.now < 110 else "late"))
+        yield env.timeout(0)
+
+    def source():
+        yield env.timeout(5)
+        env.process(order(0))
+        yield env.timeout(5)
+        env.process(order(1))
+
+    env.process(source())
+    env.run()
+    return seen
+
+
+def _builder_current_time():
+    app = SimulationContext("C6", factor=0.0, initial_time=100)
+
+    @app.task(
+        next={"when": [{"condition": "t < 110", "task": "early"}], "default": "late"},
+        name="order",
+    )
+    def order(task_id):
+        return {"event": "ordered"}
+
+    @app.task(name="early")
+    def early(task_id):
+        return {"event": "early"}
+
+    @app.task(name="late")
+    def late(task_id):
+        return {"event": "late"}
+
+    def script(context):
+        yield context.env.timeout(5)
+        context.spawn(order(0))
+        yield context.env.timeout(5)
+        context.spawn(order(1))
+
+    app.add_process(script)
+    return run_builder(app, 120)
+
+
+def test_c6_current_time():
+    """`t` is the simulation clock, so a route condition on it sees the current time.
+    With the clock at 100, the order at 105 routes to early and the one at 110, where
+    `t < 110` is false, routes to late, as the SimPy reference on `env.now` does."""
+    assert _reference_current_time() == [(105, "early"), (110, "late")]
+    for records in (_builder_current_time(), run_yaml("c6_current_time.yaml")[0]):
+        assert times(records, "early") == [105.0]
+        assert times(records, "late") == [110.0]

@@ -567,6 +567,30 @@ def test_interrupt_reaches_only_the_running_instances_its_condition_names():
     assert counts == [2, 1]
 
 
+def test_a_task_interrupting_its_own_name_skips_itself():
+    """`interrupt` never reaches the caller's own instance, so a task that interrupts
+    its own name from inside its function counts zero and runs on."""
+    app = SimulationContext("TestSim", factor=0.0)
+    app.add_service("s", "constant", value=1.0)
+    counts = []
+    reached = []
+
+    @app.task(service_id="s", name="work", on_interrupt="abandon")
+    def work(task_id, entity):
+        counts.append(app.interrupt("work", cause="self"))
+        reached.append(task_id)
+        return {}
+
+    def script(context):
+        context.spawn(work(0, entity=Entity("o-0", "o", {})))
+        yield context.env.timeout(0)
+
+    app.add_process(script)
+    app.run(until=5)
+    assert counts == [0]
+    assert reached == [0]
+
+
 def test_preemption_settings_are_checked():
     with pytest.raises(ValueError, match="needs queue='priority'"):
         SimulationContext("TestSim").add_resource("m", 1, 1, preempt=True)
@@ -669,6 +693,90 @@ def test_a_context_runs_twice_with_a_drain():
     app.run(until=10)
     app.run(until=10, drain=True)
     assert app.env.now > 10
+
+
+def test_a_live_run_with_an_ingress_keeps_going_after_the_last_model_event():
+    """Approved difference E11: with an ingress or a sink and no `until`, the run does
+    not stop at the model's last event. At factor 0 the ingress monitor keeps
+    scheduling events, so the run continues past the model event at 5; a wrapped step
+    stops it at 100, and teardown still writes the records."""
+    from desflow import LocalIngress
+
+    class _Keep:
+        def __init__(self):
+            self.records = []
+
+        async def run(self, egress_queue):
+            while True:
+                try:
+                    self.records.extend(egress_queue.get_nowait())
+                except queue.Empty:
+                    await asyncio.sleep(0.01)
+
+    kept = _Keep()
+    app = SimulationContext("Shop", factor=0.0)
+    app.add_ingress(LocalIngress([]))
+    app.add_egress(kept)
+
+    def model(context):
+        yield context.env.timeout(5)
+        context.env.publish_event("job-1", {"status": "done"})
+
+    app.add_process(model)
+    env = app.start()  # no until
+    original_step = env.step
+
+    def step():
+        if env.now >= 100:
+            raise KeyboardInterrupt
+        return original_step()
+
+    env.step = step  # type: ignore[method-assign]
+    try:
+        app.finish()
+    except KeyboardInterrupt:
+        pass
+
+    # The run went past the model's last event at 5 to 100, so a no-until run does not
+    # stop at the last model event; teardown wrote the record.
+    assert env.now >= 100
+    assert any(r.get("key") == "job-1" for r in kept.records)
+
+
+def test_a_drain_ends_before_a_telemetry_reading_due_as_the_last_entity_leaves():
+    """The drain end is urgent, so when the last entity leaves at the instant a
+    periodic reading is due, the run ends before that reading; only the teardown
+    reading lands at that instant."""
+    app = SimulationContext("Shop", factor=0.0).add_egress(_Sink())
+    app.add_resource("packers", current_cap=1, max_cap=1)
+    app.add_service("packing", dist="constant", value=2.0)
+    app.with_stats("basic", interval=1.0)
+
+    @app.task(service_id="packing", resource_id="packers", name="pack")
+    def pack(task_id):
+        return {"event": "packed"}
+
+    def script(context):
+        context.spawn(pack(0, entity=Entity("o-0", "o", {})))
+        yield context.env.timeout(0)
+
+    app.add_process(script)
+    env = app.start(until=0.5, drain=True)
+    times = []
+    original = env.stats.publish
+
+    def record():
+        times.append(round(env.now, 3))
+        return original()
+
+    env.stats.publish = record
+    app.finish()
+
+    # The entity leaves at 2.0, exactly when the third reading is due; the service
+    # completion was enqueued at 0, before that reading was enqueued at 1.0, so the
+    # drain end preempts it. The reading at 1.0 and the teardown reading at 2.0 remain.
+    assert env.now == 2.0
+    assert times == [1.0, 2.0]
 
 
 def test_scenario_steps_and_warmup_count_from_the_start_of_the_run():

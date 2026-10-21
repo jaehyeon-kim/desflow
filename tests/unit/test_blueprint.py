@@ -465,6 +465,41 @@ def test_id_field_needs_a_mapping_payload(tmp_path, logic):
         SimulationContext.from_yaml(path)
 
 
+def test_a_fractional_store_capacity_is_refused(tmp_path):
+    """A store capacity must be a whole number, as a resource capacity must."""
+    text = MINIMAL.replace(
+        "resources:\n  packers: {current_cap: 2, max_cap: 5}\n",
+        "resources:\n  packers: {current_cap: 2, max_cap: 5}\n"
+        "stores:\n  shelf: {current_cap: 1.5, max_cap: 5}\n",
+    )
+    with pytest.raises(BlueprintError, match="whole number"):
+        SimulationContext.from_yaml(write(tmp_path, text))
+
+
+def test_item_field_needs_a_store_get(tmp_path):
+    """item_field adds the item a store get took, so a task without one is refused."""
+    text = MINIMAL.replace("    id_field: order_id\n", "    item_field: picked\n")
+    with pytest.raises(
+        BlueprintError, match="item_field adds the item a store get took"
+    ):
+        SimulationContext.from_yaml(write(tmp_path, text))
+
+
+def test_item_field_needs_a_mapping_payload(tmp_path, logic):
+    """item_field adds an item to a mapping payload, so a non-mapping payload is refused."""
+    text = MINIMAL.replace(
+        "resources:\n  packers: {current_cap: 2, max_cap: 5}\n",
+        "resources:\n  packers: {current_cap: 2, max_cap: 5}\n"
+        "stores:\n  shelf: {current_cap: 5, max_cap: 5}\n",
+    ).replace(
+        "    payload: {status: finished}\n    id_field: order_id\n",
+        f"    get: {{store: shelf}}\n    item_field: picked\n"
+        f"    payload: !python {logic}.payload\n",
+    )
+    with pytest.raises(BlueprintError, match="item_field applies only to a mapping"):
+        SimulationContext.from_yaml(write(tmp_path, text))
+
+
 def test_plain_safe_load_is_unaffected():
     """The tag is registered on the blueprint loader only."""
     import yaml
@@ -1020,3 +1055,22 @@ def test_balk_and_patience_cannot_read_the_wait(tmp_path, key):
     )
     with pytest.raises(BlueprintError, match="wait.stock is not a branch"):
         SimulationContext.from_yaml(write(tmp_path, text))
+
+
+def test_on_stays_a_string_key_only_in_task_signal_and_check_mappings(tmp_path):
+    """`on` is kept a string key where desflow uses it (task and signal `on:` lists,
+    an experiment check's `on`); a payload key `on` keeps YAML's reading, True."""
+    from desflow.blueprint.loader import read_document
+
+    path = tmp_path / "doc.yaml"
+    path.write_text(
+        "tasks:\n  pack: {on: []}\n"
+        "signals:\n  closing: {on: []}\n"
+        "checks:\n  - {on: mean}\n"
+        "arrivals:\n  orders: {payload: {on: 1}}\n"
+    )
+    data, _ = read_document(path)
+    assert "on" in data["tasks"]["pack"]
+    assert "on" in data["signals"]["closing"]
+    assert data["checks"][0] == {"on": "mean"}
+    assert data["arrivals"]["orders"]["payload"] == {True: 1}

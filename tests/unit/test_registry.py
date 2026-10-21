@@ -276,3 +276,16 @@ def test_each_family_registers_one_path_per_parameter(registry, config, paths):
         assert getattr(registry.get_config("Shop.service.x"), name) == current + 1
     # Its sequence is named by its path without the sim id
     assert config.stream == "service.x"
+
+
+def test_registry_casts_or_ignores_a_wrong_type_update(registry, sample_params, caplog):
+    """A wrong-type live update is cast to the stored value's type, or ignored when
+    it cannot be cast, keeping the old value."""
+    registry.register_sim_parameter(sample_params)
+    path = "Shop.resources.packers.max_cap"  # an int, 5
+    registry.update(path, "4")
+    assert registry.get(path).value == 4
+    with caplog.at_level(logging.ERROR):
+        registry.update(path, "not a number")
+    assert registry.get(path).value == 4
+    assert "Update ignored" in caplog.text

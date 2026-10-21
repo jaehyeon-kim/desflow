@@ -218,7 +218,7 @@ Setting `current_cap` to 0 stops new work but not the work in progress: [Resourc
 
 ### Wait, Signals and Child Flows
 
-A task can wait for something before it queues for its resource: its `wait`. A wait has one branch, or `any` or `all` of several named branches, as SimPy's `AnyOf` and `AllOf` wait for the first or for every event:
+A task can wait for something before it queues for its resource: its `wait`. A wait has one branch, or `any`, `all` or `at_least` of several named branches, which may themselves be groups so waits nest; an empty `any` or `all` succeeds at once. SimPy's `AnyOf` and `AllOf` wait for the first or for every event, and a `Condition` with a count rule for `at_least`. [Wait for One or All](../guides/wait-for-one-or-all.md) shows the groups. A leaf branch is one of:
 
 | Branch | Waits for | Its value |
 |---|---|---|
@@ -226,8 +226,11 @@ A task can wait for something before it queues for its resource: its `wait`. A w
 | `{task: name}` | a **child flow**: that task, started for the same entity with its own instance id, and the tasks its `next` leads to, until the flow ends | the last task's finished payload |
 | `{timeout: 40 s}` | a time | none |
 | `{condition: level.stock >= 5}` | a condition to hold, checked when the wait starts and again after every store or container change, registry update, signal firing and finished task | `True` |
+| `{request: name}` | a unit of a resource; a won unit is held through the service and given back when the task ends | the request |
+| `{get: {store: name}}` or `{get: {container: name, amount: 2}}` | an item or an amount, as a task `get` does | the item taken |
+| `{put: {store: name}}` or `{put: {container: name, amount: 2}}` | room to add the task's payload or an amount | none |
 
-A single branch is named after its signal or task, or `timeout` or `condition`. After the wait, `wait.<branch>.done` says whether the branch happened before the wait ended, `.ok` whether it succeeded, and `.value` (or `.value.<field>`) is its value; `next`, `fail` and amounts read them, and a builder function that declares `wait` receives them as a mapping. A task fires a signal with `signal: name` when it finishes, with its payload as the value, and `signal.<name>.count`, `.ok` and `.value` read the signal in any condition. The `process-interaction` example waits for a child flow, then for the first of a courier's signal and a time limit:
+A single branch is named after its signal, task or resource, or `timeout`, `condition`, `get` or `put`. After the wait, `wait.<branch>.done` says whether the branch happened before the wait ended, `.ok` whether it succeeded, and `.value` (or `.value.<field>`) is its value; `next`, `fail` and amounts read them, and a builder function that declares `wait` receives them as a mapping. A task fires a signal with `signal: name` when it finishes, with its payload as the value, and `signal.<name>.count`, `.ok` and `.value` read the signal in any condition. The `process-interaction` example waits for a child flow, then for the first of a courier's signal and a time limit:
 
 === "YAML"
 

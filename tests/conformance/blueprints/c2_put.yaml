@@ -1,0 +1,15 @@
+# An order waits to put its payload into the store as a wait branch; the box lands in
+# the store. See test_c2_conditions.py.
+simulation:
+  sim_id: C2
+  factor: 0
+stores:
+  parcels: {current_cap: 5, max_cap: 5}
+arrivals:
+  orders: {replay: {path: c2_once.csv}, spawn: order}
+tasks:
+  order:
+    payload: {sku: box}
+    wait: {put: {store: parcels}}
+run:
+  until: 5

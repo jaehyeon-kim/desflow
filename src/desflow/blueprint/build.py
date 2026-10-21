@@ -415,9 +415,8 @@ def _expressions(
         found.append((Expression(task.interrupt.where), where + ("interrupt", "where")))
     if task.wait is not None:
         wait = Wait(task.wait)
-        for branch, (kind, target) in wait.branches.items():
-            if kind == "condition":
-                found.append((target, where + ("wait",)))
+        for condition in wait.conditions:
+            found.append((condition, where + ("wait",)))
     for field in ("get", "put"):
         step = getattr(task, field)
         if step is None:

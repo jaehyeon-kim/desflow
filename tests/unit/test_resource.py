@@ -1,4 +1,5 @@
 import pytest
+import simpy
 
 from desflow.resources.resource import DynamicResource
 
@@ -461,6 +462,50 @@ def test_a_second_release_or_one_never_granted_does_nothing(
     env.run(until=1)
     # One unit came back, and it went to the waiting request
     assert res.users == [second, third]
+
+
+def test_release_none_gives_back_the_oldest_user(env, registry, sample_params):
+    """`release()` with no request gives back the oldest held unit and grants the
+    head, the form 0.21.0 code without a request uses."""
+    registry.register_sim_parameter(sample_params)
+    _set_cap(registry, 1)
+    flush_events(env)
+    res = DynamicResource(env, "Shop", "packers")
+    first = res.request()
+    second = res.request()  # waits, capacity 1
+    env.run(until=1)
+    assert res.users == [first] and not second.triggered
+    res.release()
+    env.run(until=2)
+    assert res.users == [second]
+
+
+def test_no_preemption_while_units_are_owed_above_a_lowered_capacity(
+    env, registry, sample_params
+):
+    """Lowering capacity below the busy count owes units; a preempting request then
+    finds them not preemptible, so it waits and interrupts nobody."""
+    registry.register_sim_parameter(sample_params)
+    res = DynamicResource(env, "Shop", "packers", queue="priority", preempt=True)
+    interrupted = []
+
+    def holder(priority):
+        try:
+            with res.request(priority=priority) as req:
+                yield req
+                yield env.timeout(100)
+        except simpy.Interrupt:
+            interrupted.append(env.now)
+
+    env.process(holder(5))
+    env.process(holder(5))
+    env.run(until=1)
+    assert res.in_use == 2
+    _set_cap(registry, 1)
+    flush_events(env)
+    taker = res.request(priority=0, preempt=True)
+    env.run(until=5)
+    assert interrupted == [] and not taker.triggered
 
 
 def _grant_order(make_resource, env):

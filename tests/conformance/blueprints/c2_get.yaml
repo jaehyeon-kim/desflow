@@ -1,0 +1,19 @@
+# An order waits for an item from the store as a wait branch, takes the box, and
+# routes on the item it took. See test_c2_conditions.py.
+simulation:
+  sim_id: C2
+  factor: 0
+stores:
+  parcels: {current_cap: 5, max_cap: 5, items: [box]}
+arrivals:
+  orders: {replay: {path: c2_once.csv}, spawn: order}
+tasks:
+  order:
+    wait: {get: {store: parcels}}
+    payload: {event: took}
+    next:
+      when: [{condition: "wait.get.value == 'box'", task: got}]
+  got:
+    payload: {event: got}
+run:
+  until: 5

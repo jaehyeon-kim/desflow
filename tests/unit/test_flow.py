@@ -518,3 +518,204 @@ def test_a_resumed_wait_waits_again_for_the_same_child_flow():
         (10.0, "inspect", "inspected")
     ]
     assert (10.0, "order", "ordered") in events
+
+
+def test_a_restarted_wait_starts_the_child_flow_again():
+    """An interrupt with `restart` during a wait for a child flow starts that child
+    flow a second time, where `resume` waits for the same one."""
+    keep = _Keep()
+    app = SimulationContext("Shop", factor=0).add_egress(keep)
+    app.add_service("inspecting", dist="constant", value=10)
+
+    @app.task(service_id="inspecting")
+    def inspect(task_id):
+        return {"event": "inspected"}
+
+    @app.task(wait={"task": "inspect"}, on_interrupt="restart")
+    def order(task_id):
+        return {"event": "ordered"}
+
+    def script(context):
+        context.spawn(order(0))
+        yield context.env.timeout(3)
+        context.interrupt("order", cause="recount")
+
+    app.add_process(script)
+    app.run(until=40)
+    events = [
+        (r["sim_ts"], r["task"], r["value"].get("event"))
+        for r in keep.records
+        if r["stream_type"] == "event"
+    ]
+    inspected = sorted(t for t, task, event in events if event == "inspected")
+    # The first inspection started at 0 keeps running to 10; restart at 3 starts a
+    # second one, which ends at 13, when the order goes on.
+    assert inspected == [10.0, 13.0]
+    assert (13.0, "order", "ordered") in events
+
+
+def test_a_negative_wait_timeout_is_refused():
+    """A wait timeout is a duration of 0 or more, so a negative one is refused."""
+    from desflow.core.flow import Wait
+
+    with pytest.raises(ValueError, match="must be 0 or more"):
+        Wait({"timeout": -1})
+
+
+@pytest.mark.parametrize(
+    "spec",
+    [
+        {"running": {"task": "inspect"}},
+        {"any": {"a": {"running": {"task": "inspect"}}}},
+    ],
+)
+def test_wait_refuses_a_kind_a_later_batch_adds(spec):
+    """A wait kind a later 0.23.0 batch adds, `running`, is refused with a clear
+    message, in a single branch and inside a group."""
+    from desflow.core.flow import Wait
+
+    with pytest.raises(ValueError, match="is not built yet"):
+        Wait(spec)
+
+
+def test_at_least_above_its_branches_is_refused():
+    """A non-empty `at_least` whose count is above its branch number never triggers
+    in SimPy, so desflow refuses it at load."""
+    from desflow.core.flow import Wait
+
+    with pytest.raises(ValueError, match="above the"):
+        Wait({"at_least": 3, "of": {"a": {"timeout": 1}, "b": {"timeout": 2}}})
+
+
+def test_a_single_timeout_branch_is_read_as_wait_timeout_done():
+    """A single timeout branch is named after its kind, so `wait.timeout.done` reads
+    it, and it is true once the timeout fires."""
+    keep = _Keep()
+    app = SimulationContext("Shop", factor=0).add_egress(keep)
+
+    @app.task(
+        wait={"timeout": 5},
+        next={"when": [{"condition": "wait.timeout.done", "task": "after"}]},
+        name="start",
+    )
+    def start(task_id):
+        return {"event": "started"}
+
+    @app.task(name="after")
+    def after(task_id):
+        return {"event": "after"}
+
+    def script(context):
+        context.spawn(start(0))
+        yield context.env.timeout(0)
+
+    app.add_process(script)
+    app.run(until=20)
+    events = [
+        (r["sim_ts"], r["task"], r["value"].get("event"))
+        for r in keep.records
+        if r["stream_type"] == "event"
+    ]
+    assert (5.0, "start", "started") in events
+    assert (5.0, "after", "after") in events
+
+
+def test_a_preempted_task_gives_a_kept_unit_back_and_the_stat_counts_it():
+    """A task preempted while keeping a second unit for its next task gives that kept
+    unit back before its preempted record, so a task waiting for it starts, and the
+    preempted statistic counts the preemption."""
+    keep = _Keep()
+    app = SimulationContext("Shop", factor=0).add_egress(keep)
+    app.with_stats("basic", interval=1000)
+    app.add_resource(
+        "machine", current_cap=1, max_cap=1, queue="priority", preempt=True
+    )
+    app.add_resource("tray", current_cap=1, max_cap=1, queue="priority")
+    app.add_service("working", dist="constant", value=10)
+    app.add_service("finishing", dist="constant", value=1)
+    app.add_service("grabbing", dist="constant", value=1)
+    app.add_service("rushing", dist="constant", value=1)
+
+    @app.task(
+        service_id="working",
+        resource_id=["tray", "machine"],
+        keep=["tray"],
+        next="finish",
+        priority=5,
+        on_interrupt="resume",
+        name="work",
+    )
+    def work(task_id):
+        return {"event": "worked"}
+
+    @app.task(service_id="finishing", resource_id="tray", name="finish")
+    def finish(task_id):
+        return {"event": "finished"}
+
+    @app.task(service_id="grabbing", resource_id="tray", name="grab")
+    def grab(task_id):
+        return {"event": "grabbed"}
+
+    @app.task(service_id="rushing", resource_id="machine", priority=0, name="rush")
+    def rush(task_id):
+        return {"event": "rushed"}
+
+    def script(context):
+        context.spawn(work(0))  # holds the machine and the tray, keeps the tray
+        context.spawn(grab(0))  # waits for the tray
+        yield context.env.timeout(3)
+        context.spawn(rush(0))  # preempts work on the machine
+
+    app.add_process(script)
+    app.run(until=40)
+    events = [
+        (r["sim_ts"], r["task"], r["value"].get("status", r["value"].get("event")))
+        for r in keep.records
+        if r["stream_type"] == "event"
+    ]
+    assert (3.0, "work", "preempted") in events
+    grab_started = [t for t, task, s in events if task == "grab" and s == "started"]
+    assert grab_started == [3.0]
+    # The kept unit is given back before the preempted record, so the record is
+    # published first and grab starts in the next step.
+    preempted_index = events.index((3.0, "work", "preempted"))
+    started_index = next(
+        i for i, (t, task, s) in enumerate(events) if task == "grab" and s == "started"
+    )
+    assert preempted_index < started_index
+    assert app.env.stats.readings()["Shop.stats.tasks.work.preempted"] == 1
+
+
+def test_a_losing_child_flow_that_fails_later_does_not_stop_the_run():
+    """A child flow a wait branch started keeps running when another branch wins; its
+    later failure is defused, so the run goes on past it."""
+    keep = _Keep()
+    app = SimulationContext("Shop", factor=0).add_egress(keep)
+    app.add_service("slow", dist="constant", value=10)
+
+    @app.task(service_id="slow", name="inspect")
+    def inspect(task_id):
+        return {"label": object()}  # not a JSON value, so publishing it fails the child
+
+    @app.task(
+        wait={"any": {"quick": {"timeout": 5}, "deep": {"task": "inspect"}}},
+        name="order",
+    )
+    def order(task_id):
+        return {"event": "ordered"}
+
+    def script(context):
+        context.spawn(order(0))
+        yield context.env.timeout(0)
+
+    app.add_process(script)
+    app.run(until=30)
+    events = [
+        (r["sim_ts"], r["task"], r["value"].get("event"))
+        for r in keep.records
+        if r["stream_type"] == "event"
+    ]
+    # The timeout branch wins at 5, so the order goes on; the inspect child keeps
+    # running and fails at 10, which does not stop the run.
+    assert (5.0, "order", "ordered") in events
+    assert app.env.now == 30.0

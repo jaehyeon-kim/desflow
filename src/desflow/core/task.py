@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
 
 from simpy import Interrupt
+from simpy.events import Condition
 from simpy.resources.resource import Preempted
 
 from desflow.core.expressions import Expression, Scope
@@ -174,6 +175,12 @@ class TaskRun:
         self._pending: Any = None
         # The child flows a `{task}` wait started, by branch, kept for a resume
         self._children: Dict[str, Any] = {}
+        # Units won by a `request` wait branch, held through the service and given
+        # back when the task ends, as a `resource:` unit is
+        self._wait_held: List[Any] = []
+        # The live `request`, `get` and `put` branch events of the current wait, kept
+        # so a resume reuses them and a renege or an abandon cancels them
+        self._wait_events: Dict[str, Any] = {}
         # The patience still to use, and when the current wait began
         self._patience_left: Optional[float] = None
         self._patience_since: Optional[float] = None
@@ -279,6 +286,7 @@ class TaskRun:
                 if self._interrupted(interrupt):
                     if spec.on_interrupt == "restart":
                         self._children = {}  # a restart starts its child flows again
+                        self._cancel_wait_events()  # and re-makes its wait branches
                     continue  # resume or restart: wait again
                 return (yield from self._abandon(interrupt))
             if outcome is _RENEGED:
@@ -298,6 +306,14 @@ class TaskRun:
             held: List[Any] = []
             service_from: Optional[float] = None
             try:
+                # A unit a request wait branch won and a preemption then took is
+                # requested again on resume, as a `resource:` unit is (C8).
+                for index in range(len(self._wait_held)):
+                    won = self._wait_held[index]
+                    if won not in won.resource.users:
+                        fresh = won.resource.request(self._rank(), preempt=spec.preempt)
+                        self._wait_held[index] = fresh
+                        yield fresh
                 for resource in spec.resources:
                     request = self.context._resources_map[resource].request(
                         rank, preempt=spec.preempt
@@ -381,11 +397,13 @@ class TaskRun:
                 # `with` block does, so a child flow whose failure is handled
                 # elsewhere does not keep them for the rest of the run
                 self._release(held)
+                self._end_wait()
                 raise
             self._release(held)
             break
 
         self._stop_running()
+        self._end_wait()
         if failure is not None:
             if spec.signal is not None:
                 self.context._signals[spec.signal].fail(failure)
@@ -460,6 +478,33 @@ class TaskRun:
             self._pending.cancel()
             self._pending = None
 
+    def _end_wait(self) -> None:
+        """At the task's true end, not a resume, gives back the units a `request` wait
+        branch won and cancels any wait-branch event still live, so a renege, a
+        failing wait or an abandon leaves nothing reserved."""
+        for request in self._wait_held:
+            if request in request.resource.users:
+                request.resource.release(request)
+        self._wait_held = []
+        self._cancel_wait_events()
+
+    def _cancel_wait_events(self) -> None:
+        """Cancels every live request, get or put wait-branch event, giving back a
+        unit a request already won. A store or container get or put has no `users`,
+        so it is only cancelled, as SimPy leaves a won get."""
+        branches = self.spec.wait.branches if self.spec.wait is not None else {}
+        for name, event in self._wait_events.items():
+            event.cancel()
+            node = branches.get(name)
+            if (
+                node is not None
+                and node.kind == "request"
+                and event.triggered
+                and event in event.resource.users
+            ):
+                event.resource.release(event)
+        self._wait_events = {}
+
     def _release_kept(self) -> None:
         """Gives back the units the task before kept for this one."""
         for name in list(self.entity.held):
@@ -486,6 +531,7 @@ class TaskRun:
     def _abandon(self, interrupt: Interrupt):
         """Ends the task after an interrupt with `on_interrupt: abandon`."""
         spec, stats = self.spec, self.env.stats
+        self._end_wait()
         stats.task_dropped(spec.name, self.task_id)
         self._stop_running()
         if spec.on_interrupt_next is not None:
@@ -534,6 +580,7 @@ class TaskRun:
         return 1 if spec.priority is None else spec.priority
 
     def _renege(self) -> None:
+        self._end_wait()
         self.publish(self.status("reneged"))
         self.env.stats.task_reneged(self.spec.name, self.task_id)
         self._end_flow("ended")
@@ -608,23 +655,7 @@ class TaskRun:
         does, the get is cancelled, so it takes nothing later, and `_RENEGED` is
         returned.
         """
-        context = self.context
-        scope = self.scope()
-        if transfer.store is not None:
-            store = context._stores_map[transfer.store]
-            if direction == "get":
-                event = store.get(transfer.filter_for(scope))
-            elif context._store_priority.get(transfer.store):
-                rank = transfer.priority_for(self.task_id, self.upstream, scope)
-                event = store.put(store.wrap(payload, rank))
-            else:
-                event = store.put(payload)
-        else:
-            container = context._containers_map[transfer.target]
-            amount = transfer.amount_for(self.task_id, self.upstream, scope)
-            event = (
-                container.get(amount) if direction == "get" else container.put(amount)
-            )
+        event = self._transfer_event(transfer, direction, payload)
         self._pending = event
         if deadline is None:
             yield event
@@ -635,9 +666,29 @@ class TaskRun:
                 self._pending = None
                 return _RENEGED
         self._pending = None
-        if direction == "get" and transfer.store is not None:
-            # A priority store holds PriorityItem wrappers; the task reads the payload.
+        return self._transfer_value(transfer, direction, event)
+
+    def _transfer_event(self, transfer: Transfer, direction: str, payload: Any) -> Any:
+        """Makes the SimPy get or put event, without waiting for it. A wait branch
+        makes it this way to put it in the wait's condition; `_transfer` then waits."""
+        context, scope = self.context, self.scope()
+        if transfer.store is not None:
+            store = context._stores_map[transfer.store]
+            if direction == "get":
+                return store.get(transfer.filter_for(scope))
             if context._store_priority.get(transfer.store):
+                rank = transfer.priority_for(self.task_id, self.upstream, scope)
+                return store.put(store.wrap(payload, rank))
+            return store.put(payload)
+        container = context._containers_map[transfer.target]
+        amount = transfer.amount_for(self.task_id, self.upstream, scope)
+        return container.get(amount) if direction == "get" else container.put(amount)
+
+    def _transfer_value(self, transfer: Transfer, direction: str, event: Any) -> Any:
+        """The value a finished get or put event gives the task: the item a get took,
+        unwrapped from a priority store's wrapper, or None for a put."""
+        if direction == "get" and transfer.store is not None:
+            if self.context._store_priority.get(transfer.store):
                 return event.value.item
             return event.value
         return None
@@ -652,32 +703,66 @@ class TaskRun:
         assert wait is not None
         events: Dict[str, Any] = {}
         stop_watching: List[Callable[[], None]] = []
-        for name, (kind, target) in wait.branches.items():
-            if kind == "signal":
-                events[name] = self.context._signals[target].wait()
-            elif kind == "task":
-                # A wait resumed after an interrupt waits again for the child flow
-                # it started, as a SimPy process yields the same process again
-                child = self._children.get(name)
+
+        def build(node: Any) -> Any:
+            """Builds the SimPy event for a node, nesting groups as SimPy conditions."""
+            if node.is_group:
+                members = [build(child) for child in node.children]
+                if node.kind == "any":
+                    event: Any = env.any_of(members)
+                elif node.kind == "all":
+                    event = env.all_of(members)
+                else:
+                    count = node.count
+                    event = Condition(env, lambda evs, c, n=count: c >= n, members)
+            elif node.kind == "signal":
+                event = self.context._signals[node.target].wait()
+            elif node.kind == "task":
+                # A wait resumed after an interrupt waits again for the child flow it
+                # started, as a SimPy process yields the same process again
+                child = self._children.get(node.name)
                 if child is None:
                     child = self.context._start(
-                        target,
+                        node.target,
                         self.entity,
                         self.upstream,
                         child=True,
                         args=self.args,
                         kwargs=self.kwargs,
                     )
-                    self._children[name] = child
-                events[name] = child
-            elif kind == "timeout":
-                events[name] = env.timeout(target)
+                    self._children[node.name] = child
+                event = child
+            elif node.kind == "timeout":
+                event = env.timeout(node.target)
+            elif node.kind == "request":
+                # Kept across a resume, as a `task` branch's child flow is, so the
+                # task does not queue a second request each time it waits again.
+                event = self._wait_events.get(node.name)
+                if event is None:
+                    resource = self.context._resources_map[node.target]
+                    event = resource.request(self._rank(), preempt=self.spec.preempt)
+                    self._wait_events[node.name] = event
+            elif node.kind in ("get", "put"):
+                event = self._wait_events.get(node.name)
+                if event is None:
+                    payload = (
+                        self.upstream.payload
+                        if node.kind == "put" and self.upstream is not None
+                        else None
+                    )
+                    event = self._transfer_event(node.target, node.kind, payload)
+                    self._wait_events[node.name] = event
             else:
-                event, stop = self._condition(target)
-                events[name] = event
+                event, stop = self._condition(node.target)
                 stop_watching.append(stop)
-        members = list(events.values())
-        joined = env.any_of(members) if wait.mode == "any" else env.all_of(members)
+            if node.name is not None:
+                events[node.name] = event
+            return event
+
+        root_event = build(wait.root)
+        # A single-branch wait is joined as `any_of([branch])`, so a leaf reads
+        # `in joined.value` the same way at the top as inside a group.
+        joined = root_event if wait.root.is_group else env.any_of([root_event])
         failure: Any = None
         try:
             yield joined if deadline is None else joined | deadline
@@ -694,14 +779,54 @@ class TaskRun:
         # condition is then triggered but not processed, and has no value yet
         if failure is None and not joined.processed:
             return _RENEGED
-        for name, event in events.items():
-            done = (event in joined.value) if joined.ok else event.processed
+        # Named nodes are recorded children before parents (the parse registers a
+        # group after its children), so a group reads its children's recorded values.
+        for name, node in wait.branches.items():
+            event = events[name]
+            if node.is_group:
+                done = event.processed
+                value = (
+                    {
+                        child.name: self.waits[child.name]["value"]
+                        for child in node.children
+                        if child.name is not None and self.waits[child.name]["done"]
+                    }
+                    if done
+                    else None
+                )
+            elif node.kind in ("request", "get", "put"):
+                done = (event in joined.value) if joined.ok else event.processed
+                value = self._resolve_branch(node, event, done)
+            else:
+                done = (event in joined.value) if joined.ok else event.processed
+                value = _branch_value(event) if done else None
             self.waits[name] = {
                 "done": done,
                 "ok": event.ok if done else None,
-                "value": _branch_value(event) if done else None,
+                "value": value,
             }
+        # The wait resolved: a won request is now tracked in `_wait_held`, and losing
+        # branches are cancelled, so the per-branch events need no more tracking.
+        self._wait_events = {}
         return failure
+
+    def _resolve_branch(self, node: Any, event: Any, done: bool) -> Any:
+        """Settles a won or losing request, get or put wait branch, and returns the
+        value `wait.<branch>` reads: a won request keeps its unit for the task to
+        release at its end; a won get gives the item; a losing branch is cancelled,
+        and a losing granted request gives its unit back."""
+        if done:
+            if node.kind == "request":
+                self._wait_held.append(event)
+                return event
+            if node.kind == "get":
+                return self._transfer_value(node.target, "get", event)
+            return None
+        # A losing branch leaves the queue or reservation behind nothing.
+        event.cancel()
+        if node.kind == "request" and event.triggered and event in event.resource.users:
+            event.resource.release(event)
+        return None
 
     def _condition(self, condition: Expression):
         """An event that succeeds once the condition holds, and how to stop it."""

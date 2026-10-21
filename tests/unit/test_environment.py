@@ -92,6 +92,24 @@ def test_teardown_waits_for_a_slow_sink():
     assert len(slow.received_batches) == 10
 
 
+def test_teardown_sleeps_half_a_second_after_the_queue_drains():
+    """Once the queue empties, teardown sleeps a fixed 0.5 s to let a file sink close
+    its last file, so even a fast drain costs that half second."""
+    env = DynamicRealtimeEnvironment(strict=False)
+    slow = SlowEgress(delay=0.3)
+    env.setup_egress(providers=[slow], batch_size=1)
+
+    env.publish_telemetry("metric", 1.0)
+
+    started = time.monotonic()
+    env.teardown()
+    elapsed = time.monotonic() - started
+
+    assert len(slow.received_batches) == 1
+    assert elapsed >= 0.5
+    assert elapsed < 5.0
+
+
 def test_teardown_gives_up_when_the_queue_stops_shrinking():
     """A sink that consumes nothing must not hang teardown forever."""
     env = DynamicRealtimeEnvironment(strict=False)

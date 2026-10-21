@@ -601,14 +601,17 @@
 # SimPy 4.1.2 features not yet native and checked in all three APIs. Roadmap
 # step 14 builds each one, released as 0.23.0, with a conformance check.
 
-- id: N
+- id: C6
   inventory: [SP-E2]
-  exists: [yaml, builder, low_level]
-  status: not yet
   operation: Current time
+  description: "`t` is the simulation clock, read in a condition or an expression, so a route or a balk can depend on the current time."
   simpy: "`core.Environment.now`"
-  checks: []
-  release: 0.23.0
+  yaml: "`t` in a condition, such as `t < 110`"
+  builder: "`context.env.now`"
+  low_level: "`env.now`"
+  checks:
+    - tests/conformance/test_c6_run_control.py::test_c6_current_time
+  page: user-guide/time-and-pacing.md#read-the-current-time
 
 - id: N
   inventory: [SP-E3]
@@ -683,14 +686,18 @@
   checks: []
   release: 0.23.0
 
-- id: N
+- id: C6
   inventory: [SP-R1]
-  exists: [yaml, builder, low_level]
-  status: not yet
   operation: Real-time factor
+  description: "`factor` sets how many real seconds one simulation second takes, so a run paces to the wall clock, as SimPy's RealtimeEnvironment does."
   simpy: "`rt.RealtimeEnvironment(factor)`"
-  checks: []
-  release: 0.23.0
+  yaml: "`simulation.factor`"
+  builder: "`SimulationContext(factor=)`"
+  low_level: "`DynamicRealtimeEnvironment(factor=)`"
+  checks:
+    - tests/conformance/test_c6_pacing.py::test_c6_real_time_factor
+  page: user-guide/time-and-pacing.md#factor
+
 
 - id: N
   inventory: [SP-R2]
@@ -799,41 +806,67 @@
   checks: []
   release: 0.23.0
 
-- id: N
+- id: C2
   inventory: [SP-C5]
-  exists: [low_level]
-  status: not yet
   operation: Nested and mixed conditions
-  simpy: "`events.Condition`, `&` and `|`"
-  checks: []
-  release: 0.23.0
+  description: "A wait nests `any`, `all` and `at_least` to any depth, as SimPy's conditions combine with `&` and `|`."
+  simpy: "`events.Condition`, `&`, `|`"
+  yaml: "`wait: {all: {look: {task: inspect}, either: {any: {...}}}}`"
+  builder: "`wait={\"all\": {...}}` with nested groups"
+  low_level: "`yield (a | b) & c`"
+  checks:
+    - tests/conformance/test_c2_conditions.py::test_c2_nested_and_mixed_conditions
+    - tests/conformance/test_c2_conditions.py::test_c2_nested_condition_with_a_failing_member
+    - tests/conformance/test_c2_conditions.py::test_c2_nested_condition_holds_leaves_of_an_untriggered_group
+  page: guides/wait-for-one-or-all.md#nest-any-and-all
 
-- id: N
+- id: C2
   inventory: [SP-C6]
-  exists: [low_level]
-  status: not yet
   operation: A condition with a custom rule
+  description: "`at_least: n` of several branches is done when `n` of them are, as SimPy's `Condition` with a count rule."
   simpy: "`events.Condition(env, evaluate, events)`"
-  checks: []
-  release: 0.23.0
+  yaml: "`wait: {at_least: 2, of: {...}}`"
+  builder: "`wait={\"at_least\": 2, \"of\": {...}}`"
+  low_level: "`Condition(env, lambda evs, c: c >= 2, [...])`"
+  checks:
+    - tests/conformance/test_c2_conditions.py::test_c2_condition_with_a_custom_rule
+    - tests/conformance/test_c2_conditions.py::test_c2_custom_rule_equal_to_the_branch_count_is_all
+    - tests/conformance/test_c2_conditions.py::test_c2_custom_rule_two_at_one_instant
+    - tests/conformance/test_c2_conditions.py::test_c2_custom_rule_with_a_failing_member
+  page: guides/wait-for-one-or-all.md#at-least-some-of-them
 
-- id: N
+- id: C2
   inventory: [SP-C7]
-  exists: [low_level]
-  status: not yet
   operation: A condition over no events
-  simpy: "`events.AnyOf(env, [])`"
-  checks: []
-  release: 0.23.0
+  description: "An empty `any` or `all` is accepted and succeeds at once with an empty value, as SimPy does."
+  simpy: "`events.AnyOf(env, [])`, `events.AllOf(env, [])`"
+  yaml: "`wait: {any: {}}` or `wait: {all: {}}`"
+  builder: "`wait={\"any\": {}}`"
+  low_level: "`env.any_of([])`"
+  checks:
+    - tests/conformance/test_c2_wait_for_one_or_all.py::test_c2_condition_over_no_events
+  page: guides/wait-for-one-or-all.md#an-empty-wait
 
-- id: N
+- id: C2
   inventory: [SP-C8]
-  exists: [low_level]
-  status: not yet
   operation: Request, put or get as a wait branch
+  description: "A `request`, `get` or `put` can be a wait branch; a won request holds its unit through the service, and a losing branch is cancelled."
   simpy: "`resources.base.Put`, `resources.base.Get`, `events.AnyOf`"
-  checks: []
-  release: 0.23.0
+  yaml: "`wait: {request: packers}`, `wait: {get: {store: parcels}}`, `wait: {put: {store: ...}}`"
+  builder: "`wait={\"request\": \"packers\"}` or `wait={\"get\": {...}}`"
+  low_level: "`yield req | env.timeout(3)`"
+  checks:
+    - tests/conformance/test_c2_conditions.py::test_c2_request_as_a_wait_branch
+    - tests/conformance/test_c2_conditions.py::test_c2_get_as_a_wait_branch
+    - tests/conformance/test_c2_conditions.py::test_c2_put_as_a_wait_branch
+    - tests/conformance/test_c2_conditions.py::test_c2_a_wait_branch_on_a_missing_store_is_refused
+    - tests/conformance/test_c2_conditions.py::test_c2_wait_branch_in_a_failing_all
+    - tests/conformance/test_c2_conditions.py::test_c2_request_wait_branch_cleaned_on_renege
+    - tests/conformance/test_c2_conditions.py::test_c2_request_wait_branch_reused_across_a_resume_in_the_wait
+    - tests/conformance/test_c2_conditions.py::test_c2_request_wait_branch_kept_across_a_resume_in_the_service
+    - tests/conformance/test_c2_conditions.py::test_c2_abandon_during_a_wait_with_a_won_branch_is_clean
+    - tests/conformance/test_c2_conditions.py::test_c2_request_wait_branch_reacquired_after_a_preemption
+  page: guides/wait-for-one-or-all.md#wait-for-a-unit-an-item-or-room
 
 - id: N
   inventory: [SP-B2]

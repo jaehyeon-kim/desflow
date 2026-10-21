@@ -1,0 +1,19 @@
+# An `any` nested inside an `all`: the inner `any` is done at 1 and the `look`
+# timeout at 3, so the order goes on at 3. See test_c2_conditions.py.
+simulation:
+  sim_id: C2
+  factor: 0
+arrivals:
+  orders: {replay: {path: c2_once.csv}, spawn: order}
+tasks:
+  order:
+    wait:
+      all:
+        look: {timeout: 3}
+        either:
+          any:
+            fast: {timeout: 1}
+            slow: {timeout: 10}
+    payload: {event: went_on}
+run:
+  until: 20

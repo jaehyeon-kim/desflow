@@ -418,6 +418,89 @@ class InterruptAction(_Model):
         return {"task": self.task, "where": self.where, "cause": self.cause}
 
 
+class SignalWait(_Model):
+    """A `wait` branch for a signal's next firing."""
+
+    signal: str
+
+
+class TaskWait(_Model):
+    """A `wait` branch for a child flow: it starts `task` for the same entity."""
+
+    task: str
+
+
+class TimeoutWait(_Model):
+    """A `wait` branch of a number of seconds or a duration such as `30 s`."""
+
+    timeout: Union[float, str]
+
+
+class ConditionWait(_Model):
+    """A `wait` branch for a condition, checked again after each change."""
+
+    condition: str
+
+
+class AnyWait(_Model):
+    """A `wait` done when the first of its named branches is."""
+
+    any: "Dict[str, WaitBranch]"
+
+
+class AllWait(_Model):
+    """A `wait` done when every one of its named branches is."""
+
+    all: "Dict[str, WaitBranch]"
+
+
+class AtLeastWait(_Model):
+    """A `wait` done when at least `at_least` of its named branches are."""
+
+    at_least: int
+    of: "Dict[str, WaitBranch]"
+
+
+class RequestWait(_Model):
+    """A `wait` branch for a resource unit: the task holds it if it wins."""
+
+    request: str
+
+
+class GetWait(_Model):
+    """A `wait` branch for a store or container get."""
+
+    get: TransferStep
+
+
+class PutWait(_Model):
+    """A `wait` branch for a store or container put."""
+
+    put: TransferStep
+
+
+# The kinds a 0.23.0 wait takes. A plain union, no discriminator: each model
+# accepts only its own key under extra="forbid", so exactly one matches a valid
+# mapping, on every Pydantic from 2.6.0. The kind a later batch adds (running) is
+# not here yet, and `Wait` refuses it.
+WaitBranch = Union[
+    SignalWait,
+    TaskWait,
+    TimeoutWait,
+    ConditionWait,
+    AnyWait,
+    AllWait,
+    AtLeastWait,
+    RequestWait,
+    GetWait,
+    PutWait,
+]
+
+AnyWait.model_rebuild()
+AllWait.model_rebuild()
+AtLeastWait.model_rebuild()
+
+
 class Task(_Model):
     """A `tasks` entry, built with `SimulationContext.task`.
 
@@ -459,7 +542,7 @@ class Task(_Model):
         ]
     ] = None
     set: Dict[str, Any] = Field(default_factory=dict)
-    wait: Optional[Dict[str, Any]] = None
+    wait: Optional[WaitBranch] = None
     signal: Optional[str] = None
     fail: Optional[str] = None
     fail_reason: Optional[str] = None
@@ -500,11 +583,17 @@ class Task(_Model):
             raise ValueError("on_interrupt_next needs on_interrupt: abandon")
         return self
 
-    @field_validator("wait")
+    @field_validator("wait", mode="wrap")
     @classmethod
-    def _wait_parses(cls, value: Any) -> Any:
-        if value is not None:
-            Wait(value)
+    def _wait_parses(cls, value: Any, handler: Any) -> Any:
+        # `Wait` is the one runtime parser, so its errors, with their "did you
+        # mean", reach the user instead of the union's. It runs first; the handler
+        # then validates the typed union. The mapping is returned unchanged, so the
+        # runtime and `build.py` read the same value as before the union was typed.
+        if value is None:
+            return None
+        Wait(value)
+        handler(value)
         return value
 
     @field_validator("fail")

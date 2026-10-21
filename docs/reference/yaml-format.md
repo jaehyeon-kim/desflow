@@ -117,7 +117,7 @@ An arrival also takes:
 | `priority` | a number or an expression such as `attr.tier`, for a resource with `queue: priority` |
 | `patience` | seconds, a duration or an expression: how long the task may wait for its `wait`, its resource and its `get`, all together, before it leaves and publishes `reneged`; it pauses while the task is served |
 | `balk` | a condition checked before the task joins a queue; when it holds, the task publishes `balked` |
-| `wait` | what the task waits for before its resource: `{signal: name}`, `{task: name}`, `{timeout: ...}`, `{condition: ...}`, or `{any: {name: branch, ...}}` or `{all: {...}}`; read after it as `wait.<branch>.done`, `.ok` and `.value` |
+| `wait` | what the task waits for before its resource: a leaf `{signal: name}`, `{task: name}`, `{timeout: ...}`, `{condition: ...}`, `{request: name}` (a resource unit), `{get: {...}}` or `{put: {...}}` (a store or container); or a group `{any: {name: branch, ...}}`, `{all: {...}}` or `{at_least: n, of: {...}}`, which nest; read after it as `wait.<branch>.done`, `.ok` and `.value` |
 | `signal` | a signal under `signals` the task fires with its payload when it finishes, and fails when it fails |
 | `fail` | a condition checked after the service, reading the task's own payload; when it holds the task publishes `failed` |
 | `fail_reason` | the `reason` a failure publishes; the `fail` condition's text by default |

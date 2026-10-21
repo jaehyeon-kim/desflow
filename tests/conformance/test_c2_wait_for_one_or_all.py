@@ -10,21 +10,13 @@ import simpy
 
 from desflow import Signal
 from desflow.core.context import SimulationContext
-from tests.conformance.harness import run_builder, run_low_level, run_yaml
-
-
-def _times(records, task, status=None):
-    found = []
-    for r in records:
-        if r["stream_type"] != "event" or r["task"] != task:
-            continue
-        value = r["value"]
-        is_status = isinstance(value, dict) and "status" in value
-        if (status is None and not is_status) or (
-            status is not None and is_status and value["status"] == status
-        ):
-            found.append(r["sim_ts"])
-    return found
+from tests.conformance.harness import (
+    periodic,
+    run_builder,
+    run_low_level,
+    run_yaml,
+    times,
+)
 
 
 def _loops(app, pairs):
@@ -37,12 +29,6 @@ def _loops(app, pairs):
                 context.spawn(task(context.next_instance(name), entity=entity))
 
         app.arrival_loop(arrival)(loop)
-
-
-def _periodic(env, gap, start):
-    while True:
-        yield env.timeout(gap)
-        env.process(start())
 
 
 # ------------------------------------------------------------ wait for one
@@ -63,8 +49,8 @@ def _reference_any():
         event.succeed({"qty": 3})
         yield env.timeout(0)
 
-    env.process(_periodic(env, 3, order))
-    env.process(_periodic(env, 5, restock))
+    env.process(periodic(env, 3, order))
+    env.process(periodic(env, 5, restock))
     env.run(until=9.5)
     return outcome
 
@@ -85,8 +71,8 @@ def _low_level_any():
             restocked.fire({"qty": 3})
             yield env.timeout(0)
 
-        env.process(_periodic(env, 3, order))
-        env.process(_periodic(env, 5, restock))
+        env.process(periodic(env, 3, order))
+        env.process(periodic(env, 5, restock))
 
     return run_low_level(None, start, 9.5)[0]
 
@@ -127,8 +113,8 @@ def test_c2_wait_for_one_event():
     """The order of 3 is restocked at 5; the order of 6 gives up at 9."""
     assert _reference_any() == [(5, "stocked"), (9, "gave_up")]
     for records in (_low_level_any(), _builder_any(), run_yaml("c2_any.yaml")[0]):
-        assert _times(records, "stocked") == [5.0]
-        assert _times(records, "gave_up") == [9.0]
+        assert times(records, "stocked") == [5.0]
+        assert times(records, "gave_up") == [9.0]
 
 
 def _reference_any_tie():
@@ -222,7 +208,7 @@ def test_c2_wait_for_one_event_two_at_one_instant():
         _builder_any_tie(),
         run_yaml("c2_any_tie.yaml")[0],
     ):
-        assert _times(records, "both") == [5.0]
+        assert times(records, "both") == [5.0]
 
 
 # ------------------------------------------------------------ wait for all
@@ -332,8 +318,8 @@ def test_c2_wait_for_all_events():
         _builder_all(False),
         run_yaml("c2_all.yaml")[0],
     ):
-        assert _times(records, "inspect") == [14.0]
-        assert _times(records, "order") == [15.0]
+        assert times(records, "inspect") == [14.0]
+        assert times(records, "order") == [15.0]
 
 
 def test_c2_wait_for_all_events_with_a_failing_branch():
@@ -348,6 +334,65 @@ def test_c2_wait_for_all_events_with_a_failing_branch():
         _builder_all(True),
         run_yaml("c2_all_failure.yaml")[0],
     ):
-        assert _times(records, "order", "failed") == [12.0]
-        assert _times(records, "order") == []
-        assert _times(records, "inspect") == [14.0]
+        assert times(records, "order", "failed") == [12.0]
+        assert times(records, "order") == []
+        assert times(records, "inspect") == [14.0]
+
+
+def _reference_empty(mode):
+    env = simpy.Environment()
+    seen = []
+
+    def order():
+        timer = env.timeout(0)  # the patience timer, built first, as desflow builds it
+        cond = env.all_of([]) if mode == "all" else env.any_of([])
+        yield cond | timer
+        seen.append((env.now, "went_on" if cond.processed else "reneged"))
+
+    env.process(order())
+    env.run()
+    return seen
+
+
+def _low_level_empty(mode):
+    def start(env):
+        def order():
+            timer = env.timeout(0)
+            cond = env.all_of([]) if mode == "all" else env.any_of([])
+            yield cond | timer
+            went = "went_on" if cond.processed else "reneged"
+            env.publish_event("o-0", {"event": went}, task="order", instance=0)
+
+        env.process(order())
+
+    return run_low_level(None, start, 5)[0]
+
+
+def _builder_empty(mode):
+    app = SimulationContext("C2", factor=0.0)
+
+    @app.task(wait={mode: {}}, patience=0, name="order")
+    def order(task_id):
+        return {"event": "went_on"}
+
+    def script(context):
+        context.spawn(order(0))
+        yield context.env.timeout(0)
+
+    app.add_process(script)
+    return run_builder(app, 5)
+
+
+def test_c2_condition_over_no_events():
+    """An empty `any` or `all` succeeds at once. With patience 0 the wait wins the
+    tie: desflow builds the patience timer first, so the empty condition is scheduled
+    after it and is processed at resume, and the task goes on rather than reneging."""
+    for mode, blueprint in (("any", "c2_empty_any.yaml"), ("all", "c2_empty_all.yaml")):
+        assert _reference_empty(mode) == [(0, "went_on")]
+        for records in (
+            _low_level_empty(mode),
+            _builder_empty(mode),
+            run_yaml(blueprint)[0],
+        ):
+            assert times(records, "order")  # the order went on (a payload event)
+            assert not times(records, "order", "reneged")

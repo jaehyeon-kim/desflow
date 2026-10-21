@@ -345,6 +345,14 @@ def compatibility_page() -> str:
 
     version = simpy_version()
     total = count(entries)
+    # The "to come" clause holds only while features are not yet native; when the
+    # last one becomes native the clause drops, so the page stays correct.
+    to_come = (
+        " Each feature that is not yet native becomes native in all three APIs in "
+        "0.23.0, as the [Roadmap](../about/roadmap.md) says."
+        if not_yet
+        else ""
+    )
     lines: List[str] = [
         "# SimPy Compatibility",
         "",
@@ -358,8 +366,7 @@ def compatibility_page() -> str:
         "",
         f"**{count(native)}** features are native and checked in all three APIs, "
         f"**{count(not_yet)}** are not yet, and **{count(kept)}** are differences "
-        "kept by design. Each feature that is not yet native becomes native in all "
-        "three APIs in 0.23.0, as the [Roadmap](../about/roadmap.md) says.",
+        f"kept by design.{to_come}",
         "",
         "The low-level API is SimPy with a few classes added, so most SimPy features "
         "work in it, those not yet checked included; [SimPy and desflow]"
@@ -385,7 +392,8 @@ def compatibility_page() -> str:
             f"| [{group}: {GROUPS[group]}](#{_anchor(group)}) | {len(rows)} |"
             for group, rows in groups.items()
         ),
-        f"| [{GROUPS['N']}](#{_anchor('N')}) | none; {count(not_yet)} SimPy features to come |",
+        f"| [{GROUPS['N']}](#{_anchor('N')}) | "
+        + (f"none; {count(not_yet)} SimPy features to come |" if not_yet else "none |"),
         f"| [{GROUPS['D']}](#{_anchor('D')}) | {len(kept)} differences |",
         "",
         "Under each feature, API details opens to show its SimPy construct, "
@@ -413,30 +421,35 @@ def compatibility_page() -> str:
                 f"    - **Taught on:** [{row['operation']}](../{row['page']})",
                 "",
             ]
-    lines += [
-        "",
-        f"## {GROUPS['N']}",
-        "",
-        "These features are not yet native and checked in all three APIs. "
-        '"Exists" marks an API that has a form, which no conformance test compares '
-        'with SimPy yet, and "checked" one that a test in the Checks column '
-        "compares already; the low-level API is SimPy, so many work there already.",
-        "",
-        "| Feature | SimPy | YAML | Builder | Low-level | Checks | Release |",
-        "|---|---|---|---|---|---|---|",
-    ]
-    for row in not_yet:
-        exists = row.get("exists", [])
-        checked = row.get("checked", [])
-        status = [
-            "checked" if api in checked else "exists" if api in exists else "not yet"
-            for api in ("yaml", "builder", "low_level")
+    lines += ["", f"## {GROUPS['N']}", ""]
+    if not_yet:
+        lines += [
+            "These features are not yet native and checked in all three APIs. "
+            '"Exists" marks an API that has a form, which no conformance test compares '
+            'with SimPy yet, and "checked" one that a test in the Checks column '
+            "compares already; the low-level API is SimPy, so many work there already.",
+            "",
+            "| Feature | SimPy | YAML | Builder | Low-level | Checks | Release |",
+            "|---|---|---|---|---|---|---|",
         ]
-        checks = "<br>".join(_check_link(check) for check in row["checks"])
-        lines.append(
-            f"| {row['operation']} | {_cell(row['simpy'])} | {' | '.join(status)} "
-            f"| {checks or 'none'} | {row['release']} |"
-        )
+        for row in not_yet:
+            exists = row.get("exists", [])
+            checked = row.get("checked", [])
+            status = [
+                "checked"
+                if api in checked
+                else "exists"
+                if api in exists
+                else "not yet"
+                for api in ("yaml", "builder", "low_level")
+            ]
+            checks = "<br>".join(_check_link(check) for check in row["checks"])
+            lines.append(
+                f"| {row['operation']} | {_cell(row['simpy'])} | {' | '.join(status)} "
+                f"| {checks or 'none'} | {row['release']} |"
+            )
+    else:
+        lines.append("Every SimPy feature is native and checked in all three APIs.")
     lines += ["", f"## {GROUPS['D']}", ""]
     for row in kept:
         lines.append(

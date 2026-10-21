@@ -17,9 +17,11 @@ from desflow import (
 )
 from desflow.core.context import SimulationContext
 from tests.conformance.harness import (
+    periodic,
     run_builder,
     run_low_level,
     run_yaml,
+    times,
 )
 
 
@@ -42,17 +44,6 @@ def _events(records, task, status=None):
     return found
 
 
-def _times(records, task, status=None):
-    return [t for t, _value in _events(records, task, status)]
-
-
-def _periodic(env, gap, start):
-    """Starts `start()` as a process every `gap` seconds, from `gap`."""
-    while True:
-        yield env.timeout(gap)
-        env.process(start())
-
-
 # ---------------------------------------------------------------- signals
 
 SIGNAL_RESUMED = [5.0, 10.0, 10.0]
@@ -72,8 +63,8 @@ def _reference_signals():
         event.succeed({"qty": 3})
         yield env.timeout(0)
 
-    env.process(_periodic(env, 3, waiter))
-    env.process(_periodic(env, 5, restock))
+    env.process(periodic(env, 3, waiter))
+    env.process(periodic(env, 5, restock))
     env.run(until=11)
     return resumed
 
@@ -96,8 +87,8 @@ def _low_level_signals():
             restocked.fire({"qty": 3})
             yield env.timeout(0)
 
-        env.process(_periodic(env, 3, waiter))
-        env.process(_periodic(env, 5, restock))
+        env.process(periodic(env, 3, waiter))
+        env.process(periodic(env, 5, restock))
 
     return run_low_level(None, start, 11)[0]
 
@@ -148,8 +139,8 @@ def test_c1_signal_event_success_and_value():
         _builder_signals(),
         run_yaml("c1_signals.yaml")[0],
     ):
-        assert _times(records, "waiter") == SIGNAL_RESUMED
-        assert _times(records, "noted") == SIGNAL_RESUMED  # the value was {qty: 3}
+        assert times(records, "waiter") == SIGNAL_RESUMED
+        assert times(records, "noted") == SIGNAL_RESUMED  # the value was {qty: 3}
 
 
 def _reference_signal_failure():
@@ -355,15 +346,15 @@ def test_c1_start_and_wait_for_a_process():
     """The order waits from 10 for its child flow, which ends at 14."""
     assert [t for t, *_ in _reference_child()] == [14]
     for records in (_low_level_child(), _builder_child(), run_yaml("c1_child.yaml")[0]):
-        assert _times(records, "order") == [14.0]
+        assert times(records, "order") == [14.0]
 
 
 def test_c1_process_return_value():
     """The child flow's value is its last payload, {grade: A}, so the order ships."""
     assert _reference_child() == [(14, "resumed", {"grade": "A"})]
     for records in (_low_level_child(), _builder_child(), run_yaml("c1_child.yaml")[0]):
-        assert _times(records, "ship") == [14.0]
-        assert _times(records, "rework") == []
+        assert times(records, "ship") == [14.0]
+        assert times(records, "rework") == []
 
 
 def test_c1_process_failure():
@@ -389,9 +380,9 @@ def test_c1_process_failure_handled_by_on_fail():
         _builder_child(fails=True, handled=True),
         run_yaml("c1_child_on_fail.yaml")[0],
     ):
-        assert _times(records, "inspect", "failed") == [14.0]
-        assert _times(records, "repair") == [14.0]
-        assert _times(records, "order") == [14.0]
+        assert times(records, "inspect", "failed") == [14.0]
+        assert times(records, "repair") == [14.0]
+        assert times(records, "order") == [14.0]
 
 
 # -------------------------------------------------------------- inspection
@@ -474,10 +465,10 @@ def test_c1_event_inspection():
     records = run_builder(app, 3)
     assert seen["builder before"] is False
     assert seen["builder after"] == (True, {"qty": 3})
-    assert _times(records, "noted") == [1.0]
+    assert times(records, "noted") == [1.0]
 
     # YAML reads the same signal as signal.restocked.count, .ok and .value
-    assert _times(run_yaml("c1_event_inspection.yaml")[0], "noted") == [1.0]
+    assert times(run_yaml("c1_event_inspection.yaml")[0], "noted") == [1.0]
 
 
 def test_c1_process_inspection():
@@ -538,7 +529,7 @@ def test_c1_process_inspection():
 
     # YAML reads a child's state after the wait as wait.inspect.done and .value
     records = run_yaml("c1_child.yaml")[0]
-    assert _times(records, "ship") == [14.0]
+    assert times(records, "ship") == [14.0]
 
 
 # -------------------------------------------------------- shared condition
@@ -560,8 +551,8 @@ def _reference_condition():
         event, state["changed"] = state["changed"], env.event()
         event.succeed()
 
-    env.process(_periodic(env, 4, waiter))
-    env.process(_periodic(env, 3, restock))
+    env.process(periodic(env, 4, waiter))
+    env.process(periodic(env, 3, restock))
     env.run(until=10)
     return resumed
 
@@ -589,8 +580,8 @@ def _low_level_condition():
         def restock():
             yield stock.put(2)
 
-        env.process(_periodic(env, 4, waiter))
-        env.process(_periodic(env, 3, restock))
+        env.process(periodic(env, 4, waiter))
+        env.process(periodic(env, 3, restock))
 
     params = SimParameter(
         sim_id="C1",
@@ -636,4 +627,4 @@ def test_c1_wait_for_a_shared_condition():
         _builder_condition(),
         run_yaml("c1_condition.yaml")[0],
     ):
-        assert _times(records, "waiter") == [9.0, 9.0]
+        assert times(records, "waiter") == [9.0, 9.0]

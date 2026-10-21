@@ -264,6 +264,46 @@ def _record_lines(node: yaml.Node, location: Location, lines: Dict[Location, int
             _record_lines(item, location + (index,), lines)
 
 
+_BOOL_TAG = "tag:yaml.org,2002:bool"
+_STR_TAG = "tag:yaml.org,2002:str"
+
+
+def _keep_on_keys(root: yaml.Node) -> None:
+    """Keeps the key `on` a string in task, signal and experiment check mappings.
+
+    YAML 1.1 reads the bare word `on` as the boolean True, so a task's or a signal's
+    `on:` actions and an experiment check's `on` were refused with "Keys should be
+    strings". Only those mappings change; every other mapping, such as a payload or
+    attributes, keeps today's reading.
+
+    Args:
+        root: The document's root node, before it is constructed.
+    """
+
+    def retag(node: yaml.Node) -> None:
+        if isinstance(node, yaml.MappingNode):
+            for key, _ in node.value:
+                if (
+                    isinstance(key, yaml.ScalarNode)
+                    and key.tag == _BOOL_TAG
+                    and key.value.lower() == "on"
+                ):
+                    key.tag = _STR_TAG
+
+    if not isinstance(root, yaml.MappingNode):
+        return
+    for key, value in root.value:
+        name = key.value if isinstance(key, yaml.ScalarNode) else None
+        if name in ("tasks", "signals") and isinstance(value, yaml.MappingNode):
+            for _, item in value.value:
+                retag(item)
+        elif name in ("tasks", "signals", "checks") and isinstance(
+            value, yaml.SequenceNode
+        ):
+            for item in value.value:
+                retag(item)
+
+
 def read_document(
     path: Union[str, Path], including: Tuple[Path, ...] = ()
 ) -> Tuple[Dict[str, Any], SourceMap]:
@@ -297,6 +337,7 @@ def read_document(
         node = loader.get_single_node()
         if node is None:
             raise BlueprintError(f"{path}:1: the file is empty")
+        _keep_on_keys(node)
         _record_lines(node, (), lines)
         data = loader.construct_document(node)
     except yaml.MarkedYAMLError as exc:

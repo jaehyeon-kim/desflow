@@ -11,4 +11,6 @@ desflow is built on [SimPy](https://simpy.readthedocs.io/), a Python library for
 | Parameters | Python variables, changed only by the model's own code | a registry of named paths, changed by connectors, scenarios or processes, with each change checked |
 | Output | whatever the model prints or logs | events and telemetry with a fixed shape, written to Kafka, Redis, PostgreSQL, files or Iceberg on background threads |
 
+Every SimPy feature, its form in YAML, the builder and the low-level API, and the check that compares it with SimPy are listed in [SimPy Compatibility](../reference/simpy-compatibility.md).
+
 User Guide pages that build on SimPy name the parts they use in their How It Works section, starting with [Arrivals and Services](../user-guide/arrivals-and-services.md).

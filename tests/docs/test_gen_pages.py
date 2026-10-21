@@ -128,13 +128,29 @@ def test_the_simpy_version_is_read_from_the_lock():
     assert f"a plain SimPy {version} model" in gen_pages.compatibility_page()
 
 
-def test_a_not_yet_row_shows_its_checks():
+def test_a_not_yet_row_shows_its_checks(monkeypatch):
     """A feature not yet native in all three APIs, with a check of one API, shows
-    that API as checked and names the check."""
+    that API as checked and names the check. It is checked over a made-up row, so it
+    holds as the real not-yet rows become native through 0.23.0."""
+    made_up = {
+        "operation": "Made up feature",
+        "id": "N",
+        "status": "not yet",
+        "simpy": "env.madeup()",
+        "exists": ["low_level"],
+        "checked": ["builder"],
+        "checks": ["tests/conformance/test_made_up.py::test_made_up"],
+        "release": "0.99.0",
+        "inventory": ["X99"],
+    }
+    original = gen_pages.register
+    monkeypatch.setattr(gen_pages, "register", lambda: [*original(), made_up])
     page = gen_pages.compatibility_page()
-    row = next(line for line in page.splitlines() if line.startswith("| Run in "))
+    row = next(
+        line for line in page.splitlines() if line.startswith("| Made up feature ")
+    )
     assert "| checked |" in row
-    assert "test_c6_stopped_and_resumed_run" in row
+    assert "test_made_up" in row
 
 
 def test_every_native_feature_says_what_it_is():
