@@ -132,7 +132,7 @@ Anything else is a custom reading: a function called at an interval of simulatio
     def packers_report(context):
         """A custom reading: orders waiting per packer, and the live arrival rate."""
         packers = context.get_resource("packers")
-        waiting = len(packers.queue.items)
+        waiting = len(packers.queue)
         context.publish("waiting_per_packer", waiting / max(packers.capacity, 1))
         rate = context.env.registry.get(f"{context.sim_id}.arrival.orders.rate").value
         context.publish("arrival_rate", rate)  # as Shop.arrival_rate
@@ -145,7 +145,7 @@ Anything else is a custom reading: a function called at an interval of simulatio
     def packers_report(context: SimulationContext):
         """Readings of your own: orders waiting per packer, and the live arrival rate."""
         packers = context.get_resource("packers")
-        waiting = len(packers.queue.items)
+        waiting = len(packers.queue)
         context.publish("waiting_per_packer", waiting / max(packers.capacity, 1))
         rate = context.env.registry.get("Shop.arrival.orders.rate").value
         context.publish("arrival_rate", rate)  # as Shop.arrival_rate
@@ -314,7 +314,7 @@ The `measuring` example publishes every statistic of the packers and the pack ta
 
 The environment keeps one `Statistics` object, `env.stats`, which collects nothing until a level above `none` is set. Its timer publishes every value at each interval, and the teardown publishes them once more.
 
-**Readings now.** `capacity`, `in_use`, `queue_length` and `level` are read from the object at the moment of publishing. `in_use` counts the units held by tasks, so after a capacity drop it can be above `capacity`, and `utilization`, `in_use ÷ capacity × 100`, above 100.
+**Readings now.** `capacity`, `in_use`, `queue_length` and `level` are read from the object at the moment of publishing. `in_use` counts the units held by tasks, so after a capacity drop it can be above `capacity`, and `utilization`, `in_use ÷ capacity × 100`, above 100. A resource with no limit (`current_cap: .inf`) publishes `capacity` as `null` and a `utilization` of 0.
 
 **Breakdowns.** A resource with a `breakdown` reads `down` now: 1 while it is down, 0 otherwise. `downtime` adds the length of each down period, and of one still going on, and `failures` adds one at each failure; [Breakdowns](../guides/breakdowns.md) checks both against the events.
 

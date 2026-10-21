@@ -1,5 +1,7 @@
 """Python for the blueprints beside it: a payload, a process with arguments, a
-predicate and a custom reading."""
+predicate, a custom reading and a resource type."""
+
+from desflow import ResourceBase
 
 
 def choose_delivery(task_id: int, context):
@@ -31,10 +33,27 @@ def events_only(record: dict) -> bool:
 def packers_report(context):
     """A custom reading: orders waiting per packer, and the live arrival rate."""
     packers = context.get_resource("packers")
-    waiting = len(packers.queue.items)
+    waiting = len(packers.queue)
     context.publish("waiting_per_packer", waiting / max(packers.capacity, 1))
     rate = context.env.registry.get(f"{context.sim_id}.arrival.orders.rate").value
     context.publish("arrival_rate", rate)  # as Shop.arrival_rate
 
 
 # --8<-- [end:packers-report]
+
+
+# --8<-- [start:logged-packers]
+class LoggedPackers(ResourceBase):
+    """A resource that keeps how long each request waited before it was granted."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.waits = []
+
+    def _do_put(self, request):
+        super()._do_put(request)
+        if request.triggered:  # the request was granted just now
+            self.waits.append(self.env.now - request.time)
+
+
+# --8<-- [end:logged-packers]

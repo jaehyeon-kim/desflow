@@ -5,6 +5,7 @@ script that make the same calls produce the same simulation.
 """
 
 import importlib
+import math
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
@@ -252,6 +253,7 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                             or "; add it under stores or containers"
                         ),
                     )
+            _check_resource_names(expression, blueprint, source, location)
 
     _check_events(blueprint, source)
 
@@ -271,7 +273,10 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
     for kind in ("resources", "stores"):
         for name, capacity in getattr(blueprint, kind).items():
             for field in ("current_cap", "max_cap"):
-                if not float(getattr(capacity, field)).is_integer():
+                value = getattr(capacity, field)
+                if value is None or (kind == "resources" and math.isinf(value)):
+                    continue
+                if not float(value).is_integer():
                     raise source.error(
                         (kind, name, field),
                         f"{kind[:-1]} '{name}' needs a whole number for {field}",
@@ -550,6 +555,7 @@ def _check_run(blueprint: Blueprint, source: SourceMap) -> None:
                     or "; add it under stores or containers"
                 ),
             )
+    _check_resource_names(expression, blueprint, source, where)
     entity = [
         f"{kind}.<...>"
         for kind in ("payload", "attr", "item", "wait")
@@ -561,6 +567,26 @@ def _check_run(blueprint: Blueprint, source: SourceMap) -> None:
             f"a stop condition is checked outside every task, so it cannot read "
             f"{', '.join(entity)}; read levels, registry values, signals or t",
         )
+
+
+def _check_resource_names(
+    expression: Expression,
+    blueprint: Blueprint,
+    source: SourceMap,
+    location: Tuple[Union[str, int], ...],
+) -> None:
+    """Checks that `users.<name>` and `queue.<name>` name a resource."""
+    for kind in ("users", "queue"):
+        for name in expression.references[kind]:
+            if name not in blueprint.resources:
+                raise source.error(
+                    location,
+                    f"{kind}.{name} names no resource"
+                    + (
+                        suggestion(name, blueprint.resources)
+                        or "; add it under resources"
+                    ),
+                )
 
 
 def _routes(name: str, task: Any) -> List[Tuple[str, Tuple[Union[str, int], ...]]]:
@@ -622,6 +648,11 @@ def _expressions(
     return found
 
 
+def _whole(value: Optional[float]) -> Optional[float]:
+    """A capacity as a whole number; None, the default, and infinity stay."""
+    return value if value is None or math.isinf(value) else int(value)
+
+
 def _build_context(blueprint: Blueprint, source: SourceMap) -> SimulationContext:
     """Makes the builder calls a Python script would make, in the same order."""
     context = SimulationContext(**blueprint.simulation.model_dump(exclude_unset=True))
@@ -647,10 +678,12 @@ def _build_context(blueprint: Blueprint, source: SourceMap) -> SimulationContext
     for name, resource in blueprint.resources.items():
         context.add_resource(
             name,
-            int(resource.current_cap),
-            int(resource.max_cap),
+            _whole(resource.current_cap),
+            _whole(resource.max_cap),
             queue=resource.queue,
             preempt=resource.preempt,
+            queue_limit=resource.queue_limit,
+            type=resource.type,
         )
         if resource.breakdown is not None:
             context.add_breakdown(

@@ -249,14 +249,21 @@ The classes a task's flow is built from, and the signals and failures tasks shar
 ## Resources
 
 <!-- prettier-ignore -->
-::: desflow.resources.resource.DynamicResource
+::: desflow.resources.resource.ResourceBase
     options:
       heading_level: 3
       members:
         - request
         - release
         - in_use
+        - count
         - capacity
+
+<!-- prettier-ignore -->
+::: desflow.resources.resource.DynamicResource
+    options:
+      heading_level: 3
+      members: false
 
 <!-- prettier-ignore -->
 ::: desflow.resources.container.DynamicContainer

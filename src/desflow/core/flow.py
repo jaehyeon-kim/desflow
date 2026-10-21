@@ -25,6 +25,7 @@ def make_scope(
     waits: Optional[Mapping[str, Mapping[str, Any]]] = None,
     signals: Optional[Mapping[str, Any]] = None,
     process: Optional[Mapping[str, Any]] = None,
+    resources: Optional[Mapping[str, Any]] = None,
 ) -> Scope:
     """
     Builds what an expression's names read.
@@ -39,6 +40,7 @@ def make_scope(
         waits: The task's wait branches, for `wait`.
         signals: Signals by name, for `signal`.
         process: The running task's `name`, `instance` and `target`, for `process`.
+        resources: Resources by name, for `users` and `queue`.
 
     Returns:
         Scope: The scope.
@@ -49,6 +51,7 @@ def make_scope(
         payload=payload_of(upstream),
         attributes=attributes,
         levels=levels or {},
+        resources=resources or {},
         registry=None if env is None else env.registry,
         now=0.0 if env is None else env.now,
         item=item,

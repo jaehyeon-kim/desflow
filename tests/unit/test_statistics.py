@@ -292,3 +292,31 @@ def test_stats_and_scenario_errors_name_the_line(tmp_path, text, line, fragment)
     message = str(error.value)
     assert message.startswith(f"{path}:{line}:"), message
     assert fragment in message
+
+
+def test_a_task_refused_after_it_queued_leaves_the_counts():
+    """A task that waits first, then asks a resource whose line is full, is counted
+    as balked and no longer in progress."""
+    app = SimulationContext("Shop", factor=0)
+    app.add_resource("packers", 1, 1, queue_limit=0)
+    app.add_service("packing", dist="constant", value=1.0)
+    app.with_stats("typical", interval=100.0)
+
+    @app.task(
+        service_id="packing",
+        resource_id="packers",
+        wait={"timeout": 1},
+        name="pack",
+    )
+    def pack(task_id, context):
+        return {}
+
+    def script(context):
+        context.spawn(pack(0))
+        yield context.env.timeout(5)
+
+    app.add_process(script)
+    app.run(until=5)
+    readings = app.env.stats.readings()
+    assert readings["Shop.stats.tasks.pack.balked"] == 1
+    assert readings["Shop.stats.tasks.pack.in_progress"] == 0

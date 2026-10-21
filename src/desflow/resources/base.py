@@ -1,6 +1,10 @@
 import simpy
 
 from desflow.core.registry import DynamicValue
+from desflow.models.params import CapacityConfig
+
+# The kinds that register themselves, and the registry method that does it
+_SELF_REGISTERING = {"resources": "register_resource"}
 
 
 class BaseDynamicResource:
@@ -27,6 +31,16 @@ class BaseDynamicResource:
         self._stats = getattr(env, "stats", None)
 
         path = f"{sim_id}.{category}.{obj_id}"
+        try:
+            env.registry.get(f"{path}.current_cap")
+        except KeyError:
+            # Built with no blueprint or builder entry, as `simpy.Resource(env)` is:
+            # the object registers itself with the default capacity
+            if category not in _SELF_REGISTERING:
+                raise
+            getattr(env.registry, _SELF_REGISTERING[category])(
+                sim_id, obj_id, CapacityConfig()
+            )
         self._current_cap_val: DynamicValue = env.registry.get(f"{path}.current_cap")
         self._max_cap_val: DynamicValue = env.registry.get(f"{path}.max_cap")
 

@@ -48,7 +48,7 @@ def orders(context: SimulationContext):
 def packers_report(context: SimulationContext):
     """Readings of your own: orders waiting per packer, and the live arrival rate."""
     packers = context.get_resource("packers")
-    waiting = len(packers.queue.items)
+    waiting = len(packers.queue)
     context.publish("waiting_per_packer", waiting / max(packers.capacity, 1))
     rate = context.env.registry.get("Shop.arrival.orders.rate").value
     context.publish("arrival_rate", rate)  # as Shop.arrival_rate

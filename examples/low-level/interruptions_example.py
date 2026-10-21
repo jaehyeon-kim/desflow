@@ -58,6 +58,7 @@ def pack(env, sampler, shop, key, priority, task_id):
     env.stats.task_queued("pack", task_id)
     remaining, started = None, False
     shop["packing"].append(env.active_process)
+    shop["keys"][env.active_process] = key
     while True:
         request = shop["packers"].request(priority=priority)
         since = None
@@ -89,6 +90,8 @@ def pack(env, sampler, shop, key, priority, task_id):
                     "path_id": path_id,
                     "status": "preempted",
                     "resource": "packers",
+                    "preempted_by": shop["keys"].get(interrupt.cause.by),
+                    "usage_since": interrupt.cause.usage_since,
                 }
                 publish(value)
                 env.stats.task_interrupted("pack", task_id, preempted=True)
@@ -97,6 +100,7 @@ def pack(env, sampler, shop, key, priority, task_id):
                 publish({**value, "cause": interrupt.cause})
                 env.stats.task_interrupted("pack", task_id)
     shop["packing"].remove(env.active_process)
+    del shop["keys"][env.active_process]
     env.stats.flow_finished(key.rsplit("-", 1)[0])
 
 
@@ -127,6 +131,8 @@ def build(env):
             env, "Shop", "packers", queue="priority", preempt=True
         ),
         "packing": [],
+        # The key of the order each process packs, for the `preempted_by` of a record
+        "keys": {},
     }
 
 

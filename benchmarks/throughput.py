@@ -192,7 +192,7 @@ def attach_workload(env: Any, publish: bool = True) -> None:
                 env.publish_telemetry("Shop.resources.packers.capacity", res.capacity)
                 env.publish_telemetry("Shop.resources.packers.in_use", res.in_use)
                 env.publish_telemetry(
-                    "Shop.resources.packers.queue_length", len(res.queue.items)
+                    "Shop.resources.packers.queue_length", len(res.queue)
                 )
             yield env.timeout(2.0)
 

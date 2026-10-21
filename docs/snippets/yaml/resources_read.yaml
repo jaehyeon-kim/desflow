@@ -1,0 +1,45 @@
+# The Resources page: a resource declared with its defaults, a waiting line with a limit,
+# and conditions that read how many units are held and how many requests wait.
+# Run it with: desflow run resources_read.yaml
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+# --8<-- [start:declare]
+resources:
+  # No capacity: one unit. At most 3 requests wait; a fourth is refused.
+  packers: {queue_limit: 3}
+  # No limit: every request is granted at once
+  benches: {current_cap: .inf}
+# --8<-- [end:declare]
+
+services:
+  packing: {dist: constant, value: 1.5 s}
+  wrapping: {dist: constant, value: 1 s}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.7, spawn: pack_order}
+  checks: {dist: constant, value: 20 s, spawn: close_up}
+
+# --8<-- [start:conditions]
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    # Turn an order away when two are waiting already
+    balk: queue.packers >= 2
+    payload: {event_type: order_packed}
+  close_up:
+    # Wait until nobody holds a packer
+    wait: {condition: users.packers < 1}
+    payload: {event_type: packers_idle}
+# --8<-- [end:conditions]
+
+stats: {level: minimal, interval: 10 s}
+
+egress:
+  - type: Console
+
+run:
+  until: 1 min

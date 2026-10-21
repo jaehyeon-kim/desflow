@@ -1060,3 +1060,18 @@ def test_a_task_called_with_any_instance_id_runs_with_statistics_off():
 
     app.run(until=3)
     assert len(emitted) == 2
+
+
+def test_add_resource_checks_its_capacity_and_type():
+    app = SimulationContext("Shop", factor=0.0)
+    app.add_resource("bench")
+    app.add_resource("tank", max_cap=3)
+    app.add_resource("open", float("inf"))
+    with pytest.raises(ValueError, match="needs a whole number for current_cap"):
+        app.add_resource("odd", 1.5)
+    with pytest.raises(ValueError, match="max_cap 0 and no current_cap"):
+        app.add_resource("none", max_cap=0)
+    with pytest.raises(ValueError, match="subclass of ResourceBase"):
+        app.add_resource("plain", type=dict)
+    with pytest.raises(ValueError, match="queue_limit must be 0 or more"):
+        app.add_resource("limited", queue_limit=-2)

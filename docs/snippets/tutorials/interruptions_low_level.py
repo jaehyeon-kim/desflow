@@ -51,6 +51,7 @@ def pack(env, sampler, shop, arrival, key, task_id, policy):
     publish({"path_id": path_id, "status": "queued"})
     env.stats.task_queued(task, task_id)
     shop["running"].setdefault(task, []).append(env.active_process)
+    shop["keys"][env.active_process] = key
     remaining, started = None, False
     while True:
         request = shop["packers"].request(priority=priority)
@@ -82,7 +83,12 @@ def pack(env, sampler, shop, arrival, key, task_id, policy):
                 )
             preempted = isinstance(interrupt.cause, Preempted)
             if preempted:
-                value = {"status": "preempted", "resource": "packers"}
+                value = {
+                    "status": "preempted",
+                    "resource": "packers",
+                    "preempted_by": shop["keys"].get(interrupt.cause.by),
+                    "usage_since": interrupt.cause.usage_since,
+                }
             else:
                 value = {"status": "interrupted", "cause": interrupt.cause}
             publish({"path_id": path_id, **value})
@@ -90,8 +96,10 @@ def pack(env, sampler, shop, arrival, key, task_id, policy):
             if policy == "abandon":
                 env.stats.task_dropped(task, task_id)
                 shop["running"][task].remove(env.active_process)
+                del shop["keys"][env.active_process]
                 return
     shop["running"][task].remove(env.active_process)
+    del shop["keys"][env.active_process]
     env.stats.flow_finished(arrival)
 
 
@@ -134,6 +142,8 @@ def run(policy="resume", until=3600, factor=0.0):
         ),
         # --8<-- [end:packers]
         "running": {},
+        # The key of the order each process packs, for the `preempted_by` of a record
+        "keys": {},
     }
     sampler = Sampler(seed=42)
     env.process(order_generator(env, sampler, shop, "orders", policy))

@@ -54,6 +54,7 @@ from desflow.core.expressions import Expression
 from desflow.core.environment import in_zone, resolve_zone
 from desflow.core.flow import Router, Transfer, Wait
 from desflow.models.params import DistributionConfig
+from desflow.resources.resource import ResourceBase, check_resource_type
 from desflow.utils import suggestion, time_to_seconds
 
 # The names an egress `when` takes instead of a `!python` function.
@@ -260,12 +261,20 @@ class Breakdown(_Model):
 
 class Resource(_Model):
     """A `resources` entry: its capacity, the order its queue is served in, whether
-    a request of a lower priority value preempts a user, and how it breaks down."""
+    a request of a lower priority value preempts a user, how many requests may wait,
+    the class it is built from, and how it breaks down.
 
-    current_cap: float
-    max_cap: float
+    `current_cap` defaults to 1 and `max_cap` to `current_cap`, so `{}` is a
+    resource of one unit. `.inf` makes a resource with no limit. `type` is a
+    `!python` subclass of `ResourceBase`.
+    """
+
+    current_cap: Optional[float] = None
+    max_cap: Optional[float] = None
     queue: str = DEFAULT_QUEUE_ORDER
     preempt: bool = False
+    queue_limit: Optional[int] = None
+    type: Optional[Type[ResourceBase]] = None
     breakdown: Optional[Breakdown] = None
 
     @model_validator(mode="after")
@@ -274,6 +283,16 @@ class Resource(_Model):
             raise ValueError(
                 "preempt ranks users by priority, so it needs queue: priority"
             )
+        return self
+
+    @model_validator(mode="after")
+    def _capacity_and_queue_fit(self) -> "Resource":
+        if self.current_cap is None and self.max_cap is not None and self.max_cap < 1:
+            raise ValueError(
+                f"max_cap {self.max_cap} is below 1, the default current_cap; give "
+                f"current_cap {self.max_cap} or less"
+            )
+        check_resource_type(self.type, self.queue_limit)
         return self
 
     @field_validator("queue")

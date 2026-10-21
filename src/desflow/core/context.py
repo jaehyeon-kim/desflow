@@ -2,10 +2,22 @@ import functools
 import inspect
 import itertools
 import logging
+import math
 import secrets
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Tuple, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Mapping,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+)
 
 import simpy
 
@@ -37,7 +49,11 @@ from desflow.models.params import (
     SimParameter,
 )
 from desflow.resources.container import DynamicContainer
-from desflow.resources.resource import DynamicResource
+from desflow.resources.resource import (
+    DynamicResource,
+    ResourceBase,
+    check_resource_type,
+)
 from desflow.resources.store import DynamicStore
 from desflow.utils import suggestion, time_to_seconds
 
@@ -168,6 +184,8 @@ class SimulationContext:
         self._resources_config: Dict[str, CapacityConfig] = {}
         self._resource_queues: Dict[str, str] = {}
         self._resource_preempt: Dict[str, bool] = {}
+        self._resource_queue_limits: Dict[str, Optional[int]] = {}
+        self._resource_types: Dict[str, Optional[Type[ResourceBase]]] = {}
         self._breakdowns_config: Dict[str, BreakdownConfig] = {}
         self._scenario_steps: List[Dict[str, Any]] = []
         # Replayed arrivals: how to read each, and the rows left once read
@@ -210,7 +228,7 @@ class SimulationContext:
         # a value refused before the run from an error inside it
         self.started = False
         self.sampler: Optional[Sampler] = None
-        self._resources_map: Dict[str, DynamicResource] = {}
+        self._resources_map: Dict[str, ResourceBase] = {}
         self._stores_map: Dict[str, DynamicStore] = {}
         self._containers_map: Dict[str, DynamicContainer] = {}
         self._entity_counters: Dict[str, "itertools.count[int]"] = {}
@@ -426,10 +444,12 @@ class SimulationContext:
     def add_resource(
         self,
         name: str,
-        current_cap: int,
-        max_cap: int,
+        current_cap: Optional[Union[int, float]] = None,
+        max_cap: Optional[Union[int, float]] = None,
         queue: str = DEFAULT_QUEUE_ORDER,
         preempt: bool = False,
+        queue_limit: Optional[int] = None,
+        type: Optional[Type[ResourceBase]] = None,
     ) -> "SimulationContext":
         """
         Registers a discrete logical resource capable of processing tasks.
@@ -440,8 +460,11 @@ class SimulationContext:
 
         Args:
             name: The internal identifier (e.g., 'mill_structural').
-            current_cap: The active physical token capacity at simulation start.
-            max_cap: The absolute physical maximum bound of tokens allowed.
+            current_cap: The active physical token capacity at simulation start, a
+                whole number or `float("inf")` for a resource with no limit. Defaults
+                to 1.
+            max_cap: The absolute physical maximum bound of tokens allowed. Defaults
+                to `current_cap`.
             queue: The order waiting tasks are served in: `fifo` (the default),
                 `lifo` or `priority`, which serves the lowest task priority first and
                 the oldest first among equal priorities.
@@ -449,13 +472,23 @@ class SimulationContext:
                 a task of a higher one when every unit is busy, as SimPy's
                 `PreemptiveResource` does; the task that loses it follows its
                 `on_interrupt`. Needs `queue="priority"`.
+            queue_limit: The most requests that may wait, or None for no limit. A
+                task that finds that many waiting balks; a request made in the
+                low-level API raises `RuntimeError`, as SimPy's `SortedQueue` does.
+                0 refuses every request. Not allowed with a `type` whose `PutQueue`
+                is not the default.
+            type: A subclass of `ResourceBase` to build the resource from, such as
+                one that overrides `_do_put`. Defaults to `DynamicResource`.
 
         Returns:
             SimulationContext: The current instance for method chaining.
 
         Raises:
-            ValueError: If `queue` is not one of the three orders, or `preempt` is
-                set without `queue="priority"`.
+            ValueError: If `queue` is not one of the three orders, `preempt` is set
+                without `queue="priority"`, `current_cap` is not a whole number or
+                infinity, only `max_cap` is given and is below 1, `type` is not a
+                subclass of `ResourceBase`, or `queue_limit` is negative or is set on
+                a `type` with its own `PutQueue`.
         """
         if queue not in QUEUE_ORDERS:
             raise ValueError(
@@ -465,11 +498,26 @@ class SimulationContext:
             raise ValueError(
                 "preempt ranks users by priority, so it needs queue='priority'"
             )
+        check_resource_type(type, queue_limit)
+        for field, value in (("current_cap", current_cap), ("max_cap", max_cap)):
+            if value is not None and not (
+                math.isinf(value) or float(value).is_integer()
+            ):
+                raise ValueError(
+                    f"resource '{name}' needs a whole number for {field}, got {value}"
+                )
+        if current_cap is None and max_cap is not None and max_cap < 1:
+            raise ValueError(
+                f"resource '{name}' has max_cap {max_cap} and no current_cap, whose "
+                f"default is 1; set current_cap to {max_cap} or less"
+            )
         self._resource_preempt[name] = preempt
         self._resources_config[name] = CapacityConfig(
             current_cap=current_cap, max_cap=max_cap
         )
         self._resource_queues[name] = queue
+        self._resource_queue_limits[name] = queue_limit
+        self._resource_types[name] = type
         return self
 
     def add_container(
@@ -884,7 +932,8 @@ class SimulationContext:
             priority: For a resource whose queue order is `priority`, lowest first: a
                 number, an expression such as `"attr.priority"`, or a function of the
                 task id and the entity's attributes. It is read when the task joins
-                the queue, before its payload exists.
+                the queue, before its payload exists. A task with no priority ranks 0, as a
+                SimPy `PriorityRequest` does.
             get: What the task takes before it starts: `{"container": name,
                 "amount": ...}` or `{"store": name}`. The amount is a number, an
                 expression such as `"payload.quantity"`, or a function of the task id
@@ -1068,9 +1117,12 @@ class SimulationContext:
                     raise RuntimeError("Simulation has not been built yet.")
                 if entity is None:
                     entity = self._new_entity(task_name, None)
-                return TaskRun(
+                generator = TaskRun(
                     self, spec, task_id, entity, upstream, args, kwargs
                 ).run()
+                # A process is named after its generator; name it after the task (P6)
+                generator.__name__ = task_name  # type: ignore[attr-defined]
+                return generator
 
             self._tasks[task_name] = wrapper
             self._task_specs[task_name] = spec
@@ -1306,6 +1358,16 @@ class SimulationContext:
             attributes=dict(attributes),
         )
 
+    def _entity_key_of(self, process: Any) -> Optional[str]:
+        """The key of the entity whose task runs in `process`, as text; None for a
+        process that is not a task, or None itself."""
+        if process is not None:
+            for runs in self._running.values():
+                for run in runs:
+                    if run.process is process:
+                        return str(run.entity.key)
+        return None
+
     def _levels(self) -> Dict[str, Any]:
         """Stores and containers by name, which `level.<name>` reads."""
         return {**self._stores_map, **self._containers_map}
@@ -1344,14 +1406,15 @@ class SimulationContext:
             raise RuntimeError("Containers are not instantiated until context is run.")
         return self._containers_map[container_id]
 
-    def get_resource(self, resource_id: str) -> DynamicResource:
-        """Returns the `DynamicResource` a running model built for a resource.
+    def get_resource(self, resource_id: str) -> ResourceBase:
+        """Returns the resource a running model built: a `DynamicResource`, or the
+        `ResourceBase` subclass its `type` names.
 
         Args:
             resource_id: The resource's name, as given to `add_resource`.
 
         Returns:
-            DynamicResource: The resource, for raw requests and readings.
+            ResourceBase: The resource, for raw requests and readings.
 
         Raises:
             RuntimeError: If called before the run has started.
@@ -2066,12 +2129,18 @@ class SimulationContext:
 
         # Hydrate Physical SimPy Resources
         for res_id in self._resources_config.keys():
-            self._resources_map[res_id] = DynamicResource(
+            resource_type = self._resource_types.get(res_id) or DynamicResource
+            self._resources_map[res_id] = resource_type(
                 self._env,
                 self.sim_id,
                 res_id,
                 queue=self._resource_queues[res_id],
                 preempt=self._resource_preempt.get(res_id, False),
+                **(
+                    {"queue_limit": self._resource_queue_limits[res_id]}
+                    if self._resource_queue_limits.get(res_id) is not None
+                    else {}
+                ),
             )
         for store_id in self._stores_config:
             self._stores_map[store_id] = DynamicStore(
@@ -2239,7 +2308,14 @@ class SimulationContext:
         env, event = self.env, self.env.event()
 
         def check() -> None:
-            scope = make_scope(None, {}, env, self._levels(), signals=self._signals)
+            scope = make_scope(
+                None,
+                {},
+                env,
+                self._levels(),
+                signals=self._signals,
+                resources=self._resources_map,
+            )
             if not event.triggered and condition.evaluate(scope):
                 event.succeed(True)
                 env.unwatch_changes(check)
@@ -2530,6 +2606,17 @@ class SimulationContext:
                             f"task '{name}' reads level.{level}, but no store or "
                             f"container is called '{level}'"
                         )
+                for kind in ("users", "queue"):
+                    for resource in expression.references[kind]:
+                        if resource not in self._resources_config:
+                            raise ValueError(
+                                f"task '{name}' reads {kind}.{resource}, but no "
+                                f"resource is called '{resource}'"
+                                + (
+                                    suggestion(resource, self._resources_config)
+                                    or "; add it with add_resource()"
+                                )
+                            )
                 for path in expression.references["registry"]:
                     if registry is None:
                         # The paths the run will register, built by the same code

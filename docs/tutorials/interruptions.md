@@ -50,7 +50,7 @@ A preempted or interrupted task first gives back everything it holds and stops w
 - `restart`: it queues again and packs for a new time, drawn from the same seeded stream, as if the work were spoiled;
 - `abandon`: it ends, and its flow with it, unless `on_interrupt_next` names a task to go to.
 
-It publishes `preempted` (or `interrupted`) when it loses the packer, and `resumed` when it has it again:
+It publishes `preempted` (or `interrupted`) when it loses the packer, and `resumed` when it has it again. A `preempted` record names the express order that took the packer (`preempted_by`, its entity key) and the time the regular order had held it (`usage_since`):
 
 === "YAML"
 
@@ -94,6 +94,7 @@ It publishes `preempted` (or `interrupted`) when it loses the packer, and `resum
         publish({"path_id": path_id, "status": "queued"})
         env.stats.task_queued(task, task_id)
         shop["running"].setdefault(task, []).append(env.active_process)
+        shop["keys"][env.active_process] = key
         remaining, started = None, False
         while True:
             request = shop["packers"].request(priority=priority)
@@ -125,7 +126,12 @@ It publishes `preempted` (or `interrupted`) when it loses the packer, and `resum
                     )
                 preempted = isinstance(interrupt.cause, Preempted)
                 if preempted:
-                    value = {"status": "preempted", "resource": "packers"}
+                    value = {
+                        "status": "preempted",
+                        "resource": "packers",
+                        "preempted_by": shop["keys"].get(interrupt.cause.by),
+                        "usage_since": interrupt.cause.usage_since,
+                    }
                 else:
                     value = {"status": "interrupted", "cause": interrupt.cause}
                 publish({"path_id": path_id, **value})
@@ -133,8 +139,10 @@ It publishes `preempted` (or `interrupted`) when it loses the packer, and `resum
                 if policy == "abandon":
                     env.stats.task_dropped(task, task_id)
                     shop["running"][task].remove(env.active_process)
+                    del shop["keys"][env.active_process]
                     return
         shop["running"][task].remove(env.active_process)
+        del shop["keys"][env.active_process]
         env.stats.flow_finished(arrival)
     ```
 
@@ -491,6 +499,7 @@ Under `restart` the packer spends part of its time on packing that is thrown awa
             publish({"path_id": path_id, "status": "queued"})
             env.stats.task_queued(task, task_id)
             shop["running"].setdefault(task, []).append(env.active_process)
+            shop["keys"][env.active_process] = key
             remaining, started = None, False
             while True:
                 request = shop["packers"].request(priority=priority)
@@ -522,7 +531,12 @@ Under `restart` the packer spends part of its time on packing that is thrown awa
                         )
                     preempted = isinstance(interrupt.cause, Preempted)
                     if preempted:
-                        value = {"status": "preempted", "resource": "packers"}
+                        value = {
+                            "status": "preempted",
+                            "resource": "packers",
+                            "preempted_by": shop["keys"].get(interrupt.cause.by),
+                            "usage_since": interrupt.cause.usage_since,
+                        }
                     else:
                         value = {"status": "interrupted", "cause": interrupt.cause}
                     publish({"path_id": path_id, **value})
@@ -530,8 +544,10 @@ Under `restart` the packer spends part of its time on packing that is thrown awa
                     if policy == "abandon":
                         env.stats.task_dropped(task, task_id)
                         shop["running"][task].remove(env.active_process)
+                        del shop["keys"][env.active_process]
                         return
             shop["running"][task].remove(env.active_process)
+            del shop["keys"][env.active_process]
             env.stats.flow_finished(arrival)
 
 
@@ -563,6 +579,8 @@ Under `restart` the packer spends part of its time on packing that is thrown awa
                     env, "Shop", "packers", queue="priority", preempt=True
                 ),
                 "running": {},
+                # The key of the order each process packs, for the `preempted_by` of a record
+                "keys": {},
             }
             sampler = Sampler(seed=42)
             env.process(order_generator(env, sampler, shop, "orders", policy))

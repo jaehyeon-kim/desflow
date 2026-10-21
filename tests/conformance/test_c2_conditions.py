@@ -292,7 +292,7 @@ def test_c2_wait_branch_in_a_failing_all():
     records = run_builder(app, 10)
     assert times(records, "order", "failed") == [1.0]
     assert app.get_resource("m").in_use == 0
-    assert app.get_resource("m").queue.items == []
+    assert app.get_resource("m").queue == []
 
 
 def test_c2_request_wait_branch_cleaned_on_renege():
@@ -318,7 +318,7 @@ def test_c2_request_wait_branch_cleaned_on_renege():
     app.add_process(script)
     records = run_builder(app, 10)
     assert times(records, "waiter", "reneged") == [2.0]
-    assert app.get_resource("m").queue.items == []
+    assert app.get_resource("m").queue == []
 
 
 def test_c2_request_wait_branch_reused_across_a_resume_in_the_wait():
@@ -347,7 +347,7 @@ def test_c2_request_wait_branch_reused_across_a_resume_in_the_wait():
 
     app.add_process(script)
     run_builder(app, 20)
-    assert len(app.get_resource("m").queue.items) == 1
+    assert len(app.get_resource("m").queue) == 1
 
 
 def test_c2_request_wait_branch_kept_across_a_resume_in_the_service():
@@ -611,7 +611,7 @@ def test_c2_abandon_during_a_wait_with_a_won_branch_is_clean():
     app.add_process(script)
     run_builder(app, 20)
     assert app.get_resource("m").in_use == 0
-    assert app.get_resource("m").queue.items == []
+    assert app.get_resource("m").queue == []
 
 
 def test_c2_request_wait_branch_reacquired_after_a_preemption():

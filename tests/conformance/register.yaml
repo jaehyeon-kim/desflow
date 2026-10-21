@@ -205,6 +205,20 @@
     - tests/conformance/test_c3_interrupts.py::test_c3_priority_preemption_low_level
   page: user-guide/resources.md#preemption
 
+- id: C3
+  inventory: [SP-Q6]
+  operation: Preemption cause
+  description: "A task that loses its unit to a more urgent request learns who took it and since when it had held the unit."
+  simpy: "`resources.resource.Preempted`"
+  yaml: "`preempted_by` and `usage_since` in the `preempted` record"
+  builder: "the same record"
+  low_level: "`simpy.Interrupt.cause` is a `Preempted` with `by`, `usage_since` and `resource`"
+  checks:
+    - tests/conformance/test_c3_interrupts.py::test_c3_preemption_cause
+    - tests/conformance/test_c3_interrupts.py::test_c3_preemption_record_shape
+    - tests/conformance/test_c3_interrupts.py::test_c3_preemption_by_a_process_that_is_not_a_task
+  page: user-guide/resources.md#preemption
+
 - id: C4
   inventory: [SP-S1]
   operation: Ordinary request and release
@@ -269,6 +283,102 @@
     - tests/conformance/test_c4_resources.py::test_c4_keep_hands_a_unit_to_the_next_task
   page: user-guide/resources.md#several-resources
   differences: A model whose tasks acquire two resources in opposite orders is refused when it is built, because those tasks could each wait for ever; SimPy runs it.
+
+- id: C4
+  inventory: [SP-S2]
+  operation: Resource capacity defaults to 1
+  description: "A resource declared with no capacity has one unit, and a capacity of infinity makes a resource that never queues."
+  simpy: "`resources.resource.Resource(capacity=1)`"
+  yaml: "`resources: {packers: {}}`; `current_cap: .inf` for no limit"
+  builder: "`add_resource(\"packers\")`; `current_cap=float(\"inf\")` for no limit"
+  low_level: "`DynamicResource(env, sim_id, name)` with no registry entry; `CapacityConfig(current_cap=float(\"inf\"))` for no limit"
+  checks:
+    - tests/conformance/test_c4_resources.py::test_c4_default_capacity
+    - tests/conformance/test_c4_resources.py::test_c4_resource_with_no_capacity_limit
+  page: user-guide/resources.md#declare-a-resource
+
+- id: C4
+  inventory: [SP-S4, SP-S5, SP-S6]
+  operation: Resource count, queue and users
+  description: "A condition or a script reads how many units are held, which requests hold them and which wait."
+  simpy: "`resources.resource.Resource.count`, `.queue` and `.users`"
+  yaml: "`users.<resource>` and `queue.<resource>` in a condition, such as `balk: queue.machine >= 2`"
+  builder: "`get_resource(name).count`, `.users` and `.queue`"
+  low_level: "`resource.count`, `.users` and `.queue`, the list of waiting requests in service order"
+  checks:
+    - tests/conformance/test_c4_resources.py::test_c4_count_queue_and_users
+    - tests/conformance/test_c4_resources.py::test_c4_users_and_queue_in_conditions
+    - tests/conformance/test_c4_resources.py::test_c4_a_condition_is_not_checked_between_the_steps_of_one_call
+  page: user-guide/resources.md#read-the-queue-and-users
+  differences: "A `lifo` queue serves the newest request first, which SimPy has no counterpart of."
+
+- id: C4
+  inventory: [SP-S10]
+  operation: Release event and its request
+  description: "Giving a unit back returns an event that holds the request it released and is triggered at once."
+  simpy: "`resources.resource.Release.request`"
+  yaml: "implicit: a task releases its units when it ends"
+  builder: "`get_resource(name).release(request)`"
+  low_level: "`resource.release(request)` returns a `DynamicRelease` whose `request` is the request"
+  checks:
+    - tests/conformance/test_c4_resources.py::test_c4_release_event
+  page: user-guide/resources.md#cancel-and-release
+
+- id: C4
+  inventory: [SP-S11]
+  operation: Usage since
+  description: "A granted request records the time its unit was granted, and a preemption report carries it."
+  simpy: "`resources.resource.Request.usage_since`"
+  yaml: "`usage_since` in the `preempted` record"
+  builder: "`get_resource(name).users[i].usage_since`, and the `preempted` record"
+  low_level: "`request.usage_since`"
+  checks:
+    - tests/conformance/test_c4_resources.py::test_c4_usage_since
+  page: user-guide/resources.md#read-the-queue-and-users
+
+- id: C4
+  inventory: [SP-Q2]
+  operation: Default request priority 0
+  description: "A request that names no priority has priority 0, so it ties with priority 0 and goes ahead of priority 1."
+  simpy: "`resources.resource.PriorityRequest(priority=0)`"
+  yaml: "a task with no `priority` on a `queue: priority` resource"
+  builder: "`@app.task(resource_id=...)` with no `priority`"
+  low_level: "`request()` with no priority"
+  checks:
+    - tests/conformance/test_c4_resources.py::test_c4_default_priority
+  page: user-guide/resources.md#task-priority
+
+- id: C4
+  inventory: [SP-Q7]
+  operation: A waiting line with a limit
+  description: "A resource refuses a request when a set number of requests wait already, and a task that is refused balks."
+  simpy: "`resources.resource.SortedQueue(maxlen)`"
+  yaml: "`queue_limit: 5` on the resource"
+  builder: "`add_resource(..., queue_limit=5)`"
+  low_level: "`DynamicResource(..., queue_limit=5)`: `request()` raises `RuntimeError`"
+  checks:
+    - tests/conformance/test_c7_patience.py::test_c7_queue_limit
+    - tests/conformance/test_c7_patience.py::test_c7_queue_limit_on_the_second_of_two_resources
+    - tests/conformance/test_c7_patience.py::test_c7_queue_limit_fails_a_request_wait_branch
+    - tests/conformance/test_c7_patience.py::test_c7_a_type_with_its_own_queue_limit_balks_before_queued
+    - tests/conformance/test_c7_patience.py::test_c7_a_preempted_request_wait_balks_when_the_line_is_full
+    - tests/conformance/test_c7_patience.py::test_c7_a_interrupt_while_a_preempted_request_waits_leaves_no_stale_request
+    - tests/conformance/test_c7_patience.py::test_c7_a_preempted_request_wait_reneges_when_the_patience_runs_out
+    - tests/conformance/test_c7_patience.py::test_c7_a_preempted_request_wait_targets_the_resource_while_it_asks_again
+  page: tutorials/patience.md#refuse-to-join
+  differences: "A task whose first resource refuses it publishes `balked` with the resource before it publishes `queued`, which SimPy has no counterpart of."
+
+- id: C4
+  inventory: [SP-Q8]
+  operation: Subclass a resource to change its rules
+  description: "A resource of your own class changes when a request is granted, how the waiting line is kept and what a request or release does."
+  simpy: "`resources.resource.PreemptiveResource`"
+  yaml: "`type: !python module.Class` on the resource"
+  builder: "`add_resource(..., type=Class)`"
+  low_level: "a subclass of `ResourceBase`, built as `Class(env, sim_id, name)`"
+  checks:
+    - tests/conformance/test_c4_resources.py::test_c4_custom_resource_type
+  page: user-guide/resources.md#custom-resource-types
 
 - id: C5
   inventory: [SP-T1]
@@ -492,6 +602,7 @@
   low_level: an `if` before the request
   checks:
     - tests/conformance/test_c7_patience.py::test_c7_balking
+    - tests/conformance/test_c7_patience.py::test_c7_a_balk_condition_gives_back_the_unit_the_task_kept
   page: tutorials/patience.md#refuse-to-join
 
 - id: C6
@@ -913,89 +1024,6 @@
   status: not yet
   operation: A put or get the process does not wait for
   simpy: "`resources.base.Put` without `yield`"
-  checks: []
-  release: 0.23.0
-
-- id: N
-  inventory: [SP-S2]
-  status: not yet
-  operation: Resource capacity defaults to 1
-  simpy: "`resources.resource.Resource(capacity=1)`"
-  checks: []
-  release: 0.23.0
-
-- id: N
-  inventory: [SP-S4]
-  status: not yet
-  operation: Resource count
-  simpy: "`resources.resource.Resource.count`"
-  checks: []
-  release: 0.23.0
-
-- id: N
-  inventory: [SP-S5]
-  status: not yet
-  operation: Resource queue
-  simpy: "`resources.resource.Resource.queue`"
-  checks: []
-  release: 0.23.0
-
-- id: N
-  inventory: [SP-S6]
-  exists: [builder, low_level]
-  status: not yet
-  operation: Resource users
-  simpy: "`resources.resource.Resource.users`"
-  checks: []
-  release: 0.23.0
-
-- id: N
-  inventory: [SP-S10]
-  status: not yet
-  operation: Release event and its request
-  simpy: "`resources.resource.Release.request`"
-  checks: []
-  release: 0.23.0
-
-- id: N
-  inventory: [SP-S11]
-  exists: [low_level]
-  status: not yet
-  operation: Usage since
-  simpy: "`resources.resource.Request.usage_since`"
-  checks: []
-  release: 0.23.0
-
-- id: N
-  inventory: [SP-Q2]
-  status: not yet
-  operation: Default request priority 0
-  simpy: "`resources.resource.PriorityRequest(priority=0)`"
-  checks: []
-  release: 0.23.0
-
-- id: N
-  inventory: [SP-Q6]
-  exists: [low_level]
-  status: not yet
-  operation: Preemption cause
-  simpy: "`resources.resource.Preempted`"
-  checks: []
-  release: 0.23.0
-
-- id: N
-  inventory: [SP-Q7]
-  status: not yet
-  operation: A waiting line with a limit
-  simpy: "`resources.resource.SortedQueue(maxlen)`"
-  checks: []
-  release: 0.23.0
-
-- id: N
-  inventory: [SP-Q8]
-  status: not yet
-  operation: Subclass a resource to change its rules
-  simpy: "`resources.resource.PreemptiveResource`"
   checks: []
   release: 0.23.0
 

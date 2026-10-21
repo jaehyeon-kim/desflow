@@ -2,6 +2,20 @@
 
 Each release, newest first: what changed, then under Upgrading what to change in code, commands or installs that use the previous release.
 
+## Version 0.23.0
+
+- A resource may leave its capacity out: `current_cap` is then 1 and `max_cap` is `current_cap`, so `resources: {packers: {}}` and `add_resource("packers")` declare one unit, and a `DynamicResource` with no registry entry registers itself with one unit, as `simpy.Resource(env)` has. `current_cap: .inf` (`float("inf")`) is a resource with no limit; it publishes `capacity` as `null` and a `utilization` of 0. Before, leaving a capacity out was refused in every API. See [Resources](../user-guide/resources.md#declare-a-resource).
+- `users.<resource>` and `queue.<resource>` in a condition read how many units are held and how many requests wait, and `get_resource(name).count`, `.users` and `.queue` read them in code. A granted request has `usage_since`, and a release is an event, `DynamicRelease`, that holds its request. See [Resources](../user-guide/resources.md#read-the-queue-and-users).
+- `queue_limit` on a resource refuses a request made while that many wait, as SimPy's `SortedQueue(maxlen)`: a task balks and publishes `balked` with the resource, a `request` branch of a `wait` fails the wait, and the low-level `request()` raises `QueueFull`, a `RuntimeError`. See [Patience](../tutorials/patience.md#refuse-to-join).
+- `ResourceBase` is the class `DynamicResource` is built on, with SimPy's hooks: subclass it, override `_do_put` or `_do_get`, set `PutQueue` or the `request` and `release` classes, and name the class with `type: !python module.Class` or `add_resource(..., type=Class)`. See [Resources](../user-guide/resources.md#custom-resource-types).
+
+### Upgrading
+
+- A task's SimPy process is named after the task, not `run`. The process of a task in a root flow ends with the instance's finished payload as its value, also when it hands on to the next task; it was `None`. It is still `None` when the instance balks, reneges or is abandoned, and when it fails under `on_unhandled_failure: continue`; under `stop` a root task that fails with no `on_fail` raises `TaskFailed`. A child flow's process still ends with the flow's last payload.
+- Tasks without a `priority` on a `queue: priority` resource, and `DynamicResource.request()` called without a priority, rank 0, not 1, as SimPy's default. A task with no priority now goes ahead of one with priority 1.
+- A `preempted` event carries `preempted_by`, the key of the entity that took the unit, and `usage_since`, the time the preempted task was granted it. Storage sinks gain two columns.
+- `resource.queue` is a list of the waiting requests in service order, where `resource.queue.items` held `(rank, request)` pairs. `queue.items` still works with a `FutureWarning` and is removed in 0.24.0.
+
 ## Version 0.22.0
 
 The low-level API is SimPy, with desflow's own resources, stores and containers, so SimPy code runs there. The SimPy Compatibility page lists every modelling feature of SimPy 4.1.2 with its status in each API: 48 are native in YAML, the builder and the low-level API and checked against plain SimPy, 48 are not yet, which 0.23.0 makes native, as the [Roadmap](roadmap.md) says, and 2 are differences kept by design.

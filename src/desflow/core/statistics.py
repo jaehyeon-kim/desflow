@@ -115,7 +115,7 @@ def _resource_readings(resource: Any) -> Dict[str, Any]:
     readings = {
         "capacity": capacity,
         "in_use": in_use,
-        "queue_length": len(resource.queue.items),
+        "queue_length": len(resource.queue),
         # Busy units, so a capacity lowered below them shows over 100 until they finish
         "utilization": in_use / capacity * 100 if capacity > 0 else 0.0,
     }
@@ -388,12 +388,16 @@ class Statistics:
         """
         Records that a task instance refused to join its queue.
 
-        It never queued, so it adds no wait; it is counted at `basic`.
+        It adds no wait; one that had been counted as queued is cleared, as a
+        renege clears it. It is counted at `basic`.
 
         Args:
             task: The task's name.
             instance: Its instance id.
         """
+        if self._rank >= _TYPICAL:
+            self._in_flight.pop((task, instance), None)
+        self._leave(task, instance)
         if self._rank >= _BASIC:
             self._task(task).balked += 1
 

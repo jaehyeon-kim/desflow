@@ -91,7 +91,7 @@ A run that is not served, or fails, publishes one other event in place of its fi
 
 | Event | When | `value` |
 |---|---|---|
-| balked | its `balk` condition held, so it never joined the queue and publishes no `queued` | `{"path_id": ..., "status": "balked"}` |
+| balked | its `balk` condition held, so it never joined the queue and publishes no `queued`; or a resource it asked for already held `queue_limit` requests, which publishes no `queued` either when that resource is its first and nothing is waited for before it. A task that was preempted and asks again on a full line balks after `started` and `preempted` | `{"path_id": ..., "status": "balked"}`, with `"resource": ...` when a resource refused it |
 | reneged | its `patience` ran out before it was served; it left the queue at that moment | `{"path_id": ..., "status": "reneged"}` |
 | failed | its `fail` condition held, its wait failed, or its function raised | `{"path_id": ..., "status": "failed", "reason": ...}` |
 
@@ -101,10 +101,10 @@ An interrupted run publishes these as well, and its finished event when it ends:
 | Event | When | `value` |
 |---|---|---|
 | interrupted | an `interrupt` reached it; its units and waits were given up | `{"path_id": ..., "status": "interrupted", "cause": ...}` |
-| preempted | a request of a lower priority value took its unit | `{"path_id": ..., "status": "preempted", "resource": ...}` |
+| preempted | a request of a lower priority value took its unit | `{"path_id": ..., "status": "preempted", "resource": ..., "preempted_by": ..., "usage_since": ...}` |
 | resumed | after an interrupt or a preemption, it holds its units again and is served | `{"path_id": ..., "status": "resumed"}` |
 
-`status` and `path_id` are strings; `reason` is a string, `cause` any JSON value the interrupt was given, or `None`, and `resource` the name of the resource that was taken. When a `subscribe` interrupts the instance, the `cause` is `{"event": name, "value": value}`, where `name` is the subscribed task's name, the process's name for a process, or `None` for any other event, and `value` is what the event carried.
+`status` and `path_id` are strings; `reason` is a string, `cause` any JSON value the interrupt was given, or `None`, and `resource` the name of the resource that was taken or that refused the task. In a `preempted` record, `preempted_by` is the key of the entity whose request took the unit, or `None` when a process that is no task did, and `usage_since` the simulation time at which the preempted task was granted the unit. When a `subscribe` interrupts the instance, the `cause` is `{"event": name, "value": value}`, where `name` is the subscribed task's name, the process's name for a process, or `None` for any other event, and `value` is what the event carried.
 
 With statistics at `basic` or above, entities that enter and leave are counted as `<sim_id>.stats.flows.<arrival>.started`, `.finished` and `.in_system`, and from `minimal` each task's `<sim_id>.stats.tasks.<task>.in_progress`; each of the outcomes above is counted as `<sim_id>.stats.tasks.<task>.balked`, `.reneged`, `.failed`, `.interrupted`, `.preempted` and `.resumed`, published once the first one happens, and a flow that ends in a failure as `<sim_id>.stats.flows.<arrival>.failed`. [Patience](../tutorials/patience.md) shows balking and reneging, and [Tasks and Processes](../user-guide/tasks-and-processes.md#failures) failures, and [Interruptions](../tutorials/interruptions.md) interrupts and preemption. A failed task publishes `started` before its failure when it got that far, and a task with a `wait` publishes `queued` when the wait starts.
 

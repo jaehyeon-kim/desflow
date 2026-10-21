@@ -11,6 +11,8 @@ compared with `==` or `!=`. Each name carries its source as a prefix:
 | `payload.total` | the field `total` of the upstream payload |
 | `attr.priority` | the entity's attribute `priority` |
 | `level.stock` | the level of the store or container `stock` |
+| `users.packers` | how many units of the resource `packers` are held |
+| `queue.packers` | how many requests wait for the resource `packers` |
 | `item.size` | the field `size` of the item a store `get` took, or in a get's `filter` the item it is offered |
 | `wait.restock.done`, `.ok`, `.value`, `.value.qty` | whether the task's `wait` branch `restock` happened before the wait ended, whether it succeeded, and its value or a field of it |
 | `signal.restocked.count`, `.ok`, `.value` | how many times the signal `restocked` has fired, whether its last firing succeeded, and its value |
@@ -23,7 +25,7 @@ import ast
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Mapping, Optional, Set, Tuple
 
-_PREFIXES = ("payload", "attr", "level", "item")
+_PREFIXES = ("payload", "attr", "level", "item", "users", "queue")
 # A two-part source with a fixed set of attributes, unlike the open `_PREFIXES`.
 _PROCESS = ("name", "instance", "target")
 _ARITHMETIC: Dict[type, Callable[[Any, Any], Any]] = {
@@ -86,6 +88,8 @@ class Scope:
         payload: The upstream payload, read as `payload.<field>`.
         attributes: The entity's attributes, read as `attr.<name>`.
         levels: Stores and containers by name, read as `level.<name>`.
+        resources: Resources by name, read as `users.<name>` (units held) and
+            `queue.<name>` (requests waiting).
         registry: The simulation registry, read as `registry["<path>"]`.
         now: The simulation time, read as `t`.
         item: The item a store get took, or a filter's candidate, read as
@@ -100,6 +104,7 @@ class Scope:
     payload: Mapping[str, Any] = field(default_factory=dict)
     attributes: Mapping[str, Any] = field(default_factory=dict)
     levels: Mapping[str, Any] = field(default_factory=dict)
+    resources: Mapping[str, Any] = field(default_factory=dict)
     registry: Optional[Any] = None
     now: float = 0.0
     item: Optional[Mapping[str, Any]] = None
@@ -115,7 +120,8 @@ class Expression:
     Attributes:
         text (str): The expression as written.
         references (Dict[str, Set[str]]): The names it reads, by source: `payload`,
-            `attr`, `level`, `item`, `wait`, `signal` and `registry`, so a loader
+            `attr`, `level`, `users`, `queue`, `item`, `wait`, `signal`, `process`
+            and `registry`, so a loader
             can check them in advance.
     """
 
@@ -141,6 +147,8 @@ class Expression:
             "payload": set(),
             "attr": set(),
             "level": set(),
+            "users": set(),
+            "queue": set(),
             "item": set(),
             "wait": set(),
             "signal": set(),
@@ -188,7 +196,8 @@ class Expression:
                 return
             raise self._refuse(
                 f"the name '{node.id}' (write payload.<field>, attr.<name>, "
-                f"level.<name>, item.<field>, wait.<branch>.<part>, "
+                f"level.<name>, users.<name>, queue.<name>, item.<field>, "
+                f"wait.<branch>.<part>, "
                 f'signal.<name>.<part>, process.<name>, registry["<path>"] or t)'
             )
         if isinstance(node, ast.Attribute):
@@ -221,7 +230,8 @@ class Expression:
                 self.references[node.value.id].add(node.attr)
                 return
             raise self._refuse(
-                "an attribute that is not payload., attr., level., item. or process."
+                "an attribute that is not payload., attr., level., users., queue., item. "
+                "or process."
             )
         if isinstance(node, ast.Subscript):
             index = node.slice
@@ -290,6 +300,11 @@ class Expression:
                 if not isinstance(scope.item, Mapping) or node.attr not in scope.item:
                     raise KeyError(f"the item has no field '{node.attr}'")
                 return scope.item[node.attr]
+            if source in ("users", "queue"):
+                if node.attr not in scope.resources:
+                    raise KeyError(f"no resource is called '{node.attr}'")
+                resource = scope.resources[node.attr]
+                return len(resource.users if source == "users" else resource.queue)
             if node.attr not in scope.levels:
                 raise KeyError(f"no store or container is called '{node.attr}'")
             return scope.levels[node.attr].level

@@ -80,6 +80,8 @@ An entity that does not join a queue at all **balks**. In SimPy it is an `if` be
 
 The condition reads the names every expression reads, such as `attr.<name>` for the order's own attributes and `level.<name>` for a store or container; [Task Flow](../user-guide/task-flow.md#how-it-works) lists them.
 
+A resource can refuse an order too. A resource with a `queue_limit` of 5 (`queue_limit: 5` in a blueprint, `add_resource(..., queue_limit=5)` in the builder, and the same argument of `DynamicResource`) refuses a request made while five requests wait already, as SimPy's `SortedQueue(maxlen=5)` does. The refusal comes before a grant or a preemption, so a limit of 0 refuses every request. A task that is refused balks: it gives back the units it holds, publishes `balked` with the name of the resource, counts as balked and ends its flow. When the limited resource is the first the task asks for and the task waits for nothing before, it balks before it publishes `queued`. A `request` branch of a `wait` on a full resource fails the wait at once, with SimPy's message "Cannot append event. Queue is full.", in an `any` and in an `all` wait. A task whose won `request` branch was preempted balks when it asks again on a full line, and it reneges when its patience runs out while it waits for the unit it asked for again, as for a `resource:` unit. In the low-level API `request()` raises that `RuntimeError`, which your process catches as it would catch a balk condition. A reneged or cancelled request leaves the line, which makes room for the next.
+
 ---
 
 ## Count Who Left

@@ -24,6 +24,7 @@ from desflow import (
     SimParameter,
 )
 from desflow.core.context import SimulationContext
+from tests.conformance.b3 import Job, run_desflow, run_simpy
 from tests.conformance.harness import run_builder, run_low_level, run_yaml
 
 POLICIES = ("resume", "restart", "abandon")
@@ -136,7 +137,7 @@ def _low_level_waiting(policy):
         env.process(recall())
 
     records, _env = run_low_level(_machine("C3"), start, 21.5)
-    return records, len(built["machine"].queue.items)
+    return records, len(built["machine"].queue)
 
 
 def _builder_waiting(policy):
@@ -163,7 +164,7 @@ def _builder_waiting(policy):
 
     app.add_process(script)
     records = run_builder(app, 21.5)
-    return records, len(app.get_resource("machine").queue.items)
+    return records, len(app.get_resource("machine").queue)
 
 
 def test_c3_interrupt_while_waiting():
@@ -180,7 +181,7 @@ def test_c3_interrupt_while_waiting():
         for records, left in (
             _low_level_waiting(policy),
             _builder_waiting(policy),
-            (lambda r: (r[0], len(r[1].get_resource("machine").queue.items)))(
+            (lambda r: (r[0], len(r[1].get_resource("machine").queue)))(
                 run_yaml(f"c3_interrupt_waiting_{policy}.yaml")
             ),
         ):
@@ -592,3 +593,156 @@ def test_c3_priority_preemption_low_level():
 
     run_low_level(_machine("C3", cap=2), start, 19.9)
     assert trace == expected
+
+
+# --------------------------------------------------------- preemption cause
+
+
+def _preemption_cases():
+    """Jobs and the capacity of a preemptive resource, by case."""
+    return {
+        "one preemption": (
+            1,
+            [Job("low", 0, 10, priority=2), Job("high", 3, 5, priority=1)],
+        ),
+        "two at one instant": (
+            2,
+            [
+                Job("low0", 0, 10, priority=3),
+                Job("low1", 0.5, 10, priority=2),
+                Job("high0", 3, 5, priority=1),
+                Job("high1", 3, 5, priority=1),
+            ],
+        ),
+        "tie between users": (
+            2,
+            [
+                Job("low0", 0, 10, priority=1),
+                Job("low1", 0, 10, priority=1),
+                Job("high", 3, 5, priority=0),
+            ],
+        ),
+        "preempted twice": (
+            1,
+            [
+                Job("low", 0, 10, priority=2),
+                Job("mid", 3, 2, priority=1),
+                Job("high", 6, 1, priority=0),
+            ],
+        ),
+    }
+
+
+def test_c3_preemption_cause(tmp_path):
+    """The cause of a preemption is SimPy's `Preempted`: who took the unit and since
+    when the victim held it. The `preempted` record carries them as `preempted_by`,
+    the key of the preempting entity, and `usage_since`; a user preempted twice
+    reports the time of its second grant."""
+    for name, (cap, jobs) in _preemption_cases().items():
+        spec = {
+            "current_cap": cap,
+            "max_cap": cap,
+            "queue": "priority",
+            "preempt": True,
+        }
+        folder = tmp_path / name.replace(" ", "_")
+        folder.mkdir()
+        reference = run_simpy(
+            lambda env, cap=cap: simpy.PreemptiveResource(env, capacity=cap), jobs, 20
+        )
+        assert reference.causes, name
+        for result in run_desflow(folder, spec, jobs, 20):
+            assert result.causes == reference.causes, name
+            assert result.trace == reference.trace, name
+    twice = run_simpy(
+        lambda env: simpy.PreemptiveResource(env, capacity=1),
+        _preemption_cases()["preempted twice"][1],
+        20,
+    )
+    assert twice.causes == [(3, "low", "mid", 0), (6, "low", "high", 5)]
+
+
+def test_c3_preemption_record_shape(tmp_path):
+    """The `preempted` record holds the resource, the preempting entity and the time
+    the victim was granted the unit, in that order after the status."""
+    cap, jobs = _preemption_cases()["one preemption"]
+    spec = {"current_cap": cap, "max_cap": cap, "queue": "priority", "preempt": True}
+    for result in run_desflow(tmp_path, spec, jobs, 20)[1:]:
+        (record,) = [
+            r["value"]
+            for r in result.records
+            if r["stream_type"] == "event" and r["value"].get("status") == "preempted"
+        ]
+        assert record == {
+            "path_id": "B3.service.low",
+            "status": "preempted",
+            "resource": "machine",
+            "preempted_by": "high-1",
+            "usage_since": 0,
+        }
+        assert list(record) == [
+            "path_id",
+            "status",
+            "resource",
+            "preempted_by",
+            "usage_since",
+        ]
+
+
+def test_c3_preemption_by_a_process_that_is_not_a_task():
+    """A request made by a process that no task runs preempts too, and the record
+    reports no preempting entity."""
+
+    def reference():
+        env = simpy.Environment()
+        machine = simpy.PreemptiveResource(env, capacity=1)
+        causes = []
+
+        def victim():
+            with machine.request(priority=2) as req:
+                yield req
+                try:
+                    yield env.timeout(10)
+                except simpy.Interrupt as interrupt:
+                    causes.append(interrupt.cause)
+
+        def intruder():
+            yield env.timeout(3)
+            with machine.request(priority=1) as req:
+                yield req
+                yield env.timeout(1)
+
+        env.process(victim())
+        process = env.process(intruder())
+        env.run(until=20)
+        return causes, process
+
+    causes, process = reference()
+    assert causes[0].by is process and causes[0].usage_since == 0
+
+    app = SimulationContext("C3n", factor=0.0)
+    app.add_resource(
+        "machine", current_cap=1, max_cap=1, queue="priority", preempt=True
+    )
+    app.add_service("long", dist="constant", value=10)
+
+    @app.task(service_id="long", resource_id="machine", priority=2)
+    def low(task_id):
+        return {"event": "done"}
+
+    def script(context):
+        context.spawn(low(context.next_instance("low"), entity=Entity("low-1", "low")))
+        yield context.env.timeout(3)
+        machine = context.get_resource("machine")
+        with machine.request(priority=1) as req:
+            yield req
+            yield context.env.timeout(1)
+
+    app.add_process(script)
+    records = run_builder(app, 20)
+    (value,) = [
+        r["value"]
+        for r in records
+        if r["stream_type"] == "event" and r["value"].get("status") == "preempted"
+    ]
+    assert value["preempted_by"] is None and value["usage_since"] == 0

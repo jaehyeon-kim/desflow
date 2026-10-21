@@ -1,0 +1,40 @@
+# A holder keeps the one machine, whose waiting line holds one request, from 0 to 10.
+# A task that waits for a unit at 1 joins the line. An `any` wait at 2 and an `all`
+# wait at 3 each have a request branch, which the full line refuses, so the wait
+# fails at once. See test_c7_patience.py.
+simulation:
+  sim_id: C7w
+  factor: 0
+resources:
+  machine: {current_cap: 1, max_cap: 1, queue_limit: 1}
+services:
+  hold: {dist: constant, value: 10}
+  work: {dist: constant, value: 2}
+arrivals:
+  holders: {replay: {path: c7_limit_holder.csv}, spawn: holder}
+  firsts: {replay: {path: c7_limit_w1.csv}, spawn: joiner}
+  seconds: {replay: {path: c7_limit_w2.csv}, spawn: any_waiter}
+  thirds: {replay: {path: c7_limit_w3.csv}, spawn: all_waiter}
+tasks:
+  holder:
+    service: hold
+    resource: machine
+    payload: {event: held}
+  joiner:
+    wait: {request: machine}
+    service: work
+    payload: {event: done}
+  any_waiter:
+    wait:
+      any:
+        unit: {request: machine}
+        tired: {timeout: 5}
+    payload: {event: done}
+  all_waiter:
+    wait:
+      all:
+        pause: {timeout: 1}
+        unit: {request: machine}
+    payload: {event: done}
+run:
+  until: 20

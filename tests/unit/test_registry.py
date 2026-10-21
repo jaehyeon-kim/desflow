@@ -2,7 +2,7 @@ import logging
 
 import pytest
 
-from desflow.models.params import DistributionConfig, SimParameter
+from desflow.models.params import CapacityConfig, DistributionConfig, SimParameter
 
 
 def test_registry_registration_paths(registry, sample_params):
@@ -289,3 +289,34 @@ def test_registry_casts_or_ignores_a_wrong_type_update(registry, sample_params, 
         registry.update(path, "not a number")
     assert registry.get(path).value == 4
     assert "Update ignored" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "config,expected",
+    [
+        (CapacityConfig(), (1, 1)),
+        (CapacityConfig(current_cap=3), (3, 3)),
+        (CapacityConfig(max_cap=4), (1, 4)),
+        (CapacityConfig(current_cap=2, max_cap=5), (2, 5)),
+    ],
+)
+def test_a_resource_left_without_a_capacity_has_one_unit(registry, config, expected):
+    """A resource's `current_cap` defaults to 1 and its `max_cap` to `current_cap`;
+    the config keeps the values in effect."""
+    registry.register_resource("Shop", "bench", config)
+    assert (config.current_cap, config.max_cap) == expected
+    assert registry.get("Shop.resources.bench.current_cap").value == expected[0]
+    assert registry.get("Shop.resources.bench.max_cap").value == expected[1]
+
+
+def test_a_resource_with_only_a_max_cap_below_one_is_refused(registry):
+    with pytest.raises(ValueError, match="max_cap 0.5 and no current_cap"):
+        registry.register_resource("Shop", "bench", CapacityConfig(max_cap=0.5))
+
+
+def test_a_raise_above_the_default_max_cap_is_clamped(registry, caplog):
+    registry.register_resource("Shop", "bench", CapacityConfig())
+    with caplog.at_level(logging.WARNING, logger="desflow.core.registry"):
+        registry.update("Shop.resources.bench.current_cap", 4)
+    assert registry.get("Shop.resources.bench.current_cap").value == 1
+    assert "outside [0, max_cap 1]" in caplog.text

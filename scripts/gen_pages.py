@@ -276,12 +276,15 @@ GROUP_INTROS: Dict[str, str] = {
     ),
     "C3": (
         "Interrupting a task while it waits or while it is in service, and a "
-        "higher-priority request taking a resource unit from a lower-priority user."
+        "higher-priority request taking a resource unit from a lower-priority user, "
+        "with the cause that tells the user who took it and since when it held it."
     ),
     "C4": (
         "Requesting and releasing resource units, in order of arrival or of "
-        "priority, cancelling a request before or after its grant, and holding "
-        "several resources at once."
+        "priority, with a default capacity of one unit or no limit, reading the "
+        "count, users and queue, limiting the waiting line, cancelling a request "
+        "before or after its grant, holding several resources at once, and "
+        "resources of your own classes."
     ),
     "C5": (
         "Putting and getting items in a store and amounts in a container, with "

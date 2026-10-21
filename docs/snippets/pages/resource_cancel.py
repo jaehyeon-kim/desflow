@@ -1,7 +1,8 @@
 """Cancelling and releasing low-level requests, for the Resources page.
 
 tests/docs runs this file: a granted request's cancel releases nothing, a waiting
-request's cancel leaves the queue at once, and a second release does nothing.
+request's cancel leaves the queue at once, a release is an event that holds its
+request, and a second release does nothing.
 """
 
 from desflow import (
@@ -25,9 +26,10 @@ waiting = packers.request()  # waits behind it
 
 waiting.cancel()  # leaves the queue at once; it is never granted
 held.cancel()  # granted already, so this releases nothing, as in SimPy
-assert packers.in_use == 1 and packers.queue.items == []
+assert packers.in_use == 1 and packers.queue == []
 
-packers.release(held)  # gives the packer back
+released = packers.release(held)  # gives the packer back
+assert released.request is held  # the release is an event that holds its request
 packers.release(held)  # a second release does nothing
 # --8<-- [end:cancel]
 env.run(until=1)

@@ -1,0 +1,35 @@
+# A holder keeps the machine from 0 to 4. Two jobs queue at 1 and 2, so a late task
+# at 3 balks on `queue.machine >= 2`, and a watcher that started at 0.5 resumes when
+# `users.machine < 1`. See test_c4_resources.py.
+simulation:
+  sim_id: C4q
+  factor: 0
+resources:
+  machine: {}
+services:
+  hold: {dist: constant, value: 4}
+  short: {dist: constant, value: 2}
+arrivals:
+  holders: {replay: {path: c4_cond_holder.csv}, spawn: holder}
+  jobs: {replay: {path: c4_cond_jobs.csv}, spawn: job}
+  lates: {replay: {path: c4_cond_late.csv}, spawn: late}
+  watchers: {replay: {path: c4_cond_watcher.csv}, spawn: watcher}
+tasks:
+  holder:
+    service: hold
+    resource: machine
+    payload: {event: held}
+  job:
+    service: short
+    resource: machine
+    payload: {event: done}
+  late:
+    service: short
+    resource: machine
+    balk: queue.machine >= 2
+    payload: {event: done}
+  watcher:
+    wait: {condition: users.machine < 1}
+    payload: {event: free}
+run:
+  until: 12

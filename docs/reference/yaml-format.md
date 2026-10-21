@@ -75,7 +75,7 @@ The arguments of `SimulationContext`. [Time and Pacing](../user-guide/time-and-p
 
 | Section | Keys |
 |---|---|
-| `resources` | `current_cap` and `max_cap`, whole numbers; `queue`: `fifo` (the default), `lifo` or `priority`; `preempt: true` lets a lower priority value take a busy unit, with `queue: priority`; `breakdown`: `{time_to_failure, repair, work}`, two distributions and `interrupt` (the default) or `finish`, makes it fail and be repaired |
+| `resources` | `current_cap` and `max_cap`, whole numbers or `.inf` for no limit, both optional: `current_cap` is 1 and `max_cap` is `current_cap` (an entry `{}` is one unit); `queue`: `fifo` (the default), `lifo` or `priority`; `queue_limit`, the most requests that may wait, 0 or more (none by default); `type: !python module.Class`, a subclass of `ResourceBase` to build the resource from; `preempt: true` lets a lower priority value take a busy unit, with `queue: priority`; `breakdown`: `{time_to_failure, repair, work}`, two distributions and `interrupt` (the default) or `finish`, makes it fail and be repaired |
 | `stores` | `current_cap` and `max_cap`, whole numbers of items; `priority: true` to return the lowest priority first; `items`, the items held at the start, `[priority, item]` pairs for a priority store |
 | `containers` | `current_cap` and `max_cap`, the largest amount; `level`, the amount at the start, 0 by default |
 

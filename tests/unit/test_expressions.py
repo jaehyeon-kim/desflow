@@ -88,13 +88,15 @@ def test_forms_outside_the_whitelist_are_refused(text, fragment):
 def test_references_name_each_source():
     expression = Expression(
         "payload.total > 1 and attr.vip == 1 and level.stock > 0 "
-        'and registry["Shop.arrival.orders.rate"] > 0 and item.size == 2 '
+        'and users.machine < 2 and queue.machine >= 1 and registry["Shop.arrival.orders.rate"] > 0 and item.size == 2 '
         "and wait.restock.value.qty > 0 and signal.restocked.count > 0"
     )
     assert expression.references == {
         "payload": {"total"},
         "attr": {"vip"},
         "level": {"stock"},
+        "users": {"machine"},
+        "queue": {"machine"},
         "item": {"size"},
         "wait": {"restock"},
         "signal": {"restocked"},

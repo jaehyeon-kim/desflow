@@ -122,13 +122,16 @@ class CapacityConfig:
     """
     Configuration for the capacity of a simulated resource, container, or store.
 
+    A value left as None is filled in when the holder registers: a resource's
+    `current_cap` is 1, and `max_cap` is `current_cap`.
+
     Attributes:
-        current_cap (Union[int, float]): The currently active capacity.
-        max_cap (Union[int, float]): The absolute physical maximum capacity.
+        current_cap (Optional[Union[int, float]]): The currently active capacity.
+        max_cap (Optional[Union[int, float]]): The absolute physical maximum capacity.
     """
 
-    current_cap: Union[int, float]
-    max_cap: Union[int, float]
+    current_cap: Optional[Union[int, float]] = None
+    max_cap: Optional[Union[int, float]] = None
 
 
 @dataclass

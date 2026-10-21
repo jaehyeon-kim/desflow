@@ -26,6 +26,10 @@ The common YAML keys and builder calls side by side, each linked to the page tha
 | To | YAML | Builder | Read |
 |---|---|---|---|
 | Add staff or machines | `resources: {packers: {current_cap: 2, max_cap: 4}}` | `app.add_resource("packers", current_cap=2, max_cap=4)` | [Resources](../user-guide/resources.md) |
+| Declare a resource with one unit, or none to wait for | `resources: {packers: {}}`, or `{current_cap: .inf}` for no limit | `app.add_resource("packers")`, or `current_cap=float("inf")` | [Resources](../user-guide/resources.md#declare-a-resource) |
+| Refuse a request when the line is long | `queue_limit: 5` | `add_resource(..., queue_limit=5)` | [Patience](../tutorials/patience.md#refuse-to-join) |
+| Read how many units are held or wait | `users.packers`, `queue.packers` in a condition | `context.get_resource("packers").count`, `.users`, `.queue` | [Resources](../user-guide/resources.md#read-the-queue-and-users) |
+| Build a resource from your own class | `type: !python shop_logic.MyPackers` | `add_resource(..., type=MyPackers)` | [Resources](../user-guide/resources.md#custom-resource-types) |
 | Serve by priority | `queue: priority` and a task's `priority` | `add_resource(..., queue="priority")` and `@app.task(priority=)` | [Priorities](../tutorials/priorities.md) |
 | Let urgent work take a busy unit | `preempt: true` | `add_resource(..., preempt=True)` | [Interruptions](../tutorials/interruptions.md) |
 | Make a resource fail and be repaired | `resources.<name>.breakdown` | `app.add_breakdown(resource, time_to_failure=, repair=)` | [Breakdowns](../guides/breakdowns.md) |

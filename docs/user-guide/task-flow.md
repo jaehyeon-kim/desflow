@@ -400,7 +400,7 @@ The `flow` example: orders are picked, gift orders are wrapped, one parcel in te
 - numbers, `True` and `False`, and the arithmetic `+`, `-`, `*`, `/`, `//` and `%`;
 - the comparisons `<`, `<=`, `>`, `>=`, `==` and `!=`, and strings compared with `==` or `!=`;
 - `and`, `or`, `not`, and the conditional form `a if c else b`;
-- names with their source as a prefix: `payload.<field>`, `attr.<name>`, `level.<name>`, `item.<field>` (the item the task's store `get` took, [Stores and Containers](stores-and-containers.md#pick-an-item-or-give-up-waiting)), `wait.<branch>.done`, `.ok` and `.value` (the task's wait) and `signal.<name>.count`, `.ok` and `.value` ([Tasks and Processes](tasks-and-processes.md#wait-signals-and-child-flows)), `process.<name>`, `.instance` and `.target` ([Tasks and Processes](tasks-and-processes.md#processes-and-the-low-level-api)), and `registry["<path>"]`;
+- names with their source as a prefix: `payload.<field>`, `attr.<name>`, `level.<name>`, `users.<name>` (how many units of a resource are held), `queue.<name>` (how many requests wait for it, [Resources](resources.md#read-the-queue-and-users)), `item.<field>` (the item the task's store `get` took, [Stores and Containers](stores-and-containers.md#pick-an-item-or-give-up-waiting)), `wait.<branch>.done`, `.ok` and `.value` (the task's wait) and `signal.<name>.count`, `.ok` and `.value` ([Tasks and Processes](tasks-and-processes.md#wait-signals-and-child-flows)), `process.<name>`, `.instance` and `.target` ([Tasks and Processes](tasks-and-processes.md#processes-and-the-low-level-api)), and `registry["<path>"]`;
 - `t`, the simulation time in seconds.
 
 A name carries its source so that adding a payload field cannot change what an attribute of the same name means, and so registry paths, which contain dots, can be written whole. Anything else is refused with a message that names it:
@@ -416,11 +416,11 @@ for text in ("payload.total ** 2", "x > 1", "open('orders.csv')"):
 <!-- records: refused-expressions -->
 ```text
 'payload.total ** 2' uses the operator Pow, which an expression cannot
-'x > 1' uses the name 'x' (write payload.<field>, attr.<name>, level.<name>, item.<field>, wait.<branch>.<part>, signal.<name>.<part>, process.<name>, registry["<path>"] or t), which an expression cannot
+'x > 1' uses the name 'x' (write payload.<field>, attr.<name>, level.<name>, users.<name>, queue.<name>, item.<field>, wait.<branch>.<part>, signal.<name>.<part>, process.<name>, registry["<path>"] or t), which an expression cannot
 'open('orders.csv')' uses a Call, which an expression cannot
 ```
 
-A blueprint is checked when it loads: every condition parses, every task a rule names exists, every `level.<name>` names a store or container, and every `registry["..."]` is a path of the model, each with its YAML line. The builder makes the same checks when `run()` starts. A name that is missing when a condition is evaluated, such as a payload field, raises an error naming the expression.
+A blueprint is checked when it loads: every condition parses, every task a rule names exists, every `level.<name>` names a store or container, every `users.<name>` and `queue.<name>` names a resource, and every `registry["..."]` is a path of the model, each with its YAML line. The builder makes the same checks when `run()` starts. A name that is missing when a condition is evaluated, such as a payload field, raises an error naming the expression.
 
 **Weights.** The weights are turned into cumulative shares once. Each choice draws one uniform number from the routing task's stream and picks the task whose share it falls in.
 

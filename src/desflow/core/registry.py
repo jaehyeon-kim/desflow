@@ -329,29 +329,13 @@ class SimulationRegistry:
             self._configs[path] = dist_config
             self._register_dist(path, dist_config)
 
-        # Register Resources
+        # Register Resources, Containers and Stores
         for name, cap_config in param.resources.items():
-            path = f"{prefix}.resources.{name}"
-            self._configs[path] = cap_config
-            self._register_cap(path, cap_config)
-
-        # Register Containers
+            self.register_resource(prefix, name, cap_config)
         for name, cap_config in param.containers.items():
-            path = f"{prefix}.containers.{name}"
-            self._configs[path] = cap_config
-            # A container level is continuous, so an integer starting value must not
-            # make later updates integers through the type cast in update()
-            self._register_cap(path, cap_config, cast=float)
-            level = float(getattr(cap_config, "level", 0.0))
-            self._values[f"{path}.level"] = DynamicValue(
-                self.env, f"{path}.level", level
-            )
-
-        # Register Stores
+            self.register_container(prefix, name, cap_config)
         for name, cap_config in param.stores.items():
-            path = f"{prefix}.stores.{name}"
-            self._configs[path] = cap_config
-            self._register_cap(path, cap_config)
+            self.register_store(prefix, name, cap_config)
 
         # Register Breakdowns: each resource's time to failure and repair time
         for name, breakdown in param.breakdowns.items():
@@ -366,6 +350,66 @@ class SimulationRegistry:
         for name, value in param.variables.items():
             path = f"{prefix}.variables.{name}"
             self._values[path] = DynamicValue(self.env, path, value)
+
+    def register_resource(self, sim_id: str, name: str, cap_config: CapacityConfig):
+        """
+        Registers a resource's capacity paths, filling in what the config leaves out.
+
+        A `current_cap` left as None is 1, and a `max_cap` left as None is the
+        `current_cap`. The config is updated to the values in effect.
+
+        Args:
+            sim_id (str): The simulation ID.
+            name (str): The resource's name.
+            cap_config (CapacityConfig): Its capacity, which may leave values as None.
+
+        Raises:
+            ValueError: If only `max_cap` is given and it is below 1, the default
+                `current_cap`.
+        """
+        if cap_config.current_cap is None:
+            if cap_config.max_cap is not None and cap_config.max_cap < 1:
+                raise ValueError(
+                    f"resource '{name}' has max_cap {cap_config.max_cap} and no "
+                    f"current_cap, whose default is 1; set current_cap to "
+                    f"{cap_config.max_cap} or less"
+                )
+            cap_config.current_cap = 1
+        if cap_config.max_cap is None:
+            cap_config.max_cap = cap_config.current_cap
+        path = f"{sim_id}.resources.{name}"
+        self._configs[path] = cap_config
+        self._register_cap(path, cap_config)
+
+    def register_container(self, sim_id: str, name: str, cap_config: CapacityConfig):
+        """
+        Registers a container's capacity paths and its `.level` path.
+
+        Args:
+            sim_id (str): The simulation ID.
+            name (str): The container's name.
+            cap_config (CapacityConfig): Its capacity and starting level.
+        """
+        path = f"{sim_id}.containers.{name}"
+        self._configs[path] = cap_config
+        # A container level is continuous, so an integer starting value must not
+        # make later updates integers through the type cast in update()
+        self._register_cap(path, cap_config, cast=float)
+        level = float(getattr(cap_config, "level", 0.0))
+        self._values[f"{path}.level"] = DynamicValue(self.env, f"{path}.level", level)
+
+    def register_store(self, sim_id: str, name: str, cap_config: CapacityConfig):
+        """
+        Registers a store's capacity paths.
+
+        Args:
+            sim_id (str): The simulation ID.
+            name (str): The store's name.
+            cap_config (CapacityConfig): Its capacity.
+        """
+        path = f"{sim_id}.stores.{name}"
+        self._configs[path] = cap_config
+        self._register_cap(path, cap_config)
 
     def _register_dist(self, path_prefix: str, dist_config: Any):
         """Internal: registers one path per parameter its family declares.

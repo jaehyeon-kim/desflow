@@ -94,9 +94,21 @@ def test_tasks_spawned_from_an_arrival_publish_the_payload(tmp_path):
         ("dist: exponential", "dist: poisson", 10, "Unsupported distribution"),
         (
             "  packers: {current_cap: 2, max_cap: 5}",
-            "  packers: {current_cap: 2}",
+            "  packers: {max_cap: 0.5}",
             6,
-            "max_cap",
+            "max_cap 0.5 is below 1, the default current_cap",
+        ),
+        (
+            "  packers: {current_cap: 2, max_cap: 5}",
+            "  packers: {current_cap: 2, max_cap: 5, type: !python datetime.datetime}",
+            6,
+            "Input should be a subclass of ResourceBase",
+        ),
+        (
+            "  packers: {current_cap: 2, max_cap: 5}",
+            "  packers: {current_cap: 2, max_cap: 5, queue_limit: -1}",
+            6,
+            "queue_limit must be 0 or more",
         ),
         ("until: 30", "until: soon", 18, "run.until"),
         (
@@ -195,6 +207,18 @@ def test_schema_errors_name_the_line(tmp_path, old, new, line, fragment):
             17,
             "level.shelf names no store or container; add it under stores or "
             "containers",
+        ),
+        (
+            "    id_field: order_id",
+            "    id_field: order_id\n    balk: queue.packer >= 2",
+            17,
+            "queue.packer names no resource; did you mean 'packers'?",
+        ),
+        (
+            "    id_field: order_id",
+            "    id_field: order_id\n    wait: {condition: users.bench < 1}",
+            17,
+            "users.bench names no resource; add it under resources",
         ),
     ],
 )
@@ -1080,3 +1104,48 @@ def test_on_stays_a_string_key_only_in_task_signal_and_check_mappings(tmp_path):
     assert "on" in data["signals"]["closing"]
     assert data["checks"][0] == {"on": "mean"}
     assert data["arrivals"]["orders"]["payload"] == {True: 1}
+
+
+@pytest.mark.parametrize(
+    "line,expected",
+    [
+        ("{}", (1, 1)),
+        ("{max_cap: 3}", (1, 3)),
+        ("{current_cap: 2}", (2, 2)),
+        ("{current_cap: .inf}", (float("inf"), float("inf"))),
+    ],
+)
+def test_a_resource_may_leave_its_capacity_out(tmp_path, line, expected):
+    path = write(tmp_path, MINIMAL.replace("{current_cap: 2, max_cap: 5}", line))
+    app = SimulationContext.from_yaml(path)
+    app.run()
+    resource = app.get_resource("packers")
+    assert resource.capacity == expected[0]
+    assert app.env.registry.get("Shop.resources.packers.max_cap").value == expected[1]
+
+
+def test_a_resource_takes_a_queue_limit_and_a_type(tmp_path):
+    path = write(
+        tmp_path,
+        MINIMAL.replace(
+            "{current_cap: 2, max_cap: 5}",
+            "{queue_limit: 3, type: !python desflow.ResourceBase}",
+        ),
+    )
+    app = SimulationContext.from_yaml(path)
+    app.run()
+    resource = app.get_resource("packers")
+    assert type(resource).__name__ == "ResourceBase" and resource.queue_limit == 3
+
+
+def test_a_stop_condition_reads_the_queue_of_a_resource(tmp_path):
+    text = MINIMAL.replace(
+        "until: 30", "until: 30\n  stop: {condition: queue.packers >= 3}"
+    )
+    app = SimulationContext.from_yaml(write(tmp_path, text))
+    app.run()
+    assert len(app.get_resource("packers").queue) == 3 and app.env.now < 30
+
+    path = write(tmp_path, text.replace("queue.packers", "queue.packer"), "other.yaml")
+    with pytest.raises(BlueprintError, match="queue.packer names no resource"):
+        SimulationContext.from_yaml(path)

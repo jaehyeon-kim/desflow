@@ -158,7 +158,7 @@ def measuring_queue() -> None:
 
     def record(category, name):
         changed(category, name)
-        trace.append((env.now, len(packers.queue.items)))
+        trace.append((env.now, len(packers.queue)))
 
     env.stats.changed = record
     packers = DynamicResource(env, "Shop", "packers")

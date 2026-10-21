@@ -19,6 +19,7 @@ from simpy.resources.resource import Preempted
 
 from desflow.core.expressions import Expression, Scope
 from desflow.core.flow import Router, Transfer, Wait, make_scope
+from desflow.resources.resource import QueueFull
 from desflow.models.flow import Entity, Upstream
 from desflow.utils import suggestion
 
@@ -278,6 +279,7 @@ class TaskRun:
                 "instance": self.task_id,
                 "target": self._target,
             },
+            resources=self.context._resources_map,
         )
 
     # ----------------------------------------------------------- end event
@@ -437,6 +439,7 @@ class TaskRun:
     def _run(self):
         spec, env, stats = self.spec, self.env, self.env.stats
         if spec.balk_of is not None and spec.balk_of.evaluate(self.scope()):
+            self._release_kept()
             self.publish(self.status("balked"))
             stats.task_balked(spec.name, self.task_id)
             self.outcome = Upstream(
@@ -450,6 +453,16 @@ class TaskRun:
         if spec.subscribe is not None:
             # Be told when the event happens: subscribe this instance, then go on.
             self.context.subscribe(self._subscribe_event(spec.subscribe))
+        if spec.resources and spec.wait is None:
+            # Nothing yields between here and the first request, so a full line is
+            # known now and the task balks before it queues, as in SimPy it would
+            # when the request raised.
+            first = self.context._resources_map[spec.resources[0]]
+            limit = getattr(first.queue, "maxlen", None)
+            if limit is not None and len(first.queue) >= limit:
+                self._release_kept()
+                self._balk_full(first)
+                return None
         # The patience counts waiting time only: it runs while the task waits for
         # its wait, its resources or its get, and pauses while it is served, so a
         # preempted task that queues again goes on from the time it had used, as
@@ -495,14 +508,41 @@ class TaskRun:
                 for index in range(len(self._wait_held)):
                     won = self._wait_held[index]
                     if won not in won.resource.users:
-                        fresh = won.resource.request(self._rank(), preempt=spec.preempt)
+                        self._target = f"resource.{won.resource.obj_id}"
+                        try:
+                            fresh = won.resource.request(
+                                self._rank(), preempt=spec.preempt
+                            )
+                        except QueueFull:
+                            self._release(held)
+                            self._release_kept()
+                            self._balk_full(won.resource)
+                            return None
                         self._wait_held[index] = fresh
-                        yield fresh
+                        deadline = self._deadline()
+                        if deadline is None:
+                            yield fresh
+                        else:
+                            yield fresh | deadline
+                            self._waited()
+                            # The patience ran out before the unit was free, as
+                            # for a `resource:` unit.
+                            if not fresh.triggered:
+                                fresh.cancel()
+                                self._release(held)
+                                self._renege()
+                                return None
                 for resource in spec.resources:
                     self._target = f"resource.{resource}"
-                    request = self.context._resources_map[resource].request(
-                        rank, preempt=spec.preempt
-                    )
+                    try:
+                        request = self.context._resources_map[resource].request(
+                            rank, preempt=spec.preempt
+                        )
+                    except QueueFull:
+                        self._release(held)
+                        self._release_kept()
+                        self._balk_full(self.context._resources_map[resource])
+                        return None
                     held.append(request)
                     deadline = self._deadline()
                     if deadline is None:
@@ -571,6 +611,11 @@ class TaskRun:
             except Interrupt as interrupt:
                 self._waited()
                 self._release(held)
+                # A unit asked for again and not yet granted leaves the line, so
+                # the resume asks once, not twice
+                for request in self._wait_held:
+                    if not request.triggered:
+                        request.cancel()
                 if service_from is not None and remaining is not None:
                     # resume serves what is left; restart draws a new service time
                     if spec.on_interrupt == "resume":
@@ -734,7 +779,12 @@ class TaskRun:
         cause = interrupt.cause
         preempted = isinstance(cause, Preempted)
         if preempted:
-            value = self.status("preempted", resource=cause.resource.obj_id)
+            value = self.status(
+                "preempted",
+                resource=cause.resource.obj_id,
+                preempted_by=self.context._entity_key_of(cause.by),
+                usage_since=cause.usage_since,
+            )
         else:
             value = self.status("interrupted", cause=cause)
         self.publish(value)
@@ -799,7 +849,18 @@ class TaskRun:
             return spec.rank_of.evaluate(self.scope())
         if callable(spec.priority):
             return spec.priority(self.task_id, self.entity.attributes)
-        return 1 if spec.priority is None else spec.priority
+        return 0 if spec.priority is None else spec.priority
+
+    def _balk_full(self, resource: Any) -> None:
+        """Ends the flow of a task whose resource's waiting line is full: it balks."""
+        self._end_wait()
+        record = self.status("balked", resource=resource.obj_id)
+        self.publish(record)
+        self.env.stats.task_balked(self.spec.name, self.task_id)
+        self.outcome = Upstream(
+            self.task_id, self.entity.key, self.entity.attributes, dict(record)
+        )
+        self._end_flow("ended")
 
     def _renege(self) -> None:
         self._end_wait()
@@ -997,7 +1058,15 @@ class TaskRun:
                 events[node.name] = event
             return event
 
-        root_event = build(wait.root)
+        try:
+            root_event = build(wait.root)
+        except QueueFull as error:
+            # A request branch met a full line: the branches already built are
+            # cancelled, and the wait fails with SimPy's message.
+            for stop in stop_watching:
+                stop()
+            self._cancel_wait_events()
+            return str(error)
         # A single-branch wait is joined as `any_of([branch])`, so a leaf reads
         # `in joined.value` the same way at the top as inside a group.
         joined = root_event if wait.root.is_group else env.any_of([root_event])

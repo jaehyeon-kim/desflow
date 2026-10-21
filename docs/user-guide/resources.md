@@ -14,7 +14,7 @@ A resource is a number of identical units: packers, packing benches, checkout la
 
 ### Declare a Resource
 
-A resource has a `current_cap`, the number of units now, and a `max_cap`, the most a live change can set. `run()` builds a `DynamicResource` for each one the context declares; in the low-level API you build it after registering the parameters:
+A resource has a `current_cap`, the number of units now, and a `max_cap`, the most a live change can set. Both are whole numbers, and both may be left out: `current_cap` is then 1 and `max_cap` is the `current_cap`, so `packers: {}` is a resource of one unit, as `simpy.Resource(env)` is. `current_cap: .inf` (`float("inf")` in Python) is a resource with no limit: every request is granted at once, `capacity` is published as `null` and `utilization` as 0. `queue_limit` sets the most requests that may wait ([Refuse to Join](../tutorials/patience.md#refuse-to-join)). A request made while that many wait raises `QueueFull` (in `desflow.resources.resource`), a `RuntimeError` with SimPy's message "Cannot append event. Queue is full.", before the request is granted or preempts a user; a task that catches it balks, and a `request` branch of a `wait` fails the wait. `run()` builds a `DynamicResource` for each one the context declares; in the low-level API you build it after registering the parameters, or with no registration at all, when it has one unit:
 
 === "YAML"
 
@@ -109,7 +109,7 @@ The last line is the capacity drop that Under Live Changes describes, below. The
 
 ### Task Priority
 
-Under `queue: priority`, each task gives its requests a priority: a number, the same for every run of the task; an expression, read when the task joins the queue, such as `attr.tier` for the entity's attribute `tier`; or, in the builder, a function of the task id and the entity's attributes. The attributes exist before the request queues, and the task's own payload does not, so a priority cannot read it; an expression can read the previous task's payload as `payload.<field>`. The lowest priority is served first, and equal priorities first in, first out, which is the order of SimPy's `PriorityResource`: it ranks a request by `(priority, time, not preempt)`, so among equal priorities and times a request that may preempt goes before one with `preempt: false`. The tests check it, ties included, in all three APIs ([SimPy Compatibility](../reference/simpy-compatibility.md)).
+Under `queue: priority`, each task gives its requests a priority: a number, the same for every run of the task; an expression, read when the task joins the queue, such as `attr.tier` for the entity's attribute `tier`; or, in the builder, a function of the task id and the entity's attributes. The attributes exist before the request queues, and the task's own payload does not, so a priority cannot read it; an expression can read the previous task's payload as `payload.<field>`. The lowest priority is served first, and a task with no `priority` ranks 0, as a SimPy `PriorityRequest` does. Equal priorities are served first in, first out, which is the order of SimPy's `PriorityResource`: it ranks a request by `(priority, time, not preempt)`, so among equal priorities and times a request that may preempt goes before one with `preempt: false`. The tests check it, ties included, in all three APIs ([SimPy Compatibility](../reference/simpy-compatibility.md)).
 
 === "YAML"
 
@@ -147,13 +147,13 @@ Under `queue: priority`, each task gives its requests a priority: a number, the 
 
 === "Low-level"
 
-    A low-level process passes the priority to the request: `packers.request(priority=entity.attributes["tier"])`, as the queue-order example above does. A resource whose queue is `fifo` or `lifo` ignores it.
+    A low-level process passes the priority to the request: `packers.request(priority=entity.attributes["tier"])`, as the queue-order example above does; a request with no priority has priority 0. A resource whose queue is `fifo` or `lifo` ignores it.
 
 A `priority` on a task whose resource does not have `queue: priority` is refused: when the blueprint loads, or when `run()` starts. [Priorities](../tutorials/priorities.md) shows what priority does to waits.
 
 ### Preemption
 
-On a resource with `preempt: true`, which needs `queue: priority`, a request that finds every unit busy takes a unit from a task of a higher priority value, as SimPy's `PreemptiveResource` does. The task that loses the unit is chosen by SimPy's rule: the user whose `(priority, request time, may not preempt)` sorts last, and only when that sorts after the new request, so equal priorities do not preempt; the one exception is a user whose request was made at the same moment as the new one with `preempt: false`, which sorts after a request that may preempt. The task publishes `preempted` with the resource's name and follows its `on_interrupt`, as an interrupt would ([Interruptions](../tutorials/interruptions.md)); a task with `preempt: false` never takes a unit this way. The `interruptions` example lets express orders preempt regular ones:
+On a resource with `preempt: true`, which needs `queue: priority`, a request that finds every unit busy takes a unit from a task of a higher priority value, as SimPy's `PreemptiveResource` does. The task that loses the unit is chosen by SimPy's rule: the user whose `(priority, request time, may not preempt)` sorts last, and only when that sorts after the new request, so equal priorities do not preempt; the one exception is a user whose request was made at the same moment as the new one with `preempt: false`, which sorts after a request that may preempt. The task publishes `preempted` with the resource's name, the key of the entity that took the unit (`preempted_by`) and the time the task was granted the unit (`usage_since`), and follows its `on_interrupt`, as an interrupt would ([Interruptions](../tutorials/interruptions.md)); a task with `preempt: false` never takes a unit this way. The `interruptions` example lets express orders preempt regular ones:
 
 === "YAML"
 
@@ -209,6 +209,7 @@ On a resource with `preempt: true`, which needs `queue: priority`, a request tha
         env.stats.task_queued("pack", task_id)
         remaining, started = None, False
         shop["packing"].append(env.active_process)
+        shop["keys"][env.active_process] = key
         while True:
             request = shop["packers"].request(priority=priority)
             since = None
@@ -240,6 +241,8 @@ On a resource with `preempt: true`, which needs `queue: priority`, a request tha
                         "path_id": path_id,
                         "status": "preempted",
                         "resource": "packers",
+                        "preempted_by": shop["keys"].get(interrupt.cause.by),
+                        "usage_since": interrupt.cause.usage_since,
                     }
                     publish(value)
                     env.stats.task_interrupted("pack", task_id, preempted=True)
@@ -248,10 +251,11 @@ On a resource with `preempt: true`, which needs `queue: priority`, a request tha
                     publish({**value, "cause": interrupt.cause})
                     env.stats.task_interrupted("pack", task_id)
         shop["packing"].remove(env.active_process)
+        del shop["keys"][env.active_process]
         env.stats.flow_finished(key.rsplit("-", 1)[0])
     ```
 
-    `DynamicResource(env, "Shop", "packers", queue="priority", preempt=True)` builds the resource, and `request(priority, preempt=True)` asks for a unit; the process that loses its unit receives `simpy.Interrupt` with a SimPy `Preempted` cause, whose `resource`, `by` and `usage_since` say what happened.
+    `DynamicResource(env, "Shop", "packers", queue="priority", preempt=True)` builds the resource, and `request(priority, preempt=True)` asks for a unit; the process that loses its unit receives `simpy.Interrupt` with a SimPy `Preempted` cause, whose `resource`, `by` (the process that took the unit) and `usage_since` say what happened.
 
 ### Cancel and Release
 
@@ -263,13 +267,67 @@ waiting = packers.request()  # waits behind it
 
 waiting.cancel()  # leaves the queue at once; it is never granted
 held.cancel()  # granted already, so this releases nothing, as in SimPy
-assert packers.in_use == 1 and packers.queue.items == []
+assert packers.in_use == 1 and packers.queue == []
 
-packers.release(held)  # gives the packer back
+released = packers.release(held)  # gives the packer back
+assert released.request is held  # the release is an event that holds its request
 packers.release(held)  # a second release does nothing
 ```
 
-`request.cancel()` takes a waiting request out of the queue and does nothing to a granted one, and `packers.release(request)` gives a granted unit back once; releasing it again, or releasing a request that was never granted, gives nothing back. A `with` block does both on its way out, as in SimPy.
+`request.cancel()` takes a waiting request out of the queue and does nothing to a granted one, and `packers.release(request)` gives a granted unit back once; releasing it again, or releasing a request that was never granted, gives nothing back. A release is an event, a `DynamicRelease` as SimPy's `Release`: its `request` is the request it releases (with no request, the oldest unit held), it is triggered as soon as it is made, and the next waiting request is granted one event later, when the release is processed. A `with` block does both on its way out, as in SimPy.
+
+### Read the Queue and Users
+
+A resource counts the units held and the requests waiting. In a condition, `users.<resource>` is how many units are held and `queue.<resource>` how many requests wait, so a task can turn an order away when the line is long, or wait until nobody holds a unit. The names are checked when the blueprint loads, as `level.<name>` is:
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/resources_read.yaml:conditions"
+    tasks:
+      pack_order:
+        service: packing
+        resource: packers
+        # Turn an order away when two are waiting already
+        balk: queue.packers >= 2
+        payload: {event_type: order_packed}
+      close_up:
+        # Wait until nobody holds a packer
+        wait: {condition: users.packers < 1}
+        payload: {event_type: packers_idle}
+    ```
+
+=== "Builder"
+
+    `context.get_resource("packers")` returns the running `DynamicResource`. Its `count` is the units held, `users` the requests that hold them in the order of their grants, and `queue` the requests waiting in the order they will be served, so `queue[0]` is the next. A request has `usage_since`, the time it was granted its unit, and `proc`, the process that made it; a task's process has the task's name.
+
+    ```python title="docs/snippets/pages/resource_read.py:builder"
+    def look(context):
+        """A process of the model: reads the packers every 30 seconds."""
+        packers = context.get_resource("packers")
+        while True:
+            yield context.env.timeout(30)
+            held = [
+                request.proc.name for request in packers.users
+            ]  # the tasks holding a unit
+            seen.append((packers.count, len(packers.queue), held))
+
+
+    app.add_process(look)
+    ```
+
+=== "Low-level"
+
+    ```python title="docs/snippets/pages/resource_read.py:low-level"
+    requests = [packers.request() for _ in range(4)]  # two are granted, two wait
+
+    assert packers.count == len(packers.users) == 2  # the units held now
+    assert packers.users == requests[:2]  # the granted requests, in the order of the grants
+    assert len(packers.queue) == 2  # the requests waiting
+    assert packers.queue[0] is requests[2]  # the next to be served
+    assert packers.users[0].usage_since == 0.0  # when this request was granted its unit
+    ```
+
+`count` is the same as `in_use`, SimPy's name for it. `queue` is a list; `queue.items`, the `(rank, request)` pairs of 0.22.0, still works with a `FutureWarning` and is removed in 0.24.0.
 
 ### Several Resources
 
@@ -429,9 +487,80 @@ A `breakdown` makes a resource fail at random and be repaired. `time_to_failure`
 
 `work` says what happens to the tasks being served: `interrupt`, the default, interrupts each with the cause `breakdown`, and it follows its `on_interrupt`; `finish` lets them finish. Each failure and repair publishes an event keyed by the resource's name, with `status` `down` or `repaired` and `reason: failure`. [Breakdowns](../guides/breakdowns.md) checks the downtime of the example, and [Interruptions](../tutorials/interruptions.md) explains `on_interrupt`.
 
+### Custom Resource Types
+
+To change how a resource grants units, subclass `ResourceBase` and name the class in `type`. `ResourceBase` is built on the hooks of SimPy's `BaseResource`, as a subclass of SimPy's `Resource` is: override `_do_put(request)` to decide when a request is granted and `_do_get(release)` to decide what a release gives back; set `PutQueue` to the class of the waiting line, which can be SimPy's `SortedQueue`, written `staticmethod(functools.partial(SortedQueue, maxlen=2))`; set `request` or `release` to `BoundClass(MyRequest)` for a request class that subclasses `DynamicResourceRequest` or a release class that subclasses `DynamicRelease` (both in `desflow.resources.resource`). `DynamicResource` is `ResourceBase` as it is built. The constructor is `DynamicResource`'s, because the resource reads its capacity from the registry, so a subclass that defines `__init__` takes `*args, **kwargs` and passes them on. A `PutQueue` of your own sets its own order and length, so it takes no `queue_limit`. The tests run each of these beside the same SimPy subclass in all three APIs.
+
+This resource keeps how long each request waited:
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/resources_custom.yaml:declare"
+    resources:
+      # A subclass of ResourceBase that keeps how long each request waited
+      packers: {current_cap: 1, max_cap: 4, type: !python shop_logic.LoggedPackers}
+    ```
+
+    The class is in `shop_logic.py`, beside the blueprint:
+
+    ```python title="docs/snippets/yaml/shop_logic.py:logged-packers"
+    class LoggedPackers(ResourceBase):
+        """A resource that keeps how long each request waited before it was granted."""
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.waits = []
+
+        def _do_put(self, request):
+            super()._do_put(request)
+            if request.triggered:  # the request was granted just now
+                self.waits.append(self.env.now - request.time)
+    ```
+
+=== "Builder"
+
+    ```python title="docs/snippets/pages/custom_resources.py:builder"
+    app = SimulationContext(sim_id="Shop", factor=0.0)
+    app.add_resource("packers", current_cap=1, max_cap=4, type=LoggedPackers)
+    ```
+
+    The class is the one the Low-level tab shows.
+
+=== "Low-level"
+
+    ```python title="docs/snippets/pages/custom_resources.py:class"
+    class LoggedPackers(ResourceBase):
+        """A resource that keeps how long each request waited before it was granted."""
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.waits = []
+
+        def _do_put(self, request):
+            super()._do_put(request)
+            if request.triggered:  # the request was granted just now
+                self.waits.append(self.env.now - request.time)
+    ```
+
+    ```python title="docs/snippets/pages/custom_resources.py:low-level"
+    env = DynamicRealtimeEnvironment(factor=0.0)
+    env.registry.register_sim_parameter(
+        SimParameter(
+            sim_id="Shop", resources={"packers": CapacityConfig(current_cap=1, max_cap=4)}
+        )
+    )
+    packers = LoggedPackers(env, "Shop", "packers")
+
+
+    def order(env):
+        with packers.request() as request:
+            yield request
+            yield env.timeout(2.0)
+    ```
+
 ### Registry Paths and Readings
 
-Each resource has two registry paths, `<sim_id>.resources.<name>.current_cap` and `.max_cap`, which a scenario, an ingress message or a process can change; [Live Parameters](live-parameters.md) explains how. A resource that breaks down adds `<sim_id>.breakdown.<name>.time_to_failure` and `.repair`, its two distributions. With statistics at the `minimal` level or above, each resource publishes four readings, such as `Shop.stats.resources.packers.utilization`: `capacity`, `in_use`, `queue_length` and `utilization`, the busy units as a percentage of the capacity; one that breaks down adds `down`, 1 while it is down. [Statistics](statistics.md) lists what the other levels add, among them `downtime` and `failures`.
+Each resource has two registry paths, `<sim_id>.resources.<name>.current_cap` and `.max_cap`, which a scenario, an ingress message or a process can change; [Live Parameters](live-parameters.md) explains how. A resource that breaks down adds `<sim_id>.breakdown.<name>.time_to_failure` and `.repair`, its two distributions. With statistics at the `minimal` level or above, each resource publishes four readings, such as `Shop.stats.resources.packers.utilization`: `capacity`, `in_use`, `queue_length` and `utilization`, the busy units as a percentage of the capacity (a resource with no limit publishes a `capacity` of `null` and a `utilization` of 0); one that breaks down adds `down`, 1 while it is down. [Statistics](statistics.md) lists what the other levels add, among them `downtime` and `failures`.
 
 ### Example: Interruptions
 

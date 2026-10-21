@@ -17,12 +17,16 @@ from desflow import (
     SimParameter,
 )
 from desflow.core.context import SimulationContext
+from tests.conformance import custom_resources as custom
+from tests.conformance.b3 import Job, run_desflow, run_simpy, who
 from tests.conformance.harness import (
     RecordingEgress,
     event_trace,
     run_builder,
     run_low_level,
     run_yaml,
+    run_yaml_text,
+    times,
 )
 
 EXPECTED_STARTS = [2.0, 7.0, 12.0]
@@ -36,9 +40,9 @@ def _started(records):
     ]
 
 
-def _reference_starts():
+def _reference_starts(capacity=1):
     env = simpy.Environment()
-    machine = simpy.Resource(env, capacity=1)
+    machine = simpy.Resource(env, capacity=capacity)
     starts = []
 
     def entity():
@@ -57,13 +61,11 @@ def _reference_starts():
     return starts
 
 
-def _lowlevel_records():
+def _lowlevel_records(caps=CapacityConfig(current_cap=1, max_cap=1)):
+    """The jobs on a `DynamicResource`; `caps` None registers nothing for it."""
     env = DynamicRealtimeEnvironment(factor=0.0)
     env.registry.register_sim_parameter(
-        SimParameter(
-            sim_id="C4",
-            resources={"machine": CapacityConfig(current_cap=1, max_cap=1)},
-        )
+        SimParameter(sim_id="C4", resources={} if caps is None else {"machine": caps})
     )
     rec = RecordingEgress()
     env.setup_egress([rec])
@@ -92,10 +94,10 @@ def _lowlevel_records():
     return rec.records
 
 
-def _builder_records():
+def _builder_records(**capacity):
     rec = RecordingEgress()
     app = SimulationContext("C4", factor=0.0)
-    app.add_resource("machine", current_cap=1, max_cap=1)
+    app.add_resource("machine", **(capacity or {"current_cap": 1, "max_cap": 1}))
     app.add_service("work", dist="constant", value=5.0)
     app.add_arrival("jobs", dist="constant", value=2.0)
     app.add_egress(rec)
@@ -114,9 +116,9 @@ def _builder_records():
     return rec.records
 
 
-def _yaml_records():
+def _yaml_records(blueprint="resource_queue.yaml"):
     rec = RecordingEgress()
-    path = Path(__file__).parent / "blueprints" / "resource_queue.yaml"
+    path = Path(__file__).parent / "blueprints" / blueprint
     app = SimulationContext.from_yaml(path)
     app.add_egress(rec)
     app.run()
@@ -128,6 +130,43 @@ def test_c4_ordinary_request_and_release():
 
     for records in (_lowlevel_records(), _builder_records(), _yaml_records()):
         assert _started(records) == EXPECTED_STARTS
+
+
+def test_c4_default_capacity():
+    """A resource declared with no capacity has one unit, as `simpy.Resource(env)`:
+    the jobs are served one after the other. The low-level resource registers
+    itself when the registry has no path for it."""
+    assert _reference_starts() == EXPECTED_STARTS
+
+    for records in (
+        _lowlevel_records(None),
+        _builder_records(),
+        _yaml_records("c4_default_capacity.yaml"),
+    ):
+        assert _started(records) == EXPECTED_STARTS
+
+    # Only max_cap given: the capacity is one, and the largest a live raise can set
+    # is max_cap
+    records = _builder_records(max_cap=3)
+    assert _started(records) == EXPECTED_STARTS
+
+
+UNLIMITED_STARTS = [2.0, 4.0, 6.0, 8.0, 10.0, 12.0]
+
+
+def test_c4_resource_with_no_capacity_limit():
+    """A capacity of infinity never queues a request, as `simpy.Resource(env,
+    float("inf"))`: every job starts when it arrives."""
+    assert _reference_starts(float("inf")) == UNLIMITED_STARTS
+
+    inf = float("inf")
+    for records in (
+        _lowlevel_records(CapacityConfig(current_cap=inf, max_cap=inf)),
+        _lowlevel_records(CapacityConfig(current_cap=inf)),
+        _builder_records(current_cap=inf),
+        _yaml_records("c4_no_limit.yaml"),
+    ):
+        assert _started(records) == UNLIMITED_STARTS
 
 
 # Priority request: a holder takes the machine at 100 for 10 seconds; at 101 four
@@ -290,7 +329,7 @@ def _low_level_cancel():
             req = machine.request()
             yield env.timeout(2)
             req.cancel()
-            seen["queue after cancel"] = len(machine.queue.items)
+            seen["queue after cancel"] = len(machine.queue)
             yield env.timeout(10)
             seen["waiter granted"] = req.triggered
 
@@ -374,7 +413,7 @@ def _builder_abandon(target):
         context.interrupt(target, cause="recall")
         yield context.env.timeout(0.5)
         machine = context.get_resource("machine")
-        seen["in use"], seen["queue"] = machine.in_use, len(machine.queue.items)
+        seen["in use"], seen["queue"] = machine.in_use, len(machine.queue)
 
     app.add_process(script)
     records = run_builder(app, 25)
@@ -403,7 +442,7 @@ def test_c4_cancel_before_a_grant():
     assert _started_of(records, "waiters-1") == starts
     yaml_records, app = run_yaml("c4_cancel_waiting.yaml")
     assert _started_of(yaml_records, "waiters-1") == starts
-    assert app.get_resource("machine").queue.items == []
+    assert app.get_resource("machine").queue == []
 
 
 def test_c4_cancel_after_a_grant():
@@ -481,7 +520,7 @@ def _builder_several():
 
 def _holdings(app):
     picker, bench = app.get_resource("picker"), app.get_resource("bench")
-    return (picker.in_use, bench.in_use, len(bench.queue.items))
+    return (picker.in_use, bench.in_use, len(bench.queue))
 
 
 def test_c4_hold_several_resources():
@@ -521,7 +560,7 @@ def test_c4_hold_several_resources():
     )
     run_low_level(params, start, 15)
     picker, bench = start.parts
-    assert (picker.in_use, bench.in_use, len(bench.queue.items)) == holdings
+    assert (picker.in_use, bench.in_use, len(bench.queue)) == holdings
 
     records, app = _builder_several()
     assert _holdings(app) == holdings
@@ -895,3 +934,463 @@ def test_c4_renege_ahead_of_a_preempting_request():
 
     assert _renege_trace(run_builder(app, 10)) == expected
     assert _renege_trace(run_yaml("c4_renege_ahead.yaml")[0]) == expected
+
+
+# ------------------------------------------------- count, queue and users
+
+
+def _snapshot(machine):
+    """What a monitor reads: the count, the queue length, the users and the queue."""
+    return (
+        machine.count,
+        len(machine.queue),
+        [who(request) for request in machine.users],
+        [who(request) for request in machine.queue],
+    )
+
+
+def test_c4_count_queue_and_users(tmp_path):
+    """After each event the count, the queue and the users of a resource read as
+    SimPy's, the monitoring guide's pattern extended with the users: a resource of
+    two units served first in, first out, and a priority resource whose requests
+    have equal priorities and mixed preempt flags (`not preempt` ranks last)."""
+    times = [i + 0.25 for i in range(11)]
+    cases = {
+        "fifo": (
+            {"current_cap": 2, "max_cap": 2},
+            lambda env: simpy.Resource(env, capacity=2),
+            [
+                Job("a", 0, 4),
+                Job("b", 0.5, 4),
+                Job("c", 1, 2),
+                Job("d", 1.5, 2),
+                Job("e", 2, 1),
+            ],
+        ),
+        "equal priorities": (
+            {"current_cap": 1, "max_cap": 1, "queue": "priority"},
+            lambda env: simpy.PriorityResource(env, capacity=1),
+            [
+                Job("a", 0, 5, priority=0),
+                Job("x", 1, 1, priority=1, preempt=False),
+                Job("y", 1, 1, priority=1),
+                Job("z", 1.5, 1, priority=1),
+            ],
+        ),
+    }
+    for name, (spec, make, jobs) in cases.items():
+        folder = tmp_path / name.replace(" ", "_")
+        folder.mkdir()
+        reference = run_simpy(make, jobs, 12, observe=(times, _snapshot))
+        assert reference.readings[1][1][0] == 2 or name != "fifo"
+        for result in run_desflow(folder, spec, jobs, 12, observe=(times, _snapshot)):
+            assert result.readings == reference.readings
+            assert result.trace == reference.trace
+
+
+def _reference_conditions():
+    """Plain SimPy: a late customer balks when two requests wait; a watcher resumes
+    when the machine has no user."""
+    env = simpy.Environment()
+
+    class Watched(simpy.Resource):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.changed = []
+
+        def _do_get(self, event):
+            # SimPy's own `_do_get`, with the watchers woken as the user leaves: before
+            # the release event, whose callback grants the next request
+            if event.request in self.users:
+                self.users.remove(event.request)
+            for waiting in self.changed:
+                waiting.succeed()
+            self.changed = []
+            event.succeed()
+
+    machine = Watched(env, capacity=1)
+    seen = {}
+
+    def job(at, hold):
+        yield env.timeout(at)
+        with machine.request() as req:
+            yield req
+            yield env.timeout(hold)
+
+    def late():
+        yield env.timeout(3)
+        if len(machine.queue) >= 2:
+            seen["balked"] = env.now
+            return
+        with machine.request() as req:
+            yield req
+
+    def watcher():
+        yield env.timeout(0.5)
+        while machine.count >= 1:
+            event = env.event()
+            machine.changed.append(event)
+            yield event
+        seen["resumed"] = env.now
+
+    for at, hold in ((0, 4), (1, 2), (2, 2)):
+        env.process(job(at, hold))
+    env.process(late())
+    env.process(watcher())
+    env.run(until=12)
+    return seen
+
+
+def test_c4_users_and_queue_in_conditions():
+    """`queue.<resource>` in a balk and `users.<resource>` in a wait condition read
+    the queue length and the user count, in YAML and the builder."""
+    expected = _reference_conditions()
+    assert expected == {"balked": 3, "resumed": 4}
+
+    def seen(records):
+        return {
+            "balked": times(records, "late", "balked")[0],
+            "resumed": times(records, "watcher")[0],
+        }
+
+    records, app = run_yaml("c4_conditions.yaml")
+    assert seen(records) == expected
+    assert app.get_resource("machine").queue == []
+
+    app = SimulationContext("C4q", factor=0.0)
+    app.add_resource("machine")
+    app.add_service("hold", dist="constant", value=4)
+    app.add_service("short", dist="constant", value=2)
+
+    @app.task(service_id="hold", resource_id="machine")
+    def holder(task_id):
+        return {"event": "held"}
+
+    @app.task(service_id="short", resource_id="machine")
+    def job(task_id):
+        return {"event": "done"}
+
+    @app.task(service_id="short", resource_id="machine", balk="queue.machine >= 2")
+    def late(task_id):
+        return {"event": "done"}
+
+    @app.task(wait={"condition": "users.machine < 1"})
+    def watcher(task_id):
+        return {"event": "free"}
+
+    def script(context):
+        for at, task in ((0, holder), (0.5, watcher), (1, job), (2, job), (3, late)):
+            yield context.env.timeout(at - context.env.now)
+            context.spawn(task(context.next_instance(task.__name__)))
+
+    app.add_process(script)
+    assert seen(run_builder(app, 12)) == expected
+
+
+CONDITION_MODEL = """
+simulation: {sim_id: T, factor: 0}
+resources:
+  machine: {queue: priority, preempt: true}
+services:
+  long: {dist: constant, value: 5}
+arrivals:
+  los: {replay: {path: los.csv}, spawn: lo}
+  his: {replay: {path: his.csv}, spawn: hi}
+  watchers: {replay: {path: watchers.csv}, spawn: watcher}
+tasks:
+  lo: {service: long, resource: machine, priority: 5, payload: {event: done}}
+  hi: {service: long, resource: machine, priority: 1, payload: {event: done}}
+  watcher:
+    wait: {condition: "%s"}
+    payload: {event: seen}
+run: {until: %s}
+"""
+
+
+def test_c4_a_condition_is_not_checked_between_the_steps_of_one_call(tmp_path):
+    """A request that is granted at once never shows in `queue.<resource>`, and a
+    preemption never shows an empty `users.<resource>`: a condition is checked
+    after the request is made and granted, not between the two."""
+    (tmp_path / "queue").mkdir()
+    seen_queue = run_yaml_text(
+        tmp_path / "queue",
+        CONDITION_MODEL % ("queue.machine >= 1", 10),
+        {"los": [1], "his": [], "watchers": [0.5]},
+    )
+    assert seen_queue.error is None
+    assert times(seen_queue.records, "lo") == [6.0]  # the request was granted at 1
+    assert times(seen_queue.records, "watcher") == []
+
+    (tmp_path / "users").mkdir()
+    seen_users = run_yaml_text(
+        tmp_path / "users",
+        CONDITION_MODEL % ("users.machine < 1", 3),
+        {"los": [0], "his": [1], "watchers": [0.5]},
+    )
+    assert seen_users.error is None
+    assert times(seen_users.records, "lo", "preempted") == [1.0]
+    assert times(seen_users.records, "watcher") == []
+
+
+# ------------------------------------------------------- the release event
+
+
+def _release_scenario(env, machine, seen):
+    """What a release event shows: its request, when it is triggered, its value, and
+    when the next waiting request is granted. `machine` is a SimPy `Resource` or a
+    `DynamicResource`."""
+    holder = machine.request()
+    yield holder
+    waiter = machine.request()
+    yield env.timeout(1)
+    release = machine.release(holder)
+    seen["request"] = release.request is holder
+    seen["triggered"] = release.triggered
+    seen["processed"] = release.processed
+    seen["value"] = release.value
+    seen["waiter at release"] = waiter.triggered
+    yield release
+    seen["released at"] = env.now
+    seen["waiter after release event"] = waiter.triggered
+    yield waiter
+    seen["waiter granted at"] = env.now
+    # A release of a request that was never granted gives back nothing
+    queued = machine.request()
+    never = machine.release(queued)
+    seen["never granted"] = (
+        never.request is queued,
+        never.triggered,
+        len(machine.queue),
+    )
+    # A second release of a request gives back nothing either
+    machine.release(holder)
+    yield env.timeout(0)
+    seen["after the second release"] = (machine.count, len(machine.queue))
+
+
+def test_c4_release_event():
+    """A release is an event that holds its request, is triggered as soon as it is
+    made, has the value None, and grants the next waiting request when it is
+    processed, one event later: the times equal SimPy's in the low-level API and the
+    builder."""
+    env = simpy.Environment()
+    reference = {}
+    env.process(_release_scenario(env, simpy.Resource(env, 1), reference))
+    env.run(until=10)
+    assert reference["request"] and reference["triggered"]
+    assert reference["value"] is None and not reference["waiter at release"]
+    assert reference["waiter granted at"] == 1
+
+    seen = {}
+
+    def start(env):
+        machine = DynamicResource(env, "C4", "machine")
+        env.process(_release_scenario(env, machine, seen))
+
+    run_low_level(SimParameter(sim_id="C4"), start, 10)
+    assert seen == reference
+
+    seen = {}
+    app = SimulationContext("C4", factor=0.0)
+    app.add_resource("machine")
+    app.add_process(
+        lambda context: _release_scenario(
+            context.env, context.get_resource("machine"), seen
+        )
+    )
+    run_builder(app, 10)
+    assert seen == reference
+
+    # No request names the oldest user, and holds it
+    def start_none(env):
+        machine = DynamicResource(env, "C4", "machine")
+        request = machine.request()
+        assert machine.release().request is request
+        assert machine.release().request is None
+
+    run_low_level(SimParameter(sim_id="C4"), start_none, 1)
+
+
+# -------------------------------------------------------------- usage since
+
+
+def _usage_scenario(env, machine, seen):
+    """`usage_since` is None while a request waits and the time of its grant after:
+    a grant at a release, and a grant at a release that ties with a new request."""
+    first = machine.request()
+    second = machine.request()
+    yield first
+    seen["first"] = first.usage_since
+    seen["second waiting"] = second.usage_since
+    yield env.timeout(3)
+    machine.release(first)
+    yield second
+    seen["second"] = second.usage_since
+    yield env.timeout(2)
+    # A release and a new request at one instant: the request is queued behind the
+    # release, which grants the head at the same time
+    third = machine.request()
+    machine.release(second)
+    yield third
+    seen["third"] = third.usage_since
+    seen["users"] = [user.usage_since for user in machine.users]
+
+
+def test_c4_usage_since():
+    """A granted request holds the time of its grant in `usage_since`, as SimPy's,
+    and a request still waiting holds None. After a capacity raise, every request it
+    grants holds the time of the raise."""
+    env = simpy.Environment()
+    reference = {}
+    env.process(_usage_scenario(env, simpy.Resource(env, 1), reference))
+    env.run(until=20)
+    assert reference == {
+        "first": 0,
+        "second waiting": None,
+        "second": 3,
+        "third": 5,
+        "users": [5],
+    }
+
+    seen = {}
+
+    def start(env):
+        env.process(_usage_scenario(env, DynamicResource(env, "C4", "machine"), seen))
+
+    run_low_level(SimParameter(sim_id="C4"), start, 20)
+    assert seen == reference
+
+    # A raise grants every waiting request at once, with the time of the raise
+    raised = {}
+
+    def start_raise(env):
+        machine = DynamicResource(env, "C4", "machine")
+
+        def user():
+            requests = [machine.request() for _ in range(3)]
+            yield env.timeout(4)
+            env.registry.update("C4.resources.machine.max_cap", 3)
+            env.registry.update("C4.resources.machine.current_cap", 3)
+            yield env.timeout(1)
+            raised["usage"] = [request.usage_since for request in requests]
+
+        env.process(user())
+
+    run_low_level(SimParameter(sim_id="C4"), start_raise, 10)
+    assert raised["usage"] == [0, 4, 4]
+
+
+# --------------------------------------------------------- default priority
+
+
+def test_c4_default_priority(tmp_path):
+    """A request that names no priority has priority 0, as SimPy's `PriorityRequest`.
+    On a priority resource requests without a priority tie with priority 0 first in,
+    first out and go ahead of priority 1; on a preemptive resource one takes the unit
+    of a priority 1 user. A low-level `request()` and a task with no `priority` both
+    rank 0."""
+    ordered = [
+        Job("holder", 0, 5, priority=0),
+        Job("one", 1, 1, priority=1),
+        Job("none_a", 1.5, 1),
+        Job("zero", 2, 1, priority=0),
+        Job("none_b", 2.5, 1),
+    ]
+    preemptive = [Job("user", 0, 5, priority=1), Job("none", 2, 1)]
+    cases = {
+        "queue": (
+            {"current_cap": 1, "max_cap": 1, "queue": "priority"},
+            lambda env: simpy.PriorityResource(env, capacity=1),
+            ordered,
+            ["holder", "none_a", "zero", "none_b", "one"],
+        ),
+        "preempt": (
+            {"current_cap": 1, "max_cap": 1, "queue": "priority", "preempt": True},
+            lambda env: simpy.PreemptiveResource(env, capacity=1),
+            preemptive,
+            ["user", "none", "user"],
+        ),
+    }
+    for name, (spec, make, jobs, order) in cases.items():
+        folder = tmp_path / name
+        folder.mkdir()
+        reference = run_simpy(make, jobs, 20)
+        started = [n for _t, n, s in reference.trace if s in ("started", "resumed")]
+        assert started == order
+        for result in run_desflow(folder, spec, jobs, 20):
+            assert result.trace == reference.trace
+
+
+# -------------------------------------------------------- custom resources
+
+
+def _custom_cases():
+    """Each custom type, its SimPy twin, the jobs and what the resource keeps."""
+    return {
+        "monitored": (
+            {"current_cap": 1, "max_cap": 1, "type": custom.MonitoredResource},
+            lambda env: custom.SimPyMonitoredResource(env, capacity=1),
+            [Job("a", 0, 3), Job("b", 0.5, 3), Job("c", 1, 2), Job("d", 1.5, 1)],
+            "data",
+        ),
+        "newest user loses": (
+            {
+                "current_cap": 2,
+                "max_cap": 2,
+                "queue": "priority",
+                "type": custom.NewestUserLoses,
+            },
+            lambda env: custom.SimPyNewestUserLoses(env, capacity=2),
+            [Job("a", 0, 10, priority=3), Job("b", 1, 10, priority=2)]
+            + [Job("c", 2, 3, priority=1)],
+            None,
+        ),
+        "two waiting": (
+            {
+                "current_cap": 1,
+                "max_cap": 1,
+                "queue": "priority",
+                "type": custom.TwoWaiting,
+            },
+            lambda env: custom.SimPyTwoWaiting(env, capacity=1),
+            [
+                Job("a", 0, 5, priority=1),
+                Job("b", 1, 3, priority=2),
+                Job("c", 2, 2, priority=0),
+                Job("d", 3, 1, priority=1),
+            ],
+            None,
+        ),
+        "stamped requests": (
+            {"current_cap": 1, "max_cap": 1, "type": custom.Stamping},
+            lambda env: custom.SimPyStamping(env, capacity=1),
+            [Job("a", 0, 3), Job("b", 1, 3), Job("c", 2, 1)],
+            "stamps",
+        ),
+    }
+
+
+def test_c4_custom_resource_type(tmp_path):
+    """A subclass of `ResourceBase` behaves as the same SimPy subclass: the guide's
+    `MonitoredResource`, a preemptive resource that takes the unit of the newest
+    user, a priority resource whose put queue is `SortedQueue` with a `maxlen`, and
+    a request class that stamps the time. The low-level API, the builder and YAML
+    give SimPy's trace and what the resource kept."""
+    for name, (spec, make, jobs, kept) in _custom_cases().items():
+        folder = tmp_path / name.replace(" ", "_")
+        folder.mkdir()
+        reference = run_simpy(make, jobs, 20)
+        assert reference.trace
+        for result in run_desflow(folder, spec, jobs, 20):
+            assert type(result.resource) is spec["type"], name
+            assert result.trace == reference.trace, name
+            if kept is not None:
+                assert getattr(result.resource, kept) == getattr(
+                    reference.resource, kept
+                ), name
+    # The scenarios differ from the stock classes where they are meant to
+    spec, make, jobs, _kept = _custom_cases()["newest user loses"]
+    stock = run_simpy(lambda env: simpy.PreemptiveResource(env, capacity=2), jobs, 20)
+    assert stock.trace != run_simpy(make, jobs, 20).trace
+    spec, make, jobs, _kept = _custom_cases()["two waiting"]
+    assert "balked" in [s for _t, _n, s in run_simpy(make, jobs, 20).trace]

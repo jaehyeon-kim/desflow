@@ -144,6 +144,33 @@ def run_yaml(
     return Outcome(rec.records, value, error, app)
 
 
+def run_yaml_text(
+    folder: Path,
+    text: str,
+    arrivals: Dict[str, List[float]],
+    prepare: Optional[Callable[[SimulationContext], None]] = None,
+) -> Outcome:
+    """Runs a blueprint given as text, with one replay file per arrival (the times
+    it spawns at), in `folder`. The run's exception is returned in the `Outcome`."""
+    for name, moments in arrivals.items():
+        (folder / f"{name}.csv").write_text(
+            "time\n" + "".join(f"{t}\n" for t in moments)
+        )
+    (folder / "model.yaml").write_text(text)
+    rec = RecordingEgress()
+    app = SimulationContext.from_yaml(folder / "model.yaml")
+    app.add_egress(rec)
+    if prepare is not None:
+        prepare(app)
+    error: Optional[BaseException] = None
+    value: Any = None
+    try:
+        value = app.run()  # type: ignore[func-returns-value]
+    except Exception as exc:  # noqa: BLE001: returned for the caller to assert on
+        error = exc
+    return Outcome(rec.records, value, error, app)
+
+
 def run_builder(
     app: SimulationContext, until: float, raises: bool = False
 ) -> Union[List[Dict[str, Any]], Outcome]:

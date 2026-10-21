@@ -9,14 +9,14 @@ builder's `add_breakdown` and a YAML resource's `breakdown` start it for you.
 from typing import Any
 
 from desflow.core.sampler import Sampler
-from desflow.resources.resource import DynamicResource
+from desflow.resources.resource import ResourceBase
 
 # What a breakdown does to the tasks being served
 BREAKDOWN_WORK = ("interrupt", "finish")
 
 
 def run_breakdowns(
-    env: Any, resource: DynamicResource, sampler: Sampler, work: str = "interrupt"
+    env: Any, resource: ResourceBase, sampler: Sampler, work: str = "interrupt"
 ):
     """
     Breaks a resource down and repairs it, for as long as the run lasts.
@@ -53,7 +53,7 @@ def run_breakdowns(
         _publish(env, resource, "repaired")
 
 
-def _publish(env: Any, resource: DynamicResource, status: str) -> None:
+def _publish(env: Any, resource: ResourceBase, status: str) -> None:
     publish = getattr(env, "publish_event", None)
     if publish is not None:
         publish(resource.obj_id, {"status": status, "reason": "failure"})

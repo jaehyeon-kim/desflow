@@ -1,7 +1,17 @@
+import functools
+
 import pytest
 import simpy
+from simpy.resources.resource import SortedQueue
 
-from desflow.resources.resource import DynamicResource
+from desflow import CapacityConfig, SimParameter
+from desflow.core.environment import _jsonable
+from desflow.core.statistics import _resource_readings
+from desflow.resources.resource import (
+    DynamicResource,
+    ResourceBase,
+    check_resource_type,
+)
 
 
 def _free(res):
@@ -437,10 +447,10 @@ def test_cancel_leaves_the_queue_at_once_and_does_nothing_after_a_grant(
     res = DynamicResource(env, "Shop", "packers")
     held = res.request()
     waiting = res.request()
-    assert len(res.queue.items) == 1
+    assert len(res.queue) == 1
 
     waiting.cancel()
-    assert res.queue.items == []
+    assert res.queue == []
 
     held.cancel()  # granted: SimPy's cancel releases nothing either
     assert res.in_use == 1
@@ -570,3 +580,122 @@ def test_two_failures_in_a_row_restart_the_failure_clock():
     assert readings["S1.stats.resources.machine.failures"] == 2
     assert readings["S1.stats.resources.machine.downtime"] == 8
     assert readings["S1.stats.resources.machine.down"] == 0
+
+
+def test_a_resource_with_no_registry_entry_registers_itself(env, registry):
+    """A resource built with no entry for it has one unit, as `simpy.Resource(env)`,
+    and the registry holds its paths."""
+    res = DynamicResource(env, "Solo", "bench")
+    assert res.capacity == 1 and res.count == 0
+    assert registry.get("Solo.resources.bench.current_cap").value == 1
+    assert registry.get("Solo.resources.bench.max_cap").value == 1
+
+
+def test_a_resource_with_infinite_capacity_never_queues(env, registry):
+    registry.register_sim_parameter(
+        SimParameter(
+            sim_id="Open",
+            resources={
+                "bench": CapacityConfig(current_cap=float("inf"), max_cap=float("inf"))
+            },
+        )
+    )
+    res = DynamicResource(env, "Open", "bench")
+    requests = [res.request() for _ in range(50)]
+    env.run(until=1)
+    assert all(request.triggered for request in requests)
+    assert res.capacity == float("inf") and res.queue == []
+    readings = _resource_readings(res)
+    assert readings["utilization"] == 0.0
+    assert _jsonable(readings["capacity"]) is None
+
+
+def test_the_queue_is_a_list_in_service_order(env, registry, sample_params):
+    registry.register_sim_parameter(sample_params)
+    _set_cap(registry, 0)
+    flush_events(env)
+    res = DynamicResource(env, "Shop", "packers", queue="priority")
+    low, high, mid = res.request(priority=5), res.request(priority=1), res.request(3)
+    assert list(res.queue) == [high, mid, low]
+    assert res.queue is res.put_queue and res.queue[0] is high
+    assert res.queue.remove(mid) is True and res.queue.remove(mid) is False
+    assert list(res.queue) == [high, low]
+
+
+def test_queue_items_still_returns_the_ranked_pairs_with_a_warning(
+    env, registry, sample_params
+):
+    registry.register_sim_parameter(sample_params)
+    _set_cap(registry, 0)
+    flush_events(env)
+    res = DynamicResource(env, "Shop", "packers")
+    first, second = res.request(), res.request()
+    with pytest.warns(FutureWarning, match="0.24.0"):
+        pairs = res.queue.items
+    assert [request for _rank, request in pairs] == [first, second]
+    assert pairs[0][0] < pairs[1][0]
+
+
+def test_a_full_waiting_line_refuses_a_request(env, registry, sample_params):
+    registry.register_sim_parameter(sample_params)
+    _set_cap(registry, 0)
+    flush_events(env)
+    res = DynamicResource(env, "Shop", "packers", queue_limit=2)
+    first, second = res.request(), res.request()
+    with pytest.raises(RuntimeError, match="Cannot append event. Queue is full."):
+        res.request()
+    assert list(res.queue) == [first, second]
+    first.cancel()
+    assert len(res.queue) == 1
+    res.request()
+    assert len(res.queue) == 2
+
+
+def test_a_queue_limit_counts_waiting_requests_after_a_lowered_capacity(
+    env, registry, sample_params
+):
+    """Requests that cannot be granted because the capacity was lowered wait, and
+    the limit counts them."""
+    registry.register_sim_parameter(sample_params)
+    res = DynamicResource(env, "Shop", "packers", queue_limit=1)
+    res.request()
+    res.request()
+    _set_cap(registry, 1)
+    flush_events(env)
+    res.request()  # both units are busy, one is owed: it waits
+    with pytest.raises(RuntimeError, match="Queue is full"):
+        res.request()
+
+
+def test_a_resource_type_and_queue_limit_are_checked(env, registry, sample_params):
+    registry.register_sim_parameter(sample_params)
+    with pytest.raises(ValueError, match="queue_limit must be 0 or more"):
+        DynamicResource(env, "Shop", "packers", queue_limit=-1)
+
+    class Own(ResourceBase):
+        PutQueue = staticmethod(functools.partial(SortedQueue, maxlen=1))
+
+    with pytest.raises(ValueError, match="custom PutQueue sets its own maxlen"):
+        Own(env, "Shop", "packers", queue_limit=1)
+    with pytest.raises(ValueError, match="subclass of ResourceBase"):
+        check_resource_type(simpy.Resource)
+    check_resource_type(Own)
+    check_resource_type(None)
+
+
+def test_a_subclass_changes_the_grant_with_do_put(env, registry, sample_params):
+    """`_do_put` and `_do_get` are the hooks, as SimPy's: this resource grants no
+    request while its count is odd."""
+    registry.register_sim_parameter(sample_params)
+
+    class Pairs(ResourceBase):
+        def _do_put(self, request):
+            if len(self.users) % 2 == 0 or len(self.put_queue) > 1:
+                return super()._do_put(request)
+
+    res = Pairs(env, "Shop", "packers")
+    first, second = res.request(), res.request()
+    third = res.request()
+    env.run(until=1)
+    assert first.triggered and second.triggered and not third.triggered
+    assert res.count == 2 and len(res.queue) == 1

@@ -7,9 +7,16 @@ field. Each side runs its own files, so a changed example, runner or blueprint n
 runs on the baseline:
 
     uv run --all-extras python scripts/regression.py capture --root . --out new.json
-    uv run --no-project --python 3.12 --with "desflow[all]==0.22.0" --with pytest \\
-        python scripts/regression.py capture --root <v0.22.0 checkout> --out old.json
-    uv run --all-extras python scripts/regression.py compare old.json new.json
+    cd /tmp && uv run --no-project --python 3.12 --with "desflow[all]==0.22.0" \\
+        --with pytest python <repository>/scripts/regression.py capture \\
+        --root <v0.22.0 checkout> --out /tmp/old.json
+    uv run --all-extras python scripts/regression.py compare /tmp/old.json new.json
+
+Run the old side from a directory outside the repository, such as `/tmp`, and name
+the working tree's script by its absolute path. From inside the repository,
+`uv run --no-project` imports the working tree's desflow, not the released wheel
+(`desflow.__file__` is then `src/desflow/__init__.py`; from `/tmp` it is the PyPI
+package).
 
 `--root` is put first on `sys.path`, with its `tests/docs`, so the capture imports
 that checkout's twin-test runners and its `tests.conformance`; the desflow it runs is
