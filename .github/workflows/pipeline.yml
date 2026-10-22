@@ -21,8 +21,8 @@ concurrency:
 jobs:
   # Stages, each starting only when the one before it passes:
   # 1. checks, in parallel: lint, extras-isolation and core-install;
-  # 2. tests, in parallel: unit-test, integration-test, blueprint, simpy-range and
-  #    docs-build;
+  # 2. tests, in parallel: unit-test, integration-test, blueprint, simpy-range,
+  #    docs-build and regression;
   # 3. docs, on main only, once every test job has passed.
   # The unit, conformance and docs tests run in parallel worker processes
   # (pytest-xdist, -n auto, one worker per CPU).
@@ -333,8 +333,50 @@ jobs:
           DISABLE_MKDOCS_2_WARNING: "true"
         run: uv run mkdocs build --strict
 
+  # Every example, conformance blueprint and regression scenario runs unpaced on the
+  # last release from PyPI and on this commit, and the records are compared. A
+  # difference fails the job unless tests/regression/expected.yaml lists it with a
+  # `since` above the last release, so a commit that changes a record on purpose adds
+  # its entry with the next version. The baseline is the newest `v*` tag in the
+  # history, so once a release is tagged, later pushes are compared with it. The
+  # baseline side runs from outside the repository, because uv run --no-project
+  # inside it imports the working tree's desflow.
+  regression:
+    needs: [lint, extras-isolation, core-install]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Check out the last release beside the repository
+        run: |
+          tag=$(git describe --tags --abbrev=0 --match 'v*')
+          echo "BASELINE=${tag#v}" >> "$GITHUB_ENV"
+          git worktree add "$RUNNER_TEMP/baseline" "$tag"
+
+      - name: Capture this commit
+        run: uv run --all-extras python scripts/regression.py capture --root . --out "$RUNNER_TEMP/new.json"
+
+      - name: Capture the last release
+        working-directory: ${{ runner.temp }}
+        run: |
+          uv run --no-project --python 3.12 --with "desflow[all]==$BASELINE" --with pytest \
+            python "$GITHUB_WORKSPACE/scripts/regression.py" capture \
+            --root "$RUNNER_TEMP/baseline" \
+            --scenarios "$GITHUB_WORKSPACE/tests/regression/scenarios" \
+            --out "$RUNNER_TEMP/old.json"
+
+      - name: Compare the two captures
+        run: uv run --all-extras python scripts/regression.py compare "$RUNNER_TEMP/old.json" "$RUNNER_TEMP/new.json" --baseline "$BASELINE"
+
   docs:
-    needs: [unit-test, integration-test, blueprint, simpy-range, docs-build]
+    needs: [unit-test, integration-test, blueprint, simpy-range, docs-build, regression]
     permissions:
       contents: write
       pages: write

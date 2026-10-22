@@ -101,9 +101,9 @@ def test_an_entry_whose_since_is_not_above_the_baseline_does_not_apply(tmp_path)
     assert _compare(tmp_path, old, new, [_entry("example:a:yaml", "0.22.1")]) == 0
 
 
-def test_an_entry_that_matches_no_difference_is_reported_as_stale(tmp_path, capsys):
+def test_an_entry_that_matches_no_difference_fails_as_stale(tmp_path, capsys):
     captures = {"example:a:yaml": SAME}
-    assert _compare(tmp_path, captures, captures, [_entry("example:a:yaml")]) == 0
+    assert _compare(tmp_path, captures, captures, [_entry("example:a:yaml")]) == 1
     out = capsys.readouterr().out
     assert "1 expected entries match no difference" in out
     assert "example:a:yaml" in out

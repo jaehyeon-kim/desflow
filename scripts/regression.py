@@ -36,7 +36,7 @@ different records.
 reads `tests/regression/expected.yaml` (or `--expected`): a run only in the new
 capture is reported as added; a run only in the old capture, or with different
 records, fails unless an entry lists its key with a `since` above the baseline; an
-entry that matches no difference is reported as stale.
+entry that matches no difference fails too, so the file keeps no stale entries.
 """
 
 import argparse
@@ -236,6 +236,7 @@ def compare(
         print(f"{len(failures)} differences:")
         for line in failures:
             print(f"  {line}")
+    if failures or stale:
         return 1
     print(
         f"{len(matched)} expected differences, no others, across {len(after)} runs"

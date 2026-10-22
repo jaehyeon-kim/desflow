@@ -266,13 +266,19 @@ GROUPS: Dict[str, str] = {
 # One or two sentences under each group's heading: what the group covers.
 GROUP_INTROS: Dict[str, str] = {
     "C1": (
-        "Waiting a fixed time, events a task can fire or fail, and processes: "
-        "starting one, waiting for it, reading its return value or its failure, and "
-        "inspecting an event or a process while it runs."
+        "Waiting a fixed time, events a task can fire or fail, including an event "
+        "that triggers once, and processes: starting one, with or without a delay "
+        "and without waiting for it, waiting for it, reading its return value or "
+        "its failure, being told when it ends, running actions when an event "
+        "happens, and inspecting an event, a process or the running process while "
+        "it runs."
     ),
     "C2": (
         "Waiting for the first of several events, or for all of them, as SimPy's "
-        "`AnyOf` and `AllOf` conditions do."
+        "`AnyOf` and `AllOf` conditions do, with conditions inside conditions, a "
+        "rule of your own such as at least some of them (SimPy's condition with a "
+        "count rule), a condition over no events, and a request, put or get as "
+        "one of the events."
     ),
     "C3": (
         "Interrupting a task while it waits or while it is in service, and a "
@@ -288,13 +294,19 @@ GROUP_INTROS: Dict[str, str] = {
     ),
     "C5": (
         "Putting and getting items in a store and amounts in a container, with "
-        "capacity limits, priority items, filtered gets, cancelled puts and gets, "
-        "and the order of puts and gets at the same time."
+        "capacity limits or none, priority items of any orderable type, filtered "
+        "gets, cancelled puts and gets, the order of puts and gets at the same "
+        "time, reading what a store holds and its put and get queues, a put or get "
+        "that the task does not wait for, and stores and containers of your own "
+        "classes."
     ),
     "C6": (
-        "Starting a run from a given time and state, ending it at a time, at an "
-        "event or on a condition, draining it, and stepping through it one event "
-        "at a time."
+        "Starting a run from a given time and state, reading the current time, "
+        "ending it at a time, at an event or on a condition and reading the value "
+        "that ended it, draining it, running it in segments, stepping through it "
+        "one model event at a time, scheduling an event with a priority, an "
+        "environment class of your own, and the pace of the run: its factor, "
+        "strict pacing and syncing with the wall clock."
     ),
     "C7": (
         "Customers who give up after waiting too long (reneging) and customers "
@@ -368,12 +380,13 @@ def compatibility_page() -> str:
         if len(alone) > 1
         else "".join(alone)
     )
-    no_inventory = (
-        f", {alone[0]}, which is not an inventory item of its own"
-        if len(kept) == 1 and alone
-        else f"; one of them, {alone[0]}, is not an inventory item of its own"
+    # The register's rows without an inventory item are not SimPy features, so the
+    # count above leaves them out and this clause names them.
+    one_more = (
+        f" and one more, {names}, which is not a SimPy feature of its own"
         if len(alone) == 1
-        else f"; {len(alone)} of them, {names}, are not inventory items of their own"
+        else f" and {len(alone)} more, {names}, which are not SimPy features of "
+        "their own"
         if alone
         else ""
     )
@@ -390,12 +403,11 @@ def compatibility_page() -> str:
         "",
         f"**{count(native)}** features are native and checked in all three APIs, "
         f"**{count(not_yet)}** are not yet, and **{count(kept)}** are differences "
-        f"kept by design.{to_come} The last section lists {len(kept)} "
-        f"{'difference' if len(kept) == 1 else 'differences'} "
-        f"kept by design{no_inventory}.",
+        f"kept by design.{to_come} The last section lists those{one_more}.",
         "",
         "The low-level API is SimPy with a few classes added, so most SimPy features "
-        "work in it, those not yet checked included; [SimPy and desflow]"
+        f"work in it{', those not yet checked included' if not_yet else ''}; "
+        "[SimPy and desflow]"
         "(../des/simpy-and-desflow.md) explains how the two fit together. Where "
         "desflow differs from SimPy on purpose, the difference is listed under the "
         "table.",

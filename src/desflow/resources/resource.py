@@ -284,6 +284,10 @@ class ResourceBase(BaseDynamicResource):
         self.has_breakdowns = False
         self._down_since: Optional[float] = None
         self._downtime = 0.0
+        # The registry values `_target` last read and its result, so a grant that
+        # finds both values unchanged skips the conversion
+        self._target_read: Tuple[Any, Any] = (None, None)
+        self._target_value: Union[int, float] = 0
         super().__init__(env, sim_id, resource_id, "resources")
         BoundClass.bind_early(self)
 
@@ -444,8 +448,13 @@ class ResourceBase(BaseDynamicResource):
         """The registry's capacity, bound to [0, max_cap], and 0 while it is down."""
         if self.down:
             return 0
-        max_cap = _whole(self._max_cap_val.value)
-        return max(0, min(_whole(self._current_cap_val.value), max_cap))
+        current, max_cap = self._current_cap_val.value, self._max_cap_val.value
+        read = self._target_read
+        if current is read[0] and max_cap is read[1]:
+            return self._target_value
+        self._target_read = (current, max_cap)
+        self._target_value = max(0, min(_whole(current), _whole(max_cap)))
+        return self._target_value
 
     @property
     def downtime(self) -> float:

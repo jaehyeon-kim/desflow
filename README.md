@@ -126,7 +126,7 @@ run:
 
 ## Roadmap
 
-Before 1.0, desflow reaches feature parity with SimPy in YAML, the builder and the low-level API, and adds a JSON Schema for blueprints, `desflow explain`, the rest of the shop tutorial, more storage backends and a record format that 1.0 keeps stable. A simulation server with tools for AI agents follows 1.0. The [roadmap page](https://jaehyeon.me/desflow/latest/about/roadmap/) shows each step in order, with what is in progress.
+desflow reached feature parity with SimPy in YAML, the builder and the low-level API in 0.23.0. Before 1.0, it adds a JSON Schema for blueprints, `desflow explain`, the rest of the shop tutorial, more storage backends and a record format that 1.0 keeps stable. A simulation server with tools for AI agents follows 1.0. The [roadmap page](https://jaehyeon.me/desflow/latest/about/roadmap/) shows each step in order, with what is in progress.
 
 ## Learn More
 

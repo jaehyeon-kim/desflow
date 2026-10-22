@@ -427,22 +427,8 @@ WAIT_KINDS = (
     "running",
 )
 
-# Kinds a later SimPy release may add, refused until then with a clear message
-# rather than the one-branch or length error. The check reads the mapping's keys.
-NOT_YET_KINDS: Tuple[str, ...] = ()
-
 # Group kinds: a branch that holds named child branches.
 GROUP_KINDS = ("any", "all", "at_least")
-
-
-def _refuse_not_yet(spec: Any) -> None:
-    """Refuses a wait kind a later batch adds, before the length checks."""
-    if isinstance(spec, Mapping):
-        for kind in spec:
-            if kind in NOT_YET_KINDS:
-                raise ValueError(
-                    f"wait kind '{kind}' comes with desflow 0.23.0 and is not built yet"
-                )
 
 
 class WaitNode:
@@ -511,7 +497,6 @@ class Wait:
             ValueError: If the form, a branch or a condition is malformed, or a
                 branch name is used more than once.
         """
-        _refuse_not_yet(spec)
         if not isinstance(spec, Mapping) or not spec:
             raise ValueError(
                 f"wait takes one branch, or any or all of named branches, got {spec!r}"
@@ -525,7 +510,6 @@ class Wait:
         at the top of a single-branch wait), and registers every named node."""
         if not isinstance(spec, Mapping):
             raise ValueError(f"a wait branch is a mapping, got {spec!r}")
-        _refuse_not_yet(spec)
         keys = set(spec)
         if "at_least" in keys:
             node = self._at_least(spec, name)
@@ -607,7 +591,6 @@ def _wait_branch(branch: Any) -> Tuple[str, Any]:
     """One branch of a wait, as its kind and its checked target."""
     from desflow.utils import suggestion, time_to_seconds
 
-    _refuse_not_yet(branch)
     if not isinstance(branch, Mapping) or len(branch) != 1:
         raise ValueError(
             f"a wait branch is one of {', '.join(WAIT_KINDS)}, got {branch!r}"
