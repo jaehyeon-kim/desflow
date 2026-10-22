@@ -33,8 +33,8 @@ The common YAML keys and builder calls side by side, each linked to the page tha
 | Serve by priority | `queue: priority` and a task's `priority` | `add_resource(..., queue="priority")` and `@app.task(priority=)` | [Priorities](../tutorials/priorities.md) |
 | Let urgent work take a busy unit | `preempt: true` | `add_resource(..., preempt=True)` | [Interruptions](../tutorials/interruptions.md) |
 | Make a resource fail and be repaired | `resources.<name>.breakdown` | `app.add_breakdown(resource, time_to_failure=, repair=)` | [Breakdowns](../guides/breakdowns.md) |
-| Hold an amount, such as boxes | `containers: {stock: {current_cap, max_cap, level}}` | `app.add_container("stock", current_cap, max_cap, level=)` | [Stores and Containers](../user-guide/stores-and-containers.md) |
-| Hold items, such as parcels | `stores: {parcels: {current_cap, max_cap, items}}` | `app.add_store("parcels", current_cap, max_cap, items=)` | [Stores and Containers](../user-guide/stores-and-containers.md) |
+| Hold an amount, such as boxes | `containers: {stock: {current_cap, max_cap, level, type}}` | `app.add_container("stock", current_cap, max_cap, level=, type=)` | [Stores and Containers](../user-guide/stores-and-containers.md) |
+| Hold items, such as parcels | `stores: {parcels: {current_cap, max_cap, items, type}}` | `app.add_store("parcels", current_cap, max_cap, items=, type=)` | [Stores and Containers](../user-guide/stores-and-containers.md) |
 
 ## Tasks
 

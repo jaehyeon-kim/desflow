@@ -54,7 +54,9 @@ from desflow.core.expressions import Expression
 from desflow.core.environment import in_zone, resolve_zone
 from desflow.core.flow import Router, Transfer, Wait
 from desflow.models.params import DistributionConfig
+from desflow.resources.container import ContainerBase, check_container_type
 from desflow.resources.resource import ResourceBase, check_resource_type
+from desflow.resources.store import StoreBase, check_store_type
 from desflow.utils import suggestion, time_to_seconds
 
 # The names an egress `when` takes instead of a `!python` function.
@@ -303,22 +305,37 @@ class Resource(_Model):
         return value
 
 
-class Store(_Model):
-    """A `stores` entry: how many items it holds, whether it serves by priority, and
-    the items it holds when the run starts.
+def _room(current_cap: Optional[float], max_cap: Optional[float]) -> float:
+    """The capacity a store or container starts with, as the registry resolves it: a
+    missing `current_cap` is the `max_cap`, and with neither there is no limit."""
+    if current_cap is None:
+        current_cap = max_cap if max_cap is not None else float("inf")
+    if max_cap is None:
+        max_cap = current_cap
+    return min(current_cap, max_cap)
 
-    `items` are returned in the order given; a priority store's items are
-    `[priority, item]` pairs.
+
+class Store(_Model):
+    """A `stores` entry: how many items it holds, whether it serves by priority, the
+    items it holds when the run starts, and the class it is built from.
+
+    `current_cap` defaults to `max_cap`, and with neither the store has no limit;
+    `.inf` is no limit too. `max_cap` defaults to `current_cap`. A capacity is a whole
+    number or `.inf`. `items` are returned in the order given; a priority store's
+    items are `[priority, item]` pairs. `type` is a `!python` subclass of `StoreBase`,
+    which sets its own order, so it cannot be given with `priority`.
     """
 
-    current_cap: float
-    max_cap: float
+    current_cap: Optional[float] = None
+    max_cap: Optional[float] = None
     priority: bool = False
     items: List[Any] = Field(default_factory=list)
+    type: Optional[Type[StoreBase]] = None
 
     @model_validator(mode="after")
     def _items_fit(self) -> "Store":
-        room = min(self.current_cap, self.max_cap)
+        check_store_type(self.type, self.priority)
+        room = _room(self.current_cap, self.max_cap)
         if len(self.items) > room:
             raise ValueError(
                 f"the store holds {room:g} items, so it cannot start with "
@@ -333,29 +350,52 @@ class Store(_Model):
 
 
 class Container(_Model):
-    """A `containers` entry: its capacity, the largest level, and its starting level."""
+    """A `containers` entry: its capacity, the largest level, its starting level and
+    the class it is built from.
 
-    current_cap: float
-    max_cap: float
+    `current_cap` defaults to `max_cap`, and with neither the container has no limit;
+    `.inf` is no limit too. `max_cap` defaults to `current_cap`. `type` is a
+    `!python` subclass of `ContainerBase`.
+    """
+
+    current_cap: Optional[float] = None
+    max_cap: Optional[float] = None
     # An int stays an int, as simpy.Container keeps it
     level: Union[int, float] = 0
+    type: Optional[Type[ContainerBase]] = None
+
+    @model_validator(mode="after")
+    def _type_fits(self) -> "Container":
+        check_container_type(self.type)
+        return self
 
 
 class TransferStep(_Model):
     """A task's `get` or `put`: one `container` with an `amount`, or one `store`.
 
     `amount` is a number or an expression such as `payload.quantity`, and 1 when it
-    is left out. `priority` is a number or an expression for a put into a priority
-    store, lowest served first, and 0 when it is left out. `filter` is a condition
+    is left out. `priority` is for a put into a priority store, lowest served first,
+    and 0 when it is left out. Text is an expression such as `attr.priority`; any
+    other value is used as written: a number, a list (which orders element by
+    element, as a tuple does), a mapping, null, a date or a bool. `filter` is a condition
     for a store get, such as `item.size == attr.size`, where `item.<field>` reads
-    the item offered: the get takes the oldest item that matches.
+    the item offered: the get takes the oldest item that matches. `wait: false` makes
+    the get or put and does not wait for it: the task goes on at once.
     """
 
     container: Optional[str] = None
     store: Optional[str] = None
     amount: Union[float, str] = 1.0
-    priority: Union[float, str] = 0.0
+    priority: Any = 0.0
     filter: Optional[str] = None
+    wait: bool = True
+
+    @field_validator("priority", mode="before")
+    @classmethod
+    def _priority_is_a_literal(cls, value: Any) -> Any:
+        if callable(value):
+            raise ValueError("a priority in YAML is a literal or an expression")
+        return value
 
     @model_validator(mode="after")
     def _one_target(self) -> "TransferStep":
@@ -370,6 +410,7 @@ class TransferStep(_Model):
             amount=self.amount,
             priority=self.priority,
             filter=self.filter,
+            wait=self.wait,
         )
 
 
@@ -763,7 +804,7 @@ class Task(_Model):
         if (
             self.patience is not None
             and self.resource is None
-            and self.get is None
+            and (self.get is None or not self.get.wait)
             and self.wait is None
         ):
             raise ValueError(
@@ -781,6 +822,11 @@ class Task(_Model):
         if self.item_field is not None and (self.get is None or self.get.store is None):
             raise ValueError(
                 "item_field adds the item a store get took, so it needs one"
+            )
+        if self.item_field is not None and not self.get.wait:  # type: ignore[union-attr]
+            raise ValueError(
+                "item_field adds the item a store get took, and a get with wait: "
+                "false discards it"
             )
         if self.balk is not None and self.resource is None:
             raise ValueError("balking refuses a resource queue, so it needs a resource")

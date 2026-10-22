@@ -61,7 +61,7 @@ def test_allowed_forms_evaluate(scope, text, expected):
         ("payload.total ** 2", "Pow"),
         ("attr.flags & 1", "BitAnd"),
         ("~attr.flags", "Invert"),
-        ('payload.channel in "web"', "In"),
+        ('payload.channel in "web"', "in or not in with anything but items("),
         ("attr.x is None", "Is"),
         ('payload.channel < "x"', "a string outside"),
         ('"web"', "a string outside"),
@@ -89,14 +89,21 @@ def test_references_name_each_source():
     expression = Expression(
         "payload.total > 1 and attr.vip == 1 and level.stock > 0 "
         'and users.machine < 2 and queue.machine >= 1 and registry["Shop.arrival.orders.rate"] > 0 and item.size == 2 '
-        "and wait.restock.value.qty > 0 and signal.restocked.count > 0"
+        "and wait.restock.value.qty > 0 and signal.restocked.count > 0 "
+        "and putters.shelf > 0 and getters.shelf == 0 "
+        'and count(shelf, item.area == "north") >= 1 and payload.sku in items(shelf, item.sku)'
     )
     assert expression.references == {
-        "payload": {"total"},
+        "payload": {"total", "sku"},
         "attr": {"vip"},
         "level": {"stock"},
         "users": {"machine"},
         "queue": {"machine"},
+        "putters": {"shelf"},
+        "getters": {"shelf"},
+        "count": {"shelf"},
+        "items": {"shelf"},
+        "store_item": {"area", "sku"},
         "item": {"size"},
         "wait": {"restock"},
         "signal": {"restocked"},
@@ -121,3 +128,103 @@ def test_a_missing_name_fails_with_the_expression(scope, text, fragment):
     with pytest.raises(ValueError, match="cannot evaluate '") as error:
         Expression(text).evaluate(scope)
     assert fragment in str(error.value)
+
+
+class _Holder:
+    """A store as the scope sees it: items, a priority flag and the two queue counts."""
+
+    def __init__(self, items, priority=False, putters=0, getters=0):
+        self.items = items
+        self.priority = priority
+        self.level = len(items)
+        self.putters_waiting = putters
+        self.getters_waiting = getters
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("putters.shelf", 2),
+        ("getters.shelf", 1),
+        ("count(shelf)", 3),
+        ('count(shelf, item.area == "north")', 2),
+        ('count(shelf, item.area == "west")', 0),
+        ("items(shelf, item.sku)", ["a", "b", "c"]),
+        ('"b" in items(shelf, item.sku)', True),
+        ('"z" in items(shelf, item.sku)', False),
+        ('"z" not in items(shelf, item.sku)', True),
+        ("count(shelf, item.n > payload.total)", 1),
+    ],
+)
+def test_store_names_and_functions(text, expected):
+    items = [
+        {"sku": "a", "area": "north", "n": 1},
+        {"sku": "b", "area": "south", "n": 5},
+        {"sku": "c", "area": "north", "n": 2},
+    ]
+    scope = Scope(
+        payload={"total": 3}, levels={"shelf": _Holder(items, putters=2, getters=1)}
+    )
+    assert Expression(text).evaluate(scope) == expected
+
+
+def test_a_priority_store_is_read_without_its_priority_wrapper():
+    from simpy import PriorityItem
+
+    held = [PriorityItem((1, 0), {"sku": "a"}), PriorityItem((2, 1), {"sku": "b"})]
+    scope = Scope(levels={"shelf": _Holder(held, priority=True)})
+    assert Expression("items(shelf, item.sku)").evaluate(scope) == ["a", "b"]
+    assert Expression("count(shelf)").evaluate(scope) == 2
+
+
+def test_an_empty_store_counts_zero():
+    scope = Scope(levels={"shelf": _Holder([])})
+    assert Expression("count(shelf)").evaluate(scope) == 0
+    assert Expression("count(shelf, item.area == 'x')").evaluate(scope) == 0
+    assert Expression('"a" in items(shelf, item.sku)').evaluate(scope) is False
+
+
+@pytest.mark.parametrize(
+    "text,fragment",
+    [
+        ("sum(shelf)", "a Call other than count(<store>) or items(<store>)"),
+        ("count(shelf.x)", "of anything but a bare store name"),
+        ("count(level.shelf)", "of anything but a bare store name"),
+        ("count()", "count() with other arguments"),
+        ("count(shelf, item.a, 1)", "count() with other arguments"),
+        ("count(shelf, key=1)", "count() with other arguments"),
+        ("items(shelf, 1)", "items(<store>, ...) with anything but item.<field>"),
+        (
+            "items(shelf, item.a + 1)",
+            "items(<store>, ...) with anything but item.<field>",
+        ),
+        ("count(shelf, count(shelf) > 1)", "count() inside count() or items()"),
+        ("1 in items(shelf) == True", "in or not in with anything but items("),
+        ("payload.x in payload.y", "in or not in with anything but items("),
+        ("payload.x in count(shelf)", "in or not in with anything but items("),
+        ('count(shelf, item.a == "x") + "y"', "a string outside"),
+    ],
+)
+def test_count_and_items_take_a_bare_store_name_only(text, fragment):
+    with pytest.raises(ValueError, match="an expression cannot") as error:
+        Expression(text)
+    assert fragment in str(error.value)
+
+
+def test_a_container_or_a_missing_store_fails_with_the_expression():
+    container = type(
+        "C", (), {"level": 1, "putters_waiting": 0, "getters_waiting": 0}
+    )()
+    scope = Scope(levels={"tank": container})
+    with pytest.raises(ValueError, match="is a container"):
+        Expression("count(tank)").evaluate(scope)
+    with pytest.raises(ValueError, match="no store is called 'shelf'"):
+        Expression("count(shelf)").evaluate(scope)
+    with pytest.raises(ValueError, match="no store or container is called 'shelf'"):
+        Expression("putters.shelf").evaluate(scope)
+
+
+def test_item_names_inside_the_functions_are_kept_apart_from_item():
+    expression = Expression('count(shelf, item.area == "north") > 0 and item.size > 1')
+    assert expression.references["store_item"] == {"area"}
+    assert expression.references["item"] == {"size"}

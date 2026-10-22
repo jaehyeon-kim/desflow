@@ -61,9 +61,9 @@ from desflow.models.params import (
     SimParameter,
 )
 from desflow.models.schemas import EventPayload, LabelPayload, TelemetryPayload
-from desflow.resources.container import DynamicContainer
+from desflow.resources.container import ContainerBase, DynamicContainer
 from desflow.resources.resource import DynamicResource, ResourceBase
-from desflow.resources.store import DynamicStore
+from desflow.resources.store import DynamicStore, StoreBase
 from desflow.analysis.fit import FitResult, fit_column
 from desflow.analysis.models import LowLevelModel
 from desflow.analysis.results import CheckFailed, ExperimentResult
@@ -90,7 +90,9 @@ __all__ = [
     "DynamicResource",
     "ResourceBase",
     "DynamicContainer",
+    "ContainerBase",
     "DynamicStore",
+    "StoreBase",
     "SimParameter",
     "DistributionConfig",
     "CapacityConfig",

@@ -1,0 +1,19 @@
+# A producer adds every 1 s and a consumer takes every 5 s from a store with no
+# capacity set, so no put ever waits. See test_c5_unbounded.py.
+simulation:
+  sim_id: C5
+  factor: 0
+stores:
+  bin: {}
+arrivals:
+  puts: {dist: constant, value: 1, spawn: put}
+  gets: {dist: constant, value: 5, spawn: get}
+tasks:
+  put:
+    put: {store: bin}
+    payload: {event: put}
+  get:
+    get: {store: bin}
+    payload: {event: get}
+run:
+  until: 21

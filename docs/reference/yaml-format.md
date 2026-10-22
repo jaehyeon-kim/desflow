@@ -76,8 +76,8 @@ The arguments of `SimulationContext`. [Time and Pacing](../user-guide/time-and-p
 | Section | Keys |
 |---|---|
 | `resources` | `current_cap` and `max_cap`, whole numbers or `.inf` for no limit, both optional: `current_cap` is 1 and `max_cap` is `current_cap` (an entry `{}` is one unit); `queue`: `fifo` (the default), `lifo` or `priority`; `queue_limit`, the most requests that may wait, 0 or more (none by default); `type: !python module.Class`, a subclass of `ResourceBase` to build the resource from; `preempt: true` lets a lower priority value take a busy unit, with `queue: priority`; `breakdown`: `{time_to_failure, repair, work}`, two distributions and `interrupt` (the default) or `finish`, makes it fail and be repaired |
-| `stores` | `current_cap` and `max_cap`, whole numbers of items; `priority: true` to return the lowest priority first; `items`, the items held at the start, `[priority, item]` pairs for a priority store |
-| `containers` | `current_cap` and `max_cap`, the largest amount; `level`, the amount at the start, 0 by default |
+| `stores` | `current_cap` and `max_cap`, whole numbers of items or `.inf` for no limit, both optional: `current_cap` is `max_cap` if given and no limit if not, and `max_cap` is `current_cap`; `priority: true` to return the lowest priority first, by any value that orders, such as a number, text, a date or a list; `items`, the items held at the start, `[priority, item]` pairs for a priority store; `type: !python module.Class`, a subclass of `StoreBase` to build the store from, which cannot be combined with `priority` |
+| `containers` | `current_cap` and `max_cap`, the largest amount or `.inf` for no limit, both optional as for a store; `level`, the amount at the start, 0 by default; `type: !python module.Class`, a subclass of `ContainerBase` to build the container from |
 
 A store and a container cannot share a name.
 
@@ -136,8 +136,8 @@ An arrival also takes:
 | `on_interrupt_next` | the task an abandoned instance goes to |
 | `preempt` | `false` keeps the task's requests from preempting; `true` by default |
 | `interrupt` | `{task, where, cause}`: when the task finishes, interrupts every running instance of `task` whose `where` holds |
-| `get` | `{container: name, amount: ...}` or `{store: name}`, with an optional `filter` condition for a store, which reads the item offered as `item.<field>`: taken after the resource, before the work |
-| `put` | the same form, without a filter: added after the work; a store receives the payload, with an optional `priority` for a priority store |
+| `get` | `{container: name, amount: ...}` or `{store: name}`, with an optional `filter` condition for a store, which reads the item offered as `item.<field>`, and an optional `wait: false` to make the request and go on at once, granted when it can be, first in first out, and whose item the task does not get: taken after the resource, before the work |
+| `put` | the same form, without a filter: added after the work; a store receives the payload, with an optional `priority` for a priority store and an optional `wait: false` to make the request and go on at once, granted when it can be, first in first out |
 | `next` | a task name; `{when: [{condition, task}, ...], default: task}`; or `{weights: {task: number, ...}}` |
 | `set` | a mapping applied to the entity's attributes when the task finishes |
 

@@ -152,6 +152,19 @@ EXAMPLES: Dict[str, Example] = {
             _three("process_events.yaml", "process_events_example.py"),
         ),
         Example(
+            "fuel-dock",
+            "Fuel Dock",
+            "a lane of your own store type, a tank with no capacity limit, a put that is not waited for, and a wait on how many trucks are held outside the lane",
+            {
+                "yaml": [
+                    "yaml/advanced/fuel_dock.yaml",
+                    "yaml/advanced/fuel_dock_types.py",
+                ],
+                "builder": ["builder/fuel_dock_example.py"],
+                "low-level": ["low-level/fuel_dock_example.py"],
+            },
+        ),
+        Example(
             "interruptions",
             "Interruptions",
             "express orders preempt regular ones, and a fire drill interrupts packing; each resumes",

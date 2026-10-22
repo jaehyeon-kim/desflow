@@ -516,6 +516,127 @@
     - tests/conformance/test_c5_inventory.py::test_c5_cancel_quantity_put
   page: user-guide/stores-and-containers.md#pick-an-item-or-give-up-waiting
 
+- id: C5
+  inventory: [SP-B2]
+  operation: Put and get queues of a store or container
+  description: "A condition reads how many puts or gets wait at a store or container, and is checked again when a waiter joins or leaves."
+  simpy: "`resources.base.BaseResource.put_queue`, `.get_queue`"
+  yaml: "`wait: {condition: putters.dock > 2}`, `getters.dock == 0`"
+  builder: "`wait={\"condition\": \"putters.dock > 2\"}`"
+  low_level: "`dock.put_queue`, `dock.get_queue`"
+  checks:
+    - tests/conformance/test_c5_queues.py::test_c5_store_put_and_get_queues
+    - tests/conformance/test_c5_queues.py::test_c5_container_put_and_get_queues
+    - tests/conformance/test_c5_queues.py::test_c5_queue_count_falls_when_a_waiter_leaves
+  page: user-guide/stores-and-containers.md#registry-paths-readings-and-conditions
+
+- id: C5
+  inventory: [SP-B5]
+  operation: Custom store and container types
+  description: "A store or container of your own class, which changes how an item or amount is taken in or out."
+  simpy: "`resources.base.BaseResource._do_put`, `._do_get`"
+  yaml: "`stores.<name>.type: !python pkg.module.MyStore`"
+  builder: "`add_store(..., type=MyStore)`"
+  low_level: "`class MyStore(StoreBase)`"
+  checks:
+    - tests/conformance/test_c5_custom_types.py::test_c5_custom_store_type
+    - tests/conformance/test_c5_custom_types.py::test_c5_custom_store_type_statistics
+    - tests/conformance/test_c5_custom_types.py::test_c5_custom_container_type
+  page: user-guide/stores-and-containers.md#custom-store-and-container-types
+
+- id: C5
+  inventory: [SP-B6]
+  operation: Custom put and get queue types
+  description: "A store or container whose waiting puts and gets are kept in a queue class of your own."
+  simpy: "`resources.base.BaseResource.PutQueue`, `.GetQueue`"
+  yaml: "`stores.<name>.type: !python pkg.module.MyStore`, with `PutQueue` and `GetQueue` set on the class"
+  builder: "`add_store(..., type=MyStore)`"
+  low_level: "`class MyStore(StoreBase): PutQueue = MyQueue`"
+  checks:
+    - tests/conformance/test_c5_custom_types.py::test_c5_custom_queue_types
+    - tests/conformance/test_c5_custom_types.py::test_c5_custom_container_broken_queue
+  page: user-guide/stores-and-containers.md#custom-store-and-container-types
+
+- id: C5
+  inventory: [SP-B7]
+  operation: Custom put and get event classes
+  description: "A store or container that creates its own put and get events, such as a get that carries extra data."
+  simpy: "`resources.base.BaseResource.put`, `.get`"
+  yaml: "`stores.<name>.type: !python pkg.module.MyStore`, with `put` and `get` set on the class"
+  builder: "`add_store(..., type=MyStore)`"
+  low_level: "`class MyStore(StoreBase): put = BoundClass(MyPut)`"
+  checks:
+    - tests/conformance/test_c5_custom_types.py::test_c5_custom_event_classes
+  page: user-guide/stores-and-containers.md#custom-store-and-container-types
+
+- id: C5
+  inventory: [SP-B8]
+  operation: A put or get the process does not wait for
+  description: "A task makes a put or get and carries on at once, without waiting for it to be granted."
+  simpy: "`resources.base.Put` without `yield`"
+  yaml: "`put: {store: dock, wait: false}` on a task"
+  builder: "`put={\"store\": \"dock\", \"wait\": False}`"
+  low_level: "`dock.put(item)` without `yield`"
+  checks:
+    - tests/conformance/test_c5_no_wait.py::test_c5_put_not_waited_for
+    - tests/conformance/test_c5_no_wait.py::test_c5_get_not_waited_for
+    - tests/conformance/test_c5_no_wait.py::test_c5_no_wait_puts_are_served_in_order
+    - tests/conformance/test_c5_no_wait.py::test_c5_no_wait_put_ends_with_the_run
+  page: user-guide/stores-and-containers.md#take-and-add
+
+- id: C5
+  inventory: [SP-K5]
+  operation: Container with no capacity limit
+  description: "A container that has no upper level, so a put never waits."
+  simpy: "`resources.container.Container(capacity=inf)`"
+  yaml: "`containers.<name>` with no `current_cap`, or `current_cap: .inf`"
+  builder: "`add_container(\"tank\")`"
+  low_level: "`DynamicContainer(env, \"Dock\", \"tank\")`"
+  checks:
+    - tests/conformance/test_c5_unbounded.py::test_c5_container_with_no_capacity_limit
+  page: user-guide/stores-and-containers.md#declare-them
+
+- id: C5
+  inventory: [SP-T5]
+  operation: Read a store's items
+  description: "A condition counts the items in a store or asks whether an item is in it."
+  simpy: "`resources.store.Store.items`"
+  yaml: "`count(parcels) > 3`, `payload.sku in items(shelf, item.sku)`"
+  builder: "`wait={\"condition\": \"count(parcels) > 3\"}`"
+  low_level: "`len(parcels.items)`, `sku in [i[\"sku\"] for i in shelf.items]`"
+  checks:
+    - tests/conformance/test_c5_store_items.py::test_c5_count_store_items
+    - tests/conformance/test_c5_store_items.py::test_c5_item_in_store
+    - tests/conformance/test_c5_store_items.py::test_c5_item_in_priority_store
+    - tests/conformance/test_c5_store_items.py::test_c5_item_in_empty_store
+  page: user-guide/stores-and-containers.md#registry-paths-readings-and-conditions
+
+- id: C5
+  inventory: [SP-T6]
+  operation: Store with no capacity limit
+  description: "A store that has no upper size, so a put never waits."
+  simpy: "`resources.store.Store(capacity=inf)`"
+  yaml: "`stores.<name>` with no `current_cap`, or `current_cap: .inf`"
+  builder: "`add_store(\"parcels\")`"
+  low_level: "`DynamicStore(env, \"Shop\", \"parcels\")`"
+  checks:
+    - tests/conformance/test_c5_unbounded.py::test_c5_store_with_no_capacity_limit
+  page: user-guide/stores-and-containers.md#declare-them
+
+- id: C5
+  inventory: [SP-T8]
+  operation: Priorities of any orderable type
+  description: "A priority store ranks items by a number, a string, a tuple or any value that can be ordered."
+  simpy: "`resources.store.PriorityItem`"
+  yaml: "`put: {store: queue, priority: [1, urgent]}`"
+  builder: "`put={\"store\": \"queue\", \"priority\": (1, \"urgent\")}`"
+  low_level: "`simpy.PriorityItem((1, \"urgent\"), item)`"
+  checks:
+    - tests/conformance/test_c5_priority_store.py::test_c5_priority_item_storage_any_orderable_type
+    - tests/conformance/test_c5_priority_store.py::test_c5_priority_yaml_list_literal
+    - tests/conformance/test_c5_priority_store.py::test_c5_priority_mixed_types_raise_type_error
+  page: user-guide/stores-and-containers.md#start-with-items-and-serve-by-priority
+
 - id: C6
   inventory: [SP-E1]
   operation: Initial time
@@ -985,81 +1106,6 @@
     - tests/conformance/test_c2_conditions.py::test_c2_abandon_during_a_wait_with_a_won_branch_is_clean
     - tests/conformance/test_c2_conditions.py::test_c2_request_wait_branch_reacquired_after_a_preemption
   page: guides/wait-for-one-or-all.md#wait-for-a-unit-an-item-or-room
-
-- id: N
-  inventory: [SP-B2]
-  status: not yet
-  operation: Put and get queues of a store or container
-  simpy: "`resources.base.BaseResource.put_queue`, `.get_queue`"
-  checks: []
-  release: 0.23.0
-
-- id: N
-  inventory: [SP-B5]
-  status: not yet
-  operation: Custom resource types
-  simpy: "`resources.base.BaseResource._do_put`, `._do_get`"
-  checks: []
-  release: 0.23.0
-
-- id: N
-  inventory: [SP-B6]
-  status: not yet
-  operation: Custom put and get queue types
-  simpy: "`resources.base.BaseResource.PutQueue`, `.GetQueue`"
-  checks: []
-  release: 0.23.0
-
-- id: N
-  inventory: [SP-B7]
-  status: not yet
-  operation: Custom put and get event classes
-  simpy: "`resources.base.BaseResource.put`, `.get`"
-  checks: []
-  release: 0.23.0
-
-- id: N
-  inventory: [SP-B8]
-  exists: [low_level]
-  status: not yet
-  operation: A put or get the process does not wait for
-  simpy: "`resources.base.Put` without `yield`"
-  checks: []
-  release: 0.23.0
-
-- id: N
-  inventory: [SP-K5]
-  status: not yet
-  operation: Container with no capacity limit
-  simpy: "`resources.container.Container(capacity=inf)`"
-  checks: []
-  release: 0.23.0
-
-- id: N
-  inventory: [SP-T5]
-  exists: [builder, low_level]
-  status: not yet
-  operation: Read a store's items
-  simpy: "`resources.store.Store.items`"
-  checks: []
-  release: 0.23.0
-
-- id: N
-  inventory: [SP-T6]
-  status: not yet
-  operation: Store with no capacity limit
-  simpy: "`resources.store.Store(capacity=inf)`"
-  checks: []
-  release: 0.23.0
-
-- id: N
-  inventory: [SP-T8]
-  exists: [low_level]
-  status: not yet
-  operation: Priorities of any orderable type
-  simpy: "`resources.store.PriorityItem`"
-  checks: []
-  release: 0.23.0
 
 - id: C1
   inventory: [SP-U1]

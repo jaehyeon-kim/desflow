@@ -124,7 +124,9 @@ class TaskSpec:
         self.balk_of = Expression(balk) if balk is not None else None
         self.fail_of = Expression(fail) if isinstance(fail, str) else None
         # Waits for a unit or an item, so it queues
-        self.queues = bool(self.resources) or get is not None or wait is not None
+        self.queues = (
+            bool(self.resources) or (get is not None and get.wait) or wait is not None
+        )
         # Publishes started before its work
         self.timed = service_id is not None or self.queues
         # Set when the function is decorated
@@ -556,6 +558,10 @@ class TaskRun:
                             self._release(held)
                             self._renege()
                             return None
+                if spec.get is not None and not got_item and not spec.get.wait:
+                    # Made and not waited for: it takes an item later and discards it
+                    self._transfer_event(spec.get, "get", None)
+                    got_item = True
                 if spec.get is not None and not got_item:
                     self._target = f"get.{spec.get.target}"
                     got = yield from self._transfer(
@@ -596,7 +602,12 @@ class TaskRun:
                         yield env.timeout(remaining)
                         remaining, service_from = 0.0, None
                     if spec.put is not None and not put_done:
-                        yield from self._transfer(spec.put, "put", payload, None)
+                        if spec.put.wait:
+                            yield from self._transfer(spec.put, "put", payload, None)
+                        else:
+                            # Made and not waited for, and never set as pending, so
+                            # an interrupt, an abandon or a patience cannot cancel it
+                            self._transfer_event(spec.put, "put", payload)
                         put_done = True
                     failure = self._failure(payload)
                 if failure is None:
@@ -1156,7 +1167,7 @@ class TaskRun:
 
         check()
         if not event.triggered:
-            env.watch_changes(check)
+            env.watch_changes(check, queues=condition.reads_queues)
         return event, stop
 
 

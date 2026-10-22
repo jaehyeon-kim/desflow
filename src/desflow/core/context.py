@@ -48,13 +48,17 @@ from desflow.models.params import (
     DistributionConfig,
     SimParameter,
 )
-from desflow.resources.container import DynamicContainer
+from desflow.resources.container import (
+    ContainerBase,
+    DynamicContainer,
+    check_container_type,
+)
 from desflow.resources.resource import (
     DynamicResource,
     ResourceBase,
     check_resource_type,
 )
-from desflow.resources.store import DynamicStore
+from desflow.resources.store import DynamicStore, StoreBase, check_store_type
 from desflow.utils import suggestion, time_to_seconds
 
 logger = logging.getLogger(__name__)
@@ -195,6 +199,8 @@ class SimulationContext:
         self._containers_config: Dict[str, CapacityConfig] = {}
         self._stores_config: Dict[str, CapacityConfig] = {}
         self._store_priority: Dict[str, bool] = {}
+        self._store_types: Dict[str, Optional[Type[StoreBase]]] = {}
+        self._container_types: Dict[str, Optional[Type[ContainerBase]]] = {}
         self._store_items: Dict[str, List[Any]] = {}
         self._services_config: Dict[str, DistributionConfig] = {}
         self._arrivals_config: Dict[str, DistributionConfig] = {}
@@ -485,10 +491,10 @@ class SimulationContext:
 
         Raises:
             ValueError: If `queue` is not one of the three orders, `preempt` is set
-                without `queue="priority"`, `current_cap` is not a whole number or
-                infinity, only `max_cap` is given and is below 1, `type` is not a
-                subclass of `ResourceBase`, or `queue_limit` is negative or is set on
-                a `type` with its own `PutQueue`.
+                without `queue="priority"`, `current_cap` or `max_cap` is not a
+                whole number or infinity, only `max_cap` is given and is below 1,
+                `type` is not a subclass of `ResourceBase`, or `queue_limit` is
+                negative or is set on a `type` with its own `PutQueue`.
         """
         if queue not in QUEUE_ORDERS:
             raise ValueError(
@@ -521,7 +527,12 @@ class SimulationContext:
         return self
 
     def add_container(
-        self, name: str, current_cap: float, max_cap: float, level: float = 0.0
+        self,
+        name: str,
+        current_cap: Optional[float] = None,
+        max_cap: Optional[float] = None,
+        level: float = 0.0,
+        type: Optional[Type[ContainerBase]] = None,
     ) -> "SimulationContext":
         """
         Registers a container: an amount that tasks take from and add to, such as stock.
@@ -532,20 +543,30 @@ class SimulationContext:
         set it during the run, such as a restock. Models that used `current_cap` as a
         level, such as wear, use `level` instead.
 
+        A container with no `current_cap` has no limit, and `max_cap` defaults to
+        `current_cap`. Use `math.inf` or `float("inf")` for no limit.
+
         Args:
             name: The internal identifier (e.g., 'stock').
-            current_cap: The capacity at simulation start.
-            max_cap: The largest capacity a live update can set.
+            current_cap: The capacity at simulation start. None, the default, is no
+                limit, or `max_cap` when that is given.
+            max_cap: The largest capacity a live update can set. None, the default,
+                is `current_cap`.
             level: The amount held at simulation start. Defaults to 0.
+            type: A subclass of `ContainerBase` to build the container from, such as
+                one that overrides `_do_get`. Defaults to `ContainerBase`.
 
         Returns:
             SimulationContext: The current instance for method chaining.
 
         Raises:
-            ValueError: If a store already has this name.
+            ValueError: If a store already has this name, or `type` is not a
+                subclass of `ContainerBase`.
         """
         if name in self._stores_config:
             raise ValueError(f"'{name}' is already a store")
+        check_container_type(type)
+        self._container_types[name] = type
         self._containers_config[name] = ContainerConfig(
             current_cap=current_cap, max_cap=max_cap, level=level
         )
@@ -554,10 +575,11 @@ class SimulationContext:
     def add_store(
         self,
         name: str,
-        current_cap: int,
-        max_cap: int,
+        current_cap: Optional[float] = None,
+        max_cap: Optional[float] = None,
         priority: bool = False,
         items: Optional[List[Any]] = None,
+        type: Optional[Type[StoreBase]] = None,
     ) -> "SimulationContext":
         """
         Registers a store: a place that holds items, which tasks put and get.
@@ -570,26 +592,41 @@ class SimulationContext:
 
         Args:
             name: The internal identifier (e.g., 'parcels').
-            current_cap: The number of items it can hold at simulation start.
-            max_cap: The largest capacity a live update can set.
+            current_cap: The number of items it can hold at simulation start, a
+                whole number or infinity. None, the default, is no limit, or
+                `max_cap` when that is given.
+            max_cap: The largest capacity a live update can set. None, the default,
+                is `current_cap`.
             priority: When True, items are returned by the `priority` each task's
                 `put` gives, lowest first, instead of first in, first out.
             items: The items it holds when the run starts, in the order a get
                 returns them. A priority store takes `(priority, item)` pairs.
+            type: A subclass of `StoreBase` to build the store from, such as one
+                that overrides `_do_get`. Defaults to a `simpy.FilterStore`. It
+                cannot be combined with `priority`.
 
         Returns:
             SimulationContext: The current instance for method chaining.
 
         Raises:
-            ValueError: If a container already has this name, there are more items
-                than `current_cap`, or a priority store's item is not a pair.
+            ValueError: If a container already has this name, a capacity is not a
+                whole number or infinity, there are more items than `current_cap`,
+                a priority store's item is not a pair, or `type` is not a subclass
+                of `StoreBase` or is given with `priority`.
         """
         if name in self._containers_config:
             raise ValueError(f"'{name}' is already a container")
+        check_store_type(type, priority)
+        for field, value in (("current_cap", current_cap), ("max_cap", max_cap)):
+            if value is not None and not _whole_or_unlimited(value):
+                raise ValueError(
+                    f"store '{name}' needs a whole number for {field}, got {value}"
+                )
         start = list(items or [])
-        if len(start) > min(current_cap, max_cap):
+        room = [cap for cap in (current_cap, max_cap) if cap is not None]
+        if room and len(start) > min(room):
             raise ValueError(
-                f"store '{name}' holds {min(current_cap, max_cap)} items, so it "
+                f"store '{name}' holds {min(room)} items, so it "
                 f"cannot start with {len(start)}; raise current_cap and max_cap, or "
                 f"give fewer items"
             )
@@ -605,6 +642,7 @@ class SimulationContext:
             current_cap=current_cap, max_cap=max_cap
         )
         self._store_priority[name] = priority
+        self._store_types[name] = type
         return self
 
     def add_scenario(self, steps: List[Mapping[str, Any]]) -> "SimulationContext":
@@ -1059,7 +1097,7 @@ class SimulationContext:
         if (
             patience is not None
             and resource_id is None
-            and get is None
+            and (take is None or not take.wait)
             and wait is None
         ):
             raise ValueError(
@@ -1105,6 +1143,11 @@ class SimulationContext:
             )
             spec.user_func = user_func
             spec.declared = inspect.signature(user_func).parameters
+            if "item" in spec.declared and take is not None and not take.wait:
+                raise ValueError(
+                    f"task '{task_name}' declares item, but its get has wait=False, "
+                    "which takes the item later and discards it"
+                )
 
             def wrapper(
                 task_id: Any,
@@ -2149,10 +2192,14 @@ class SimulationContext:
                 store_id,
                 priority=self._store_priority.get(store_id, False),
                 items=self._store_items.get(store_id),
+                type=self._store_types.get(store_id),
             )
         for container_id in self._containers_config:
             self._containers_map[container_id] = DynamicContainer(
-                self._env, self.sim_id, container_id
+                self._env,
+                self.sim_id,
+                container_id,
+                type=self._container_types.get(container_id),
             )
         for res_id, breakdown in self._breakdowns_config.items():
             self._env.process(
@@ -2322,7 +2369,7 @@ class SimulationContext:
 
         check()
         if not event.triggered:
-            env.watch_changes(check)
+            env.watch_changes(check, queues=condition.reads_queues)
         return event
 
     def _entity_entered(self, entity: Entity) -> None:
@@ -2533,6 +2580,18 @@ class SimulationContext:
                         f"task '{name}' filters priority store '{transfer.target}'; "
                         f"SimPy has no store that both ranks and filters its items"
                     )
+                if (
+                    transfer.filter is not None
+                    and kind == "store"
+                    and (store_type := self._store_types.get(transfer.target))
+                    is not None
+                    and not issubclass(store_type, simpy.FilterStore)
+                ):
+                    raise ValueError(
+                        f"task '{name}' filters store '{transfer.target}', whose "
+                        f"type is not a simpy.FilterStore; subclass FilterStore to "
+                        f"filter its gets"
+                    )
             for node in spec.wait.branches.values() if spec.wait else ():
                 if node.kind == "request" and node.target not in self._resources_config:
                     raise ValueError(
@@ -2593,7 +2652,14 @@ class SimulationContext:
                 # item.<field> reads what the task's store get took, so it means
                 # nothing before the get, and nothing without one
                 takes_item = spec.get is not None and spec.get.store is not None
-                after_get = key in ("get", "put", "next", "fail")
+                # A get that is not waited for gives the task no item, so only its
+                # own filter reads one
+                after_get = key == "get" or (
+                    takes_item
+                    and spec.get is not None
+                    and spec.get.wait
+                    and key in ("put", "next", "fail")
+                )
                 if expression.references["item"] and not (takes_item and after_get):
                     raise ValueError(
                         f"task '{name}' reads item.<field> in '{expression.text}', "
@@ -2606,6 +2672,20 @@ class SimulationContext:
                             f"task '{name}' reads level.{level}, but no store or "
                             f"container is called '{level}'"
                         )
+                for kind in ("putters", "getters"):
+                    for holder in expression.references[kind]:
+                        if holder not in holders:
+                            raise ValueError(
+                                f"task '{name}' reads {kind}.{holder}, but no store "
+                                f"or container is called '{holder}'"
+                            )
+                for kind in ("count", "items"):
+                    for store in expression.references[kind]:
+                        if store not in self._stores_config:
+                            raise ValueError(
+                                f"task '{name}' reads {kind}({store}), but no store "
+                                f"is called '{store}'"
+                            )
                 for kind in ("users", "queue"):
                     for resource in expression.references[kind]:
                         if resource not in self._resources_config:
@@ -2629,6 +2709,17 @@ class SimulationContext:
                             f"task '{name}' reads registry[\"{path}\"], which is "
                             f"not a registry path"
                         ) from None
+
+
+def _whole_or_unlimited(value: Any) -> bool:
+    """Whether a store capacity is a whole number or positive infinity."""
+    if isinstance(value, (str, bytes)):
+        return False
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return False
+    return number == math.inf or (math.isfinite(number) and number.is_integer())
 
 
 def _check_end(until: Any, stop: Any, drain: Any, signals: List[str]) -> None:

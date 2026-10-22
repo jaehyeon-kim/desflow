@@ -1,0 +1,19 @@
+# A producer adds 2 every 1 s and a consumer takes 3 every 5 s from a container
+# whose capacity is infinite, so no put ever waits. See test_c5_unbounded.py.
+simulation:
+  sim_id: C5
+  factor: 0
+containers:
+  bin: {current_cap: .inf}
+arrivals:
+  puts: {dist: constant, value: 1, spawn: put}
+  gets: {dist: constant, value: 5, spawn: get}
+tasks:
+  put:
+    put: {container: bin, amount: 2}
+    payload: {event: put}
+  get:
+    get: {container: bin, amount: 3}
+    payload: {event: get}
+run:
+  until: 21

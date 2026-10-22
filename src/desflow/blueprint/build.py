@@ -231,10 +231,14 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                     )
             # item.<field> reads what a store get took: a get's own filter, then
             # the put and next after it
-            reads_item = location[2] in ("put", "next", "fail") or location[2:4] == (
-                "get",
-                "filter",
-            )
+            # A get with wait: false gives the task no item, so only its own filter
+            # reads one
+            reads_item = (
+                location[2] in ("put", "next", "fail")
+                and takes_item
+                and task.get is not None
+                and task.get.wait
+            ) or location[2:4] == ("get", "filter")
             if expression.references["item"] and not (takes_item and reads_item):
                 raise source.error(
                     location,
@@ -254,6 +258,7 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                         ),
                     )
             _check_resource_names(expression, blueprint, source, location)
+            _check_store_names(expression, blueprint, source, location)
 
     _check_events(blueprint, source)
 
@@ -274,7 +279,9 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
         for name, capacity in getattr(blueprint, kind).items():
             for field in ("current_cap", "max_cap"):
                 value = getattr(capacity, field)
-                if value is None or (kind == "resources" and math.isinf(value)):
+                if value is None or (
+                    math.isinf(value) and (value > 0 or kind == "resources")
+                ):
                     continue
                 if not float(value).is_integer():
                     raise source.error(
@@ -556,6 +563,7 @@ def _check_run(blueprint: Blueprint, source: SourceMap) -> None:
                 ),
             )
     _check_resource_names(expression, blueprint, source, where)
+    _check_store_names(expression, blueprint, source, where)
     entity = [
         f"{kind}.<...>"
         for kind in ("payload", "attr", "item", "wait")
@@ -586,6 +594,36 @@ def _check_resource_names(
                         suggestion(name, blueprint.resources)
                         or "; add it under resources"
                     ),
+                )
+
+
+def _check_store_names(
+    expression: Expression,
+    blueprint: Blueprint,
+    source: SourceMap,
+    location: Tuple[Union[str, int], ...],
+) -> None:
+    """Checks that `putters.<name>` and `getters.<name>` name a store or container, and
+    that the name in `count(...)` and `items(...)` is a store."""
+    holders = [*blueprint.stores, *blueprint.containers]
+    for kind in ("putters", "getters"):
+        for name in expression.references[kind]:
+            if name not in holders:
+                raise source.error(
+                    location,
+                    f"{kind}.{name} names no store or container"
+                    + (
+                        suggestion(name, holders)
+                        or "; add it under stores or containers"
+                    ),
+                )
+    for kind in ("count", "items"):
+        for name in expression.references[kind]:
+            if name not in blueprint.stores:
+                raise source.error(
+                    location,
+                    f"{kind}({name}) names no store"
+                    + (suggestion(name, blueprint.stores) or "; add it under stores"),
                 )
 
 
@@ -701,14 +739,19 @@ def _build_context(blueprint: Blueprint, source: SourceMap) -> SimulationContext
     for name, store in blueprint.stores.items():
         context.add_store(
             name,
-            int(store.current_cap),
-            int(store.max_cap),
+            _whole(store.current_cap),
+            _whole(store.max_cap),
             priority=store.priority,
             items=store.items,
+            type=store.type,
         )
     for name, container in blueprint.containers.items():
         context.add_container(
-            name, container.current_cap, container.max_cap, level=container.level
+            name,
+            container.current_cap,
+            container.max_cap,
+            level=container.level,
+            type=container.type,
         )
     for name, value in blueprint.variables.items():
         context.add_variable(name, value)
@@ -973,9 +1016,7 @@ def _payload(
     if callable(payload):
         return payload
 
-    def body(
-        task_id: int, context: SimulationContext, entity: Any, item: Any = None
-    ) -> Dict[str, Any]:
+    def make(task_id: int, entity: Any, item: Any = None) -> Dict[str, Any]:
         event = dict(payload)
         if id_field is not None:
             event[id_field] = task_id
@@ -984,6 +1025,22 @@ def _payload(
         for name in attributes:
             event[name] = entity.attributes.get(name)
         return event
+
+    # Only a task with an item_field declares `item`, which a get with wait: false
+    # cannot give
+    if item_field is None:
+
+        def body(
+            task_id: int, context: SimulationContext, entity: Any
+        ) -> Dict[str, Any]:
+            return make(task_id, entity)
+
+    else:
+
+        def body(  # type: ignore[misc]
+            task_id: int, context: SimulationContext, entity: Any, item: Any = None
+        ) -> Dict[str, Any]:
+            return make(task_id, entity, item)
 
     return body
 

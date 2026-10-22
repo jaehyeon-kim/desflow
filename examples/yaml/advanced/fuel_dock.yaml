@@ -1,0 +1,59 @@
+# Fuel dock: a lane of your own type, a tank that fills up and a put that is not waited for, in YAML.
+#
+# The twin of examples/builder/fuel_dock_example.py. Fuel trucks drive into a lane at
+# the dock, which holds two. The lane is a store of your own type (fuel_dock_types.Lane)
+# that gives back the newest truck first. A crew unloads one truck every 7 seconds. A
+# tank truck starts its pump into the tank and drives off without waiting; the tank holds
+# 100, so the third pump waits for room that never comes. A marshal waits until a truck
+# is held outside the full lane (putters.lane >= 1) and then calls the overflow bay.
+#
+# Needs no Docker service. Runs unpaced and ends after 40 simulation seconds.
+# Run it from its folder with: desflow run fuel_dock.yaml
+
+simulation:
+  sim_id: Dock
+  factor: 0
+  random_seed: 42
+
+egress:
+  - type: Console
+
+# --8<-- [start:dock]
+stores:
+  # A lane of your own type; it holds two trucks
+  lane: {current_cap: 2, max_cap: 2, type: !python fuel_dock_types.Lane}
+
+containers:
+  # A tank of 100: two pumps fill 80 of it, so the third put waits for room
+  tank: {current_cap: 100, max_cap: 100}
+
+arrivals:
+  diesel_trucks: {dist: constant, value: 3, spawn: park, attributes: {fuel: diesel}}
+  petrol_trucks: {dist: constant, value: 5, spawn: park, attributes: {fuel: petrol}}
+  crew: {dist: constant, value: 7, spawn: unload}
+  tankers: {dist: constant, value: 4, spawn: pump}
+  marshals: {dist: constant, value: 15, spawn: marshal}
+
+tasks:
+  park:
+    # The truck waits outside while the lane is full
+    put: {store: lane}
+    payload: {event_type: truck_parked}
+    attributes: [fuel]
+  unload:
+    # The newest truck in the lane, because of the lane's type
+    get: {store: lane}
+    item_field: truck
+    payload: {event_type: truck_unloaded}
+  pump:
+    # The tank truck starts the pump and leaves; it does not wait for the put
+    put: {container: tank, amount: 40, wait: false}
+    payload: {event_type: pump_started}
+  marshal:
+    # Waits until a truck is held outside the full lane
+    wait: {condition: putters.lane >= 1}
+    payload: {event_type: overflow_bay_called}
+# --8<-- [end:dock]
+
+run:
+  until: 40

@@ -1,5 +1,6 @@
 import copy
 import logging
+import math
 from typing import Any, Callable, Dict, List, Optional
 
 from simpy import Environment, Store
@@ -14,6 +15,18 @@ from desflow.models.params import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _infinite_capacity(path: str, value: Any) -> bool:
+    """Whether `value` is infinity, or the text "inf", written to a capacity path."""
+    if not path.endswith((".current_cap", ".max_cap")):
+        return False
+    if isinstance(value, str):
+        try:
+            value = float(value)
+        except ValueError:
+            return False
+    return isinstance(value, float) and math.isinf(value) and value > 0
 
 
 class DynamicValue:
@@ -158,6 +171,9 @@ class SimulationRegistry:
         external systems send improperly typed data (e.g., sending the string "5"
         instead of the integer 5).
 
+        A capacity path (`current_cap` or `max_cap`) takes `inf` and the text `"inf"`
+        as no limit, whatever type it held.
+
         A distribution parameter outside its range (for example a negative std) is
         refused with an error log line, as a value of the wrong type is, and the old
         value is kept. A `current_cap` outside `[0, max_cap]` is clamped to that range
@@ -175,7 +191,10 @@ class SimulationRegistry:
             validated_value = new_value
 
             # Type Validation & Casting
-            if current_val is not None:
+            if current_val is not None and _infinite_capacity(path, new_value):
+                # No limit: inf, or the text "inf", on a capacity path of any type
+                validated_value = math.inf
+            elif current_val is not None:
                 expected_type = type(current_val)
                 # If types don't match, attempt a safe cast (e.g., "5" -> 5)
                 if not isinstance(new_value, expected_type):
@@ -184,12 +203,23 @@ class SimulationRegistry:
                         logger.debug(
                             f"Cast '{new_value}' to {expected_type.__name__} for '{path}'"
                         )
-                    except (ValueError, TypeError):
+                    except (ValueError, TypeError, OverflowError):
                         logger.error(
                             f"Type mismatch for '{path}'. Expected {expected_type.__name__}, "
                             f"got {type(new_value).__name__} with value '{new_value}'. Update ignored."
                         )
                         return  # Exit early to prevent crashing the simulation
+
+            # A store holds a whole number of items, so a fraction is rounded down
+            # here too, and the registry and the store hold the same number
+            if (
+                ".stores." in path
+                and path.endswith((".current_cap", ".max_cap"))
+                and isinstance(validated_value, (int, float))
+                and not isinstance(validated_value, bool)
+                and math.isfinite(validated_value)
+            ):
+                validated_value = int(validated_value)
 
             parent_path, attr = path.rsplit(".", 1) if "." in path else (path, "")
             parent_obj = self._configs.get(parent_path)
@@ -385,11 +415,16 @@ class SimulationRegistry:
         """
         Registers a container's capacity paths and its `.level` path.
 
+        A `current_cap` left as None is the `max_cap` if that is given and no limit
+        (infinity) if not, and a `max_cap` left as None is the `current_cap`. The
+        config is updated to the values in effect.
+
         Args:
             sim_id (str): The simulation ID.
             name (str): The container's name.
             cap_config (CapacityConfig): Its capacity and starting level.
         """
+        self._fill_unbounded(cap_config)
         path = f"{sim_id}.containers.{name}"
         self._configs[path] = cap_config
         # A container level is continuous, so an integer starting value must not
@@ -400,16 +435,36 @@ class SimulationRegistry:
 
     def register_store(self, sim_id: str, name: str, cap_config: CapacityConfig):
         """
-        Registers a store's capacity paths.
+        Registers a store's capacity paths, filling in what the config leaves out.
+
+        A `current_cap` left as None is the `max_cap` if that is given and no limit
+        (infinity) if not, and a `max_cap` left as None is the `current_cap`. The
+        config is updated to the values in effect.
 
         Args:
             sim_id (str): The simulation ID.
             name (str): The store's name.
-            cap_config (CapacityConfig): Its capacity.
+            cap_config (CapacityConfig): Its capacity, which may leave values as None.
         """
+        self._fill_unbounded(cap_config)
         path = f"{sim_id}.stores.{name}"
         self._configs[path] = cap_config
         self._register_cap(path, cap_config)
+
+    @staticmethod
+    def _fill_unbounded(cap_config: CapacityConfig) -> None:
+        """Fills in what a store's or container's config leaves out: no limit.
+
+        A `current_cap` left as None is the `max_cap` if that is given and infinity
+        if not, and a `max_cap` left as None is the `current_cap`. The config is
+        updated to the values in effect.
+        """
+        if cap_config.current_cap is None:
+            cap_config.current_cap = (
+                cap_config.max_cap if cap_config.max_cap is not None else math.inf
+            )
+        if cap_config.max_cap is None:
+            cap_config.max_cap = cap_config.current_cap
 
     def _register_dist(self, path_prefix: str, dist_config: Any):
         """Internal: registers one path per parameter its family declares.

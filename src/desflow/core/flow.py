@@ -219,10 +219,18 @@ class Transfer:
     payload. A store transfer moves one item: a `get` takes the next item, and a
     `put` adds the task's finished payload.
 
+    A put with `wait=False` is made and not waited for: the task goes on at once, as
+    a SimPy process that calls `store.put(item)` without `yield`. The put stays in the
+    queue, completes in first in, first out order whenever there is room, and is
+    never cancelled by an interrupt, a patience or an abandon. It publishes no
+    record, a drain does not wait for it, and one still queued when the run ends is
+    dropped.
+
     Attributes:
         container (Optional[str]): The container's name.
         store (Optional[str]): The store's name.
         amount: The amount, for a container.
+        wait (bool): False for a put the task does not wait for.
     """
 
     def __init__(
@@ -230,8 +238,9 @@ class Transfer:
         container: Optional[str] = None,
         store: Optional[str] = None,
         amount: Amount = 1.0,
-        priority: Amount = 0.0,
+        priority: Any = 0.0,
         filter: Union[str, Callable[[Any], bool], None] = None,
+        wait: bool = True,
     ):
         """
         Checks the transfer.
@@ -240,18 +249,28 @@ class Transfer:
             container: The container's name.
             store: The store's name, instead of a container.
             amount: For a container, a number, an expression or a function.
-            priority: For a put into a priority store, a number, an expression
-                or a function, lowest served first. Ignored by a `fifo` store.
+            priority: For a put into a priority store, any value SimPy can order: a
+                number, a string, a tuple, or an expression or function that
+                returns one, lowest served first. A string is an expression. It is
+                kept as given, so `"10"` from a function compares as text and
+                priorities of types that cannot be compared raise `TypeError` at
+                the put. Ignored by a `fifo` store.
             filter: For a store get, which item it takes: a condition such as
                 `"item.size == attr.size"`, where `item.<field>` reads the item
                 offered, or a function of the item returning True. The get takes
                 the oldest item that matches and waits while none does.
+            wait: False for a put the task does not wait for (see above). Defaults
+                to True.
 
         Raises:
             ValueError: If not exactly one of container and store is given, an
                 amount is given for a store, a priority is given for a
-                container, or the amount or priority is malformed.
+                container, the amount is malformed, the priority is an expression
+                that is malformed, or `wait` is not a bool.
         """
+        if not isinstance(wait, bool):
+            raise ValueError(f"wait must be true or false, got {wait!r}")
+        self.wait = wait
         if (container is None) == (store is None):
             raise ValueError("a get or put names one container or one store")
         if store is not None and amount != 1.0:
@@ -284,12 +303,6 @@ class Transfer:
         self._priority_expression: Optional[Expression] = None
         if isinstance(priority, str):
             self._priority_expression = Expression(priority)
-        elif not callable(priority) and (
-            isinstance(priority, bool) or not isinstance(priority, (int, float))
-        ):
-            raise ValueError(
-                f"priority must be a number or an expression, got {priority!r}"
-            )
 
     @classmethod
     def of(cls, spec: Union["Transfer", Mapping[str, Any]]) -> "Transfer":
@@ -310,7 +323,14 @@ class Transfer:
             return spec
         if not isinstance(spec, Mapping):
             raise ValueError(f"a get or put is a mapping, got {spec!r}")
-        unknown = set(spec) - {"container", "store", "amount", "priority", "filter"}
+        unknown = set(spec) - {
+            "container",
+            "store",
+            "amount",
+            "priority",
+            "filter",
+            "wait",
+        }
         if unknown:
             raise ValueError(f"a get or put does not take {', '.join(sorted(unknown))}")
         return cls(**spec)
@@ -376,7 +396,7 @@ class Transfer:
 
     def priority_for(
         self, task_id: Any, upstream: Optional[Upstream], scope: Scope
-    ) -> float:
+    ) -> Any:
         """
         Returns the priority for one put into a priority store, lowest first.
 
@@ -386,13 +406,13 @@ class Transfer:
             scope: What an expression's names read.
 
         Returns:
-            float: The priority.
+            Any: The priority as it was given or computed, not changed to a number.
         """
         if self._priority_expression is not None:
-            return float(self._priority_expression.evaluate(scope))
+            return self._priority_expression.evaluate(scope)
         if callable(self.priority):
-            return float(self.priority(task_id, payload_of(upstream)))
-        return float(self.priority)
+            return self.priority(task_id, payload_of(upstream))
+        return self.priority
 
 
 # The kinds of branch a task's `wait` takes
@@ -620,9 +640,15 @@ def _wait_branch(branch: Any) -> Tuple[str, Any]:
         return kind, Expression(target)
     if kind in ("get", "put"):
         try:
-            return kind, Transfer.of(target)
+            transfer = Transfer.of(target)
         except ValueError as exc:
             raise ValueError(f"wait {kind} branch: {exc}") from None
+        if not transfer.wait:
+            raise ValueError(
+                f"wait {kind} branch: wait: false is for a task's own {kind}; a wait "
+                f"branch is what the task waits for"
+            )
+        return kind, transfer
     if kind == "running":
         if not isinstance(target, Mapping):
             raise ValueError(

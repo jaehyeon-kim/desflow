@@ -1,29 +1,78 @@
-from typing import Any, Callable, Optional
+from typing import Any, Optional, Type
 
 from simpy import Container, Environment, Event
+from simpy.resources.base import BoundClass
 from simpy.resources.container import ContainerGet, ContainerPut
 
-from desflow.resources.base import BaseDynamicResource
+from desflow.resources.base import BaseDynamicResource, _CancelReports, _Notifier
 
 
-class _Container(Container):
-    """A SimPy Container that reports every change of its level."""
+class DynamicContainerPut(_CancelReports, ContainerPut):
+    """The put event of `ContainerBase`: SimPy's `ContainerPut`, whose `cancel()` also
+    reports the change of the queue length. Subclass it and set
+    `put = BoundClass(MyPut)`."""
 
-    def __init__(self, env: Environment, on_change: Callable[[], None], **kwargs: Any):
-        self._on_change = on_change
-        super().__init__(env, **kwargs)
+
+class DynamicContainerGet(_CancelReports, ContainerGet):
+    """The get event of `ContainerBase`: SimPy's `ContainerGet`, whose `cancel()` also
+    reports the change of the queue length. Subclass it and set
+    `get = BoundClass(MyGet)`."""
+
+
+class ContainerBase(_Notifier, Container):
+    """
+    A SimPy `Container` that tells `DynamicContainer` about every change, the class
+    to subclass for a container of your own.
+
+    Subclass it as you subclass `simpy.Container`: set `PutQueue` or `GetQueue`, set
+    `put` or `get` to a `BoundClass` of an event class, or override `_do_put(event)`
+    and `_do_get(event)`. Use the subclass with `type=` in `add_container` or `type:
+    !python module.Class` in a blueprint. The constructor is SimPy's,
+    `(env, capacity=inf, init=0)`; a subclass that defines `__init__` passes its
+    arguments on.
+
+    A change of the level made by `_do_put` or `_do_get` is reported once to the
+    statistics and to the conditions that read the container, whether the override
+    calls `super()` or not, and whatever it returns. A change of the length of
+    `put_queue` or `get_queue` is reported to the conditions that read `putters.` or
+    `getters.`; a queue class must support `len()` and `remove()`.
+
+    Attributes:
+        level: The amount held.
+        put_queue: The waiting puts, SimPy's queue.
+        get_queue: The waiting gets, SimPy's queue.
+        put: Makes a `DynamicContainerPut`; a `BoundClass`.
+        get: Makes a `DynamicContainerGet`; a `BoundClass`.
+    """
+
+    put = BoundClass(DynamicContainerPut)
+    get = BoundClass(DynamicContainerGet)
+
+    def _state(self) -> float:
+        return self._level
 
     def _do_put(self, event: ContainerPut) -> Optional[bool]:
-        done = super()._do_put(event)
-        if done:
-            self._on_change()
-        return done
+        return super()._do_put(event)
 
     def _do_get(self, event: ContainerGet) -> Optional[bool]:
-        done = super()._do_get(event)
-        if done:
-            self._on_change()
-        return done
+        return super()._do_get(event)
+
+
+def check_container_type(container_type: Optional[Any]) -> None:
+    """Checks the `type` a container is declared with.
+
+    Args:
+        container_type: A subclass of `ContainerBase`, or None for the default.
+
+    Raises:
+        ValueError: If `container_type` is not a subclass of `ContainerBase`.
+    """
+    if container_type is not None and not (
+        isinstance(container_type, type) and issubclass(container_type, ContainerBase)
+    ):
+        raise ValueError(
+            f"type must be a subclass of ContainerBase, got {container_type!r}"
+        )
 
 
 class DynamicContainer(BaseDynamicResource):
@@ -58,6 +107,7 @@ class DynamicContainer(BaseDynamicResource):
         sim_id: str,
         container_id: str,
         init: Optional[float] = None,
+        type: Optional[Type[ContainerBase]] = None,
     ):
         """
         Initializes the DynamicContainer and binds its capacity to the registry.
@@ -69,7 +119,15 @@ class DynamicContainer(BaseDynamicResource):
             init (float, optional): The amount in the container at simulation start.
                 None, the default, takes the registry's `level`, which is the
                 `level` of a `ContainerConfig` and 0 for a plain `CapacityConfig`.
+            type (Type[ContainerBase], optional): A subclass of `ContainerBase` to
+                build the container from, in place of the default; it is built as
+                `type(env, init=..., capacity=...)`. Defaults to None.
+
+        Raises:
+            ValueError: If `init` is above the capacity, or `type` is not a subclass
+                of `ContainerBase`.
         """
+        check_container_type(type)
         super().__init__(env, sim_id, container_id, "containers")
 
         self._level_val = env.registry.get(f"{sim_id}.containers.{container_id}.level")
@@ -92,9 +150,10 @@ class DynamicContainer(BaseDynamicResource):
         # SimPy refuses a capacity of 0, which desflow accepts because a capacity
         # changes during a run; the container is built with 1 and held at 0, as a
         # capacity change sets it
-        self._container = _Container(
-            env, self._level_changed, init=start, capacity=initial_capacity or 1.0
+        self._container = (type or ContainerBase)(
+            env, init=start, capacity=initial_capacity or 1.0
         )
+        self._container._on_change = self._level_changed
         self._container._capacity = initial_capacity
         self._level_val.track(self._container.level)
         self.env.process(self._watch_level())
@@ -115,38 +174,44 @@ class DynamicContainer(BaseDynamicResource):
 
     @property
     def getters_waiting(self) -> int:
-        """int: Requests waiting to take an amount."""
-        return len(self._container.get_queue)
+        """int: Gets waiting for an amount. A get granted at once is not counted,
+        although SimPy removes it from `get_queue` only after the grant."""
+        return sum(1 for event in self._container.get_queue if not event.triggered)
 
     @property
     def putters_waiting(self) -> int:
-        """int: Requests waiting to add an amount."""
-        return len(self._container.put_queue)
+        """int: Puts waiting for room. A put granted at once is not counted,
+        although SimPy removes it from `put_queue` only after the grant."""
+        return sum(1 for event in self._container.put_queue if not event.triggered)
 
-    def put(self, amount: float) -> Event:
+    def put(self, *args: Any, **kwargs: Any) -> Event:
         """
         Request to put a specific amount of material into the container.
 
         Args:
-            amount (float): The amount of material to add.
+            *args: The amount of material to add. A custom `type` whose `put` takes
+                more arguments gets them all.
+            **kwargs: Keyword arguments, passed to the container's `put`.
 
         Returns:
             simpy.events.Event: A SimPy event that triggers when capacity is available.
         """
-        return self._container.put(amount)
+        return self._container.put(*args, **kwargs)
 
-    def get(self, amount: float) -> ContainerGet:
+    def get(self, *args: Any, **kwargs: Any) -> ContainerGet:
         """
         Request to get a specific amount of material from the container.
 
         Args:
-            amount (float): The amount of material to withdraw.
+            *args: The amount of material to withdraw. A custom `type` whose `get`
+                takes more arguments gets them all.
+            **kwargs: Keyword arguments, passed to the container's `get`.
 
         Returns:
             simpy.resources.container.ContainerGet: A SimPy event that triggers
                 when enough material is available.
         """
-        return self._container.get(amount)
+        return self._container.get(*args, **kwargs)
 
     def _level_changed(self):
         """Keeps the registry's level and the statistics in step with the container."""

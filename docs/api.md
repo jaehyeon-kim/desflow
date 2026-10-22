@@ -175,6 +175,9 @@ The classes a task's flow is built from, and the signals and failures tasks shar
         - setup_egress
         - publish_telemetry
         - publish_event
+        - watch_changes
+        - unwatch_changes
+        - notify_queue_change
         - teardown
 
 ## Registry & Parameters
@@ -266,6 +269,14 @@ The classes a task's flow is built from, and the signals and failures tasks shar
       members: false
 
 <!-- prettier-ignore -->
+::: desflow.resources.container.ContainerBase
+    options:
+      heading_level: 3
+      members:
+        - put
+        - get
+
+<!-- prettier-ignore -->
 ::: desflow.resources.container.DynamicContainer
     options:
       heading_level: 3
@@ -274,6 +285,16 @@ The classes a task's flow is built from, and the signals and failures tasks shar
         - get
         - level
         - capacity
+        - putters_waiting
+        - getters_waiting
+
+<!-- prettier-ignore -->
+::: desflow.resources.store.StoreBase
+    options:
+      heading_level: 3
+      members:
+        - put
+        - get
 
 <!-- prettier-ignore -->
 ::: desflow.resources.store.DynamicStore
@@ -284,6 +305,8 @@ The classes a task's flow is built from, and the signals and failures tasks shar
         - get
         - items
         - capacity
+        - putters_waiting
+        - getters_waiting
 
 ## Breakdowns, Schedules and Replay
 
