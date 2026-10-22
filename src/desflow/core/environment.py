@@ -834,8 +834,10 @@ class StatisticsMixIn:
         Switches the built-in statistics on and publishes them as telemetry.
 
         They are published every `interval` simulation seconds and once more at
-        teardown. Call it before building resources, stores and containers, or after:
-        each one adds itself to `stats` when it is built.
+        teardown. When the timer has already published at the teardown's time, the
+        teardown publishes only the values that changed since. Call it before
+        building resources, stores and containers, or after: each one adds itself
+        to `stats` when it is built.
 
         Args:
             sim_id (str): The first part of every name, as in

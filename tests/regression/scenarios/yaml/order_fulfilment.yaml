@@ -1,0 +1,61 @@
+# Order fulfilment: several distributions, a priority resource, a second resource
+# tasks compete for, a store of stock refilled from a container, patience and
+# statistics, in YAML.
+#
+# A regression scenario (see scripts/regression.py), not an example. Standard and
+# express orders wait for a picker (express first) and for a shelf item; one that
+# runs out of patience leaves. Restocking moves one item at a time from the
+# warehouse to the shelf and uses the same benches as packing.
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+egress:
+  - type: Console
+
+resources:
+  pickers: {current_cap: 2, max_cap: 4, queue: priority}
+  benches: {current_cap: 2, max_cap: 3}
+
+containers:
+  warehouse: {current_cap: 300, max_cap: 300, level: 120}
+
+stores:
+  shelf: {current_cap: 30, max_cap: 30}
+
+services:
+  picking: {dist: lognormal, mean: 6 s, std: 3 s}
+  packing: {dist: gamma, shape: 3, scale: 1 s}
+  restocking: {dist: triangular, low: 1 s, mode: 2 s, high: 5 s}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.18, spawn: pick, attributes: {rank: 2, patience: 40}}
+  express: {dist: weibull, shape: 1.5, scale: 30 s, spawn: pick, attributes: {rank: 1, patience: 25}}
+  deliveries: {dist: uniform, low: 4 s, high: 8 s, spawn: restock}
+
+tasks:
+  pick:
+    service: picking
+    resource: pickers
+    priority: attr.rank
+    patience: attr.patience
+    get: {store: shelf}
+    payload: {event_type: order_picked}
+    next: pack
+  pack:
+    service: packing
+    resource: benches
+    payload: {event_type: order_packed}
+  restock:
+    service: restocking
+    resource: benches
+    get: {container: warehouse, amount: 1}
+    put: {store: shelf}
+    payload: {event_type: shelf_filled}
+
+stats: {level: basic, interval: 50}
+
+run:
+  until: 600

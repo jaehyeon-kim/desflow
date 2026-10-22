@@ -10,7 +10,7 @@ Most of the last three pages read one number, the mean wait. A run knows much mo
 
 ## Switch On Statistics
 
-desflow keeps statistics about a run as it goes, and publishes them as telemetry every 10 simulation seconds and once more at the end. They are off by default, because most runs only generate data. A level switches them on, and each level answers one more question:
+desflow keeps statistics about a run as it goes, and publishes them as telemetry every 10 simulation seconds and once more at the end, so the last value of each is the state at the end. They are off by default, because most runs only generate data. A level switches them on, and each level answers one more question:
 
 | Level | Question it answers | Adds |
 |---|---|---|

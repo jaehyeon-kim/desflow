@@ -320,3 +320,79 @@ def test_a_task_refused_after_it_queued_leaves_the_counts():
     readings = app.env.stats.readings()
     assert readings["Shop.stats.tasks.pack.balked"] == 1
     assert readings["Shop.stats.tasks.pack.in_progress"] == 0
+
+
+def _readings_per_time(records):
+    times = {}
+    for record in records:
+        if ".stats." in str(record.get("path_id")):
+            times.setdefault(record["sim_ts"], []).append(
+                (record["path_id"], record["value"])
+            )
+    return times
+
+
+def test_a_stop_at_an_interval_time_publishes_each_value_once_and_ends_at_the_end_state():
+    app = (
+        SimulationContext("Shop", factor=0, random_seed=1)
+        .add_container("boxes", current_cap=10, max_cap=10, level=1)
+        .with_stats("basic", interval=10.0)
+    )
+    data = _Capture()
+    app.add_egress(data)
+
+    def taker(context):
+        env = context.env
+        yield env.timeout(10)
+        yield env.timeout(10)  # created after the statistics timer of 20 is
+        yield context.get_container("boxes").get(1)
+
+    app.add_process(taker)
+    app.run(until=100, stop={"condition": "level.boxes == 0"})
+
+    times = _readings_per_time(data.records)
+    assert sorted(times) == [10.0, 20.0]
+    for readings in times.values():
+        assert len(readings) == len(set(readings))
+    # The timer published level 1 at 20 before the taker ran; the end state is 0
+    levels = [v for path, v in times[20.0] if path.endswith(".boxes.level")]
+    assert levels == [1, 0]
+
+
+def test_a_low_level_run_ending_at_an_interval_time_publishes_each_value_once_and_ends_at_the_end_state():
+    from desflow import (
+        ContainerConfig,
+        DynamicContainer,
+        DynamicRealtimeEnvironment,
+        SimParameter,
+    )
+
+    env = DynamicRealtimeEnvironment(factor=0.0)
+    env.registry.register_sim_parameter(
+        SimParameter(
+            sim_id="Shop",
+            containers={"boxes": ContainerConfig(current_cap=10, max_cap=10, level=1)},
+        )
+    )
+    data = _Capture()
+    env.setup_egress([data])
+    env.setup_stats("Shop", "basic", interval=10.0)
+    boxes = DynamicContainer(env, "Shop", "boxes")
+
+    def taker():
+        yield env.timeout(10)
+        yield env.timeout(10)  # created after the statistics timer of 20 is
+        yield boxes.get(1)
+
+    try:
+        env.run(until=env.process(taker()))
+    finally:
+        env.teardown()
+
+    times = _readings_per_time(data.records)
+    assert sorted(times) == [10.0, 20.0]
+    for readings in times.values():
+        assert len(readings) == len(set(readings))
+    # The timer published level 1 at 20 before the taker ran; the end state is 0
+    levels = [v for path, v in times[20.0] if path.endswith(".boxes.level")]
+    assert levels == [1, 0]

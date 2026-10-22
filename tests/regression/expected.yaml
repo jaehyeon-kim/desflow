@@ -1,0 +1,25 @@
+# Differences against the release named by `compare --baseline`. Each entry names a run key, the release that changed it and the changelog line that says so.
+- run: blueprint:c3_preemption.yaml
+  since: 0.23.0
+  changelog: "A `preempted` event carries `preempted_by`, the key of the entity that took the unit, and `usage_since`, the time the preempted task was granted it. Storage sinks gain two columns."
+- run: blueprint:c3_preemption_tie.yaml
+  since: 0.23.0
+  changelog: "A `preempted` event carries `preempted_by`, the key of the entity that took the unit, and `usage_since`, the time the preempted task was granted it. Storage sinks gain two columns."
+- run: blueprint:c3_two_preemptions.yaml
+  since: 0.23.0
+  changelog: "A `preempted` event carries `preempted_by`, the key of the entity that took the unit, and `usage_since`, the time the preempted task was granted it. Storage sinks gain two columns."
+- run: blueprint:c4_renege_ahead.yaml
+  since: 0.23.0
+  changelog: "A `preempted` event carries `preempted_by`, the key of the entity that took the unit, and `usage_since`, the time the preempted task was granted it. Storage sinks gain two columns."
+- run: blueprint:c7_patience_preempted.yaml
+  since: 0.23.0
+  changelog: "A `preempted` event carries `preempted_by`, the key of the entity that took the unit, and `usage_since`, the time the preempted task was granted it. Storage sinks gain two columns."
+- run: example:interruptions:builder
+  since: 0.23.0
+  changelog: "A `preempted` event carries `preempted_by`, the key of the entity that took the unit, and `usage_since`, the time the preempted task was granted it. Storage sinks gain two columns."
+- run: example:interruptions:low_level
+  since: 0.23.0
+  changelog: "A `preempted` event carries `preempted_by`, the key of the entity that took the unit, and `usage_since`, the time the preempted task was granted it. Storage sinks gain two columns."
+- run: example:interruptions:yaml
+  since: 0.23.0
+  changelog: "A `preempted` event carries `preempted_by`, the key of the entity that took the unit, and `usage_since`, the time the preempted task was granted it. Storage sinks gain two columns."

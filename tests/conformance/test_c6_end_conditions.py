@@ -972,9 +972,8 @@ def test_c6_finish_after_steps_that_reached_until():
 def test_c6_finish_after_steps_to_until_with_statistics_due_there():
     """`step()` processes the events at `until` that `run(until=)` leaves in the
     queue, as SimPy's `step()` does. With a statistics reading due at `until` that
-    `step()` processed, the records are one run's records (which end with the final
-    statistics that `close()` publishes), plus the records of those events, so the
-    reading appears twice at `until`."""
+    `step()` processed, `close()` does not publish it again: the records are one
+    run's records, with each value once at `until`."""
 
     def build():
         app, rec = _builder_app()
@@ -995,14 +994,7 @@ def test_c6_finish_after_steps_to_until_with_statistics_due_there():
     reading = [r for r in at_until(whole_rec.records) if r["stream_type"] != "event"]
     assert len(reading) == 4
     assert len(whole_rec.records) == 10
-    assert len(stepped_rec.records) == 14
-    # one run's records come first and unchanged; the rest is the final statistics
-    assert stepped_rec.records[:10] == whole_rec.records
-    extra = stepped_rec.records[10:]
-    assert [r["stream_type"] for r in extra] == [r["stream_type"] for r in reading]
-    assert [(r["sim_ts"], r["value"]) for r in extra] == [
-        (r["sim_ts"], r["value"]) for r in reading
-    ]
+    assert stepped_rec.records == whole_rec.records
 
 
 def _stopped_and_resumed(env):

@@ -24,7 +24,7 @@ A level switches them on. Each level publishes what the levels before it publish
 | `typical` | How long did tasks take? | tasks: `wait_mean`, `wait_max`, `service_mean`, `service_max` |
 | `all` | How long did the slowest take? | tasks: `wait_p50`, `wait_p95`, `wait_p99`, `service_p50`, `service_p95`, `service_p99` |
 
-They are published every `interval` of simulation time, 10 seconds when it is not given, starting one interval after the start, and once more at the end of the run:
+They are published every `interval` of simulation time, 10 seconds when it is not given, starting one interval after the start, and once more at the end of the run. When the timer has already published at the end's time, the end publishes only the values that changed since:
 
 === "YAML"
 
@@ -312,7 +312,7 @@ The `measuring` example publishes every statistic of the packers and the pack ta
 
 ## How It Works
 
-The environment keeps one `Statistics` object, `env.stats`, which collects nothing until a level above `none` is set. Its timer publishes every value at each interval, and the teardown publishes them once more.
+The environment keeps one `Statistics` object, `env.stats`, which collects nothing until a level above `none` is set. Its timer publishes every value at each interval, and the teardown publishes them once more. When the timer has already published at the teardown's time, the teardown publishes only the values that changed since.
 
 **Readings now.** `capacity`, `in_use`, `queue_length` and `level` are read from the object at the moment of publishing. `in_use` counts the units held by tasks, so after a capacity drop it can be above `capacity`, and `utilization`, `in_use ÷ capacity × 100`, above 100. A resource with no limit (`current_cap: .inf`) publishes `capacity` as `null` and a `utilization` of 0. A store or container with no limit publishes its `capacity` as `null` too.
 

@@ -1,0 +1,44 @@
+# Long run: one simulated week with a warm-up, thousands of entities and telemetry
+# records, in YAML.
+#
+# A regression scenario (see scripts/regression.py), not an example. Orders arrive all
+# week, with a busy spell from day 3 to day 4. The first 6 hours are warm-up, which no
+# sink receives; the statistics at the `all` level are published every hour.
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+  warmup: 6 h
+
+egress:
+  - type: Console
+
+resources:
+  packers: {current_cap: 3, max_cap: 4}
+
+services:
+  packing: {dist: gamma, shape: 4, scale: 25 s}
+  shipping: {dist: lognormal, mean: 60 s, std: 30 s}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.01, spawn: pack}
+
+tasks:
+  pack:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+    next: ship
+  ship:
+    service: shipping
+    payload: {event_type: order_shipped}
+
+scenario:
+  - {at: 172800, path: Shop.arrival.orders.rate, value: 0.015, record: {fault: busy_period}}
+  - {at: 259200, path: Shop.arrival.orders.rate, value: 0.01, record: {fault: busy_period_over}}
+
+stats: {level: all, interval: 1 h}
+
+run:
+  until: 604800

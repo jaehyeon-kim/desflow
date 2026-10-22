@@ -422,7 +422,8 @@ class SimulationContext:
         Args:
             level: `none`, `minimal`, `basic`, `typical` or `all`.
             interval: Simulation seconds between publications; they are also
-                published once at the end of the run. Defaults to 10.
+                published once at the end of the run, except the values unchanged
+                since a reading at that same time. Defaults to 10.
 
         Returns:
             SimulationContext: The current instance for method chaining.
@@ -2013,9 +2014,9 @@ class SimulationContext:
         brought the clock to exactly `until`, the records hold one run's records
         (which end with the final statistics) plus those of the events at `until`
         that `step()` processed, as in SimPy; a statistics reading due at `until`
-        that `step()` processed then appears twice at that time. After steps past
-        `until`, the run closes where the steps stopped, with the final statistics
-        at that time.
+        is not published again, and the close adds only the values that changed
+        after it. After steps past `until`, the run closes where the steps stopped,
+        with the final statistics at that time.
         `close()` runs even when the run stops with an error or Ctrl+C.
 
         Returns:

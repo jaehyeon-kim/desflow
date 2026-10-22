@@ -1,0 +1,135 @@
+# Task flow: a branching flow with conditions and expressions, waits on groups of
+# signals and tasks, labels, and entities with many attributes, in YAML.
+#
+# A regression scenario (see scripts/regression.py), not an example. Orders, gifts and
+# rush orders enter check_order, which branches on the stock level and on their
+# attributes. A packed order waits for two child tasks, then for a courier, a truck
+# or a time limit, and is sent by whichever came first.
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+egress:
+  - type: Console
+
+resources:
+  packers: {current_cap: 2, max_cap: 4}
+
+containers:
+  stock: {current_cap: 100, max_cap: 100, level: 12}
+
+signals: [courier_left, truck_ready]
+
+services:
+  packing: {dist: triangular, low: 1 s, mode: 2 s, high: 4 s}
+  wrapping: {dist: constant, value: 3 s}
+  supplying: {dist: constant, value: 30 s}
+  inspecting: {dist: constant, value: 2 s}
+  labelling: {dist: uniform, low: 1 s, high: 2 s}
+  rechecking: {dist: constant, value: 2 s}
+
+arrivals:
+  orders:
+    dist: exponential
+    rate: 0.12
+    spawn: check_order
+    attributes: {gift: 0, express: 0, region: north, items: 2, tier: 1, weight: 1.5}
+  gifts:
+    dist: exponential
+    rate: 0.04
+    spawn: check_order
+    attributes: {gift: 1, express: 0, region: south, items: 4, tier: 2, weight: 2.5}
+  rush:
+    dist: exponential
+    rate: 0.02
+    spawn: check_order
+    attributes: {gift: 0, express: 1, region: north, items: 1, tier: 3, weight: 0.5}
+  deliveries: {dist: constant, value: 90 s, spawn: restock}
+  couriers: {dist: constant, value: 50 s, spawn: courier}
+  trucks: {dist: constant, value: 70 s, spawn: truck}
+
+tasks:
+  check_order:
+    payload: {total: 80}
+    next:
+      when:
+        - {condition: "level.stock == 0", task: backorder}
+        - {condition: "payload.total >= 100 or attr.gift == 1", task: wrap_gift}
+      default: pack_order
+  backorder:
+    service: supplying
+    set: {backordered: 1}
+    payload: {event_type: order_backordered}
+    next: check_order
+  wrap_gift:
+    service: wrapping
+    payload: {event_type: gift_wrapped}
+    next: pack_order
+  pack_order:
+    service: packing
+    resource: packers
+    get: {container: stock, amount: 1}
+    payload: {event_type: order_packed}
+    next:
+      weights: {settle: 9, pack_order: 1}
+  settle:
+    wait:
+      all:
+        inspected: {task: inspect}
+        labelled: {task: print_label}
+    payload: {event_type: order_settled}
+    next: dispatch
+  inspect:
+    service: inspecting
+    payload: {event_type: inspected}
+    fail: attr.tier == 3
+    fail_reason: rush needs a second look
+    on_fail: recheck
+  recheck:
+    service: rechecking
+    payload: {event_type: rechecked}
+  print_label:
+    service: labelling
+    payload: {event_type: label_printed}
+  dispatch:
+    wait:
+      any:
+        courier: {signal: courier_left}
+        truck: {signal: truck_ready}
+        limit: {timeout: 40 s}
+    payload: {event_type: dispatched}
+    next:
+      when:
+        - {condition: wait.courier.done, task: by_courier}
+        - {condition: wait.truck.done, task: by_truck}
+      default: by_post
+  by_courier:
+    payload: {event_type: sent_by_courier}
+    attributes: [gift, region, tier, backordered]
+  by_truck:
+    payload: {event_type: sent_by_truck}
+    attributes: [gift, region, tier, backordered]
+  by_post:
+    payload: {event_type: sent_by_post}
+    attributes: [gift, region, tier, backordered]
+  restock:
+    put: {container: stock, amount: 20}
+    payload: {event_type: stock_delivered}
+  courier:
+    payload: {event_type: courier_left}
+    signal: courier_left
+  truck:
+    payload: {event_type: truck_left}
+    signal: truck_ready
+
+scenario:
+  - {at: 200, record: {fault: rush_hour}}
+  - {at: 330, path: Shop.service.packing.high, value: 6, record: {fault: slow_packing}}
+  - {at: 470, path: Shop.service.packing.high, value: 4, record: {fault: packing_recovered}}
+
+stats: {level: basic, interval: 60}
+
+run:
+  until: 600

@@ -1,0 +1,81 @@
+# Breakdowns and shifts: a station that breaks down and interrupts the task holding
+# it, capacity changed at fixed times, and signals that open and close the shop, in
+# YAML.
+#
+# A regression scenario (see scripts/regression.py), not an example. A day task
+# opens the shop every 150 seconds and a second task closes it 90 seconds later; an
+# order that arrives while the shop is closed waits up to 60 seconds for it to open,
+# and is turned away if it stays closed.
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+egress:
+  - type: Console
+
+resources:
+  station:
+    current_cap: 2
+    max_cap: 4
+    breakdown:
+      time_to_failure: {dist: exponential, rate: 0.01}
+      repair: {dist: uniform, low: 8 s, high: 20 s}
+      work: interrupt
+  packers: {current_cap: 2, max_cap: 4}
+
+signals: [opened, closed]
+
+services:
+  packing: {dist: triangular, low: 2 s, mode: 4 s, high: 8 s}
+  wrapping: {dist: uniform, low: 2 s, high: 4 s}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.25, spawn: serve}
+  days: {dist: constant, value: 150 s, spawn: open_shop}
+
+tasks:
+  open_shop:
+    payload: {event_type: shop_opened}
+    signal: opened
+    next: close_up
+  close_up:
+    wait: {timeout: 90 s}
+    payload: {event_type: shop_closed}
+    signal: closed
+  serve:
+    wait:
+      any:
+        open: {condition: signal.opened.count > signal.closed.count}
+        limit: {timeout: 60 s}
+    payload: {event_type: order_received}
+    next:
+      when: [{condition: wait.open.done, task: pack}]
+      default: turned_away
+  pack:
+    service: packing
+    resource: station
+    on_interrupt: resume
+    payload: {event_type: order_packed}
+    next: wrap
+  wrap:
+    service: wrapping
+    resource: packers
+    payload: {event_type: order_wrapped}
+  turned_away:
+    payload: {event_type: order_turned_away}
+
+scenario:
+  # Shifts: more staff for the rush, fewer after it
+  - {at: 130, path: Shop.resources.packers.current_cap, value: 3}
+  - {at: 130, path: Shop.resources.station.current_cap, value: 3}
+  - {at: 310, path: Shop.resources.packers.current_cap, value: 1}
+  - {at: 310, path: Shop.resources.station.current_cap, value: 1}
+  - {at: 470, path: Shop.resources.packers.current_cap, value: 2}
+  - {at: 470, path: Shop.resources.station.current_cap, value: 2}
+
+stats: {level: basic, interval: 70}
+
+run:
+  until: 600

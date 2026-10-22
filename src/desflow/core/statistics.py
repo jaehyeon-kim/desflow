@@ -168,6 +168,10 @@ class Statistics:
         self.level = "none"
         self.interval = DEFAULT_STATS_INTERVAL
         self._rank = 0
+        # The time of the last publication and the values published at it, so a
+        # second publication at the same time publishes only what changed
+        self._published_at: Optional[float] = None
+        self._published: Dict[str, Any] = {}
         self._objects: Dict[Tuple[str, str], Any] = {}
         self._averages: Dict[Tuple[str, str], Dict[str, _TimeAverage]] = {}
         self._tasks: Dict[str, _Task] = {}
@@ -577,8 +581,21 @@ class Statistics:
         return values
 
     def publish(self) -> None:
-        """Publishes every statistic as telemetry at the current simulation time."""
-        for name, value in self.readings().items():
+        """
+        Publishes every statistic as telemetry at the current simulation time.
+
+        When the last publication was at this same time, publishes only the
+        statistics whose value changed since, so a run that ends at an interval time
+        repeats no value and its last values are the state at the end.
+        """
+        readings = self.readings()
+        if self._published_at != self.env.now:
+            self._published_at = self.env.now
+            self._published = {}
+        for name, value in readings.items():
+            if name in self._published and self._published[name] == value:
+                continue
+            self._published[name] = value
             self.env.publish_telemetry(name, value)
 
     def _task(self, task: str) -> _Task:

@@ -1,0 +1,45 @@
+# Live parameters: an arrival rate, a service time and a capacity changed on the
+# way, and a run that ends by its end conditions, in YAML.
+#
+# A regression scenario (see scripts/regression.py), not an example. A process
+# updates registry paths at fixed times, as an ingress connector would; the twin
+# runners remove ingress, so the process stands in for it. The 500 boxes are taken
+# at about 740 seconds, which ends the run by its stop condition; 900 seconds and a
+# drain of at most 120 seconds are the limits if they were not.
+
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+egress:
+  - type: Console
+
+resources:
+  packers: {current_cap: 2, max_cap: 6}
+
+containers:
+  boxes: {current_cap: 500, max_cap: 500, level: 500}
+
+services:
+  packing: {dist: normal, mean: 3 s, std: 0.5 s}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.5, spawn: pack}
+
+tasks:
+  pack:
+    service: packing
+    resource: packers
+    get: {container: boxes, amount: 1}
+    payload: {event_type: order_packed}
+
+processes:
+  - !python live_parameters_logic.steer
+
+stats: {level: basic, interval: 30}
+
+run:
+  until: 900
+  drain: {limit: 120}
+  stop: {condition: level.boxes == 0}
