@@ -281,7 +281,7 @@ The `replications` example runs one hour of the shop 20 times, with seeds spawne
 ## Stability and Limits
 
 - **No event records.** Replications send no event records: twenty streams of orders with different seeds in one sink could not be told apart. Repeat one replication with its seed to get its records.
-- **Independent seeds only.** Every replication of one call has its own seed. Comparing two designs with the same seeds, and checking that their random streams line up, is an experiment's job ([Experiments](experiments.md)).
+- **Independent seeds only.** Every replication of one call has its own seed. Comparing two designs with the same seeds, and checking that their random streams line up, is an experiment's job ([Experiments](experiments/index.md)).
 - **Same model each time.** A builder factory must return a new context on every call; a context that has run keeps its entity counters and is not a new replication.
 - **Built-in statistics only.** A replication summarises the built-in statistics at its end. Readings of your own, published with `context.publish`, are not summarised.
 - **Steady state and terminating runs.** The warm-up applies to each replication. A run with a natural start and end, such as a shop day, keeps its empty start and needs no warm-up.

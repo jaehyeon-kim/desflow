@@ -33,6 +33,9 @@ theme:
     # numbers; docs/js/code-lines.js adds a third that hides the line numbers.
     - content.code.copy
     - content.code.select
+    # A section whose first page is index.md opens that page when its title is
+    # chosen, so each User Guide topic folder has one page that lists its pages.
+    - navigation.indexes
 
 plugins:
   - search
@@ -52,15 +55,15 @@ plugins:
         architecture/paradigms.md: user-guide/ways-to-write.md
         building-blocks/index.md: user-guide/building-blocks.md
         building-blocks/arrivals-and-services.md: user-guide/arrivals-and-services.md
-        building-blocks/tasks-and-processes.md: user-guide/tasks-and-processes.md
-        building-blocks/resources.md: user-guide/resources.md
-        architecture/resources.md: user-guide/resources.md
+        building-blocks/tasks-and-processes.md: user-guide/tasks-and-processes/index.md
+        building-blocks/resources.md: user-guide/resources/index.md
+        architecture/resources.md: user-guide/resources/index.md
         architecture/yaml.md: user-guide/blueprints.md
         guides/yaml-blueprints.md: user-guide/blueprints.md
         architecture/registry.md: user-guide/live-parameters.md
         guides/live-parameters.md: user-guide/live-parameters.md
-        architecture/time.md: user-guide/time-and-pacing.md
-        architecture/environment.md: user-guide/time-and-pacing.md
+        architecture/time.md: user-guide/time-and-pacing/index.md
+        architecture/environment.md: user-guide/time-and-pacing/index.md
         architecture/connectors.md: user-guide/egress.md
         architecture/batching.md: user-guide/egress.md
         guides/data-lake-ingestion.md: user-guide/egress.md
@@ -71,7 +74,7 @@ plugins:
         guides/backfill-then-live.md: examples/backfill-live.md
         architecture/records.md: reference/records-and-telemetry.md
         # Local Studies became Experiments, before 0.22.0 was released
-        user-guide/local-studies.md: user-guide/experiments.md
+        user-guide/local-studies.md: user-guide/experiments/index.md
         # Preemptive Breakdowns became Breakdowns, with the native breakdown, in 0.22.0
         guides/preemptive-breakdowns.md: guides/breakdowns.md
         # Page named after the package before the rename to desflow in 0.20.0.
@@ -196,16 +199,29 @@ nav:
       - Low-level API: user-guide/low-level-api.md
       - Building Blocks: user-guide/building-blocks.md
       - Arrivals and Services: user-guide/arrivals-and-services.md
-      - Tasks and Processes: user-guide/tasks-and-processes.md
-      - Resources: user-guide/resources.md
+      - Tasks and Processes:
+          - user-guide/tasks-and-processes/index.md
+          - Processes: user-guide/tasks-and-processes/processes.md
+          - Signals and Waiting: user-guide/tasks-and-processes/signals-and-waiting.md
+          - Failures: user-guide/tasks-and-processes/failures.md
+      - Resources:
+          - user-guide/resources/index.md
+          - Priority and Preemption: user-guide/resources/priority-and-preemption.md
+          - Several Resources: user-guide/resources/several-resources.md
+          - Custom Resource Types: user-guide/resources/custom-resource-types.md
       - Stores and Containers: user-guide/stores-and-containers.md
       - Task Flow: user-guide/task-flow.md
       - Statistics: user-guide/statistics.md
       - Replications: user-guide/replications.md
-      - Experiments: user-guide/experiments.md
+      - Experiments:
+          - user-guide/experiments/index.md
+          - Experiment Results: user-guide/experiments/experiment-results.md
       - Input Fitting: user-guide/input-fitting.md
       - Live Parameters: user-guide/live-parameters.md
-      - Time and Pacing: user-guide/time-and-pacing.md
+      - Time and Pacing:
+          - user-guide/time-and-pacing/index.md
+          - Clocks and Pacing: user-guide/time-and-pacing/clocks-and-pacing.md
+          - Run Length: user-guide/time-and-pacing/run-length.md
       - Ingress: user-guide/ingress.md
       - Egress: user-guide/egress.md
   - How-To:
@@ -273,3 +289,4 @@ extra_css:
 
 extra_javascript:
   - js/code-lines.js
+  - js/moved-anchors.js

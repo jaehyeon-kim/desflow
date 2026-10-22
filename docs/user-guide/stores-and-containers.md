@@ -123,7 +123,7 @@ A task takes with `get` and adds with `put`. For a container, each names the con
 
     `get(amount)`, `put(amount)`, `put(item)` and `get()` are SimPy events: yielding one waits until it succeeds, and a store's `get()` succeeds with the item.
 
-A task with a resource gets its unit first and then takes its `get`, so it waits for stock while holding the unit. A task adds its `put` after its service time, then publishes the finished event. [Tasks and Processes](tasks-and-processes.md#what-apptask-does) lists every step.
+A task with a resource gets its unit first and then takes its `get`, so it waits for stock while holding the unit. A task adds its `put` after its service time, then publishes the finished event. [Tasks and Processes](tasks-and-processes/index.md#what-apptask-does) lists every step.
 
 A `put` or `get` makes the task wait until it is granted. With `wait: false` (`"wait": False` in the builder) the task makes the request and goes on at once, as a SimPy `put` that is not yielded: it publishes `finished` without waiting, and the request stays in the queue until it can be granted. Requests that are not waited for are granted first in first out with the others. An interrupt, `on_interrupt: abandon` and `patience` never cancel one, and a run ends without a request that is still waiting. A `drain` does not wait for it. A `get` with `wait: false` takes its item later and drops it, so it cannot use `item_field` or a function that declares `item`, and `item.<field>` can be read only in its own `filter`. `wait: false` is refused in a branch of a `wait`. The `pump` task of [Example: Fuel Dock](#example-fuel-dock) puts fuel into a tank this way; the third pump finds only 20 of room and its put stays queued.
 

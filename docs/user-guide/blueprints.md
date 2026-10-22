@@ -45,7 +45,7 @@ app.run()  # calls run.before, then runs until run.until
 
 A time in a blueprint is a number of seconds or a duration such as `90 s`, `10 min`, `2 hours` or `1 week`: `run.until`, a scenario step's `at`, `simulation.warmup`, a stats `interval`, and every time-valued distribution parameter. `rate` is the exception: it is a number per second.
 
-`logical_start_time` and `go_live_at` are instants: `now`, a signed duration from now such as `-1d` or `-10m`, or an ISO datetime such as `2026-01-01T00:00:00`. Both are read against one moment, when the file is loaded, so `-10m` and `now` are exactly ten minutes apart. `now`, the relative forms and an ISO datetime without an offset are read in `simulation.timezone`, UTC by default, as [Time and Pacing](time-and-pacing.md#time-zone) describes.
+`logical_start_time` and `go_live_at` are instants: `now`, a signed duration from now such as `-1d` or `-10m`, or an ISO datetime such as `2026-01-01T00:00:00`. Both are read against one moment, when the file is loaded, so `-10m` and `now` are exactly ten minutes apart. `now`, the relative forms and an ISO datetime without an offset are read in `simulation.timezone`, UTC by default, as [Clocks and Pacing](time-and-pacing/clocks-and-pacing.md#time-zone) describes.
 
 ### Settings per Environment
 

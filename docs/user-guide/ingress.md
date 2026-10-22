@@ -187,4 +187,4 @@ At `factor: 1.0` a change therefore lands within 0.1 seconds of arriving. The si
     ```
 
 - **`LocalIngress` follows the wall clock,** so at `factor: 0` an unpaced run can end before its first change.
-- **Ingress needs an `until`.** The ingress monitor repeats for as long as the run lasts, so a run with ingress needs `until` or Ctrl+C, as [Time and Pacing](time-and-pacing.md#run-length) explains.
+- **Ingress needs an `until`.** The ingress monitor repeats for as long as the run lasts, so a run with ingress needs `until` or Ctrl+C, as [Run Length](time-and-pacing/run-length.md#run-length_1) explains.

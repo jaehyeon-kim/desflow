@@ -1,6 +1,6 @@
 # Breakdowns
 
-Make a resource fail at random and be repaired, decide what happens to the work it was doing, and check how long it was down. It builds on [Interruptions](../tutorials/interruptions.md), which explains `on_interrupt`, and on [Resources](../user-guide/resources.md#breakdowns), which describes the down state.
+Make a resource fail at random and be repaired, decide what happens to the work it was doing, and check how long it was down. It builds on [Interruptions](../tutorials/interruptions.md), which explains `on_interrupt`, and on [Priority and Preemption](../user-guide/resources/priority-and-preemption.md#breakdowns), which describes the down state.
 
 ---
 

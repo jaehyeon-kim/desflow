@@ -601,7 +601,7 @@ def replay_waits() -> None:
 
 def distribution_shapes() -> None:
     """Arrivals and Services: 200,000 draws from each distribution family, with the
-    parameters of the examples on the page."""
+    parameters in docs/snippets/pages/arrivals_services.py."""
     from desflow import DistributionConfig, Sampler
 
     module = _pages_module("arrivals_services")

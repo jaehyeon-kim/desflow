@@ -53,7 +53,7 @@ Here orders arrive twice as fast from 120 to 180 seconds, and a second packer wo
 
     `run_scenario(env, SCHEDULE, until=300)` is the SimPy process that applies the steps; start it with `env.process`, beside the arrivals.
 
-The steps change the registry, so everything that reads the path follows: the next arrival gap is drawn from the new rate, and the packers grant or owe units as on [Resources](../user-guide/resources.md#under-live-changes).
+The steps change the registry, so everything that reads the path follows: the next arrival gap is drawn from the new rate, and the packers grant or owe units as on [Resources](../user-guide/resources/index.md#under-live-changes).
 
 ---
 

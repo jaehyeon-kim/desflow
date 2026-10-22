@@ -77,7 +77,7 @@ A `warmup` time leaves the start out of everything the run reports:
 
     In the low-level API the warm-up is an argument of `env.setup_egress`, as the `plot` step above shows, because it is the sinks that leave the records out.
 
-A run has one warm-up, in simulation time. Every sink leaves out the records and telemetry stamped before it, and the built-in statistics start again from zero at that moment, so they describe the rest of the run only. An order that queued before the warm-up ended and started after it counts with its whole wait. The warm-up is not `go_live_at`, which sends early records to one sink and later ones to another and drops nothing; [Time and Pacing](../user-guide/time-and-pacing.md) compares the two.
+A run has one warm-up, in simulation time. Every sink leaves out the records and telemetry stamped before it, and the built-in statistics start again from zero at that moment, so they describe the rest of the run only. An order that queued before the warm-up ended and started after it counts with its whole wait. The warm-up is not `go_live_at`, which sends early records to one sink and later ones to another and drops nothing; [Time and Pacing](../user-guide/time-and-pacing/index.md) compares the two.
 
 Run the hour without and with the warm-up. `WARMUP=0 desflow run trusting_results.yaml` runs the YAML version without it; the Builder and Low-level scripts print both:
 

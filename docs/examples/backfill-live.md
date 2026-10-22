@@ -636,7 +636,7 @@ app = (
 )
 ```
 
-[Time and Pacing](../user-guide/time-and-pacing.md#how-it-works) describes how the switch is applied, and the cases where `go_live_at` is before the start or after the end of the run.
+[Time and Pacing](../user-guide/time-and-pacing/index.md#how-it-works) describes how the switch is applied, and the cases where `go_live_at` is before the start or after the end of the run.
 
 ---
 

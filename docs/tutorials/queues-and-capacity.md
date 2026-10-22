@@ -100,7 +100,7 @@ The number of packers is the resource's `current_cap`. Each run sets it once:
     resources={"packers": CapacityConfig(current_cap=packers, max_cap=10)},
     ```
 
-    A `DynamicResource` with a `current_cap` of 3 behaves like a SimPy resource with three units: a request is granted as soon as any unit is free, so three orders are packed at once. [Resources](../user-guide/resources.md) describes how it is built and why.
+    A `DynamicResource` with a `current_cap` of 3 behaves like a SimPy resource with three units: a request is granted as soon as any unit is free, so three orders are packed at once. [Resources](../user-guide/resources/index.md) describes how it is built and why.
 
 To read the mean wait, switch on the built-in statistics at the `typical` level, which keeps the mean wait of every task; [Measuring a Run](measuring-a-run.md) explains the levels.
 

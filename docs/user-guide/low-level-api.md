@@ -2,7 +2,7 @@
 
 This page writes a simulation with SimPy and the environment directly: a packing team with a stock of boxes and a store of packed orders, every step written by hand. It builds on [SimPy and desflow](../des/simpy-and-desflow.md), which describes the SimPy constructs, and on [Builder API](builder-api.md), which writes the same kind of model for you.
 
-Use the low-level API when you need what the builder does not do: resources created while the run goes on, as in [Dynamic Topology](../guides/dynamic-topology.md), or events and interactions of your own shape. A builder or blueprint model can also start a low-level process with `add_process`, as [Tasks and Processes](tasks-and-processes.md#processes-and-the-low-level-api) shows.
+Use the low-level API when you need what the builder does not do: resources created while the run goes on, as in [Dynamic Topology](../guides/dynamic-topology.md), or events and interactions of your own shape. A builder or blueprint model can also start a low-level process with `add_process`, as [Tasks and Processes](tasks-and-processes/index.md#processes-and-the-low-level-api) shows.
 
 A low-level script takes these steps, in this order:
 
@@ -34,7 +34,7 @@ from desflow import (
 env = DynamicRealtimeEnvironment(factor=0.0)  # unpaced; 1.0 follows the wall clock
 ```
 
-`factor` sets the pacing: `1.0` follows the wall clock, and `0.0` runs as fast as possible. `logical_start_time` and `go_live_at` work as [Time and Pacing](time-and-pacing.md) describes.
+`factor` sets the pacing: `1.0` follows the wall clock, and `0.0` runs as fast as possible. `logical_start_time` and `go_live_at` work as [Time and Pacing](time-and-pacing/index.md) describes.
 
 ## Register the Parameters
 
@@ -161,7 +161,7 @@ finally:
 
 `ConsoleEgress` writes each record as a log line at INFO level, so logging is switched on first. `env.run` is SimPy's, so `until` is a number of simulation seconds; `time_to_seconds` converts a duration such as `"10 min"`. `teardown` in `finally` publishes the last statistics, flushes the last records and stops both threads, even when the run stops with Ctrl+C or an error.
 
-A script can run the model in segments with `env.run(until=...)` again, as in SimPy, and `env.schedule(event, priority, delay)` is SimPy's own: `simpy.events.URGENT` puts an event before the `NORMAL` ones at its time. [Time and Pacing](time-and-pacing.md#run-in-segments) covers segments, `strict`, `sync()` and `env.resume_pacing()`.
+A script can run the model in segments with `env.run(until=...)` again, as in SimPy, and `env.schedule(event, priority, delay)` is SimPy's own: `simpy.events.URGENT` puts an event before the `NORMAL` ones at its time. [Run Length](time-and-pacing/run-length.md#run-in-segments) covers segments, `strict`, `sync()` and `env.resume_pacing()`.
 
 An environment subclass is plain Python: `class Traced(DynamicRealtimeEnvironment)`, whose `__init__` takes `**kwargs` and passes them on, and whose `step` or `schedule` calls `super()`. `step` runs once per event inside `run()`, desflow's own included.
 

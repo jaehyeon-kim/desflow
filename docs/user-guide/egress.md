@@ -180,7 +180,7 @@ egress:
 Every sink receives every event and telemetry record. `when` narrows that down:
 
 - **A function** taking one record and returning True to send it to this sink, in the builder or as `!python` in a blueprint.
-- **`history` and `live`**, in a blueprint: the records stamped before `simulation.go_live_at`, and the rest, as [Time and Pacing](time-and-pacing.md#go-live) describes.
+- **`history` and `live`**, in a blueprint: the records stamped before `simulation.go_live_at`, and the rest, as [Clocks and Pacing](time-and-pacing/clocks-and-pacing.md#go-live) describes.
 - **`labels`**: the ground-truth labels, and nothing else. No other sink receives a label, so data and labels always reach different sinks; [Live Parameters](live-parameters.md#record-what-a-change-was-for) describes them.
 
 ```python title="docs/snippets/pages/batching.py:every-sink"
@@ -216,7 +216,7 @@ egress:
     when: labels
 ```
 
-A file sink such as this one writes one file per batch under `labels/`, such as `labels/labels_1a2b3c4d.jsonl`. A run's `warmup` applies to every sink: none receives a record or telemetry stamped before it. [Time and Pacing](time-and-pacing.md#warm-up) describes it.
+A file sink such as this one writes one file per batch under `labels/`, such as `labels/labels_1a2b3c4d.jsonl`. A run's `warmup` applies to every sink: none receives a record or telemetry stamped before it. [Run Length](time-and-pacing/run-length.md#warm-up) describes it.
 
 ### Batch Size and Flush Interval
 
@@ -295,7 +295,7 @@ env.setup_egress(
 )
 ```
 
-`setup_egress` also takes `lag_monitor_interval`, the simulation seconds between `system.simulation.lag_seconds` records. Its default, `"auto"`, is off at `factor` 0 and 1.0 otherwise, and a run that goes live starts it at the go-live instant; `None` or 0 turns it off. The builder and YAML set it with `lag_interval`, as [Time and Pacing](time-and-pacing.md#lag) describes.
+`setup_egress` also takes `lag_monitor_interval`, the simulation seconds between `system.simulation.lag_seconds` records. Its default, `"auto"`, is off at `factor` 0 and 1.0 otherwise, and a run that goes live starts it at the go-live instant; `None` or 0 turns it off. The builder and YAML set it with `lag_interval`, as [Clocks and Pacing](time-and-pacing/clocks-and-pacing.md#lag) describes.
 
 ---
 

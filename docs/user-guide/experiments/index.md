@@ -1,12 +1,18 @@
 # Experiments
 
-An experiment answers a question with many runs rather than one. It runs designs of a model, each with replications, compares them seed by seed, checks them against bounds, places them beside values observed in the real system, and writes its results and a report to files. This page describes the experiment file, the Python call, every setting, the files an experiment writes and its report. It runs on one machine and needs no server.
+An experiment answers a question with many runs rather than one. It runs designs of a model, each with replications, compares them seed by seed, checks them against bounds, places them beside values observed in the real system, and writes its results and a report to files. This page describes the experiment file, the Python call and every setting; [Experiment Results](experiment-results.md) describes the files an experiment writes and its report. It runs on one machine and needs no server.
 
 ---
 
 ## What It Is
 
-A **design** is the model with some registry values changed before the clock starts: a variant, or a variant at one point of a sweep. An experiment runs every design with the same number of [replications](replications.md), reads the built-in statistics at the end of each run, and summarises each with a mean and a confidence interval. [Comparing Designs](../tutorials/comparing-designs.md) and [Parameter Sweeps](../tutorials/parameter-sweeps.md) use one on the shop.
+A **design** is the model with some registry values changed before the clock starts: a variant, or a variant at one point of a sweep. An experiment runs every design with the same number of [replications](../replications.md), reads the built-in statistics at the end of each run, and summarises each with a mean and a confidence interval. [Comparing Designs](../../tutorials/comparing-designs.md) and [Parameter Sweeps](../../tutorials/parameter-sweeps.md) use one on the shop.
+
+---
+
+## Pages in This Section
+
+- [Experiment Results](experiment-results.md): compare designs, check results against bounds, place observed values beside them, and read the files and the report.
 
 ---
 
@@ -68,7 +74,7 @@ In Python the same settings are a mapping, and the model is a blueprint path, a 
 |---|---|---|
 | `experiment` | the experiment's name | required |
 | `question` | the question the experiment answers, the report's first section | not stated |
-| `model` | a blueprint path; `!python module.function`, a function returning a new `SimulationContext`; or `{function: !python module.function, sim_id: Shop}`, a [low-level function](replications.md#run-replications) | required |
+| `model` | a blueprint path; `!python module.function`, a function returning a new `SimulationContext`; or `{function: !python module.function, sim_id: Shop}`, a [low-level function](../replications.md#run-replications) | required |
 | `assumptions` | sentences the report lists | none |
 | `inputs` | each distribution's registry path, such as `Shop.service.packing`, and where its values came from | none |
 | `until` | where each run's arrivals stop, in seconds or a duration such as `8 h`; the run ends there unless `stop` ends it earlier or `drain` runs on | required |
@@ -148,95 +154,9 @@ Each variant sets registry paths before the clock starts, as a live update would
 
 ### Pairing and Random Streams
 
-With `pairing: common`, every design runs with the same seeds, so a design's replication 3 and another design's replication 3 meet the same arrivals and service times, and their difference leaves most of the chance out ([Comparing Designs](../tutorials/comparing-designs.md#compare-two-designs)). With `pairing: independent`, each design's seeds are spawned from a seed of its own, and `compare` is refused.
+With `pairing: common`, every design runs with the same seeds, so a design's replication 3 and another design's replication 3 meet the same arrivals and service times, and their difference leaves most of the chance out ([Comparing Designs](../../tutorials/comparing-designs.md#compare-two-designs)). With `pairing: independent`, each design's seeds are spawned from a seed of its own, and `compare` is refused.
 
 The same seeds pair two runs only where both draw from the same random streams. Each distribution has a stream of its own, named by its registry path without the sim id, such as `service.packing`. The experiment records the streams each run drew from, and each comparison lists the streams both designs used and any that only one used. A stream only one design uses, such as a gift-wrap step only one design has, is not paired.
-
-### Compare Designs
-
-Each `compare` pair gives, for each measure and each sweep point, the variant's value minus the baseline's in each replication, the mean of those differences and its Student t half-width. An interval that does not contain 0 says the designs differ at that confidence level.
-
-### Check Results
-
-A check bounds one measure of one variant, or of every variant when `variant` is left out:
-
-- **`max` and `min`:** the bound, or both for a range.
-- **`on: interval`**, the default, compares the far end of the interval with the bound: the upper end with `max` and the lower end with `min`. A mean below the bound only by chance does not pass.
-- **`on: mean`** compares the mean, for a quick look, not a decision.
-
-A check whose measure is not in `measures` is refused. The experiment writes every file before it reports a failed check, so the report shows what failed.
-
-### Compare With Observed Values
-
-`observed` names a CSV of values measured in the real system, with the columns `measure`, `value`, `unit`, `population` and `horizon`. Each row is placed beside the simulated interval of `variant` (the first variant when it is not given), and the report says whether the value lies inside it. A value means something only beside a simulated value of the same kind, so the experiment refuses a row whose unit, population or horizon differs from the measure's:
-
-| Statistic | Unit | Population |
-|---|---|---|
-| `wait_*` of a task, recorded when an instance starts work | `s` | `started instances` |
-| `service_*` of a task, recorded when an instance finishes | `s` | `finished instances` |
-| `utilization` and `utilization_avg` | `percent` | `end of run` and `time average` |
-| other `*_avg`, such as `queue_length_avg` | `count`, or `amount` for a container | `time average` |
-| task and flow counts, such as `finished` and `started` | `count` | `count over the horizon` |
-| `in_system` of a flow and `in_progress` of a task | `count` | `end of run` |
-| other readings, such as `queue_length` | `count`, or `amount` for a container | `end of run` |
-
-The horizon is `until` minus the warm-up, in seconds or a duration such as `57 min`; it describes a run that ends at `until`, so with a `stop` or a `drain` the observed values must cover the same entities as the simulated ones. This compares the model's output with the real system's; it is not the fitting of an input distribution, which [Input Fitting](input-fitting.md) covers.
-
-### Files
-
-An experiment writes six files to its output folder:
-
-| File | Holds |
-|---|---|
-| `experiment.json` | the settings, the question, assumptions, inputs and limits; the model's source and its SHA-256, its sim id and its compiled parameters; desflow, SimPy, NumPy and Python versions; each design's registry values, seeds and the streams each run drew from; the counts' names; the observed comparison |
-| `results.csv` | one row per design, replication and statistic: `design`, `variant`, a column per swept path, `replication`, `seed`, `statistic`, `kind` (`measure` or `count`), `unit`, `population` and `value` |
-| `summary.csv` | one row per design and statistic: `unit`, `population`, `n`, `mean`, `half_width`, `low`, `high` and `level` |
-| `comparisons.csv` | one row per compared pair, sweep point and measure: both means, `difference`, `half_width`, `low`, `high`, and the streams in `streams_both`, `streams_baseline_only` and `streams_variant_only` |
-| `checks.csv` | one row per check, design and bound: `on`, `bound`, `limit`, the checked `value` and `passed` |
-| `report.md` | the report, built from the five files above |
-
-### Read the Report
-
-`report.md` has these sections, and one with nothing to report says so: Question, Model, Assumptions, Inputs and Provenance (every distribution of the model with its parameters, and its provenance from `inputs` or "not stated"), Run Settings, Counts (the mean of each count the statistics publish, such as finished orders, for each design), Results (with the population each measure is taken over), Comparisons, Checks, Observed Comparison, Limits and Missing Inputs. Missing Inputs names what the experiment does not state, such as an input without a provenance, rather than filling it in. This is the middle of the example's report:
-
-<!-- records: experiment-report -->
-```text
-## Results
-
-Each measure's mean over the replications, with its 95% confidence interval.
-
-| Design | Measure | Population | Mean | Half-width | Interval | n |
-|---|---|---|---|---|---|---|
-| two | `tasks.pack.wait_mean` | started instances | 4.872 | 0.5493 | 4.323 to 5.422 | 20 |
-| two | `resources.packers.utilization_avg` | time average | 80.56 | 1.034 | 79.53 to 81.59 | 20 |
-| three | `tasks.pack.wait_mean` | started instances | 0.5389 | 0.05297 | 0.4859 to 0.5919 | 20 |
-| three | `resources.packers.utilization_avg` | time average | 53.74 | 0.6803 | 53.06 to 54.42 | 20 |
-
-## Comparisons
-
-Each difference is the variant's value minus the baseline's, seed by seed, with the confidence interval of the mean difference.
-
-| Baseline | Variant | Measure | Difference | Half-width | Interval | Random streams |
-|---|---|---|---|---|---|---|
-| two | three | `tasks.pack.wait_mean` | -4.333 | 0.5105 | -4.844 to -3.823 | 2 shared |
-| two | three | `resources.packers.utilization_avg` | -26.82 | 0.3642 | -27.18 to -26.45 | 2 shared |
-
-## Checks
-
-Checks passed: 1 of 1.
-
-| Design | Measure | Checked | Bound | Value | Result |
-|---|---|---|---|---|---|
-| three | `tasks.pack.wait_mean` | the upper end | max 2 | 0.5919 | passed |
-
-## Observed Comparison
-
-| Design | Measure | Observed | Unit | Simulated interval | Inside |
-|---|---|---|---|---|---|
-| two | `tasks.pack.wait_mean` | 4.6 | s | 4.323 to 5.422 | yes |
-```
-
-`desflow report results/packers` builds the report again from the other five files, such as after editing `experiment.json` by hand.
 
 ### Example: An Experiment
 
@@ -414,9 +334,9 @@ The `experiment` example is the experiment above: one hour of the shop with two 
 
 **Before running.** The experiment builds the model once without running it, records its compiled parameters, and refuses an `inputs` path that is not a distribution. It then builds each design the same way, so a bad registry path or value fails before any run. It reads the observed file and refuses a row that does not match its measure.
 
-**Runs.** Each design runs its replications as [Replications](replications.md#how-it-works) describes: each run builds the model again, unpaced, with no ingress and no egress, and reads the statistics at its end. The statistics level is the lowest that publishes every measure, and at least `basic`, so the counts are there. A low-level model's parameters are put back after each run, so a variant's value or a live change in one run is never where the next run starts.
+**Runs.** Each design runs its replications as [Replications](../replications.md#how-it-works) describes: each run builds the model again, unpaced, with no ingress and no egress, and reads the statistics at its end. The statistics level is the lowest that publishes every measure, and at least `basic`, so the counts are there. A low-level model's parameters are put back after each run, so a variant's value or a live change in one run is never where the next run starts.
 
-**Intervals.** Every interval, of a design's mean and of a difference, is the Student t interval of [Replications](replications.md#how-it-works), at the experiment's `level`.
+**Intervals.** Every interval, of a design's mean and of a difference, is the Student t interval of [Replications](../replications.md#how-it-works), at the experiment's `level`.
 
 ---
 

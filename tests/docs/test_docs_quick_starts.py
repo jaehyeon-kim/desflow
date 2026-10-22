@@ -31,17 +31,17 @@ PAGES = {
     # The 0.22.0 examples are shown on the page that teaches their feature.
     "patience": "docs/guides/reneging-and-balking.md",
     "filtered-inventory": "docs/user-guide/stores-and-containers.md",
-    "process-interaction": "docs/user-guide/tasks-and-processes.md",
-    "process-events": "docs/user-guide/tasks-and-processes.md",
+    "process-interaction": "docs/user-guide/tasks-and-processes/processes.md",
+    "process-events": "docs/user-guide/tasks-and-processes/signals-and-waiting.md",
     "fuel-dock": "docs/user-guide/stores-and-containers.md",
-    "interruptions": "docs/user-guide/resources.md",
-    "competing-resources": "docs/user-guide/resources.md",
-    "end-conditions": "docs/user-guide/time-and-pacing.md",
+    "interruptions": "docs/user-guide/resources/priority-and-preemption.md",
+    "competing-resources": "docs/user-guide/resources/several-resources.md",
+    "end-conditions": "docs/user-guide/time-and-pacing/run-length.md",
     "breakdowns": "docs/guides/breakdowns.md",
     "changing-demand": "docs/guides/time-varying-arrivals.md",
     "local-replay": "docs/user-guide/arrivals-and-services.md",
     "replications": "docs/user-guide/replications.md",
-    "experiment": "docs/user-guide/experiments.md",
+    "experiment": "docs/user-guide/experiments/index.md",
     "fitting": "docs/user-guide/input-fitting.md",
 }
 TABS = {"yaml": "YAML", "builder": "Builder", "low-level": "Low-level"}

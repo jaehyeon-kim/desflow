@@ -188,7 +188,7 @@ limit 8 min: 11005 by courier, 2872 by post, mean wait  288.2 s
 
 ## Why It Works
 
-Orders are packed at random moments, so the time from packing to the next courier is spread evenly over the 10 minutes between couriers. A limit of 5 minutes catches the courier for half the orders, and a limit of 8 minutes for 8 in 10, which is what the runs show. Every waiting order resumes at the same firing, which is why the courier takes them all at once. [Tasks and Processes](../user-guide/tasks-and-processes.md#wait-signals-and-child-flows) describes every kind of wait, and [Wait for One or All](../guides/wait-for-one-or-all.md) shows ties and failures.
+Orders are packed at random moments, so the time from packing to the next courier is spread evenly over the 10 minutes between couriers. A limit of 5 minutes catches the courier for half the orders, and a limit of 8 minutes for 8 in 10, which is what the runs show. Every waiting order resumes at the same firing, which is why the courier takes them all at once. [Signals and Waiting](../user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows) describes every kind of wait, and [Wait for One or All](../guides/wait-for-one-or-all.md) shows ties and failures.
 
 ---
 

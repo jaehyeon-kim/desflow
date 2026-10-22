@@ -55,7 +55,7 @@ run:
 
 ## simulation
 
-The arguments of `SimulationContext`. [Time and Pacing](../user-guide/time-and-pacing.md) describes the clock.
+The arguments of `SimulationContext`. [Time and Pacing](../user-guide/time-and-pacing/index.md) describes the clock.
 
 | Key | Value |
 |---|---|
@@ -73,7 +73,7 @@ The arguments of `SimulationContext`. [Time and Pacing](../user-guide/time-and-p
 
 ## resources, stores and containers
 
-`name: {...}` entries. [Resources](../user-guide/resources.md) and [Stores and Containers](../user-guide/stores-and-containers.md) describe them.
+`name: {...}` entries. [Resources](../user-guide/resources/index.md) and [Stores and Containers](../user-guide/stores-and-containers.md) describe them.
 
 | Section | Keys |
 |---|---|
@@ -85,7 +85,7 @@ A store and a container cannot share a name.
 
 ## signals
 
-A list of names, each a signal that tasks fire with `signal` and wait for with `wait: {signal: name}`. [Tasks and Processes](../user-guide/tasks-and-processes.md#wait-signals-and-child-flows) describes them.
+A list of names, each a signal that tasks fire with `signal` and wait for with `wait: {signal: name}`. [Signals and Waiting](../user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows) describes them.
 
 A signal may also be written as a mapping, `{name: {once, on}}`, with the list form still accepted:
 
@@ -112,7 +112,7 @@ An arrival also takes:
 
 ## tasks
 
-`name: {...}` entries, each built with `@app.task`. [Tasks and Processes](../user-guide/tasks-and-processes.md) and [Task Flow](../user-guide/task-flow.md) describe them.
+`name: {...}` entries, each built with `@app.task`. [Tasks and Processes](../user-guide/tasks-and-processes/index.md) and [Task Flow](../user-guide/task-flow.md) describe them.
 
 | Key | Value |
 |---|---|

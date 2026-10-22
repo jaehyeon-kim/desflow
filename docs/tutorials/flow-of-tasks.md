@@ -14,7 +14,7 @@ Look at the flow first:
 
 ## Chain the Tasks
 
-Choosing where an entity goes next is called **routing**. In desflow a task, which [Tasks and Processes](../user-guide/tasks-and-processes.md) describes, names what follows it with `next`. `next` is a task name, which always leads there; a list of `when` rules, each a condition and a task, where the first rule that holds wins and `default` catches the rest; or `weights`, below. A task with no `next` ends the order's flow.
+Choosing where an entity goes next is called **routing**. In desflow a task, which [Tasks and Processes](../user-guide/tasks-and-processes/index.md) describes, names what follows it with `next`. `next` is a task name, which always leads there; a list of `when` rules, each a condition and a task, where the first rule that holds wins and `default` catches the rest; or `weights`, below. A task with no `next` ends the order's flow.
 
 === "YAML"
 

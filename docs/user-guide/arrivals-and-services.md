@@ -19,11 +19,35 @@ An arrival draws one gap after another, so entities arrive at uneven times. Look
 
 ## How to Use It
 
-Every distribution is a family, `dist`, and the parameters that family takes. There are ten families. A parameter outside its range, a missing one, or one the family does not take is refused when the model is built, with the YAML line when it comes from a blueprint. [Reference, Distributions](../reference/distributions.md) lists every family with its parameters, rules, mean and variance; this section shows each in use.
+Every distribution is a family, `dist`, and the parameters that family takes. There are ten families. A parameter outside its range, a missing one, or one the family does not take is refused when the model is built, with the YAML line when it comes from a blueprint. [Reference, Distributions](../reference/distributions.md) lists every family with its parameters, rules, mean and variance; the table names each family, the list under it gives each family's rules, and one example shows the form.
 
-### Exponential
+| Family | Use it for | Parameters |
+|---|---|---|
+| [`exponential`](../reference/distributions.md#exponential) | Gaps between arrivals that happen independently of each other: orders, calls, visits. Many short gaps and a few long ones, with mean `1 / rate`. | `rate` |
+| [`normal`](../reference/distributions.md#normal) | Work with a typical time and a small, symmetric spread. | `mean`, `std` |
+| [`truncated_normal`](../reference/distributions.md#truncated_normal) | Work with a typical time and a hard minimum. | `mean`, `std`, `low` |
+| [`lognormal`](../reference/distributions.md#lognormal) | Times that are never negative and now and then much longer: repairs, support calls. | `mean`, `std` |
+| [`constant`](../reference/distributions.md#constant) | Fixed times: a conveyor, a set-up, a step that takes no time. | `value` |
+| [`uniform`](../reference/distributions.md#uniform) | Any time in a range, all equally likely, when only the range is known. | `low`, `high` |
+| [`triangular`](../reference/distributions.md#triangular) | An expert's estimate: the shortest, the most likely and the longest time. | `low`, `mode`, `high` |
+| [`gamma`](../reference/distributions.md#gamma) | Times less variable than exponential. A whole-number shape is the Erlang distribution: that many exponential steps in a row. | `shape`, `scale` |
+| [`weibull`](../reference/distributions.md#weibull) | Time to failure: a shape below 1 fails early, a shape above 1 wears out. | `shape`, `scale` |
+| [`empirical`](../reference/distributions.md#empirical) | Times taken from real data, when no family fits. | `values` with `weights`, or `edges` with `counts` |
 
-Gaps between arrivals that happen independently of each other: orders, calls, visits. Many short gaps and a few long ones, with mean `1 / rate`.
+The rules for each family's parameters:
+
+- `exponential`: `rate` above 0, in events per second: 0.5 is one every 2 seconds on average, 2.0 is two a second. It is the one parameter that is not a time, so it takes no duration.
+- `normal`: `mean`, and `std` 0 or more (0 when left out). A `std` of 0 gives the mean every time. A draw can be negative, and every time is raised to at least 0.00001 seconds, which raises the mean of a wide normal; use `truncated_normal` for that.
+- `truncated_normal`: `mean`, `std` 0 or more, and `low`, 0 when left out; with `std` 0, `mean` must be at least `low`. A draw below `low` is thrown away and drawn again, so no draws pile up at the limit, and the mean is the truncated distribution's own: 1.29 seconds for `mean: 1, std: 1, low: 0`. When `low` is more than half a standard deviation above the mean, where plain draws are kept less and less often, it uses an exponential proposal (Robert, 1995), so it stays exact and fast for any `low`.
+- `lognormal`: `mean` above 0 and `std` 0 or more (0 when left out). Both describe the times you get, not the underlying normal; desflow converts them.
+- `constant`: `value` 0 or more. It uses no random number at all.
+- `uniform`: `low` and `high`, with `low < high`. The mean is halfway between them.
+- `triangular`: `low`, `mode` and `high`, all required, with `low <= mode <= high` and `low < high`. The mean is (low + mode + high) ÷ 3.
+- `gamma`: `shape` and `scale`, both above 0. The mean is shape × scale and the variance shape × scale². From a mean and a standard deviation: shape = (mean ÷ std)² and scale = std² ÷ mean, so a mean of 1.5 seconds with a std of 0.5 is shape 9 and scale 0.1667.
+- `weibull`: `shape` and `scale`, both above 0. The mean is scale × gamma(1 + 1 ÷ shape), where gamma is the gamma function.
+- `empirical`: either `values`, each equally likely, with optional `weights`, one per value; or a histogram of `edges` and `counts`, one count per bin, where a draw picks a bin by its count and a time inside it uniformly. Weights and counts are 0 or more and add up to more than 0, and edges increase. The lists are taken when the model is loaded, so an `empirical` distribution has no registry path and does not change while the run goes on.
+
+An arrival or a service takes the same form for every family, `dist` and the parameters of its row. An exponential arrival, in the three ways to write it:
 
 === "YAML"
 
@@ -43,250 +67,6 @@ Gaps between arrivals that happen independently of each other: orders, calls, vi
     ```python title="docs/snippets/pages/arrivals_services.py:low-level-exponential"
     gap = DistributionConfig(dist="exponential", rate=0.5)  # an order every 2 s on average
     ```
-
-`rate` above 0, in events per second: 0.5 is one every 2 seconds on average, 2.0 is two a second. It is the one parameter that is not a time, so it takes no duration.
-
-### Normal
-
-Work with a typical time and a small, symmetric spread.
-
-=== "YAML"
-
-    ```yaml title="docs/snippets/yaml/arrivals_services.yaml:normal"
-    # under services: 3 s on average, give or take 0.5 s
-    packing: {dist: normal, mean: 3 s, std: 0.5 s}
-    ```
-
-=== "Builder"
-
-    ```python title="docs/snippets/pages/arrivals_services.py:builder-normal"
-    app.add_service("packing", dist="normal", mean=3.0, std=0.5)  # 3 s, give or take 0.5 s
-    ```
-
-=== "Low-level"
-
-    ```python title="docs/snippets/pages/arrivals_services.py:low-level-normal"
-    # 3 s, give or take 0.5 s
-    packing = DistributionConfig(dist="normal", mean=3.0, std=0.5)
-    ```
-
-`mean`, and `std` 0 or more (0 when left out). A `std` of 0 gives the mean every time. A draw can be negative, and every time is raised to at least 0.00001 seconds, which raises the mean of a wide normal; use `truncated_normal` for that.
-
-### Truncated Normal
-
-Work with a typical time and a hard minimum.
-
-=== "YAML"
-
-    ```yaml title="docs/snippets/yaml/arrivals_services.yaml:truncated-normal"
-    # under services: 1 s on average, spread 1 s, never below 0.2 s
-    labelling: {dist: truncated_normal, mean: 1 s, std: 1 s, low: 0.2 s}
-    ```
-
-=== "Builder"
-
-    ```python title="docs/snippets/pages/arrivals_services.py:builder-truncated-normal"
-    app.add_service("labelling", dist="truncated_normal", mean=1.0, std=1.0, low=0.2)
-    ```
-
-=== "Low-level"
-
-    ```python title="docs/snippets/pages/arrivals_services.py:low-level-truncated-normal"
-    labelling = DistributionConfig(dist="truncated_normal", mean=1.0, std=1.0, low=0.2)
-    ```
-
-`mean`, `std` 0 or more, and `low`, 0 when left out; with `std` 0, `mean` must be at least `low`. A draw below `low` is thrown away and drawn again, so no draws pile up at the limit, and the mean is the truncated distribution's own: 1.29 seconds for `mean: 1, std: 1, low: 0`. When `low` is more than half a standard deviation above the mean, where plain draws are kept less and less often, it uses an exponential proposal (Robert, 1995), so it stays exact and fast for any `low`.
-
-### Lognormal
-
-Times that are never negative and now and then much longer: repairs, support calls.
-
-=== "YAML"
-
-    ```yaml title="docs/snippets/yaml/arrivals_services.yaml:lognormal"
-    # under services: 4 s on average, now and then much longer
-    repair: {dist: lognormal, mean: 4 s, std: 3 s}
-    ```
-
-=== "Builder"
-
-    ```python title="docs/snippets/pages/arrivals_services.py:builder-lognormal"
-    # Now and then much longer
-    app.add_service("repair", dist="lognormal", mean=4.0, std=3.0)
-    ```
-
-=== "Low-level"
-
-    ```python title="docs/snippets/pages/arrivals_services.py:low-level-lognormal"
-    # Now and then much longer
-    repair = DistributionConfig(dist="lognormal", mean=4.0, std=3.0)
-    ```
-
-`mean` above 0 and `std` 0 or more (0 when left out). Both describe the times you get, not the underlying normal; desflow converts them.
-
-### Constant
-
-Fixed times: a conveyor, a set-up, a step that takes no time.
-
-=== "YAML"
-
-    ```yaml title="docs/snippets/yaml/arrivals_services.yaml:constant"
-    # under services: always 0.5 s, with no random draw
-    inspection: {dist: constant, value: 0.5 s}
-    ```
-
-=== "Builder"
-
-    ```python title="docs/snippets/pages/arrivals_services.py:builder-constant"
-    app.add_service("inspection", dist="constant", value=0.5)  # always 0.5 s, no draw
-    ```
-
-=== "Low-level"
-
-    ```python title="docs/snippets/pages/arrivals_services.py:low-level-constant"
-    inspection = DistributionConfig(dist="constant", value=0.5)  # always 0.5 s, no draw
-    ```
-
-`value` 0 or more. It uses no random number at all.
-
-### Uniform
-
-Any time in a range, all equally likely, when only the range is known.
-
-=== "YAML"
-
-    ```yaml title="docs/snippets/yaml/arrivals_services.yaml:uniform"
-    # under services: any time from 1 to 2 s, all equally likely
-    scanning: {dist: uniform, low: 1 s, high: 2 s}
-    ```
-
-=== "Builder"
-
-    ```python title="docs/snippets/pages/arrivals_services.py:builder-uniform"
-    app.add_service("scanning", dist="uniform", low=1.0, high=2.0)  # any time from 1 to 2 s
-    ```
-
-=== "Low-level"
-
-    ```python title="docs/snippets/pages/arrivals_services.py:low-level-uniform"
-    scanning = DistributionConfig(dist="uniform", low=1.0, high=2.0)  # from 1 to 2 s
-    ```
-
-`low` and `high`, with `low < high`. The mean is halfway between them.
-
-### Triangular
-
-An expert's estimate: the shortest, the most likely and the longest time.
-
-=== "YAML"
-
-    ```yaml title="docs/snippets/yaml/arrivals_services.yaml:triangular"
-    # under services: at least 1 s, usually 1.25 s, at most 2.25 s
-    wrapping: {dist: triangular, low: 1 s, mode: 1.25 s, high: 2.25 s}
-    ```
-
-=== "Builder"
-
-    ```python title="docs/snippets/pages/arrivals_services.py:builder-triangular"
-    # At least 1 s, usually 1.25 s, at most 2.25 s
-    app.add_service("wrapping", dist="triangular", low=1.0, mode=1.25, high=2.25)
-    ```
-
-=== "Low-level"
-
-    ```python title="docs/snippets/pages/arrivals_services.py:low-level-triangular"
-    # At least 1 s, usually 1.25 s, at most 2.25 s
-    wrapping = DistributionConfig(dist="triangular", low=1.0, mode=1.25, high=2.25)
-    ```
-
-`low`, `mode` and `high`, all required, with `low <= mode <= high` and `low < high`. The mean is (low + mode + high) ÷ 3.
-
-### Gamma
-
-Times less variable than exponential. A whole-number shape is the Erlang distribution: that many exponential steps in a row.
-
-=== "YAML"
-
-    ```yaml title="docs/snippets/yaml/arrivals_services.yaml:gamma"
-    # under services: three exponential steps of 0.5 s each, a mean of 1.5 s
-    checking: {dist: gamma, shape: 3, scale: 0.5 s}
-    ```
-
-=== "Builder"
-
-    ```python title="docs/snippets/pages/arrivals_services.py:builder-gamma"
-    # Three exponential steps of 0.5 s each: a mean of 1.5 s
-    app.add_service("checking", dist="gamma", shape=3, scale=0.5)
-    ```
-
-=== "Low-level"
-
-    ```python title="docs/snippets/pages/arrivals_services.py:low-level-gamma"
-    # Three exponential steps of 0.5 s each: a mean of 1.5 s
-    checking = DistributionConfig(dist="gamma", shape=3, scale=0.5)
-    ```
-
-`shape` and `scale`, both above 0. The mean is shape × scale and the variance shape × scale². From a mean and a standard deviation: shape = (mean ÷ std)² and scale = std² ÷ mean, so a mean of 1.5 seconds with a std of 0.5 is shape 9 and scale 0.1667.
-
-### Weibull
-
-Time to failure: a shape below 1 fails early, a shape above 1 wears out.
-
-=== "YAML"
-
-    ```yaml title="docs/snippets/yaml/arrivals_services.yaml:weibull"
-    # under services: time to a printer jam; a shape above 1 means it wears out
-    jamming: {dist: weibull, shape: 1.5, scale: 1 h}
-    ```
-
-=== "Builder"
-
-    ```python title="docs/snippets/pages/arrivals_services.py:builder-weibull"
-    # Time to a printer jam: a shape above 1 means it wears out
-    app.add_service("jamming", dist="weibull", shape=1.5, scale=3600)
-    ```
-
-=== "Low-level"
-
-    ```python title="docs/snippets/pages/arrivals_services.py:low-level-weibull"
-    # Time to a printer jam: a shape above 1 means it wears out
-    jamming = DistributionConfig(dist="weibull", shape=1.5, scale=3600)
-    ```
-
-`shape` and `scale`, both above 0. The mean is scale × gamma(1 + 1 ÷ shape), where gamma is the gamma function.
-
-### Empirical
-
-Times taken from real data, when no family fits.
-
-=== "YAML"
-
-    ```yaml title="docs/snippets/yaml/arrivals_services.yaml:empirical"
-    # under services: measured times, each equally likely; or weights, one per value
-    loading: {dist: empirical, values: [1.2 s, 1.5 s, 1.5 s, 2.1 s, 3 s]}
-    # a histogram: 10 times from 0 to 1 s, 30 from 1 to 2 s, 5 from 2 to 4 s
-    sealing: {dist: empirical, edges: [0, 1 s, 2 s, 4 s], counts: [10, 30, 5]}
-    ```
-
-=== "Builder"
-
-    ```python title="docs/snippets/pages/arrivals_services.py:builder-empirical"
-    # Measured times, each equally likely; or weights=[...], one per value
-    app.add_service("loading", dist="empirical", values=[1.2, 1.5, 1.5, 2.1, 3.0])
-    # A histogram: 10 times from 0 to 1 s, 30 from 1 to 2 s, 5 from 2 to 4 s
-    app.add_service("sealing", dist="empirical", edges=[0, 1, 2, 4], counts=[10, 30, 5])
-    ```
-
-=== "Low-level"
-
-    ```python title="docs/snippets/pages/arrivals_services.py:low-level-empirical"
-    # Measured times, each equally likely; or weights=[...], one per value
-    loading = DistributionConfig(dist="empirical", values=[1.2, 1.5, 1.5, 2.1, 3.0])
-    # A histogram: 10 times from 0 to 1 s, 30 from 1 to 2 s, 5 from 2 to 4 s
-    sealing = DistributionConfig(dist="empirical", edges=[0, 1, 2, 4], counts=[10, 30, 5])
-    ```
-
-Either `values`, each equally likely, with optional `weights`, one per value; or a histogram of `edges` and `counts`, one count per bin, where a draw picks a bin by its count and a time inside it uniformly. Weights and counts are 0 or more and add up to more than 0, and edges increase. The lists are taken when the model is loaded, so an `empirical` distribution has no registry path and does not change while the run goes on.
 
 ### Durations
 
@@ -583,5 +363,5 @@ Invalid value for 'Shop.service.packing.std': normal std must be 0 or more, got 
 
 - **A wide `normal`.** When `std` is half of `mean`, 2.3% of draws fall below 0 and are raised to the floor, and at `std` equal to `mean` it is 15.9%, so the average time rises: the normal panel in the chart above has a mean of 1.08, not 1. Use `truncated_normal`.
 - **Rate against mean.** `exponential` takes a `rate` per second, not a mean gap: an order every 30 seconds is `rate: 0.0333`, not `30`.
-- **A seed and the timestamps.** A seed fixes the draws and so the simulation times, but each record's `timestamp` also depends on when the run started, unless `logical_start_time` is set, as [Time and Pacing](time-and-pacing.md) explains.
+- **A seed and the timestamps.** A seed fixes the draws and so the simulation times, but each record's `timestamp` also depends on when the run started, unless `logical_start_time` is set, as [Time and Pacing](time-and-pacing/index.md) explains.
 - **Spread lengthens queues.** Two models with the same mean times but a different spread have different queues: more spread means longer waits, as [Queues and Capacity](../tutorials/queues-and-capacity.md) and [Choosing Inputs](../tutorials/choosing-inputs.md) measure.

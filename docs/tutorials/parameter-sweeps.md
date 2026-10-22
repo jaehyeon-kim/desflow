@@ -183,4 +183,4 @@ Three packers that take 1.5 seconds an order on average pack 2 orders a second a
 
         It imports from `trusting_results_low_level.py`, which is in the full files of [Trusting Results](trusting-results.md#full-files).
 
-This is the last page of the tutorial for now. [Experiments](../user-guide/experiments.md) describes every setting of an experiment, its files and its report, and the rest of the [User Guide](../user-guide/ways-to-write.md) describes each part of desflow in full.
+This is the last page of the tutorial for now. [Experiments](../user-guide/experiments/index.md) describes every setting of an experiment, its files and its report, and the rest of the [User Guide](../user-guide/ways-to-write.md) describes each part of desflow in full.

@@ -21,44 +21,8 @@ arrivals:
   # --8<-- [end:exponential]
 
 services:
-  # --8<-- [start:normal]
-  # under services: 3 s on average, give or take 0.5 s
+  # 3 s on average, give or take 0.5 s
   packing: {dist: normal, mean: 3 s, std: 0.5 s}
-  # --8<-- [end:normal]
-  # --8<-- [start:truncated-normal]
-  # under services: 1 s on average, spread 1 s, never below 0.2 s
-  labelling: {dist: truncated_normal, mean: 1 s, std: 1 s, low: 0.2 s}
-  # --8<-- [end:truncated-normal]
-  # --8<-- [start:lognormal]
-  # under services: 4 s on average, now and then much longer
-  repair: {dist: lognormal, mean: 4 s, std: 3 s}
-  # --8<-- [end:lognormal]
-  # --8<-- [start:constant]
-  # under services: always 0.5 s, with no random draw
-  inspection: {dist: constant, value: 0.5 s}
-  # --8<-- [end:constant]
-  # --8<-- [start:uniform]
-  # under services: any time from 1 to 2 s, all equally likely
-  scanning: {dist: uniform, low: 1 s, high: 2 s}
-  # --8<-- [end:uniform]
-  # --8<-- [start:triangular]
-  # under services: at least 1 s, usually 1.25 s, at most 2.25 s
-  wrapping: {dist: triangular, low: 1 s, mode: 1.25 s, high: 2.25 s}
-  # --8<-- [end:triangular]
-  # --8<-- [start:gamma]
-  # under services: three exponential steps of 0.5 s each, a mean of 1.5 s
-  checking: {dist: gamma, shape: 3, scale: 0.5 s}
-  # --8<-- [end:gamma]
-  # --8<-- [start:weibull]
-  # under services: time to a printer jam; a shape above 1 means it wears out
-  jamming: {dist: weibull, shape: 1.5, scale: 1 h}
-  # --8<-- [end:weibull]
-  # --8<-- [start:empirical]
-  # under services: measured times, each equally likely; or weights, one per value
-  loading: {dist: empirical, values: [1.2 s, 1.5 s, 1.5 s, 2.1 s, 3 s]}
-  # a histogram: 10 times from 0 to 1 s, 30 from 1 to 2 s, 5 from 2 to 4 s
-  sealing: {dist: empirical, edges: [0, 1 s, 2 s, 4 s], counts: [10, 30, 5]}
-  # --8<-- [end:empirical]
   # --8<-- [start:durations]
   # under services: every time-valued parameter takes a duration
   support_call: {dist: lognormal, mean: 5 min, std: 3 min}

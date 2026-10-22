@@ -1,6 +1,6 @@
 # Builder API
 
-This page writes a whole simulation as one Python file with the builder, `SimulationContext`: a shop that packs orders with boxes from stock, prints a label, and leaves the parcel for a courier. It builds on [Ways to Write](ways-to-write.md), which places the builder between a blueprint and the low-level API, and on [Tasks and Processes](tasks-and-processes.md), which describes what a task does.
+This page writes a whole simulation as one Python file with the builder, `SimulationContext`: a shop that packs orders with boxes from stock, prints a label, and leaves the parcel for a courier. It builds on [Ways to Write](ways-to-write.md), which places the builder between a blueprint and the low-level API, and on [Tasks and Processes](tasks-and-processes/index.md), which describes what a task does.
 
 The builder works in two phases. You describe the simulation with its methods and decorators, and nothing runs; `run()` then builds the environment and the connectors and starts the clock:
 
@@ -10,9 +10,11 @@ Until `run()`, `context.env`, `context.spawn` and `context.get_resource` raise `
 
 ---
 
-## Create the Context
+## Build the Model
 
-The context names the simulation and sets its clock: `factor` for the pacing, `random_seed` for the draws, `logical_start_time` for the timestamps. It also takes `go_live_at` and `warmup`, which [Time and Pacing](time-and-pacing.md) describes.
+### Create the Context
+
+The context names the simulation and sets its clock: `factor` for the pacing, `random_seed` for the draws, `logical_start_time` for the timestamps. It also takes `go_live_at` and `warmup`, which [Time and Pacing](time-and-pacing/index.md) describes.
 
 ```python title="docs/snippets/pages/builder.py:clock"
 app = SimulationContext(
@@ -23,9 +25,9 @@ app = SimulationContext(
 )
 ```
 
-## Declare Resources, Stores and Containers
+### Declare Resources, Stores and Containers
 
-A resource is held while a task works; a container holds an amount and a store holds items, which tasks take and add. `add_variable` registers any other live value. [Resources](resources.md) and [Stores and Containers](stores-and-containers.md) describe each.
+A resource is held while a task works; a container holds an amount and a store holds items, which tasks take and add. `add_variable` registers any other live value. [Resources](resources/index.md) and [Stores and Containers](stores-and-containers.md) describe each.
 
 ```python title="docs/snippets/pages/builder.py:resources"
 app.add_resource("packers", current_cap=2, max_cap=5)  # 2 packers now, room for 5
@@ -34,7 +36,7 @@ app.add_store("parcels", current_cap=20, max_cap=50)  # items, waiting for a cou
 app.add_variable("conveyor_speed", 1.5)  # any other live value
 ```
 
-## Add Distributions
+### Add Distributions
 
 Each arrival and service is a distribution, with its parameters by keyword. A parameter out of range, or one the family does not take, raises `ValueError` here, before the run. [Arrivals and Services](arrivals-and-services.md) lists the ten families.
 
@@ -45,7 +47,7 @@ app.add_service("packing", dist="triangular", low=1, mode=2, high=4)
 app.add_service("labelling", dist="constant", value=0.5)
 ```
 
-## Write the Tasks
+### Write the Tasks
 
 `@app.task` turns a function into a task: it publishes `queued`, waits for its resource and its `get`, publishes `started`, waits the service time, adds its `put`, and publishes what the function returns as the finished event. `next` names the task that follows, and the function receives `upstream`, `entity` or `item` when it declares them. [Task Flow](task-flow.md) covers rules and weights.
 
@@ -72,7 +74,7 @@ def collect(task_id: int, item):
     return {"event_type": "parcel_collected", "label": item["event_type"]}
 ```
 
-## Start Them from Arrivals
+### Start Them from Arrivals
 
 An arrival loop waits for each arrival and starts a task for the entity it returns, keyed `orders-1`, `orders-2` and so on.
 
@@ -95,7 +97,7 @@ def couriers(context: SimulationContext):
         task_id += 1
 ```
 
-## Measure the Run
+### Measure the Run
 
 `with_stats` switches on the built-in statistics, published as telemetry; [Statistics](statistics.md) lists the levels.
 
@@ -103,7 +105,7 @@ def couriers(context: SimulationContext):
 app.with_stats("typical", interval=30)  # readings, counts, waits, every 30 s
 ```
 
-## Add a Process
+### Add a Process
 
 `add_process` starts any generator when the run starts, called with the context, for anything that is not a task: here a speed that drifts.
 
@@ -120,7 +122,7 @@ def speed_drift(context: SimulationContext, step: float):
 app.add_process(speed_drift, step=0.1)
 ```
 
-## Attach the Connectors
+### Attach the Connectors
 
 `add_ingress` brings parameter changes in, and `add_egress` writes records out, each with its own batching if it needs it. [Ingress](ingress.md) and [Egress](egress.md) list the connectors.
 
@@ -169,7 +171,7 @@ if __name__ == "__main__":
 `run()` takes the steps a [low-level script](low-level-api.md) writes by hand, in the same order, and adds these:
 
 - **A seed for every run.** It makes `Sampler(seed=random_seed)`, and draws and logs a seed when there is none.
-- **Resources, stores and containers.** One for each `add_resource`, `add_store` and `add_container`, which `context.get_resource`, `get_store` and `get_container` return. `add_resource` takes a `type`, a subclass of `ResourceBase` to build the resource from ([Custom Resource Types](resources.md#custom-resource-types)). `add_store` and `add_container` take a `type` too, a subclass of `StoreBase` or `ContainerBase` ([Custom Store and Container Types](stores-and-containers.md#custom-store-and-container-types)). A store or container with no `current_cap` and no `max_cap` has no limit.
+- **Resources, stores and containers.** One for each `add_resource`, `add_store` and `add_container`, which `context.get_resource`, `get_store` and `get_container` return. `add_resource` takes a `type`, a subclass of `ResourceBase` to build the resource from ([Custom Resource Types](resources/custom-resource-types.md#custom-resource-types)). `add_store` and `add_container` take a `type` too, a subclass of `StoreBase` or `ContainerBase` ([Custom Store and Container Types](stores-and-containers.md#custom-store-and-container-types)). A store or container with no `current_cap` and no `max_cap` has no limit.
 - **Tasks.** `@app.task` publishes `queued`, `started` and the finished event with the entity key, task and instance, reports each step to the statistics, takes and adds stock, and routes to the next task with a `Router`.
 - **Entities.** `context.wait_for_arrival` returns an `Entity` with its key and attributes.
 - **Names with the `sim_id`.** `context.publish(name, value)` puts the `sim_id` in front of the name; the low-level `env.publish_telemetry` uses it as given.
@@ -183,7 +185,7 @@ A mistake stops the script before the clock starts. A method raises `ValueError`
 The builder's limits are those of its tasks and its resources:
 
 - **Resources are fixed when the run starts.** `run()` creates every resource, store and container before the clock starts, and has no call to add one later; [Dynamic Topology](../guides/dynamic-topology.md) adds one with the low-level API.
-- **`advance()` needs a started run.** It raises `RuntimeError` before `start()`, after `close()` and after the run's own end, and `ValueError` for a time that is not after `now`; [Run in Segments](time-and-pacing.md#run-in-segments) shows it.
+- **`advance()` needs a started run.** It raises `RuntimeError` before `start()`, after `close()` and after the run's own end, and `ValueError` for a time that is not after `now`; [Run in Segments](time-and-pacing/run-length.md#run-in-segments) shows it.
 - **`strict` defaults to False here.** `SimulationContext(strict=True)` raises `RuntimeError` when a paced step is more than `factor` seconds behind, as the low-level environment does by default.
 - **`environment=` takes a subclass of `DynamicRealtimeEnvironment`.** The context builds it in `start()` with the arguments it builds its own with, so its `__init__` takes `**kwargs` and passes them on.
 - **A subscribe refuses a processed event.** `context.subscribe(event)` raises `RuntimeError` when the event has already happened, or when it is called outside a process.

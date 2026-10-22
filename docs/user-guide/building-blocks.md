@@ -14,12 +14,12 @@ An **entity** is the thing that flows through a model: an order, a visitor, a su
 |---|---|---|---|---|---|
 | Arrival | how often an entity enters, and what it starts with | `arrivals` | `add_arrival`, `@app.arrival_loop` | a process that waits for a drawn gap | [Arrivals and Services](arrivals-and-services.md) |
 | Service | how long a piece of work takes | `services` | `add_service` | a `DistributionConfig` drawn with a `Sampler` | [Arrivals and Services](arrivals-and-services.md) |
-| Task | what one entity does, with its events | `tasks` | `@app.task` | a SimPy process | [Tasks and Processes](tasks-and-processes.md) |
-| Resource | packers, benches, lanes: whole units held by a task | `resources` | `add_resource` | `DynamicResource` | [Resources](resources.md) |
+| Task | what one entity does, with its events | `tasks` | `@app.task` | a SimPy process | [Tasks and Processes](tasks-and-processes/index.md) |
+| Resource | packers, benches, lanes: whole units held by a task | `resources` | `add_resource` | `DynamicResource` | [Resources](resources/index.md) |
 | Container | an amount, such as a stock of boxes, that tasks take and add | `containers` | `add_container` | `DynamicContainer` | [Stores and Containers](stores-and-containers.md) |
 | Store | items, such as parcels on a shelf, that tasks put and get | `stores` | `add_store` | `DynamicStore` | [Stores and Containers](stores-and-containers.md) |
 | Task flow | the task that follows a finished one, and what the entity carries | `next`, `attributes`, `set` | `next=`, `attributes=`, `set=` | `Router`, `Entity` | [Task Flow](task-flow.md) |
-| Process | anything else that runs over time: a break, a drift, a schedule | `processes` | `add_process` | `env.process` | [Tasks and Processes](tasks-and-processes.md) |
+| Process | anything else that runs over time: a break, a drift, a schedule | `processes` | `add_process` | `env.process` | [Tasks and Processes](tasks-and-processes/index.md) |
 | Statistics | what the run measures about itself | `stats` | `with_stats` | `env.setup_stats`, `env.stats` | [Statistics](statistics.md) |
 | Variable | any other live value, such as a speed | `variables` | `add_variable` | `SimParameter(variables=...)` | [Live Parameters](live-parameters.md) |
 

@@ -45,7 +45,7 @@ And two labels, as a JSON Lines sink writes them:
 {"stream_type":"label","sim_ts":45.0,"timestamp":"...","path":null,"old":null,"new":null,"label":{"fault":"label_printer_offline"}}
 ```
 
-`sim_ts` is simulation seconds. `timestamp` is `logical_start_time` plus the simulation time, as an ISO 8601 string with milliseconds and the offset of the run's time zone, such as `2026-10-03T12:00:00.000+10:00`, or `+00:00` in UTC, the default; [Time and Pacing](../user-guide/time-and-pacing.md#time-zone) describes the zone. `sim_ts` is rounded to the millisecond and `timestamp` cut to it, so their milliseconds can differ by 1.
+`sim_ts` is simulation seconds. `timestamp` is `logical_start_time` plus the simulation time, as an ISO 8601 string with milliseconds and the offset of the run's time zone, such as `2026-10-03T12:00:00.000+10:00`, or `+00:00` in UTC, the default; [Clocks and Pacing](../user-guide/time-and-pacing/clocks-and-pacing.md#time-zone) describes the zone. `sim_ts` is rounded to the millisecond and `timestamp` cut to it, so their milliseconds can differ by 1.
 
 ---
 
@@ -106,7 +106,7 @@ An interrupted run publishes these as well, and its finished event when it ends:
 
 `status` and `path_id` are strings; `reason` is a string, `cause` any JSON value the interrupt was given, or `None`, and `resource` the name of the resource that was taken or that refused the task. In a `preempted` record, `preempted_by` is the key of the entity whose request took the unit, or `None` when a process that is no task did, and `usage_since` the simulation time at which the preempted task was granted the unit. When a `subscribe` interrupts the instance, the `cause` is `{"event": name, "value": value}`, where `name` is the subscribed task's name, the process's name for a process, or `None` for any other event, and `value` is what the event carried.
 
-With statistics at `basic` or above, entities that enter and leave are counted as `<sim_id>.stats.flows.<arrival>.started`, `.finished` and `.in_system`, and from `minimal` each task's `<sim_id>.stats.tasks.<task>.in_progress`; each of the outcomes above is counted as `<sim_id>.stats.tasks.<task>.balked`, `.reneged`, `.failed`, `.interrupted`, `.preempted` and `.resumed`, published once the first one happens, and a flow that ends in a failure as `<sim_id>.stats.flows.<arrival>.failed`. [Patience](../tutorials/patience.md) shows balking and reneging, and [Tasks and Processes](../user-guide/tasks-and-processes.md#failures) failures, and [Interruptions](../tutorials/interruptions.md) interrupts and preemption. A failed task publishes `started` before its failure when it got that far, and a task with a `wait` publishes `queued` when the wait starts.
+With statistics at `basic` or above, entities that enter and leave are counted as `<sim_id>.stats.flows.<arrival>.started`, `.finished` and `.in_system`, and from `minimal` each task's `<sim_id>.stats.tasks.<task>.in_progress`; each of the outcomes above is counted as `<sim_id>.stats.tasks.<task>.balked`, `.reneged`, `.failed`, `.interrupted`, `.preempted` and `.resumed`, published once the first one happens, and a flow that ends in a failure as `<sim_id>.stats.flows.<arrival>.failed`. [Patience](../tutorials/patience.md) shows balking and reneging, and [Failures](../user-guide/tasks-and-processes/failures.md#failures) failures, and [Interruptions](../tutorials/interruptions.md) interrupts and preemption. A failed task publishes `started` before its failure when it got that far, and a task with a `wait` publishes `queued` when the wait starts.
 
 A resource with a `breakdown` publishes an event at each failure and each repair. Its key is the resource's name, and it has no task or instance:
 
@@ -129,7 +129,7 @@ A task with no service has `{"status": ...}` without `path_id`. A timed step, wi
 | [replications](../user-guide/replications.md#what-the-sinks-receive), once at the end | `<sim_id>.stats.<measure>.replication.<i>` for each replication from 1, then `<sim_id>.stats.<measure>.mean`, `.half_width` and `.n`, where the measure is a statistic's name without the sim id, such as `tasks.pack.wait_mean` |
 | `context.publish(name, value)` and a YAML `telemetry` function | `<sim_id>.<name>` |
 | `env.publish_telemetry(path_id, value)` | `path_id`, as given |
-| the lag monitor | `system.simulation.lag_seconds`, every `lag_interval`: by default every simulation second at a `factor` above 0, and none at `factor: 0` ([Time and Pacing](../user-guide/time-and-pacing.md#lag)) |
+| the lag monitor | `system.simulation.lag_seconds`, every `lag_interval`: by default every simulation second at a `factor` above 0, and none at `factor: 0` ([Clocks and Pacing](../user-guide/time-and-pacing/clocks-and-pacing.md#lag)) |
 
 ```python title="docs/snippets/pages/records.py:telemetry"
 @app.telemetry_loop(interval=10.0)

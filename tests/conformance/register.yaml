@@ -37,7 +37,7 @@
   low_level: "`yield env.timeout(delay)`"
   checks:
     - tests/conformance/test_c1_timed_wait.py::test_c1_timed_wait
-  page: user-guide/tasks-and-processes.md#a-timed-step
+  page: user-guide/tasks-and-processes/index.md#a-timed-step
 
 - id: C1
   inventory: [SP-V1]
@@ -49,7 +49,7 @@
   low_level: "`Signal(env, name)`: `yield signal.wait()` and `signal.fire(value)`"
   checks:
     - tests/conformance/test_c1_process_interaction.py::test_c1_signal_event_success_and_value
-  page: user-guide/tasks-and-processes.md#wait-signals-and-child-flows
+  page: user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows
 
 - id: C1
   inventory: [SP-V2]
@@ -61,7 +61,7 @@
   low_level: "`signal.fail(reason)`; waiters receive `SignalFailed`"
   checks:
     - tests/conformance/test_c1_process_interaction.py::test_c1_signal_event_failure
-  page: user-guide/tasks-and-processes.md#wait-signals-and-child-flows
+  page: user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows
 
 - id: C1
   inventory: [SP-P1]
@@ -73,7 +73,7 @@
   low_level: "`yield env.process(child())`"
   checks:
     - tests/conformance/test_c1_process_interaction.py::test_c1_start_and_wait_for_a_process
-  page: user-guide/tasks-and-processes.md#wait-signals-and-child-flows
+  page: user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows
 
 - id: C1
   inventory: [SP-P2]
@@ -85,7 +85,7 @@
   low_level: "`value = yield env.process(child())`"
   checks:
     - tests/conformance/test_c1_process_interaction.py::test_c1_process_return_value
-  page: user-guide/tasks-and-processes.md#wait-signals-and-child-flows
+  page: user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows
 
 - id: C1
   inventory: [SP-P3]
@@ -98,7 +98,7 @@
   checks:
     - tests/conformance/test_c1_process_interaction.py::test_c1_process_failure
     - tests/conformance/test_c1_process_interaction.py::test_c1_process_failure_handled_by_on_fail
-  page: user-guide/tasks-and-processes.md#wait-signals-and-child-flows
+  page: user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows
   differences: "By default (`on_unhandled_failure` is `continue`) a failure no task waits for ends the entity's flow in YAML and the builder, publishes `failed` and is counted, and the run goes on; under `on_unhandled_failure` of `stop` it stops the run, matching SimPy and the low-level API, where an exception nobody handles stops the run."
 
 - id: C1
@@ -111,7 +111,7 @@
   low_level: "the same attributes of SimPy events and `Signal`"
   checks:
     - tests/conformance/test_c1_process_interaction.py::test_c1_event_inspection
-  page: user-guide/tasks-and-processes.md#wait-signals-and-child-flows
+  page: user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows
 
 - id: C1
   inventory: [SP-P4]
@@ -123,7 +123,7 @@
   low_level: "the process `env.process` returns"
   checks:
     - tests/conformance/test_c1_process_interaction.py::test_c1_process_inspection
-  page: user-guide/tasks-and-processes.md#wait-signals-and-child-flows
+  page: user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows
 
 - id: C1
   inventory: [SP-K4]
@@ -135,7 +135,7 @@
   low_level: "`env.watch_changes(check)`, or a SimPy loop"
   checks:
     - tests/conformance/test_c1_process_interaction.py::test_c1_wait_for_a_shared_condition
-  page: user-guide/tasks-and-processes.md#wait-signals-and-child-flows
+  page: user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows
 
 - id: C2
   inventory: [SP-V9, SP-C1, SP-C3, SP-E7]
@@ -203,7 +203,7 @@
     - tests/conformance/test_c3_interrupts.py::test_c3_two_preemptions_at_one_instant
     - tests/conformance/test_c3_interrupts.py::test_c3_preemption_tie_between_users
     - tests/conformance/test_c3_interrupts.py::test_c3_priority_preemption_low_level
-  page: user-guide/resources.md#preemption
+  page: user-guide/resources/priority-and-preemption.md#preemption
 
 - id: C3
   inventory: [SP-Q6]
@@ -217,7 +217,7 @@
     - tests/conformance/test_c3_interrupts.py::test_c3_preemption_cause
     - tests/conformance/test_c3_interrupts.py::test_c3_preemption_record_shape
     - tests/conformance/test_c3_interrupts.py::test_c3_preemption_by_a_process_that_is_not_a_task
-  page: user-guide/resources.md#preemption
+  page: user-guide/resources/priority-and-preemption.md#preemption
 
 - id: C4
   inventory: [SP-S1]
@@ -229,7 +229,7 @@
   low_level: "`with packers.request() as req: yield req`"
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_ordinary_request_and_release
-  page: user-guide/resources.md#declare-a-resource
+  page: user-guide/resources/index.md#declare-a-resource
 
 - id: C4
   inventory: [SP-Q1, SP-Q3]
@@ -242,7 +242,7 @@
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_priority_resource_request
     - tests/conformance/test_c4_resources.py::test_c4_priority_request_with_mixed_preempt_flags
-  page: user-guide/resources.md#task-priority
+  page: user-guide/resources/priority-and-preemption.md#task-priority
   differences: Equal priorities are served first in, first out, as in SimPy; desflow also offers `fifo` and `lifo` queues, under which a request's priority is ignored.
 
 - id: C4
@@ -256,7 +256,7 @@
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_cancel_before_a_grant
     - tests/conformance/test_c4_resources.py::test_c4_renege_ahead_of_a_preempting_request
-  page: user-guide/resources.md#cancel-and-release
+  page: user-guide/resources/index.md#cancel-and-release
 
 - id: C4
   inventory: [SP-S9]
@@ -268,7 +268,7 @@
   low_level: "`request.cancel()` releases nothing; `resource.release(request)`"
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_cancel_after_a_grant
-  page: user-guide/resources.md#cancel-and-release
+  page: user-guide/resources/index.md#cancel-and-release
 
 - id: C4
   inventory: [SP-S12]
@@ -281,7 +281,7 @@
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_hold_several_resources
     - tests/conformance/test_c4_resources.py::test_c4_keep_hands_a_unit_to_the_next_task
-  page: user-guide/resources.md#several-resources
+  page: user-guide/resources/several-resources.md#several-resources
   differences: A model whose tasks acquire two resources in opposite orders is refused when it is built, because those tasks could each wait for ever; SimPy runs it.
 
 - id: C4
@@ -295,7 +295,7 @@
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_default_capacity
     - tests/conformance/test_c4_resources.py::test_c4_resource_with_no_capacity_limit
-  page: user-guide/resources.md#declare-a-resource
+  page: user-guide/resources/index.md#declare-a-resource
 
 - id: C4
   inventory: [SP-S4, SP-S5, SP-S6]
@@ -309,7 +309,7 @@
     - tests/conformance/test_c4_resources.py::test_c4_count_queue_and_users
     - tests/conformance/test_c4_resources.py::test_c4_users_and_queue_in_conditions
     - tests/conformance/test_c4_resources.py::test_c4_a_condition_is_not_checked_between_the_steps_of_one_call
-  page: user-guide/resources.md#read-the-queue-and-users
+  page: user-guide/resources/index.md#read-the-queue-and-users
   differences: "A `lifo` queue serves the newest request first, which SimPy has no counterpart of."
 
 - id: C4
@@ -322,7 +322,7 @@
   low_level: "`resource.release(request)` returns a `DynamicRelease` whose `request` is the request"
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_release_event
-  page: user-guide/resources.md#cancel-and-release
+  page: user-guide/resources/index.md#cancel-and-release
 
 - id: C4
   inventory: [SP-S11]
@@ -334,7 +334,7 @@
   low_level: "`request.usage_since`"
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_usage_since
-  page: user-guide/resources.md#read-the-queue-and-users
+  page: user-guide/resources/index.md#read-the-queue-and-users
 
 - id: C4
   inventory: [SP-Q2]
@@ -346,7 +346,7 @@
   low_level: "`request()` with no priority"
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_default_priority
-  page: user-guide/resources.md#task-priority
+  page: user-guide/resources/priority-and-preemption.md#task-priority
 
 - id: C4
   inventory: [SP-Q7]
@@ -378,7 +378,7 @@
   low_level: "a subclass of `ResourceBase`, built as `Class(env, sim_id, name)`"
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_custom_resource_type
-  page: user-guide/resources.md#custom-resource-types
+  page: user-guide/resources/custom-resource-types.md#custom-resource-types
 
 - id: C5
   inventory: [SP-T1]
@@ -647,7 +647,7 @@
   low_level: "`DynamicRealtimeEnvironment(initial_time=100)`"
   checks:
     - tests/conformance/test_c6_run_control.py::test_c6_initial_time
-  page: user-guide/time-and-pacing.md#initial-time
+  page: user-guide/time-and-pacing/run-length.md#initial-time
 
 - id: C6
   inventory: [SP-B1]
@@ -659,7 +659,7 @@
   low_level: "`CapacityConfig(current_cap=2, ...)`"
   checks:
     - tests/conformance/test_c6_initial_state.py::test_c6_initial_resources
-  page: user-guide/time-and-pacing.md#initial-time
+  page: user-guide/time-and-pacing/run-length.md#initial-time
 
 - id: C6
   inventory: [SP-K3, SP-T4]
@@ -695,7 +695,7 @@
   low_level: "`env.run(until=...)`"
   checks:
     - tests/conformance/test_c6_run_control.py::test_c6_stop_at_a_time
-  page: user-guide/time-and-pacing.md#run-length
+  page: user-guide/time-and-pacing/run-length.md#run-length_1
 
 - id: C7
   inventory: [SP-S13]
@@ -737,7 +737,7 @@
   checks:
     - tests/conformance/test_c6_end_conditions.py::test_c6_stop_at_an_event
     - tests/conformance/test_c6_end_conditions.py::test_c6_stop_at_an_event_at_the_same_instant_as_until
-  page: user-guide/time-and-pacing.md#stop-early
+  page: user-guide/time-and-pacing/run-length.md#stop-early
   differences: When the stop and `until` fall at the same time, `until` ends the run first, as SimPy's own `until` would.
 
 - id: C6
@@ -750,7 +750,7 @@
   low_level: "`env.watch_changes(check)` and `env.run(until=event)`"
   checks:
     - tests/conformance/test_c6_end_conditions.py::test_c6_explicit_stop_condition
-  page: user-guide/time-and-pacing.md#stop-early
+  page: user-guide/time-and-pacing/run-length.md#stop-early
 
 - id: C6
   inventory: []
@@ -763,7 +763,7 @@
   checks:
     - tests/conformance/test_c6_end_conditions.py::test_c6_stop_arrivals_and_drain
     - tests/conformance/test_c6_end_conditions.py::test_c6_stop_arrivals_and_drain_with_a_limit
-  page: user-guide/time-and-pacing.md#drain
+  page: user-guide/time-and-pacing/run-length.md#drain
 
 - id: C6
   inventory: [SP-E9]
@@ -775,7 +775,7 @@
   low_level: "`env.step()`"
   checks:
     - tests/conformance/test_c6_end_conditions.py::test_c6_step_one_event
-  page: user-guide/time-and-pacing.md#step-and-peek
+  page: user-guide/time-and-pacing/run-length.md#step-and-peek
   differences: A blueprint has no stepping key; its context, from `from_yaml`, steps as a builder context does.
 
 - id: C6
@@ -788,7 +788,7 @@
   low_level: "`env.peek()`"
   checks:
     - tests/conformance/test_c6_end_conditions.py::test_c6_inspect_next_event_time
-  page: user-guide/time-and-pacing.md#step-and-peek
+  page: user-guide/time-and-pacing/run-length.md#step-and-peek
 
 - id: C6
   inventory: [SP-E10]
@@ -806,7 +806,7 @@
     - tests/conformance/test_c6_end_conditions.py::test_c6_run_after_steps_gives_the_records_of_one_run
     - tests/conformance/test_c6_end_conditions.py::test_c6_finish_after_steps_that_reached_until
     - tests/conformance/test_c6_end_conditions.py::test_c6_finish_after_steps_to_until_with_statistics_due_there
-  page: user-guide/time-and-pacing.md#step-and-peek
+  page: user-guide/time-and-pacing/run-length.md#step-and-peek
   differences: "With only desflow's own events left, `step()` raises `EmptySchedule` and `peek()` gives infinity, but the queue is not empty: `run()` and `finish()` still process those events."
 
 - id: C6
@@ -819,7 +819,7 @@
   low_level: "`env.run(until=event)`"
   checks:
     - tests/conformance/test_c6_end_conditions.py::test_c6_run_value
-  page: user-guide/time-and-pacing.md#stop-early
+  page: user-guide/time-and-pacing/run-length.md#stop-early
 
 - id: S1
   inventory: []
@@ -874,7 +874,7 @@
   low_level: "`env.now`"
   checks:
     - tests/conformance/test_c6_run_control.py::test_c6_current_time
-  page: user-guide/time-and-pacing.md#read-the-current-time
+  page: user-guide/time-and-pacing/index.md#read-the-current-time
 
 - id: C1
   inventory: [SP-E3, SP-P5, SP-P6]
@@ -888,7 +888,7 @@
     - tests/conformance/test_c1_process_interaction.py::test_c1_active_process
     - tests/conformance/test_c1_process_interaction.py::test_c1_process_name
     - tests/conformance/test_c1_process_interaction.py::test_c1_process_target
-  page: user-guide/tasks-and-processes.md#processes-and-the-low-level-api
+  page: user-guide/tasks-and-processes/index.md#processes-and-the-low-level-api
 
 - id: C1
   inventory: [SP-E4]
@@ -901,7 +901,7 @@
   checks:
     - tests/conformance/test_c1_processes.py::test_c1_start_a_process_without_waiting_for_it
     - tests/conformance/test_c1_processes.py::test_c1_start_a_process_without_waiting_for_it_drain
-  page: user-guide/tasks-and-processes.md#start-a-flow-without-waiting
+  page: user-guide/tasks-and-processes/signals-and-waiting.md#start-a-flow-without-waiting
 
 - id: C6
   inventory: [SP-E5]
@@ -915,7 +915,7 @@
     - tests/conformance/test_c6_environment.py::test_c6_schedule_with_a_priority
     - tests/conformance/test_c6_environment.py::test_c6_fire_with_after_is_not_counted_by_a_drain
     - tests/conformance/test_c6_environment.py::test_c6_fire_twice_with_after_is_refused_as_a_one_shot_signal
-  page: user-guide/tasks-and-processes.md#actions-when-an-event-happens
+  page: user-guide/tasks-and-processes/signals-and-waiting.md#actions-when-an-event-happens
 
 - id: C6
   inventory: [SP-E6]
@@ -928,7 +928,7 @@
   checks:
     - tests/conformance/test_c6_environment.py::test_c6_fire_with_urgent_and_after
     - tests/conformance/test_c6_environment.py::test_c6_fire_urgent_and_after_need_a_one_shot_signal
-  page: user-guide/tasks-and-processes.md#actions-when-an-event-happens
+  page: user-guide/tasks-and-processes/signals-and-waiting.md#actions-when-an-event-happens
 
 - id: C6
   inventory: [SP-E15, SP-E16]
@@ -948,7 +948,7 @@
     - tests/conformance/test_c6_end_conditions.py::test_c6_finish_raises_a_failed_stop_that_advance_reached
     - tests/conformance/test_c6_end_conditions.py::test_c6_advance_to_events_adds_one_internal_event_to_the_queue
     - tests/conformance/test_c6_pacing.py::test_c6_resume_pacing
-  page: user-guide/time-and-pacing.md#run-in-segments
+  page: user-guide/time-and-pacing/run-length.md#run-in-segments
 
 - id: C6
   inventory: [SP-E17]
@@ -973,7 +973,7 @@
   low_level: "`DynamicRealtimeEnvironment(factor=)`"
   checks:
     - tests/conformance/test_c6_pacing.py::test_c6_real_time_factor
-  page: user-guide/time-and-pacing.md#factor
+  page: user-guide/time-and-pacing/clocks-and-pacing.md#factor
 
 
 - id: C6
@@ -986,7 +986,7 @@
   low_level: "`DynamicRealtimeEnvironment(strict=True)`"
   checks:
     - tests/conformance/test_c6_pacing.py::test_c6_strict_raises_when_behind
-  page: user-guide/time-and-pacing.md#strict-pacing
+  page: user-guide/time-and-pacing/clocks-and-pacing.md#strict-pacing
 
 - id: C6
   inventory: [SP-R3]
@@ -998,7 +998,7 @@
   low_level: "`DynamicRealtimeEnvironment(strict=True)`, the default"
   checks:
     - tests/conformance/test_c6_pacing.py::test_c6_strict_default
-  page: user-guide/time-and-pacing.md#strict-pacing
+  page: user-guide/time-and-pacing/clocks-and-pacing.md#strict-pacing
 
 - id: C6
   inventory: [SP-R4]
@@ -1010,7 +1010,7 @@
   low_level: "`env.sync()`"
   checks:
     - tests/conformance/test_c6_pacing.py::test_c6_sync_catches_up
-  page: user-guide/time-and-pacing.md#strict-pacing
+  page: user-guide/time-and-pacing/clocks-and-pacing.md#strict-pacing
 
 - id: C1
   inventory: [SP-V3]
@@ -1023,7 +1023,7 @@
   checks:
     - tests/conformance/test_c1_events.py::test_c1_one_shot_event
     - tests/conformance/test_c1_events.py::test_c1_one_shot_event_fired_twice
-  page: user-guide/tasks-and-processes.md#one-shot-signals
+  page: user-guide/tasks-and-processes/signals-and-waiting.md#one-shot-signals
 
 - id: C1
   inventory: [SP-V4, SP-V5, SP-V6]
@@ -1045,7 +1045,7 @@
     - tests/conformance/test_c1_events.py::test_c1_process_signal_fire_is_not_counted
     - tests/conformance/test_c1_events.py::test_c1_on_spawn_upstream_after_each_end
     - tests/conformance/test_c1_events.py::test_c1_losing_child_flow_fire_after_left_is_not_counted
-  page: user-guide/tasks-and-processes.md#actions-when-an-event-happens
+  page: user-guide/tasks-and-processes/signals-and-waiting.md#actions-when-an-event-happens
 
 - id: C1
   inventory: [SP-V7]
@@ -1059,7 +1059,7 @@
     - tests/conformance/test_c1_events.py::test_c1_failure_nobody_handles
     - tests/conformance/test_c1_events.py::test_c1_failure_nobody_handles_continue
     - tests/conformance/test_c1_events.py::test_c1_failure_nobody_handles_losing_child_flow
-  page: user-guide/tasks-and-processes.md#failures
+  page: user-guide/tasks-and-processes/failures.md#failures
 
 - id: C1
   inventory: [SP-V11]
@@ -1071,7 +1071,7 @@
   low_level: "`env.timeout(delay, value)`"
   checks:
     - tests/conformance/test_c1_events.py::test_c1_timeout_value
-  page: user-guide/tasks-and-processes.md#wait-signals-and-child-flows
+  page: user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows
 
 - id: C1
   inventory: [SP-P7]
@@ -1089,7 +1089,7 @@
     - tests/conformance/test_c1_processes.py::test_c1_wait_for_a_process_that_hands_on
     - tests/conformance/test_c1_processes.py::test_c1_wait_for_a_process_that_it_spawned
     - tests/conformance/test_c1_processes.py::test_c1_wait_for_a_process_abandoned_in_a_child_flow
-  page: user-guide/tasks-and-processes.md#wait-signals-and-child-flows
+  page: user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows
 
 - id: C2
   inventory: [SP-C5]
@@ -1165,7 +1165,7 @@
     - tests/conformance/test_c1_processes.py::test_c1_start_a_process_after_a_delay
     - tests/conformance/test_c1_processes.py::test_c1_start_a_process_after_a_delay_at_a_tie
     - tests/conformance/test_c1_processes.py::test_c1_start_a_process_after_a_delay_refuses_zero
-  page: user-guide/tasks-and-processes.md#start-a-flow-without-waiting
+  page: user-guide/tasks-and-processes/signals-and-waiting.md#start-a-flow-without-waiting
 
 - id: C1
   inventory: [SP-U2]
@@ -1178,7 +1178,7 @@
   checks:
     - tests/conformance/test_c1_processes.py::test_c1_be_told_when_an_event_happens
     - tests/conformance/test_c1_processes.py::test_c1_be_told_when_an_event_happens_after_the_subscriber_ended
-  page: user-guide/tasks-and-processes.md#be-told-when-a-flow-ends
+  page: user-guide/tasks-and-processes/signals-and-waiting.md#be-told-when-a-flow-ends
 
 # Differences kept by design, approved by the owner: A run with no until and
 # Capacity 0 on 18 Oct 2026, Strict pacing at factor 0 on 21 Oct 2026 (D-E1).
@@ -1198,7 +1198,7 @@
   simpy: "`rt.RealtimeEnvironment(factor=0, strict=True)` raises once the wall clock has moved"
   checks: []
   differences: "An unpaced run has no wall clock to fall behind, so SimPy's check at factor 0 would raise on the first step of every unpaced script. `strict` is never checked at factor 0, also before `go_live_at`."
-  page: user-guide/time-and-pacing.md#strict-pacing
+  page: user-guide/time-and-pacing/clocks-and-pacing.md#strict-pacing
 
 - id: D
   inventory: [SP-S3]

@@ -1,6 +1,6 @@
 # Wait for One or All
 
-Make a task wait for the first of several things, or for all of them, and read which happened. It builds on [Process Interaction](../tutorials/process-interaction.md), which introduces signals and a wait with a limit, and on [Tasks and Processes](../user-guide/tasks-and-processes.md#wait-signals-and-child-flows), which lists every kind of branch.
+Make a task wait for the first of several things, or for all of them, and read which happened. It builds on [Process Interaction](../tutorials/process-interaction.md), which introduces signals and a wait with a limit, and on [Signals and Waiting](../user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows), which lists every kind of branch.
 
 ---
 
@@ -144,7 +144,7 @@ def all_with_a_failure() -> list:
 
 `all_with_a_failure()` returns `[(0.0, "order", "queued"), (2.0, "order", "failed"), (4.0, "inspect", "finished")]`. The order's failure goes to its `on_fail` task when it has one, and otherwise ends its flow.
 
-A wait never holds a resource. Waiting for all of several things that each free up a resource does not grant the resources together: the task asks for its resource only after the wait, and another task can take the unit in between. To hold several resources at once, list them on the task, `resource: [picker, bench]`, as [Resources](../user-guide/resources.md#several-resources) describes.
+A wait never holds a resource. Waiting for all of several things that each free up a resource does not grant the resources together: the task asks for its resource only after the wait, and another task can take the unit in between. To hold several resources at once, list them on the task, `resource: [picker, bench]`, as [Several Resources](../user-guide/resources/several-resources.md#several-resources) describes.
 
 ## Nest Any and All
 
@@ -166,4 +166,4 @@ An `any` or an `all` with no branches is accepted, and succeeds at once with an 
 
 ## Example
 
-The `process-interaction` example waits for a child flow, then for the first of a courier's signal and a time limit. [Tasks and Processes](../user-guide/tasks-and-processes.md#example-process-interaction) shows how to download and run it.
+The `process-interaction` example waits for a child flow, then for the first of a courier's signal and a time limit. [Processes](../user-guide/tasks-and-processes/processes.md#example-process-interaction) shows how to download and run it.

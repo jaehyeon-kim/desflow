@@ -26,7 +26,7 @@ This section is the same idea in the terms the rest of the docs use. A discrete-
 
 The clock jumps, so a simulated week with a few thousand events takes as long to compute as those events need, not a week. desflow runs on [SimPy](https://simpy.readthedocs.io/), which provides the event list and the clock. On top of SimPy it adds:
 
-- **Pacing.** `factor` makes the clock follow the wall clock (`1.0`), run faster or slower, or not wait at all (`0.0`), so the same model can drive a live dashboard or write a month of history in seconds. [Time and Pacing](../user-guide/time-and-pacing.md) explains it.
+- **Pacing.** `factor` makes the clock follow the wall clock (`1.0`), run faster or slower, or not wait at all (`0.0`), so the same model can drive a live dashboard or write a month of history in seconds. [Time and Pacing](../user-guide/time-and-pacing/index.md) explains it.
 - **Live values.** Every parameter is in a registry and can change while the simulation runs. [Live Parameters](../user-guide/live-parameters.md) explains it.
 - **Records.** What happens is published as events and telemetry to the sinks you attach. [Records and Telemetry](../reference/records-and-telemetry.md) shows the formats.
 

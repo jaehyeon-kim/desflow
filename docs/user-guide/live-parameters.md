@@ -246,7 +246,7 @@ A container's level changes with every put and get as well; the registry keeps t
 What follows a change:
 
 - **Distributions.** The next draw uses the new value. The arrival already being waited for keeps its gap, and a task that has drawn its service time keeps it.
-- **Resources, stores and containers.** The capacity follows at once, and a container's level follows its path, as [Resources](resources.md#under-live-changes) and [Stores and Containers](stores-and-containers.md#under-live-changes) describe.
+- **Resources, stores and containers.** The capacity follows at once, and a container's level follows its path, as [Resources](resources/index.md#under-live-changes) and [Stores and Containers](stores-and-containers.md#under-live-changes) describe.
 - **Variables.** The new value is stored; a process reads it with `env.registry.get(path).value`.
 
 A change is easiest to see in the telemetry. With `stats: minimal`, the scenario above shows the second packer land:
