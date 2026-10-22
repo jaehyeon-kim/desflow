@@ -1,0 +1,22 @@
+# The signal go fires at 5 and fires four others: now_n now, now_u now and urgent,
+# late_n 5 s later, late_u 5 s later and urgent. The test adds a process that waits
+# on each and one that ticks at 10. See test_c6_environment.py.
+simulation:
+  sim_id: C6
+  factor: 0
+signals:
+  go:
+    once: true
+    on:
+      - fire: {signal: now_n}
+      - fire: {signal: now_u, urgent: true}
+      - fire: {signal: late_n, after: 5 s}
+      - fire: {signal: late_u, urgent: true, after: 5 s}
+  now_n: {once: true}
+  now_u: {once: true}
+  late_n: {once: true}
+  late_u: {once: true}
+processes:
+  - !python tests.conformance.batch5_scripts.start_go
+run:
+  until: 20

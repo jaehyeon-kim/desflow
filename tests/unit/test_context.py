@@ -80,6 +80,7 @@ def test_simulation_execution_wiring(MockEnv):
     Ensures connectors and registry are wired correctly.
     """
     mock_env_instance = MockEnv.return_value
+    mock_env_instance.now = 0  # finish() compares the clock with `until`
     mock_ingress = MagicMock()
     mock_egress = MagicMock()
 
@@ -94,7 +95,9 @@ def test_simulation_execution_wiring(MockEnv):
     app.run(until=10)
 
     # Validate that Engine was created and run
-    MockEnv.assert_called_once_with(factor=0.0, on_unhandled_failure="continue")
+    MockEnv.assert_called_once_with(
+        factor=0.0, strict=False, on_unhandled_failure="continue"
+    )
     mock_env_instance.run.assert_called_once_with(until=10)
     mock_env_instance.teardown.assert_called_once()
 
@@ -195,6 +198,7 @@ def test_with_batching_defaults_the_egress_bounds():
 def test_egress_bounds_reach_the_environment(MockEnv):
     """What the builder collects has to arrive at setup_egress, or it does nothing."""
     instance = MockEnv.return_value
+    instance.now = 0  # finish() compares the clock with `until`
     provider = MagicMock()
 
     app = (
@@ -218,6 +222,7 @@ def test_egress_bounds_reach_the_environment(MockEnv):
 def test_per_provider_cadence_reaches_the_environment(MockEnv):
     """A cadence given on add_egress has to arrive, aligned by position."""
     instance = MockEnv.return_value
+    instance.now = 0  # finish() compares the clock with `until`
 
     app = (
         SimulationContext("TestSim", factor=0.0)

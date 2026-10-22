@@ -198,7 +198,7 @@ Every event record carries the order's key, `orders-1` for the first order, so a
 
     ```python title="docs/snippets/tutorials/first_shop_low_level.py:run"
     def run(until=20, factor=1.0):
-        env = DynamicRealtimeEnvironment(factor=factor)
+        env = DynamicRealtimeEnvironment(factor=factor, strict=False)
         env.registry.register_sim_parameter(PARAMS)
         env.setup_egress(SINKS)
 
@@ -429,7 +429,7 @@ A discrete-event simulation keeps a list of future events, ordered by time. It t
 
 
         def run(until=20, factor=1.0):
-            env = DynamicRealtimeEnvironment(factor=factor)
+            env = DynamicRealtimeEnvironment(factor=factor, strict=False)
             env.registry.register_sim_parameter(PARAMS)
             env.setup_egress(SINKS)
 

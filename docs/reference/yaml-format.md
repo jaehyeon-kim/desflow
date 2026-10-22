@@ -68,6 +68,8 @@ The arguments of `SimulationContext`. [Time and Pacing](../user-guide/time-and-p
 | `initial_time` | the simulation clock's reading when the run starts, in seconds or a duration; 0 by default |
 | `timezone` | an IANA name, such as `Australia/Melbourne`, that timestamps are written in, with their offset; a `logical_start_time` or `go_live_at` without an offset, and `now`, are read in it; the zone of `logical_start_time`, or UTC, by default |
 | `lag_interval` | simulation seconds or a duration between `system.simulation.lag_seconds` readings; 0 turns them off; by default off at `factor: 0` and every second otherwise |
+| `strict` | `true` raises `RuntimeError` when a paced step is more than `factor` seconds behind the wall clock, as SimPy's `RealtimeEnvironment(strict=True)` does; `false` by default, and never checked at `factor: 0` |
+| `environment` | a `!python` reference to a subclass of `DynamicRealtimeEnvironment` the model runs on; the subclass's `__init__` takes `**kwargs` and passes them on |
 
 ## resources, stores and containers
 
@@ -128,7 +130,7 @@ An arrival also takes:
 | `signal` | a signal under `signals` the task fires with its payload when it finishes, and fails when it fails |
 | `spawn` | `{task, after}`: on success the task starts `task` as a new entity keyed `<task>-n`, with its own key and `attr.parent` the spawning entity's key, after an optional `after` delay |
 | `subscribe` | a wait branch such as `{task: name}` or `{running: {...}}`: the task is interrupted when that event happens, with the cause `{event, value}` |
-| `on` | a list of actions run on every end of the task: each `{fire: {signal, value, from}}`, `{spawn: {task, after}}`, `{interrupt: {task, where, cause}}`, or a `{path, value}` registry change. A fire action takes a literal `value`, or `from` (the field `from_`), a signal or task name whose last outcome it copies, not both |
+| `on` | a list of actions run on every end of the task: each `{fire: {signal, value, from}}`, `{spawn: {task, after}}`, `{interrupt: {task, where, cause}}`, or a `{path, value}` registry change. A fire action takes a literal `value`, or `from` (the field `from_`), a signal or task name whose last outcome it copies, not both, and, for a signal with `once: true`, `urgent: true` to resume the waiters before the other events at their time and `after` (above 0, a number or a duration) to fire it that long from now |
 | `fail` | a condition checked after the service, reading the task's own payload; when it holds the task publishes `failed` |
 | `fail_reason` | the `reason` a failure publishes; the `fail` condition's text by default |
 | `on_fail` | the task a failed instance goes to; without it the flow ends |

@@ -161,6 +161,10 @@ finally:
 
 `ConsoleEgress` writes each record as a log line at INFO level, so logging is switched on first. `env.run` is SimPy's, so `until` is a number of simulation seconds; `time_to_seconds` converts a duration such as `"10 min"`. `teardown` in `finally` publishes the last statistics, flushes the last records and stops both threads, even when the run stops with Ctrl+C or an error.
 
+A script can run the model in segments with `env.run(until=...)` again, as in SimPy, and `env.schedule(event, priority, delay)` is SimPy's own: `simpy.events.URGENT` puts an event before the `NORMAL` ones at its time. [Time and Pacing](time-and-pacing.md#run-in-segments) covers segments, `strict`, `sync()` and `env.resume_pacing()`.
+
+An environment subclass is plain Python: `class Traced(DynamicRealtimeEnvironment)`, whose `__init__` takes `**kwargs` and passes them on, and whose `step` or `schedule` calls `super()`. `step` runs once per event inside `run()`, desflow's own included.
+
 ---
 
 ## What It Does for You
@@ -176,6 +180,7 @@ Nothing is checked before the run as a whole. Each call checks only what it read
 - **An unregistered path raises `KeyError`** when a resource, a process or a `registry.get` asks for it, so register the parameters before creating anything that reads them.
 - **A record without egress is dropped.** Until `setup_egress` runs, `publish_event` and `publish_telemetry` do nothing, without an error.
 - **A `Sampler()` with no seed draws nothing at random.** Every sample is the distribution's mean (for a `truncated_normal`, its `mean` or its `low`, whichever is higher), so give it a seed.
+- **A paced run is strict by default.** `DynamicRealtimeEnvironment(strict=True)` raises `RuntimeError` when a paced step is more than `factor` seconds behind the wall clock, as SimPy's does, and never at `factor` 0. A live script with a sink that can block passes `strict=False`.
 - **An unhandled failure stops the run under `stop`.** `DynamicRealtimeEnvironment(on_unhandled_failure=...)` is `stop` by default, as a plain SimPy environment is: a one-shot `Signal` failure that nobody waits for raises `SignalFailed`, so the run stops. Pass `"continue"` to defuse such a failure and let the run go on. A re-arming signal's failure is always defused, and an exception raised in a process stops the run under both. The keyword must be `stop` or `continue`.
 
 Beyond those, a process can do anything SimPy can model.

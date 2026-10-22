@@ -178,6 +178,7 @@ The classes a task's flow is built from, and the signals and failures tasks shar
         - watch_changes
         - unwatch_changes
         - notify_queue_change
+        - resume_pacing
         - teardown
 
 ## Registry & Parameters

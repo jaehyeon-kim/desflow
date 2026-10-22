@@ -140,7 +140,7 @@ def run():
         bootstrap_servers=BOOTSTRAP_SERVERS,
     )
 
-    env = DynamicRealtimeEnvironment(factor=1.0)
+    env = DynamicRealtimeEnvironment(factor=1.0, strict=False)
     env.registry.register_sim_parameter(PARAMS)
     env.setup_ingress([ingress])
     env.setup_egress([egress])

@@ -530,6 +530,7 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
             factor=0.0,  # unpaced, so the history costs no real time
             logical_start_time=LOGICAL_START_TIME,
             go_live_at=GO_LIVE_AT,  # from here, one simulated second per real second
+            strict=False,  # a live run with a sink that blocks goes on
         )
         env.registry.register_sim_parameter(PARAMS)
         env.setup_egress(
@@ -680,6 +681,7 @@ env = DynamicRealtimeEnvironment(
     factor=0.0,
     logical_start_time=go_live_at - timedelta(days=7),
     go_live_at=go_live_at,
+    strict=False,  # a live run with a sink that blocks goes on
 )
 ```
 

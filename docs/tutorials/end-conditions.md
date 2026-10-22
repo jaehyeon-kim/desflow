@@ -74,6 +74,8 @@ A **fixed horizon** stops the clock at `until`, whatever is still going on. A **
 
     `env.all_of(...)` is SimPy's `AllOf`: it happens when every order process has ended.
 
+The stop at `until` is an event that SimPy schedules with the `URGENT` priority, so it comes before the other events at that time. A low-level script that stops its own run at an event can do the same with `env.schedule(event, URGENT, delay)`, and the `fire` action's `urgent` and `after` keys write it in a blueprint, as [Tasks and Processes](../user-guide/tasks-and-processes.md#actions-when-an-event-happens) shows.
+
 A drain can also take a limit, `drain: {limit: 10 min}`, so a model that never empties still ends, and a `stop` ends the run as soon as an event or a condition happens; [Time and Pacing](../user-guide/time-and-pacing.md#stop-early) describes both.
 
 ---

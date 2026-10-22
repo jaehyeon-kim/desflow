@@ -126,6 +126,48 @@ At a `factor` above 0 the run follows the wall clock, and `system.simulation.lag
     # env.setup_egress(sinks, lag_monitor_interval=10)
     ```
 
+### Strict Pacing
+
+A paced step that starts more than `factor` real seconds late has fallen behind the wall clock. By default the run goes on and `system.simulation.lag_seconds` reports the delay. With `strict` on, the run raises `RuntimeError` (`Simulation too slow for real time (1.500s).`) instead, as SimPy's `RealtimeEnvironment` does. The setting has a different default in each API:
+
+- **Low-level API:** `strict=True`, SimPy's default. A live script with a sink that can block passes `strict=False`.
+- **Builder:** `SimulationContext(strict=False)`, the default, as a live run with a sink goes on when the sink is slow.
+- **YAML:** `simulation.strict`, default `false`.
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/environment.yaml:strict"
+    # Under simulation: raise RuntimeError when a paced step is more than factor
+    # seconds behind the wall clock; false by default, and never checked at factor 0
+    strict: true
+    ```
+
+=== "Builder"
+
+    ```python title="docs/snippets/pages/pacing.py:strict"
+    # A paced step more than factor seconds behind the wall clock raises RuntimeError;
+    # the builder's default is False
+    checked = SimulationContext(sim_id="Shop", factor=1.0, strict=True)
+    ```
+
+=== "Low-level"
+
+    ```python title="docs/snippets/pages/pacing.py:low-level-strict"
+    # The low-level API is strict unless you pass strict=False, as SimPy's is
+    raising = DynamicRealtimeEnvironment(factor=1.0)
+    tolerant = DynamicRealtimeEnvironment(factor=1.0, strict=False)
+    ```
+
+`strict` is never checked at `factor: 0`, including before `go_live_at`: an unpaced run has no wall clock to fall behind, and SimPy's check would raise on the first step of every unpaced script. After a pause, `env.sync()` (SimPy's) moves only the wall-clock anchor to now, so the next event would wait `factor` seconds for each simulation second since `env_start`, which is the start of the run, or the go-live instant once the run has gone live, or the last `resume_pacing()`. `env.resume_pacing()` moves both anchors, so the next event waits `factor` seconds for each simulation second after `now`:
+
+```python title="docs/snippets/pages/pacing.py:resume-pacing"
+paused = DynamicRealtimeEnvironment(factor=0.01, strict=False)  # 1.0 follows the clock
+paused.run(until=10)
+# ... a pause, such as a stop in a debugger: the wall clock is now ahead of the run
+paused.resume_pacing()  # the next event waits factor seconds per second from here
+paused.run(until=20)
+```
+
 ### Warm-up
 
 `warmup` leaves the start of a run out of what it reports. It is one time per run, in simulation seconds or a duration. No sink receives a record or telemetry stamped before it, and the built-in statistics are reset once at that moment, so they describe the rest of the run. A run without it sends everything, which is what a data generator usually wants.
@@ -263,7 +305,7 @@ With statistics at `basic` or above, `flows.<arrival>.started`, `finished` and `
 
 ### Step and Peek
 
-`start()` builds everything `run()` builds and starts every process, with the clock still at its start. `step()` then processes the next event of the model, and `peek()` gives the time of the next one, infinity when none is left, as SimPy's `env.step()` and `env.peek()` do. Both count only the model's events, so a script steps the model as it would in SimPy. The events desflow adds, such as the statistics timer, the flush timers, the lag and ingress monitors and a resource's capacity watcher, do not count: `peek()` skips them, and `step()` runs those due before the model's event in the same call. When only desflow's events are left, `step()` raises `EmptySchedule` and `peek()` gives infinity; `finish()` and `run()` still process them. `finish()` runs a started run on to the end `run()` would reach, `until`, the `stop` or the end of the drain, then closes it, so `run()` is `start()` then `finish()`; `close()` ends the run where it is. A context from `from_yaml` steps the same way:
+`start()` builds everything `run()` builds and starts every process, with the clock still at its start. `step()` then processes the next event of the model, and `peek()` gives the time of the next one, infinity when none is left, as SimPy's `env.step()` and `env.peek()` do. Both count only the model's events, so a script steps the model as it would in SimPy. The events desflow adds, such as the statistics timer, the flush timers, the lag and ingress monitors and a resource's capacity watcher, do not count: `peek()` skips them, and `step()` runs those due before the model's event in the same call. When only desflow's events are left, `step()` raises `EmptySchedule` and `peek()` gives infinity; `finish()` and `run()` still process them. `finish()` runs a started run on to the end `run()` would reach, `until`, the `stop` or the end of the drain, then closes it, so `run()` is `start()` then `finish()`; when `advance()` or `step()` has brought the clock to `until` or past it and there is no `stop` or `drain`, it closes the run at once, as a run that ended at `until` does, and when `step()` brought the clock to exactly `until`, the records hold one run's records (which end with the final statistics) plus those of the events at `until` that `step()` processed, as in SimPy; a statistics reading due at `until` that `step()` processed then appears twice at that time, and after steps past `until` the run closes where the steps stopped, with the final statistics at that time; `close()` ends the run where it is. A context from `from_yaml` steps the same way:
 
 ```python title="docs/snippets/pages/pacing.py:step"
 def every_ten(context):
@@ -280,6 +322,32 @@ stepped.close()  # the teardown run() does at its end
 ```
 
 It prints `stopped before 30 at 20`. Stepping does not stop at `until`: compare `peek()` with the time you want to stop at.
+
+### Run in Segments
+
+`advance(until)` runs a started run up to a time and returns with the run still open, so a script can read the model, change it with `context.env`, or wait, then run the next segment. `finish()` runs on to the end, as it does after `start()`:
+
+```python title="docs/snippets/pages/pacing.py:segments"
+def pulse(context):
+    while True:
+        yield context.env.timeout(10)
+
+
+segmented = SimulationContext(sim_id="Shop", factor=0.0).add_process(pulse)
+segmented.start(until=60)
+segmented.advance(25)  # runs the model to 25; the events at 25 wait for the next call
+segmented.advance("40 s")  # a duration is seconds from the start, not from now
+print(f"paused at {segmented.env.now}")
+segmented.finish()  # on to start()'s until, 60, and closes
+```
+
+It prints `paused at 40.0`. Segments give the records one `run()` gives, the telemetry and statistics included, because nothing is flushed at a segment boundary. The same holds for a script that calls `env.run(until=...)` again on a low-level environment, as in SimPy. A few rules:
+
+- `until` is a time after `now`, in seconds or as a duration such as `"10 min"`, as a time in the run; a time that is not after `now` raises `ValueError`, as SimPy does. `advance()` before `start()` or after `close()` raises `RuntimeError`.
+- The run stops at the earlier of `until` and its own end: `start()`'s `until`, the `stop` or the end of a drain. A later `advance()` raises `RuntimeError`; call `finish()`, which returns the end's value (`None` for `until` or a drain, the stop's value for a stop, and a failed stop's exception raised again), or `close()`.
+- `until` may be an event, such as `context.signal("gate").wait()`: the run stops where the event fires and returns its value, and the next `advance()` goes on, as SimPy's `env.run(until=event)` does.
+- The event that ends a segment stays in the queue: `peek()` gives the segment's time and `step()` processes it.
+- `advance()` does not move the wall-clock anchor. A paced run that waited between segments is behind when it goes on, so call `env.resume_pacing()` first.
 
 ### Example: End Conditions
 
@@ -407,7 +475,7 @@ The `end-conditions` example: a drain after closing time, a stop when the boxes 
 - **Egress thread:** runs the sinks' asyncio code, which drains the queues and writes to Kafka, files or databases, so network waits never stall a simulation step.
 - **Ingress thread:** runs the sources, which put `(path, value)` pairs on a queue.
 
-**Processes it starts.** Besides your own, the environment starts, as events of its own that `step()` and `peek()` do not count, an ingress monitor, which applies queued changes every 0.1 simulation seconds; a lag monitor, which publishes `system.simulation.lag_seconds` every `lag_interval`, at a `factor` above 0 or after going live; a timed flush per sink, at a `factor` above 0; the statistics timer; and the warm-up reset. They share SimPy's one queue with the model's events, so `run()` processes them in order with the model's, and a script that steps the model never sees them.
+**Processes it starts.** Besides your own, the environment starts, as events of its own that `step()` and `peek()` do not count, an ingress monitor, which applies queued changes every 0.1 simulation seconds; a lag monitor, which publishes `system.simulation.lag_seconds` every `lag_interval`, at a `factor` above 0 or after going live; a timed flush per sink, at a `factor` above 0; the statistics timer; and the warm-up reset. They share SimPy's one queue with the model's events, so `run()` processes them in order with the model's, and a script that steps the model never sees them. `advance()` and `finish()` run them in the same way. An environment subclass that overrides `step()` sees every event inside `run()`, desflow's own included, and only the model's events when a script steps outside `run()`.
 
 **Pacing and the switch.** Before each event, the environment checks the logical clock. At the first event at or after `go_live_at`, it sets the factor to 1.0 and moves its two anchors, `env_start` and `real_start`, so the go-live instant counts as now; without that, the first paced event would sleep off the whole backfill. The switch happens once and always to 1.0. A `go_live_at` at or before `logical_start_time` paces the whole run, with a warning, and a run that ends before it stays unpaced. A `go_live_at` or `logical_start_time` without an offset is read in the run's time zone, so the two can be compared whichever way each is written.
 

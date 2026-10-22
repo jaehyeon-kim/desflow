@@ -78,6 +78,10 @@ The common YAML keys and builder calls side by side, each linked to the page tha
 | Run to a time | `run: {until: 1 h}` | `app.run(until=3600)` | [Time and Pacing](../user-guide/time-and-pacing.md) |
 | Stop at a signal or a condition | `run.stop` | `app.run(until=, stop=)` | [End Conditions](../tutorials/end-conditions.md) |
 | Finish the entities already in the model | `run.drain: true` | `app.run(until=, drain=True)` | [End Conditions](../tutorials/end-conditions.md) |
+| Run in segments, then finish | not in YAML | `app.start()`, `app.advance(until)`, `app.finish()` | [Time and Pacing](../user-guide/time-and-pacing.md#run-in-segments) |
+| Raise when the run falls behind the wall clock | `simulation: {strict: true}` | `SimulationContext(strict=True)` | [Time and Pacing](../user-guide/time-and-pacing.md#strict-pacing) |
+| Fire a one-shot signal first at its time, or later | `on: [{fire: {signal: s, urgent: true, after: 5 s}}]` | `@app.task(on=[{"fire": {"signal": "s", "urgent": True, "after": 5}}])` | [Tasks and Processes](../user-guide/tasks-and-processes.md#actions-when-an-event-happens) |
+| Run on your own environment class | `simulation: {environment: !python mod.Env}` | `SimulationContext(environment=Env)` | [Blueprints](../user-guide/blueprints.md) |
 | Stop the run on a failure nobody handles | `run: {on_unhandled_failure: stop}` | `app.run(on_unhandled_failure="stop")` | [Tasks and Processes](../user-guide/tasks-and-processes.md#failures) |
 | Repeat a run with other seeds | `desflow run FILE --replications 20` | `replicate(model, 20, seed=, until=)` | [Replications](../user-guide/replications.md) |
 | Compare designs | `desflow experiment FILE` | `run_experiment(spec)` | [Experiments](../user-guide/experiments.md) |

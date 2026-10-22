@@ -421,6 +421,12 @@ def _check_events(blueprint: Blueprint, source: SourceMap) -> None:
                 f"the on: action of {owner} fires signal '{fire.signal}', "
                 + _undefined(fire.signal, signals, "signals"),
             )
+        if (fire.urgent or fire.after is not None) and not signals[fire.signal].once:
+            raise source.error(
+                location,
+                "`urgent` and `after` need a one-shot signal (`once: true`); "
+                "a re-arming signal fires now",
+            )
         source_name = fire.from_
         if source_name is None:
             return

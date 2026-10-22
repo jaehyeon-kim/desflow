@@ -470,7 +470,7 @@ Related records are rows that belong together across tables. Here every customer
 
 
     def run(until=None, factor=1.0):
-        env = DynamicRealtimeEnvironment(factor=factor)
+        env = DynamicRealtimeEnvironment(factor=factor, strict=False)
         env.registry.register_sim_parameter(PARAMS)
         env.setup_ingress([PostgresIngress(DSN, table_name="simulation_params")])
         env.setup_egress(

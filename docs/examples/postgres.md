@@ -467,7 +467,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
 
     def run():
-        env = DynamicRealtimeEnvironment(factor=1.0)
+        env = DynamicRealtimeEnvironment(factor=1.0, strict=False)
         env.registry.register_sim_parameter(PARAMS)
 
         # PostgresEgress creates the orders table, and PostgresIngress creates the

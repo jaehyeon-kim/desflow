@@ -107,3 +107,45 @@ print(f"stopped before {stepped.peek()} at {stepped.env.now}")
 stepped.close()  # the teardown run() does at its end
 # --8<-- [end:step]
 assert stepped.env.now == 20 and stepped.peek() == 30
+
+
+# --8<-- [start:strict]
+# A paced step more than factor seconds behind the wall clock raises RuntimeError;
+# the builder's default is False
+checked = SimulationContext(sim_id="Shop", factor=1.0, strict=True)
+# --8<-- [end:strict]
+# --8<-- [start:low-level-strict]
+# The low-level API is strict unless you pass strict=False, as SimPy's is
+raising = DynamicRealtimeEnvironment(factor=1.0)
+tolerant = DynamicRealtimeEnvironment(factor=1.0, strict=False)
+# --8<-- [end:low-level-strict]
+assert not SimulationContext(sim_id="Shop").strict
+assert checked.strict and raising.strict and not tolerant.strict
+for e in (raising, tolerant):
+    e.teardown()
+
+# --8<-- [start:resume-pacing]
+paused = DynamicRealtimeEnvironment(factor=0.01, strict=False)  # 1.0 follows the clock
+paused.run(until=10)
+# ... a pause, such as a stop in a debugger: the wall clock is now ahead of the run
+paused.resume_pacing()  # the next event waits factor seconds per second from here
+paused.run(until=20)
+# --8<-- [end:resume-pacing]
+assert paused.now == 20
+paused.teardown()
+
+
+# --8<-- [start:segments]
+def pulse(context):
+    while True:
+        yield context.env.timeout(10)
+
+
+segmented = SimulationContext(sim_id="Shop", factor=0.0).add_process(pulse)
+segmented.start(until=60)
+segmented.advance(25)  # runs the model to 25; the events at 25 wait for the next call
+segmented.advance("40 s")  # a duration is seconds from the start, not from now
+print(f"paused at {segmented.env.now}")
+segmented.finish()  # on to start()'s until, 60, and closes
+# --8<-- [end:segments]
+assert segmented.env.now == 60

@@ -236,7 +236,9 @@ def run_config(
 ) -> Tuple[float, float, int]:
     """Runs one configuration once: (run seconds, run and teardown seconds, records)."""
     configure_logging(log_level)
-    env = DynamicRealtimeEnvironment(factor=0, logical_start_time=START)
+    # strict=False: the realtime_step configuration runs SimPy's own step at factor
+    # 0, whose strict check raises there, as 0.21.0 never checked it
+    env = DynamicRealtimeEnvironment(factor=0, strict=False, logical_start_time=START)
     env.registry.register_sim_parameter(build_params())
     if realtime_step:
         # 0.21.0 stepped through RealtimeEnvironment at every factor

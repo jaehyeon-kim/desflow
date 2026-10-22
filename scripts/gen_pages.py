@@ -356,6 +356,27 @@ def compatibility_page() -> str:
         if not_yet
         else ""
     )
+    # A difference with no inventory item is named from its register row, so the
+    # sentence follows the register; with no such row the clause is left out.
+    alone = [
+        e["operation"][0].lower() + e["operation"][1:]
+        for e in kept
+        if not e["inventory"]
+    ]
+    names = (
+        ", ".join(alone[:-1]) + " and " + alone[-1]
+        if len(alone) > 1
+        else "".join(alone)
+    )
+    no_inventory = (
+        f", {alone[0]}, which is not an inventory item of its own"
+        if len(kept) == 1 and alone
+        else f"; one of them, {alone[0]}, is not an inventory item of its own"
+        if len(alone) == 1
+        else f"; {len(alone)} of them, {names}, are not inventory items of their own"
+        if alone
+        else ""
+    )
     lines: List[str] = [
         "# SimPy Compatibility",
         "",
@@ -369,7 +390,9 @@ def compatibility_page() -> str:
         "",
         f"**{count(native)}** features are native and checked in all three APIs, "
         f"**{count(not_yet)}** are not yet, and **{count(kept)}** are differences "
-        f"kept by design.{to_come}",
+        f"kept by design.{to_come} The last section lists {len(kept)} "
+        f"{'difference' if len(kept) == 1 else 'differences'} "
+        f"kept by design{no_inventory}.",
         "",
         "The low-level API is SimPy with a few classes added, so most SimPy features "
         "work in it, those not yet checked included; [SimPy and desflow]"
@@ -455,8 +478,14 @@ def compatibility_page() -> str:
         lines.append("Every SimPy feature is native and checked in all three APIs.")
     lines += ["", f"## {GROUPS['D']}", ""]
     for row in kept:
+        link = (
+            f" **Taught on:** [{row['operation']}](../{row['page']})"
+            if row.get("page")
+            else ""
+        )
         lines.append(
             f"- **{row['operation']}** (SimPy: {row['simpy']}): {row['differences']}"
+            + link
         )
     return "\n".join(lines) + "\n"
 

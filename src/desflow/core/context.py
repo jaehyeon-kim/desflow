@@ -20,6 +20,7 @@ from typing import (
 )
 
 import simpy
+from simpy.core import StopSimulation
 
 from desflow.config import (
     DEFAULT_QUEUE_ORDER,
@@ -112,6 +113,8 @@ class SimulationContext:
         initial_time: Union[float, str] = 0.0,
         lag_interval: Union[float, str, None] = None,
         timezone: Optional[str] = None,
+        strict: bool = False,
+        environment: Optional[Type[DynamicRealtimeEnvironment]] = None,
     ):
         """
         Initializes the context builder with a designated namespace and temporal factor.
@@ -145,13 +148,36 @@ class SimulationContext:
                 record timestamps are written in, with their offset. By default the
                 zone of `logical_start_time`, or UTC. A `logical_start_time` or
                 `go_live_at` without an offset is read in it.
+            strict: When True a paced step raises `RuntimeError` if the run is more
+                than `factor` real seconds behind the wall clock, as SimPy's
+                `RealtimeEnvironment` does. It is never checked at `factor` 0. False
+                by default, unlike the low-level environment, because a live run
+                whose sink blocks falls behind and should go on.
+            environment: A subclass of `DynamicRealtimeEnvironment` that the run is
+                built on, for a model that overrides `step`, `schedule` or `__init__`.
+                A subclass that overrides `__init__` takes `**kwargs` and passes
+                them on. One that overrides `step` or `schedule` calls `super()`.
+                By default `DynamicRealtimeEnvironment`.
 
         Raises:
             ValueError: If `warmup` or `lag_interval` is negative or not a duration,
-                or `timezone` is not an IANA time zone name.
+                `timezone` is not an IANA time zone name, or `environment` is not a
+                subclass of `DynamicRealtimeEnvironment`.
         """
+        if environment is not None and not (
+            isinstance(environment, type)
+            and issubclass(environment, DynamicRealtimeEnvironment)
+        ):
+            raise ValueError(
+                "environment must be a subclass of DynamicRealtimeEnvironment, "
+                f"got {environment!r}"
+            )
         self.sim_id = sim_id
         self.factor = factor
+        self.strict = strict
+        self.environment: Type[DynamicRealtimeEnvironment] = (
+            environment or DynamicRealtimeEnvironment
+        )
         self.random_seed = random_seed
         self.logical_start_time = logical_start_time
         self.go_live_at = go_live_at
@@ -250,6 +276,9 @@ class SimulationContext:
         # The run's end, entities in the model, and the drain state, set by start()
         self._until: Any = None
         self._end: Optional[simpy.Event] = None
+        self._end_done = False
+        # The internal event at `until` that advance() stops at, made on first use
+        self._limit_event: Optional[simpy.Event] = None
         self._closed = True
         self._in_system = 0
         self._draining = False
@@ -1679,7 +1708,13 @@ class SimulationContext:
         return simpy.util.start_delayed(self.env, delayed, after)
 
     def _fire_signal(
-        self, name: str, ok: bool, value: Any, entity: Optional[Entity]
+        self,
+        name: str,
+        ok: bool,
+        value: Any,
+        entity: Optional[Entity],
+        urgent: bool = False,
+        after: Optional[float] = None,
     ) -> None:
         """Fires or fails a signal through one path, counting its `on:` actions
         against `entity` so a drain waits for them.
@@ -1687,11 +1722,17 @@ class SimulationContext:
         When the firing is new, the signal has `on:` actions, and `entity` has not
         left, 1 is added to `entity.ends_pending` and the entity is stored on the
         pending event, so the signal's last callback counts it back out.
+
+        A firing with `urgent` or `after` is for a one-shot signal and is scheduled
+        with that priority and delay. With `after` it is not counted against
+        `entity`, because the entity may leave before the signal fires, so a drain
+        can end before the signal's `on:` actions run.
         """
         signal = self._signals[name]
         pending = signal.wait()
         if (
-            not pending.triggered
+            after is None
+            and not pending.triggered
             and self._signal_on.get(name)
             and entity is not None
             and not entity.left
@@ -1699,9 +1740,9 @@ class SimulationContext:
             entity.ends_pending += 1
             pending._desflow_entity = entity  # type: ignore[attr-defined]
         if ok:
-            signal.fire(value)
+            signal.fire(value, urgent=urgent, after=after or 0.0)
         else:
-            signal.fail(value)
+            signal.fail(value, urgent=urgent, after=after or 0.0)
 
     def _signal_fired(self, name: str, event: Any) -> None:
         """The signal's last `on:` callback: runs its actions, then counts the firing
@@ -1743,7 +1784,14 @@ class SimulationContext:
                 )
                 return
             ok, value = copied
-            self._fire_signal(spec["signal"], ok, value, entity)
+            self._fire_signal(
+                spec["signal"],
+                ok,
+                value,
+                entity,
+                urgent=spec.get("urgent", False),
+                after=spec.get("after"),
+            )
         elif "spawn" in action:
             spec = action["spawn"]
             self._spawn_entity(spec["task"], entity, upstream, spec["after"])
@@ -1956,7 +2004,19 @@ class SimulationContext:
         Runs a started run to its end, then closes it, as the rest of `run()` does.
 
         The end is `until`, the `stop` or the end of the drain that `start()` set
-        up. `close()` runs even when the run stops with an error or Ctrl+C.
+        up. After one or more `advance()` or `step()` calls it runs on from where
+        they stopped. When `advance()` already reached the end, it returns at once
+        with the end's value: `None` for `until` or a drain, the stop's value for a
+        stop, and a failed stop's exception raised again. When `advance()` or `step()`
+        has brought the clock to `until` or past it and there is no `stop` or `drain`,
+        it returns `None` at once, as a run that ended at `until` does. When `step()`
+        brought the clock to exactly `until`, the records hold one run's records
+        (which end with the final statistics) plus those of the events at `until`
+        that `step()` processed, as in SimPy; a statistics reading due at `until`
+        that `step()` processed then appears twice at that time. After steps past
+        `until`, the run closes where the steps stopped, with the final statistics
+        at that time.
+        `close()` runs even when the run stops with an error or Ctrl+C.
 
         Returns:
             Any: The value of the event that stopped the run, as for `run()`.
@@ -1968,11 +2028,116 @@ class SimulationContext:
         if self._env is None or not self.started:
             raise RuntimeError("finish() needs a run that start() has started")
         try:
-            return self._env.run(
-                until=self._end if self._end is not None else self._until
-            )
+            env = self._env
+            if self._end is not None:
+                if self._end.callbacks is None and not self._end._ok:
+                    # `env.run(until=...)` returns the value of a processed event,
+                    # so a failed stop that advance() reached is raised here
+                    raise self._end._value
+                return env.run(until=self._end)
+            if self._run_ended():
+                # advance() or step() already reached until, where a run ends
+                return None
+            return env.run(until=self._until)
         finally:
             self.close()
+
+    def advance(self, until: Union[float, str, simpy.Event]) -> Any:
+        """
+        Runs a started run up to `until`, then returns with the run still open.
+
+        Call it again to run the next segment, or `finish()` to run to the end.
+        Segments give the same records as one run, because nothing is flushed at a
+        segment boundary. Between segments the model can be read, changed with
+        `context.env`, and stepped with `step()`. `advance()` never moves the
+        wall-clock anchor, so a paced run that waits between segments is behind
+        when it goes on; call `context.env.resume_pacing()` first to pace again from
+        `now`.
+
+        The run stops at the earlier of `until` and its own end: `start()`'s `until`,
+        the `stop` or the end of the `drain`. An `until` that is an event, such as
+        `context.signal("gate").wait()`, runs to that event and returns its value;
+        one that has been processed already returns at once.
+
+        Args:
+            until: A time in simulation seconds or as a duration such as `"10 min"`,
+                after `now`; or a SimPy event.
+
+        Returns:
+            Any: None when the run stops at a time, the event's value for an event,
+                and the value `run()` returns when the run reaches its own end.
+
+        Raises:
+            RuntimeError: If the run has not started or is closed, or it has ended
+                (`close()` it, or `start()` a new run).
+            ValueError: If `until` is not after `now`, as SimPy refuses it.
+            SignalFailed: If the signal that `stop` names fails, as for `run()`.
+        """
+        if self._env is None or not self.started:
+            raise RuntimeError("advance() needs a run that start() has started")
+        env = self._env
+        if self._run_ended():
+            raise RuntimeError(
+                f"the run ended at {env.now:g}; close() it, or start() a new run"
+            )
+        if isinstance(until, str):
+            until = time_to_seconds(until)
+        if isinstance(until, simpy.Event):
+            if until.callbacks is None:
+                return until.value
+            return self._advance_to(until)
+        # SimPy's own text and number format, as `env.run(until=...)` raises it
+        at = until if isinstance(until, int) else float(until)
+        if at <= env.now:
+            raise ValueError(
+                f"until ({at}) must be greater than the current simulation time"
+            )
+        if self._end is None:
+            return env.run(
+                until=until if self._until is None else min(until, self._until)
+            )
+        segment = simpy.Event(env)
+        segment._ok, segment._value = True, None
+        env.schedule(segment, simpy.events.URGENT, until - env.now)
+        return self._advance_to(segment)
+
+    def _run_ended(self) -> bool:
+        """Whether the run has reached its own end: the end event of a `stop` or
+        `drain` has been processed, else `until` has been reached."""
+        if self._end is not None:
+            return self._end_done
+        return (
+            self._until is not None
+            and self._env is not None
+            and self._env.now >= self._until
+        )
+
+    def _advance_to(self, target: simpy.Event) -> Any:
+        """Runs to `target`, or to the run's own end if it comes first, and returns
+        the value of whichever stopped the run."""
+        env = self._env
+        assert env is not None  # advance() checked that the run has started
+        limit = self._end
+        if limit is None and self._until is not None:
+            # No stop or drain: the run's end is `until`, as `env.run(until)` ends it.
+            # One internal event per run, so later calls add nothing to the queue.
+            if self._limit_event is None:
+                self._limit_event = env.internal_event()
+                self._limit_event._ok, self._limit_event._value = True, None
+                env.schedule(
+                    self._limit_event, simpy.events.URGENT, self._until - env.now
+                )
+            limit = self._limit_event
+        stop = StopSimulation.callback
+        if limit is not None:
+            limit.callbacks.append(stop)
+        try:
+            return env.run(until=target)
+        finally:
+            # An event that did not stop the run must not stop a later one
+            for event in (limit, target):
+                if event is not None and event.callbacks and stop in event.callbacks:
+                    event.callbacks.remove(stop)
 
     def start(
         self,
@@ -2099,7 +2264,7 @@ class SimulationContext:
     ) -> DynamicRealtimeEnvironment:
         """The part of `start()` after the checks: builds and starts the run."""
 
-        env_kwargs: Dict[str, Any] = {"factor": self.factor}
+        env_kwargs: Dict[str, Any] = {"factor": self.factor, "strict": self.strict}
         if self.initial_time:
             env_kwargs["initial_time"] = self.initial_time
         if self.logical_start_time is not None:
@@ -2109,7 +2274,7 @@ class SimulationContext:
         if self.timezone is not None:
             env_kwargs["timezone"] = self.timezone
         env_kwargs["on_unhandled_failure"] = self._on_unhandled_failure
-        self._env = DynamicRealtimeEnvironment(**env_kwargs)
+        self._env = self.environment(**env_kwargs)
 
         # One random sequence per distribution, all from the run's seed
         if seed is None:
@@ -2241,9 +2406,14 @@ class SimulationContext:
                 self._env.process(loop_func())
 
         self._until = until
+        self._end_done = False
+        self._limit_event = None
         self._end = self._end_event(until, stop, drain)
         self._closed = False
         self.started = True
+        if self.strict:
+            # Building takes wall time, which a strict run must not count as lag
+            self._env.sync()
         logger.info("Simulation engine started.")
         return self._env
 
@@ -2353,7 +2523,12 @@ class SimulationContext:
                 horizon.callbacks.append(finish)
         if stop is not None:
             self._stop_event(stop).callbacks.append(finish)
+        end.callbacks.append(self._mark_end)
         return end
+
+    def _mark_end(self, _event: Any) -> None:
+        """Records that the end event has been processed, for `advance()`."""
+        self._end_done = True
 
     def _stop_event(self, stop: Any) -> simpy.Event:
         """The event a `stop` names: a signal's next firing, a condition, or an event."""
@@ -2474,8 +2649,16 @@ class SimulationContext:
                             signal, self._signal_names, f"add_signal('{signal}')"
                         )
                     )
-                if action["fire"]["from"] is not None:
-                    check_from(action["fire"]["from"], owner)
+                fire = action["fire"]
+                if (fire.get("urgent") or fire.get("after") is not None) and not (
+                    self._signal_once.get(signal, False)
+                ):
+                    raise ValueError(
+                        "`urgent` and `after` need a one-shot signal (`once=True`); "
+                        "a re-arming signal fires now"
+                    )
+                if fire["from"] is not None:
+                    check_from(fire["from"], owner)
 
         def check_from(source: str, owner: str) -> None:
             is_signal = source in self._signal_names
@@ -2851,7 +3034,30 @@ def _parse_on_action(entry: Mapping[str, Any]) -> Dict[str, Any]:
         value, source = fire.get("value"), fire.get("from")
         if value is not None and source is not None:
             raise ValueError("a fire action takes value or from, not both")
-        return {"fire": {"signal": signal, "value": value, "from": source}}
+        urgent, after = fire.get("urgent", False), fire.get("after")
+        if not isinstance(urgent, bool):
+            raise ValueError(f"a fire urgent is true or false, got {urgent!r}")
+        if isinstance(after, str):
+            after = time_to_seconds(after)
+        if isinstance(after, bool):
+            raise ValueError(f"a fire after is seconds or a duration, got {after!r}")
+        if after is not None and not after > 0:
+            raise ValueError(f"a fire after is more than 0, got {after:g}")
+        extra = set(fire) - {"signal", "value", "from", "urgent", "after"}
+        if extra:
+            raise ValueError(
+                f"a fire action takes signal, value, from, urgent and after, "
+                f"not {', '.join(sorted(extra))}"
+            )
+        return {
+            "fire": {
+                "signal": signal,
+                "value": value,
+                "from": source,
+                "urgent": urgent,
+                "after": after,
+            }
+        }
     if kind == "spawn":
         return {"spawn": _parse_spawn(entry["spawn"])}
     if kind == "interrupt":

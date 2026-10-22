@@ -1,0 +1,15 @@
+# Pings every 10 s and the signal gate, which the test fires at 5. The test runs it
+# in segments, the second of which ends when the gate opens. See
+# test_c6_end_conditions.py.
+simulation:
+  sim_id: C6
+  factor: 0
+signals: [gate]
+arrivals:
+  pings: {dist: constant, value: 10, spawn: ping}
+tasks:
+  ping:
+    payload: {event: ping}
+stats: {level: basic, interval: 10}
+run:
+  until: 100

@@ -146,7 +146,7 @@ It publishes `preempted` (or `interrupted`) when it loses the packer, and `resum
         env.stats.flow_finished(arrival)
     ```
 
-    The process catches `simpy.Interrupt`, whose cause is SimPy's `Preempted` for a preemption, gives back its request, and asks again. That loop is what `on_interrupt` writes for you.
+    The process catches `simpy.Interrupt`, whose cause is SimPy's `Preempted` for a preemption, gives back its request, and asks again. That loop is what `on_interrupt` writes for you. SimPy delivers an interrupt as an `URGENT` event, so it comes before the other events at that time; `env.schedule(event, priority, delay)` schedules your own events the same way.
 
 The statistics count each `preempted`, `interrupted` and `resumed`; a resumed order's wait is the sum of its waits, and its packing time is the time it was packed:
 

@@ -877,7 +877,7 @@ class DynamicRealtimeEnvironment(
         self,
         initial_time=0,
         factor=1.0,
-        strict=False,
+        strict=True,
         logical_start_time: Optional[datetime] = None,
         go_live_at: Optional[datetime] = None,
         timezone: Optional[str] = None,
@@ -889,7 +889,13 @@ class DynamicRealtimeEnvironment(
         Args:
             initial_time (float, optional): The initial simulation time. Defaults to 0.
             factor (float, optional): The real-time factor (e.g., 1.0 = 1 sim second per real second). Defaults to 1.0.
-            strict (bool, optional): If True, raises RuntimeError if simulation falls too far behind real time. Defaults to False.
+            strict (bool, optional): If True, a paced step raises `RuntimeError` when the
+                run is more than `factor` real seconds behind the wall clock, as SimPy's
+                `RealtimeEnvironment` does. It is never checked at `factor` 0, where an
+                unpaced run has no wall clock to fall behind, nor before `go_live_at`.
+                Pass False for a live run whose sinks can block. `sync()` moves only
+                the wall-clock anchor to now; `resume_pacing()` moves both anchors.
+                Defaults to True, as SimPy.
             logical_start_time (datetime, optional): Overrides the environment's base clock.
                 Crucial for historical backfilling (e.g., generating data from last week).
             go_live_at (datetime, optional): Logical instant at which pacing switches to
@@ -1025,10 +1031,11 @@ class DynamicRealtimeEnvironment(
         `env_start` and `real_start` map simulation seconds onto the wall clock, and
         simpy sets them once when the environment is built. Leaving them there would
         make the first paced event wait out the whole backfill in real seconds, so the
-        anchor moves to the go-live instant and to now.
+        anchor moves to the go-live instant and to now, read from `simpy.rt.monotonic`
+        as SimPy's `sync()` reads it.
         """
         self.env_start = go_live_sim_time
-        self.real_start = time.monotonic()
+        self.real_start = simpy.rt.monotonic()
         # `factor` is a read-only property in simpy, so its backing attribute is the
         # only way to change pacing during a run. `step` reads it on every call, so the
         # new value applies from the next event onwards.
@@ -1057,6 +1064,19 @@ class DynamicRealtimeEnvironment(
             "Logical clock reached go-live at %s; pacing switched to real time.",
             self._get_iso_timestamp(self.start_datetime, go_live_sim_time),
         )
+
+    def resume_pacing(self) -> None:
+        """Restarts pacing from the current simulation time and the wall clock now.
+
+        After a pause, such as a debugger stop or a wait between `advance()` calls,
+        the wall clock is ahead of the simulation. The next paced event would run at
+        once, or raise under `strict`. Calling this makes the next event wait `factor`
+        real seconds for each simulation second after `now`. SimPy's `sync()` moves
+        only the wall-clock anchor, so it is not enough on its own once `now` has
+        moved. At `factor` 0 the call changes nothing a run reads.
+        """
+        self.env_start = self.now
+        self.real_start = simpy.rt.monotonic()
 
     def start_internal(self, generator: Any) -> Process:
         """Starts a process of desflow's own, which `step()` and `peek()` do not count.
@@ -1184,10 +1204,16 @@ class DynamicRealtimeEnvironment(
         factor = self._factor
         # At factor 0 there is no wall clock to wait for, so SimPy's own step runs
         # without the real-time arithmetic (issue #24, fix 4). `strict` means
-        # nothing without a wall clock and is not checked.
+        # nothing without a wall clock and is not checked. After the go-live switch
+        # a timer it scheduled at `now` is before the go-live instant, so it is not
+        # a step that fell behind and is not checked either.
         if factor:
             real_time = self.real_start + (head - self.env_start) * factor
-            if self.strict and simpy.rt.monotonic() - real_time > factor:
+            if (
+                self.strict
+                and head >= self.env_start
+                and simpy.rt.monotonic() - real_time > factor
+            ):
                 delta = simpy.rt.monotonic() - real_time
                 raise RuntimeError(f"Simulation too slow for real time ({delta:.3f}s).")
             while True:

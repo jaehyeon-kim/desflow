@@ -1,0 +1,13 @@
+# One model process waits 10 s again and again, on an environment subclass that
+# records (now, peek) after each step(). See test_c6_environment.py.
+simulation:
+  sim_id: C6
+  factor: 0
+  environment: !python tests.conformance.batch5_scripts.TracingEnvironment
+resources:
+  machine: {current_cap: 1, max_cap: 1}
+stats: {level: basic, interval: 10}
+processes:
+  - !python tests.conformance.batch5_scripts.pinger
+run:
+  until: 40

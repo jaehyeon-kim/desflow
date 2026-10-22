@@ -10,6 +10,7 @@ import logging
 from typing import Any, Callable, List, Optional
 
 from simpy import Environment, Event
+from simpy.events import NORMAL, URGENT
 
 logger = logging.getLogger(__name__)
 
@@ -89,13 +90,24 @@ class Signal:
         """
         return self._event
 
-    def fire(self, value: Any = None) -> None:
+    def fire(self, value: Any = None, urgent: bool = False, after: float = 0.0) -> None:
         """
         Fires the signal: every waiter resumes with `value`.
 
         Args:
             value: What the waiters receive, such as a task's finished payload.
+            urgent: When True the waiters resume before the other events at their
+                time, as SimPy's `URGENT` priority orders them. Needs a one-shot
+                signal.
+            after: Simulation seconds from now at which the waiters resume. The
+                signal counts as fired now, so a second firing is refused. Needs a
+                one-shot signal.
+
+        Raises:
+            ValueError: If `urgent` or `after` is given to a signal that re-arms,
+                or `after` is negative.
         """
+        self._check_timing(urgent, after)
         if self.once and self.count >= 1:
             # A one-shot signal fires once. A second firing is SimPy's RuntimeError
             # under `stop`; under `continue` it is dropped with a log line.
@@ -111,7 +123,10 @@ class Signal:
         self.ok, self.value = True, value
         if self.once:
             # Keep the triggered event, so a later wait resumes at once.
-            self._event.succeed(value)
+            if urgent or after:
+                self._schedule(True, value, urgent, after)
+            else:
+                self._event.succeed(value)
         else:
             event, self._event = self._event, self.env.event()
             for callback in self.callbacks:
@@ -119,7 +134,7 @@ class Signal:
             event.succeed(value)
         self._notify()
 
-    def fail(self, reason: Any) -> None:
+    def fail(self, reason: Any, urgent: bool = False, after: float = 0.0) -> None:
         """
         Fails the signal: every waiter receives `SignalFailed` with the reason.
 
@@ -128,7 +143,13 @@ class Signal:
 
         Args:
             reason: Why it failed, such as a task's failure reason.
+            urgent: As for `fire()`.
+            after: As for `fire()`.
+
+        Raises:
+            ValueError: As for `fire()`.
         """
+        self._check_timing(urgent, after)
         if self.once and self.count >= 1:
             if getattr(self.env, "on_unhandled_failure", "stop") == "stop":
                 raise RuntimeError(f"signal '{self.name}' is one-shot and has fired")
@@ -153,8 +174,28 @@ class Signal:
             "continue"
         ):
             event.defused = True
-        event.fail(SignalFailed(self.name, reason))
+        if urgent or after:
+            self._schedule(False, SignalFailed(self.name, reason), urgent, after)
+        else:
+            event.fail(SignalFailed(self.name, reason))
         self._notify()
+
+    def _check_timing(self, urgent: bool, after: float) -> None:
+        """Refuses `urgent` or `after` for a signal that re-arms, or a negative `after`."""
+        if (urgent or after) and not self.once:
+            raise ValueError(
+                "`urgent` and `after` need a one-shot signal (`once=True`); "
+                "a re-arming signal fires now"
+            )
+        if after < 0:
+            raise ValueError(f"after must be 0 or more, got {after:g}")
+
+    def _schedule(self, ok: bool, value: Any, urgent: bool, after: float) -> None:
+        """Triggers the one-shot event with a priority and a delay, as
+        `env.schedule(event, priority, delay)` does after `succeed()` or `fail()`."""
+        event = self._event
+        event._ok, event._value = ok, value
+        self.env.schedule(event, URGENT if urgent else NORMAL, after)
 
     def _notify(self) -> None:
         notify = getattr(self.env, "notify_change", None)

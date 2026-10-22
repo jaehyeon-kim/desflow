@@ -67,7 +67,7 @@ def order_generator(env, sampler):
 
 
 def run():
-    env = DynamicRealtimeEnvironment(factor=1.0)
+    env = DynamicRealtimeEnvironment(factor=1.0, strict=False)
     env.registry.register_sim_parameter(PARAMS)
 
     # --8<-- [start:connectors]

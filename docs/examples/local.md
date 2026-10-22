@@ -368,7 +368,7 @@ Local connectors need no Docker, Kafka or other external store, so this example 
 
 
     def run():
-        env = DynamicRealtimeEnvironment(factor=1.0)
+        env = DynamicRealtimeEnvironment(factor=1.0, strict=False)
         env.registry.register_sim_parameter(PARAMS)
         env.setup_egress([ConsoleEgress()])
         # The packers' readings every 2 simulation seconds

@@ -69,7 +69,7 @@ SINKS = [ConsoleEgress()]  # passed to env.setup_egress in run below
 
 # --8<-- [start:run]
 def run(until=20, factor=1.0):
-    env = DynamicRealtimeEnvironment(factor=factor)
+    env = DynamicRealtimeEnvironment(factor=factor, strict=False)
     env.registry.register_sim_parameter(PARAMS)
     env.setup_egress(SINKS)
 

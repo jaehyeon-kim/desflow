@@ -804,6 +804,8 @@
     - tests/conformance/test_c6_end_conditions.py::test_c6_step_with_a_live_capacity_change
     - tests/conformance/test_c6_end_conditions.py::test_c6_step_with_a_task_that_has_on_actions
     - tests/conformance/test_c6_end_conditions.py::test_c6_run_after_steps_gives_the_records_of_one_run
+    - tests/conformance/test_c6_end_conditions.py::test_c6_finish_after_steps_that_reached_until
+    - tests/conformance/test_c6_end_conditions.py::test_c6_finish_after_steps_to_until_with_statistics_due_there
   page: user-guide/time-and-pacing.md#step-and-peek
   differences: "With only desflow's own events left, `step()` raises `EmptySchedule` and `peek()` gives infinity, but the queue is not empty: `run()` and `finish()` still process those events."
 
@@ -901,43 +903,65 @@
     - tests/conformance/test_c1_processes.py::test_c1_start_a_process_without_waiting_for_it_drain
   page: user-guide/tasks-and-processes.md#start-a-flow-without-waiting
 
-- id: N
+- id: C6
   inventory: [SP-E5]
-  exists: [low_level]
-  status: not yet
   operation: Schedule an event with a priority
+  description: "`env.schedule(event, priority, delay)` puts an event on the queue, and a `fire` action with `after` fires a one-shot signal that many seconds from now, as SimPy's `schedule` does."
   simpy: "`core.Environment.schedule`"
-  checks: []
-  release: 0.23.0
+  yaml: "`fire: {signal: s, after: 5 s}` on a signal with `once: true`"
+  builder: "`{\"fire\": {\"signal\": \"s\", \"after\": 5}}` in `on=`, or `context.env.schedule(event, priority, delay)`"
+  low_level: "`env.schedule(event, priority, delay)`"
+  checks:
+    - tests/conformance/test_c6_environment.py::test_c6_schedule_with_a_priority
+    - tests/conformance/test_c6_environment.py::test_c6_fire_with_after_is_not_counted_by_a_drain
+    - tests/conformance/test_c6_environment.py::test_c6_fire_twice_with_after_is_refused_as_a_one_shot_signal
+  page: user-guide/tasks-and-processes.md#actions-when-an-event-happens
 
-- id: N
+- id: C6
   inventory: [SP-E6]
-  exists: [low_level]
-  status: not yet
   operation: Urgent and normal event priorities
+  description: "An urgent event is processed before the normal events at its time, as SimPy's `URGENT` and `NORMAL` order them; `urgent: true` on a `fire` action resumes the waiters first."
   simpy: "`events.URGENT`, `events.NORMAL`"
-  checks: []
-  release: 0.23.0
+  yaml: "`fire: {signal: s, urgent: true}` on a signal with `once: true`"
+  builder: "`{\"fire\": {\"signal\": \"s\", \"urgent\": True}}` in `on=`, or `simpy.events.URGENT` in `context.env.schedule`"
+  low_level: "`env.schedule(event, URGENT)`"
+  checks:
+    - tests/conformance/test_c6_environment.py::test_c6_fire_with_urgent_and_after
+    - tests/conformance/test_c6_environment.py::test_c6_fire_urgent_and_after_need_a_one_shot_signal
+  page: user-guide/tasks-and-processes.md#actions-when-an-event-happens
 
-- id: N
+- id: C6
   inventory: [SP-E15, SP-E16]
-  exists: [low_level]
-  checked: [low_level]
-  status: not yet
   operation: Run in segments
+  description: "`advance(until)` runs a started run to a time or an event and returns with the run open, and `finish()` runs on to the end; the segments give the records of one run. `resume_pacing()` paces again from `now` after a pause."
   simpy: "`core.Environment.run`, called again"
+  yaml: "`app = SimulationContext.from_yaml(file)`, then `app.start()`, `app.advance(until)` and `app.finish()`"
+  builder: "`app.start()`, `app.advance(until)`, `app.finish()`"
+  low_level: "`env.run(until=)`, called again; `env.resume_pacing()`"
   checks:
     - tests/conformance/test_c6_end_conditions.py::test_c6_stopped_and_resumed_run
-  release: 0.23.0
+    - tests/conformance/test_c6_end_conditions.py::test_c6_run_in_segments
+    - tests/conformance/test_c6_end_conditions.py::test_c6_advance_refuses_what_a_segment_cannot_do
+    - tests/conformance/test_c6_end_conditions.py::test_c6_segments_with_stop_and_drain_give_the_records_of_one_run
+    - tests/conformance/test_c6_end_conditions.py::test_c6_step_after_a_segment_processes_its_event_as_simpy_does
+    - tests/conformance/test_c6_end_conditions.py::test_c6_advance_to_an_event_and_on
+    - tests/conformance/test_c6_end_conditions.py::test_c6_finish_raises_a_failed_stop_that_advance_reached
+    - tests/conformance/test_c6_end_conditions.py::test_c6_advance_to_events_adds_one_internal_event_to_the_queue
+    - tests/conformance/test_c6_pacing.py::test_c6_resume_pacing
+  page: user-guide/time-and-pacing.md#run-in-segments
 
-- id: N
+- id: C6
   inventory: [SP-E17]
-  exists: [low_level]
-  status: not yet
   operation: Subclass the environment
+  description: "A subclass of `DynamicRealtimeEnvironment` runs the model, so an override of `step` or `schedule` sees its events, as a subclass of SimPy's `Environment` does."
   simpy: "`core.Environment`"
-  checks: []
-  release: 0.23.0
+  yaml: "`simulation: {environment: !python module.Env}`"
+  builder: "`SimulationContext(environment=Env)`"
+  low_level: "`class Env(DynamicRealtimeEnvironment)`"
+  checks:
+    - tests/conformance/test_c6_environment.py::test_c6_environment_subclass
+    - tests/conformance/test_c6_environment.py::test_c6_environment_subclass_in_run
+  page: user-guide/blueprints.md#run-on-your-own-environment
 
 - id: C6
   inventory: [SP-R1]
@@ -952,31 +976,41 @@
   page: user-guide/time-and-pacing.md#factor
 
 
-- id: N
+- id: C6
   inventory: [SP-R2]
-  exists: [low_level]
-  status: not yet
   operation: Strict pacing
+  description: "With `strict` on, a paced step more than `factor` seconds behind the wall clock raises `RuntimeError`, as SimPy's `RealtimeEnvironment(strict=True)` does."
   simpy: "`rt.RealtimeEnvironment.strict`"
-  checks: []
-  release: 0.23.0
+  yaml: "`simulation.strict`"
+  builder: "`SimulationContext(strict=True)`"
+  low_level: "`DynamicRealtimeEnvironment(strict=True)`"
+  checks:
+    - tests/conformance/test_c6_pacing.py::test_c6_strict_raises_when_behind
+  page: user-guide/time-and-pacing.md#strict-pacing
 
-- id: N
+- id: C6
   inventory: [SP-R3]
-  status: not yet
   operation: Strict by default
+  description: "The low-level environment is strict unless `strict=False` is passed, as SimPy's is; the builder and YAML default to off."
   simpy: "`rt.RealtimeEnvironment(strict=True)`"
-  checks: []
-  release: 0.23.0
+  yaml: "`simulation.strict`, default `false`"
+  builder: "`SimulationContext(strict=False)`, the default"
+  low_level: "`DynamicRealtimeEnvironment(strict=True)`, the default"
+  checks:
+    - tests/conformance/test_c6_pacing.py::test_c6_strict_default
+  page: user-guide/time-and-pacing.md#strict-pacing
 
-- id: N
+- id: C6
   inventory: [SP-R4]
-  exists: [low_level]
-  status: not yet
   operation: Sync with the wall clock
+  description: "`sync()` resets only the wall-clock anchor (`real_start`), as SimPy's does, so strict stops counting the time before it. Going on after a pause with the pace kept needs `resume_pacing()`, which also moves the simulation anchor."
   simpy: "`rt.RealtimeEnvironment.sync`"
-  checks: []
-  release: 0.23.0
+  yaml: "not in YAML: `app.start()`, then `app.env.sync()`"
+  builder: "`app.env.sync()` after `start()`; the builder syncs once when it builds a strict run"
+  low_level: "`env.sync()`"
+  checks:
+    - tests/conformance/test_c6_pacing.py::test_c6_sync_catches_up
+  page: user-guide/time-and-pacing.md#strict-pacing
 
 - id: C1
   inventory: [SP-V3]
@@ -1146,7 +1180,8 @@
     - tests/conformance/test_c1_processes.py::test_c1_be_told_when_an_event_happens_after_the_subscriber_ended
   page: user-guide/tasks-and-processes.md#be-told-when-a-flow-ends
 
-# Differences kept by design, approved by the owner on 18 Oct 2026.
+# Differences kept by design, approved by the owner: A run with no until and
+# Capacity 0 on 18 Oct 2026, Strict pacing at factor 0 on 21 Oct 2026 (D-E1).
 
 - id: D
   inventory: [SP-E11]
@@ -1155,6 +1190,15 @@
   simpy: "`core.Environment.run()` returns when no event is left"
   checks: []
   differences: "A run with a sink or an ingress connector and no `until` runs for ever, because a live run has no end: the connectors keep events coming. Give it an `until`, with a `drain` when it should finish its work, or a `stop` that is sure to happen, or stop it with Ctrl+C."
+
+- id: D
+  inventory: []
+  status: difference
+  operation: Strict pacing at factor 0
+  simpy: "`rt.RealtimeEnvironment(factor=0, strict=True)` raises once the wall clock has moved"
+  checks: []
+  differences: "An unpaced run has no wall clock to fall behind, so SimPy's check at factor 0 would raise on the first step of every unpaced script. `strict` is never checked at factor 0, also before `go_live_at`."
+  page: user-guide/time-and-pacing.md#strict-pacing
 
 - id: D
   inventory: [SP-S3]

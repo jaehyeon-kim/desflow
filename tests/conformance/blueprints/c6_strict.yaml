@@ -1,0 +1,8 @@
+# Paced at 1 s per simulated second and strict: the test runs a process that
+# takes 2.5 s of wall time, added by the test. See test_c6_pacing.py.
+simulation:
+  sim_id: C6
+  factor: 1
+  strict: true
+run:
+  until: 10

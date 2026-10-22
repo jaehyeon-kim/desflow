@@ -53,7 +53,7 @@ def order_generator(env, sampler):
 
 
 def run():
-    env = DynamicRealtimeEnvironment(factor=1.0)
+    env = DynamicRealtimeEnvironment(factor=1.0, strict=False)
     env.registry.register_sim_parameter(PARAMS)
     env.setup_egress([RedisEgress(REDIS_URL, stream_name="events")])
     env.setup_ingress([RedisIngress(REDIS_URL, channel_name="simulation_params")])

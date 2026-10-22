@@ -40,6 +40,7 @@ env = DynamicRealtimeEnvironment(
     factor=0.0,
     logical_start_time=go_live_at - timedelta(days=7),
     go_live_at=go_live_at,
+    strict=False,  # a live run with a sink that blocks goes on
 )
 # --8<-- [end:low-level]
 

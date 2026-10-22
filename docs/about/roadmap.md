@@ -54,7 +54,7 @@ Releases come in the order shown, without dates: a release ships when it is read
   icon: ':material-check:'
   key: done
 - title: SimPy parity
-  content: 'In 0.23.0: every SimPy 4.1.2 feature natively in YAML, the builder and the low-level API, each checked against SimPy, such as nested conditions, event callbacks, unlimited stores and custom resource types. The SimPy Compatibility page lists each one, and the two differences kept by design. [#71](https://github.com/jaehyeon-kim/desflow/issues/71)'
+  content: 'In 0.23.0: every SimPy 4.1.2 feature natively in YAML, the builder and the low-level API, each checked against SimPy, such as nested conditions, event callbacks, unlimited stores and custom resource types. The SimPy Compatibility page lists each one, and the three differences kept by design. [#71](https://github.com/jaehyeon-kim/desflow/issues/71)'
   icon: ':material-clock-outline:'
   key: planned
 - title: Blueprint schema and AI skill

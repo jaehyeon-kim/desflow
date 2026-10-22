@@ -132,6 +132,7 @@ def run():
         factor=0.0,  # unpaced, so the history costs no real time
         logical_start_time=LOGICAL_START_TIME,
         go_live_at=GO_LIVE_AT,  # from here, one simulated second per real second
+        strict=False,  # a live run with a sink that blocks goes on
     )
     env.registry.register_sim_parameter(PARAMS)
     env.setup_egress(

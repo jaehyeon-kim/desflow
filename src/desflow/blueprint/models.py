@@ -51,7 +51,11 @@ from desflow.core.distributions import (
     TIME_PARAMETERS,
 )
 from desflow.core.expressions import Expression
-from desflow.core.environment import in_zone, resolve_zone
+from desflow.core.environment import (
+    DynamicRealtimeEnvironment,
+    in_zone,
+    resolve_zone,
+)
 from desflow.core.flow import Router, Transfer, Wait
 from desflow.models.params import DistributionConfig
 from desflow.resources.container import ContainerBase, check_container_type
@@ -123,6 +127,10 @@ class Simulation(_Model):
     `now`, the moment the file is validated, so `-10m` and `now` are exactly ten
     minutes apart. `now` and a time without an offset are read in `timezone`, an IANA
     name, UTC by default.
+
+    `strict` makes a paced step raise `RuntimeError` when the run is more than `factor`
+    seconds behind the wall clock; it is False here and never checked at `factor` 0.
+    `environment` is a subclass of `DynamicRealtimeEnvironment` the run is built on.
     """
 
     sim_id: str
@@ -136,6 +144,20 @@ class Simulation(_Model):
     initial_time: float = 0.0
     # Seconds between lag readings; unset is off at factor 0 and 1 s otherwise
     lag_interval: Optional[float] = Field(default=None, ge=0)
+    # False in a blueprint, unlike the low-level environment: live sinks can block
+    strict: bool = False
+    # A subclass of DynamicRealtimeEnvironment, as `!python module.Env`
+    environment: Optional[Type[DynamicRealtimeEnvironment]] = None
+
+    @field_validator("environment")
+    @classmethod
+    def _check_environment(cls, value: Any) -> Any:
+        if value is not None and not issubclass(value, DynamicRealtimeEnvironment):
+            raise ValueError(
+                "environment must be a subclass of DynamicRealtimeEnvironment, "
+                f"got {value!r}"
+            )
+        return value
 
     @field_validator("logical_start_time", "go_live_at", mode="before")
     @classmethod
@@ -502,11 +524,29 @@ class SpawnAction(_Model):
 
 class FireAction(_Model):
     """An `on:` fire action: fire `signal` with a literal `value`, or with the
-    outcome `from` copies from a signal or a task."""
+    outcome `from` copies from a signal or a task. `urgent` and `after` fire a
+    one-shot signal ahead of the other events at its time, or later, as SimPy's
+    `env.schedule(event, priority, delay)` does."""
 
     signal: str
     value: Any = None
     from_: Optional[str] = Field(default=None, alias="from")
+    urgent: bool = False
+    after: Optional[Union[float, str]] = None
+
+    @field_validator("after", mode="before")
+    @classmethod
+    def _after_duration(cls, value: Any) -> Any:
+        if isinstance(value, bool):
+            raise ValueError(f"a fire after is seconds or a duration, got {value!r}")
+        return _seconds(value) if isinstance(value, str) else value
+
+    @field_validator("after")
+    @classmethod
+    def _after_positive(cls, value: Any) -> Any:
+        if value is not None and not value > 0:
+            raise ValueError(f"a fire after is more than 0, got {value:g}")
+        return value
 
     @model_validator(mode="after")
     def _value_or_from(self) -> "FireAction":
@@ -548,6 +588,8 @@ class OnEntry(_Model):
                     "signal": self.fire.signal,
                     "value": self.fire.value,
                     "from": self.fire.from_,
+                    "urgent": self.fire.urgent,
+                    "after": self.fire.after,
                 }
             }
         if self.spawn is not None:

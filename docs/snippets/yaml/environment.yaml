@@ -16,6 +16,11 @@ simulation:
   # default off at factor 0 and every second otherwise, and 0 turns it off
   lag_interval: 10 s
   # --8<-- [end:lag]
+  # --8<-- [start:strict]
+  # Under simulation: raise RuntimeError when a paced step is more than factor
+  # seconds behind the wall clock; false by default, and never checked at factor 0
+  strict: true
+  # --8<-- [end:strict]
 
 egress:
   - type: Console

@@ -9,6 +9,8 @@ gives the time of the next, counting the model's events only, with the statistic
 process and the other processes of desflow's own present.
 """
 
+from datetime import datetime, timezone
+
 import pytest
 import simpy
 from simpy.core import EmptySchedule, StopSimulation
@@ -919,6 +921,90 @@ def test_c6_run_after_steps_gives_the_records_of_one_run():
     assert times(whole_rec.records, "ping") == [10.0, 20.0, 30.0]
 
 
+def test_c6_finish_after_steps_that_reached_until():
+    """A run stepped until `now == until`, or past it, ends where the steps stopped,
+    as `run(until=)` does: `finish()` returns `None` and closes without calling
+    `env.run`, which SimPy refuses at `now`. After steps past `until`, the final
+    statistics fall at the time where the steps stopped, none at `until`.
+    Without a step or an `advance`, `finish()` still runs from the start."""
+
+    def build():
+        app, rec = _builder_app()
+
+        def quiet(env):
+            yield env.timeout(35)  # a model event at `until` that writes nothing
+
+        app.start(until=35)
+        app.env.process(quiet(app.env))
+        return app, rec
+
+    whole, whole_rec = build()
+    assert whole.finish() is None
+
+    stepped, stepped_rec = build()
+    while stepped.env.now < 35:
+        stepped.step()
+    assert stepped.env.now == 35
+    assert stepped.finish() is None
+    assert not stepped.started
+    assert stepped_rec.records == whole_rec.records
+    assert [r["sim_ts"] for r in whole_rec.records if r["stream_type"] == "event"] == [
+        10.0,
+        20.0,
+        30.0,
+    ]
+
+    # advance(until), then step past it: the run has ended, so finish() returns None
+    past, past_rec = build()
+    past.advance(35)
+    while past.env.now <= 35:
+        past.step()
+    assert past.env.now > 35
+    assert past.finish() is None
+    assert not past.started
+    # the run closes where the steps stopped: the final statistics fall at that
+    # time and none at `until`
+    stats_ts = {r["sim_ts"] for r in past_rec.records if r["stream_type"] != "event"}
+    assert past.env.now in stats_ts
+    assert 35.0 not in stats_ts
+
+
+def test_c6_finish_after_steps_to_until_with_statistics_due_there():
+    """`step()` processes the events at `until` that `run(until=)` leaves in the
+    queue, as SimPy's `step()` does. With a statistics reading due at `until` that
+    `step()` processed, the records are one run's records (which end with the final
+    statistics that `close()` publishes), plus the records of those events, so the
+    reading appears twice at `until`."""
+
+    def build():
+        app, rec = _builder_app()
+        app.start(until=30)
+        return app, rec
+
+    whole, whole_rec = build()
+    assert whole.finish() is None
+
+    stepped, stepped_rec = build()
+    while stepped.env.now < 30:
+        stepped.step()
+    assert stepped.finish() is None
+
+    def at_until(records):
+        return [r for r in records if r["sim_ts"] == 30.0]
+
+    reading = [r for r in at_until(whole_rec.records) if r["stream_type"] != "event"]
+    assert len(reading) == 4
+    assert len(whole_rec.records) == 10
+    assert len(stepped_rec.records) == 14
+    # one run's records come first and unchanged; the rest is the final statistics
+    assert stepped_rec.records[:10] == whole_rec.records
+    extra = stepped_rec.records[10:]
+    assert [r["stream_type"] for r in extra] == [r["stream_type"] for r in reading]
+    assert [(r["sim_ts"], r["value"]) for r in extra] == [
+        (r["sim_ts"], r["value"]) for r in reading
+    ]
+
+
 def _stopped_and_resumed(env):
     """A run stopped at an event that a process waits for, then run on.
 
@@ -957,3 +1043,278 @@ def test_c6_stopped_and_resumed_run():
     env = DynamicRealtimeEnvironment(factor=0.0)
     assert _stopped_and_resumed(env) == expected
     env.teardown()
+
+
+# ------------------------------------------------------ run in segments
+
+START = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+
+def _idle(env):
+    yield env.timeout(0)
+
+
+def _yaml_app(name):
+    """A blueprint with a sink and a fixed start, so two runs write equal records."""
+    app = SimulationContext.from_yaml(BLUEPRINTS / name)
+    app.logical_start_time = START
+    rec = RecordingEgress()
+    app.add_egress(rec)
+    return app, rec
+
+
+def _builder_app():
+    app = SimulationContext("C6", factor=0.0, logical_start_time=START)
+    app.add_arrival("pings", dist="constant", value=10)
+    app.with_stats("basic", interval=10)
+
+    @app.task()
+    def ping_task(task_id):
+        return {"event": "ping"}
+
+    @app.arrival_loop("pings")
+    def pings(context):
+        while True:
+            entity = yield context.wait_for_arrival("pings")
+            context.spawn(ping_task(context.next_instance("ping_task"), entity=entity))
+
+    rec = RecordingEgress()
+    app.add_egress(rec)
+    return app, rec
+
+
+def _segmented(factory, targets, **start):
+    """The records, the values `advance` returned and the end time of a run in
+    segments, then the value of `finish()`."""
+    app, rec = factory()
+    app.start(**start)
+    values = [app.advance(target) for target in targets]
+    now = app.env.now
+    finished = app.finish()
+    return rec.records, values, now, finished, app
+
+
+def _whole(factory, **start):
+    app, rec = factory()
+    value = app.run(**start)
+    return rec.records, value, app
+
+
+def test_c6_run_in_segments():
+    """`advance` to 30, 60 and 100 writes the records one run to 100 writes, with
+    the telemetry and the statistics, in the builder and in YAML, and the pings
+    fall at SimPy's times when it runs on in the same segments."""
+    env = simpy.Environment()
+    pings = []
+
+    def ping():
+        pings.append(env.now)
+        yield env.timeout(0)
+
+    env.process(periodic(env, 10, ping))
+    for target in (30, 60, 100):
+        env.run(until=target)
+        assert env.now == target
+    assert pings == [10, 20, 30, 40, 50, 60, 70, 80, 90]
+
+    for factory in (_builder_app, lambda: _yaml_app("c6_step.yaml")):
+        whole, value, _ = _whole(factory, until=100)
+        records, values, now, finished, app = _segmented(
+            factory, [30, 60, 100], until=100
+        )
+        assert values == [None, None, None]
+        assert now == 100
+        assert finished is None and value is None
+        assert records == whole
+        assert [r["sim_ts"] for r in records if r["stream_type"] == "event"] == [
+            float(t) for t in pings
+        ]
+        assert any(r["stream_type"] != "event" for r in records)  # statistics
+        assert not app.started  # finish() closed the run
+
+    # the low-level form is repeated env.run(until=), SimPy's own
+    def low(segments):
+        env = DynamicRealtimeEnvironment(factor=0.0, logical_start_time=START)
+        rec = RecordingEgress()
+        env.setup_egress([rec], lag_monitor_interval=None)
+        env.setup_stats("C6", "basic", interval=10)
+        env.process(periodic(env, 10, lambda: _idle(env)))
+        for target in segments:
+            env.run(until=target)
+        env.teardown()
+        return rec.records
+
+    assert low([30, 60, 100]) == low([100])
+
+
+def test_c6_advance_refuses_what_a_segment_cannot_do():
+    """`advance` before `start()`, after `close()`, to a time that is not after
+    `now`, and after the end raise; past the run's `until` it stops at `until`."""
+    app, _ = _yaml_app("c6_step.yaml")
+    with pytest.raises(RuntimeError, match="needs a run that start"):
+        app.advance(10)
+    app.start(until=50)
+    app.advance(20)
+    with pytest.raises(
+        ValueError,
+        match=r"until \(20\) must be greater than the current simulation time$",
+    ):
+        app.advance(20)
+    with pytest.raises(
+        ValueError,
+        match=r"until \(5\) must be greater than the current simulation time$",
+    ):
+        app.advance(5)
+    env = simpy.Environment()
+    env.run(until=20)
+    with pytest.raises(
+        ValueError,
+        match=r"until \(20\) must be greater than the current simulation time$",
+    ):
+        env.run(until=20)  # SimPy's own message
+    assert app.advance("30 s") is None  # a duration
+    assert app.env.now == 30
+    assert app.advance(80) is None  # past until: stops at until
+    assert app.env.now == 50
+    with pytest.raises(RuntimeError, match="ended at 50"):
+        app.advance(60)
+    assert app.finish() is None  # returns at once, then closes
+    with pytest.raises(RuntimeError, match="needs a run that start"):
+        app.advance(60)
+
+    app.start(until=50)  # a new run
+    app.close()
+    with pytest.raises(RuntimeError, match="needs a run that start"):
+        app.advance(10)
+
+
+def test_c6_finish_raises_a_failed_stop_that_advance_reached():
+    """`advance` that reaches a failed `stop` raises its exception. `finish()` then
+    raises it again: `env.run(until=event)` returns the value of an event that was
+    processed already, which here is the exception object."""
+    app, rec = _yaml_app("c6_stop_failed.yaml")
+    app.start()
+    with pytest.raises(SignalFailed) as advanced:
+        app.advance(50)
+    assert advanced.value.reason == "scratched"
+    with pytest.raises(SignalFailed) as finished:
+        app.finish()
+    assert finished.value is advanced.value
+    assert not app.started  # finish() closed the run
+    assert times(rec.records, "ping") == [2.0, 4.0]
+
+
+def test_c6_advance_to_events_adds_one_internal_event_to_the_queue():
+    """Each `advance(event)` in a run with an `until` and no stop or drain stops at
+    the end through one internal event, made once. After two segments and a step past
+    the event that ended the second, `peek()` is the next model event, not `until`,
+    and the queue holds one event at `until`."""
+    app = SimulationContext("C6", factor=0.0, logical_start_time=START)
+    app.add_signal("gate")
+    app.add_egress(RecordingEgress())
+
+    def opener(context):
+        env = context.env
+        yield env.timeout(3)
+        context.signal("gate").fire()
+        yield env.timeout(1)
+        context.signal("gate").fire()
+        yield env.timeout(30)
+
+    app.add_process(opener)
+    app.start(until=20)
+    assert app.advance(until=app.signal("gate").wait()) is None
+    assert app.advance(until=app.signal("gate").wait()) is None
+    assert app.env.now == 4
+    assert app.peek() == 4  # the event that ended the segment, as in SimPy
+    app.step()
+    assert app.peek() == 34
+    at_until = [event for t, _p, _i, event in app.env._queue if t == 20]
+    assert at_until == [app._limit_event]
+    app.close()
+
+
+def test_c6_segments_with_stop_and_drain_give_the_records_of_one_run():
+    """A stop or a drain that ends inside a segment, and one that ends on a segment
+    boundary, end the run as they do in one run: the same records, the same end,
+    the same value, and `advance` after the end is refused."""
+    cases = (
+        ("c6_stop_signal.yaml", [20, 30], 25),  # the stop is at 25, inside (20, 30]
+        ("c6_stop_signal.yaml", [20, 25], 25),  # on the boundary
+        ("c6_drain.yaml", [6, 15, 18, 20, 40], 22.0),  # the drain ends at 22
+        ("c6_drain.yaml", [10, 22], 22.0),  # begins on a boundary, ends on one
+    )
+    for name, targets, end in cases:
+        app, rec = _yaml_app(name)
+        whole_value = app.run()
+        whole = rec.records
+        assert app.env.now == end
+
+        app, rec = _yaml_app(name)
+        app.start()
+        values = []
+        for target in targets:
+            values.append(app.advance(target))
+            if app.env.now == end:
+                break
+        assert app.env.now == end, (name, targets)
+        if app.env.now == end and targets[-1] != end:
+            with pytest.raises(RuntimeError, match=f"ended at {end:g}"):
+                app.advance(end + 1)
+        assert app.finish() == whole_value
+        assert rec.records == whole, (name, targets)
+
+
+def test_c6_step_after_a_segment_processes_its_event_as_simpy_does():
+    """The event that ends a segment stays in the queue, as SimPy leaves its `until`
+    event: `peek()` reads the segment's time and the next `step()` processes it."""
+    env = simpy.Environment()
+    env.process(periodic(env, 10, lambda: _idle(env)))
+    env.run(until=15)
+    expected = (env.peek(), (env.step(), env.now)[1], env.peek())
+    assert expected == (15, 15, 20)
+
+    for factory in (_builder_app, lambda: _yaml_app("c6_step.yaml")):
+        app, _ = factory()
+        app.start(until=100)
+        app.advance(15)
+        assert (app.peek(), (app.step(), app.env.now)[1], app.peek()) == expected
+        app.close()
+
+
+def test_c6_advance_to_an_event_and_on():
+    """`advance(until=event)` stops where the event fires and returns its value; run
+    on, the waiter whose callback came after the stop goes through, as in SimPy
+    (`test_c6_stopped_and_resumed_run`), in the builder and in YAML."""
+    expected = _stopped_and_resumed(simpy.Environment())
+
+    def drive(app):
+        trace = []
+        app.start()
+        env = app.env
+        gate = app.signal("gate")
+
+        def opener():
+            yield env.timeout(5)
+            gate.fire("open")
+
+        def waiter():
+            yield env.timeout(3)
+            value = yield gate.wait()
+            trace.append((env.now, "through", value))
+
+        env.process(opener())
+        env.process(waiter())
+        app.advance(2)
+        stop_value = app.advance(until=gate.wait())
+        trace.append((env.now, "stopped", stop_value))
+        app.advance(10)
+        app.close()
+        return trace
+
+    yaml_app, _ = _yaml_app("c6_gate.yaml")
+    assert drive(yaml_app) == expected
+
+    builder, _ = _builder_app()
+    builder.add_signal("gate")
+    assert drive(builder) == expected

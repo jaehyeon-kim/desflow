@@ -1033,7 +1033,10 @@ def _lag_times(factor, until, **kwargs):
     tracker = RecordingEgress()
     go_live_at = kwargs.pop("go_live_at", None)
     env = DynamicRealtimeEnvironment(
-        factor=factor, logical_start_time=LOGICAL_START, go_live_at=go_live_at
+        factor=factor,
+        strict=False,
+        logical_start_time=LOGICAL_START,
+        go_live_at=go_live_at,
     )
     env.setup_egress(providers=[tracker], batch_size=1, **kwargs)
     env.process(_tick(env, until))
@@ -1100,7 +1103,9 @@ def test_factor_0_steps_without_the_wall_clock_and_gives_the_same_records():
     from desflow import DistributionConfig, Sampler
 
     def run(step):
-        env = DynamicRealtimeEnvironment(factor=0, logical_start_time=LOGICAL_START)
+        env = DynamicRealtimeEnvironment(
+            factor=0, strict=False, logical_start_time=LOGICAL_START
+        )
         env.step = step.__get__(env)  # type: ignore[method-assign]
         tracker = RecordingEgress()
         env.setup_egress(providers=[tracker], batch_size=10**6)
