@@ -621,20 +621,7 @@ def test_the_queue_is_a_list_in_service_order(env, registry, sample_params):
     assert res.queue is res.put_queue and res.queue[0] is high
     assert res.queue.remove(mid) is True and res.queue.remove(mid) is False
     assert list(res.queue) == [high, low]
-
-
-def test_queue_items_still_returns_the_ranked_pairs_with_a_warning(
-    env, registry, sample_params
-):
-    registry.register_sim_parameter(sample_params)
-    _set_cap(registry, 0)
-    flush_events(env)
-    res = DynamicResource(env, "Shop", "packers")
-    first, second = res.request(), res.request()
-    with pytest.warns(FutureWarning, match="0.24.0"):
-        pairs = res.queue.items
-    assert [request for _rank, request in pairs] == [first, second]
-    assert pairs[0][0] < pairs[1][0]
+    assert not hasattr(res.queue, "items")
 
 
 def test_a_full_waiting_line_refuses_a_request(env, registry, sample_params):

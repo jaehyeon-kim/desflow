@@ -11,6 +11,7 @@ class.
 
 import ast
 import importlib
+import importlib.util
 from pathlib import Path
 
 from desflow import (
@@ -20,19 +21,17 @@ from desflow import (
 )
 
 ROOT = Path(__file__).resolve().parents[2]
+_SCRIPT = ROOT / "scripts" / "public_api.py"
+_spec = importlib.util.spec_from_file_location("public_api", _SCRIPT)
+assert _spec is not None and _spec.loader is not None
+public_api = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(public_api)
 OWNERS = {
     "app": SimulationContext,
     "context": SimulationContext,
     "env": DynamicRealtimeEnvironment,
     "registry": SimulationRegistry,
 }
-
-
-def _scripts():
-    for folder in ("examples", "docs/snippets"):
-        yield from sorted(
-            p for p in (ROOT / folder).rglob("*.py") if "__pycache__" not in p.parts
-        )
 
 
 def _imported_elsewhere(tree):
@@ -86,7 +85,7 @@ def _missing_names(path):
 
 
 def test_scripts_name_only_what_exists():
-    scripts = list(_scripts())
+    scripts = list(public_api.scripts())
     # A path that matched nothing would make the check pass without reading a file.
     assert any("hot_rolling" in p.parts for p in scripts)
     assert len(scripts) > 30

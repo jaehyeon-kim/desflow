@@ -2,7 +2,7 @@
 
 Every key a blueprint accepts, section by section. [YAML Blueprints](../user-guide/blueprints.md) describes how a file is read and where an error points, and each User Guide page shows its keys in use.
 
-Every section is optional except `simulation`. Unknown keys are refused, so a misspelt key is reported with its line rather than ignored. A time is seconds or a duration such as `10 min`, and an instant is `now`, a signed duration such as `-1d`, or an ISO datetime. `${VAR}` and `${VAR:-default}` read environment variables anywhere in the file.
+Every section is optional except `simulation`. Unknown keys are refused, so a misspelt key is reported with its line rather than ignored. A time is seconds or a duration such as `10 min`, and an instant is `now`, a signed duration such as `-1d`, or an ISO datetime. `${VAR}` and `${VAR:-default}` read environment variables anywhere in the file. [YAML Keys](yaml-keys.md) lists the same keys with their types and defaults, generated from the JSON Schema at `https://jaehyeon.me/desflow/latest/schema/blueprint.schema.json`, which [Set Up Your Editor](../guides/set-up-your-editor.md) uses.
 
 Each section becomes one builder call:
 

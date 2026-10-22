@@ -90,6 +90,10 @@ The [Parquet example](../examples/parquet.md) switches from the local disk to S3
 
 A subclass that overrides `__init__` takes `**kwargs` and passes them on, because desflow builds it with the arguments it builds its own environment with. One that overrides `schedule` or `step` calls `super()`. `step` then runs once per model event when a script steps outside `run()`, and once per event, desflow's own included, inside `run()`.
 
+### Check as You Type
+
+`desflow schema` prints the JSON Schema of a blueprint, and the same file is published on this site, so an editor can complete keys and mark a misspelt key or a value of the wrong kind as you type. [Set Up Your Editor](../guides/set-up-your-editor.md) shows the setting, and [YAML Keys](../reference/yaml-keys.md) lists every key.
+
 ---
 
 ## What It Does for You

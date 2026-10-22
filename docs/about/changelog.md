@@ -2,6 +2,18 @@
 
 Each release, newest first: what changed, then under Upgrading what to change in code, commands or installs that use the previous release.
 
+## Version 0.24.0
+
+- A JSON Schema of a blueprint ships in the package and on the site. An editor with the Red Hat YAML extension completes keys and marks a misspelt key or a value of the wrong kind as you type. See [Set Up Your Editor](../guides/set-up-your-editor.md).
+- `desflow schema` prints the schema.
+- [YAML Keys](../reference/yaml-keys.md) lists every key of a blueprint with its type and default, generated from the schema.
+- A skill for AI coding assistants, `skills/desflow/`, teaches them to write, check and run blueprints, and to run a study with a seed, a warm-up and replications. It installs by copying the folder or with `gh skill install`. See [Use an AI Assistant](../guides/use-an-ai-assistant.md).
+- `resource.queue.items`, which 0.23.0 deprecated, is removed. See Upgrading.
+
+### Upgrading
+
+- `resource.queue.items` is removed, as the 0.23.0 Upgrading section announced. `resource.queue` is the list of waiting requests in service order, and `[request for _rank, request in resource.queue.items]` becomes `list(resource.queue)`. Every other change is an addition.
+
 ## Version 0.23.0
 
 - A `wait` nests `any`, `all` and `at_least` to any depth, and `at_least: n` with `of:` is done when `n` of its branches are, as SimPy's `Condition` with a count rule. An empty `any` or `all` succeeds at once. A `request`, `get` or `put` can be a branch, a won request holds its unit through the service, and a losing branch is cancelled. Request branches count in the order of acquisition, and the requests of one `all` are made together. See [Wait for One or All](../guides/wait-for-one-or-all.md#nest-any-and-all).

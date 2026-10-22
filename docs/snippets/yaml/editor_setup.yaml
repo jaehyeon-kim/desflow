@@ -1,0 +1,30 @@
+# A small blueprint with the line that tells the Red Hat YAML extension which schema to use.
+# Run it with: desflow run editor_setup.yaml
+# --8<-- [start:modeline]
+# yaml-language-server: $schema=https://jaehyeon.me/desflow/latest/schema/blueprint.schema.json
+# --8<-- [end:modeline]
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+resources:
+  packers: {current_cap: 1, max_cap: 1}
+
+services:
+  packing: {dist: constant, value: 1.5}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.5, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+
+egress:
+  - type: Console
+
+run:
+  until: 20

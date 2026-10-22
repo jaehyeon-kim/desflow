@@ -185,7 +185,7 @@ A resource counts the units held and the requests waiting. In a condition, `user
     assert packers.users[0].usage_since == 0.0  # when this request was granted its unit
     ```
 
-`count` is the same as `in_use`, SimPy's name for it. `queue` is a list; `queue.items`, the `(rank, request)` pairs of 0.22.0, still works with a `FutureWarning` and is removed in 0.24.0.
+`count` is the same as `in_use`, SimPy's name for it. `queue` is a list of the waiting requests, in service order.
 
 ### Registry Paths and Readings
 

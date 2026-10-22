@@ -191,6 +191,7 @@ jobs:
         run: |
           .venv/bin/python -c "import desflow"
           .venv/bin/desflow --help
+          .venv/bin/desflow schema > /dev/null
 
   unit-test:
     needs: [lint, extras-isolation, core-install]

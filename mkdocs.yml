@@ -226,6 +226,8 @@ nav:
       - Egress: user-guide/egress.md
   - How-To:
       - Python in a Blueprint: guides/yaml-advanced.md
+      - Set Up Your Editor: guides/set-up-your-editor.md
+      - Use an AI Assistant: guides/use-an-ai-assistant.md
       - Fit a Distribution: guides/fit-a-distribution.md
       - Complex Routing (Kafka): guides/complex-routing.md
       - Avro and Pydantic: guides/avro-and-pydantic.md
@@ -251,6 +253,7 @@ nav:
   - Reference:
       - API Reference: api.md
       - YAML Format: reference/yaml-format.md
+      - YAML Keys: reference/yaml-keys.md
       - Records and Telemetry: reference/records-and-telemetry.md
       - Distributions: reference/distributions.md
       - Statistics: reference/statistics.md

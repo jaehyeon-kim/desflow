@@ -390,6 +390,14 @@ def _fit(
         typer.echo(f"Wrote {plot}")
 
 
+@app.command("schema")
+def _schema() -> None:
+    """Print the blueprint JSON Schema."""
+    from desflow.blueprint.schema import schema_text
+
+    typer.echo(schema_text(), nl=False)
+
+
 examples_app = typer.Typer(
     help="List the examples, or download one at the version you have installed.",
     invoke_without_command=True,
