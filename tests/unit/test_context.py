@@ -1080,3 +1080,143 @@ def test_add_resource_checks_its_capacity_and_type():
         app.add_resource("plain", type=dict)
     with pytest.raises(ValueError, match="queue_limit must be 0 or more"):
         app.add_resource("limited", queue_limit=-2)
+
+
+def test_a_resource_in_the_wait_and_in_resource_is_refused():
+    """A task holds a resource once: naming it in a wait request and in resource would
+    queue the task behind its own unit for ever."""
+    app = _two_resources()
+
+    @app.task(
+        wait={"request": "picker"}, service_id="s", resource_id="picker", name="a"
+    )
+    def a(task_id):
+        return {}
+
+    with pytest.raises(ValueError, match="holds each resource once"):
+        app.run(until=1)
+
+
+def test_a_wait_request_counts_in_the_acquisition_order():
+    """A wait request is acquired before the task's resources, so it is refused when
+    another task acquires the two in the opposite order, as two resource lists are."""
+    app = _two_resources()
+
+    @app.task(wait={"request": "picker"}, service_id="s", resource_id="bench", name="a")
+    def a(task_id):
+        return {}
+
+    @app.task(service_id="s", resource_id=["bench", "picker"], name="b")
+    def b(task_id):
+        return {}
+
+    with pytest.raises(ValueError, match="in one order everywhere"):
+        app.run(until=1)
+
+    same = _two_resources()
+
+    @same.task(
+        wait={"request": "picker"}, service_id="s", resource_id="bench", name="a"
+    )
+    def a_same(task_id):
+        return {}
+
+    @same.task(service_id="s", resource_id=["picker", "bench"], name="b")
+    def b_same(task_id):
+        return {}
+
+    same.run(until=1)
+
+
+def test_requests_under_one_all_are_acquired_together():
+    """Two requests under an `all` are made together, and either can be held while
+    the other is waited for, so a task that acquires the two in either order is
+    refused. The branches of an `any` hold one unit at most and set no order."""
+    for listed in (["picker", "bench"], ["bench", "picker"]):
+        app = _two_resources()
+
+        @app.task(
+            wait={"all": {"p": {"request": "picker"}, "b": {"request": "bench"}}},
+            service_id="s",
+            name="a",
+        )
+        def a(task_id):
+            return {}
+
+        @app.task(service_id="s", resource_id=listed, name="b")
+        def b(task_id):
+            return {}
+
+        with pytest.raises(ValueError, match="together in its wait"):
+            app.run(until=1)
+
+    either = _two_resources()
+
+    @either.task(
+        wait={"any": {"p": {"request": "picker"}, "b": {"request": "bench"}}},
+        service_id="s",
+        name="a",
+    )
+    def a_any(task_id):
+        return {}
+
+    @either.task(
+        wait={"any": {"b": {"request": "bench"}, "p": {"request": "picker"}}},
+        service_id="s",
+        name="b",
+    )
+    def b_any(task_id):
+        return {}
+
+    either.run(until=1)
+
+
+def test_a_kept_resource_requested_in_the_next_wait_is_refused():
+    """A task that keeps the picker for a task whose wait requests the picker would
+    queue that request behind the unit kept for it, so the model is refused."""
+    app = _two_resources()
+
+    @app.task(
+        service_id="s",
+        resource_id="picker",
+        keep=["picker"],
+        next="b",
+        name="a",
+    )
+    def a(task_id):
+        return {}
+
+    @app.task(wait={"request": "picker"}, service_id="s", name="b")
+    def b(task_id):
+        return {}
+
+    with pytest.raises(ValueError, match="requests 'picker' in its wait"):
+        app.run(until=1)
+
+
+def test_a_priority_needs_a_resource_or_a_wait_request_on_a_priority_queue():
+    """A priority ranks the task's request in a priority queue: a wait request counts
+    as a resource, and its resource has to queue by priority."""
+    ranked = SimulationContext("TestSim", factor=0.0)
+    ranked.add_resource("picker", current_cap=1, max_cap=1, queue="priority")
+    ranked.add_service("s", "constant", value=1.0)
+
+    @ranked.task(wait={"request": "picker"}, service_id="s", priority=2, name="a")
+    def a(task_id):
+        return {}
+
+    ranked.run(until=1)
+
+    fifo = _two_resources()
+
+    @fifo.task(wait={"request": "picker"}, service_id="s", priority=2, name="a")
+    def a_fifo(task_id):
+        return {}
+
+    with pytest.raises(ValueError, match="does not queue by priority"):
+        fifo.run(until=1)
+
+    with pytest.raises(ValueError, match="needs a resource or a request in its wait"):
+        SimulationContext("TestSim").task(
+            "s", wait={"timeout": 1}, priority=2, name="b"
+        )

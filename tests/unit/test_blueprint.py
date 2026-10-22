@@ -1163,3 +1163,146 @@ def test_a_stop_condition_reads_the_queue_of_a_resource(tmp_path):
     path = write(tmp_path, text.replace("queue.packers", "queue.packer"), "other.yaml")
     with pytest.raises(BlueprintError, match="queue.packer names no resource"):
         SimulationContext.from_yaml(path)
+
+
+WAIT_REQUEST = """\
+simulation: {sim_id: Shop, factor: 0}
+resources:
+  picker: {current_cap: 1, max_cap: 1, queue: QUEUE}
+  bench: {current_cap: 1, max_cap: 1}
+services:
+  packing: {dist: constant, value: 1}
+arrivals:
+  standard: {dist: constant, value: 5, spawn: pack}
+  other: {dist: constant, value: 5, spawn: tidy}
+tasks:
+  pack:
+    wait: {request: picker}
+    PACK
+    service: packing
+    payload: {status: finished}
+  tidy:
+    TIDY
+    service: packing
+    payload: {status: tidied}
+run: {until: 10}
+"""
+
+
+def _wait_request(pack="", tidy="resource: bench", queue="fifo"):
+    return (
+        WAIT_REQUEST.replace("PACK", pack).replace("TIDY", tidy).replace("QUEUE", queue)
+    )
+
+
+def test_a_resource_in_the_wait_and_in_resource_is_refused_in_yaml(tmp_path):
+    text = _wait_request(pack="resource: picker")
+    with pytest.raises(BlueprintError, match="holds each resource once"):
+        SimulationContext.from_yaml(write(tmp_path, text))
+
+
+def test_a_wait_request_counts_in_the_acquisition_order_in_yaml(tmp_path):
+    text = _wait_request(pack="resource: bench", tidy="resource: [bench, picker]")
+    with pytest.raises(BlueprintError, match="in one order everywhere") as error:
+        SimulationContext.from_yaml(write(tmp_path, text))
+    assert ":10:" in str(error.value)  # the tasks section
+    same = _wait_request(pack="resource: bench", tidy="resource: [picker, bench]")
+    SimulationContext.from_yaml(write(tmp_path, same, "same.yaml"))
+
+
+WAIT_ALL = """\
+simulation: {sim_id: Shop, factor: 0}
+resources:
+  picker: {current_cap: 1, max_cap: 1}
+  bench: {current_cap: 1, max_cap: 1}
+services:
+  packing: {dist: constant, value: 1}
+arrivals:
+  standard: {dist: constant, value: 5, spawn: pack}
+  other: {dist: constant, value: 5, spawn: tidy}
+tasks:
+  pack:
+    wait: {MODE: {p: {request: picker}, b: {request: bench}}}
+    service: packing
+    payload: {status: finished}
+  tidy:
+    TIDY
+    service: packing
+    payload: {status: tidied}
+run: {until: 10}
+"""
+
+
+def test_requests_under_one_all_are_acquired_together_in_yaml(tmp_path):
+    for listed in ("[picker, bench]", "[bench, picker]"):
+        text = WAIT_ALL.replace("MODE", "all").replace("TIDY", f"resource: {listed}")
+        with pytest.raises(BlueprintError, match="together in its wait"):
+            SimulationContext.from_yaml(write(tmp_path, text))
+    either = WAIT_ALL.replace("MODE", "any").replace(
+        "TIDY", "wait: {any: {b: {request: bench}, p: {request: picker}}}"
+    )
+    SimulationContext.from_yaml(write(tmp_path, either, "either.yaml"))
+
+
+def test_a_kept_resource_requested_in_the_next_wait_is_refused_in_yaml(tmp_path):
+    text = WAIT_ALL.replace(
+        "wait: {MODE: {p: {request: picker}, b: {request: bench}}}",
+        "resource: picker\n    keep: [picker]\n    next: tidy",
+    ).replace("TIDY", "wait: {request: picker}")
+    with pytest.raises(BlueprintError, match="requests 'picker' in its wait"):
+        SimulationContext.from_yaml(write(tmp_path, text))
+
+
+def test_a_priority_with_a_wait_request_needs_a_priority_queue_in_yaml(tmp_path):
+    ranked = _wait_request(pack="priority: 2", queue="priority")
+    SimulationContext.from_yaml(write(tmp_path, ranked)).run(until=6)
+    fifo = _wait_request(pack="priority: 2")
+    with pytest.raises(BlueprintError, match="does not set queue: priority"):
+        SimulationContext.from_yaml(write(tmp_path, fifo, "fifo.yaml"))
+    bare = _wait_request(pack="priority: 2", tidy="priority: 1").replace(
+        "wait: {request: picker}", "wait: {timeout: 1}"
+    )
+    with pytest.raises(BlueprintError, match="needs a resource or a request"):
+        SimulationContext.from_yaml(write(tmp_path, bare, "bare.yaml"))
+
+
+def test_on_in_any_case_is_read_as_the_key_on(tmp_path):
+    """`On:` and `ON:` are read as `on`, as YAML 1.1 reads them as true."""
+    from desflow.blueprint.loader import read_document
+
+    path = tmp_path / "doc.yaml"
+    path.write_text(
+        "tasks:\n  pack: {On: []}\n  tidy: {ON: []}\n"
+        "signals:\n  closing: {On: []}\n"
+        "checks:\n  - {ON: mean}\n"
+    )
+    data, _ = read_document(path)
+    assert list(data["tasks"]["pack"]) == ["on"]
+    assert list(data["tasks"]["tidy"]) == ["on"]
+    assert list(data["signals"]["closing"]) == ["on"]
+    assert data["checks"][0] == {"on": "mean"}
+
+
+def test_on_stays_a_string_key_in_an_included_task_or_section_file(tmp_path):
+    """An `!include`d task file, section file, or task with extra keys keeps its `on`
+    keys as strings, as the same text in the blueprint does."""
+    from desflow.blueprint.loader import read_document
+
+    (tmp_path / "pack.yaml").write_text("payload: {e: 1}\non:\n  - fire: {signal: s}\n")
+    (tmp_path / "tasks.yaml").write_text(
+        "pack:\n  payload: {e: 1}\n  on:\n    - fire: {signal: s}\n"
+    )
+    (tmp_path / "signal.yaml").write_text("once: true\n")
+    path = tmp_path / "doc.yaml"
+    path.write_text(
+        "tasks:\n  pack: !include pack.yaml\n  more: !include {file: pack.yaml, On: []}\n"
+    )
+    data, _ = read_document(path)
+    assert "on" in data["tasks"]["pack"]
+    assert data["tasks"]["more"]["on"] == []
+    path.write_text("tasks: !include tasks.yaml\n")
+    data, _ = read_document(path)
+    assert "on" in data["tasks"]["pack"]
+    path.write_text("signals:\n  closing: !include {file: signal.yaml, on: []}\n")
+    data, _ = read_document(path)
+    assert data["signals"]["closing"] == {"once": True, "on": []}

@@ -96,24 +96,17 @@ INVENTORY = [
 
 
 def test_the_register_is_the_full_simpy_matrix():
-    """Every SimPy feature is in exactly one row; a native row has checks and its
-    three forms, a row not yet native names its release and has checks only for
-    the APIs in its checked list, and a difference gives its reason."""
+    """Every SimPy feature is in exactly one row, native or a difference; a native
+    row has checks and its three forms, and a difference gives its reason."""
     assert len(INVENTORY) == len(set(INVENTORY)) == 98
     seen = [i for entry in gen_pages.register() for i in entry["inventory"]]
     assert sorted(seen) == sorted(INVENTORY)
     for entry in gen_pages.register():
         status = entry.get("status", "native")
-        assert status in ("native", "not yet", "difference"), entry["operation"]
+        assert status in ("native", "difference"), entry["operation"]
         if status == "native":
             assert entry["checks"], entry["operation"]
             assert all(entry[api] for api in ("yaml", "builder", "low_level"))
-        elif status == "not yet":
-            # Checks cover only the APIs named in checked, each of which exists
-            checked = entry.get("checked", [])
-            assert bool(entry["checks"]) == bool(checked), entry["operation"]
-            assert set(checked) <= set(entry.get("exists", [])), entry["operation"]
-            assert entry["release"], entry["operation"]
         else:
             assert not entry["checks"] and entry["differences"], entry["operation"]
 
@@ -126,31 +119,6 @@ def test_the_simpy_version_is_read_from_the_lock():
     version = next(p["version"] for p in lock["package"] if p["name"] == "simpy")
     assert gen_pages.simpy_version() == version
     assert f"a plain SimPy {version} model" in gen_pages.compatibility_page()
-
-
-def test_a_not_yet_row_shows_its_checks(monkeypatch):
-    """A feature not yet native in all three APIs, with a check of one API, shows
-    that API as checked and names the check. It is checked over a made-up row, so it
-    holds as the real not-yet rows become native through 0.23.0."""
-    made_up = {
-        "operation": "Made up feature",
-        "id": "N",
-        "status": "not yet",
-        "simpy": "env.madeup()",
-        "exists": ["low_level"],
-        "checked": ["builder"],
-        "checks": ["tests/conformance/test_made_up.py::test_made_up"],
-        "release": "0.99.0",
-        "inventory": ["X99"],
-    }
-    original = gen_pages.register
-    monkeypatch.setattr(gen_pages, "register", lambda: [*original(), made_up])
-    page = gen_pages.compatibility_page()
-    row = next(
-        line for line in page.splitlines() if line.startswith("| Made up feature ")
-    )
-    assert "| checked |" in row
-    assert "test_made_up" in row
 
 
 def test_every_native_feature_says_what_it_is():

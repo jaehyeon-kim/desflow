@@ -19,7 +19,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Any, Dict, Iterable, Tuple, Union
+from typing import Any, Dict, Iterable, Optional, Tuple, Union
 
 import yaml
 
@@ -198,7 +198,9 @@ def _construct_include(loader: yaml.SafeLoader, node: yaml.Node) -> Any:
         )
     # Read as a document of its own, so a YAML error in it names its own file and
     # line, and a file that is not a mapping is refused there
-    data, _ = read_document(path, including=including)
+    data, _ = read_document(
+        path, including=including, at=getattr(loader, "includes", {}).get(node)
+    )
     return {**data, **extra}
 
 
@@ -268,16 +270,28 @@ _BOOL_TAG = "tag:yaml.org,2002:bool"
 _STR_TAG = "tag:yaml.org,2002:str"
 
 
-def _keep_on_keys(root: yaml.Node) -> None:
+def _keep_on_keys(
+    root: yaml.Node, includes: Dict[yaml.Node, str], at: Optional[str] = None
+) -> None:
     """Keeps the key `on` a string in task, signal and experiment check mappings.
 
     YAML 1.1 reads the bare word `on` as the boolean True, so a task's or a signal's
     `on:` actions and an experiment check's `on` were refused with "Keys should be
-    strings". Only those mappings change; every other mapping, such as a payload or
-    attributes, keeps today's reading.
+    strings". A key spelled `On` or `ON` is renamed `on`. Only those mappings
+    change; every other mapping, such as a payload or attributes, keeps today's
+    reading.
+
+    An `!include` node that stands for a task, a signal or a check, or for the
+    `tasks` or `signals` section, is recorded in `includes`, so the file it reads is
+    treated the same.
 
     Args:
         root: The document's root node, before it is constructed.
+        includes: Filled with each such `!include` node: `item` for one task, signal
+            or check, `section` for a section of them.
+        at: What this document is when an `!include` read it: `item` for one task,
+            signal or check, `section` for a section of them, None for a whole
+            document.
     """
 
     def retag(node: yaml.Node) -> None:
@@ -289,23 +303,43 @@ def _keep_on_keys(root: yaml.Node) -> None:
                     and key.value.lower() == "on"
                 ):
                     key.tag = _STR_TAG
+                    key.value = "on"
 
+    def item(node: yaml.Node) -> None:
+        retag(node)
+        if node.tag == "!include":
+            includes[node] = "item"
+
+    def section(node: yaml.Node) -> None:
+        if node.tag == "!include":
+            includes[node] = "section"
+        elif isinstance(node, yaml.MappingNode):
+            for _, member in node.value:
+                item(member)
+
+    if at == "item":
+        item(root)
+        return
+    if at == "section":
+        section(root)
+        return
     if not isinstance(root, yaml.MappingNode):
         return
     for key, value in root.value:
         name = key.value if isinstance(key, yaml.ScalarNode) else None
-        if name in ("tasks", "signals") and isinstance(value, yaml.MappingNode):
-            for _, item in value.value:
-                retag(item)
-        elif name in ("tasks", "signals", "checks") and isinstance(
+        if name in ("tasks", "signals"):
+            section(value)
+        if name in ("tasks", "signals", "checks") and isinstance(
             value, yaml.SequenceNode
         ):
-            for item in value.value:
-                retag(item)
+            for member in value.value:
+                item(member)
 
 
 def read_document(
-    path: Union[str, Path], including: Tuple[Path, ...] = ()
+    path: Union[str, Path],
+    including: Tuple[Path, ...] = (),
+    at: Optional[str] = None,
 ) -> Tuple[Dict[str, Any], SourceMap]:
     """Parses a blueprint file into a mapping and its source map.
 
@@ -316,6 +350,9 @@ def read_document(
         path: The file.
         including: The files whose `!include` led here, so a file that includes
             itself, directly or through another, is refused.
+        at: What the file is when an `!include` read it: `item` for one task, signal
+            or check, `section` for the `tasks` or `signals` section, so its `on`
+            keys stay strings; None for a whole document.
 
     Raises:
         BlueprintError: If the file is not valid YAML, is not a mapping, or names a
@@ -337,7 +374,9 @@ def read_document(
         node = loader.get_single_node()
         if node is None:
             raise BlueprintError(f"{path}:1: the file is empty")
-        _keep_on_keys(node)
+        includes: Dict[yaml.Node, str] = {}
+        _keep_on_keys(node, includes, at)
+        loader.includes = includes  # type: ignore[attr-defined]
         _record_lines(node, (), lines)
         data = loader.construct_document(node)
     except yaml.MarkedYAMLError as exc:

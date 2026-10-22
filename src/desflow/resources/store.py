@@ -327,5 +327,9 @@ class DynamicStore(BaseDynamicResource):
 
         # If capacity grew, pending put requests might now have open slots to succeed.
         # This exact same trigger works for both Store and PriorityStore.
-        if self._store.put_queue:
+        # A pass grants one waiting put, so it repeats while the queue gets shorter.
+        while self._store.put_queue:
+            waiting = len(self._store.put_queue)
             self._store._trigger_put(None)
+            if len(self._store.put_queue) >= waiting:
+                break

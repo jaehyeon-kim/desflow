@@ -11,7 +11,7 @@ context keeps the decorator and the checks made before the clock starts.
 from __future__ import annotations
 
 import functools
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Tuple
 
 from simpy import Interrupt
 from simpy.events import Condition
@@ -603,6 +603,7 @@ class TaskRun:
                         remaining, service_from = 0.0, None
                     if spec.put is not None and not put_done:
                         if spec.put.wait:
+                            self._target = f"put.{spec.put.target}"
                             yield from self._transfer(spec.put, "put", payload, None)
                         else:
                             # Made and not waited for, and never set as pending, so
@@ -1009,6 +1010,7 @@ class TaskRun:
         assert wait is not None
         self._target = self._target_label(wait.root)
         events: Dict[str, Any] = {}
+        built: Dict[int, Any] = {}
         stop_watching: List[Callable[[], None]] = []
 
         def build(node: Any) -> Any:
@@ -1065,9 +1067,32 @@ class TaskRun:
             else:
                 event, stop = self._condition(node.target)
                 stop_watching.append(stop)
+            built[id(node)] = event
             if node.name is not None:
                 events[node.name] = event
             return event
+
+        # The leaves already processed when the patience runs out, recorded by a
+        # callback on the deadline, so a leaf processed after it at the same
+        # instant does not count, as in SimPy's `yield wait | patience`
+        before_patience: Set[int] = set()
+
+        def done_at_tie(node: Any) -> bool:
+            """Whether a node is done when the patience ends at the instant the wait
+            would: a leaf processed before the patience, or a request, get or put
+            granted at that instant, which counts as won (D-C1), as on the patience
+            paths outside a wait."""
+            event = built[id(node)]
+            if not node.is_group:
+                if node.kind in ("request", "get", "put"):
+                    return event.triggered and event.ok
+                return id(event) in before_patience and event.ok
+            won = sum(done_at_tie(child) for child in node.children)
+            if node.kind == "any":
+                return won > 0 or not node.children
+            if node.kind == "all":
+                return won == len(node.children)
+            return won >= node.count
 
         try:
             root_event = build(wait.root)
@@ -1081,6 +1106,12 @@ class TaskRun:
         # A single-branch wait is joined as `any_of([branch])`, so a leaf reads
         # `in joined.value` the same way at the top as inside a group.
         joined = root_event if wait.root.is_group else env.any_of([root_event])
+        if deadline is not None and deadline.callbacks is not None:
+            deadline.callbacks.append(
+                lambda _: before_patience.update(
+                    id(e) for e in built.values() if e.processed
+                )
+            )
         failure: Any = None
         try:
             yield joined if deadline is None else joined | deadline
@@ -1094,26 +1125,37 @@ class TaskRun:
             for stop in stop_watching:
                 stop()
         # The patience timer was scheduled first, so at a tie it wins: the wait's
-        # condition is then triggered but not processed, and has no value yet
-        if failure is None and not joined.processed:
+        # condition is then triggered but not processed, and has no value yet. The
+        # wait still succeeds when its request, get and put branches granted at that
+        # instant satisfy it, so a granted item or unit is not lost.
+        tie = failure is None and not joined.processed
+        if tie and not done_at_tie(wait.root):
             return _RENEGED
         # Named nodes are recorded children before parents (the parse registers a
         # group after its children), so a group reads its children's recorded values.
         for name, node in wait.branches.items():
             event = events[name]
-            if node.is_group:
+            if tie:
+                done = done_at_tie(node)
+                if node.is_group:
+                    value = self._group_value(node) if done else None
+                elif node.kind in ("request", "get", "put"):
+                    value = self._resolve_branch(node, event, done)
+                elif node.kind == "running":
+                    value = self._running_value(node, done)
+                else:
+                    value = _branch_value(event) if done else None
+            elif node.is_group:
                 done = event.processed
-                value = (
-                    {
-                        child.name: self.waits[child.name]["value"]
-                        for child in node.children
-                        if child.name is not None and self.waits[child.name]["done"]
-                    }
-                    if done
-                    else None
-                )
+                value = self._group_value(node) if done else None
             elif node.kind in ("request", "get", "put"):
-                done = (event in joined.value) if joined.ok else event.processed
+                # A branch granted at the instant the wait ended is triggered but not
+                # in the value yet: it counts as won, so its item or unit is kept
+                done = (
+                    (event in joined.value or (event.triggered and event.ok))
+                    if joined.ok
+                    else event.processed
+                )
                 value = self._resolve_branch(node, event, done)
             elif node.kind == "running":
                 # The branch event is an `AllOf` condition, so the wait's value holds
@@ -1126,13 +1168,26 @@ class TaskRun:
                 value = _branch_value(event) if done else None
             self.waits[name] = {
                 "done": done,
-                "ok": event.ok if done else None,
+                # A group done at a patience tie is not triggered yet, and has no `ok`
+                "ok": (event.ok if event.triggered else True) if done else None,
                 "value": value,
             }
         # The wait resolved: a won request is now tracked in `_wait_held`, and losing
         # branches are cancelled, so the per-branch events need no more tracking.
         self._wait_events = {}
         return failure
+
+    def _group_value(self, node: Any) -> dict:
+        """What `wait.<group>.value` reads: a flat map of every done leaf under the
+        group, nested groups included whether or not they are done themselves, as
+        SimPy's `ConditionValue` is."""
+        value: dict = {}
+        for child in node.children:
+            if child.is_group:
+                value.update(self._group_value(child))
+            elif child.name is not None and self.waits[child.name]["done"]:
+                value[child.name] = self.waits[child.name]["value"]
+        return value
 
     def _resolve_branch(self, node: Any, event: Any, done: bool) -> Any:
         """Settles a won or losing request, get or put wait branch, and returns the
@@ -1189,42 +1244,86 @@ def _branch_value(event: Any) -> Any:
 def check_acquisition_order(
     resources: Dict[str, List[str]],
     handoffs: Dict[str, Tuple[List[str], Any]],
+    waits: Optional[Dict[str, Optional[Wait]]] = None,
 ) -> None:
     """
     Refuses tasks that acquire shared resources in opposite orders.
 
     Two tasks that each hold one resource while they wait for the other can each
     wait for ever. A task that lists `[picker, bench]` acquires the picker first; a
-    task that keeps the picker for its next task acquires it before every resource
-    that task lists. If one resource comes before another in one place and after it
-    in another, the model is refused, so every task acquires in one order.
+    task's wait requests come before its resources; a task that keeps the picker
+    for its next task acquires it before every resource that task requests or
+    lists. Two requests under an `all` (or an `at_least` that needs two) are made
+    together, so either can be held while the other is waited for: no other place
+    may acquire the two one after the other, in either order. If one resource comes before another in
+    one place and after it in another, the model is refused, so every task acquires
+    in one order. A task that keeps a resource for a task that requests it in its
+    wait is refused too, because the wait would queue behind the unit it keeps.
 
     Args:
-        resources: Each task's resources, in the order it acquires them.
+        resources: Each task's `resource` list, in the order it acquires them.
         handoffs: Each task's `keep` list and the tasks its `next` can lead to.
+        waits: Each task's wait, if it has one.
 
     Raises:
         ValueError: If two resources are acquired in opposite orders, naming them.
     """
+    waits = waits or {}
     before: Dict[Tuple[str, str], str] = {}
+    together: Dict[Tuple[str, str], str] = {}
+
+    def refuse(where: str, held: str, wanted: str, other: str) -> None:
+        raise ValueError(
+            f"{other}, but {where} acquires '{held}' before '{wanted}'; acquire "
+            f"shared resources in one order everywhere, so no two tasks can wait for "
+            f"each other"
+        )
 
     def note(first: str, second: str, where: str) -> None:
         if (second, first) in before:
-            raise ValueError(
-                f"{before[(second, first)]} acquires '{second}' before '{first}', "
-                f"but {where} acquires '{first}' before '{second}'; acquire shared "
-                f"resources in one order everywhere, so no two tasks can wait for "
-                f"each other"
+            refuse(
+                where,
+                first,
+                second,
+                f"{before[(second, first)]} acquires '{second}' before '{first}'",
             )
+        for pair in ((first, second), (second, first)):
+            if pair in together:
+                refuse(where, first, second, together[pair])
         before.setdefault((first, second), where)
 
+    def note_together(first: str, second: str, task: str) -> None:
+        said = f"task '{task}' requests '{first}' and '{second}' together in its wait"
+        for pair in ((first, second), (second, first)):
+            if pair in before:
+                refuse(before[pair], pair[0], pair[1], said)
+        together.setdefault((first, second), said)
+
+    def requested(task: str) -> List[str]:
+        wait = waits.get(task)
+        return wait.requests() if wait is not None else []
+
+    for task, wait in waits.items():
+        if wait is not None:
+            for first, second in wait.requests_together():
+                note_together(first, second, task)
     for task, listed in resources.items():
-        for i, first in enumerate(listed):
-            for second in listed[i + 1 :]:
+        acquired = [*requested(task), *listed]
+        for i, first in enumerate(acquired):
+            for second in acquired[i + 1 :]:
+                if i < len(requested(task)) and second in requested(task):
+                    continue  # two wait requests: made together, or one at most
                 note(first, second, f"task '{task}'")
     for task, (keep, following) in handoffs.items():
         for kept in keep:
             for after in following:
-                for second in resources.get(after, []):
+                if kept in requested(after):
+                    raise ValueError(
+                        f"task '{task}' keeps resource '{kept}' for '{after}', which "
+                        f"requests '{kept}' in its wait, so the request would wait "
+                        f"for the unit kept for it; list '{kept}' in the resource of "
+                        f"'{after}' instead"
+                    )
+                for second in [*requested(after), *resources.get(after, [])]:
                     if second != kept:
                         note(kept, second, f"task '{task}' keeping it for '{after}'")

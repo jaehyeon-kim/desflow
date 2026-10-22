@@ -2,23 +2,21 @@
 # status in YAML, the builder and the low-level API. A native row gives its form in
 # each API, the conformance tests that compare it with plain SimPy (the version in
 # uv.lock, which scripts/gen_pages.py names on the page) and the docs page that
-# teaches it; a row not yet native gives the release that makes it native; a
-# difference kept by design gives its reason. scripts/gen_pages.py writes the SimPy
-# Compatibility page from this file, and tests/docs/test_gen_pages.py checks that
-# every check names a test function, every test function here is listed, and every
-# page exists.
+# teaches it; a difference kept by design gives its reason. Every SimPy feature
+# is native or a difference: when desflow moves to a new SimPy release, the
+# features it adds are native in that same desflow release.
+# scripts/gen_pages.py writes the SimPy Compatibility page from this file, and
+# tests/docs/test_gen_pages.py checks that every check names a test function,
+# every test function here is listed, and every page exists.
 #
 # The register is the full list of SimPy 4.1.2's modelling features, 98 in all,
 # each named by an inventory id with the prefix SP-, such as SP-E1.
 #
-# id: the capability group (C1 to C7 core, S1 to S3 bounded support), N for a
-#   feature not yet native, D for a difference kept by design
+# id: the capability group (C1 to C7 core, S1 to S3 bounded support), D for a
+#   difference kept by design
 # inventory: the inventory ids of the SimPy features the row covers
-# exists: for a row not yet native, the APIs where a form exists
-# checked: for a row not yet native, the APIs of exists that its checks cover
 # status: native (the default: native in all three APIs and checked against
-#   SimPy), not yet, or difference
-# release: for a row not yet native, the release that makes it native
+#   SimPy) or difference
 # operation: what a model does
 # description: one sentence saying what the operation does, shown first on the page
 # simpy: the SimPy construct it corresponds to
@@ -282,7 +280,7 @@
     - tests/conformance/test_c4_resources.py::test_c4_hold_several_resources
     - tests/conformance/test_c4_resources.py::test_c4_keep_hands_a_unit_to_the_next_task
   page: user-guide/resources/several-resources.md#several-resources
-  differences: A model whose tasks acquire two resources in opposite orders is refused when it is built, because those tasks could each wait for ever; SimPy runs it.
+  differences: A model whose tasks acquire two resources in opposite orders is refused when it is built, because those tasks could each wait for ever; SimPy runs it. Two requests under one `all` wait are made together, so another task that acquires the two one after the other, in either order, is refused too.
 
 - id: C4
   inventory: [SP-S2]
@@ -416,7 +414,7 @@
     - tests/conformance/test_c5_store_order.py::test_c5_equal_time_puts_and_gets_follow_simpy_store
     - tests/conformance/test_c5_store_order.py::test_c5_equal_time_puts_and_gets_as_tasks
   page: user-guide/stores-and-containers.md#take-and-add
-  differences: "While a get with a filter waits, the store grants as SimPy's `FilterStore` does, looking at every waiting get each time."
+  differences: "While a get with a filter waits, the store grants as SimPy's `FilterStore` does, looking at every waiting get each time. Once no filtered get waits, it grants one get per trigger, as `Store` does, where `FilterStore` goes on to the next. With filtered and unfiltered gets in one queue, gets at the same instant can therefore resume in a different order than in `FilterStore`; each get receives the same item."
 
 - id: C5
   inventory: [SP-K1]
@@ -861,8 +859,7 @@
     - tests/conformance/test_s3_replay.py::test_s3_replay_equal_times_invalid_rows_and_the_horizon
   page: tutorials/local-replay.md#replay-the-rows
 
-# SimPy 4.1.2 features not yet native and checked in all three APIs. Roadmap
-# step 14 builds each one, released as 0.23.0, with a conformance check.
+# SimPy 4.1.2 features made native in 0.23.0 (roadmap step 14).
 
 - id: C6
   inventory: [SP-E2]
@@ -1151,7 +1148,10 @@
     - tests/conformance/test_c2_conditions.py::test_c2_request_wait_branch_kept_across_a_resume_in_the_service
     - tests/conformance/test_c2_conditions.py::test_c2_abandon_during_a_wait_with_a_won_branch_is_clean
     - tests/conformance/test_c2_conditions.py::test_c2_request_wait_branch_reacquired_after_a_preemption
+    - tests/conformance/test_c2_conditions.py::test_c2_a_get_granted_as_the_wait_ends_counts_as_won
+    - tests/conformance/test_c2_conditions.py::test_c2_a_request_granted_as_the_wait_ends_counts_as_won
   page: guides/wait-for-one-or-all.md#wait-for-a-unit-an-item-or-room
+  differences: "A request, get or put branch that is granted at the instant its wait ends, after the condition was processed, counts as won, and the task keeps its unit or item, as SimPy's `if not event.triggered: event.cancel()` leaves a granted event. A SimPy waiter that ignores such an event, because it is not in the condition's value, keeps the unit held or loses the item."
 
 - id: C1
   inventory: [SP-U1]

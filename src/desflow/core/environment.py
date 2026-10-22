@@ -970,9 +970,10 @@ class DynamicRealtimeEnvironment(
 
         Args:
             callback: A function of no arguments.
-            queues: True to call it also after a change of a queue length, which
-                `putters.`, `getters.`, `count()` and `items()` read. Defaults to
-                False.
+            queues: True to call it also after a change of the length of a
+                store's or container's put or get queue. A condition that reads
+                `putters.`, `getters.`, `count()` or `items()` is watched this way.
+                Defaults to False.
         """
         self._change_watchers.append(callback)
         if queues:

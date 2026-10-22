@@ -10,7 +10,13 @@ import pytest
 import simpy
 
 from desflow import Entity, SimulationContext
-from tests.conformance.harness import run_builder, run_low_level, run_yaml, times
+from tests.conformance.harness import (
+    run_builder,
+    run_low_level,
+    run_yaml,
+    run_yaml_text,
+    times,
+)
 
 
 def _reference_nested():
@@ -579,6 +585,72 @@ def test_c2_nested_condition_holds_leaves_of_an_untriggered_group():
     won branch is done and the untriggered group is not, so the order routes on it."""
     records = _builder_untriggered_group()
     assert times(records, "just_fast") == [1.0]
+    # The value of a group is a flat map of every done leaf under it, as SimPy's
+    # `ConditionValue` is: `x` is done inside `g`, which is not, and `outer` holds it
+    assert _reference_flat_group_value() == {"a", "x"}
+    assert times(_builder_flat_group_value(), "flat") == [5.0]
+
+
+def _reference_flat_group_value():
+    env = simpy.Environment()
+    seen = set()
+
+    def order():
+        a = env.timeout(5, "a")
+        x, y = env.timeout(1, "x"), env.timeout(100, "y")
+        outer = a | (x & y)
+        yield env.timeout(0) & outer
+        seen.update(event.value for event in outer.value.todict())
+
+    env.process(order())
+    env.run(until=10)
+    return seen
+
+
+def _builder_flat_group_value():
+    app = SimulationContext("C2", factor=0.0)
+
+    @app.task(
+        wait={
+            "all": {
+                "z": {"timeout": 0},
+                "outer": {
+                    "any": {
+                        "a": {"timeout": {"after": 5, "value": "a"}},
+                        "g": {
+                            "all": {
+                                "x": {"timeout": {"after": 1, "value": "x"}},
+                                "y": {"timeout": {"after": 100, "value": "y"}},
+                            }
+                        },
+                    }
+                },
+            }
+        },
+        next={
+            "when": [
+                {
+                    "condition": "wait.outer.value.a == 'a' and wait.outer.value.x == 'x' "
+                    "and not wait.g.done",
+                    "task": "flat",
+                }
+            ]
+        },
+        name="order",
+    )
+    def order(task_id):
+        return {"event": "resumed"}
+
+    @app.task(name="flat")
+    def flat(task_id):
+        return {"event": "flat"}
+
+    def script(context):
+        context.spawn(order(0, entity=Entity("o", "o", {})))
+        yield context.env.timeout(0)
+
+    app.add_process(script)
+    return run_builder(app, 10)
 
 
 def test_c2_abandon_during_a_wait_with_a_won_branch_is_clean():
@@ -642,3 +714,239 @@ def test_c2_request_wait_branch_reacquired_after_a_preemption():
     assert times(records, "order", "preempted") == [3.0]
     assert times(records, "order") == [11.0]
     assert app.get_resource("m").in_use == 0
+
+
+# ------------------------------------------- a branch granted as the wait ends (D-C1)
+
+
+def _reference_get_granted_as_the_wait_ends(patience=False):
+    """A get that is granted at the instant its wait ends, after the condition was
+    processed, with the idiom `if not event.triggered: event.cancel()`: the get was
+    granted, so the waiter has the item. With `patience`, the wait's own limit is 50
+    and a patience of 5, made before the get, ends it."""
+    env = simpy.Environment()
+    store = simpy.Store(env, 5)
+    seen = []
+
+    def waiter():
+        deadline = env.timeout(5) if patience else None
+        got = store.get()
+        if deadline is None:
+            yield got | env.timeout(5)
+        else:
+            yield (got | env.timeout(50)) | deadline
+        if not got.triggered:
+            got.cancel()
+        seen.append((env.now, got.triggered, got.value if got.triggered else None))
+
+    def putter():
+        yield env.timeout(5)
+        yield store.put("box")
+
+    # The putter starts first, so the get is granted after the condition was
+    # processed and before the waiter resumes
+    env.process(putter())
+    env.process(waiter())
+    env.run(until=10)
+    return seen, list(store.items)
+
+
+def _builder_get_granted_as_the_wait_ends(patience=False):
+    app = SimulationContext("C2", factor=0.0)
+    app.add_store("s", current_cap=5, max_cap=5)
+    limit = 50 if patience else 5
+
+    @app.task(
+        wait={"any": {"g": {"get": {"store": "s"}}, "limit": {"timeout": limit}}},
+        patience=5 if patience else None,
+        next={"when": [{"condition": "wait.g.done", "task": "got"}]},
+        name="waiter",
+    )
+    def waiter(task_id):
+        return {"event": "waited"}
+
+    @app.task(name="got")
+    def got(task_id):
+        return {"event": "got"}
+
+    @app.task(put={"store": "s"}, name="putter")
+    def putter(task_id):
+        return {"sku": "box"}
+
+    def script(context):
+        context.spawn(waiter(0, entity=Entity("w", "w", {})))
+        yield context.env.timeout(5)
+        context.spawn(putter(0, entity=Entity("p", "p", {})))
+
+    app.add_process(script)
+    return run_builder(app, 10), app
+
+
+GET_GRANTED_AS_THE_WAIT_ENDS = """
+simulation: {sim_id: C2, factor: 0}
+stores:
+  s: {current_cap: 5, max_cap: 5}
+arrivals:
+  waiters: {replay: {path: waiters.csv}, spawn: waiter}
+  putters: {replay: {path: putters.csv}, spawn: putter}
+tasks:
+  waiter:
+    wait: {any: {g: {get: {store: s}}, limit: {timeout: 5}}}
+    payload: {event: waited}
+    next: {when: [{condition: wait.g.done, task: got}]}
+  got:
+    payload: {event: got}
+  putter:
+    put: {store: s}
+    payload: {sku: box}
+run: {until: 10}
+"""
+
+
+def test_c2_a_get_granted_as_the_wait_ends_counts_as_won(tmp_path):
+    """An item put at the instant a wait times out is given to the get branch, which
+    was granted after the condition was processed. The branch is done and the store
+    is empty, as with SimPy's `if not event.triggered: event.cancel()`; the item is
+    not lost. The same holds when the task's patience ends the wait."""
+    seen, items = _reference_get_granted_as_the_wait_ends()
+    assert seen == [(5, True, "box")]
+    assert items == []
+    records, app = _builder_get_granted_as_the_wait_ends()
+    assert times(records, "got") == [5.0]
+    assert list(app.get_store("s").items) == []
+    outcome = run_yaml_text(
+        tmp_path, GET_GRANTED_AS_THE_WAIT_ENDS, {"waiters": [0], "putters": [5]}
+    )
+    assert outcome.error is None
+    assert times(outcome.records, "got") == [5.0]
+    assert list(outcome.app_or_env.get_store("s").items) == []
+    # The same when the task's patience, not the wait's own limit, ends the wait
+    assert _reference_get_granted_as_the_wait_ends(patience=True) == (seen, items)
+    records, app = _builder_get_granted_as_the_wait_ends(patience=True)
+    assert times(records, "got") == [5.0]
+    assert list(app.get_store("s").items) == []
+    outcome = run_yaml_text(
+        tmp_path,
+        GET_GRANTED_AS_THE_WAIT_ENDS.replace(
+            "limit: {timeout: 5}}}", "limit: {timeout: 50}}}\n    patience: 5"
+        ),
+        {"waiters": [0], "putters": [5]},
+    )
+    assert outcome.error is None
+    assert times(outcome.records, "got") == [5.0]
+    assert list(outcome.app_or_env.get_store("s").items) == []
+
+
+def _reference_request_granted_as_the_wait_ends():
+    """A request granted at the instant its wait ends: the waiter keeps the unit
+    through its 3 s of work, so the contender, who asks at 6, is served at 8."""
+    env = simpy.Environment()
+    machine = simpy.Resource(env, 1)
+    served = []
+
+    def holder():
+        with machine.request() as req:
+            yield req
+            yield env.timeout(5)
+
+    def waiter():
+        req = machine.request()
+        yield (req | env.timeout(5)) | env.timeout(100)
+        if not req.triggered:
+            req.cancel()
+        yield env.timeout(3)
+        if req.triggered:
+            machine.release(req)
+
+    def contender():
+        yield env.timeout(6)
+        with machine.request() as req:
+            yield req
+            served.append(env.now)
+
+    env.process(holder())
+    env.process(waiter())
+    env.process(contender())
+    env.run(until=20)
+    return served
+
+
+def _builder_request_granted_as_the_wait_ends():
+    app = SimulationContext("C2", factor=0.0)
+    app.add_resource("m", current_cap=1, max_cap=1)
+    app.add_service("five", dist="constant", value=5)
+    app.add_service("three", dist="constant", value=3)
+    app.add_service("one", dist="constant", value=1)
+
+    @app.task(service_id="five", resource_id="m", name="holder")
+    def holder(task_id):
+        return {"event": "held"}
+
+    @app.task(
+        wait={"any": {"req": {"request": "m"}, "limit": {"timeout": 5}}},
+        patience=100,
+        service_id="three",
+        name="waiter",
+    )
+    def waiter(task_id):
+        return {"event": "waited"}
+
+    @app.task(service_id="one", resource_id="m", name="contender")
+    def contender(task_id):
+        return {"event": "served"}
+
+    def script(context):
+        context.spawn(holder(0, entity=Entity("h", "h", {})))
+        context.spawn(waiter(0, entity=Entity("w", "w", {})))
+        yield context.env.timeout(6)
+        context.spawn(contender(0, entity=Entity("c", "c", {})))
+
+    app.add_process(script)
+    return run_builder(app, 20)
+
+
+REQUEST_GRANTED_AS_THE_WAIT_ENDS = """
+simulation: {sim_id: C2, factor: 0}
+resources:
+  m: {current_cap: 1, max_cap: 1}
+services:
+  five: {dist: constant, value: 5}
+  three: {dist: constant, value: 3}
+  one: {dist: constant, value: 1}
+arrivals:
+  holders: {replay: {path: holders.csv}, spawn: holder}
+  waiters: {replay: {path: waiters.csv}, spawn: waiter}
+  contenders: {replay: {path: contenders.csv}, spawn: contender}
+tasks:
+  holder:
+    resource: m
+    service: five
+    payload: {event: held}
+  waiter:
+    wait: {any: {req: {request: m}, limit: {timeout: 5}}}
+    patience: 100
+    service: three
+    payload: {event: waited}
+  contender:
+    resource: m
+    service: one
+    payload: {event: served}
+run: {until: 20}
+"""
+
+
+def test_c2_a_request_granted_as_the_wait_ends_counts_as_won(tmp_path):
+    """A unit granted at the instant a wait times out goes to the request branch,
+    which was granted after the condition was processed. The task keeps it through
+    its service, so a later request is served when the task ends, as with SimPy's
+    `if not event.triggered: event.cancel()`; the unit is not given back at once."""
+    assert _reference_request_granted_as_the_wait_ends() == [8]
+    records = _builder_request_granted_as_the_wait_ends()
+    assert times(records, "contender", "started") == [8.0]
+    outcome = run_yaml_text(
+        tmp_path,
+        REQUEST_GRANTED_AS_THE_WAIT_ENDS,
+        {"holders": [0], "waiters": [0], "contenders": [6]},
+    )
+    assert outcome.error is None
+    assert times(outcome.records, "contender", "started") == [8.0]

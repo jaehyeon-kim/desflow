@@ -142,6 +142,17 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                     f"task '{name}' has a priority, but resource '{resource}' "
                     f"does not set queue: priority; set it, or remove the priority",
                 )
+        for resource in task.wait_requests():
+            if (
+                task.priority is not None
+                and resource in blueprint.resources
+                and blueprint.resources[resource].queue != "priority"
+            ):
+                raise source.error(
+                    ("tasks", name, "priority"),
+                    f"task '{name}' has a priority, but resource '{resource}' "
+                    f"does not set queue: priority; set it, or remove the priority",
+                )
         for key, target in (
             ("on_interrupt_next", task.on_interrupt_next),
             ("interrupt", task.interrupt.task if task.interrupt else None),
@@ -269,6 +280,10 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
             {name: task.resources() for name, task in blueprint.tasks.items()},
             {
                 name: (task.keep, {target for target, _ in _routes(name, task)})
+                for name, task in blueprint.tasks.items()
+            },
+            {
+                name: Wait(task.wait) if task.wait is not None else None
                 for name, task in blueprint.tasks.items()
             },
         )

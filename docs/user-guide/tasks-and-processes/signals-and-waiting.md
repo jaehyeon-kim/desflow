@@ -189,7 +189,7 @@ A single branch is named after its signal, task or resource, or `timeout`, `cond
         yield shop.env.timeout(0)
     ```
 
-    The low-level API is SimPy: a child is `env.process(...)`, its value is what it returns, and `env.any_of` and `env.all_of` wait for the first or for every event. `Signal(env, name)` is the named event the builder and YAML use; `env.watch_changes(check)` calls `check` after every change a condition can read, and `env.watch_changes(check, queues=True)` also after a change in the number of requests waiting.
+    The low-level API is SimPy: a child is `env.process(...)`, its value is what it returns, and `env.any_of` and `env.all_of` wait for the first or for every event. `Signal(env, name)` is the named event the builder and YAML use; `env.watch_changes(check)` calls `check` after every change a condition can read, and `env.watch_changes(check, queues=True)` also after a change in the number of puts or gets waiting at a store or container.
 
 The task publishes `queued` when its wait starts, so the wait counts in its wait statistics, and its `patience` covers the wait as well as its resource and its `get`. When an `any` wait ends, its losing signal, timeout and condition branches are dropped, and its losing child flows keep running, as SimPy leaves processes running; [Wait for One or All](../../guides/wait-for-one-or-all.md) shows ties and failures. A wait holds no resource, so waiting for all of several things grants nothing at once.
 

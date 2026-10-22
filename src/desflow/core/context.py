@@ -1103,9 +1103,14 @@ class SimulationContext:
             raise ValueError(
                 "a task with a resource needs a service; give service_id too"
             )
-        if priority is not None and resource_id is None:
+        if (
+            priority is not None
+            and resource_id is None
+            and not (wait is not None and Wait(wait).requests())
+        ):
             raise ValueError(
-                "priority orders a resource's queue, so it needs a resource"
+                "priority orders a resource's queue, so it needs a resource or a "
+                "request in its wait"
             )
         if balk is not None and resource_id is None:
             raise ValueError("balking refuses a resource queue, so it needs a resource")
@@ -2744,12 +2749,21 @@ class SimulationContext:
                     f"a breakdown names resource '{resource}', "
                     + _not_added(resource, self._resources_config, "add_resource()")
                 )
+        for name, spec in self._task_specs.items():
+            for resource in spec.wait.requests() if spec.wait else ():
+                if resource in spec.resources:
+                    raise ValueError(
+                        f"task '{name}' holds each resource once, but resource "
+                        f"'{resource}' is both requested in the wait and listed in "
+                        f"resource; list it in only one"
+                    )
         check_acquisition_order(
-            {name: spec.resources for name, spec in self._task_specs.items()},
+            {name: list(spec.resources) for name, spec in self._task_specs.items()},
             {
                 name: (spec.keep, spec.router.tasks or set())
                 for name, spec in self._task_specs.items()
             },
+            {name: spec.wait for name, spec in self._task_specs.items()},
         )
         holders = {**self._stores_config, **self._containers_config}
         registry: Optional[SimulationRegistry] = None
@@ -2770,8 +2784,15 @@ class SimulationContext:
                         spec.service_id, self._services_config, "add_service()"
                     )
                 )
-            for resource in spec.resources if spec.priority is not None else ():
-                if self._resource_queues.get(resource) != "priority":
+            for resource in (
+                (*(spec.wait.requests() if spec.wait else ()), *spec.resources)
+                if spec.priority is not None
+                else ()
+            ):
+                if (
+                    resource in self._resources_config
+                    and self._resource_queues.get(resource) != "priority"
+                ):
                     raise ValueError(
                         f"task '{name}' has a priority, but resource '{resource}' "
                         f"does not queue by priority; add it with queue='priority'"

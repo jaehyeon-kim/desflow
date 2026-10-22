@@ -144,7 +144,7 @@ def all_with_a_failure() -> list:
 
 `all_with_a_failure()` returns `[(0.0, "order", "queued"), (2.0, "order", "failed"), (4.0, "inspect", "finished")]`. The order's failure goes to its `on_fail` task when it has one, and otherwise ends its flow.
 
-A wait never holds a resource. Waiting for all of several things that each free up a resource does not grant the resources together: the task asks for its resource only after the wait, and another task can take the unit in between. To hold several resources at once, list them on the task, `resource: [picker, bench]`, as [Several Resources](../user-guide/resources/several-resources.md#several-resources) describes.
+A wait for signals, tasks and times never holds a resource. Waiting for all of several things that each free up a resource does not grant the resources together: the task asks for its resource only after the wait, and another task can take the unit in between. To hold several resources at once, list them on the task, `resource: [picker, bench]`, as [Several Resources](../user-guide/resources/several-resources.md#several-resources) describes.
 
 ## Nest Any and All
 
@@ -157,6 +157,8 @@ A branch of an `any` or an `all` may itself be an `any` or an `all`, so a wait n
 ## Wait for a Unit, an Item or Room
 
 A branch may also be a resource `request`, a store or container `get`, or a `put`, so a task waits for the first of a unit, an item, a signal or a time. A `request` branch that wins holds its unit through the task's service and gives it back when the task ends, as a listed `resource` does; `wait.<branch>.value` is the request. A `get` branch takes an item, and `wait.<branch>.value` is that item; a `put` branch adds the task's payload. A branch that loses the race is cancelled, so it takes or holds nothing: `wait: {any: {unit: {request: packers}, limit: {timeout: 30 s}}}` waits for a packer or a time limit, and gives the packer back if the limit comes first. A single branch is named after its resource for a `request`, and `get` or `put` otherwise. An interrupt with `on_interrupt: restart` during the wait starts the branches again, so an item a get already took is used by neither the old nor the new branch, as SimPy cannot put a taken item back.
+
+Requests in a wait count in the [order of acquisition](../user-guide/resources/several-resources.md#several-resources): they come before the task's `resource` list. The requests under an `all`, or under an `at_least` of 2 or more, are made together, and the first one granted is held while the others are waited for, so no other task may acquire two of them one after the other, in either order. The branches of an `any` hold one unit at most, so they set no order. A task that keeps a resource for a next task that requests it in its wait is refused when the model is built, because the request would wait behind the unit kept for it.
 
 ## An Empty Wait
 

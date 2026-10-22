@@ -303,6 +303,34 @@ def test_process_name_and_target_in_an_expression():
     assert times(records, "other") == []
 
 
+def test_process_target_of_a_task_waiting_for_its_put_names_the_store():
+    """While a task waits for room for its own put, `process.target` reads
+    `put.<store>`, as a wait branch's put does, so an interrupt can pick it."""
+    app = SimulationContext("S", factor=0.0)
+    app.add_store("shelf", current_cap=1, max_cap=1, items=["full"])
+
+    @app.task(put={"store": "shelf"}, on_interrupt="abandon", name="pack")
+    def pack(task_id):
+        return {"sku": "box"}
+
+    @app.task(
+        interrupt={"task": "pack", "where": 'process.target == "put.shelf"'},
+        name="check",
+    )
+    def check(task_id):
+        return {"checked": task_id}
+
+    def script(context):
+        context.spawn(pack(0))
+        yield context.env.timeout(2)
+        context.spawn(check(0))
+        yield context.env.event()
+
+    app.add_process(script)
+    records = run_builder(app, 5)
+    assert times(records, "pack", "interrupted") == [2.0]
+
+
 # ----------------------------------------------------------- timeout value (V11)
 
 

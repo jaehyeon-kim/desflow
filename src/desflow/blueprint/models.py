@@ -782,6 +782,10 @@ class Task(_Model):
             [self.resource] if isinstance(self.resource, str) else list(self.resource)
         )
 
+    def wait_requests(self) -> List[str]:
+        """The resources the task's wait requests, in the order the wait lists them."""
+        return [] if self.wait is None else Wait(self.wait).requests()
+
     @field_validator("on_interrupt")
     @classmethod
     def _known_policy(cls, value: str) -> str:
@@ -800,6 +804,12 @@ class Task(_Model):
             )
         if len(set(self.resources())) != len(self.resources()):
             raise ValueError("a task lists each resource once")
+        both = [name for name in self.wait_requests() if name in self.resources()]
+        if both:
+            raise ValueError(
+                f"a task holds each resource once, but resource '{both[0]}' is both "
+                "requested in the wait and listed in resource; list it in only one"
+            )
         if self.on_interrupt_next is not None and self.on_interrupt != "abandon":
             raise ValueError("on_interrupt_next needs on_interrupt: abandon")
         return self
@@ -839,9 +849,14 @@ class Task(_Model):
     def _resource_needs_a_service(self) -> "Task":
         if self.resource is not None and self.service is None:
             raise ValueError("a task with a resource needs a service")
-        if self.priority is not None and self.resource is None:
+        if (
+            self.priority is not None
+            and self.resource is None
+            and not self.wait_requests()
+        ):
             raise ValueError(
-                "priority orders a resource's queue, so it needs a resource"
+                "priority orders a resource's queue, so it needs a resource or a "
+                "request in its wait"
             )
         if (
             self.patience is not None

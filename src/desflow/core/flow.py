@@ -581,6 +581,38 @@ class Wait:
         found = {n.target for n in self.branches.values() if n.kind == kind}
         return found | running if kind == "task" else found
 
+    def requests(self) -> List[str]:
+        """Returns the resources the wait's `request` leaves name, in the order the
+        wait lists them, each once."""
+        found: List[str] = []
+        for node in self.branches.values():
+            if node.kind == "request" and node.target not in found:
+                found.append(node.target)
+        return found
+
+    def requests_together(self) -> List[Tuple[str, str]]:
+        """Returns the pairs of resources the wait can hold one of while it waits for
+        the other: two `request` leaves under different branches of an `all`, or of
+        an `at_least` that needs two or more. An `any` holds at most one unit, so its
+        branches make no pair."""
+        pairs: List[Tuple[str, str]] = []
+
+        def walk(node: WaitNode) -> List[str]:
+            if not node.is_group:
+                return [node.target] if node.kind == "request" else []
+            found = [walk(child) for child in node.children]
+            if node.kind == "all" or (node.kind == "at_least" and node.count > 1):
+                for i, first in enumerate(found):
+                    for later in found[i + 1 :]:
+                        for a in first:
+                            for b in later:
+                                if a != b and {(a, b), (b, a)}.isdisjoint(pairs):
+                                    pairs.append((a, b))
+            return [name for names in found for name in names]
+
+        walk(self.root)
+        return pairs
+
     @property
     def conditions(self) -> List[Expression]:
         """The parsed conditions of the `condition` leaves."""

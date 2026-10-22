@@ -88,6 +88,34 @@ def test_dynamic_capacity_increase(env, registry, sample_params):
     assert len(store.items) == 3
 
 
+def test_a_capacity_rise_to_a_finite_value_grants_every_put_that_fits(
+    env, registry, sample_params
+):
+    """A rise from 2 to 5 frees three slots, so the three waiting puts are granted at
+    once, not one: the put queue is passed again while it gets shorter."""
+    sample_params.stores["buffer1"].current_cap = 2
+    registry.register_sim_parameter(sample_params)
+    store = DynamicStore(env, "Shop", "buffer1")
+    granted = []
+
+    def producer(item):
+        yield store.put(item)
+        granted.append((item, env.now))
+
+    for item in range(5):
+        env.process(producer(item))
+    env.run(until=1)
+    assert len(store.items) == 2
+    assert store.putters_waiting == 3
+
+    registry.update("Shop.stores.buffer1.current_cap", 5)
+    env.run(until=2)
+
+    assert len(store.items) == 5
+    assert store.putters_waiting == 0
+    assert [item for item, _ in granted] == [0, 1, 2, 3, 4]
+
+
 def test_capacity_shrinkage_paradox(env, registry, sample_params):
     """Verify shrinking capacity handles over-filled buffer cleanly."""
     sample_params.stores["buffer1"].current_cap = 3

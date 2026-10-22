@@ -259,7 +259,6 @@ GROUPS: Dict[str, str] = {
     "S1": "Breakdowns",
     "S2": "Schedules",
     "S3": "Replay",
-    "N": "Not Yet",
     "D": "Differences Kept by Design",
 }
 
@@ -321,15 +320,10 @@ GROUP_INTROS: Dict[str, str] = {
 }
 
 
-def _cell(text: str) -> str:
-    """A table cell: a `|` inside code would end the cell, so it is escaped."""
-    return str(text).replace("|", "\\|")
-
-
 def _anchor(group: str) -> str:
     """The id MkDocs gives a group's heading: its text in lower case, joined by
     hyphens, with punctuation dropped."""
-    title = f"{group}: {GROUPS[group]}" if group not in ("N", "D") else GROUPS[group]
+    title = f"{group}: {GROUPS[group]}" if group != "D" else GROUPS[group]
     return "-".join(re.sub(r"[^a-z0-9 ]", "", title.lower()).split())
 
 
@@ -352,7 +346,6 @@ def compatibility_page() -> str:
     """The SimPy Compatibility reference page, as Markdown."""
     entries = register()
     native = [e for e in entries if e.get("status", "native") == "native"]
-    not_yet = [e for e in entries if e.get("status") == "not yet"]
     kept = [e for e in entries if e.get("status") == "difference"]
 
     def count(rows: List[Dict[str, Any]]) -> int:
@@ -360,14 +353,6 @@ def compatibility_page() -> str:
 
     version = simpy_version()
     total = count(entries)
-    # The "to come" clause holds only while features are not yet native; when the
-    # last one becomes native the clause drops, so the page stays correct.
-    to_come = (
-        " Each feature that is not yet native becomes native in all three APIs in "
-        "0.23.0, as the [Roadmap](../about/roadmap.md) says."
-        if not_yet
-        else ""
-    )
     # A difference with no inventory item is named from its register row, so the
     # sentence follows the register; with no such row the clause is left out.
     alone = [
@@ -394,7 +379,8 @@ def compatibility_page() -> str:
         "# SimPy Compatibility",
         "",
         f"Every modelling feature of SimPy {version}, {total} in all, with its status "
-        "in YAML, the builder and the low-level API: native and checked, or not yet. "
+        "in YAML, the builder and the low-level API: native and checked, or a "
+        "difference kept by design. "
         f"A native feature is checked by conformance tests that run a plain SimPy "
         f"{version} model and the same model in all three APIs, and compare event "
         "times, outcomes and balances. The page is generated from "
@@ -402,11 +388,11 @@ def compatibility_page() -> str:
         "the list the tests read, so a feature is native here only with its checks.",
         "",
         f"**{count(native)}** features are native and checked in all three APIs, "
-        f"**{count(not_yet)}** are not yet, and **{count(kept)}** are differences "
-        f"kept by design.{to_come} The last section lists those{one_more}.",
+        f"and **{count(kept)}** are differences kept by design. The last section "
+        f"lists those{one_more}.",
         "",
         "The low-level API is SimPy with a few classes added, so most SimPy features "
-        f"work in it{', those not yet checked included' if not_yet else ''}; "
+        "work in it; "
         "[SimPy and desflow]"
         "(../des/simpy-and-desflow.md) explains how the two fit together. Where "
         "desflow differs from SimPy on purpose, the difference is listed under the "
@@ -430,8 +416,6 @@ def compatibility_page() -> str:
             f"| [{group}: {GROUPS[group]}](#{_anchor(group)}) | {len(rows)} |"
             for group, rows in groups.items()
         ),
-        f"| [{GROUPS['N']}](#{_anchor('N')}) | "
-        + (f"none; {count(not_yet)} SimPy features to come |" if not_yet else "none |"),
         f"| [{GROUPS['D']}](#{_anchor('D')}) | {len(kept)} differences |",
         "",
         "Under each feature, API details opens to show its SimPy construct, "
@@ -459,35 +443,6 @@ def compatibility_page() -> str:
                 f"    - **Taught on:** [{row['operation']}](../{row['page']})",
                 "",
             ]
-    lines += ["", f"## {GROUPS['N']}", ""]
-    if not_yet:
-        lines += [
-            "These features are not yet native and checked in all three APIs. "
-            '"Exists" marks an API that has a form, which no conformance test compares '
-            'with SimPy yet, and "checked" one that a test in the Checks column '
-            "compares already; the low-level API is SimPy, so many work there already.",
-            "",
-            "| Feature | SimPy | YAML | Builder | Low-level | Checks | Release |",
-            "|---|---|---|---|---|---|---|",
-        ]
-        for row in not_yet:
-            exists = row.get("exists", [])
-            checked = row.get("checked", [])
-            status = [
-                "checked"
-                if api in checked
-                else "exists"
-                if api in exists
-                else "not yet"
-                for api in ("yaml", "builder", "low_level")
-            ]
-            checks = "<br>".join(_check_link(check) for check in row["checks"])
-            lines.append(
-                f"| {row['operation']} | {_cell(row['simpy'])} | {' | '.join(status)} "
-                f"| {checks or 'none'} | {row['release']} |"
-            )
-    else:
-        lines.append("Every SimPy feature is native and checked in all three APIs.")
     lines += ["", f"## {GROUPS['D']}", ""]
     for row in kept:
         link = (
