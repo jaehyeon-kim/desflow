@@ -12,9 +12,17 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pydantic import TypeAdapter
 from pydantic_core import to_jsonable_python
 
-from simpy import Environment, RealtimeEnvironment
+import simpy.rt
+from simpy import Environment, Event, Process, RealtimeEnvironment, Timeout
+from simpy.core import EmptySchedule
 
 from desflow.config import DEFAULT_STATS_INTERVAL, UNHANDLED_FAILURE_POLICIES
+from desflow.core.internal import (
+    InternalEvent,
+    InternalProcess,
+    InternalTimeout,
+    is_internal,
+)
 from desflow.core.registry import SimulationRegistry
 from desflow.core.statistics import Statistics
 
@@ -167,7 +175,7 @@ class IngressMixIn:
             target=self._run_ingress_loop, daemon=True
         )
         self._ingress_thread.start()
-        self.process(self._ingress_monitor())  # type: ignore[attr-defined]
+        self.start_internal(self._ingress_monitor())  # type: ignore[attr-defined]
 
     def _run_ingress_loop(self):
         """Internal: Runs the asyncio event loop for ingress providers in a background thread."""
@@ -205,7 +213,7 @@ class IngressMixIn:
                     self.registry.update(path, value)  # type: ignore[attr-defined]
                 except queue.Empty:
                     break  # Queue is empty, exit the inner loop
-            yield self.timeout(0.1)  # type: ignore[attr-defined]
+            yield self.internal_timeout(0.1)  # type: ignore[attr-defined]
 
     def teardown_ingress(self):
         """Safely stops the background ingress event loop."""
@@ -325,7 +333,7 @@ class EgressMixIn:
                 _after_warmup(self.now + float(warmup), predicate)  # type: ignore[attr-defined]
                 for predicate in self.egress_predicates
             ]
-            self.process(self._end_warmup(float(warmup)))  # type: ignore[attr-defined]
+            self.start_internal(self._end_warmup(float(warmup)))  # type: ignore[attr-defined]
         # "auto": off while the clock is detached from the wall clock, once a second
         # otherwise; a run that goes live starts it when it does
         self._lag_on_go_live = False
@@ -370,10 +378,10 @@ class EgressMixIn:
         self._periodic_flush_running = bool(getattr(self, "factor", 1.0))
         if self._periodic_flush_running:
             for index in range(len(providers)):
-                self.process(self._periodic_flush(index))  # type: ignore[attr-defined]
+                self.start_internal(self._periodic_flush(index))  # type: ignore[attr-defined]
         # Only start the lag monitor if an interval > 0 is provided
         if self.egress_lag_monitor_interval and self.egress_lag_monitor_interval > 0:
-            self.process(self._lag_monitor())  # type: ignore[attr-defined]
+            self.start_internal(self._lag_monitor())  # type: ignore[attr-defined]
 
     def _end_warmup(self, warmup: float):
         """Internal: resets the built-in statistics when the warm-up ends.
@@ -381,7 +389,7 @@ class EgressMixIn:
         It is started with the egress, before the statistics' own timer reaches the
         same time, so a publication due at that moment already reads the reset values.
         """
-        yield self.timeout(warmup)  # type: ignore[attr-defined]
+        yield self.internal_timeout(warmup)  # type: ignore[attr-defined]
         self.stats.reset()  # type: ignore[attr-defined]
 
     @property
@@ -407,7 +415,7 @@ class EgressMixIn:
     def _lag_monitor(self, delay: float = 0.0):
         """Internal: Monitors how far the simulation time has drifted from the real-world clock."""
         if delay > 0:
-            yield self.timeout(delay)  # type: ignore[attr-defined]
+            yield self.internal_timeout(delay)  # type: ignore[attr-defined]
         while True:
             # Real seconds since the start, in UTC: the start always has a zone
             start = self.start_datetime  # type: ignore[attr-defined]
@@ -420,7 +428,7 @@ class EgressMixIn:
             self.publish_telemetry("system.simulation.lag_seconds", round(lag, 3))
 
             # Yield based on the configurable interval
-            yield self.timeout(self.egress_lag_monitor_interval)  # type: ignore[attr-defined]
+            yield self.internal_timeout(self.egress_lag_monitor_interval)  # type: ignore[attr-defined]
 
     def _run_egress_loop(self):
         """Internal: Runs the asyncio event loop for egress providers in a background thread."""
@@ -467,7 +475,7 @@ class EgressMixIn:
     def _periodic_flush(self, index: int):
         """Internal: SimPy process flushing one provider's buffer on its own interval."""
         while True:
-            yield self.timeout(self.egress_flush_intervals[index])  # type: ignore[attr-defined]
+            yield self.internal_timeout(self.egress_flush_intervals[index])  # type: ignore[attr-defined]
             self._note_timer_flush(index)
             self._flush_buffer(index)
 
@@ -840,12 +848,12 @@ class StatisticsMixIn:
         """
         self.stats.configure(sim_id, level, interval)
         if self.stats.enabled:
-            self.process(self._publish_stats())  # type: ignore[attr-defined]
+            self.start_internal(self._publish_stats())  # type: ignore[attr-defined]
 
     def _publish_stats(self):
         """Internal: publishes the statistics every interval."""
         while True:
-            yield self.timeout(self.stats.interval)  # type: ignore[attr-defined]
+            yield self.internal_timeout(self.stats.interval)  # type: ignore[attr-defined]
             self.stats.publish()
 
 
@@ -923,6 +931,8 @@ class DynamicRealtimeEnvironment(
 
         super().__init__(initial_time=initial_time, factor=factor, strict=strict)
 
+        # True while `run()` is stepping, when `step()` processes every event
+        self._in_run = False
         self._go_live_sim_time: Optional[float] = None
         if go_live_at is not None:
             self._go_live_sim_time = self._resolve_go_live_time(
@@ -1034,13 +1044,13 @@ class DynamicRealtimeEnvironment(
         # a second set would flush each buffer twice per interval.
         if hasattr(self, "egress_queues") and not self._periodic_flush_running:
             for index in range(len(self.egress_queues)):
-                self.process(self._periodic_flush(index))  # type: ignore[attr-defined]
+                self.start_internal(self._periodic_flush(index))
             self._periodic_flush_running = True
         if hasattr(self, "egress_queues") and self._lag_on_go_live:
             self.egress_lag_monitor_interval = 1.0
             # The switch runs just before the first event at or after go-live, so
             # the first reading waits for the go-live instant itself
-            self.process(self._lag_monitor(go_live_sim_time - self.now))
+            self.start_internal(self._lag_monitor(go_live_sim_time - self.now))
             self._lag_on_go_live = False
 
         logger.info(
@@ -1048,25 +1058,146 @@ class DynamicRealtimeEnvironment(
             self._get_iso_timestamp(self.start_datetime, go_live_sim_time),
         )
 
-    def step(self) -> None:
-        """Applies the pending go-live switch before simpy paces the next event.
+    def start_internal(self, generator: Any) -> Process:
+        """Starts a process of desflow's own, which `step()` and `peek()` do not count.
 
-        The check sits here rather than in a scheduled process so that `go_live_at`
-        adds no event of its own. A run that empties its schedule before the go-live
-        instant still ends there instead of being held open by the switch.
+        Args:
+            generator: The process's generator.
+
+        Returns:
+            simpy.Process: The started process.
         """
-        go_live_sim_time = self._go_live_sim_time
-        if go_live_sim_time is not None:
-            next_event_time = self.peek()
-            if not math.isinf(next_event_time) and next_event_time >= go_live_sim_time:
-                self._start_live_pacing(go_live_sim_time)
-        elif not self._factor:
-            # At factor 0 there is no wall clock to wait for, so SimPy's own step
-            # runs without the real-time arithmetic (issue #24, fix 4). `strict`
-            # means nothing without a wall clock and is not checked.
-            Environment.step(self)
+        return InternalProcess(self, generator)
+
+    def internal_timeout(self, delay: float, value: Any = None) -> Timeout:
+        """A timeout of desflow's own, which `step()` and `peek()` do not count.
+
+        Args:
+            delay: Simulation seconds from now.
+            value: What the process that waits receives.
+
+        Returns:
+            simpy.Timeout: The scheduled timeout.
+        """
+        return InternalTimeout(self, delay, value)
+
+    def internal_event(self) -> Event:
+        """An event of desflow's own, which `step()` and `peek()` do not count.
+
+        Returns:
+            simpy.Event: A pending event.
+        """
+        return InternalEvent(self)
+
+    def peek(self) -> float:
+        """Returns the time of the next model event, or infinity if there is none.
+
+        The queue also holds desflow's own events (statistics readings, flush timers,
+        capacity watchers), which `peek()` skips, as `step()` does. `run()` processes
+        every event, and so does a model with no desflow events in its queue.
+
+        Returns:
+            float: A simulation time, or infinity.
+        """
+        head = Environment.peek(self)
+        if not self._queue or not is_internal(self._queue[0][3]):
+            return head
+        return min(
+            (entry[0] for entry in self._queue if not is_internal(entry[3])),
+            default=math.inf,
+        )
+
+    def step(self) -> None:
+        """Processes the next model event, after the events of desflow's own due before it.
+
+        The events of desflow's own, such as a statistics reading or a flush timer,
+        run in the same call, in queue order, so the model sees the same sequence
+        `run()` gives. Inside `run()` this processes one event, whichever it is, as
+        SimPy's `run()` calls it for every event in the one queue.
+
+        Raises:
+            simpy.core.EmptySchedule: If no model event is left. The events of
+                desflow's own stay in the queue for a later `run()` or `finish()`.
+        """
+        if self._in_run:
+            if self._factor or self._go_live_sim_time is not None:
+                self._step_event()
+            else:
+                # The unpaced run, which is `_step_event()` without its checks,
+                # kept here because it runs once for every event
+                Environment.step(self)
             return
-        super().step()
+        if math.isinf(self.peek()):
+            raise EmptySchedule
+        while is_internal(self._step_event()):
+            pass
+
+    def run(self, until: Any = None) -> Any:
+        """Runs to `until`, a time or an event, as SimPy's `run()` does.
+
+        Args:
+            until: A time, an event, or None to run until the queue is empty.
+
+        Returns:
+            Any: The value of the `until` event, or None for a time.
+        """
+        previous, self._in_run = self._in_run, True
+        try:
+            return super().run(until)
+        finally:
+            self._in_run = previous
+
+    def _step_event(self) -> Event:
+        """Processes the head of the queue, whichever kind of event it is.
+
+        Applies the pending go-live switch against the head's time, then waits for the
+        wall clock and checks `strict` as SimPy's real-time step does (`rt.py`), then
+        processes the head. SimPy's `RealtimeEnvironment.step` is not called, because
+        it reads the public `peek()`, which skips the events of desflow's own.
+
+        The go-live check sits here rather than in a scheduled process so that
+        `go_live_at` adds no event of its own. A run that empties its schedule before
+        the go-live instant still ends there instead of being held open by the switch.
+
+        Returns:
+            simpy.Event: The event it processed, read after the go-live switch, which
+                may have put events of desflow's own ahead of the one that was the head.
+
+        Raises:
+            simpy.core.EmptySchedule: If the queue is empty.
+        """
+        try:
+            head = self._queue[0][0]
+        except IndexError:
+            raise EmptySchedule from None
+        go_live_sim_time = self._go_live_sim_time
+        if (
+            go_live_sim_time is not None
+            and head >= go_live_sim_time
+            and not math.isinf(head)
+        ):
+            self._start_live_pacing(go_live_sim_time)
+            # The switch scheduled the flush timers and the lag monitor at `now`, so
+            # the event to process and to wait for may be one of them, not the one
+            # read above
+            head = self._queue[0][0]
+        factor = self._factor
+        # At factor 0 there is no wall clock to wait for, so SimPy's own step runs
+        # without the real-time arithmetic (issue #24, fix 4). `strict` means
+        # nothing without a wall clock and is not checked.
+        if factor:
+            real_time = self.real_start + (head - self.env_start) * factor
+            if self.strict and simpy.rt.monotonic() - real_time > factor:
+                delta = simpy.rt.monotonic() - real_time
+                raise RuntimeError(f"Simulation too slow for real time ({delta:.3f}s).")
+            while True:
+                delta = real_time - simpy.rt.monotonic()
+                if delta <= 0:
+                    break
+                simpy.rt.sleep(delta)
+        event = self._queue[0][3]
+        Environment.step(self)
+        return event
 
     def teardown(self):
         """

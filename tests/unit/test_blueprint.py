@@ -287,6 +287,20 @@ def test_cli_rejects_a_missing_file(tmp_path):
     assert result.exit_code == 2
 
 
+def test_cli_exits_with_an_error_when_the_stop_signal_fails():
+    """A run that `run.stop` ends on a failing signal raises `SignalFailed` from
+    `finish()`, so `desflow run` exits with an error and not with the run's value."""
+    from pathlib import Path
+
+    from desflow import SignalFailed
+
+    path = Path(__file__).parents[1] / "conformance/blueprints/c6_stop_failed.yaml"
+    result = CliRunner().invoke(cli, ["run", str(path)])
+
+    assert result.exit_code == 1
+    assert isinstance(result.exception, SignalFailed)
+
+
 def test_cli_prints_the_version():
     from desflow import __version__
 

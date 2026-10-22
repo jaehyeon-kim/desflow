@@ -1,0 +1,17 @@
+# Pings arrive every 2 s. The signal closing fails at 5 and the run stops on it, so it
+# ends with that error, after the pings of 2 and 4 reached the sink.
+# See test_c6_end_conditions.py.
+simulation:
+  sim_id: C6
+  factor: 0
+signals: [closing]
+arrivals:
+  pings: {dist: constant, value: 2, spawn: ping}
+tasks:
+  ping:
+    payload: {event: ping}
+processes:
+  - !python tests.conformance.batch5_scripts.fail_closing
+run:
+  until: 100
+  stop: {signal: closing}

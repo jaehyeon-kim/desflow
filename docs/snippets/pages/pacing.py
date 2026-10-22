@@ -102,7 +102,7 @@ def every_ten(context):
 stepped = SimulationContext(sim_id="Shop", factor=0.0).add_process(every_ten)
 stepped.start()  # builds everything run() builds; the clock is still at 0
 while stepped.peek() < 30:  # the time of the next event
-    stepped.step()  # processes exactly one event
+    stepped.step()  # processes the next model event, after desflow's own events due before it
 print(f"stopped before {stepped.peek()} at {stepped.env.now}")
 stepped.close()  # the teardown run() does at its end
 # --8<-- [end:step]

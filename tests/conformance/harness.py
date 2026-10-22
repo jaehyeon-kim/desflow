@@ -137,8 +137,7 @@ def run_yaml(
     value: Any = None
     error: Optional[BaseException] = None
     try:
-        # run() returns the stop event's value from Batch 5 (E14); None until then.
-        value = app.run(until=until)  # type: ignore[func-returns-value]
+        value = app.run(until=until)
     except Exception as exc:  # noqa: BLE001: kept for the caller to assert on
         error = exc
     return Outcome(rec.records, value, error, app)
@@ -165,7 +164,7 @@ def run_yaml_text(
     error: Optional[BaseException] = None
     value: Any = None
     try:
-        value = app.run()  # type: ignore[func-returns-value]
+        value = app.run()
     except Exception as exc:  # noqa: BLE001: returned for the caller to assert on
         error = exc
     return Outcome(rec.records, value, error, app)
@@ -187,8 +186,7 @@ def run_builder(
     value: Any = None
     error: Optional[BaseException] = None
     try:
-        # run() returns the stop event's value from Batch 5 (E14); None until then.
-        value = app.run(until=until)  # type: ignore[func-returns-value]
+        value = app.run(until=until)
     except Exception as exc:  # noqa: BLE001: kept for the caller to assert on
         error = exc
     return Outcome(rec.records, value, error, app)

@@ -790,6 +790,35 @@
     - tests/conformance/test_c6_end_conditions.py::test_c6_inspect_next_event_time
   page: user-guide/time-and-pacing.md#step-and-peek
 
+- id: C6
+  inventory: [SP-E10]
+  operation: A step processes only the model's events
+  description: "`step()` and `peek()` count the events of the model, not the statistics, flush, lag, ingress and watcher processes that desflow adds, so a script steps a model as it would step it in SimPy. Inside `run()` the step processes every event, desflow's own included, because SimPy's `run()` calls `step()` for each event in its one queue."
+  simpy: "`simpy.core.Environment.step()` and `peek()`"
+  yaml: "`SimulationContext.from_yaml(path).start()`, then `.step()` and `.peek()`; `processes:` entries are model events"
+  builder: "`app.start()`, `app.step()`, `app.peek()`; `add_process` functions are model events"
+  low_level: "`env.step()` and `env.peek()`"
+  checks:
+    - tests/conformance/test_c6_end_conditions.py::test_c6_step_counts_model_events
+    - tests/conformance/test_c6_end_conditions.py::test_c6_step_counts_model_events_in_arrival_models
+    - tests/conformance/test_c6_end_conditions.py::test_c6_step_with_a_live_capacity_change
+    - tests/conformance/test_c6_end_conditions.py::test_c6_step_with_a_task_that_has_on_actions
+    - tests/conformance/test_c6_end_conditions.py::test_c6_run_after_steps_gives_the_records_of_one_run
+  page: user-guide/time-and-pacing.md#step-and-peek
+  differences: "With only desflow's own events left, `step()` raises `EmptySchedule` and `peek()` gives infinity, but the queue is not empty: `run()` and `finish()` still process those events."
+
+- id: C6
+  inventory: [SP-E14]
+  operation: Value of a run stopped at an event
+  description: "`run()` returns the value of the event that stopped it, and raises the exception of a stop that failed. The value is a signal's payload for a stop on a signal, True for a condition, and the event's own value for a function. It is None when `until` or a drain ends the run, or when `until` and the stop are due together. A stop on a signal that fails raises `SignalFailed`, the exception the failed event carries, which is what SimPy raises. The run closes before it returns, so the sinks have their records."
+  simpy: "`simpy.core.Environment.run(until=event)`"
+  yaml: "`SimulationContext.from_yaml(path).run()` returns the value; `desflow run` exits with an error when the stop failed"
+  builder: "`app.run(until=..., stop=...)` and `app.finish()` return the value"
+  low_level: "`env.run(until=event)`"
+  checks:
+    - tests/conformance/test_c6_end_conditions.py::test_c6_run_value
+  page: user-guide/time-and-pacing.md#stop-early
+
 - id: S1
   inventory: []
   operation: Breakdown and repair
@@ -887,23 +916,6 @@
   status: not yet
   operation: Urgent and normal event priorities
   simpy: "`events.URGENT`, `events.NORMAL`"
-  checks: []
-  release: 0.23.0
-
-- id: N
-  inventory: [SP-E10]
-  status: not yet
-  operation: A step processes only the model's events
-  simpy: "`core.Environment.step`"
-  checks: []
-  release: 0.23.0
-
-- id: N
-  inventory: [SP-E14]
-  exists: [low_level]
-  status: not yet
-  operation: Value of a run stopped at an event
-  simpy: "`core.Environment.run`"
   checks: []
   release: 0.23.0
 

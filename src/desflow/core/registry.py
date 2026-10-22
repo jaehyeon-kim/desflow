@@ -3,9 +3,10 @@ import logging
 import math
 from typing import Any, Callable, Dict, List, Optional
 
-from simpy import Environment, Store
+from simpy import Environment
 
 from desflow.core.distributions import get_distribution
+from desflow.core.internal import InternalStore
 from desflow.utils import suggestion
 from desflow.models.params import (
     CapacityConfig,
@@ -46,7 +47,7 @@ class DynamicValue:
         self.name = name
         self._value = initial_value
         # Use a Store to signal changes (prevents missed events)
-        self._signal = Store(env, capacity=1)
+        self._signal = InternalStore(env, capacity=1)
 
     @property
     def value(self):

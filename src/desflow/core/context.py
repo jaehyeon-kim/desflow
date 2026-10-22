@@ -1911,7 +1911,7 @@ class SimulationContext:
         stop: Any = None,
         drain: Any = None,
         on_unhandled_failure: Optional[str] = None,
-    ) -> None:
+    ) -> Any:
         """
         Compiles the defined infrastructure architecture and triggers the simulation loop.
 
@@ -1935,27 +1935,42 @@ class SimulationContext:
                 is in the model: True, or `{"limit": duration}` to stop at the
                 latest that long after `until`. Needs `until`.
 
+        Returns:
+            Any: The value of the event that stopped the run, as SimPy's `env.run`
+                returns it: a signal's value for a `stop` on a signal, True for a
+                condition, and a stop function's event value. None when `until` or
+                a drain ends the run, or when `until` and `stop` happen together.
+
         Raises:
             ValueError: If a task's `next`, `priority`, `get` or `put` names something
                 the context does not define, or `stop` or `drain` is malformed.
+            SignalFailed: If the signal that `stop` names fails. Any exception of a
+                failed stop event is raised the same way. The run closes first, and
+                the sinks receive the records.
         """
         self.start(until, stop, drain, on_unhandled_failure=on_unhandled_failure)
-        self.finish()
+        return self.finish()
 
-    def finish(self) -> None:
+    def finish(self) -> Any:
         """
         Runs a started run to its end, then closes it, as the rest of `run()` does.
 
         The end is `until`, the `stop` or the end of the drain that `start()` set
         up. `close()` runs even when the run stops with an error or Ctrl+C.
 
+        Returns:
+            Any: The value of the event that stopped the run, as for `run()`.
+
         Raises:
             RuntimeError: If the run has not started.
+            SignalFailed: If the signal that `stop` names fails, as for `run()`.
         """
         if self._env is None or not self.started:
             raise RuntimeError("finish() needs a run that start() has started")
         try:
-            self._env.run(until=self._end if self._end is not None else self._until)
+            return self._env.run(
+                until=self._end if self._end is not None else self._until
+            )
         finally:
             self.close()
 
@@ -2168,7 +2183,7 @@ class SimulationContext:
                 ),
             )
         elif self.warmup is not None:
-            self._env.process(self._end_warmup(self.warmup))
+            self._env.start_internal(self._end_warmup(self.warmup))
 
         # Hydrate Physical SimPy Resources
         for res_id in self._resources_config.keys():
@@ -2234,17 +2249,23 @@ class SimulationContext:
 
     def step(self) -> None:
         """
-        Processes the next event of a started run, as SimPy's `env.step()` does.
+        Processes the next model event of a started run, as SimPy's `env.step()` does.
+
+        The events of desflow's own that are due before it, such as a statistics
+        reading or a flush timer, run in the same call and are not counted.
 
         Raises:
             RuntimeError: If the run has not started.
-            simpy.core.EmptySchedule: If no event is left.
+            simpy.core.EmptySchedule: If no model event is left.
         """
         self.env.step()
 
     def peek(self) -> float:
         """
-        Returns the time of the next event of a started run, or infinity if none.
+        Returns the time of the next model event of a started run, or infinity if none.
+
+        The events of desflow's own, such as a statistics reading or a flush timer,
+        are not counted.
 
         Raises:
             RuntimeError: If the run has not started.
@@ -2280,11 +2301,20 @@ class SimulationContext:
         if stop is None and not drain:
             return None
         env = self.env
-        end = env.event()
+        end = env.internal_event()
 
-        def finish(_event: Any = None) -> None:
+        def finish(event: Any = None) -> None:
             if not end.triggered:
-                end._ok, end._value = True, None
+                if event is None:
+                    end._ok, end._value = True, None
+                else:
+                    # The run ends with what its stop event carried: a signal's
+                    # value, True for a condition, or the exception of a failed
+                    # stop, which `end` raises once. The stop event is defused so
+                    # the run does not raise it a second time.
+                    end._ok, end._value = event._ok, event._value
+                    if not event._ok:
+                        event.defused = True
                 env.schedule(end, simpy.events.URGENT)
 
         self._finish_run = finish
@@ -2302,7 +2332,7 @@ class SimulationContext:
                 if drain.get("limit") is not None:
                     limit = _seconds(drain["limit"])
         if until is not None:
-            horizon = env.event()
+            horizon = env.internal_event()
             horizon._ok, horizon._value = True, None
             env.schedule(horizon, simpy.events.URGENT, float(until) - env.now)
             if drain:
@@ -2313,7 +2343,7 @@ class SimulationContext:
                     if self._in_system == 0:
                         finish()
                     elif limit is not None:
-                        timer = env.event()
+                        timer = env.internal_event()
                         timer._ok, timer._value = True, None
                         timer.callbacks.append(finish)
                         env.schedule(timer, simpy.events.URGENT, limit)
@@ -2392,7 +2422,7 @@ class SimulationContext:
 
     def _end_warmup(self, warmup: float):
         """Resets the statistics at the end of the warm-up, for a run with no sink."""
-        yield self.env.timeout(warmup)
+        yield self.env.internal_timeout(warmup)
         self.env.stats.reset()
 
     def _build_end_sets(self) -> None:

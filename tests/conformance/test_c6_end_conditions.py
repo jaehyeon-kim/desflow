@@ -5,11 +5,13 @@ YAML. A `stop` ends the run at the event or the first moment the condition holds
 and `until` wins a tie, because SimPy schedules it ahead of other events at that
 time. A drain stops the arrivals at `until` and runs on until every admitted entity
 has left, or a limit passes. Stepping processes one event at a time, and `peek`
-gives the time of the next, with the statistics process present.
+gives the time of the next, counting the model's events only, with the statistics
+process and the other processes of desflow's own present.
 """
 
+import pytest
 import simpy
-from simpy.core import StopSimulation
+from simpy.core import EmptySchedule, StopSimulation
 
 from desflow import (
     CapacityConfig,
@@ -17,11 +19,21 @@ from desflow import (
     DynamicContainer,
     DynamicRealtimeEnvironment,
     DynamicResource,
+    LocalIngress,
     Signal,
+    SignalFailed,
     SimParameter,
 )
 from desflow.core.context import SimulationContext
-from tests.conformance.harness import RecordingEgress, periodic, run_yaml, times
+from desflow.core.internal import is_internal
+from tests.conformance.batch5_scripts import pinger
+from tests.conformance.harness import (
+    BLUEPRINTS,
+    RecordingEgress,
+    periodic,
+    run_yaml,
+    times,
+)
 
 
 # ------------------------------------------------------- stop at an event
@@ -244,6 +256,135 @@ def test_c6_explicit_stop_condition():
     assert builder == yaml == ([4.0, 8.0], 9, 6)
 
 
+# -------------------------------------------------------- the run's value
+
+
+def _builder_stop_model(stop, until=100):
+    """Pings every 2 s, a closing at 25, and a stock of 5 at 6, run with `stop`."""
+    app = SimulationContext("C6", factor=0.0)
+    app.add_signal("closing")
+    app.add_container("stock", current_cap=20, max_cap=20)
+    app.add_arrival("pings", dist="constant", value=2)
+    app.add_arrival("closings", dist="constant", value=25)
+
+    @app.task()
+    def ping(task_id):
+        return {"event": "ping"}
+
+    @app.task(signal="closing")
+    def close(task_id):
+        return {"event": "closed"}
+
+    for arrival, task, name in (("pings", ping, "ping"), ("closings", close, "close")):
+
+        def loop(context, arrival=arrival, task=task, name=name):
+            while True:
+                entity = yield context.wait_for_arrival(arrival)
+                context.spawn(task(context.next_instance(name), entity=entity))
+
+        app.arrival_loop(arrival)(loop)
+
+    def fill(context):
+        yield context.env.timeout(6)
+        yield context.get_container("stock").put(5)
+
+    app.add_process(fill)
+    rec = RecordingEgress()
+    app.add_egress(rec)
+    return app, rec, app.run(until=until, stop=stop)
+
+
+def test_c6_run_value():
+    """run returns the value of the event that ended it, as SimPy's env.run does: a
+    signal's payload, True for a condition, a function event's value, and None for
+    until or a drain. A stop that fails raises the exception of the failed event
+    itself, once, after the run closed and the sink received its records."""
+    env = simpy.Environment()
+    assert env.run(until=env.timeout(3, value="done")) == "done"
+    env = simpy.Environment()
+    assert env.run(until=4) is None
+    error = ValueError("scratched")
+    env = simpy.Environment()
+    failing = env.event()
+    failing.fail(error)
+    with pytest.raises(ValueError) as caught:
+        env.run(until=failing)
+    assert caught.value is error
+
+    # low-level: env.run is SimPy's, with the end events of desflow's own queued
+    low = DynamicRealtimeEnvironment(factor=0.0)
+    low.setup_egress([RecordingEgress()], lag_monitor_interval=1)
+    low.setup_stats("C6", "basic", interval=10)
+    closing = Signal(low, "closing")
+    low.process(_fire_at(low, closing, 7, {"event": "closed"}))
+    assert low.run(until=closing.wait()) == {"event": "closed"}
+    assert low.run(until=low.timeout(3, value="done")) == "done"
+    assert low.run(until=50) is None
+    low.teardown()
+
+    # a signal, a condition and a function event, in the builder and YAML
+    closed = {"event": "closed"}
+    for stop in ({"signal": "closing"}, "closing"):
+        assert _builder_stop_model(stop)[2] == closed
+    assert _builder_stop_model(lambda c: c.signal("closing").wait())[2] == closed
+    assert _builder_stop_model({"condition": "level.stock >= 5"})[2] is True
+    assert _builder_stop_model(lambda c: c.env.timeout(30, value="done"))[2] == "done"
+    app, rec, value = _builder_stop_model(None, until=20)
+    assert value is None
+    assert times(rec.records, "ping") == [float(n) for n in range(2, 20, 2)]
+    assert run_yaml("c6_stop_signal.yaml", raises=True).value == closed
+    assert run_yaml("c6_stop_condition.yaml", raises=True).value is True
+    assert run_yaml("c6_stop_signal_tie.yaml", raises=True).value is None
+    assert run_yaml("c6_drain.yaml", raises=True).value is None
+
+    # a failed stop: the same exception object, raised once, after close()
+    stops = []
+
+    def capture(context):
+        stops.append(context.signal("closing").wait())
+        return stops[0]
+
+    app = SimulationContext("C6", factor=0.0)
+    app.add_signal("closing")
+    app.add_arrival("pings", dist="constant", value=2)
+
+    @app.task()
+    def ping(task_id):
+        return {"event": "ping"}
+
+    @app.arrival_loop("pings")
+    def pings(context):
+        while True:
+            entity = yield context.wait_for_arrival("pings")
+            context.spawn(ping(context.next_instance("ping"), entity=entity))
+
+    def fail(context):
+        yield context.env.timeout(5)
+        context.signal("closing").fail("scratched")
+
+    app.add_process(fail)
+    rec = RecordingEgress()
+    app.add_egress(rec)
+    with pytest.raises(SignalFailed) as caught:
+        app.run(until=100, stop=capture)
+    assert caught.value is stops[0]._value
+    assert caught.value.reason == "scratched"
+    assert (app.env.now, app.started) == (5, False)
+    assert times(rec.records, "ping") == [2.0, 4.0]
+
+    outcome = run_yaml("c6_stop_failed.yaml", raises=True)
+    assert isinstance(outcome.error, SignalFailed)
+    assert outcome.error.reason == "scratched"
+    assert outcome.value is None
+    assert times(outcome.records, "ping") == [2.0, 4.0]
+    assert outcome.app_or_env.env.now == 5
+
+
+def _fire_at(env, signal, moment, value):
+    yield env.timeout(moment)
+    signal.fire(value)
+
+
 # ------------------------------------------------------------------ drain
 
 
@@ -395,25 +536,18 @@ def _reference_steps():
     def ping():
         yield env.timeout(0)
 
-    def stats():
-        while True:
-            yield env.timeout(10)
-
     env.process(periodic(env, 10, ping))
-    env.process(stats())
     return _stepped(env.peek, env.step, lambda: env.now, 40)
 
 
-def _times_visited(trace):
-    return sorted({after for _before, after in trace})
-
-
 def test_c6_step_one_event():
-    """Each step processes one event and moves the clock to the time peek gave."""
+    """Each step processes one model event and moves the clock to the time peek gave.
+    The low-level trace is SimPy's, step for step, although statistics are present.
+    A builder or YAML model has three model events at each ping, the arrival and the
+    task's two, so its sequence is that, and it is the same in both."""
     reference = _reference_steps()
     assert all(before == after for before, after in reference)
-    expected_times = _times_visited(reference)
-    assert expected_times == [0, 10, 20, 30]
+    assert [at for at, _ in reference] == [0] + [10] * 4 + [20] * 4 + [30] * 4
 
     env = DynamicRealtimeEnvironment(factor=0.0)
     env.setup_stats("C6", "basic", interval=10)
@@ -449,9 +583,9 @@ def test_c6_step_one_event():
     yaml_app.start()
     yaml = _stepped(yaml_app.peek, yaml_app.step, lambda: yaml_app.env.now, 40)
     yaml_app.close()
-    for trace in (low, builder, yaml):
-        assert all(before == after for before, after in trace)
-        assert _times_visited(trace) == expected_times
+    assert low == reference
+    expected_models = [(0, 0)] + [(10, 10)] * 3 + [(20, 20)] * 3 + [(30, 30)] * 3
+    assert builder == yaml == expected_models
 
 
 def test_c6_inspect_next_event_time():
@@ -502,6 +636,287 @@ def test_c6_inspect_next_event_time():
         app.step()
     assert app.peek() == expected == 10
     app.close()
+
+
+def _assert_a_model_event(event):
+    """Fails when `event`, which a step counts as the model's, is one of desflow's own.
+
+    Two runs that both mark an event the same wrong way count the same steps, so the
+    count alone cannot show a missing mark. These are the events desflow makes without
+    a process of the model: the end of the run, its horizon, the limit timer of a
+    drain and a task's end event (all plain events) and the warm-up end (a process,
+    its first event and its timeout). The only plain events a model here makes are a
+    fired signal or condition, which a `stop` or a `wait` waits for, so the caller
+    counts plain events and compares the count with the ones it expects.
+
+    Returns:
+        bool: True when `event` is a plain event.
+    """
+    process = event if isinstance(event, simpy.Process) else None
+    for callback in event.callbacks or []:
+        process = process or getattr(callback, "__self__", None)
+    generator = getattr(process, "_generator", None)
+    assert getattr(generator, "__name__", "") != "_end_warmup", "a warm-up end"
+    return type(event) is simpy.Event
+
+
+def _model_steps(env, peek, step, until, plain_events=0):
+    """(peeked time, time after, model events processed) for each public step.
+
+    The count comes from the events the step took off the queue: each step must
+    process exactly one model event, however many of desflow's own run before it.
+    None of those may be an end, horizon, limit timer, task end or warm-up end of
+    desflow's own, and the plain events among them are the `plain_events` the model
+    makes itself, such as the signal a `stop` waits for.
+    """
+    processed = []
+    plain = []
+    original = env._step_event
+
+    def counting():
+        event = original()
+        processed.append(not is_internal(event))
+        if processed[-1] and _assert_a_model_event(event):
+            plain.append(event)
+        return event
+
+    env._step_event = counting
+    trace = []
+    while peek() < until:
+        before, taken = peek(), len(processed)
+        step()
+        trace.append((before, env.now, sum(processed[taken:])))
+    assert len(plain) == plain_events
+    return trace
+
+
+def _everything(app, sink=True):
+    """Adds what a live run has: a sink and an ingress with nothing to send."""
+    if sink:
+        app.add_egress(RecordingEgress())
+    app.add_ingress(LocalIngress([]))
+    return app
+
+
+def _model_only_steps(app_factory, plain_events=0, **start):
+    app = app_factory()
+    app.start(egress=False, ingress=False, **start)
+    trace = _model_steps(app.env, app.peek, app.step, 40, plain_events)
+    app.close()
+    return trace
+
+
+def _full_steps(app_factory, plain_events=0, **start):
+    app = _everything(app_factory())
+    app.start(**start)
+    trace = _model_steps(app.env, app.peek, app.step, 40, plain_events)
+    app.close()
+    return trace
+
+
+def _yaml_steps(name):
+    return lambda: SimulationContext.from_yaml(BLUEPRINTS / name)
+
+
+def _builder_process_steps():
+    app = SimulationContext("C6", factor=0.0)
+    app.add_resource("machine", current_cap=1, max_cap=1)
+    app.with_stats("basic", interval=10)
+    app.add_process(pinger)
+    return app
+
+
+def _reference_process_steps():
+    env = simpy.Environment()
+    simpy.Resource(env, capacity=1)
+
+    def pinger_process():
+        while True:
+            yield env.timeout(10)
+
+    env.process(pinger_process())
+    return _stepped(env.peek, env.step, lambda: env.now, 40)
+
+
+def test_c6_step_counts_model_events():
+    """step and peek count the model's events only. With a sink, statistics, an
+    ingress and a resource present, a low-level model gives SimPy's (peek, now)
+    sequence, and a builder or YAML model gives the sequence it has without them.
+    Each step processes exactly one model event."""
+    reference = _reference_process_steps()
+    assert reference == [(0, 0)] + [(10, 10), (20, 20), (30, 30)]
+
+    env = DynamicRealtimeEnvironment(factor=0.0)
+    env.registry.register_sim_parameter(
+        SimParameter(
+            sim_id="C6", resources={"machine": CapacityConfig(current_cap=1, max_cap=1)}
+        )
+    )
+    rec = RecordingEgress()
+    env.setup_egress([rec], lag_monitor_interval=1)
+    env.setup_ingress([LocalIngress([])])
+    env.setup_stats("C6", "basic", interval=10)
+    DynamicResource(env, "C6", "machine")
+
+    def pinger_process():
+        while True:
+            yield env.timeout(10)
+
+    env.process(pinger_process())
+    low = _model_steps(env, env.peek, env.step, 40)
+    assert [(a, b) for a, b, _ in low] == reference
+    assert {taken for _, _, taken in low} == {1}
+    env.teardown()
+
+    # Once the model's last event is processed only desflow's own events are left
+    # (the next statistics reading, the lag monitor): there is no step to take and no
+    # time to peek, and run() still processes them
+    last = DynamicRealtimeEnvironment(factor=0.0)
+    last.setup_egress([RecordingEgress()], lag_monitor_interval=1)
+    last.setup_stats("C6", "basic", interval=10)
+
+    def once():
+        yield last.timeout(15)
+
+    last.process(once())
+    assert _stepped(last.peek, last.step, lambda: last.now, 40) == [
+        (0, 0),
+        (15, 15),
+        (15, 15),
+    ]
+    assert last.peek() == float("inf")
+    with pytest.raises(EmptySchedule):
+        last.step()
+    assert len(last._queue) > 0
+    last.run(until=45)
+    assert last.now == 45
+    last.teardown()
+
+    # builder add_process and YAML processes: with everything, then without it
+    model_only = _model_only_steps(_builder_process_steps)
+    assert [(a, b) for a, b, _ in model_only] == reference
+    for factory in (_builder_process_steps, _yaml_steps("c6_step_process.yaml")):
+        trace = _full_steps(factory)
+        assert trace == model_only
+        assert {taken for _, _, taken in trace} == {1}
+
+
+def test_c6_step_counts_model_events_in_arrival_models():
+    """The same holds for a model of arrivals and tasks: the sequence with a sink,
+    statistics and an ingress is the one without them, in the builder and in YAML,
+    through a warm-up, a stop and a drain."""
+
+    def builder(**kwargs):
+        def make():
+            app = SimulationContext("C6", factor=0.0, **kwargs)
+            app.add_arrival("pings", dist="constant", value=10)
+            app.with_stats("basic", interval=10)
+
+            @app.task()
+            def ping(task_id):
+                return {"event": "ping"}
+
+            @app.arrival_loop("pings")
+            def pings(context):
+                while True:
+                    entity = yield context.wait_for_arrival("pings")
+                    context.spawn(ping(context.next_instance("ping"), entity=entity))
+
+            return app
+
+        return make
+
+    cases = [
+        (builder(), {}, 0),
+        (builder(warmup=15), {}, 0),
+        (builder(), {"until": 25, "drain": True}, 0),
+        (_yaml_steps("c6_step.yaml"), {}, 0),
+        (_yaml_steps("c6_stop_signal.yaml"), {}, 1),
+        (_yaml_steps("c6_stop_condition.yaml"), {}, 1),
+        (_yaml_steps("c6_drain.yaml"), {}, 0),
+        (_yaml_steps("c6_drain_limit.yaml"), {}, 0),
+    ]
+    for factory, start, plain_events in cases:
+        model_only = _model_only_steps(factory, plain_events, **start)
+        trace = _full_steps(factory, plain_events, **start)
+        assert trace == model_only
+        assert {taken for _, _, taken in trace} == {1}
+
+
+def test_c6_step_with_a_live_capacity_change():
+    """A capacity change made by a model event wakes the resource's watcher. The
+    watcher's events are desflow's own: peek still gives the next model event, and
+    the next step runs them first and then that event, so the resource has its new
+    capacity when the step returns."""
+    env = DynamicRealtimeEnvironment(factor=0.0)
+    env.registry.register_sim_parameter(
+        SimParameter(
+            sim_id="C6", resources={"machine": CapacityConfig(current_cap=1, max_cap=3)}
+        )
+    )
+    machine = DynamicResource(env, "C6", "machine")
+
+    def change():
+        yield env.timeout(5)
+        env.registry.update("C6.resources.machine.current_cap", 2)
+        yield env.timeout(5)
+
+    env.process(change())
+    env.step()
+    env.step()
+    assert env.now == 5
+    assert machine.capacity == 1
+    # The watcher's events are due now, ahead of the model event at 10
+    assert simpy.Environment.peek(env) == 5
+    assert env.peek() == 10
+    env.step()
+    assert (env.now, machine.capacity) == (10, 2)
+    env.teardown()
+
+
+def test_c6_step_with_a_task_that_has_on_actions():
+    """A task with `on:` has an `ended` event. step and peek skip it, each step
+    processes one model event, and the `on:` action still runs: the watcher is told."""
+    app = SimulationContext.from_yaml(BLUEPRINTS / "c1_on_fire.yaml")
+    rec = RecordingEgress()
+    app.add_egress(rec)
+    app.add_ingress(LocalIngress([]))
+    app.start()
+    trace = _model_steps(app.env, app.peek, app.step, float("inf"), plain_events=1)
+    assert {taken for _, _, taken in trace} == {1}
+    assert app.peek() == float("inf")
+    with pytest.raises(EmptySchedule):
+        app.step()
+    app.close()
+    assert times(rec.records, "watcher") == [2.0]
+    assert times(rec.records, "noted") == [2.0]
+    plain = SimulationContext.from_yaml(BLUEPRINTS / "c1_on_fire.yaml")
+    plain.start(egress=False, ingress=False)
+    assert trace == _model_steps(
+        plain.env, plain.peek, plain.step, float("inf"), plain_events=1
+    )
+    plain.close()
+
+
+def test_c6_run_after_steps_gives_the_records_of_one_run():
+    """run() after a run of step() calls ends with the records one run() gives."""
+
+    def build():
+        app = SimulationContext.from_yaml(BLUEPRINTS / "c6_step.yaml")
+        rec = RecordingEgress()
+        app.add_egress(rec)
+        return app, rec
+
+    whole, whole_rec = build()
+    whole.run(until=35)
+    stepped, stepped_rec = build()
+    stepped.start(until=35)
+    for _ in range(5):
+        stepped.step()
+    stepped.finish()
+    assert times(stepped_rec.records, "ping") == times(whole_rec.records, "ping")
+    assert len(stepped_rec.records) == len(whole_rec.records)
+    assert times(whole_rec.records, "ping") == [10.0, 20.0, 30.0]
 
 
 def _stopped_and_resumed(env):

@@ -11,6 +11,7 @@ from decimal import Decimal
 import numpy as np
 import orjson
 import pytest
+import simpy
 from pydantic import BaseModel, Field, ValidationError
 from pydantic_core import PydanticSerializationError
 
@@ -385,6 +386,74 @@ def test_go_live_does_not_hold_the_schedule_open():
     assert env.now == 1.0
     assert env.factor == 0.0
     assert elapsed < 2.0
+
+
+def test_go_live_switch_reads_the_head_it_processes(monkeypatch):
+    """The switch starts the lag monitor and the flush timers, which are scheduled at
+    `now`, before the go-live instant. The step then waits for the event it processes,
+    which is one of those, not for the model event behind them. Otherwise every timer
+    from the go-live instant to the next model event runs at once when that event is
+    due."""
+    clock = {"now": 1000.0}
+    monkeypatch.setattr(simpy.rt, "monotonic", lambda: clock["now"])
+    monkeypatch.setattr(
+        simpy.rt, "sleep", lambda delay: clock.__setitem__("now", clock["now"] + delay)
+    )
+    monkeypatch.setattr(time, "monotonic", lambda: clock["now"])
+    env = DynamicRealtimeEnvironment(
+        factor=0.0,
+        logical_start_time=LOGICAL_START,
+        go_live_at=LOGICAL_START + timedelta(seconds=10),
+    )
+    env.setup_egress([TrackingEgress()], lag_monitor_interval="auto")
+    ran = []
+    original = simpy.Environment.step
+
+    def recording_step(self):
+        ran.append((self._queue[0][0], clock["now"]))
+        original(self)
+
+    monkeypatch.setattr(simpy.Environment, "step", recording_step)
+
+    def model_event():
+        yield env.timeout(13)
+
+    env.process(model_event())
+    env.run(until=20)
+    env.teardown()
+    # The lag monitor ticks at 10, 11 and 12, each at its own wall time, before the
+    # model event at 13 is due
+    live = {(sim, wall) for sim, wall in ran if 10 <= sim <= 13}
+    assert live == {(10, 1000.0), (11, 1001.0), (12, 1002.0), (13, 1003.0)}
+
+
+def test_step_across_go_live_returns_after_a_model_event():
+    """The go-live switch puts desflow's own events at the head of the queue. A `step()`
+    that reaches it keeps going until it has processed a model event, as SimPy's
+    `step()` processes the model event it is given."""
+    env = DynamicRealtimeEnvironment(
+        factor=0.0,
+        logical_start_time=LOGICAL_START,
+        go_live_at=LOGICAL_START + timedelta(seconds=10),
+    )
+    env.setup_egress([TrackingEgress()], lag_monitor_interval="auto")
+    reached = []
+
+    def model():
+        yield env.timeout(13)
+        reached.append(env.now)
+        yield env.timeout(1)
+        reached.append(env.now)
+
+    env.process(model())
+    env.step()
+    env.step()
+    assert env.now == 13
+    assert reached == [13]
+    env.step()
+    assert env.now == 14
+    assert reached == [13, 14]
+    env.teardown()
 
 
 def test_go_live_without_an_offset_is_read_in_the_zone():

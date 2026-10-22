@@ -1,5 +1,6 @@
 import pytest
 import simpy
+from simpy import Environment
 
 from desflow import CapacityConfig, SimParameter
 from desflow.resources.store import DynamicStore
@@ -13,8 +14,8 @@ def _second_store():
 
 def flush_events(env):
     """Process all events scheduled for the current simulation time."""
-    while env._queue and env.peek() == env.now:
-        env.step()
+    while env._queue and Environment.peek(env) == env.now:
+        env._step_event()
 
 
 def test_store_initialization(env, registry, sample_params):

@@ -4,6 +4,7 @@ from simpy import Container, Environment, Event
 from simpy.resources.base import BoundClass
 from simpy.resources.container import ContainerGet, ContainerPut
 
+from desflow.core.internal import internal_process
 from desflow.resources.base import BaseDynamicResource, _CancelReports, _Notifier
 
 
@@ -156,7 +157,7 @@ class DynamicContainer(BaseDynamicResource):
         self._container._on_change = self._level_changed
         self._container._capacity = initial_capacity
         self._level_val.track(self._container.level)
-        self.env.process(self._watch_level())
+        internal_process(self.env, self._watch_level())
         self._register()
 
     @property

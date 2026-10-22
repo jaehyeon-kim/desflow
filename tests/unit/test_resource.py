@@ -2,6 +2,7 @@ import functools
 
 import pytest
 import simpy
+from simpy import Environment
 from simpy.resources.resource import SortedQueue
 
 from desflow import CapacityConfig, SimParameter
@@ -21,8 +22,8 @@ def _free(res):
 
 def flush_events(env):
     """Process all events scheduled for the current simulation time."""
-    while env._queue and env.peek() == env.now:
-        env.step()
+    while env._queue and Environment.peek(env) == env.now:
+        env._step_event()
 
 
 def test_resource_initialization(env, registry, sample_params):

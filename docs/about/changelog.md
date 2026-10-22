@@ -23,6 +23,8 @@ Each release, newest first: what changed, then under Upgrading what to change in
 - A store priority keeps the value it is given: a numeric string such as `'10'` now compares as text, and priorities of mixed types raise `TypeError` at the put instead of `ValueError`. A `True` priority, which the builder refused and YAML cast to `1.0`, is kept as `True`, with the same service order.
 - `putters_waiting` and `getters_waiting` on `DynamicStore` and `DynamicContainer` no longer count a put or get that is being granted, which SimPy still holds in its queue during the grant. A `watch_changes` callback called during a grant read 1 in 0.22.0 and reads 0.
 - `add_resource` and `add_store` refuse a fractional `current_cap` or `max_cap`, as YAML does; 0.22.0 rounded it down.
+- `step()` and `peek()` count only the model's events, not desflow's statistics, flush, lag, ingress and watcher processes: `peek()` skips them and `step()` runs the ones due before the model's event in the same call, so a script steps a model as it would in SimPy. `run()` still processes every event. A script that counted statistics readings as steps counts fewer. See [Time and Pacing](../user-guide/time-and-pacing.md#step-and-peek).
+- `run()` and `finish()` return the value of the event that stopped the run, as SimPy's `env.run(until=event)` does; they returned `None`. A `stop` on a signal that fails now raises `SignalFailed` after the run closes, where a re-arming signal's failure used to end the run with no error; `desflow run` exits with an error. See [Time and Pacing](../user-guide/time-and-pacing.md#stop-early).
 
 ## Version 0.22.0
 

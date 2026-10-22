@@ -16,7 +16,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, Union
 
-from simpy.events import URGENT, Event
+from simpy import Environment
+from simpy.events import URGENT
 
 from desflow.core.context import SimulationContext
 from desflow.core.environment import DynamicRealtimeEnvironment
@@ -241,7 +242,7 @@ def _build(
         restore()
         raise
     if warmup is not None:
-        env.process(_end_warmup(env, warmup))
+        env.start_internal(_end_warmup(env, warmup))
     return env, sampler, model.sim_id, restore, None, arrivals
 
 
@@ -379,7 +380,7 @@ def _run_low_level(
     else:
         # Urgent, as SimPy schedules its own `until`, so no event due at `until`
         # runs before the run ends there
-        horizon = Event(env)
+        horizon = env.internal_event()
         horizon._ok, horizon._value = True, None
         env.schedule(horizon, URGENT, until - env.now)
         env.run(until=stop(env) | horizon)
@@ -397,8 +398,8 @@ def _run_low_level(
             process.defused = True
     limit = seconds(drain.get("limit")) if isinstance(drain, Mapping) else None
     last = float("inf") if limit is None else until + limit
-    while env.stats.in_system() > 0 and env.peek() < last:
-        env.step()
+    while env.stats.in_system() > 0 and Environment.peek(env) < last:
+        env._step_event()
     if env.stats.in_system() > 0 and last < float("inf") and env.now < last:
         env.run(until=last)
 
@@ -418,5 +419,5 @@ def _parameters(env: DynamicRealtimeEnvironment) -> Dict[str, Any]:
 
 def _end_warmup(env: DynamicRealtimeEnvironment, warmup: float):
     """Resets the statistics at the end of the warm-up."""
-    yield env.timeout(warmup)
+    yield env.internal_timeout(warmup)
     env.stats.reset()

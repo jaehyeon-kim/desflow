@@ -3,6 +3,7 @@ from typing import Any, Callable, Optional
 
 import simpy
 
+from desflow.core.internal import internal_process
 from desflow.core.registry import DynamicValue
 from desflow.models.params import CapacityConfig
 
@@ -129,8 +130,8 @@ class BaseDynamicResource:
         self._current_cap_val: DynamicValue = env.registry.get(f"{path}.current_cap")
         self._max_cap_val: DynamicValue = env.registry.get(f"{path}.max_cap")
 
-        self.env.process(self._watch_capacity())
-        self.env.process(self._watch_max_capacity())
+        internal_process(self.env, self._watch_capacity())
+        internal_process(self.env, self._watch_max_capacity())
 
     def _register(self):
         """Adds this object to the statistics; each subclass calls it once it is built."""
