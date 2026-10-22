@@ -593,22 +593,34 @@ class Wait:
     def requests_together(self) -> List[Tuple[str, str]]:
         """Returns the pairs of resources the wait can hold one of while it waits for
         the other: two `request` leaves under different branches of an `all`, or of
-        an `at_least` that needs two or more. An `any` holds at most one unit, so its
-        branches make no pair."""
+        an `at_least` that needs two or more; and, under an `any` or an `at_least` of
+        one, a request a group branch can hold before that branch is won, with each
+        request of the other branches. A single request leaf of an `any` ends the
+        `any` when it is granted, so it holds nothing while the `any` waits."""
         pairs: List[Tuple[str, str]] = []
 
-        def walk(node: WaitNode) -> List[str]:
+        def pair(first: List[str], later: List[str]) -> None:
+            for a in first:
+                for b in later:
+                    if a != b and {(a, b), (b, a)}.isdisjoint(pairs):
+                        pairs.append((a, b))
+
+        def walk(node: WaitNode) -> Tuple[List[str], List[str]]:
+            """The node's requests, and those it can hold before it is done."""
             if not node.is_group:
-                return [node.target] if node.kind == "request" else []
+                return ([node.target] if node.kind == "request" else []), []
             found = [walk(child) for child in node.children]
+            names = [name for names, _ in found for name in names]
             if node.kind == "all" or (node.kind == "at_least" and node.count > 1):
-                for i, first in enumerate(found):
-                    for later in found[i + 1 :]:
-                        for a in first:
-                            for b in later:
-                                if a != b and {(a, b), (b, a)}.isdisjoint(pairs):
-                                    pairs.append((a, b))
-            return [name for names in found for name in names]
+                for i, (first, _) in enumerate(found):
+                    for later, _ in found[i + 1 :]:
+                        pair(first, later)
+                return names, names
+            for i, (_, held) in enumerate(found):
+                for j, (others, _) in enumerate(found):
+                    if i != j:
+                        pair(held, others)
+            return names, [name for _, held in found for name in held]
 
         walk(self.root)
         return pairs

@@ -1131,24 +1131,32 @@ def test_a_wait_request_counts_in_the_acquisition_order():
 def test_requests_under_one_all_are_acquired_together():
     """Two requests under an `all` are made together, and either can be held while
     the other is waited for, so a task that acquires the two in either order is
-    refused. The branches of an `any` hold one unit at most and set no order."""
-    for listed in (["picker", "bench"], ["bench", "picker"]):
-        app = _two_resources()
+    refused. A group branch of an `any` can hold a unit while the `any` waits for
+    its other branches, so it pairs with them too. Single request branches of an
+    `any` end it when one is granted and set no order."""
+    waits = (
+        {"all": {"p": {"request": "picker"}, "b": {"request": "bench"}}},
+        {
+            "any": {
+                "p": {"request": "picker"},
+                "g": {"all": {"b": {"request": "bench"}, "t": {"timeout": 1}}},
+            }
+        },
+    )
+    for wait in waits:
+        for listed in (["picker", "bench"], ["bench", "picker"]):
+            app = _two_resources()
 
-        @app.task(
-            wait={"all": {"p": {"request": "picker"}, "b": {"request": "bench"}}},
-            service_id="s",
-            name="a",
-        )
-        def a(task_id):
-            return {}
+            @app.task(wait=wait, service_id="s", name="a")
+            def a(task_id):
+                return {}
 
-        @app.task(service_id="s", resource_id=listed, name="b")
-        def b(task_id):
-            return {}
+            @app.task(service_id="s", resource_id=listed, name="b")
+            def b(task_id):
+                return {}
 
-        with pytest.raises(ValueError, match="together in its wait"):
-            app.run(until=1)
+            with pytest.raises(ValueError, match="together in its wait"):
+                app.run(until=1)
 
     either = _two_resources()
 
