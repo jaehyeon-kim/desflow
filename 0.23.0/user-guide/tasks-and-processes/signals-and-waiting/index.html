@@ -3850,7 +3850,7 @@
 </tr>
 <tr>
 <td><code>{put: {store: name}}</code> or <code>{put: {container: name, amount: 2}}</code></td>
-<td>room to add the task's payload or an amount</td>
+<td>room to add the payload of the task before it, or an amount</td>
 <td>none</td>
 </tr>
 <tr>
@@ -4135,7 +4135,7 @@
 </div>
 </div>
 </div>
-<p>The task publishes <code>queued</code> when its wait starts, so the wait counts in its wait statistics, and its <code>patience</code> covers the wait as well as its resource and its <code>get</code>. When an <code>any</code> wait ends, its losing signal, timeout and condition branches are dropped, and its losing child flows keep running, as SimPy leaves processes running; <a href="../../../guides/wait-for-one-or-all/">Wait for One or All</a> shows ties and failures. A wait holds no resource, so waiting for all of several things grants nothing at once.</p>
+<p>The task publishes <code>queued</code> when its wait starts, so the wait counts in its wait statistics, and its <code>patience</code> covers the wait as well as its resource and its <code>get</code>. When an <code>any</code> wait ends, its losing signal, timeout and condition branches are dropped, and its losing child flows keep running, as SimPy leaves processes running; <a href="../../../guides/wait-for-one-or-all/">Wait for One or All</a> shows ties and failures. A wait for signals, tasks and times holds no resource, so waiting for all of several such things grants nothing at once.</p>
 <h3 id="one-shot-signals">One-Shot Signals</h3>
 <p>A signal written as a mapping with <code>once: true</code> (builder <code>add_signal(name, once=True)</code>) fires once, as SimPy's <code>Event</code> does: it does not re-arm, so a task that waits for it after it has fired resumes at once, and a second firing is refused. A plain signal keeps re-arming after each firing, so a waiter that starts later waits for the next. A closing-time signal is a one-shot: <code>signals: {closing: {once: true}}</code>.</p>
 <h3 id="start-a-flow-without-waiting">Start a Flow Without Waiting</h3>
