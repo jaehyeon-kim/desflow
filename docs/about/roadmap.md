@@ -22,7 +22,7 @@ Releases come in the order shown, without dates: a release ships when it is read
   icon: ':material-clock-outline:'
   key: planned
 - title: '0.28.0: Library hooks for the server'
-  content: 'Parameter changes that report who made them and why: `change` returns a `ParamChange` or raises `ParamRejected`, an `on_change` list of callbacks receives each accepted change, and `registry_paths()` lists the paths a simulation will have without running it. The server after 1.0 then adds to the library without changing it. [#70](https://github.com/jaehyeon-kim/desflow/issues/70)'
+  content: 'Parameter changes that report who made them and why: `change` returns a `ParamChange` or raises `ParamRejected`, an `on_change` list of callbacks receives each accepted change, and `registry_paths()` lists the paths a simulation will have without running it. The server after 1.0 then adds to the library without changing it. `FileIngress` changes parameters while a run goes when you edit a local file, with no broker. [#70](https://github.com/jaehyeon-kim/desflow/issues/70) [#86](https://github.com/jaehyeon-kim/desflow/issues/86)'
   icon: ':material-clock-outline:'
   key: planned
 - title: '0.29.0: Reserved gen key and record contract freeze'
