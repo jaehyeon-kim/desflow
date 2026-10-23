@@ -2,7 +2,7 @@
 
 This example models a shop packing orders. The simulation prints events and telemetry to the terminal. It needs no container, so it is the place to start. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../user-guide/ways-to-write.md) compares the three.
 
-Local connectors need no Docker, Kafka or other external store, so this example is useful for testing and benchmarking.
+In the output, look for each order's `queued`, `started` and finished events, and for the packers' readings every 2 simulation seconds. The capacity reading changes when the scenario adds packers at 10 seconds and removes one at 20 seconds.
 
 === "YAML"
 
@@ -44,18 +44,7 @@ Local connectors need no Docker, Kafka or other external store, so this example 
 
     **What It Does**
 
-    The run prints every record to the terminal and stops after 30 simulation seconds, which at `factor: 1.0` is 30 real seconds. Telemetry lines carry `[TEL]` and events carry `[EVT]`. These are the events of the first order, and the packers' capacity reading before and after the first change:
-
-    <!-- records: local-records -->
-    ```text
-    [EVT] {'sim_ts': 1.276, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'path_id': 'Shop.service.packing', 'status': 'queued'}}
-    [EVT] {'sim_ts': 1.276, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'path_id': 'Shop.service.packing', 'status': 'started'}}
-    [TEL] {'sim_ts': 2.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.capacity', 'value': 1}
-    [EVT] {'sim_ts': 4.651, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'event_type': 'order_packed', 'shipping': 'standard', 'order_id': 0}}
-    [TEL] {'sim_ts': 12.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.capacity', 'value': 3}
-    ```
-
-    Each order produces a `queued`, a `started` and a finished event. Every event carries the order's key, such as `orders-1`, with the task's name and instance. The finished event is the task's `payload`, with the task id added as `order_id` because of `id_field`. The capacity reading shows the scenario: one packer, three from 10 seconds, then two from 20 seconds. Add `--until 10` to stop after 10 simulation seconds instead.
+    The run prints every record to the terminal and stops after 30 simulation seconds, which at `factor: 1.0` is 30 real seconds. Add `--until 10` to stop after 10 simulation seconds instead. [Records](#records) shows what it prints.
 
     **Full Source Code**
 
@@ -114,9 +103,7 @@ Local connectors need no Docker, Kafka or other external store, so this example 
 
 === "Builder"
 
-    This example demonstrates how to build a dynamic simulation using the **builder API (`SimulationContext`)** and **Local Connectors**.
-
-    This example adds `ConsoleEgress` and no ingress. `add_process` starts `capacity_changes`, which waits on the simulation clock and changes the number of packers at 10 and 20 seconds, as the YAML `scenario` does.
+    This version builds the simulation with the builder API (`SimulationContext`). It adds `ConsoleEgress` and no ingress. `add_process` starts `capacity_changes`, which waits on the simulation clock and changes the number of packers at 10 and 20 seconds, as the YAML `scenario` does.
 
     **Quick Start**
 
@@ -243,7 +230,7 @@ Local connectors need no Docker, Kafka or other external store, so this example 
 
 === "Low-level"
 
-    This example demonstrates how to build a dynamic simulation using the low-level **Low-level API** and **Local Connectors**.
+    This version wires the simulation by hand on `DynamicRealtimeEnvironment`, the low-level API.
 
     **Quick Start**
 
@@ -390,3 +377,18 @@ Local connectors need no Docker, Kafka or other external store, so this example 
     if __name__ == "__main__":
         run()
     ```
+
+## Records
+
+The three tabs print the same records, which [a test](https://github.com/jaehyeon-kim/desflow/blob/main/tests/docs/test_example_twins.py) checks by running each version unpaced. Telemetry lines carry `[TEL]` and events carry `[EVT]`. These are the events of the first order, and the packers' capacity reading before and after the first change:
+
+<!-- records: local-records -->
+```text
+[EVT] {'sim_ts': 1.276, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'path_id': 'Shop.service.packing', 'status': 'queued'}}
+[EVT] {'sim_ts': 1.276, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'path_id': 'Shop.service.packing', 'status': 'started'}}
+[TEL] {'sim_ts': 2.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.capacity', 'value': 1}
+[EVT] {'sim_ts': 4.651, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'event_type': 'order_packed', 'shipping': 'standard', 'order_id': 0}}
+[TEL] {'sim_ts': 12.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.capacity', 'value': 3}
+```
+
+Each order produces a `queued`, a `started` and a finished event. Every event carries the order's key, such as `orders-1`, with the task's name and instance. The finished event is the task's `payload`, with the task id added as `order_id` because of `id_field`. The capacity reading shows the scenario: one packer, three from 10 seconds, then two from 20 seconds.

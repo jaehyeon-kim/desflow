@@ -1,6 +1,6 @@
 # Choosing Inputs
 
-Packing takes 1.5 seconds on average. So far the model has used exactly that: a `constant` 1.5 seconds. Real packing times vary, and a model's results are only as accurate as the times it draws. This page asks: **which distribution fits packing times?**
+Packing takes 1.5 seconds on average. So far the model has used exactly that: a `constant` 1.5 seconds. Real packing times vary, and a model's results are only as accurate as the times it draws. This page asks: **which distribution fits packing times?** The decision is which candidate distribution the model uses for packing. The measures are the shape of each candidate beside the measured times, and the busy hour's mean wait with each. The boundary is four runs of the busy hour, one for each candidate, each with the seed 42. The assumptions are that orders arrive at random at 1.8 a second, and that the times measured at the bench stand for every packer.
 
 ## What You Add
 

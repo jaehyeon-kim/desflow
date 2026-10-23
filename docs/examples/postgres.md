@@ -2,11 +2,11 @@
 
 This example models a shop receiving orders. The simulation writes order records to PostgreSQL and reads parameter updates from a PostgreSQL table. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../user-guide/ways-to-write.md) compares the three.
 
-With `PostgresEgress` in place of the console egress, the simulation runs as a separate data generator. It writes rows into PostgreSQL with asynchronous bulk inserts through `asyncpg`. The connection string names `odctl`, the database that the odctl `postgres` profile creates, with the user `user` and the password `password`.
+With `PostgresEgress` in place of the console egress, the simulation runs as a separate data generator. Look for one row in `orders` for each order, and for orders arriving faster after you insert a new rate into `simulation_params`. The egress writes rows into PostgreSQL with asynchronous bulk inserts through `asyncpg`. The connection string names `odctl`, the database that the odctl `postgres` profile creates, with the user `user` and the password `password`.
 
 === "YAML"
 
-    This example builds the simulation of the builder example in the Builder tab from a YAML blueprint, with no Python. Each order is written to `orders`, and `PostgresIngress` polls `simulation_params` for updates. The [Generate Related Records](advanced-postgres-orders.md) example adds random line items in a second table, and keeps its order generator in Python.
+    This example builds the simulation of the builder example in the Builder tab from a YAML blueprint, with no Python. Each order is written to `orders`, and `PostgresIngress` polls `simulation_params` for updates. The [Related Records](advanced-postgres-orders.md) example adds random line items in a second table, and keeps its order generator in Python.
 
     **Quick Start**
 
@@ -117,49 +117,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
 === "Builder"
 
-    This example demonstrates how to integrate `desflow` into a relational database architecture using the **builder API (`SimulationContext`)**.
-
-    **Writing Rows**
-
-    `PostgresEgress` creates each table in `tables` when it does not exist, and writes each record as one row. Record fields the table has no column for, such as `sim_ts`, are left out.
-
-    ```python title="examples/builder/postgres_example.py:app"
-    app = (
-        SimulationContext(sim_id="Shop", factor=1.0, random_seed=42)
-        .add_ingress(PostgresIngress(DSN, table_name="simulation_params"))
-        .add_egress(PostgresEgress(DSN, tables={"orders": ORDERS}))
-        .add_arrival("orders", dist="exponential", rate=1.0)
-    )
-    ```
-
-    **Generating Orders**
-
-    `place_order` has no service or resource, so it publishes its payload as soon as the arrival loop spawns it. The task id is the order id:
-
-    ```python title="examples/builder/postgres_example.py:records"
-    @app.task()
-    def place_order(task_id: int, context):
-        """A task with no service or resource: its payload is published at once."""
-        return {
-            "order_id": task_id,
-            "customer_id": 42,
-            "total_amount": 59.97,
-            "status": "pending",
-        }
-
-
-    @app.arrival_loop("orders")
-    def order_generator(context):
-        task_id = 0
-        while True:
-            entity = yield context.wait_for_arrival("orders")
-            context.spawn(place_order(task_id, context, entity=entity))
-            task_id += 1
-    ```
-
-    **Dynamic Parameter Updates (Ingress)**
-
-    This example also attaches a `PostgresIngress` listening to a `simulation_params` table. While the simulation runs, inserting a row with `path` and `value` into that table changes the parameter, such as the order arrival rate. The simulation reads the new value within its poll interval, which is 2 seconds by default.
+    This version builds the simulation with the builder API (`SimulationContext`).
 
     **Quick Start**
 
@@ -205,17 +163,54 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
         odctl down postgres --volumes
         ```
 
+    **Writing Rows**
+
+    `PostgresEgress` creates each table in `tables` when it does not exist, and writes each record as one row. Record fields the table has no column for, such as `sim_ts`, are left out.
+
+    ```python title="examples/builder/postgres_example.py:app"
+    app = (
+        SimulationContext(sim_id="Shop", factor=1.0, random_seed=42)
+        .add_ingress(PostgresIngress(DSN, table_name="simulation_params"))
+        .add_egress(PostgresEgress(DSN, tables={"orders": ORDERS}))
+        .add_arrival("orders", dist="exponential", rate=1.0)
+    )
+    ```
+
+    **Generating Orders**
+
+    `place_order` has no service or resource, so it publishes its payload as soon as the arrival loop spawns it. The task id is the order id:
+
+    ```python title="examples/builder/postgres_example.py:records"
+    @app.task()
+    def place_order(task_id: int, context):
+        """A task with no service or resource: its payload is published at once."""
+        return {
+            "order_id": task_id,
+            "customer_id": 42,
+            "total_amount": 59.97,
+            "status": "pending",
+        }
+
+
+    @app.arrival_loop("orders")
+    def order_generator(context):
+        task_id = 0
+        while True:
+            entity = yield context.wait_for_arrival("orders")
+            context.spawn(place_order(task_id, context, entity=entity))
+            task_id += 1
+    ```
+
+    **Dynamic Parameter Updates (Ingress)**
+
+    This example also attaches a `PostgresIngress` listening to a `simulation_params` table. While the simulation runs, inserting a row with `path` and `value` into that table changes the parameter, such as the order arrival rate. The simulation reads the new value within its poll interval, which is 2 seconds by default.
+
     **In a second terminal, change the parameter:**
     ```bash
-    # Connect to the database container and inject the parameter (maintains audit history!)
+    # Insert the new arrival rate into simulation_params
     docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params (path, value) VALUES ('Shop.arrival.orders.rate', '5.0');"
     ```
     Within the poll interval, the run logs `Ingested parameter update: Shop.arrival.orders.rate = 5.0`, and orders then arrive five times faster.
-
-    ```bash
-    # Clean up the infrastructure when finished
-    odctl down postgres --volumes
-    ```
 
     **Full Source Code**
 
@@ -303,39 +298,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
 === "Low-level"
 
-    This example demonstrates how to integrate `desflow` into a relational database architecture using the **low-level API (`DynamicRealtimeEnvironment`)**.
-
-    **Writing Rows**
-
-    `PostgresEgress` creates each table in `tables` when it does not exist, and writes each record as one row. `PostgresIngress` creates the `simulation_params` table it polls:
-
-    ```python title="examples/low-level/postgres_example.py:connectors"
-    # PostgresEgress creates the orders table, and PostgresIngress creates the
-    # simulation_params table it polls for parameter updates.
-    env.setup_egress([PostgresEgress(DSN, tables={"orders": ORDERS})])
-    env.setup_ingress([PostgresIngress(DSN, table_name="simulation_params")])
-    ```
-
-    **Generating Orders**
-
-    For each arriving order, the SimPy process publishes one record under the key the builder's task would use. The task id is the order id:
-
-    ```python title="examples/low-level/postgres_example.py:records"
-    order = {
-        "order_id": task_id,
-        "customer_id": 42,
-        "total_amount": 59.97,
-        "status": "pending",
-    }
-    # The order key, and the task name and instance id the builder adds
-    env.publish_event(
-        f"orders-{task_id + 1}", order, task="place_order", instance=task_id
-    )
-    ```
-
-    **Dynamic Parameter Updates (Ingress)**
-
-    This example also attaches a `PostgresIngress` listening to a `simulation_params` table. While the simulation runs, inserting a row with `path` and `value` into that table changes the parameter, such as the order arrival rate. The simulation reads the new value within its poll interval, which is 2 seconds by default.
+    This version wires the simulation by hand on `DynamicRealtimeEnvironment`, the low-level API.
 
     **Quick Start**
 
@@ -381,17 +344,44 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
         odctl down postgres --volumes
         ```
 
+    **Writing Rows**
+
+    `PostgresEgress` creates each table in `tables` when it does not exist, and writes each record as one row. `PostgresIngress` creates the `simulation_params` table it polls:
+
+    ```python title="examples/low-level/postgres_example.py:connectors"
+    # PostgresEgress creates the orders table, and PostgresIngress creates the
+    # simulation_params table it polls for parameter updates.
+    env.setup_egress([PostgresEgress(DSN, tables={"orders": ORDERS})])
+    env.setup_ingress([PostgresIngress(DSN, table_name="simulation_params")])
+    ```
+
+    **Generating Orders**
+
+    For each arriving order, the SimPy process publishes one record under the key the builder's task would use. The task id is the order id:
+
+    ```python title="examples/low-level/postgres_example.py:records"
+    order = {
+        "order_id": task_id,
+        "customer_id": 42,
+        "total_amount": 59.97,
+        "status": "pending",
+    }
+    # The order key, and the task name and instance id the builder adds
+    env.publish_event(
+        f"orders-{task_id + 1}", order, task="place_order", instance=task_id
+    )
+    ```
+
+    **Dynamic Parameter Updates (Ingress)**
+
+    This example also attaches a `PostgresIngress` listening to a `simulation_params` table. While the simulation runs, inserting a row with `path` and `value` into that table changes the parameter, such as the order arrival rate. The simulation reads the new value within its poll interval, which is 2 seconds by default.
+
     **In a second terminal, change the parameter:**
     ```bash
-    # Connect to the database container and inject the parameter (maintains audit history!)
+    # Insert the new arrival rate into simulation_params
     docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params (path, value) VALUES ('Shop.arrival.orders.rate', '5.0');"
     ```
     Within the poll interval, the run logs `Ingested parameter update: Shop.arrival.orders.rate = 5.0`, and orders then arrive five times faster.
-
-    ```bash
-    # Clean up the infrastructure when finished
-    odctl down postgres --volumes
-    ```
 
     **Full Source Code**
 
@@ -496,3 +486,16 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
         logging.basicConfig(level=logging.INFO)
         run()
     ```
+
+## Records
+
+The three tabs write the same records, which [a test](https://github.com/jaehyeon-kim/desflow/blob/main/tests/docs/test_example_twins.py) checks by running each version unpaced. A real run writes each order as one row of the `orders` table. `desflow run postgres.yaml --sample 3 --stdout` prints the first three as JSON lines instead, with no database:
+
+<!-- records: postgres-sample -->
+```text
+{"stream_type":"event","sim_ts":1.276,"timestamp":"...","key":"orders-1","task":"place_order","instance":0,"value":{"customer_id":42,"total_amount":59.97,"status":"pending","order_id":0}}
+{"stream_type":"event","sim_ts":1.348,"timestamp":"...","key":"orders-2","task":"place_order","instance":1,"value":{"customer_id":42,"total_amount":59.97,"status":"pending","order_id":1}}
+{"stream_type":"event","sim_ts":1.869,"timestamp":"...","key":"orders-3","task":"place_order","instance":2,"value":{"customer_id":42,"total_amount":59.97,"status":"pending","order_id":2}}
+```
+
+The fields of `value` and the `timestamp` fill the columns of `orders`. The task id is `order_id`, the table's primary key.

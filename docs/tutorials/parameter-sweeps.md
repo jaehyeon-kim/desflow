@@ -1,6 +1,6 @@
 # Parameter Sweeps
 
-[Comparing Designs](comparing-designs.md) found that a fourth packer cuts the busy hour's mean wait from 2.48 to 0.27 seconds over 20 [replications](../des/output-analysis.md#replications) of each, at 1.8 orders a second. That rate is an estimate, and demand moves from day to day. This page asks: **how much does the answer depend on the arrival rate?** It runs both designs at four rates around the estimate.
+[Comparing Designs](comparing-designs.md) found that a fourth packer cuts the busy hour's mean wait from 2.48 to 0.27 seconds over 20 [replications](../des/output-analysis.md#replications) of each, at 1.8 orders a second. That rate is an estimate, and demand moves from day to day. This page asks: **how much does the answer depend on the arrival rate?** The decision is whether the choice of a fourth packer holds if demand differs from the estimate. The measure is the mean wait of each design at each rate. The boundary is the busy hour after its 2-minute [warm-up](../des/output-analysis.md#one-run-starts-empty), at four arrival rates around the estimate. The assumptions are those of Trusting Results: orders at random at a steady rate, and the 40 packing times measured at the bench.
 
 ## What You Add
 

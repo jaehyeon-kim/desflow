@@ -1,10 +1,10 @@
 # A Flow of Tasks
 
-Until now an order was one task: it was packed and left. A real order is picked from the shelves, packed and shipped. Sometimes an item is out of stock, and sometimes a parcel fails its check and is packed again. This page asks: **how do orders move through pick, pack and ship?** It answers with two shares: how many orders go to backorder, and how many parcels are packed again.
+Until now an order was one task: it was packed and left. A real order is picked from the shelves, packed and shipped. Sometimes an item is out of stock, and sometimes a parcel fails its check and is packed again. This page asks: **how do orders move through pick, pack and ship?** The decision is how much work to plan for beyond one pick and one pack per order. The measures are two shares: how many orders go to backorder, and how many parcels are packed again. The boundary is one run of an hour with the seed 42, from an order's arrival to its shipment, with the supplier modelled only as a delay. The assumptions are that orders arrive at random, that each picking time is equally likely to be anywhere from 1 to 3 seconds, and that packing always takes 1.5 seconds.
 
 ## What You Add
 
-This page adds three tasks in a row: `pick_order`, `pack_order` and `ship_order`. It also adds a `backorder` delay for an order picked while the shelf of boxes from [Stock](stock.md) is empty, and an `express` attribute that each order carries. The shop has two pickers and two packers. A regular order arrives every 2.5 seconds on average (24 a minute, `rate: 0.4`), and an express order every 10 seconds (6 a minute, `rate: 0.1`). A delivery of 53 boxes comes every 100 seconds, a little more than the orders take. The run lasts an hour.
+This page adds three tasks in a row: `pick_order`, `pack_order` and `ship_order`. It also adds a `backorder` delay for an order picked while the shelf of boxes from [Stock](stock.md) is empty, and an `express` attribute that each order carries. The shop has two pickers and two packers. A regular order arrives every 2.5 seconds on average (24 a minute, `rate: 0.4`), and an express order every 10 seconds (6 a minute, `rate: 0.1`). A delivery of 53 boxes comes every 100 seconds, a little more than the orders take.
 
 Look at the flow first:
 

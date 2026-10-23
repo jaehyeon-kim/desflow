@@ -130,10 +130,16 @@ def _command(*arguments: str) -> List[str]:
     return result.stdout.rstrip("\n").split("\n")
 
 
+def _sample(path: str, events: int, *options: str) -> List[str]:
+    """The JSON lines `desflow run` prints for the first `events` events of a
+    blueprint, unpaced and with no service started."""
+    lines = _command("run", path, "--sample", str(events), *options)
+    return [re.sub(r'"timestamp":"[^"]*"', '"timestamp":"..."', line) for line in lines]
+
+
 def first_sample() -> List[str]:
     """First Simulation: the first five events, from `desflow run --sample 5`."""
-    lines = _command("run", "docs/snippets/yaml/first_shop.yaml", "--sample", "5")
-    return [re.sub(r'"timestamp":"[^"]*"', '"timestamp":"..."', line) for line in lines]
+    return _sample("docs/snippets/yaml/first_shop.yaml", 5)
 
 
 def queues_table() -> List[str]:
@@ -660,7 +666,24 @@ def python_error() -> List[str]:
     return result.output.rstrip("\n").split("\n")
 
 
+def _example_sample(name: str, events: int) -> Callable[[], List[str]]:
+    """An example page: the first records of `desflow run examples/yaml/<name>.yaml
+    --sample <events> --stdout`."""
+
+    def block() -> List[str]:
+        return _sample(f"examples/yaml/{name}.yaml", events, "--stdout")
+
+    return block
+
+
 BLOCKS: Dict[str, Callable[[], List[str]]] = {
+    "kafka-sample": _example_sample("kafka", 5),
+    "parquet-sample": _example_sample("parquet", 4),
+    "iceberg-sample": _example_sample("iceberg", 4),
+    "postgres-sample": _example_sample("postgres", 3),
+    "redis-sample": _example_sample("redis", 3),
+    "backfill-live-sample": _example_sample("backfill_live", 4),
+    "related-records-sample": _example_sample("advanced/postgres_orders", 2),
     "hybrid-events": hybrid_events,
     "python-error": python_error,
     "local-records": local_records,

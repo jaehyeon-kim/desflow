@@ -29,12 +29,12 @@ logger = logging.getLogger("kafka_example")
 
 
 # ==========================================
-# 1. Define Strongly-Typed Event Payloads
+# 1. Event Payload Model
 # ==========================================
 class TaskEvent(BaseModel):
-    """
-    Strongly typed event payload to guarantee schema consistency
-    when shipping data over the wire to Kafka.
+    """The fields and types of the finished event.
+
+    Pydantic checks them when the model is built, before the event is sent to Kafka.
     """
 
     path_id: str
@@ -74,9 +74,9 @@ def pack_order(task_id: int, context):
     and 'started' events. The function adds its own logic and returns the
     finished payload.
     """
-    logger.info(f"Task {task_id} started at sim time: {context._env.now:.2f}s")
+    logger.info(f"Task {task_id} started at sim time: {context.env.now:.2f}s")
 
-    # Return the strongly-typed Pydantic model for the 'finished' state
+    # The payload of the finished event, from the Pydantic model
     return TaskEvent(path_id="Shop.service.packing", status="finished").model_dump(
         mode="json"
     )

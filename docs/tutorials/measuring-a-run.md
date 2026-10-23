@@ -1,6 +1,6 @@
 # Measuring a Run
 
-Most of the pages so far read one number, the mean wait. A run knows much more: how busy the packers were, how long the queue was, how many orders were packed, and how long the slowest one waited. This page asks: **what does a run tell me?**
+Most of the pages so far read one number, the mean wait. A run knows much more. This page asks: **what does a run tell me?** The decision is which numbers to read from a run before acting on it. The measures are five of the numbers the run publishes: the packers' [utilisation](../des/queueing-basics.md#utilisation), the mean queue, the mean and longest wait, and the orders packed. The boundary is one run of the busy hour, with the seed 42, starting with an empty shop. The assumptions are that orders arrive at random at 1.8 a second, and that the times measured at the bench stand for every packer.
 
 ## What You Add
 

@@ -1,6 +1,6 @@
 # Filtered Inventory
 
-The shop now sells shirts in three sizes: small, medium and large. Shirts of every size go on one shelf. A new shirt arrives every 10 seconds on average, and a new order also arrives every 10 seconds on average. Each order is for one shirt of a given size. A customer cancels an order not filled within 10 minutes. Half the orders are for medium shirts, but only 4 shirts in 10 are medium. This page asks: **which waiting order can use the shirt that arrives, and which orders go unfilled?** It runs a working day of 8 hours.
+The shop now sells shirts in three sizes: small, medium and large. Shirts of every size go on one shelf. A new shirt arrives every 10 seconds on average, and a new order also arrives every 10 seconds on average. Each order is for one shirt of a given size. A customer cancels an order not filled within 10 minutes. Half the orders are for medium shirts, but only 4 shirts in 10 are medium. This page asks: **which waiting order can use the shirt that arrives, and which orders go unfilled?** The decision is whether the shop's mix of shirt sizes is right for its orders. The measures are the orders filled and cancelled for each size, and the shirts left on the shelf. The boundary is one run of a working day of 8 hours, with the seed 42, and covers only taking shirts from the shelf: packing is left out. The assumptions are that shirts and orders of each size arrive at random, each at a steady rate.
 
 ## What You Add
 

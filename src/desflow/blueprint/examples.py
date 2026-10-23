@@ -233,7 +233,7 @@ EXAMPLES: Dict[str, Example] = {
         ),
         Example(
             "related-records",
-            "Generate Related Records",
+            "Related Records",
             "orders and their line items, in two PostgreSQL tables",
             {
                 "yaml": [

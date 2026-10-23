@@ -1,6 +1,6 @@
 # Comparing Designs
 
-[Trusting Results](trusting-results.md) measured the busy hour with three packers: over 40 [replications](../des/output-analysis.md#replications) the mean wait was 2.32 ± 0.20 seconds. The shop could hire a fourth packer. This page asks: **does a fourth packer cut the mean wait, and by how much?** It runs both designs as an experiment, with the same seeds, and compares them seed by seed.
+[Trusting Results](trusting-results.md) measured the busy hour with three packers: over 40 [replications](../des/output-analysis.md#replications) the mean wait was 2.32 ± 0.20 seconds. The shop could hire a fourth packer. This page asks: **does a fourth packer cut the mean wait, and by how much?** The decision is three packers or four. The measures are the mean wait and the packers' [utilisation](../des/queueing-basics.md#utilisation). The boundary is the busy hour after its 2-minute [warm-up](../des/output-analysis.md#one-run-starts-empty); the rest of the day is not modelled. The assumptions are those of Trusting Results: orders at random at 1.8 a second, and the 40 packing times measured at the bench.
 
 ## What You Add
 

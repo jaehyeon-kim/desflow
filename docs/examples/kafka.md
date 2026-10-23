@@ -2,7 +2,7 @@
 
 This example models a shop packing orders. The simulation reads parameter updates from a Kafka topic and publishes events and telemetry to Kafka topics. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../user-guide/ways-to-write.md) compares the three.
 
-With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simulation runs as a separate service. It reads JSON parameter updates from a topic, and publishes telemetry and typed Pydantic events to other topics.
+With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simulation runs as a separate service. Look for the lifecycle events on `sim-events` and the packers' readings on `sim-telemetry`, published every 2 simulation seconds. A JSON parameter update sent to `sim-config` changes the running simulation, and the readings show the change.
 
 === "YAML"
 
@@ -123,7 +123,7 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
 
 === "Builder"
 
-    This example demonstrates how to integrate `desflow` into a full event-driven architecture using the **builder API (`SimulationContext`)**.
+    This version builds the simulation with the builder API (`SimulationContext`).
 
     **Quick Start**
 
@@ -215,12 +215,12 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
 
 
     # ==========================================
-    # 1. Define Strongly-Typed Event Payloads
+    # 1. Event Payload Model
     # ==========================================
     class TaskEvent(BaseModel):
-        """
-        Strongly typed event payload to guarantee schema consistency
-        when shipping data over the wire to Kafka.
+        """The fields and types of the finished event.
+
+        Pydantic checks them when the model is built, before the event is sent to Kafka.
         """
 
         path_id: str
@@ -260,9 +260,9 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
         and 'started' events. The function adds its own logic and returns the
         finished payload.
         """
-        logger.info(f"Task {task_id} started at sim time: {context._env.now:.2f}s")
+        logger.info(f"Task {task_id} started at sim time: {context.env.now:.2f}s")
 
-        # Return the strongly-typed Pydantic model for the 'finished' state
+        # The payload of the finished event, from the Pydantic model
         return TaskEvent(path_id="Shop.service.packing", status="finished").model_dump(
             mode="json"
         )
@@ -309,7 +309,7 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
 
 === "Low-level"
 
-    This example demonstrates how to integrate `desflow` into a full event-driven architecture using the low-level **Low-level API**.
+    This version wires the simulation by hand on `DynamicRealtimeEnvironment`, the low-level API.
 
     **Quick Start**
 
@@ -407,13 +407,13 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
 
 
     # ==========================================
-    # 1. Define Strongly-Typed Event Payloads
+    # 1. Event Payload Model
     # ==========================================
     class TaskEvent(BaseModel):
-        """
-        Thanks to desflow's duck-typing, we can pass this Pydantic model
-        directly into env.publish_event(). KafkaEgress converts it to a dict and
-        serializes it, to JSON or to Avro.
+        """The fields and types of each lifecycle event.
+
+        env.publish_event() takes this Pydantic model in place of a dict, and turns it
+        into a dict. KafkaEgress serializes that dict, to JSON or to Avro.
         """
 
         path_id: str
@@ -495,10 +495,10 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
         admin_connector.create_topics(topics_config=TOPICS_CONFIG)
         time.sleep(2)
 
-        # (Optional: Pass **kwargs like `security_protocol="SASL_SSL"` for enterprise clusters)
+        # A secured cluster needs more keyword arguments, such as security_protocol="SASL_SSL"
         ingress = KafkaIngress(topic="sim-config", bootstrap_servers=BOOTSTRAP_SERVERS)
 
-        # By default, this uses JsonSerializer. To use Avro for enterprise environments:
+        # KafkaEgress uses JsonSerializer by default. To write Avro instead:
         # from desflow.connectors.egress.kafka import ConfluentAvroSerializer
         # avro_serializer = ConfluentAvroSerializer(
         #     registry_url="http://127.0.0.1:8081", schema_str=AVRO_SCHEMA
@@ -540,3 +540,23 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
     if __name__ == "__main__":
         run()
     ```
+
+## Records
+
+The three tabs publish the same records, which [a test](https://github.com/jaehyeon-kim/desflow/blob/main/tests/docs/test_example_twins.py) checks by running each version unpaced. A real run sends the events to `sim-events` and the telemetry to `sim-telemetry`. `desflow run kafka.yaml --sample 5 --stdout` prints the first five events, and the telemetry published between them, as JSON lines instead, unpaced and with no broker:
+
+<!-- records: kafka-sample -->
+```text
+{"stream_type":"event","sim_ts":1.276,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","status":"queued"}}
+{"stream_type":"event","sim_ts":1.276,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","status":"started"}}
+{"stream_type":"event","sim_ts":1.348,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","status":"queued"}}
+{"stream_type":"event","sim_ts":1.869,"timestamp":"...","key":"orders-3","task":"pack_order","instance":2,"value":{"path_id":"Shop.service.packing","status":"queued"}}
+{"stream_type":"telemetry","sim_ts":2.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.capacity","value":1}
+{"stream_type":"telemetry","sim_ts":2.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.in_use","value":1}
+{"stream_type":"telemetry","sim_ts":2.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length","value":2}
+{"stream_type":"telemetry","sim_ts":2.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization","value":100.0}
+{"stream_type":"telemetry","sim_ts":2.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.in_progress","value":3}
+{"stream_type":"event","sim_ts":2.01,"timestamp":"...","key":"orders-4","task":"pack_order","instance":3,"value":{"path_id":"Shop.service.packing","status":"queued"}}
+```
+
+With one packer, `orders-1` starts at once and the next orders wait. At 2 simulation seconds the readings show 1 packer in use, 2 orders in the queue and 3 tasks in progress.

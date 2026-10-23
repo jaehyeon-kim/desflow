@@ -161,6 +161,8 @@ exclude_docs: |
 
 hooks:
   - hooks/llmstxt_sections.py
+  # Links to files on main point at the release tag in the built pages
+  - hooks/release_links.py
 
 nav:
   - Home: index.md
@@ -274,7 +276,7 @@ nav:
       - PostgreSQL: examples/postgres.md
       - Redis: examples/redis.md
       - Parquet History, Kafka Live: examples/backfill-live.md
-      - Generate Related Records: examples/advanced-postgres-orders.md
+      - Related Records: examples/advanced-postgres-orders.md
   - Reference:
       - API Reference: api.md
       - YAML Format: reference/yaml-format.md

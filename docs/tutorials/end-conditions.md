@@ -1,6 +1,6 @@
 # End Conditions
 
-For an hour the shop now gets an order every 1.43 seconds on average (42 a minute, `rate: 0.7`). Its one packer takes 1.5 seconds per order, so it packs at most 40 a minute, a little fewer than the 42 that arrive. Orders are still waiting when the hour ends. A report that counts only the orders packed in the hour leaves them out. This page asks: **does a fixed horizon answer the same question as closing the doors and packing every order already in the shop?** It runs the hour both ways and counts every order.
+For an hour the shop now gets an order every 1.43 seconds on average (42 a minute, `rate: 0.7`). Its one packer takes 1.5 seconds per order, so it packs at most 40 a minute, a little fewer than the 42 that arrive. Orders are still waiting when the hour ends. A report that counts only the orders packed in the hour leaves them out. This page asks: **does a fixed horizon answer the same question as closing the doors and packing every order already in the shop?** The decision is which way of ending the run the shop's report uses. The measures are the orders started, finished and still in the shop, the mean wait, and the time the run ends. The boundary is two runs, each with the seed 42: one stops at the end of the hour, and one stops taking orders then and runs until the last order is packed. The assumptions are that orders arrive at random and that every order takes the same time to pack.
 
 ## What You Add
 

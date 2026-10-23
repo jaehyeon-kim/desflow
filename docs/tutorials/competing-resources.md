@@ -1,6 +1,6 @@
 # Competing Resources
 
-The shop now picks each order from the shelves before packing it. One picker fetches the order in a second and carries it to the one packing bench, where packing takes 2 seconds on average. The picker could put the order down by the bench and go back for the next one, or stay with it until the bench is free, so the order is never left unattended. This page asks: **what does holding one resource while waiting for another cost?** It compares the two over an hour, with an order every 2.5 seconds on average (24 a minute).
+The shop now picks each order from the shelves before packing it. One picker fetches the order in a second and carries it to the one packing bench, where packing takes 2 seconds on average. The picker could put the order down by the bench and go back for the next one, or stay with it until the bench is free, so the order is never left unattended. This page asks: **what does holding one resource while waiting for another cost?** The decision is whether the picker stays with each order until the bench is free. The measures are the mean wait for the picker and for the bench, and the share of time the picker is busy. The boundary is two runs of the hour, one for each way of working, each with the seed 42. The assumptions are that orders arrive at random, one every 2.5 seconds on average (24 a minute), that picking always takes exactly one second, and that packing times follow an exponential distribution.
 
 ## What You Add
 

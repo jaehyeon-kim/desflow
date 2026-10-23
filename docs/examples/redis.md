@@ -2,6 +2,8 @@
 
 This example models a shop receiving orders. The simulation writes each order to a Redis Stream as it is placed and reads parameter updates from a Redis Pub/Sub channel. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../user-guide/ways-to-write.md) compares the three.
 
+Look for one entry in the `order_events` stream for each order. After you publish a new arrival rate to `simulation_params`, the stream grows faster.
+
 === "YAML"
 
     This example builds the simulation of the builder example in the Builder tab from a YAML blueprint, with no Python. `RedisEgress` writes order records to the `order_events` stream, named by each record's `__stream__` key. `RedisIngress` subscribes to the `simulation_params` channel.
@@ -62,7 +64,7 @@ This example models a shop receiving orders. The simulation writes each order to
 
     **Full Source Code**
 
-    `record_order` has no service or resource, so it publishes its fixed `payload` as soon as an arrival spawns it, with the task id added as `order_id`. A mapping payload is a constant, so every order record here has the same `channel` field, `web`. The builder and low-level versions publish the same records.
+    `record_order` has no service or resource, so it publishes its fixed `payload` as soon as an arrival spawns it, with the task id added as `order_id`. A mapping payload is a constant, so every order record here has the same `channel` field, `web`.
 
     Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
@@ -109,7 +111,7 @@ This example models a shop receiving orders. The simulation writes each order to
 
 === "Builder"
 
-    This example demonstrates how to integrate `desflow` with Redis using the **builder API (`SimulationContext`)**.
+    This version builds the simulation with the builder API (`SimulationContext`).
 
     With `RedisIngress` and `RedisEgress`, the simulation reads parameter updates through Pub/Sub and writes events and telemetry to Redis Streams.
 
@@ -206,11 +208,6 @@ This example models a shop receiving orders. The simulation writes each order to
     ```
     `RedisIngress` does not log the message it receives. To see that the update took effect, watch `XLEN order_events`. The arrival rate goes from 2.0 to 10.0 orders a second, so the stream grows about five times faster than before.
 
-    ```bash
-    # Clean up the infrastructure when finished
-    odctl down valkey --volumes
-    ```
-
     **Full Source Code**
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
@@ -284,7 +281,7 @@ This example models a shop receiving orders. The simulation writes each order to
 
 === "Low-level"
 
-    This example demonstrates how to integrate `desflow` with Redis using the **low-level API (`DynamicRealtimeEnvironment`)**.
+    This version wires the simulation by hand on `DynamicRealtimeEnvironment`, the low-level API.
 
     This is useful if you are migrating existing SimPy generators and prefer to handle `env.process()` and component registration manually rather than through the builder.
 
@@ -338,11 +335,6 @@ This example models a shop receiving orders. The simulation writes each order to
     docker exec -it valkey valkey-cli --user user --pass password PUBLISH simulation_params '{"path": "Shop.arrival.orders.rate", "value": 10.0}'
     ```
     `RedisIngress` does not log the message it receives. To see that the update took effect, watch `XLEN order_events`. The arrival rate goes from 2.0 to 10.0 orders a second, so the stream grows about five times faster than before.
-
-    ```bash
-    # Clean up the infrastructure when finished
-    odctl down valkey --volumes
-    ```
 
     **Full Source Code**
 
@@ -431,3 +423,16 @@ This example models a shop receiving orders. The simulation writes each order to
         logging.basicConfig(level=logging.INFO)
         run()
     ```
+
+## Records
+
+The three tabs write the same records, which [a test](https://github.com/jaehyeon-kim/desflow/blob/main/tests/docs/test_example_twins.py) checks by running each version unpaced. A real run writes each order record to the `order_events` stream. `desflow run redis.yaml --sample 3 --stdout` prints the first three as JSON lines instead, with no Valkey:
+
+<!-- records: redis-sample -->
+```text
+{"stream_type":"event","sim_ts":0.638,"timestamp":"...","key":"orders-1","task":"record_order","instance":0,"value":{"channel":"web","status":"placed","order_id":0}}
+{"stream_type":"event","sim_ts":0.674,"timestamp":"...","key":"orders-2","task":"record_order","instance":1,"value":{"channel":"web","status":"placed","order_id":1}}
+{"stream_type":"event","sim_ts":0.934,"timestamp":"...","key":"orders-3","task":"record_order","instance":2,"value":{"channel":"web","status":"placed","order_id":2}}
+```
+
+This command leaves out the `__stream__` key that names the stream, because only a Redis sink uses it, and logs a warning that says so. `RedisEgress` also removes the key before it writes, so the stored records have the same fields.

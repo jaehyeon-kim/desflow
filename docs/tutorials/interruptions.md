@@ -1,6 +1,6 @@
 # Interruptions
 
-A quarter of the shop's orders are express, as in [Priorities](priorities.md), but now an express order does not wait for the regular order being packed: it takes the packer at once. This page asks: **what remains of a regular order's packing when an express order takes its packer, and which way of carrying on keeps regular orders waiting least?** It compares three policies over an hour.
+A quarter of the shop's orders are express, as in [Priorities](priorities.md), but now an express order does not wait for the regular order being packed: it takes the packer at once. This page asks: **what remains of a regular order's packing when an express order takes its packer, and which way of carrying on keeps regular orders waiting least?** The decision is which of three policies a regular order follows when it loses the packer. The measures are the number of preemptions, the mean wait of regular orders, and the orders packed and lost. The boundary is three runs of the hour, one for each policy, each with the seed 42. The assumptions are that both kinds of order arrive at random, and that every order takes the same time to pack.
 
 ## What You Add
 

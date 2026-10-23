@@ -1,6 +1,6 @@
 # Parquet History, Kafka Live
 
-One run writes ten minutes of backdated history to Parquet. It then publishes to Kafka in real time, and this second part is the live tail. Each tab shows the example written one way, and the three publish the same records. The sections after the tabs explain why one run is better than two, how the settings fit together and what to get right.
+One run writes ten minutes of backdated history to Parquet. It then publishes to Kafka in real time, and this second part is the live tail. Look for the history's Parquet files in `data/backfill/`, then for the `Logical clock reached go-live` line in the log, after which records reach Kafka at the pace of the wall clock. Each tab shows the example written one way. The sections after the tabs show the records, and explain why one run is better than two, how the settings fit together and what to get right.
 
 === "YAML"
 
@@ -54,9 +54,9 @@ One run writes ten minutes of backdated history to Parquet. It then publishes to
 
     Ten minutes of history are written to `data/backfill/` within the first second, then the run publishes to `sim-events` and `sim-telemetry` in real time for 60 seconds and ends. The history folder is created on the first write, and `KafkaEgress` creates the two topics when it starts.
 
-    **Full Source Code**
-
     `logical_start_time: -10m` and `go_live_at: now` are both read against one moment, the time the file is loaded, so they are exactly ten minutes apart. `until: 11m` then adds one minute of live tail. `when: history` sends the records stamped before `go_live_at` to Parquet, and `when: live` sends the rest to Kafka.
+
+    **Full Source Code**
 
     Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
@@ -127,7 +127,7 @@ One run writes ten minutes of backdated history to Parquet. It then publishes to
 
 === "Builder"
 
-    [`examples/builder/backfill_live_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/builder/backfill_live_example.py) backdates the clock by ten minutes, writes those ten minutes to Parquet in well under a second, then publishes to Kafka in real time for sixty seconds. `HISTORY_MINUTES` and `LIVE_SECONDS` set the length of the two halves. A day of history (about 130,000 records) generates in about two seconds.
+    [`examples/builder/backfill_live_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/builder/backfill_live_example.py) backdates the clock by ten minutes, writes those ten minutes to Parquet in well under a second, then publishes to Kafka in real time for sixty seconds. `HISTORY_MINUTES` and `LIVE_SECONDS` set the length of the two halves. A day of history (`HISTORY_MINUTES=1440`) is about 128,000 events.
 
     **Quick Start**
 
@@ -573,6 +573,22 @@ One run writes ten minutes of backdated history to Parquet. It then publishes to
     if __name__ == "__main__":
         run()
     ```
+
+---
+
+## Records
+
+The three tabs publish the same records, which [a test](https://github.com/jaehyeon-kim/desflow/blob/main/tests/docs/test_example_twins.py) checks by running each version unpaced. A real run writes the records stamped before `go_live_at` to Parquet files under `data/backfill/`, and the rest to `sim-events` and `sim-telemetry`. `desflow run backfill_live.yaml --sample 4 --stdout` prints the first four events as JSON lines instead, unpaced and with no broker:
+
+<!-- records: backfill-live-sample -->
+```text
+{"stream_type":"event","sim_ts":2.552,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","status":"queued"}}
+{"stream_type":"event","sim_ts":2.552,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","status":"started"}}
+{"stream_type":"event","sim_ts":2.696,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","status":"queued"}}
+{"stream_type":"event","sim_ts":2.696,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","status":"started"}}
+```
+
+Each `timestamp` is shown as `...`, because it changes with every run. It is the start of the history plus `sim_ts`, so these records are stamped before `go_live_at` and belong to the history.
 
 ---
 

@@ -1,6 +1,6 @@
 # Local Replay
 
-The shop recorded every order of one morning, 09:00 to 10:00 on 1 October 2026: 1,963 orders, one every 1.83 seconds on average (33 a minute). A model with exponential gaps at that rate says one packer keeps waits short. This page asks: **what does the shop do with the same orders, at the times they were really placed?** It replays the recorded morning and compares it with the model.
+The shop recorded every order of one morning, 09:00 to 10:00 on 1 October 2026: 1,963 orders, one every 1.83 seconds on average (33 a minute). A model with exponential gaps at that rate says one packer keeps waits short. This page asks: **what does the shop do with the same orders, at the times they were really placed?** The decision is whether one packer is enough for that morning. The measures are the mean and the longest wait. The boundary is the recorded hour, from an order's arrival to the end of its packing. The assumption is that every order takes the same time to pack. It replays the recorded morning and compares it with the model.
 
 ## What You Add
 

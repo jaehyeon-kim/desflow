@@ -1,10 +1,10 @@
 # Priorities
 
-A quarter of the shop's orders are now express: the customer paid for speed. With one packer and an order every 1.67 seconds on average (36 a minute), an order waits about 5 seconds on average. This page asks: **can express orders jump the queue?** And what does that cost the others?
+A quarter of the shop's orders are now express: the customer paid for speed. With one packer and an order every 1.67 seconds on average (36 a minute), an order waits about 5 seconds on average. This page asks: **can express orders jump the queue?** And what does that cost the others? The decision is whether the packer serves express orders first or every order in order of arrival. The measures are the mean wait of express orders and of regular orders. The boundary is two runs of the hour, one for each queue order, each with the seed 42. The assumptions are that both kinds of order arrive at random at steady rates, and that every order takes the same time to pack.
 
 ## What You Add
 
-This page adds an `express` arrival whose task has `priority: 0`, while regular orders keep `priority: 1`, and a packer that serves its queue by priority. The shop is the one from [First Simulation](first-simulation.md), with one packer and 1.5 seconds of packing, run for an hour. A regular order arrives every 2.22 seconds on average (27 a minute, `rate: 0.45`), and an express order every 6.67 seconds (9 a minute, `rate: 0.15`).
+This page adds an `express` arrival whose task has `priority: 0`, while regular orders keep `priority: 1`, and a packer that serves its queue by priority. The shop is the one from [First Simulation](first-simulation.md), with one packer and 1.5 seconds of packing. A regular order arrives every 2.22 seconds on average (27 a minute, `rate: 0.45`), and an express order every 6.67 seconds (9 a minute, `rate: 0.15`).
 
 ---
 

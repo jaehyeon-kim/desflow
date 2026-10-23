@@ -1,10 +1,10 @@
 # Stock
 
-Every order needs a box, and boxes come from a shelf that a delivery fills every 100 seconds. In that time about 50 orders arrive on average, and each takes one box. This page asks: **what happens when stock runs out?** It compares deliveries of 60 boxes with deliveries of 40.
+Every order needs a box, and boxes come from a shelf that a delivery fills every 100 seconds. In that time about 50 orders arrive on average, and each takes one box. This page asks: **what happens when stock runs out?** The decision is the size of each delivery: 60 boxes or 40. The measures are the mean wait for packing and how often the shelf is empty. The boundary is two runs of the hour, one for each delivery size, each with the seed 42 and starting with 50 boxes on the shelf. The assumptions are that orders arrive at random, that every delivery comes on time, and that every order takes the same time to pack.
 
 ## What You Add
 
-This page adds a `stock` container, from which packing takes one box per order, and a `deliveries` arrival, whose task adds boxes to the shelf. The shop is the one from [First Simulation](first-simulation.md): one packer, an order every 2 seconds on average, and 1.5 seconds of packing, run for an hour.
+This page adds a `stock` container, from which packing takes one box per order, and a `deliveries` arrival, whose task adds boxes to the shelf. The shop is the one from [First Simulation](first-simulation.md): one packer, an order every 2 seconds on average, and 1.5 seconds of packing.
 
 ---
 

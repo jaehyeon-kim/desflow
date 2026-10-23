@@ -1,10 +1,10 @@
 # Patience
 
-The shop now gets an order every 1.43 seconds on average (42 a minute, `rate: 0.7`). Its one packer packs one every 1.5 seconds (40 a minute), so orders arrive faster than they can be packed. A real customer does not wait for ever: one whose order has not started within 30 seconds cancels it. The courier also leaves at the hour, so the shop takes no new orders in the last five minutes. This page asks: **which orders leave or refuse to join, and what does that do to the wait of the others?** It measures the hour with a patience of 30 seconds and without one.
+The shop now gets an order every 1.43 seconds on average (42 a minute, `rate: 0.7`). Its one packer packs one every 1.5 seconds (40 a minute), so orders arrive faster than they can be packed. A real customer does not wait for ever: one whose order has not started within 30 seconds cancels it. The courier also leaves at the hour, so the shop takes no new orders in the last five minutes. This page asks: **which orders leave or refuse to join, and what does that do to the wait of the others?** The decision is which figures the shop reports for an hour in which customers may leave. The measures are the orders that leave the queue or refuse to join, and the mean and longest wait of the packed orders. The boundary is two runs of the hour, one with a patience of 30 seconds and one without, each with the seed 42. The assumptions are that orders arrive at random, that every order takes the same time to pack, and that every customer has the same patience.
 
 ## What You Add
 
-This page adds a `patience` and a `balk` condition to the packing task. The shop is the one from [First Simulation](first-simulation.md), with one packer and 1.5 seconds of packing, run for an hour, but with an order every 1.43 seconds on average.
+This page adds a `patience` and a `balk` condition to the packing task. The shop is the one from [First Simulation](first-simulation.md), with one packer and 1.5 seconds of packing, but with an order every 1.43 seconds on average.
 
 ---
 

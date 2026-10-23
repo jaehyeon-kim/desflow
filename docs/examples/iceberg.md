@@ -2,7 +2,7 @@
 
 This example generates a day of a shop's orders at `factor=0.0` and appends them to an Apache Iceberg table through an Iceberg REST catalog. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../user-guide/ways-to-write.md) compares the three.
 
-`ParquetStorageEgress` writes files and leaves registering them as a table to you. `IcebergStorageEgress` appends into an Iceberg table instead, so one run ends with a table another engine can query.
+`ParquetStorageEgress` writes files and leaves registering them as a table to you. `IcebergStorageEgress` appends into an Iceberg table instead, so one run ends with a table another engine can query. Look for the day's events as rows of `simulation.events`, and for the few snapshots that hold them.
 
 Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, a manifest list and a new `metadata.json`, so query planning slows down as snapshots build up. This example therefore gives the Iceberg egress a large `batch_size` of its own. At `factor=0.0` the buffer is flushed each time it holds 200,000 records, and once more at the end of the run. Each flush adds one snapshot to the table.
 
@@ -133,7 +133,7 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
 
 === "Builder"
 
-    This example demonstrates how to run a simulation in **fast-forward mode** using the **builder API (`SimulationContext`)** and commit the output straight into an Apache Iceberg table using the `IcebergStorageEgress` connector.
+    This version builds the simulation with the builder API (`SimulationContext`) and writes with `IcebergStorageEgress`.
 
     **Quick Start**
 
@@ -369,7 +369,7 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
 
 === "Low-level"
 
-    This example demonstrates how to run a simulation in **fast-forward mode** using the low-level **Low-level API (`DynamicRealtimeEnvironment`)** and commit the output straight into an Apache Iceberg table using the `IcebergStorageEgress` connector.
+    This version wires the simulation by hand on `DynamicRealtimeEnvironment`, the low-level API, and writes with `IcebergStorageEgress`.
 
     **Quick Start**
 
@@ -611,3 +611,17 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
     if __name__ == "__main__":
         run()
     ```
+
+## Records
+
+The three tabs write the same records, which [a test](https://github.com/jaehyeon-kim/desflow/blob/main/tests/docs/test_example_twins.py) checks by running each version unpaced. A real run appends them as rows of the `simulation.events` table. `desflow run iceberg.yaml --sample 4 --stdout` prints the first four events as JSON lines instead, and contacts no catalog:
+
+<!-- records: iceberg-sample -->
+```text
+{"stream_type":"event","sim_ts":0.638,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","status":"queued"}}
+{"stream_type":"event","sim_ts":0.638,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","status":"started"}}
+{"stream_type":"event","sim_ts":0.674,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","status":"queued"}}
+{"stream_type":"event","sim_ts":0.674,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","status":"started"}}
+```
+
+Each event becomes one row of the table, and the two fields of `value`, `path_id` and `status`, become columns of their own.

@@ -1,10 +1,10 @@
 # Randomness and Seeds
 
-Run the busy shop twice, and the orders arrive at different times and take different times to pack. A stochastic model, one that draws random times, behaves this way, but its results are then hard to check or to compare. This page asks: **why do runs differ, and how can you reproduce one?**
+Run the busy shop twice, and the orders arrive at different times and take different times to pack. A stochastic model, one that draws random times, behaves this way, but its results are then hard to check or to compare. This page asks: **why do runs differ, and how can you reproduce one?** The decision is how to set up runs so that a result can be checked and two versions of the model compared. The measures are the times of one order's events, on repeated runs and after a second arrival is added. The boundary is a run of one minute. The assumptions are that orders arrive at random at 1.8 a second, and that each packing time is drawn on its own, whatever the others were.
 
 ## What You Add
 
-This page adds a seed, then a second arrival: returned parcels. The model simulates the busy hour from [Queues and Capacity](queues-and-capacity.md), using its answer of 3 packers. Packing times now vary: 1.5 seconds on average with a standard deviation of 0.5 seconds, drawn from a `normal` distribution. The run is one minute long.
+This page adds a seed, then a second arrival: returned parcels. The model simulates the busy hour from [Queues and Capacity](queues-and-capacity.md), using its answer of 3 packers. Packing times now vary: 1.5 seconds on average with a standard deviation of 0.5 seconds, drawn from a `normal` distribution.
 
 ---
 

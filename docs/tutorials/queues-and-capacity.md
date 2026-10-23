@@ -1,10 +1,10 @@
 # Queues and Capacity
 
-In its busy hour the shop gets 1.8 orders a second, and packing still takes 1.5 seconds. One packer cannot keep up. This page asks: **how many packers keep the mean wait under 10 seconds?**
+In its busy hour the shop gets 1.8 orders a second, and packing still takes 1.5 seconds. One packer cannot keep up. This page asks: **how many packers keep the mean wait under 10 seconds?** The decision is the number of packers for the busy hour. The measures are the packers' [utilisation](../des/queueing-basics.md#utilisation) and the mean wait. The boundary is four runs of the hour, one for each number of packers, each with the seed 42. The assumptions are that orders arrive at random at a steady rate, and that every order takes the same time to pack.
 
 ## What You Add
 
-This page adds more orders, then more packers, and `desflow explain`, which works out the load from the model before it runs. The shop is the one from [First Simulation](first-simulation.md), with the arrival rate of the busy hour, a run of one hour, and the number of packers as a setting you change between runs.
+This page adds more orders, then more packers, and `desflow explain`, which works out the load from the model before it runs. The shop is the one from [First Simulation](first-simulation.md), with the arrival rate of the busy hour and the number of packers as a setting you change between runs.
 
 ---
 

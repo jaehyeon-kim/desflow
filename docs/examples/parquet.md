@@ -2,7 +2,7 @@
 
 This example generates a week of a shop's orders at `factor=0.0` and writes them to Parquet files, on the local disk or in S3-compatible storage. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../user-guide/ways-to-write.md) compares the three.
 
-desflow is built for real-time digital twins, but the same model can also run faster than real time. With `factor` set to 0 and a chosen start time, a run generates a large amount of historical data in seconds. It can also run ahead of the present to predict future states.
+desflow is built for real-time digital twins, but the same model can also run faster than real time. With `factor` set to 0 the clock does not wait for the wall clock, and `logical_start_time` puts the week before now, so the records are stamped as history. Look for the Parquet files the run writes, one per batch, with one row for each lifecycle event.
 
 === "YAML"
 
@@ -117,7 +117,7 @@ desflow is built for real-time digital twins, but the same model can also run fa
 
 === "Builder"
 
-    This example demonstrates how to run a simulation in **fast-forward mode** using the **builder API (`SimulationContext`)** and write compressed columnar data (Parquet) directly to local storage or an AWS S3 data lake using the `ParquetStorageEgress` connector.
+    This version builds the simulation with the builder API (`SimulationContext`) and writes with `ParquetStorageEgress`.
 
     **Quick Start**
 
@@ -314,7 +314,7 @@ desflow is built for real-time digital twins, but the same model can also run fa
 
 === "Low-level"
 
-    This example demonstrates how to run a simulation in **fast-forward mode** using the low-level **Low-level API** and write compressed columnar data (Parquet) directly to local storage or an AWS S3 data lake using the `ParquetStorageEgress` connector.
+    This version wires the simulation by hand on `DynamicRealtimeEnvironment`, the low-level API, and writes with `ParquetStorageEgress`.
 
     **Quick Start**
 
@@ -531,3 +531,17 @@ desflow is built for real-time digital twins, but the same model can also run fa
     if __name__ == "__main__":
         run()
     ```
+
+## Records
+
+The three tabs write the same records, which [a test](https://github.com/jaehyeon-kim/desflow/blob/main/tests/docs/test_example_twins.py) checks by running each version unpaced. A real run writes them as rows of Parquet files under `data/`. `desflow run parquet.yaml --sample 4 --stdout` prints the first four events as JSON lines instead, and writes no file:
+
+<!-- records: parquet-sample -->
+```text
+{"stream_type":"event","sim_ts":0.638,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","status":"queued"}}
+{"stream_type":"event","sim_ts":0.638,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","status":"started"}}
+{"stream_type":"event","sim_ts":0.674,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","status":"queued"}}
+{"stream_type":"event","sim_ts":0.674,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","status":"started"}}
+```
+
+Each event becomes one row of a file, and the two fields of `value`, `path_id` and `status`, become columns of their own.

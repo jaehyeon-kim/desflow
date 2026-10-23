@@ -1,6 +1,6 @@
 # Trusting Results
 
-[Measuring a Run](measuring-a-run.md) read five numbers from one run of the busy hour. The run started with an empty shop: no orders waiting and every packer free. A real shop at that hour is never empty. The first orders of the run find free packers, so they wait less than orders in the real shop would. This page asks: **is one run enough?** It answers in two parts: how much of the start to leave out, and how many runs give an answer precise enough to act on.
+[Measuring a Run](measuring-a-run.md) read five numbers from one run of the busy hour. The run started with an empty shop: no orders waiting and every packer free. A real shop at that hour is never empty. The first orders of the run find free packers, so they wait less than orders in the real shop would. This page asks: **is one run enough?** The decision is how much of the start to leave out, and how many runs give an answer precise enough to act on. The measures are the mean wait and the packers' [utilisation](../des/queueing-basics.md#utilisation), and how much each varies from run to run. The boundary is the busy hour with 3 packers, run once with the seed 42 and then with other seeds. The assumptions are those of Measuring a Run: orders at random at 1.8 a second, and the 40 packing times measured at the bench.
 
 ## What You Add
 

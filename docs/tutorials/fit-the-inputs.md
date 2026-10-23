@@ -1,6 +1,6 @@
 # Fit the Inputs
 
-[Choosing Inputs](choosing-inputs.md) compared four candidates for the packing time by hand and chose the 40 times measured at the bench. desflow can fit every distribution family to those times and say which fits best. This page asks: **which supported distribution fits the 40 packing times, and does the choice change the busy hour's answer?**
+[Choosing Inputs](choosing-inputs.md) compared four candidates for the packing time by hand and chose the 40 times measured at the bench. desflow can fit every distribution family to those times and say which fits best. This page asks: **which supported distribution fits the 40 packing times, and does the choice change the busy hour's answer?** The decision is which fitted distribution the busy hour uses for packing. The measures are how well each distribution fits the times, and the busy hour's mean wait with the two best fits and with the 40 times. The boundary is the busy hour with 3 packers, run as [Does the Choice Matter?](#does-the-choice-matter) sets out. The assumptions are that orders arrive at random at 1.8 a second, and that the 40 times stand for every packer.
 
 ## What You Add
 

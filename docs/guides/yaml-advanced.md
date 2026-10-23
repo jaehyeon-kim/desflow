@@ -2,7 +2,7 @@
 
 A blueprint holds configuration as plain YAML. When a simulation needs logic that YAML cannot express, the file can reference a Python object with `!python module.attribute` in place of a value. It builds on [YAML Blueprints](../user-guide/blueprints.md), which describes the blueprint file. This guide covers when to use it, how a reference is found, what each field receives, and the setup step. It then works through the OML hot rolling digital twin, a steel mill model, and ends with the errors a reference can give and a note on security.
 
-The [advanced Postgres example](../examples/advanced-postgres-orders.md) is a complete blueprint with one Python process. Every file on this page is in the repository under [`docs/snippets/`](https://github.com/jaehyeon-kim/desflow/tree/main/docs/snippets).
+The [Related Records](../examples/advanced-postgres-orders.md) example is a complete blueprint with one Python process. Every file on this page is in the repository under [`docs/snippets/`](https://github.com/jaehyeon-kim/desflow/tree/main/docs/snippets).
 
 ---
 
