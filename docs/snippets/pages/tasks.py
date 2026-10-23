@@ -21,8 +21,6 @@ app = (
     .add_resource("packers", current_cap=1, max_cap=3)
     .add_service("packing", dist="normal", mean=4.0, std=1.0)
     .add_service("labelling", dist="constant", value=2.0)
-    .add_arrival("orders", dist="exponential", rate=0.2)
-    .add_arrival("returns", dist="exponential", rate=0.1)
     .add_egress(ConsoleEgress())
 )
 
@@ -53,26 +51,24 @@ def print_label(task_id: int):
 
 
 # --8<-- [start:builder-arrival]
-@app.arrival_loop("orders")
-def orders(context: SimulationContext):
-    task_id = 0
-    while True:
-        # Draws the next gap, waits for it, and returns the new entity, keyed orders-1, ...
-        order = yield context.wait_for_arrival("orders")
-        context.spawn(pack_order(task_id, entity=order))  # the loop goes on at once
-        task_id += 1
-
-
+# Each arrival starts one pack_order
+app.add_arrival("orders", dist="exponential", rate=0.2, spawn="pack_order")
 # --8<-- [end:builder-arrival]
+
+# --8<-- [start:builder-arrival-loop]
+app.add_arrival("returns", dist="exponential", rate=0.1)
 
 
 @app.arrival_loop("returns")
 def returns(context: SimulationContext):
-    task_id = 0
     while True:
+        # Draws the next gap, waits for it, and returns the new entity, keyed returns-1, ...
         parcel = yield context.wait_for_arrival("returns")
-        context.spawn(return_logged(task_id, entity=parcel))
-        task_id += 1
+        task_id = context.next_instance("return_logged")  # the task's one counter
+        context.spawn(return_logged(task_id, entity=parcel))  # the loop goes on at once
+
+
+# --8<-- [end:builder-arrival-loop]
 
 
 # --8<-- [start:builder-process]
@@ -147,7 +143,7 @@ def breaks_process(env, resource: str, every: float, duration: float):
 
 # --8<-- [start:low-level-arrival]
 def orders_process(env, sampler, packers):
-    """What @app.arrival_loop does, by hand."""
+    """What an arrival with spawn does, by hand."""
     gap = env.registry.get_config("Shop.arrival.orders")
     label_ids = itertools.count()
     task_id = 0

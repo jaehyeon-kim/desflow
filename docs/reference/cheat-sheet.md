@@ -17,7 +17,7 @@ The common YAML keys and builder calls side by side, each linked to the page tha
 | To | YAML | Builder | Read |
 |---|---|---|---|
 | Draw a service time | `services: {packing: {dist: normal, mean: 3, std: 0.5}}` | `app.add_service("packing", dist="normal", mean=3, std=0.5)` | [Arrivals and Services](../user-guide/arrivals-and-services.md) |
-| Start a task at random gaps | `arrivals: {orders: {dist: exponential, rate: 0.5, spawn: pack}}` | `app.add_arrival("orders", dist="exponential", rate=0.5)` and an `arrival_loop` | [Arrivals and Services](../user-guide/arrivals-and-services.md) |
+| Start a task at random gaps | `arrivals: {orders: {dist: exponential, rate: 0.5, spawn: pack}}` | `app.add_arrival("orders", dist="exponential", rate=0.5, spawn="pack")` | [Arrivals and Services](../user-guide/arrivals-and-services.md) |
 | Give each entity attributes | `arrivals.<name>.attributes` | `app.add_arrival(..., attributes={...})` | [Task Flow](../user-guide/task-flow.md) |
 | Replay recorded arrivals | `arrivals.<name>.replay: {path, time}` | `app.add_arrival_replay(name, source)` | [Local Replay](../tutorials/local-replay.md) |
 | Fit a service time to data | `desflow fit`, then `!include` | `fit_column(values)` | [Input Fitting](../user-guide/input-fitting.md) |
@@ -88,5 +88,8 @@ The common YAML keys and builder calls side by side, each linked to the page tha
 | Fire a one-shot signal first at its time, or later | `on: [{fire: {signal: s, urgent: true, after: 5 s}}]` | `@app.task(on=[{"fire": {"signal": "s", "urgent": True, "after": 5}}])` | [Signals and Waiting](../user-guide/tasks-and-processes/signals-and-waiting.md#actions-when-an-event-happens) |
 | Run on your own environment class | `simulation: {environment: !python mod.Env}` | `SimulationContext(environment=Env)` | [Blueprints](../user-guide/blueprints.md) |
 | Stop the run on a failure nobody handles | `run: {on_unhandled_failure: stop}` | `app.run(on_unhandled_failure="stop")` | [Failures](../user-guide/tasks-and-processes/failures.md#failures) |
+| Print the first events of a blueprint as JSON lines | `desflow run FILE --sample 5` | not in the builder | [YAML Format](yaml-format.md#running-a-blueprint) |
+| Print every record of a run in place of its sinks | `desflow run FILE --stdout` | not in the builder | [YAML Format](yaml-format.md#running-a-blueprint) |
+| Find a distribution's parameters from a mean and std | `desflow dist gamma --mean 1.5 --std 0.5` | the same command | [Choosing Inputs](../tutorials/choosing-inputs.md#measured-times) |
 | Repeat a run with other seeds | `desflow run FILE --replications 20` | `replicate(model, 20, seed=, until=)` | [Replications](../user-guide/replications.md) |
 | Compare designs | `desflow experiment FILE` | `run_experiment(spec)` | [Experiments](../user-guide/experiments/index.md) |

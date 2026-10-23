@@ -69,6 +69,7 @@ from desflow.analysis.models import LowLevelModel
 from desflow.analysis.results import CheckFailed, ExperimentResult
 from desflow.analysis.runner import Replications, replicate, run_experiment
 from desflow.analysis.spec import ExperimentSpec
+from desflow.loading import load_context
 from desflow.utils import time_to_seconds
 
 try:
@@ -86,6 +87,7 @@ __all__ = [
     "SignalFailed",
     "TaskFailed",
     "SimulationContext",
+    "load_context",
     "SimulationRegistry",
     "DynamicResource",
     "ResourceBase",

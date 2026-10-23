@@ -254,6 +254,23 @@ At `factor: 1.0` one simulated second takes one real second, so the run takes 20
 
 Read `sim_ts`, the simulation time of each record. It does not count up in small steps: it jumps from 2.552 to 2.696, then to 3.737, 4.02 and 4.052. The simulation clock moves straight to the time of the next event, because nothing changes between two events. At `factor: 0` the same run takes a fraction of a second, with the same records.
 
+To see the first records without waiting or changing the file, `--sample 5` runs the blueprint unpaced, prints its first 5 events as JSON lines on stdout, one record per line, and stops:
+
+```bash
+desflow run first_shop.yaml --sample 5
+```
+
+<!-- records: first-sample -->
+```text
+{"stream_type":"event","sim_ts":2.552,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","status":"queued"}}
+{"stream_type":"event","sim_ts":2.552,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","status":"started"}}
+{"stream_type":"event","sim_ts":2.696,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","status":"queued"}}
+{"stream_type":"event","sim_ts":3.737,"timestamp":"...","key":"orders-3","task":"pack_order","instance":2,"value":{"path_id":"Shop.service.packing","status":"queued"}}
+{"stream_type":"event","sim_ts":4.02,"timestamp":"...","key":"orders-4","task":"pack_order","instance":3,"value":{"path_id":"Shop.service.packing","status":"queued"}}
+```
+
+They are the first five events above, written as the record itself with its `stream_type`. The run's log stays on stderr, so a pipe such as `| jq .key` reads only the records. [YAML Format](../reference/yaml-format.md#running-a-blueprint) lists the other ways to run a blueprint.
+
 ---
 
 ## Result

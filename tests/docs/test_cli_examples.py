@@ -12,7 +12,7 @@ import pytest
 from typer.testing import CliRunner
 
 from desflow.blueprint import examples
-from desflow.blueprint.cli import app
+from desflow.cli import app
 
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLES_DIR = ROOT / "examples"

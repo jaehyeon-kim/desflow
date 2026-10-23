@@ -1,0 +1,65 @@
+"""`desflow experiment`: runs an experiment file through `desflow.analysis`."""
+
+import logging
+from pathlib import Path
+from typing import Annotated, Optional
+
+import typer
+
+
+def register(app: typer.Typer) -> None:
+    """Adds the `experiment` command to the app.
+
+    Args:
+        app: The `desflow` Typer app.
+    """
+    app.command("experiment")(_experiment)
+
+
+# Each command is private: typer shows its docstring as the help text, so it
+# carries no Args section
+def _experiment(
+    file: Annotated[
+        Path,
+        typer.Argument(
+            help="The experiment file.",
+            metavar="FILE",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+        ),
+    ],
+    output: Annotated[
+        Optional[Path],
+        typer.Option(
+            metavar="FOLDER",
+            help="Where to write the artifacts. Overrides output in the file.",
+        ),
+    ] = None,
+) -> None:
+    """Run the experiment in FILE and write its artifacts and report.
+
+    Exits 1 if a check fails.
+    """
+    from desflow.analysis.runner import run_experiment
+    from desflow.blueprint.loader import BlueprintError
+
+    logging.basicConfig(
+        level=logging.WARNING,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
+    try:
+        result = run_experiment(file, raise_on_failure=False, output=output)
+    except (BlueprintError, ValueError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=2) from None
+    typer.echo(f"Wrote the artifacts and report.md to {result.output}")
+    for row in result.checks:
+        state = "passed" if row["passed"] else "FAILED"
+        typer.echo(
+            f"{state}: {row['design']}: {row['measure']} {row['bound']} "
+            f"{row['limit']:g}, checked {row['value']:.4g}"
+        )
+    if result.failed:
+        raise typer.Exit(code=1)

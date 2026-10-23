@@ -1,6 +1,10 @@
 import asyncio
 import logging
 import queue
+import sys
+from typing import Literal
+
+import orjson
 
 from desflow.connectors.egress.base import BaseEgress, drop_reserved_keys
 
@@ -9,21 +13,43 @@ logger = logging.getLogger(__name__)
 _PREFIXES = {"telemetry": "[TEL]", "event": "[EVT]", "label": "[LBL]"}
 
 
+_FORMATS = ("log", "json")
+
+
 class ConsoleEgress(BaseEgress):
     """
-    Local egress provider that outputs simulation data to the standard console.
+    Local egress provider that outputs simulation data to the console.
 
-    This connector serves as a debugging and local development tool. It processes
-    batched data from the simulation and prints formatted entries to stdout,
-    distinguishing between telemetry metrics and discrete events via prefixes.
+    This connector serves as a debugging and local development tool. The `log`
+    format logs each batch, distinguishing telemetry metrics from discrete events
+    by prefixes. The `json` format writes each record to stdout as one JSON line,
+    with its `stream_type`, for a pipe such as `jq`.
     """
+
+    def __init__(self, format: Literal["log", "json"] = "log"):
+        """
+        Chooses how records are written.
+
+        Args:
+            format: `log` logs each batch at INFO level, one prefixed line per
+                record. `json` writes one JSON line per record to stdout at any
+                log level, because it is output, not a log.
+
+        Raises:
+            ValueError: If `format` is neither `log` nor `json`.
+        """
+        if format not in _FORMATS:
+            raise ValueError(f"format must be log or json, got {format!r}")
+        self.format = format
 
     async def run(self, egress_queue: queue.Queue) -> None:
         """
-        Continuously polls the egress queue and prints formatted results.
+        Continuously polls the egress queue and writes each batch.
 
         This method implements an asynchronous polling loop. It extracts batches
-        from the internal queue and writes each batch with one log call at INFO
+        from the internal queue. With the `json` format it writes each batch to
+        stdout in one write, one JSON line per record as published. With the
+        `log` format it writes each batch with one log call at INFO
         level, one line per record, each line starting with a prefix:
         - [TEL]: Telemetry data (e.g., resource utilization, queue lengths).
         - [EVT]: Event data (e.g., task lifecycle transitions).
@@ -49,7 +75,16 @@ class ConsoleEgress(BaseEgress):
                 # Yield to the event loop
                 await asyncio.sleep(0.1)
                 continue
-            if not batch or not logger.isEnabledFor(logging.INFO):
+            if not batch:
+                continue
+            if self.format == "json":
+                # sys.stdout is read at each write, so a caller that replaces it,
+                # such as a test runner, receives the lines
+                batch = drop_reserved_keys(batch, self)
+                sys.stdout.write("".join(orjson.dumps(r).decode() + "\n" for r in batch))
+                sys.stdout.flush()
+                continue
+            if not logger.isEnabledFor(logging.INFO):
                 continue
             batch = drop_reserved_keys(batch, self)
             # Each line is the record without its stream type, which the prefix

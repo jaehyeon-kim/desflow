@@ -86,6 +86,24 @@ When times can be measured, use them. An **empirical** distribution draws from a
 
 The values are taken when the model is loaded. A list is not one number, so an `empirical` distribution has no registry path and does not change while the run goes on; the other distributions have one path per parameter, such as `Shop.service.triangular.mode`.
 
+The measured times have a mean of 1.5 seconds and a standard deviation of 0.4832 seconds. A family fitted to them, such as a `gamma`, takes other parameters, a `shape` and a `scale`. `desflow dist` turns a mean and a standard deviation into them:
+
+```bash
+desflow dist gamma --mean 1.5 --std 0.4832
+```
+
+<!-- records: choosing-dist -->
+```text
+parameters: shape 9.63671, scale 0.155655
+mean 1.5, std 0.4832
+variability: low (std / mean 0.322)
+with no random generator, every draw is 1.5
+YAML: {dist: gamma, shape: 9.63671, scale: 0.155655}
+Python: dist="gamma", shape=9.63671, scale=0.155655
+```
+
+The last two lines are the service in a blueprint and in the builder. The variability label is desflow's own scale on std ÷ mean: none at 0, low below 0.75, moderate from 0.75 to 1.33, and high above. It is low here because the standard deviation is about a third of the mean; an `exponential`, whose standard deviation equals its mean, is moderate.
+
 ---
 
 ## Same Mean, Different Waits
@@ -161,7 +179,7 @@ With the empirical distribution the mean wait is **1.35 seconds**. The constant 
 
 ## Why It Works
 
-In the busy hour the mean wait is roughly proportional to the square of the spread of the gaps between orders plus the square of the spread of the packing times, each spread measured relative to its mean ([Kingman's approximation](../des/queueing-basics.md#variation-lengthens-waits)). The gaps are the same in all four runs, so only the packing spread differs: none for `constant`, a little for `triangular`, more for the measured times, and as much as the mean itself for `exponential`. Replacing a distribution by its mean, as `constant` does, is one of the [Common Mistakes](../des/common-mistakes.md#replacing-a-distribution-by-its-mean). A family fitted to the measured times, such as a `gamma` with their mean and standard deviation, takes other parameters, a `shape` and a `scale`; [Arrivals and Services](../user-guide/arrivals-and-services.md) gives the formulas that turn a mean and a standard deviation into them, and lists each distribution with its parameters and rules. [Fit the Inputs](fit-the-inputs.md) fits every family to the 40 times with `desflow fit`, [Input Fitting](../user-guide/input-fitting.md) describes its options and outcomes, and [Fit a Distribution](../guides/fit-a-distribution.md) fits a column of your own. [Distributions](../reference/distributions.md) gives the mean and variance of each family.
+In the busy hour the mean wait is roughly proportional to the square of the spread of the gaps between orders plus the square of the spread of the packing times, each spread measured relative to its mean ([Kingman's approximation](../des/queueing-basics.md#variation-lengthens-waits)). The gaps are the same in all four runs, so only the packing spread differs: none for `constant`, a little for `triangular`, more for the measured times, and as much as the mean itself for `exponential`. Replacing a distribution by its mean, as `constant` does, is one of the [Common Mistakes](../des/common-mistakes.md#replacing-a-distribution-by-its-mean). [Arrivals and Services](../user-guide/arrivals-and-services.md) lists each distribution with its parameters and rules. [Fit the Inputs](fit-the-inputs.md) fits every family to the 40 times with `desflow fit`, [Input Fitting](../user-guide/input-fitting.md) describes its options and outcomes, and [Fit a Distribution](../guides/fit-a-distribution.md) fits a column of your own. [Distributions](../reference/distributions.md) gives the mean and variance of each family.
 
 ---
 
@@ -236,7 +254,8 @@ In the busy hour the mean wait is roughly proportional to the square of the spre
             app = (
                 SimulationContext(sim_id="Shop", factor=0, random_seed=42)
                 .add_resource("packers", current_cap=3, max_cap=10)
-                .add_arrival("orders", dist="exponential", rate=1.8)
+                # Each order starts the task pack_order
+                .add_arrival("orders", dist="exponential", rate=1.8, spawn="pack_order")
                 # Four candidates for packing, each with a mean of 1.5 seconds
                 .add_service("constant", dist="constant", value=1.5)
                 .add_service("exponential", dist="exponential", rate=0.6667)  # 1 / 1.5 s
@@ -258,14 +277,6 @@ In the busy hour the mean wait is roughly proportional to the square of the spre
                 return {"event_type": "order_packed"}
 
             app.with_stats("typical", interval=3600)
-
-            @app.arrival_loop("orders")
-            def order_generator(context):
-                task_id = 0
-                while True:
-                    order = yield context.wait_for_arrival("orders")
-                    context.spawn(pack_order(task_id, entity=order))
-                    task_id += 1
 
             return app
 

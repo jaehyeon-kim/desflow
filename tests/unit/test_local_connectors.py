@@ -75,3 +75,37 @@ async def test_console_egress_drops_reserved_keys(caplog):
         pass
     assert "[EVT] {'key': 'orders-1', 'value': {'n': 2}}" in caplog.text
     assert caplog.text.count("drops the payload key '__x__'") == 1
+
+
+@pytest.mark.asyncio
+async def test_console_json_writes_one_line_per_record_at_any_log_level(capsys):
+    """The json format writes each record as published, stream_type and all, to
+    stdout, drops reserved keys as the log format does, and does not depend on the
+    log level, because it is output."""
+    import orjson
+
+    logging.getLogger("desflow.connectors.egress.local").setLevel(logging.WARNING)
+    egress_queue = queue.Queue()
+    batch = [
+        {"stream_type": "telemetry", "path_id": "test", "value": 1},
+        {"stream_type": "event", "key": "orders-1", "value": {"__x__": 1, "n": 2}},
+    ]
+    egress_queue.put(batch)
+    task = asyncio.create_task(ConsoleEgress(format="json").run(egress_queue))
+    await asyncio.sleep(0.05)
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+    logging.getLogger("desflow.connectors.egress.local").setLevel(logging.NOTSET)
+    lines = capsys.readouterr().out.splitlines()
+    assert [orjson.loads(line) for line in lines] == [
+        {"stream_type": "telemetry", "path_id": "test", "value": 1},
+        {"stream_type": "event", "key": "orders-1", "value": {"n": 2}},
+    ]
+
+
+def test_console_refuses_an_unknown_format():
+    with pytest.raises(ValueError, match="format must be log or json, got 'csv'"):
+        ConsoleEgress(format="csv")  # type: ignore[arg-type]

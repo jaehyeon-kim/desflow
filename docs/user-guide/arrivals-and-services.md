@@ -59,7 +59,8 @@ An arrival or a service takes the same form for every family, `dist` and the par
 === "Builder"
 
     ```python title="docs/snippets/pages/arrivals_services.py:builder-exponential"
-    app.add_arrival("orders", dist="exponential", rate=0.5)  # an order every 2 s on average
+    # An order every 2 s on average, each starting the task pack
+    app.add_arrival("orders", dist="exponential", rate=0.5, spawn="pack")
     ```
 
 === "Low-level"
@@ -147,7 +148,7 @@ An arrival can take its times from recorded rows instead of a distribution: each
     )
     ```
 
-    `wait_for_arrival("orders")` then waits for the next row, so the arrival loop is written as for any other arrival.
+    `add_arrival_replay` takes `spawn=` as `add_arrival` does, which starts the named task for each row. This example writes an `@app.arrival_loop` of its own instead, where `wait_for_arrival("orders")` waits for the next row.
 
 === "Low-level"
 

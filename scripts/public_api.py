@@ -311,7 +311,7 @@ def cli_lines() -> List[str]:
     """Each command path with its exit codes, then each of its arguments and options."""
     from typer.main import get_command
 
-    from desflow.blueprint.cli import app
+    from desflow.cli import app
 
     callbacks = _callbacks(app, "desflow")
     lines = []

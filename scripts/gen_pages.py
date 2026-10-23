@@ -14,13 +14,15 @@ build.
   (`desflow schema`), which is also published as `schema/blueprint.schema.json`.
 - SimPy Compatibility: every operation in `tests/conformance/register.yaml`, with its
   form in each API, the conformance tests that compare it with SimPy, and its page.
+- CLI: one page per command and sub-command of `desflow`, each its help as Click
+  prints it, and an index page for `desflow` itself.
 """
 
 import json
 import re
 import tomllib
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, Iterator, List, Optional, Set, Tuple
 
 ROOT = Path(__file__).resolve().parents[1]
 REGISTER = ROOT / "tests" / "conformance" / "register.yaml"
@@ -640,6 +642,78 @@ def yaml_keys_page() -> str:
     return "\n".join(lines + yaml_keys_body(2)).rstrip("\n") + "\n"
 
 
+def _help_text(command: Any, name: str, parent: Any = None) -> Tuple[str, Any]:
+    """The help Click prints for `command`, without Rich's boxes, and its context.
+
+    The context is made as a run makes it, without running the command, so each
+    option's default is resolved; the width is fixed so the page does not depend
+    on the terminal that builds it.
+    """
+    command.rich_markup_mode = None
+    context = command.make_context(
+        name, [], parent=parent, resilient_parsing=True, terminal_width=80
+    )
+    return context.get_help(), context
+
+
+def _commands(command: Any, path: str, parent: Any = None) -> Iterator[Tuple[str, str]]:
+    """Each command path under `command`, with its help, in the order help lists them."""
+    text, context = _help_text(command, path.split(" ")[-1], parent)
+    yield path, text
+    for name in getattr(command, "commands", {}):
+        yield from _commands(command.commands[name], f"{path} {name}", context)
+
+
+def cli_pages() -> Dict[str, str]:
+    """The CLI pages: `reference/cli/<command>.md` for each command and
+    sub-command, and `reference/cli/index.md` for `desflow`, as Markdown."""
+    from typer.main import get_command
+
+    from desflow.cli import app
+
+    found = list(_commands(get_command(app), "desflow"))
+    pages: Dict[str, str] = {}
+    rows = []
+    for path, text in found[1:]:
+        name = "-".join(path.split(" ")[1:])
+        summary = text.split("\n\n")[1].strip().split("\n\n")[0]
+        # A summary such as <dest>/<name>/ would read as HTML tags in a table
+        cell = " ".join(summary.split()).replace("<", "&lt;").replace(">", "&gt;")
+        rows.append(f"| [`{path}`]({name}.md) | {cell} |")
+        pages[f"reference/cli/{name}.md"] = "\n".join(
+            [
+                f"# {path}",
+                "",
+                f"The help of `{path}`, generated from the command's code. "
+                "[CLI](index.md) lists every command.",
+                "",
+                "```text",
+                text,
+                "```",
+                "",
+            ]
+        )
+    pages["reference/cli/index.md"] = "\n".join(
+        [
+            "# CLI",
+            "",
+            "The `desflow` command and each of its commands, generated from their "
+            "code, so each page shows the help the installed release prints. "
+            "[Cheat Sheet](../cheat-sheet.md) shows the commands in use.",
+            "",
+            "| Command | What it does |",
+            "|---|---|",
+            *rows,
+            "",
+            "```text",
+            found[0][1],
+            "```",
+            "",
+        ]
+    )
+    return pages
+
+
 def write() -> None:
     """Writes the generated pages into the docs build."""
     import mkdocs_gen_files
@@ -649,6 +723,7 @@ def write() -> None:
         ("reference/statistics.md", statistics_page()),
         ("reference/yaml-keys.md", yaml_keys_page()),
         ("reference/simpy-compatibility.md", compatibility_page()),
+        *cli_pages().items(),
     ):
         with mkdocs_gen_files.open(path, "w") as file:
             file.write(page)

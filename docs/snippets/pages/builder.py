@@ -26,8 +26,6 @@ app.add_variable("conveyor_speed", 1.5)  # any other live value
 # --8<-- [end:resources]
 
 # --8<-- [start:distributions]
-app.add_arrival("orders", dist="exponential", rate=0.5)  # an order every 2 s on average
-app.add_arrival("couriers", dist="constant", value=10)  # a courier every 10 s
 app.add_service("packing", dist="triangular", low=1, mode=2, high=4)
 app.add_service("labelling", dist="constant", value=0.5)
 # --8<-- [end:distributions]
@@ -60,24 +58,9 @@ def collect(task_id: int, item):
 
 
 # --8<-- [start:arrivals]
-@app.arrival_loop("orders")
-def orders(context: SimulationContext):
-    task_id = 0
-    while True:
-        order = yield context.wait_for_arrival("orders")  # keyed orders-1, ...
-        context.spawn(pack_order(task_id, entity=order))
-        task_id += 1
-
-
-@app.arrival_loop("couriers")
-def couriers(context: SimulationContext):
-    task_id = 0
-    while True:
-        courier = yield context.wait_for_arrival("couriers")
-        context.spawn(collect(task_id, entity=courier))
-        task_id += 1
-
-
+# An order every 2 s on average, keyed orders-1, ..., each starting pack_order
+app.add_arrival("orders", dist="exponential", rate=0.5, spawn="pack_order")
+app.add_arrival("couriers", dist="constant", value=10, spawn="collect")  # every 10 s
 # --8<-- [end:arrivals]
 
 # --8<-- [start:stats]

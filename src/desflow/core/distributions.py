@@ -15,6 +15,8 @@ from typing import Any, Callable, Dict, Mapping, Optional, Tuple
 
 import numpy as np
 
+from desflow.config import MIN_DELAY
+
 # Parameters measured in seconds. A YAML blueprint accepts a duration such as
 # `5 min` for each of them; `rate`, `shape`, `weights` and `counts` are plain numbers.
 TIME_PARAMETERS = ("mean", "std", "low", "mode", "high", "scale", "value")
@@ -40,6 +42,10 @@ class Distribution:
         variance: The distribution's variance.
         fixed: The value given when the sampler has no random generator.
         random: Whether a draw uses the generator; `constant` does not.
+        from_moments: The parameters that give a mean and a standard deviation,
+            or None when no simple formula gives them. It raises `ValueError`
+            when the family cannot have that pair.
+        no_formula: Why `from_moments` is None.
     """
 
     name: str
@@ -54,6 +60,8 @@ class Distribution:
     fixed: Callable[[Any], float]
     defaults: Mapping[str, float] = field(default_factory=dict)
     random: bool = True
+    from_moments: Optional[Callable[[float, float], Dict[str, float]]] = None
+    no_formula: str = ""
 
     @property
     def live(self) -> Tuple[str, ...]:
@@ -296,6 +304,142 @@ def _mean_of(c: Any) -> float:
     return c.mean
 
 
+# --- parameters from a mean and a standard deviation -------------------------
+
+_NO_FORMULA = "no simple formula gives the parameters from a mean and std"
+
+
+def _exponential_from(m: float, s: float) -> Dict[str, float]:
+    if not math.isclose(s, m):
+        raise ValueError(
+            f"an exponential's std equals its mean, so mean {m:g} needs std {m:g}, "
+            f"not {s:g}; use gamma for another std"
+        )
+    return {"rate": 1 / m}
+
+
+def _mean_std(m: float, s: float) -> Dict[str, float]:
+    return {"mean": m, "std": s}
+
+
+def _constant_from(m: float, s: float) -> Dict[str, float]:
+    if s != 0:
+        raise ValueError(f"a constant has std 0, not {s:g}")
+    return {"value": m}
+
+
+def _uniform_from(m: float, s: float) -> Dict[str, float]:
+    half = math.sqrt(3) * s
+    if m - half < 0:
+        raise ValueError(
+            f"a uniform with mean {m:g} and std {s:g} has low {m - half:.6g}, "
+            "below 0, and a time cannot be negative; give a smaller std"
+        )
+    return {"low": m - half, "high": m + half}
+
+
+def _gamma_from(m: float, s: float) -> Dict[str, float]:
+    if s == 0:
+        raise ValueError("a gamma needs a std above 0; use constant for std 0")
+    return {"shape": (m / s) ** 2, "scale": s * s / m}
+
+
+def parameters_from_moments(
+    family: "Distribution", mean: float, std: float
+) -> Dict[str, float]:
+    """Returns the parameters of `family` that give this mean and standard deviation.
+
+    The mean must be above 0, except for `constant`, whose value 0 gives a time
+    of 0 on every draw. The result is checked against the family's rules, so a pair the family cannot have is
+    refused.
+
+    Args:
+        family: The distribution family.
+        mean: The mean, in seconds.
+        std: The standard deviation, in seconds.
+
+    Returns:
+        Dict[str, float]: The family's parameters.
+
+    Raises:
+        ValueError: If no simple formula gives the family's parameters (the
+            message is the family's `no_formula`), the std is negative, the mean
+            is not above 0 for a family other than `constant`, or the family
+            cannot have this pair.
+    """
+    if family.from_moments is None:
+        raise ValueError(f"{family.name}: {family.no_formula}")
+    if not std >= 0:
+        raise ValueError(f"std must be 0 or more, got {std:g}")
+    if family.name != "constant" and not mean > 0:
+        raise ValueError(
+            f"mean must be above 0 for {family.name}, got {mean:g}; for a time of 0 "
+            "on every draw, use constant with value 0"
+        )
+    parameters = family.from_moments(mean, std)
+    from desflow.models.params import DistributionConfig
+
+    DistributionConfig(dist=family.name, **parameters)  # type: ignore[arg-type]
+    return parameters
+
+
+def clamped_normal_moments(
+    mean: float, std: float, floor: float = MIN_DELAY
+) -> Tuple[float, float]:
+    """Returns the mean and variance of a normal's draws once the sampler has
+    raised every draw below `floor` to it.
+
+    These are the rectified normal formulas, with the clamp at `floor` instead of
+    0 (Rectified Gaussian distribution, Wikipedia, Mean and variance).
+
+    Args:
+        mean: The normal's mean.
+        std: The normal's standard deviation.
+        floor: The value draws below it are raised to; the sampler's `min_delay`.
+
+    Returns:
+        Tuple[float, float]: The mean and the variance of the clamped draws.
+    """
+    if std == 0:
+        value = max(mean, floor)
+        return value, 0.0
+    a = (floor - mean) / std
+    density = math.exp(-a * a / 2) / math.sqrt(2 * math.pi)
+    below = 0.5 * (1 + math.erf(a / math.sqrt(2)))
+    first = floor * below + mean * (1 - below) + std * density
+    second = (
+        floor * floor * below
+        + (mean * mean + std * std) * (1 - below)
+        + std * (mean + floor) * density
+    )
+    return first, max(0.0, second - first * first)
+
+
+def variability(mean: float, std: float) -> str:
+    """Names how variable a time is, from its coefficient of variation std / mean.
+
+    The scale is desflow's own, not a standard one: none at 0, low below 0.75,
+    moderate from 0.75 to 1.33, where an exponential's 1 lies, and high above.
+    A std of 0 is `none` whatever the mean, because every draw is the same.
+
+    Args:
+        mean: The mean.
+        std: The standard deviation.
+
+    Returns:
+        str: `none`, `low`, `moderate` or `high`, or `undefined` for a mean that
+            is not above 0 with a std above 0.
+    """
+    if std == 0:
+        return "none"
+    if not mean > 0:
+        return "undefined"
+    cv = std / mean
+    if cv < 0.75:
+        return "low"
+    return "moderate" if cv <= 1.33 else "high"
+
+
 def _distributions(*families: Distribution) -> Dict[str, Distribution]:
     return {family.name: family for family in families}
 
@@ -312,6 +456,7 @@ DISTRIBUTIONS: Dict[str, Distribution] = _distributions(
         mean=lambda c: 1.0 / c.rate,
         variance=lambda c: 1.0 / c.rate**2,
         fixed=lambda c: 1.0 / c.rate,
+        from_moments=_exponential_from,
     ),
     Distribution(
         name="normal",
@@ -326,6 +471,7 @@ DISTRIBUTIONS: Dict[str, Distribution] = _distributions(
         mean=_mean_of,
         variance=lambda c: c.std**2,
         fixed=_mean_of,
+        from_moments=_mean_std,
     ),
     Distribution(
         name="lognormal",
@@ -339,6 +485,7 @@ DISTRIBUTIONS: Dict[str, Distribution] = _distributions(
         mean=_mean_of,
         variance=lambda c: c.std**2,
         fixed=_mean_of,
+        from_moments=_mean_std,
     ),
     Distribution(
         name="truncated_normal",
@@ -352,6 +499,7 @@ DISTRIBUTIONS: Dict[str, Distribution] = _distributions(
         mean=lambda c: _truncated_moments(c)[0],
         variance=lambda c: _truncated_moments(c)[1],
         fixed=lambda c: max(c.mean, c.low),
+        no_formula=_NO_FORMULA,
     ),
     Distribution(
         name="constant",
@@ -365,6 +513,7 @@ DISTRIBUTIONS: Dict[str, Distribution] = _distributions(
         variance=lambda c: 0.0,
         fixed=lambda c: c.value,
         random=False,
+        from_moments=_constant_from,
     ),
     Distribution(
         name="uniform",
@@ -377,6 +526,7 @@ DISTRIBUTIONS: Dict[str, Distribution] = _distributions(
         mean=lambda c: (c.low + c.high) / 2,
         variance=lambda c: (c.high - c.low) ** 2 / 12,
         fixed=lambda c: (c.low + c.high) / 2,
+        from_moments=_uniform_from,
     ),
     Distribution(
         name="triangular",
@@ -390,6 +540,7 @@ DISTRIBUTIONS: Dict[str, Distribution] = _distributions(
         mean=lambda c: (c.low + c.mode + c.high) / 3,
         variance=_triangular_variance,
         fixed=lambda c: (c.low + c.mode + c.high) / 3,
+        no_formula=_NO_FORMULA,
     ),
     Distribution(
         name="gamma",
@@ -403,6 +554,7 @@ DISTRIBUTIONS: Dict[str, Distribution] = _distributions(
         mean=lambda c: c.shape * c.scale,
         variance=lambda c: c.shape * c.scale**2,
         fixed=lambda c: c.shape * c.scale,
+        from_moments=_gamma_from,
     ),
     Distribution(
         name="weibull",
@@ -415,6 +567,7 @@ DISTRIBUTIONS: Dict[str, Distribution] = _distributions(
         mean=_weibull_mean,
         variance=_weibull_variance,
         fixed=_weibull_mean,
+        no_formula=_NO_FORMULA,
     ),
     Distribution(
         name="empirical",
@@ -429,6 +582,7 @@ DISTRIBUTIONS: Dict[str, Distribution] = _distributions(
         mean=lambda c: _empirical_moments(c)[0],
         variance=lambda c: _empirical_moments(c)[1],
         fixed=lambda c: _empirical_moments(c)[0],
+        no_formula=_NO_FORMULA,
     ),
 )
 

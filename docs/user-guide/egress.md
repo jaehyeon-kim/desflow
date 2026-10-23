@@ -18,10 +18,17 @@ Each sink is attached with `add_egress` in the builder, passed to `env.setup_egr
 
 ### Console
 
-`ConsoleEgress` logs each record at INFO level, one line per record: `[EVT]` for an event, `[TEL]` for telemetry and `[LBL]` for a label. It logs a whole batch with one call, so the logging format's prefix, such as the time and level, starts each batch, and the lines after it start with `[EVT]`, `[TEL]` or `[LBL]`. One call per record cost far more: in the measurements on [Performance Tuning](../guides/performance-tuning.md), a run printing every record took about 50 percent longer.
+`ConsoleEgress` has two formats. The default, `log`, logs each record at INFO level, one line per record: `[EVT]` for an event, `[TEL]` for telemetry and `[LBL]` for a label. It logs a whole batch with one call, so the logging format's prefix, such as the time and level, starts each batch, and the lines after it start with `[EVT]`, `[TEL]` or `[LBL]`. One call per record cost far more: in the measurements on [Performance Tuning](../guides/performance-tuning.md), a run printing every record took about 50 percent longer.
 
 ```python title="docs/snippets/pages/connectors.py:console-egress"
 app.add_egress(ConsoleEgress())
+```
+
+With `format="json"`, `ConsoleEgress` writes each record to stdout as one JSON line instead, the record as published with its `stream_type`, so another program can read them. It writes at any log level, because the records are output, not a log. Python's logging writes to stderr by default, so the log stays apart from the records, and a pipe such as `| jq .key` reads only the records. In a blueprint it is `type: Console` with `config: {format: json}`, and `desflow run --sample` and `--stdout` print through it in place of the file's sinks, as [YAML Format](../reference/yaml-format.md#running-a-blueprint) describes.
+
+```python title="docs/snippets/pages/connectors.py:console-json"
+# One JSON line per record on stdout, stream_type included
+app.add_egress(ConsoleEgress(format="json"))
 ```
 
 ### Kafka

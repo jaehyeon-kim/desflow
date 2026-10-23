@@ -19,7 +19,8 @@ app = SimulationContext(sim_id="Shop", factor=0.0, random_seed=42)
 app.add_resource("packers", current_cap=2, max_cap=5)
 
 # --8<-- [start:builder-exponential]
-app.add_arrival("orders", dist="exponential", rate=0.5)  # an order every 2 s on average
+# An order every 2 s on average, each starting the task pack
+app.add_arrival("orders", dist="exponential", rate=0.5, spawn="pack")
 # --8<-- [end:builder-exponential]
 
 app.add_service("packing", dist="normal", mean=3.0, std=0.5)  # 3 s, give or take 0.5 s
@@ -28,15 +29,6 @@ app.add_service("packing", dist="normal", mean=3.0, std=0.5)  # 3 s, give or tak
 @app.task(service_id="packing", resource_id="packers")
 def pack(task_id: int):
     return {"event_type": "order_packed"}
-
-
-@app.arrival_loop("orders")
-def orders(context: SimulationContext):
-    task_id = 0
-    while True:
-        order = yield context.wait_for_arrival("orders")
-        context.spawn(pack(task_id, entity=order))
-        task_id += 1
 
 
 # --8<-- [start:low-level-seed]

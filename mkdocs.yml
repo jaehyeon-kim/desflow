@@ -108,7 +108,7 @@ plugins:
         tutorials/01-first-factory.md: tutorials/first-simulation.md
         tutorials/02-distributions-resources.md: tutorials/first-simulation.md
         tutorials/03-connecting-kafka.md: examples/kafka.md
-  # Distributions, Statistic Names and SimPy Compatibility reference pages,
+  # Distributions, Statistic Names, SimPy Compatibility and CLI reference pages,
   # generated from the code by scripts/gen_pages.py during the build.
   - gen-files:
       scripts:
@@ -274,6 +274,17 @@ nav:
       - Statistics: reference/statistics.md
       - SimPy Compatibility: reference/simpy-compatibility.md
       - Cheat Sheet: reference/cheat-sheet.md
+      # Generated from the Typer app by scripts/gen_pages.py, one page per command
+      - CLI:
+          - reference/cli/index.md
+          - desflow run: reference/cli/run.md
+          - desflow experiment: reference/cli/experiment.md
+          - desflow report: reference/cli/report.md
+          - desflow fit: reference/cli/fit.md
+          - desflow schema: reference/cli/schema.md
+          - desflow dist: reference/cli/dist.md
+          - desflow examples: reference/cli/examples.md
+          - desflow examples get: reference/cli/examples-get.md
   - About:
       - Why desflow: about/why-desflow.md
       - Roadmap: about/roadmap.md

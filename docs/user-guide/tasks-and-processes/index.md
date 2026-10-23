@@ -143,23 +143,32 @@ An arrival starts one task per arrival. The loop draws a gap from the arrival's 
 === "Builder"
 
     ```python title="docs/snippets/pages/tasks.py:builder-arrival"
-    @app.arrival_loop("orders")
-    def orders(context: SimulationContext):
-        task_id = 0
-        while True:
-            # Draws the next gap, waits for it, and returns the new entity, keyed orders-1, ...
-            order = yield context.wait_for_arrival("orders")
-            context.spawn(pack_order(task_id, entity=order))  # the loop goes on at once
-            task_id += 1
+    # Each arrival starts one pack_order
+    app.add_arrival("orders", dist="exponential", rate=0.2, spawn="pack_order")
     ```
 
-    `context.wait_for_arrival` returns the new `Entity`, whose key is the arrival name and a counter: `orders-1`, `orders-2`. Pass it to the task with `entity=`. A task called without one starts an entity of its own, keyed by the task's name and a counter, such as `pack_order-1`. The `task_id` becomes the record's `instance`. When `next` or a second arrival also starts the task, take the id from `context.next_instance("pack_order")` instead: it is the task's one counter, which `next` uses too, so no two runs of the task share an id.
+    `spawn=` starts the named task for each arrival's entity, whose key is the arrival name and a counter: `orders-1`, `orders-2`. The record's `instance` comes from the task's one counter, which `next` and other arrivals share, so no two runs of the task share an id. A `spawn` that names a task never added is refused when `run()` checks the model.
+
+    `@app.arrival_loop` runs a generator of your own. The loop below starts one `return_logged` for each return, which is what `spawn="return_logged"` does in one argument, as the YAML tab writes it. A loop is needed only when it does more than start one task, such as choosing the task from the entity's attributes. `context.wait_for_arrival` returns the new `Entity`; pass it to the task with `entity=`. A task called without one starts an entity of its own, keyed by the task's name and a counter, such as `return_logged-1`. The `task_id` becomes the record's `instance`; take it from `context.next_instance`, the task's one counter.
+
+    ```python title="docs/snippets/pages/tasks.py:builder-arrival-loop"
+    app.add_arrival("returns", dist="exponential", rate=0.1)
+
+
+    @app.arrival_loop("returns")
+    def returns(context: SimulationContext):
+        while True:
+            # Draws the next gap, waits for it, and returns the new entity, keyed returns-1, ...
+            parcel = yield context.wait_for_arrival("returns")
+            task_id = context.next_instance("return_logged")  # the task's one counter
+            context.spawn(return_logged(task_id, entity=parcel))  # the loop goes on at once
+    ```
 
 === "Low-level"
 
     ```python title="docs/snippets/pages/tasks.py:low-level-arrival"
     def orders_process(env, sampler, packers):
-        """What @app.arrival_loop does, by hand."""
+        """What an arrival with spawn does, by hand."""
         gap = env.registry.get_config("Shop.arrival.orders")
         label_ids = itertools.count()
         task_id = 0

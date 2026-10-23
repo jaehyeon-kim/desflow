@@ -54,7 +54,7 @@ dependencies = [
 ]
 
 [project.scripts]
-desflow = "desflow.blueprint.cli:app"
+desflow = "desflow.cli:app"
 # The command before the rename. It warns, then runs desflow.
 ddes = "desflow.blueprint.cli:ddes"
 

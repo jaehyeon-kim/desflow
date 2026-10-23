@@ -197,7 +197,7 @@ Lists of connectors, each with a `type` and a `config` of the constructor's keyw
 | egress | `Postgres` | `PostgresEgress` | `postgres` |
 | egress | `Redis` | `RedisEgress` | `redis` |
 
-An egress entry also takes `when`: `history` or `live`, both needing `simulation.go_live_at`, `labels`, or a `!python` function of one record; and `batch_size` and `flush_interval`, both greater than 0. [Ingress](../user-guide/ingress.md) and [Egress](../user-guide/egress.md) describe them.
+An egress entry also takes `when`: `history` or `live`, both needing `simulation.go_live_at`, `labels`, or a `!python` function of one record; and `batch_size` and `flush_interval`, both greater than 0. `Console` takes `format`: `log` (the default) writes each record as a log line, and `json` writes it as one JSON line on stdout. [Ingress](../user-guide/ingress.md) and [Egress](../user-guide/egress.md) describe them.
 
 Settings that the Python API takes as objects are plain values:
 
@@ -225,6 +225,31 @@ The arguments of `with_batching`, the defaults for every sink: `batch_size` and 
 | `drain` | `true` stops the arrivals at `until` and runs on until no entity is left; `{limit: 1 h}` stops at the latest that long after `until`; `desflow run --drain` sets it |
 | `on_unhandled_failure` | `continue` (the default) defuses a task, child flow or one-shot signal failure nobody handles, so the run goes on; `stop` lets such a failure stop the run, as plain SimPy does |
 | `before` | a list of `!python` functions called with no arguments before the run, for setup such as creating topics |
+
+---
+
+## Running a Blueprint
+
+`desflow run FILE` builds the blueprint and runs it with its own sinks until `--until`, `run.until` or Ctrl+C. It takes a YAML file only; a Python builder file runs with `python FILE`. Two options print the records instead of sending them to the file's sinks:
+
+| Command | Behaviour |
+|---|---|
+| `desflow run FILE --sample N` | Prints the first `N` events, then stops. `N` is 1 or more. The run is unpaced: `factor` is set to 0 and `go_live_at` is cleared, while `logical_start_time` and `random_seed` are kept, so timestamps and values look as they would in the real run. Ingress entries and `run.before` are skipped. Telemetry records print between the events but are not counted, and `system.simulation.lag_seconds` is not printed. |
+| `desflow run FILE --stdout` | Prints every record of a normal run. `factor`, `go_live_at`, `logical_start_time` and ingress are kept; `run.before` is skipped. |
+
+Both replace every egress entry with one `Console` of `format: json`, and a second one for labels when the file has a `when: labels` entry. A JSON console writes each record as one JSON line on stdout. The run's log stays on stderr, so `desflow run FILE --sample 10 | jq .value` reads only the records. `run.before` is skipped because its functions prepare the real sinks, such as creating topics, and a warning on stderr says so when the file has any. The structure, keys and names of the whole file are still validated. A preview builds none of the connectors it replaces or skips, so it checks only their `type`; their `config` is checked only by a run that builds them, such as `desflow run FILE` without these options.
+
+| Combination | Result |
+|---|---|
+| `--sample` with `--stdout` | Allowed. `--stdout` adds nothing. |
+| `--sample` with `--until`, or a file with `run.until` | The run ends at whichever comes first. When `until` comes first, stderr says `sample ended at until with k of N events`. |
+| `--sample` on a file with `go_live_at` | A backfill-then-live file prints its first history events. `when: history` and `when: live` have no effect, because their entries are replaced. |
+| `--sample` on a file that publishes no events | It runs until `until` or Ctrl+C, printing telemetry. |
+| `--stdout` on a file with several egress entries | One console prints each record once. Per-entry `batch_size` and `flush_interval` are dropped with the entries, and the `batching` section applies. |
+| `--sample` or `--stdout` with `--replications` | Usage error, exit code 2: both print one run. |
+| `--sample 0` | Usage error, exit code 2. |
+
+[CLI](cli/index.md) lists every command and option.
 
 ---
 

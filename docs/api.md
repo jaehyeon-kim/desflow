@@ -54,12 +54,24 @@ The classes a task's flow is built from, and the signals and failures tasks shar
       heading_level: 3
       show_root_heading: true
 
-## YAML Blueprints
+## Loading a Model
 
-`SimulationContext.from_yaml` is the usual entry point. `build` is what it calls, and returns the `run` section as well.
+`SimulationContext.from_yaml` is the usual entry point for a blueprint. `build` is what it calls, and returns the `run` section as well. `load_context` loads a blueprint or a builder Python file from a folder, local or in object storage, as `desflow run` loads a blueprint. `Preview` is what `desflow run --sample` and `--stdout` pass to them.
+
+<!-- prettier-ignore -->
+::: desflow.loading.load_context
+    options:
+      heading_level: 3
+      show_root_heading: true
 
 <!-- prettier-ignore -->
 ::: desflow.blueprint.build.build
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.blueprint.build.Preview
     options:
       heading_level: 3
       show_root_heading: true

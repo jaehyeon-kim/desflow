@@ -986,7 +986,7 @@ FIT_WAITS = {
 def _fit_cli(*args):
     from typer.testing import CliRunner
 
-    from desflow.blueprint.cli import app as cli
+    from desflow.cli import app as cli
 
     run = CliRunner().invoke(cli, ["fit", *map(str, args)])
     assert run.exit_code == 0, run.output

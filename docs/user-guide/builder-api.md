@@ -38,11 +38,9 @@ app.add_variable("conveyor_speed", 1.5)  # any other live value
 
 ### Add Distributions
 
-Each arrival and service is a distribution, with its parameters by keyword. A parameter out of range, or one the family does not take, raises `ValueError` here, before the run. [Arrivals and Services](arrivals-and-services.md) lists the ten families.
+Each service is a distribution, with its parameters by keyword; so is each arrival, which [Start Them from Arrivals](#start-them-from-arrivals) adds with the task it starts. A parameter out of range, or one the family does not take, raises `ValueError` here, before the run. [Arrivals and Services](arrivals-and-services.md) lists the ten families.
 
 ```python title="docs/snippets/pages/builder.py:distributions"
-app.add_arrival("orders", dist="exponential", rate=0.5)  # an order every 2 s on average
-app.add_arrival("couriers", dist="constant", value=10)  # a courier every 10 s
 app.add_service("packing", dist="triangular", low=1, mode=2, high=4)
 app.add_service("labelling", dist="constant", value=0.5)
 ```
@@ -76,26 +74,15 @@ def collect(task_id: int, item):
 
 ### Start Them from Arrivals
 
-An arrival loop waits for each arrival and starts a task for the entity it returns, keyed `orders-1`, `orders-2` and so on.
+`add_arrival` with `spawn=` is the builder form of YAML's `spawn`: each arrival starts the named task for its entity, keyed `orders-1`, `orders-2` and so on. The record's `instance` comes from the task's one counter, which `next` and other arrivals share, so no two runs of the task share an id. A `spawn` that names a task never added is refused when `run()` checks the model.
 
 ```python title="docs/snippets/pages/builder.py:arrivals"
-@app.arrival_loop("orders")
-def orders(context: SimulationContext):
-    task_id = 0
-    while True:
-        order = yield context.wait_for_arrival("orders")  # keyed orders-1, ...
-        context.spawn(pack_order(task_id, entity=order))
-        task_id += 1
-
-
-@app.arrival_loop("couriers")
-def couriers(context: SimulationContext):
-    task_id = 0
-    while True:
-        courier = yield context.wait_for_arrival("couriers")
-        context.spawn(collect(task_id, entity=courier))
-        task_id += 1
+# An order every 2 s on average, keyed orders-1, ..., each starting pack_order
+app.add_arrival("orders", dist="exponential", rate=0.5, spawn="pack_order")
+app.add_arrival("couriers", dist="constant", value=10, spawn="collect")  # every 10 s
 ```
+
+`@app.arrival_loop` runs a generator of your own that waits with `context.wait_for_arrival` and starts tasks with `context.spawn`. A loop is needed only when it does more than start one task, such as choosing the task from the entity's attributes. [Tasks and Processes](tasks-and-processes/index.md#arrivals-start-tasks) shows a loop that does what `spawn=` does, written by hand.
 
 ### Measure the Run
 
@@ -222,8 +209,6 @@ The builder's limits are those of its tasks and its resources:
     app.add_store("parcels", current_cap=20, max_cap=50)  # items, waiting for a courier
     app.add_variable("conveyor_speed", 1.5)  # any other live value
 
-    app.add_arrival("orders", dist="exponential", rate=0.5)  # an order every 2 s on average
-    app.add_arrival("couriers", dist="constant", value=10)  # a courier every 10 s
     app.add_service("packing", dist="triangular", low=1, mode=2, high=4)
     app.add_service("labelling", dist="constant", value=0.5)
 
@@ -250,23 +235,9 @@ The builder's limits are those of its tasks and its resources:
         return {"event_type": "parcel_collected", "label": item["event_type"]}
 
 
-    @app.arrival_loop("orders")
-    def orders(context: SimulationContext):
-        task_id = 0
-        while True:
-            order = yield context.wait_for_arrival("orders")  # keyed orders-1, ...
-            context.spawn(pack_order(task_id, entity=order))
-            task_id += 1
-
-
-    @app.arrival_loop("couriers")
-    def couriers(context: SimulationContext):
-        task_id = 0
-        while True:
-            courier = yield context.wait_for_arrival("couriers")
-            context.spawn(collect(task_id, entity=courier))
-            task_id += 1
-
+    # An order every 2 s on average, keyed orders-1, ..., each starting pack_order
+    app.add_arrival("orders", dist="exponential", rate=0.5, spawn="pack_order")
+    app.add_arrival("couriers", dist="constant", value=10, spawn="collect")  # every 10 s
 
     app.with_stats("typical", interval=30)  # readings, counts, waits, every 30 s
 

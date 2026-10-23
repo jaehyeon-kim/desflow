@@ -57,6 +57,34 @@ def test_yaml_keys_page_lists_every_key():
     assert "\n\n".join(gen_pages._paragraphs("a\nb\n\nc")) == "a b\n\nc"
 
 
+def test_every_command_has_a_cli_page_and_every_page_names_a_command():
+    from typer.main import get_command
+
+    from desflow.cli import app
+
+    def paths(command, path):
+        yield path
+        for name, child in getattr(command, "commands", {}).items():
+            yield from paths(child, f"{path} {name}")
+
+    commands = set(paths(get_command(app), "desflow"))
+    pages = gen_pages.cli_pages()
+    named = {
+        page.split("\n")[0].removeprefix("# ")
+        for path, page in pages.items()
+        if path != "reference/cli/index.md"
+    }
+    assert named | {"desflow"} == commands
+    assert len(pages) == len(commands)
+    for path, page in pages.items():
+        usage = "desflow" if path.endswith("index.md") else page.split("\n")[0][2:]
+        assert f"Usage: {usage} [OPTIONS]" in page, path
+        assert "object at 0x" not in page, path
+    index = pages["reference/cli/index.md"]
+    for command in commands - {"desflow"}:
+        assert f"[`{command}`]" in index
+
+
 ROOT = _SCRIPT.parents[1]
 
 

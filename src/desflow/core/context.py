@@ -7,6 +7,7 @@ import secrets
 from datetime import datetime
 from pathlib import Path
 from typing import (
+    TYPE_CHECKING,
     Any,
     Callable,
     Dict,
@@ -61,6 +62,10 @@ from desflow.resources.resource import (
 )
 from desflow.resources.store import DynamicStore, StoreBase, check_store_type
 from desflow.utils import suggestion, time_to_seconds
+
+if TYPE_CHECKING:
+    # build.py imports this module, so the import is for type checkers only
+    from desflow.blueprint.build import Preview
 
 logger = logging.getLogger(__name__)
 
@@ -234,6 +239,8 @@ class SimulationContext:
         self._arrival_entities: Dict[
             str, Tuple[Dict[str, Any], Optional[Callable[[int], str]]]
         ] = {}
+        # Per arrival given `spawn`: the task each of its entities starts
+        self._arrival_spawns: Dict[str, str] = {}
         self._variables_config: Dict[str, Any] = {}
         # Tasks by name, with what run() checks before the clock starts
         self._tasks: Dict[str, Callable] = {}
@@ -287,9 +294,15 @@ class SimulationContext:
         self._before_run: List[Callable[[], Any]] = []
         # How the log tells a run without a seed to repeat itself, with `{seed}`
         self._repeat_hint: Optional[str] = None
+        # Set by from_yaml for `desflow run --sample`: the events a preview prints
+        # before it ends the run, and how many it has printed
+        self._sample_limit: Optional[int] = None
+        self._sample_seen = 0
 
     @classmethod
-    def from_yaml(cls, path: Union[str, Path]) -> "SimulationContext":
+    def from_yaml(
+        cls, path: Union[str, Path], preview: Optional["Preview"] = None
+    ) -> "SimulationContext":
         """
         Builds a context from a YAML blueprint file.
 
@@ -299,6 +312,12 @@ class SimulationContext:
 
         Args:
             path: The blueprint file.
+            preview: The preview `desflow run --sample` and `--stdout` make. Every
+                egress entry is replaced by a JSON console on stdout and
+                `run.before` is not called, because it prepares sinks the preview
+                does not use. A sample also leaves out the ingress, and runs
+                unpaced from `logical_start_time`, with `go_live_at` cleared, until
+                it has printed that many events.
 
         Returns:
             SimulationContext: The built context. Its `run()` calls the blueprint's
@@ -317,12 +336,19 @@ class SimulationContext:
         """
         from desflow.blueprint.build import build
 
-        context, run = build(path)
+        context, run = build(path, preview)
         context._default_until = run.until
         context._default_stop = run.stop
         context._default_drain = run.drain_setting()
         context._default_unhandled = run.on_unhandled_failure
-        context._before_run = list(run.before)
+        if preview is None:
+            context._before_run = list(run.before)
+        elif run.before:
+            logger.warning("run.before skipped: preview runs use no real sinks")
+        if preview is not None and preview.sample is not None:
+            context.factor = 0.0
+            context.go_live_at = None
+            context._sample_limit = preview.sample
         context._repeat_hint = f"Repeat it with: desflow run {path} --seed {{seed}}"
         return context
 
@@ -875,6 +901,7 @@ class SimulationContext:
         counts: Optional[List[float]] = None,
         attributes: Optional[Mapping[str, Any]] = None,
         key: Optional[Callable[[int], str]] = None,
+        spawn: Optional[str] = None,
     ) -> "SimulationContext":
         """
         Registers a statistical distribution defining the inter-arrival times of entities.
@@ -902,18 +929,35 @@ class SimulationContext:
             attributes: The attributes each entity starts with, read in conditions
                 as `attr.<name>`. Each entity gets its own copy.
             key: A function of the entity's counter, from 1, returning its key.
+            spawn: The task each arrival starts, with the arrival's entity and the
+                task's next instance id, as YAML's `spawn` key does. None leaves
+                the arrival to an `arrival_loop` written by hand.
 
         Returns:
             SimulationContext: The current instance for method chaining.
 
         Raises:
             ValueError: If the family is unknown, or a parameter is missing, out of
-                range or not one the family takes.
+                range or not one the family takes. A `spawn` naming no task is
+                refused when the run starts.
         """
-        params = {k: v for k, v in locals().items() if k not in ("attributes", "key")}
+        params = {
+            k: v
+            for k, v in locals().items()
+            if k not in ("attributes", "key", "spawn")
+        }
         self._arrivals_config[name] = _distribution(dist, params)
         self._arrival_entities[name] = (dict(attributes or {}), key)
+        self._add_spawn(name, spawn)
         return self
+
+    def _add_spawn(self, arrival: str, task: Optional[str]) -> None:
+        """Starts `task` for each arrival, from a loop added now, so the arrival
+        loops start in the order the arrivals were added."""
+        if task is None:
+            return
+        self._arrival_spawns[arrival] = task
+        self._startup_loops.append((_spawn_loop(arrival, task), arrival))
 
     # ==========================================
     # DECORATORS (Execution Logic)
@@ -1359,6 +1403,7 @@ class SimulationContext:
         on_invalid: str = "error",
         attributes: Optional[Mapping[str, Any]] = None,
         key: Optional[Callable[[int], str]] = None,
+        spawn: Optional[str] = None,
     ) -> "SimulationContext":
         """
         Registers an arrival taken from recorded rows instead of a distribution.
@@ -1385,12 +1430,14 @@ class SimulationContext:
             attributes: Attributes every entity starts with; a row's fields of the
                 same name replace them.
             key: A function of the entity's counter, from 1, returning its key.
+            spawn: The task each row starts, as for `add_arrival`.
 
         Returns:
             SimulationContext: The current instance for method chaining.
 
         Raises:
-            ValueError: If `unit` or `on_invalid` is unknown.
+            ValueError: If `unit` or `on_invalid` is unknown. A `spawn` naming no
+                task is refused when the run starts.
         """
         if unit not in UNITS and unit != "timestamp":
             raise ValueError(
@@ -1402,6 +1449,7 @@ class SimulationContext:
             source=source, time=time, unit=unit, fields=fields, on_invalid=on_invalid
         )
         self._arrival_entities[name] = (dict(attributes or {}), key)
+        self._add_spawn(name, spawn)
         return self
 
     def next_instance(self, task: str) -> int:
@@ -2242,6 +2290,7 @@ class SimulationContext:
         self._running = {}
         self._entity_counters = {}
         self._instance_counters = {}
+        self._sample_seen = 0
         self._env = None
         self.started = False
 
@@ -2469,12 +2518,13 @@ class SimulationContext:
                 process.interrupt(_ARRIVALS_STOPPED)
 
     def _end_event(self, until: Any, stop: Any, drain: Any) -> Optional[simpy.Event]:
-        """The event that ends the run when `stop` or `drain` is given, else None.
+        """The event that ends the run when `stop`, `drain` or a sample limit is
+        given, else None.
 
         It is scheduled urgent, like SimPy's own `until`, so no other event at that
-        time runs after it.
+        time runs after it. A sample's console calls `_finish_run` at its last event.
         """
-        if stop is None and not drain:
+        if stop is None and not drain and self._sample_limit is None:
             return None
         env = self.env
         end = env.internal_event()
@@ -2743,6 +2793,12 @@ class SimulationContext:
                         f"'{action['task']}', "
                         + _not_added(action["task"], self._tasks, "@app.task()")
                     )
+        for arrival, task in self._arrival_spawns.items():
+            if task not in self._tasks:
+                raise ValueError(
+                    f"arrival '{arrival}' spawns task '{task}', "
+                    + _not_added(task, self._tasks, "@app.task()")
+                )
         for resource in self._breakdowns_config:
             if resource not in self._resources_config:
                 raise ValueError(
@@ -2993,6 +3049,21 @@ def _not_added(name: str, added: Iterable[str], how: str) -> str:
 
 
 _ARRIVALS_STOPPED = "arrivals stopped"
+
+
+def _spawn_loop(arrival: str, task: str) -> Callable:
+    """The arrival loop of an arrival with `spawn`: each entity starts `task`.
+
+    The instance id comes from the task's one counter on the context, which `next`
+    and every other arrival that spawns the task share.
+    """
+
+    def loop(context: "SimulationContext"):
+        while True:
+            entity = yield context.wait_for_arrival(arrival)
+            context._start(task, entity, None)
+
+    return loop
 
 
 def _defuse_arrivals_stopped(event: Any) -> None:

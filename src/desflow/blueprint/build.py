@@ -6,6 +6,7 @@ script that make the same calls produce the same simulation.
 
 import importlib
 import math
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
@@ -16,6 +17,7 @@ from pydantic import ValidationError
 from desflow.blueprint.loader import BlueprintError, SourceMap, read_document
 from desflow.blueprint.models import Blueprint, Run, unknown_key
 from desflow.config import LABELS
+from desflow.connectors.egress.local import ConsoleEgress
 from desflow.core.expressions import Expression
 from desflow.core.flow import Wait
 from desflow.core.task import check_acquisition_order
@@ -60,11 +62,36 @@ INGRESS_TYPES: Dict[str, Tuple[str, str, str]] = {
 }
 
 
-def build(path: Union[str, Path]) -> Tuple[SimulationContext, Run]:
+@dataclass(frozen=True)
+class Preview:
+    """A preview run of a blueprint, as `desflow run --sample` and `--stdout` make.
+
+    Every egress entry is replaced by a JSON console on stdout, and a second one for
+    labels when the file has a `when: labels` entry, so no sink module the file
+    names by a short `type` is imported, and no sink is written to.
+
+    Attributes:
+        sample: Print this many events, unpaced and with no ingress, then stop.
+            None, for `--stdout`, prints every record of the run as it is paced.
+    """
+
+    sample: Optional[int] = None
+
+
+def build(
+    path: Union[str, Path], preview: Optional[Preview] = None
+) -> Tuple[SimulationContext, Run]:
     """Reads, validates and builds a blueprint file.
+
+    The structure, keys and names of the whole file are validated with or without
+    a preview. A preview builds none of the connectors it replaces or skips, so it
+    checks only their type; their config is checked only by a run that builds
+    them, such as `desflow run FILE` without `--sample` or `--stdout`.
 
     Args:
         path: The YAML file.
+        preview: Replace the file's egress with a JSON console, and for a sample
+            leave out its ingress; None builds the file as written.
 
     Returns:
         The built context, and the `run` section for whoever starts it.
@@ -82,7 +109,7 @@ def build(path: Union[str, Path]) -> Tuple[SimulationContext, Run]:
         raise _validation_error(exc, source) from None
 
     _check_references(blueprint, source)
-    context = _build_context(blueprint, source)
+    context = _build_context(blueprint, source, preview)
     _check_scenario(blueprint, context, source)
     _check_registry_reads(blueprint, context, source)
     return context, blueprint.run
@@ -712,22 +739,42 @@ def _whole(value: Optional[float]) -> Optional[float]:
     return value if value is None or math.isinf(value) else int(value)
 
 
-def _build_context(blueprint: Blueprint, source: SourceMap) -> SimulationContext:
+def _build_context(
+    blueprint: Blueprint, source: SourceMap, preview: Optional[Preview] = None
+) -> SimulationContext:
     """Makes the builder calls a Python script would make, in the same order."""
     context = SimulationContext(**blueprint.simulation.model_dump(exclude_unset=True))
 
     for index, ingress in enumerate(blueprint.ingress):
-        provider = _connector(ingress.type, ingress.config, INGRESS_TYPES)
-        context.add_ingress(provider(source, ("ingress", index)))
+        if preview is None or preview.sample is None:
+            provider = _connector(ingress.type, ingress.config, INGRESS_TYPES)
+            context.add_ingress(provider(source, ("ingress", index)))
+        else:
+            _check_connector_type(
+                ingress.type, INGRESS_TYPES, source, ("ingress", index)
+            )
 
-    for index, egress in enumerate(blueprint.egress):
-        provider = _connector(egress.type, egress.config, EGRESS_TYPES)
+    if preview is None:
+        for index, egress in enumerate(blueprint.egress):
+            provider = _connector(egress.type, egress.config, EGRESS_TYPES)
+            context.add_egress(
+                provider(source, ("egress", index)),
+                when=LABELS if egress.when == LABELS else _when(egress.when, blueprint),
+                batch_size=egress.batch_size,
+                flush_interval=egress.flush_interval,
+            )
+    else:
+        # The file's connectors are not constructed, so none of their modules is
+        # imported and only their types are checked; a label goes only to a labels
+        # sink, so a file with one gets a second console for its labels
+        for index, egress in enumerate(blueprint.egress):
+            _check_connector_type(egress.type, EGRESS_TYPES, source, ("egress", index))
         context.add_egress(
-            provider(source, ("egress", index)),
-            when=LABELS if egress.when == LABELS else _when(egress.when, blueprint),
-            batch_size=egress.batch_size,
-            flush_interval=egress.flush_interval,
+            ConsoleEgress(format="json"),
+            when=_preview_predicate(context, preview.sample),
         )
+        if any(egress.when == LABELS for egress in blueprint.egress):
+            context.add_egress(ConsoleEgress(format="json"), when=LABELS)
 
     if blueprint.batching is not None:
         context.with_batching(**blueprint.batching.model_dump(exclude_none=True))
@@ -795,15 +842,20 @@ def _build_context(blueprint: Blueprint, source: SourceMap) -> SimulationContext
                 fields=replay.fields,
                 on_invalid=replay.on_invalid,
                 attributes=arrival.attributes,
+                spawn=arrival.spawn,
             )
             continue
         assert arrival.dist is not None  # the model needs dist or replay
         context.add_arrival(
-            name, arrival.dist, attributes=arrival.attributes, **arrival.parameters()
+            name,
+            arrival.dist,
+            attributes=arrival.attributes,
+            spawn=arrival.spawn,
+            **arrival.parameters(),
         )
 
-    tasks = {
-        name: context.task(
+    for name, task in blueprint.tasks.items():
+        context.task(
             service_id=task.service,
             resource_id=task.resource,
             keep=task.keep,
@@ -832,14 +884,6 @@ def _build_context(blueprint: Blueprint, source: SourceMap) -> SimulationContext
             subscribe=task.subscribe,
             on=[entry.entry() for entry in task.on],
         )(_payload(task.payload, task.id_field, task.attributes, task.item_field))
-        for name, task in blueprint.tasks.items()
-    }
-
-    for name, arrival in blueprint.arrivals.items():
-        if arrival.spawn is not None:
-            context.arrival_loop(name)(
-                _spawn_loop(name, arrival.spawn, tasks[arrival.spawn])
-            )
 
     for process in blueprint.processes:
         context.add_process(process.function, **process.kwargs)
@@ -934,6 +978,37 @@ def _relative(path: str, source: SourceMap) -> Path:
     return Path(source.path).parent / candidate
 
 
+# The wall clock's lag behind the simulation, which a preview does not print
+_LAG_PATH = "system.simulation.lag_seconds"
+
+
+def _preview_predicate(
+    context: SimulationContext, limit: Optional[int]
+) -> Callable[[dict], bool]:
+    """The preview console's predicate. It leaves out the lag readings, which
+    describe the wall clock rather than the model.
+
+    With a `limit` it counts the events into `context._sample_seen`, ends the run at
+    the limit-th, and refuses every record after it, so the events at the same
+    instant after the last one are not printed.
+    """
+
+    def take(record: dict) -> bool:
+        if record.get("path_id") == _LAG_PATH:
+            return False
+        if limit is None:
+            return True
+        if context._sample_seen >= limit:
+            return False
+        if record["stream_type"] == "event":
+            context._sample_seen += 1
+            if context._sample_seen == limit and context._finish_run is not None:
+                context._finish_run()
+        return True
+
+    return take
+
+
 def _when(
     when: Union[str, Callable[[dict], bool], None], blueprint: Blueprint
 ) -> Optional[Callable[[dict], bool]]:
@@ -987,11 +1062,7 @@ def _connector(
     def construct(source: SourceMap, location: Tuple[Union[str, int], ...]) -> Any:
         if isinstance(kind, type):
             return _instantiate(kind, config, source, location)
-        if kind not in types:
-            raise source.error(
-                location + ("type",),
-                f"unknown connector type '{kind}'. Use one of {', '.join(types)}",
-            )
+        _check_connector_type(kind, types, source, location)
         module_name, class_name, extra = types[kind]
         try:
             cls = getattr(importlib.import_module(module_name), class_name)
@@ -1006,6 +1077,20 @@ def _connector(
         return _instantiate(cls, config, source, location)
 
     return construct
+
+
+def _check_connector_type(
+    kind: Union[str, type],
+    types: Dict[str, Tuple[str, str, str]],
+    source: SourceMap,
+    location: Tuple[Union[str, int], ...],
+) -> None:
+    """Refuses a short name that is not in `types`; a `!python` class passes."""
+    if not isinstance(kind, type) and kind not in types:
+        raise source.error(
+            location + ("type",),
+            f"unknown connector type '{kind}'. Use one of {', '.join(types)}",
+        )
 
 
 def _instantiate(
@@ -1064,18 +1149,3 @@ def _payload(
             return make(task_id, entity, item)
 
     return body
-
-
-def _spawn_loop(arrival: str, name: str, task: Callable) -> Callable:
-    """The arrival loop a builder example writes by hand.
-
-    The instance id comes from the task's one counter on the context, which `next`
-    and every other arrival that spawns the task share.
-    """
-
-    def loop(context: SimulationContext):
-        while True:
-            entity = yield context.wait_for_arrival(arrival)
-            context.spawn(task(context.next_instance(name), context, entity=entity))
-
-    return loop

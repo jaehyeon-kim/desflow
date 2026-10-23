@@ -117,6 +117,24 @@ def first_trace() -> List[str]:
     return _until(_events(_yaml("docs/snippets/yaml/first_shop.yaml")), 6)
 
 
+def _command(*arguments: str) -> List[str]:
+    """What `desflow` prints on stdout for these arguments, run from ROOT."""
+    from typer.testing import CliRunner
+
+    from desflow.cli import app
+
+    with _cwd(ROOT):
+        result = CliRunner().invoke(app, list(arguments))
+    assert result.exit_code == 0, result.output
+    return result.stdout.rstrip("\n").split("\n")
+
+
+def first_sample() -> List[str]:
+    """First Simulation: the first five events, from `desflow run --sample 5`."""
+    lines = _command("run", "docs/snippets/yaml/first_shop.yaml", "--sample", "5")
+    return [re.sub(r'"timestamp":"[^"]*"', '"timestamp":"..."', line) for line in lines]
+
+
 def queues_table() -> List[str]:
     """Queues and Capacity: the mean wait of the busy hour for 1 to 4 packers."""
     module = _module("docs/snippets/tutorials/queues_and_capacity.py")
@@ -198,6 +216,11 @@ def choosing_table() -> List[str]:
         f"{name:<12} mean wait {module.mean_wait(name):5.2f} s"
         for name in module.CANDIDATES
     ]
+
+
+def choosing_dist() -> List[str]:
+    """Choosing Inputs: the gamma with the measured times' mean and std."""
+    return _command("dist", "gamma", "--mean", "1.5", "--std", "0.4832")
 
 
 def _stats(lines: List[str]) -> List[str]:
@@ -521,7 +544,9 @@ BLOCKS: Dict[str, Callable[[], List[str]]] = {
     "fit-gaps": fit_gaps,
     "measuring-final": measuring_final,
     "choosing-table": choosing_table,
+    "choosing-dist": choosing_dist,
     "first-trace": first_trace,
+    "first-sample": first_sample,
     "queues-table": queues_table,
     "seed-line-yaml": seed_line_yaml,
     "seed-line-builder": seed_line_builder,

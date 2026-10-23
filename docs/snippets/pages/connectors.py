@@ -61,6 +61,11 @@ app.add_ingress(
 app.add_egress(ConsoleEgress())
 # --8<-- [end:console-egress]
 
+# --8<-- [start:console-json]
+# One JSON line per record on stdout, stream_type included
+app.add_egress(ConsoleEgress(format="json"))
+# --8<-- [end:console-json]
+
 # --8<-- [start:kafka-egress]
 app.add_egress(
     KafkaEgress(

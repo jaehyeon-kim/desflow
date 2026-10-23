@@ -325,7 +325,7 @@ def test_fitting_example_writes_the_file_its_blueprint_loads(tmp_path):
     pytest.importorskip("scipy")
     from typer.testing import CliRunner
 
-    from desflow.blueprint.cli import app as cli
+    from desflow.cli import app as cli
 
     out = tmp_path / "packing_fit.yaml"
     run = CliRunner().invoke(

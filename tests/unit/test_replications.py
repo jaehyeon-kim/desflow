@@ -16,7 +16,7 @@ from desflow import (
     SimulationContext,
     replicate,
 )
-from desflow.blueprint.cli import app as cli
+from desflow.cli import app as cli
 from desflow.connectors.egress.base import BaseEgress
 from desflow.connectors.ingress.base import BaseIngress
 from desflow.analysis.intervals import interval, t_quantile

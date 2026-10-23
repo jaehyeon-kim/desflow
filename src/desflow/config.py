@@ -26,3 +26,7 @@ DEFAULT_STATS_INTERVAL = 10.0
 # The egress `when` value that makes a sink receive ground-truth records, and only
 # those.
 LABELS = "labels"
+
+# The shortest time a draw gives: the sampler raises a draw below it to it, so a
+# time is never 0 or negative.
+MIN_DELAY = 0.00001

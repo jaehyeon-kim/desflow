@@ -14,7 +14,8 @@ def shop(packing: str) -> SimulationContext:
     app = (
         SimulationContext(sim_id="Shop", factor=0, random_seed=42)
         .add_resource("packers", current_cap=3, max_cap=10)
-        .add_arrival("orders", dist="exponential", rate=1.8)
+        # Each order starts the task pack_order
+        .add_arrival("orders", dist="exponential", rate=1.8, spawn="pack_order")
         # Four candidates for packing, each with a mean of 1.5 seconds
         .add_service("constant", dist="constant", value=1.5)
         .add_service("exponential", dist="exponential", rate=0.6667)  # 1 / 1.5 s
@@ -42,14 +43,6 @@ def shop(packing: str) -> SimulationContext:
 
     app.with_stats("typical", interval=3600)
     # --8<-- [end:compare]
-
-    @app.arrival_loop("orders")
-    def order_generator(context):
-        task_id = 0
-        while True:
-            order = yield context.wait_for_arrival("orders")
-            context.spawn(pack_order(task_id, entity=order))
-            task_id += 1
 
     return app
 

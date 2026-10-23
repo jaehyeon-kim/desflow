@@ -56,8 +56,9 @@ Here is the busy hour. The arrival rate is 1.8, and `until` is one hour of simul
     ```python title="docs/snippets/tutorials/queues_and_capacity.py:load"
     app = SimulationContext(sim_id="Shop", factor=0, random_seed=42)  # unpaced
     app.add_service("packing", dist="constant", value=1.5)
-    # The busy hour: 1.8 orders a second, more than one packer can pack
-    app.add_arrival("orders", dist="exponential", rate=1.8)
+    # The busy hour: 1.8 orders a second, more than one packer can pack. Each
+    # order starts the task pack_order.
+    app.add_arrival("orders", dist="exponential", rate=1.8, spawn="pack_order")
     ```
 
 === "Low-level"
@@ -264,8 +265,9 @@ With 3 packers the mean wait is 1.27 seconds. With 2 packers it is over 400 seco
             """The shop in its busy hour, with `packers` packers."""
             app = SimulationContext(sim_id="Shop", factor=0, random_seed=42)  # unpaced
             app.add_service("packing", dist="constant", value=1.5)
-            # The busy hour: 1.8 orders a second, more than one packer can pack
-            app.add_arrival("orders", dist="exponential", rate=1.8)
+            # The busy hour: 1.8 orders a second, more than one packer can pack. Each
+            # order starts the task pack_order.
+            app.add_arrival("orders", dist="exponential", rate=1.8, spawn="pack_order")
             app.add_resource("packers", current_cap=packers, max_cap=10)
             # The mean wait of pack_order, kept by the run and read at the end
             app.with_stats("typical", interval=3600)
@@ -273,14 +275,6 @@ With 3 packers the mean wait is 1.27 seconds. With 2 packers it is over 400 seco
             @app.task(service_id="packing", resource_id="packers")
             def pack_order(task_id):
                 return {"event_type": "order_packed"}
-
-            @app.arrival_loop("orders")
-            def order_generator(context):
-                task_id = 0
-                while True:
-                    order = yield context.wait_for_arrival("orders")
-                    context.spawn(pack_order(task_id, entity=order))
-                    task_id += 1
 
             return app
 

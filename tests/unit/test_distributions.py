@@ -186,7 +186,7 @@ def test_cli_seed_overrides_the_file_and_an_unseeded_run_names_the_command(
 ):
     from typer.testing import CliRunner
 
-    from desflow.blueprint.cli import app as cli
+    from desflow.cli import app as cli
 
     path = tmp_path / "shop.yaml"
     path.write_text(
@@ -219,7 +219,7 @@ def test_the_repeat_command_keeps_the_options_that_change_the_run(tmp_path, capl
     repeats it, since without them the repeat runs a different horizon."""
     from typer.testing import CliRunner
 
-    from desflow.blueprint.cli import app as cli
+    from desflow.cli import app as cli
 
     path = tmp_path / "shop.yaml"
     path.write_text(
