@@ -1,6 +1,6 @@
 """Competing resources: tasks that hold several resources, and a handoff, low-level API.
 
-The low-level twin of `builder/competing_resources_example.py`. A picker collects an
+The low-level version of `builder/competing_resources_example.py`. A picker collects an
 order and carries it to a packing bench; the order keeps the picker until it is on
 the bench, then gives it back. A gift needs the picker and the bench together for
 its wrapping: nested requests, the picker first, the same order every process uses,

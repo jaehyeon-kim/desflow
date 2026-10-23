@@ -1,6 +1,6 @@
 """Interruptions: express orders preempt regular ones, and a fire drill interrupts packing, low-level API.
 
-The low-level twin of `builder/interruptions_example.py`. One packer serves express
+The low-level version of `builder/interruptions_example.py`. One packer serves express
 orders (priority 0) before regular ones (priority 1), and an express order takes the
 packer from a regular order being packed: SimPy delivers a `simpy.Interrupt` whose
 cause is `Preempted`. The regular order queues again and resumes with the packing

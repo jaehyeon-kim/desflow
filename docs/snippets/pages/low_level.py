@@ -31,6 +31,7 @@ env = DynamicRealtimeEnvironment(factor=0.0)  # unpaced; 1.0 follows the wall cl
 env.registry.register_sim_parameter(
     SimParameter(
         sim_id="Shop",
+        # An order every 2 s on average (rate 0.5)
         arrival={"orders": DistributionConfig(dist="exponential", rate=0.5)},
         service={"packing": DistributionConfig(dist="normal", mean=1.5, std=0.3)},
         resources={"packers": CapacityConfig(current_cap=1, max_cap=3)},

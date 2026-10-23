@@ -1,16 +1,23 @@
 # End Conditions
 
-The shop now takes 0.7 orders a second for an hour, a little more than its one packer can pack in 1.5 seconds each, so orders are still waiting when the hour ends. A report that counts only the orders packed in the hour leaves them out. This page asks: **does a fixed horizon answer the same question as closing the doors and packing every order already in the shop?** It runs the hour both ways and counts every order.
+For an hour the shop now gets an order every 1.43 seconds on average (42 a minute, `rate: 0.7`). Its one packer takes 1.5 seconds per order, so it packs at most 40 a minute, a little fewer than the 42 that arrive. Orders are still waiting when the hour ends. A report that counts only the orders packed in the hour leaves them out. This page asks: **does a fixed horizon answer the same question as closing the doors and packing every order already in the shop?** It runs the hour both ways and counts every order.
 
 ## What You Add
 
-A **drain** at the end of the run, and the counts that show which orders each way leaves out. The shop is the one from [First Simulation](first-simulation.md), busier: one packer and 1.5 seconds of packing.
+This page adds a **drain** at the end of the run, which packs every order still in the shop, and the counts that show which orders each way of ending leaves out. The shop is the one from [First Simulation](first-simulation.md), busier: one packer and 1.5 seconds of packing.
 
 ---
 
 ## Count Who Is Still There
 
-An end condition decides which entities a run's results describe. With statistics at `basic` or above, `flows.orders.started` counts the orders that entered the shop, when their first task began, before any queue, `flows.orders.finished` the orders that left, and `flows.orders.in_system` those still in the shop; from `minimal`, `tasks.pack_order.in_progress` counts the orders waiting for or being packed:
+An end condition decides which entities a run's results describe. These statistics count the orders:
+
+- `flows.orders.started`, from the `basic` level, counts the orders that entered the shop. An order enters when its first task begins, before any queue.
+- `flows.orders.finished`, from `basic`, counts the orders that left.
+- `flows.orders.in_system`, from `basic`, counts the orders still in the shop.
+- `tasks.pack_order.in_progress`, from `minimal`, counts the orders waiting to be packed or being packed.
+
+The model switches on `typical`, which also keeps the mean wait:
 
 === "YAML"
 
@@ -74,25 +81,25 @@ A **fixed horizon** stops the clock at `until`, whatever is still going on. A **
 
     `env.all_of(...)` is SimPy's `AllOf`: it happens when every order process has ended. [SimPy and desflow](../des/simpy-and-desflow.md#waiting-for-one-or-all) explains waiting for all events.
 
-    `source.interrupt()` raises an `Interrupt` inside the source process, which ends its loop. [Its interrupts section](../des/simpy-and-desflow.md#interrupts) explains interrupts.
+    `source.interrupt()` raises an `Interrupt` inside the source process, which ends its loop. [SimPy and desflow](../des/simpy-and-desflow.md#interrupts) explains interrupts.
 
     [`o.is_alive`](https://simpy.readthedocs.io/en/4.1.2/api_reference/simpy.events.html#simpy.events.Process.is_alive) is true while a process has not ended.
 
-    `env.now` is the clock, which the script reads to report the end time. [Its clock section](../des/simpy-and-desflow.md#environment-and-the-event-list) explains it.
+    `env.now` is the clock, which the script reads to report the end time. [SimPy and desflow](../des/simpy-and-desflow.md#environment-and-the-event-list) explains the clock.
 
-The stop at `until` is an event that SimPy schedules with the `URGENT` priority, so it comes before the other events at that time. A low-level script that stops its own run at an event can do the same with `env.schedule(event, URGENT, delay)`, and the `fire` action's `urgent` and `after` keys write it in a blueprint, as [Signals and Waiting](../user-guide/tasks-and-processes/signals-and-waiting.md#actions-when-an-event-happens) shows.
+The stop at `until` is an event that SimPy schedules with the `URGENT` priority, so it comes before the other events at that time. A low-level script that stops its own run at an event can do the same with `env.schedule(event, URGENT, delay)`. In a blueprint, the `fire` action's `urgent` and `after` keys do it, as [Signals and Waiting](../user-guide/tasks-and-processes/signals-and-waiting.md#actions-when-an-event-happens) shows.
 
-A drain can also take a limit, `drain: {limit: 10 min}`, so a model that never empties still ends, and a `stop` ends the run as soon as an event or a condition happens; [Run Length](../user-guide/time-and-pacing/run-length.md#stop-early) describes both.
+A drain can also take a limit, `drain: {limit: 10 min}`, so a model that never empties still ends. A `stop` ends the run as soon as an event or a condition happens. [Run Length](../user-guide/time-and-pacing/run-length.md#stop-early) describes both.
 
 ---
 
 ## Result
 
-Does a fixed horizon answer the same question as a drain? Not for every order. The fixed horizon ends at **3,600** seconds with **2,436** orders started, **2,398** finished and **38** still in the shop, one being packed and 37 waiting. The drain ends **56.4** seconds later, at **3,656.4**, with all **2,436** finished:
+Does a fixed horizon answer the same question as a drain? Not for every order. Each figure here comes from a run with the seed 42: one that stops at the hour, and one that drains after it. The fixed horizon ends at **3,600** seconds with **2,436** orders started, **2,398** finished and **38** still in the shop, one being packed and 37 waiting. The drain ends **56.4** seconds later, at **3,656.4**, with all **2,436** finished:
 
 ![Fixed horizon: 2398 orders finished and 38 left; drain: 2436 finished and 0 left](../assets/charts/end-counts.png)
 
-The mean wait barely moves, **71.70** seconds against **71.51**, because the wait of an order is measured when its packing starts, and only 37 orders started late. The Builder and Low-level scripts print both runs:
+The mean wait barely moves: **71.70** seconds with the fixed horizon against **71.51** with the drain. An order's wait is measured when its packing starts, and only 37 of the 2,436 orders start packing after the hour. The Builder and Low-level scripts print both runs:
 
 ```text
 horizon: ends at  3600.0 s, 2436 started, 2398 finished, 38 left, mean wait 71.70 s
@@ -101,7 +108,7 @@ drain  : ends at  3656.4 s, 2436 started, 2436 finished, 0 left, mean wait 71.51
 
 ## Why It Works
 
-A fixed horizon answers a question about a period, such as how many orders the shop packs in an hour; the orders still in the shop are its unfinished work, and `in_system` says how many there are. A drain answers a question about a batch of orders, such as how long the day's orders take to clear; it serves every admitted order, at the cost of running past the hour. Report the counts beside any mean, so a reader knows which orders it covers. [Output Analysis](../des/output-analysis.md#terminating-or-steady-state) explains the two kinds of run, and [Statistics](../user-guide/statistics.md) describes each count.
+A fixed horizon answers a question about a period, such as how many orders the shop packs in an hour. The orders still in the shop at the end are unfinished work, and `in_system` says how many there are. A drain answers a question about a batch of orders, such as how long the day's orders take to clear. It serves every admitted order, but the run goes on past the hour. Report the counts beside any mean, so a reader knows which orders it covers. [Output Analysis](../des/output-analysis.md#terminating-or-steady-state) explains the two kinds of run, and [Statistics](../user-guide/statistics.md) describes each count.
 
 ---
 
@@ -153,10 +160,11 @@ A fixed horizon answers a question about a period, such as how many orders the s
         ```python title="docs/snippets/tutorials/end_conditions.py"
         """The End Conditions tutorial: a fixed horizon against a drain.
 
-        One packer, 0.7 orders a second and 1.5 seconds of packing, for an hour. Every
-        record is printed to the terminal, and the script prints the counts and the mean
-        wait with a fixed horizon and with a drain at the end:
-        python end_conditions.py 2>/dev/null shows only those lines.
+        One packer, an order every 1.43 seconds on average (rate 0.7) and 1.5 seconds of
+        packing, for an hour. Every record is printed to the terminal, and the script prints the
+        counts and the mean wait with a fixed horizon and with a drain at the end. To see only
+        those lines, run:
+        python end_conditions.py 2>/dev/null
         """
 
         import logging
@@ -227,10 +235,11 @@ A fixed horizon answers a question about a period, such as how many orders the s
         ```python title="docs/snippets/tutorials/end_conditions_low_level.py"
         """The End Conditions tutorial: a fixed horizon against a drain.
 
-        One packer, 0.7 orders a second and 1.5 seconds of packing, for an hour. Every
-        record is printed to the terminal, and the script prints the counts and the mean
-        wait with a fixed horizon and with a drain at the end:
-        python end_conditions_low_level.py 2>/dev/null shows only those lines.
+        One packer, an order every 1.43 seconds on average (rate 0.7) and 1.5 seconds of
+        packing, for an hour. Every record is printed to the terminal, and the script prints the
+        counts and the mean wait with a fixed horizon and with a drain at the end. To see only
+        those lines, run:
+        python end_conditions_low_level.py 2>/dev/null
         """
 
         import itertools

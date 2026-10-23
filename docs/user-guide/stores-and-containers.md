@@ -17,7 +17,7 @@ Both have a capacity, or no limit. A task that takes waits while there is not en
 
 ### Declare Them
 
-A container has a `current_cap`, its capacity, the largest amount it holds; a `max_cap`, the largest capacity a live change can set; and a `level`, the amount it holds when the run starts, 0 when left out. A store has a `current_cap` and a `max_cap`, in whole items, and starts empty unless it lists `items` ([Start With Items and Serve by Priority](#start-with-items-and-serve-by-priority)). `run()` builds a `DynamicContainer` and a `DynamicStore` for each one the context declares; a store and a container cannot share a name.
+A container has three settings. `current_cap` is its capacity, the largest amount it holds. `max_cap` is the largest capacity a live change can set. `level` is the amount it holds when the run starts, 0 when left out. A store has a `current_cap` and a `max_cap`, in whole items, and starts empty unless it lists `items` ([Start With Items and Serve by Priority](#start-with-items-and-serve-by-priority)). `run()` builds a `DynamicContainer` and a `DynamicStore` for each one the context declares. A store and a container cannot share a name.
 
 === "YAML"
 
@@ -62,13 +62,13 @@ A container has a `current_cap`, its capacity, the largest amount it holds; a `m
     parcels = DynamicStore(env, "Shop", "parcels")
     ```
 
-    A `DynamicContainer` built with no `init` starts at the level its `ContainerConfig` gives; `init=` sets another.
+    A `DynamicContainer` built with no `init` starts at the level its `ContainerConfig` gives. `init=` sets another.
 
-A store or container with no `current_cap` has no capacity limit, as `simpy.Store(env)` and `simpy.Container(env)` have: a put never waits for room. `current_cap: .inf` in YAML, or `float("inf")` in code, says the same. A `max_cap` alone gives the `current_cap`, and a `current_cap` alone gives the `max_cap`. A live update can give a store with no limit a number, which a store holds as a whole number of items and rounds down when it is a fraction, and `.inf` or the text `"inf"` sets no limit again. A store or container with no limit publishes `capacity` as `null`.
+A store or container with no `current_cap` has no capacity limit, as `simpy.Store(env)` and `simpy.Container(env)` have: a put never waits for room. `current_cap: .inf` in YAML, or `float("inf")` in code, says the same. A `max_cap` alone gives the `current_cap`, and a `current_cap` alone gives the `max_cap`. A live update can give a store with no limit a capacity. A store's capacity is a whole number of items, so a fractional capacity is rounded down. `.inf` or the text `"inf"` sets no limit again. A store or container with no limit publishes `capacity` as `null`.
 
 ### Take and Add
 
-A task takes with `get` and adds with `put`. For a container, each names the container and an `amount`: a number; an expression, such as `payload.boxes` for a field of the previous task's payload; or in the builder, a function of the task id and the previous task's payload. The amount is 1 when left out. For a store, each names the store: a `put` adds the task's finished payload as the item, and a `get` takes the oldest item and passes it to the task's function as `item`.
+A task takes with `get` and adds with `put`. For a container, each names the container and an `amount`. The amount can be a number, or an expression such as `payload.boxes` for a field of the previous task's payload. In the builder, it can also be a function of the task id and the previous task's payload. The amount is 1 when left out. For a store, each names the store. A `put` adds the task's finished payload as the item, and a `get` takes the oldest item and passes it to the task's function as `item`.
 
 === "YAML"
 
@@ -125,11 +125,11 @@ A task takes with `get` and adds with `put`. For a container, each names the con
 
 A task with a resource gets its unit first and then takes its `get`, so it waits for stock while holding the unit. A task adds its `put` after its service time, then publishes the finished event. [Tasks and Processes](tasks-and-processes/index.md#what-apptask-does) lists every step.
 
-A `put` or `get` makes the task wait until it is granted. With `wait: false` (`"wait": False` in the builder) the task makes the request and goes on at once, as a SimPy `put` that is not yielded: it publishes `finished` without waiting, and the request stays in the queue until it can be granted. Requests that are not waited for are granted first in first out with the others. An interrupt, `on_interrupt: abandon` and `patience` never cancel one, and a run ends without a request that is still waiting. A `drain` does not wait for it. A `get` with `wait: false` takes its item later and drops it, so it cannot use `item_field` or a function that declares `item`, and `item.<field>` can be read only in its own `filter`. `wait: false` is refused in a branch of a `wait`. The `pump` task of [Example: Fuel Dock](#example-fuel-dock) puts fuel into a tank this way; the third pump finds only 20 of room and its put stays queued.
+A `put` or `get` makes the task wait until it is granted. With `wait: false` (`"wait": False` in the builder), the task makes the request and goes on at once, as a SimPy `put` that is not yielded does. It publishes `finished` without waiting, and the request stays in the queue until it can be granted. Requests that are not waited for are granted first in, first out, together with the others. An interrupt, `on_interrupt: abandon` and `patience` never cancel one. A run can end while such a request still waits, and a `drain` does not wait for it. A `get` with `wait: false` takes its item later and drops it, so it cannot use `item_field` or a function that declares `item`, and `item.<field>` can be read only in its own `filter`. `wait: false` is refused in a branch of a `wait`. The `pump` task of [Example: Fuel Dock](#example-fuel-dock) puts fuel into a tank this way; the third pump finds room for only 20 units of fuel, so its put stays queued.
 
 ### Start With Items and Serve by Priority
 
-A store can hold items when the run starts, as parcels left from yesterday: `items` lists them in the order a get returns them. A store with `priority` returns the item with the lowest priority first, as SimPy's `PriorityStore` does; its items are `[priority, item]` pairs, and a task's `put` gives each new item its `priority`: a number, an expression such as `attr.priority`, or any other value that can be ordered against the others, such as a list `[1, 2]`, which orders element by element as a tuple does. In YAML a string is an expression, so a text priority such as `'P1'` comes from `attr.grade` or `payload.grade`. A priority keeps the value it is given, so the text `'10'` sorts as text, before `'9'`. Priorities that cannot be compared, such as a number and a text, raise `TypeError` at the put, as in SimPy. Items of equal priority come out in the order they went in. A store cannot start with more items than its `current_cap`; the blueprint or `add_store` is refused with the reason.
+A store can hold items when the run starts, such as parcels left from yesterday: `items` lists them in the order a get returns them. A store with `priority` returns the item with the lowest `priority` value first, as SimPy's `PriorityStore` does. Its items are `[priority, item]` pairs, and a task's `put` gives each new item its `priority`. The priority can be a number, an expression such as `attr.priority`, or any other value that can be ordered against the others. A list such as `[1, 2]` works too, and is ordered element by element, as a tuple is. In YAML a string is an expression, so a text priority such as `'P1'` comes from `attr.grade` or `payload.grade`. A priority keeps the value it is given, so the text `'10'` sorts as text, before `'9'`. Priorities that cannot be compared, such as a number and a text, raise `TypeError` at the put, as in SimPy. Items of equal priority come out in the order they went in. A store cannot start with more items than its `current_cap`; the blueprint or `add_store` is refused with the reason.
 
 === "YAML"
 
@@ -138,7 +138,7 @@ A store can hold items when the run starts, as parcels left from yesterday: `ite
       parcels:
         current_cap: 10
         max_cap: 10
-        # A courier takes the lowest priority first, the oldest first among equals
+        # A courier takes the lowest priority value first, the oldest first among equals
         priority: true
         # Left from yesterday: [priority, item] pairs, held before the first put
         items:
@@ -158,7 +158,7 @@ A store can hold items when the run starts, as parcels left from yesterday: `ite
 
     ```python title="docs/snippets/pages/parcel_store.py:builder-store"
     app = SimulationContext(sim_id="Shop", factor=0.0)
-    # A courier takes the lowest priority first, the oldest first among equals.
+    # A courier takes the lowest priority value first, the oldest first among equals.
     # Left from yesterday: (priority, item) pairs, held before the first put.
     app.add_store(
         "parcels",
@@ -191,15 +191,15 @@ A store can hold items when the run starts, as parcels left from yesterday: `ite
         yield parcels.put(parcels.wrap({"order": "express-1"}, 1))
     ```
 
-    A low-level priority store holds `simpy.PriorityItem`s. `wrap(item, priority)` makes one ranked by the priority and then by a rising number, which is how the builder and YAML keep equal priorities in order; a plain `PriorityItem(priority, item)` also works, with no order among equal priorities.
+    A low-level priority store holds `simpy.PriorityItem`s. `wrap(item, priority)` makes one, ranked by the priority and then by a rising number. The builder and YAML use it to keep equal priorities in order. A plain `PriorityItem(priority, item)` also works, but keeps no order among equal priorities.
 
 A `get` on a priority store takes no `priority` of its own and is refused with one: the item's priority decides the order. [Priorities](../tutorials/priorities.md) compares priority storage with a resource's priority queue.
 
 ### Pick an Item, or Give Up Waiting
 
-A store `get` can take a `filter`, a condition that picks which item it takes, as SimPy's `FilterStore` does. `item.<field>` reads the item offered, beside the names any condition reads, such as `attr.area` for the entity's own attribute. The get takes the oldest item that matches and waits while none does; a waiting get that matches nothing does not stop a later one from taking an item that matches it. A priority store takes no filter, because SimPy has no store that both ranks and filters; the blueprint or `run()` refuses one with the task's name.
+A store `get` can take a `filter`, a condition that picks which item it takes, as SimPy's `FilterStore` does. `item.<field>` reads the item offered, beside the names any condition reads, such as `attr.area` for the entity's own attribute. The get takes the oldest item that matches, and waits while none does. A waiting get that matches nothing does not stop a later get from taking an item that matches it. A priority store takes no filter, because SimPy has no store that both ranks and filters. The blueprint or `run()` refuses a filter on one, and names the task.
 
-A task's `patience` covers its whole wait, for its `wait`, then its resource and then its `get`. When it runs out, the task publishes `reneged` and its get is cancelled, so it takes nothing later. In the low-level API, `cancel()` on a put or get event that has not succeeded takes it out of its queue, as in SimPy: a cancelled get takes nothing, and a cancelled put adds nothing. `item_field` adds the item a YAML task's get took to its payload, and a builder function receives it as `item`:
+A task's `patience` covers its whole wait: for its `wait`, then its resource, then its `get`. When it runs out, the task publishes `reneged` and its get is cancelled, so it takes nothing later. In the low-level API, `cancel()` on a put or get event that has not succeeded takes it out of its queue, as in SimPy: a cancelled get takes nothing, and a cancelled put adds nothing. In YAML, `item_field` adds the item that the task's get took to its payload. A builder function receives the item as `item`:
 
 === "YAML"
 
@@ -388,9 +388,9 @@ A store or container of your own class changes how items or amounts go in and ou
         }
     ```
 
-The statistics and the conditions follow every change to a store's items or a container's level made by `_do_put` or `_do_get`, whether the override calls `super()` or not, and they are told once for each. `ContainerBase` compares the level before and after, so an override that returns `True` without changing the level reports nothing. A change to the length of `put_queue` or `get_queue` is reported to the conditions that read `putters.` or `getters.`; a queue class must support `len()` and `remove()`. A `cancel()` is reported from the event classes, so it works with a queue class of your own.
+The statistics and the conditions follow every change to a store's items or a container's level made by `_do_put` or `_do_get`, whether the override calls `super()` or not, and each change is reported to them once. `ContainerBase` compares the level before and after, so an override that returns `True` without changing the level reports nothing. A change to the length of `put_queue` or `get_queue` is reported to the conditions that read `putters.` or `getters.`; a queue class must support `len()` and `remove()`. A `cancel()` is reported from the event classes, so it works with a queue class of your own.
 
-A task's `put` stores its payload as the item, and its `get` passes the item on, unwrapped, whatever the type. A `type` cannot be given with `priority`: a type sets its own order, so subclass `StoreBase` and `simpy.PriorityStore` for a ranked store. A `get` with a `filter` needs a type that subclasses `simpy.FilterStore`, and a blueprint or `run()` that has none is refused with the task's name. A live capacity update reaches a type of your own as it does the default.
+A task's `put` stores its payload as the item, and its `get` passes the item on, unwrapped, whatever the type. A `type` cannot be given with `priority`: a type sets its own order, so subclass `StoreBase` and `simpy.PriorityStore` for a ranked store. A `get` with a `filter` needs a type that subclasses `simpy.FilterStore`, and a blueprint or `run()` without such a type is refused, naming the task. A live capacity update reaches a type of your own as it does the default.
 
 ### Registry Paths, Readings and Conditions
 
@@ -403,7 +403,7 @@ A container has three registry paths, `<sim_id>.containers.<name>.current_cap`, 
 | `getters_waiting` | tasks waiting to get an item | tasks waiting to take an amount |
 | `putters_waiting` | tasks waiting to put an item | tasks waiting to add an amount |
 
-`basic` adds `level_avg`, the level averaged over time; [Statistics](statistics.md) describes it. These are the readings of [`stores_containers.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/docs/snippets/yaml/stores_containers.yaml), the blueprint whose parts this section shows, at 30 and 40 seconds, before and after the stock count below:
+`basic` adds `level_avg`, the level averaged over time; [Statistics](statistics.md) describes it. Below are the readings of [`stores_containers.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/docs/snippets/yaml/stores_containers.yaml), the blueprint whose parts this page shows. They are taken at 30 and 40 simulation seconds, before and after the stock count that [Under Live Changes](#under-live-changes) shows:
 
 <!-- records: holder-readings -->
 ```text
@@ -417,7 +417,7 @@ A container has three registry paths, `<sim_id>.containers.<name>.current_cap`, 
 [TEL] {'sim_ts': 40.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.getters_waiting', 'value': 0}
 ```
 
-At 30 seconds the bin is empty and two orders wait for boxes; at 40 seconds the count has put 50 boxes in, those two have taken theirs, and the shelf of parcels is full, with two packed orders waiting for room.
+At 30 seconds the bin is empty and two orders wait for boxes; at 40 seconds the stock count has put 50 boxes in, those two have taken theirs, and the shelf of parcels is full, with two packed orders waiting for room.
 
 A condition in a task's `next` reads a level as `level.<name>`, so an order can go to backorder when `level.stock == 0`, as [Task Flow](task-flow.md) shows.
 
@@ -430,23 +430,23 @@ A condition can also read how many tasks wait at a store or container, and what 
 | `count(<store>, <condition>)` | how many items meet the condition, which reads `item.<field>` of each |
 | `items(<store>)`, `items(<store>, item.<field>)` | the list of items, or that field of each; a priority store gives its items unwrapped |
 
-`in` and `not in` read an `items(...)` list, as in `payload.sku in items(shelf, item.sku)`, which is true while the shelf holds that sku. The store is a bare name, and `count` and `items` cannot be nested inside each other. The names are checked at load: each must be a store (`putters.` and `getters.` also a container).
+`in` and `not in` read an `items(...)` list, as in `payload.sku in items(shelf, item.sku)`, which is true while the shelf holds that sku. The store is a bare name, and `count` and `items` cannot be nested inside each other. The names are checked at load: each must name a store, and `putters.` and `getters.` may also name a container.
 
-A condition that reads one of these names is checked again when a put or get joins or leaves a queue. A condition that does not, such as `level.stock == 0`, is checked as before. A queue change is not a change of level, so `level_avg` does not move. The `marshal` task of [Example: Fuel Dock](#example-fuel-dock) waits on `putters.lane >= 1`.
+A condition that reads one of these names is checked again when a put or get joins or leaves a queue. A condition that reads none of them, such as `level.stock == 0`, is not checked again for a queue change. A queue change is not a change of level, so `level_avg` does not move. The `marshal` task of [Example: Fuel Dock](#example-fuel-dock) waits on `putters.lane >= 1`.
 
 ---
 
 ## How It Works
 
-A container keeps a level between 0 and its capacity, with a queue of getters and a queue of putters. A `get` succeeds as soon as the level covers its amount, and a `put` as soon as there is room for all of it; until then each waits in its queue, in the order it arrived:
+A container keeps a level between 0 and its capacity, with a queue of getters and a queue of putters. A `get` succeeds as soon as the level covers its amount, and a `put` as soon as there is room for all of it. Until then, each waits in its queue, in the order it arrived:
 
 ![A DynamicContainer called stock holds a level up to its current_cap. Getters wait below it until the level covers their amount, putters until there is room; a live update of the level from the registry, clamped to between 0 and current_cap, wakes both](../assets/diagrams/container-level.png)
 
-A store keeps a list of items, up to its capacity. A `put` adds an item at the end, and a `get` takes the first, so items leave in the order they came; a `get` with a filter takes the first item its filter accepts:
+A store keeps a list of items, up to its capacity. A `put` adds an item at the end, and a `get` takes the first, so items leave in the order they came. A `get` with a filter takes the first item its filter accepts:
 
 ![A DynamicStore called parcels holds items, each a finished payload, up to its current_cap. Putters wait until there is room; getters wait until there is an item, and take the oldest](../assets/diagrams/store-items.png)
 
-**SimPy and desflow.** Underneath are SimPy's `Container`; a `FilterStore` for a store, which serves its gets as `Store` does while no waiting get has a filter; and a `PriorityStore` for a priority store, which hands out the lowest item first. A full put that waits for room and an empty get that waits for an item or an amount are checked against plain SimPy in all three APIs; [SimPy Compatibility](../reference/simpy-compatibility.md) lists the checks. SimPy's capacities are fixed when they are created; desflow's follow the registry, keep the registry's `level` in step with every put and get, and report each change to the statistics. [SimPy and desflow](../des/simpy-and-desflow.md) compares the two.
+**SimPy and desflow.** desflow builds on three SimPy classes. A container is SimPy's `Container`. A store is a `FilterStore`, which serves its gets as `Store` does while no waiting get has a filter. A priority store is a `PriorityStore`, which hands out the lowest item first. A full put that waits for room and an empty get that waits for an item or an amount are checked against plain SimPy in all three APIs; [SimPy Compatibility](../reference/simpy-compatibility.md) lists the checks. SimPy's capacities are fixed when they are created, and desflow's follow the registry. desflow also keeps the registry's `level` in step with every put and get, and reports each change to the statistics. [SimPy and desflow](../des/simpy-and-desflow.md) compares the two.
 
 ---
 
@@ -495,14 +495,14 @@ The stock count in [`stores_containers.yaml`](https://github.com/jaehyeon-kim/de
 - **A container that never refills** blocks its getters for good, and a task that waits for stock while holding a resource blocks the resource too. Supply has to keep up with demand, as [Stock](../tutorials/stock.md) shows.
 - **Whole items.** A store's capacity is a whole number or no limit, and it holds items, not amounts.
 - **A put or get with `wait: false`** is never cancelled, so a supply that outpaces its consumers grows the queue without end. A run drops what is still waiting when it ends.
-- **A filter checks every waiting get on each put.** A store with many waiting gets and a filter that rarely matches does work in proportion to both, as SimPy's `FilterStore` does.
+- **A filter checks every waiting get on each put.** For a store with many waiting gets and a filter that rarely matches, the work grows in proportion to both, as SimPy's `FilterStore` does.
 - **One store or container per get or put.** A task has at most one `get` and one `put`.
 
 ---
 
 ## Example: Stock, Parcels and Express Orders
 
-The `stock` example puts it together: packing takes a box from a container and puts the parcel in a store, which starts with two parcels from yesterday, and a courier collects them. Express orders go first, at the packers and, as the parcels store is a priority store, at the courier. The stock runs out, so packing waits until a restock at 40 seconds sets the level to 30. It needs no Docker service and ends on its own.
+The `stock` example combines a container and a store. Packing takes a box from a container and puts the parcel in a store, which starts with two parcels from yesterday. A courier collects the parcels. Express orders go first at the packers, and also at the courier, because the parcels store is a priority store. The stock runs out, so packing waits until a restock at 40 seconds sets the level to 30 boxes. It needs no Docker service and ends on its own.
 
 === "YAML"
 
@@ -671,7 +671,7 @@ The `stock` example puts it together: packing takes a box from a container and p
 
 ## Example: Filtered Inventory
 
-The `filtered-inventory` example puts the filter and the patience together: packed orders go on one shelf as parcels for the north or the south, and each courier takes the oldest parcel for its own area, or leaves without one after 20 seconds. It needs no Docker service and ends on its own after 120 simulation seconds.
+The `filtered-inventory` example combines a filter and patience. Packed orders go on one shelf as parcels for the north or the south. Each courier takes the oldest parcel for its own area, or leaves without one after 20 seconds. It needs no Docker service and ends on its own after 120 simulation seconds.
 
 === "YAML"
 
@@ -785,7 +785,14 @@ The `filtered-inventory` example puts the filter and the patience together: pack
 
 ## Example: Fuel Dock
 
-The `fuel-dock` example puts the pieces of this page together: fuel trucks wait in a lane of your own type that gives back the newest truck first, a crew unloads one every 7 seconds, a tank truck puts fuel into a tank of 100 without waiting for the put, which waits in the tank's queue once the tank is nearly full, and a marshal calls the overflow bay once a truck waits outside the full lane. It needs no Docker service and ends on its own after 40 simulation seconds.
+The `fuel-dock` example combines the parts of this page:
+
+- Fuel trucks wait in a lane of your own type, which gives back the newest truck first.
+- A crew unloads one truck every 7 seconds.
+- A tank truck puts fuel into a tank that holds 100 units, without waiting for the put. Once the tank is nearly full, the put waits in the tank's queue.
+- A marshal calls the overflow bay once a truck waits outside the full lane.
+
+It needs no Docker service and ends on its own after 40 simulation seconds.
 
 === "YAML"
 

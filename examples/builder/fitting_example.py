@@ -2,9 +2,9 @@
 
 `fit_column` fits the 40 packing times in ../packing_times.csv to every family, and
 the script prints the table of candidates. `add_service` takes the best one's
-settings, the same numbers `desflow fit` writes for the YAML version. Two packers and
-orders at 0.8 a second. The run prints every event and the statistics, and ends after
-one simulation hour.
+settings, the same numbers `desflow fit` writes for the YAML version. Two packers,
+and an order every 1.25 seconds on average (48 a minute, rate 0.8). The run prints
+every event and the statistics, and ends after one simulation hour.
 
 Needs no containers, and the fit extra: pip install "desflow[fit]".
 """
@@ -44,6 +44,7 @@ def shop() -> SimulationContext:
         # The best candidate's settings, such as dist="triangular", low=0.546332
         .add_service("packing", **result.settings())
         # --8<-- [end:service]
+        # An order every 1.25 s on average (rate 0.8)
         .add_arrival("orders", dist="exponential", rate=0.8)
         .with_stats("typical", interval=600)
     )

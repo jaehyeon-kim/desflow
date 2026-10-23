@@ -18,7 +18,7 @@ Releases come in the order shown, without dates: a release ships when it is read
   icon: ':material-clock-outline:'
   key: planned
 - title: '0.28.0: Library hooks for the server'
-  content: 'Parameter changes that report who made them and why: `change` returns a `ParamChange` or raises `ParamRejected`, an `on_change` list of callbacks receives each accepted change, and `registry_paths()` lists the paths a simulation will have without running it. The server after 1.0 then adds to the library without changing it. `FileIngress` changes parameters while a run goes when you edit a local file, with no broker. [#70](https://github.com/jaehyeon-kim/desflow/issues/70) [#86](https://github.com/jaehyeon-kim/desflow/issues/86)'
+  content: 'Parameter changes that report who made them and why: `change` returns a `ParamChange` or raises `ParamRejected`, an `on_change` list of callbacks receives each accepted change, and `registry_paths()` lists the paths a simulation will have without running it. The server after 1.0 then adds to the library without changing it. `FileIngress` changes parameters during a run when you edit a local file, with no broker. [#70](https://github.com/jaehyeon-kim/desflow/issues/70) [#86](https://github.com/jaehyeon-kim/desflow/issues/86)'
   icon: ':material-clock-outline:'
   key: planned
 - title: '0.29.0: Reserved gen key and record contract freeze'
@@ -30,7 +30,7 @@ Releases come in the order shown, without dates: a release ships when it is read
   icon: ':material-clock-outline:'
   key: planned
 - title: '1.0.0: Stable'
-  content: 'The version, the Production/Stable classifier and the Changelog. From here the format, the command, the public API and the record format stay compatible across 1.x. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)'
+  content: '1.0.0 sets the version number and the Production/Stable classifier, and adds its Changelog section. From here the format, the command, the public API and the record format stay compatible across 1.x. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)'
   icon: ':material-clock-outline:'
   key: planned
 ::/timeline::
@@ -81,7 +81,7 @@ The server ships after 1.0, as 1.x releases installed with the `server` extra.
 
 ### Platform
 
-- **More speed:** cheaper record publishing, which takes about 40 percent of a run, with the same published records ([#69](https://github.com/jaehyeon-kim/desflow/issues/69)), and a faster runtime for YAML-only blueprints if measurements show the need.
+- **More speed:** cheaper record publishing, which takes about 40 percent of a run's time, with the same published records ([#69](https://github.com/jaehyeon-kim/desflow/issues/69)), and a faster runtime for YAML-only blueprints if measurements show the need.
 
 ### Docs
 
@@ -103,13 +103,13 @@ The server ships after 1.0, as 1.x releases installed with the `server` extra.
 
 ??? note "0.22.0: Native core, experiments and replications"
 
-    - **Native core parity:** the operations on the SimPy Compatibility page, natively in YAML, the builder and the low-level API, each checked against SimPy: signals, interrupts, tasks needing several resources, filtered store gets, stopping and stepping a run, and customers who give up on a queue or never join it. [#64](https://github.com/jaehyeon-kim/desflow/issues/64)
+    - **Native core parity:** the operations on the SimPy Compatibility page work natively in YAML, the builder and the low-level API, and each is checked against SimPy. They include signals, interrupts, tasks needing several resources, filtered store gets, stopping and stepping a run, and customers who give up on a queue or never join it. [#64](https://github.com/jaehyeon-kim/desflow/issues/64)
     - **Breakdowns, changing demand and replay:** a resource that fails and is repaired, a schedule of times at which an arrival rate or a capacity changes, and arrivals read from a local CSV or Parquet file. [#65](https://github.com/jaehyeon-kim/desflow/issues/65)
-    - **Replications:** run a model with many seeds and get each statistic with a [confidence interval](../des/output-analysis.md#interval-and-half-width), so a result is never read from one run. [#59](https://github.com/jaehyeon-kim/desflow/issues/59)
+    - **Replications:** run a model with many seeds and get each statistic with a [95% interval](../des/output-analysis.md#interval-and-half-width), so a result is never read from one run. [#59](https://github.com/jaehyeon-kim/desflow/issues/59)
     - **Experiments:** compare designs and sweep parameters over [replications](../des/output-analysis.md#replications), fail an experiment when a result breaks a limit, fit a distribution to measured data, and write a Markdown report, all on one machine. [#66](https://github.com/jaehyeon-kim/desflow/issues/66)
     - **Speed:** faster runs that publish the same records. [#24](https://github.com/jaehyeon-kim/desflow/issues/24)
     - **Record contract:** every record field documented with its type and format, payload keys such as `__table__` reserved for desflow, a `timezone` setting for timestamps, and no `lag_seconds` from a run at full speed. [#51](https://github.com/jaehyeon-kim/desflow/issues/51)
-    - **Learn section:** the shop tutorial, which extends one shop model page by page and answers a question with a number on each page, has 20 pages, which added replications, comparing designs, sweeps, fitting, patience, interruptions, end conditions and more. [#60](https://github.com/jaehyeon-kim/desflow/issues/60)
+    - **Learn section:** the shop tutorial extends one shop model page by page and answers a question with a number on each page. It has 20 pages, and the new pages cover replications, comparing designs, sweeps, fitting, patience, interruptions, end conditions and more. [#60](https://github.com/jaehyeon-kim/desflow/issues/60)
 
 ??? note "0.21.0: Distributions, flows and statistics"
 
@@ -121,6 +121,6 @@ The server ships after 1.0, as 1.x releases installed with the `server` extra.
 
 ??? note "0.20.0: Rename to desflow"
 
-    - **Rename to desflow:** the package, its import name and its command are all `desflow`. The old `dynamic-des` names still work, with a warning, until 0.30.0.
+    - **Rename to desflow:** the package, its import name and its command are all `desflow`. The old names, `dynamic-des`, `dynamic_des` and `ddes`, still work with a warning until 0.30.0.
 
 The [Changelog](changelog.md) lists every release.

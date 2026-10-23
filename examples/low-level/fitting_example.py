@@ -1,12 +1,12 @@
 """Fitted inputs, low-level API: the shop's packing time, fitted from 40 measured times.
 
-The low-level twin of `builder/fitting_example.py`. `fit_column` fits the 40 packing
+The low-level version of `builder/fitting_example.py`. `fit_column` fits the 40 packing
 times in ../packing_times.csv to every family, and the script prints the table of
 candidates. The best one's settings make the packing `DistributionConfig`, the same
-numbers `desflow fit` writes for the YAML version. Two packers and orders at 0.8 a
-second. The pack task reports each step to `env.stats`, as the builder's tasks do
-for you. The run prints every event and the statistics, and ends after one
-simulation hour.
+numbers `desflow fit` writes for the YAML version. Two packers, and an order every
+1.25 seconds on average (48 a minute, rate 0.8). The pack task reports each step to
+`env.stats`, as the builder's tasks do for you. The run prints every event and the
+statistics, and ends after one simulation hour.
 
 Needs no containers, and the fit extra: pip install "desflow[fit]".
 """
@@ -36,6 +36,7 @@ result = fit_column(read_column(DATA, "packing_seconds"), unit="s", lower=0)
 print(result.text())  # every candidate, its status and diagnostics
 PARAMS = SimParameter(
     sim_id="Shop",
+    # An order every 1.25 s on average (rate 0.8)
     arrival={"orders": DistributionConfig(dist="exponential", rate=0.8)},
     # The best candidate's settings, such as dist="triangular", low=0.546332
     service={"packing": DistributionConfig(**result.settings())},

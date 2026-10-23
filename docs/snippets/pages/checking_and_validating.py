@@ -36,7 +36,8 @@ def run_fixed(gap: float, service: float, until: float, packers: int = 1) -> dic
 
 # --8<-- [start:checks]
 # One order every 3 s and 1.5 s to pack: orders arrive at 3, 6, ... 3597 s, so 1,199 of
-# them, and none waits. The packer works 1,199 x 1.5 s of the 3,600 s: 49.96%.
+# them. Each is packed before the next arrives, so none waits. The packer works
+# 1,199 x 1.5 s of the 3,600 s: 49.96%.
 easy = run_fixed(gap=3, service=1.5, until=3600)
 assert easy["Shop.stats.flows.orders.started"] == 1199
 assert easy["Shop.stats.tasks.pack_order.wait_max"] == 0

@@ -37,6 +37,7 @@ In the low-level API you register the parameters yourself, and read a value with
 ```python title="docs/snippets/pages/registry.py:paths"
 params = SimParameter(
     sim_id="Shop",
+    # An order every 2 s on average (rate 0.5)
     arrival={"orders": DistributionConfig(dist="exponential", rate=0.5)},
     service={"packing": DistributionConfig(dist="normal", mean=3.0, std=0.5)},
     resources={"packers": CapacityConfig(current_cap=2, max_cap=5)},
@@ -80,12 +81,13 @@ env.registry.update("Shop.containers.stock.level", 150)  # stored as 100, the ca
 
 ### Script an Experiment
 
-A blueprint's `scenario` lists changes, each with the simulation time it applies at. Here a second packer starts at 30 seconds, orders arrive twice as fast from one minute, and the extra packer leaves at two minutes:
+A blueprint's `scenario` lists changes, each with the simulation time it applies at. Here a second packer starts at 30 seconds. From one minute, orders arrive twice as fast: the average gap between orders falls from 5 seconds to 2.5 seconds (`rate` from 0.2 to 0.4). The extra packer leaves at two minutes:
 
 ```yaml title="docs/snippets/yaml/scenario.yaml"
-# The first blueprint with a scripted experiment: a second packer starts at 30 s,
-# orders arrive twice as fast from 1 min, and the extra packer leaves at
-# 2 min. Every change lands at exactly that simulation time, on every run.
+# The first blueprint with a scripted experiment: a second packer starts at 30 s.
+# From 1 min, orders arrive twice as fast: the average gap falls from 5 s to 2.5 s
+# (rate 0.2 to 0.4). The extra packer leaves at 2 min. Every change lands at
+# exactly that simulation time, on every run.
 simulation:
   sim_id: Shop
   factor: 0
@@ -101,6 +103,7 @@ services:
   packing: {dist: normal, mean: 4 s, std: 1 s}
 
 arrivals:
+  # An order every 5 s on average (rate 0.2), 2.5 s from 1 min
   orders: {dist: exponential, rate: 0.2, spawn: pack_order}
 
 tasks:
@@ -123,7 +126,7 @@ run:
 
 The builder and the low-level API take the same steps, as a list of mappings; [Time-varying Arrivals](../guides/time-varying-arrivals.md#steps) shows one schedule in each API.
 
-A scenario is not a connector. It is a SimPy process that waits on the simulation clock, so each step lands at exactly its `at`, on every run and at any `factor`, including 0. A step applies before every other event at its time, so an arrival gap drawn at that moment uses the new value; steps at the same time apply in the order written, and a step at or after `until` never applies. [Time-varying Arrivals](../guides/time-varying-arrivals.md#boundaries) shows each case. Every path of a blueprint's scenario is checked against the model's registry when the file loads, so a misspelt path stops the load with its line; the builder checks its paths when the run starts. `LocalIngress` waits on the wall clock instead, and an unknown path is only logged when it is due. A scenario and an ingress connector can run together, so a scripted baseline can run while an operator steers over Kafka; when both change the same path, the later write wins.
+A scenario is not a connector. It is a SimPy process that waits on the simulation clock, so each step lands at exactly its `at`, on every run and at any `factor`, including 0. A step applies before every other event at its time, so an arrival gap drawn at that moment uses the new value. Steps at the same time apply in the order written, and a step at or after `until` never applies. [Time-varying Arrivals](../guides/time-varying-arrivals.md#boundaries) shows each case. Every path of a blueprint's scenario is checked against the model's registry when the file loads, so a misspelt path stops the load with its line. The builder checks its paths when the run starts. `LocalIngress` waits on the wall clock instead, and an unknown path is only logged when it is due. A scenario and an ingress connector can run together, so a scripted baseline can run while an operator steers over Kafka. When both change the same path, the later write wins.
 
 ### Record What a Change Was For
 
@@ -141,7 +144,7 @@ scenario:
     record: {fault: label_printer_offline}
 ```
 
-Labels go only to sinks with `when: labels`, and those sinks receive nothing else, so the labels never reach the pipeline under test and a scorer reads them apart from the data. [Choose What Each Sink Gets](egress.md#choose-what-each-sink-gets) shows the sinks of this blueprint.
+Labels go only to sinks with `when: labels`, and those sinks receive nothing else. The labels therefore never reach the pipeline under test, and a scorer reads them apart from the data. [Choose What Each Sink Gets](egress.md#choose-what-each-sink-gets) shows the sinks of this blueprint.
 
 ![A scenario step at 30 seconds updates the registry, which raises the order rate the data sink sees, and publishes a label with path, old, new and label to the when: labels sink only](../assets/diagrams/ground-truth.png)
 
@@ -159,20 +162,20 @@ In Python, `env.publish_label(label, path=..., old=..., new=...)` publishes one,
 
 ## How It Works
 
-**Registration.** `run()`, or `register_sim_parameter` in the low-level API, flattens the `SimParameter` into the registry: one `DynamicValue` per path, holding the value and a change signal, and beside them the configuration objects the paths belong to, such as each `DistributionConfig`.
+**Registration.** `run()`, or `register_sim_parameter` in the low-level API, flattens the `SimParameter` into the registry. The registry holds one `DynamicValue` per path, with the value and a change signal. Beside them, it keeps the configuration objects that the paths belong to, such as each `DistributionConfig`.
 
 **An update.** `registry.update(path, value)` applies one change. The checks run in order, and an accepted value reaches the parts that read it:
 
 ![An update from an ingress connector, a scenario or a process passes the checks in order, then the registry stores the value and updates the parameter's config; the sampler, the resources, stores and containers, and waiting processes follow](../assets/diagrams/registry-update.png)
 
 - A path that does not exist is logged as a warning, and the update is ignored.
-- A value of another type is converted to the type the path holds, so the string `"5"` sent to an integer path becomes 5; Python's conversion is used, so 2.5 sent to an integer path becomes 2. A value that cannot be converted is logged as an error and ignored.
+- A value of another type is converted to the type the path holds, so the string `"5"` sent to an integer path becomes 5. Python's conversion is used, so 2.5 sent to an integer path becomes 2. A value that cannot be converted is logged as an error and ignored.
 - A distribution parameter is checked on a copy of its configuration, by the rules used at build. One out of range is logged as an error, and the old value stays.
 - A `current_cap` outside 0 to `max_cap`, or a container `level` outside 0 to `current_cap`, is stored clamped to that range, with a warning. A lower `max_cap` clamps the stored `current_cap` the same way.
 - A value equal to the current one changes nothing.
-- Otherwise the value is stored, and the attribute of the configuration object is set too, found by splitting the path at its last dot: `Shop.service.packing.mean` sets `mean` on the object at `Shop.service.packing`. That is why the `Sampler`, which reads that object at every draw, sees the new value.
+- Otherwise the value is stored, and the attribute of the configuration object is set too, found by splitting the path at its last dot: `Shop.service.packing.mean` sets `mean` on the object at `Shop.service.packing`. The `Sampler` reads that object at every draw, so it sees the new value.
 
-**Change Signal.** Each value has a SimPy `Store` with one slot as its signal. An update puts a token in it if it is empty, and `wait_for_change()` waits for that token, so several changes before a waiter wakes give one signal, and one waiting process takes it. Resources, stores and containers already wait on their own paths, so wait only on paths nothing else waits on, such as variables:
+**Change Signal.** Each value has a SimPy `Store` with one slot as its signal. An update puts a token in it if it is empty, and `wait_for_change()` waits for that token. The slot holds one token, so several changes before a waiter wakes give one signal, and only one waiting process takes it. Resources, stores and containers already wait on their own paths, and a token that your process takes does not reach them. Wait only on paths that nothing else waits on, such as variables:
 
 ```python title="docs/snippets/pages/registry.py:wait"
 def watch_speed(env):
@@ -186,7 +189,7 @@ def watch_speed(env):
 env.process(watch_speed(env))
 ```
 
-A container's level changes with every put and get as well; the registry keeps that level so a reader sees it, without signalling the container again.
+A container's level also changes with every put and get. The registry keeps that level, so a reader sees it, but does not signal the container again.
 
 ---
 
@@ -221,4 +224,4 @@ app.with_stats("minimal", interval=2.0)
 - **An unknown path is a warning, not an error,** for an ingress message or a process; only a scenario is checked when it loads.
 - **A family is fixed.** There is no path that turns a `normal` into an `exponential`; that is a new model.
 - **Several changes, one signal.** A process waiting on a path wakes once for several changes made before it runs, and reads the latest value.
-- **Ingress lands on the wall clock.** A message's change lands at whatever simulation time the run has reached when it arrives; a change that must happen at an exact simulation time is a scenario step.
+- **Ingress lands on the wall clock.** A message's change lands at whatever simulation time the run has reached when it arrives. A change that must happen at an exact simulation time needs a scenario step.

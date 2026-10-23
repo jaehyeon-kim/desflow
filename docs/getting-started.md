@@ -22,7 +22,7 @@ Install the core library with uv or pip:
     pip install desflow
     ```
 
-desflow was called dynamic-des before 0.20.0: install `desflow`, import `desflow` and run `desflow`. Code that imports `dynamic_des` and scripts that run `ddes` keep working with a warning until 0.30.0, and the [Changelog](about/changelog.md) says what to change.
+desflow was called dynamic-des before 0.20.0. Install the package `desflow`, import the module `desflow` and run the command `desflow`. Code that imports `dynamic_des` and scripts that run `ddes` keep working with a warning until 0.30.0, and the [Changelog](about/changelog.md) says what to change.
 
 The connectors are optional extras, for example `uv add "desflow[kafka,parquet]"` or `pip install "desflow[kafka,parquet]"`:
 
@@ -42,7 +42,7 @@ The connectors are optional extras, for example `uv add "desflow[kafka,parquet]"
 
 ## Run an Example
 
-The local example models a shop that receives and packs customer orders. The simulation prints events and telemetry to the terminal. It runs in real time and ends on its own after 30 seconds, in all three versions. Pick the way you write, then follow uv or pip:
+The local example models a shop that receives and packs customer orders. The simulation prints events and telemetry to the terminal. The example is written three ways: as a YAML blueprint, with the builder and with the low-level API. Each version runs in real time and ends on its own after 30 seconds. Pick the way you write models, then follow uv or pip:
 
 === "YAML"
 
@@ -166,7 +166,7 @@ pip install "odctl>=1.0,<2"
 
 ### Starting a Profile
 
-Each example needs at most one odctl profile, started before you run it and torn down after:
+Each example needs at most one odctl profile. Start the profile before you run the example, and stop it afterwards:
 
 ![The local, parquet, stock, flow and measuring examples need nothing started; kafka and backfill-live need odctl up kafka-lite; postgres and related-records need postgres; redis needs valkey; iceberg needs catalog; parquet written to S3 needs storage](assets/diagrams/example-infrastructure.png)
 
@@ -179,9 +179,9 @@ Each example needs at most one odctl profile, started before you run it and torn
 | parquet with `PARQUET_FILESYSTEM=s3` | `odctl up storage` | `odctl down storage --volumes` |
 | iceberg | `odctl up catalog` | `odctl down catalog --volumes` |
 
-The YAML blueprints in `examples/yaml/` need the same profile as their builder twin.
+Each YAML blueprint in `examples/yaml/` needs the same profile as the builder version of the same example.
 
-Kafka and Redis are the two whose profile names are not what you would guess, because odctl ships a one-broker Kafka as `kafka-lite` and a three-broker cluster as `kafka-full`, and uses Valkey rather than Redis. The Kafka examples run on either, since both publish a broker at `localhost:9092`.
+The Kafka and Redis profiles are not named after their service. odctl's one-broker Kafka profile is `kafka-lite` and its three-broker Kafka profile is `kafka-full`. odctl runs Valkey in place of Redis, so its Redis profile is `valkey`. The Kafka examples run on either Kafka profile, because both publish a broker at `localhost:9092`.
 
 ### Endpoints These Profiles Publish
 
@@ -202,5 +202,5 @@ These are the addresses the examples use. Every profile publishes on your machin
 
 ## Next Steps
 
-- [First Simulation](tutorials/first-simulation.md), the first page of the shop tutorial in the Learn section, builds a shop model step by step. The following pages extend the model one idea at a time.
+- [First Simulation](tutorials/first-simulation.md) builds a shop model step by step. It is the first page of the shop tutorial in the Learn section, and each following page adds one idea to the model.
 - The [examples](examples/index.md) show each connector, written three ways, with the profile each one needs.

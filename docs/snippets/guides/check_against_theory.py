@@ -58,7 +58,7 @@ def unsupported():
 
 
 if __name__ == "__main__":
-    print(f"one packer at 0.75 orders a second: {by_hand(1, 0.75):.3f} s")
+    print(f"one packer, an order every 1.33 s (rate 0.75): {by_hand(1, 0.75):.3f} s")
     print(f"two packers at 1.5 orders a second: {by_hand(2, 1.5):.3f} s")
     verify()
     unsupported()

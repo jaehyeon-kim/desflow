@@ -1,9 +1,10 @@
 """The Changing Demand tutorial: a 20-minute rush, with one packer or two.
 
-One packer and 1.5 seconds of packing; orders arrive at 0.4 a second, and at 0.9
-from 20 to 40 minutes. Every record is printed to the terminal, and the script
-prints the waits with one packer through the rush and with a second packer for it:
-python changing_demand_low_level.py 2>/dev/null shows only those lines.
+One packer and 1.5 seconds of packing. An order arrives every 2.5 seconds on average
+(rate 0.4), and every 1.11 seconds (rate 0.9) from 20 to 40 minutes. Every record is
+printed to the terminal, and the script prints the waits with one packer through the
+rush and with a second packer for it. To see only those lines, run:
+python changing_demand_low_level.py 2>/dev/null
 """
 
 import itertools
@@ -34,7 +35,10 @@ PARAMS = SimParameter(
 
 # --8<-- [start:schedule]
 def schedule(rush_packers):
-    """The rush: 0.9 orders a second from 20 to 40 minutes, and rush_packers for it."""
+    """The rush from 20 to 40 minutes, with rush_packers packers.
+
+    During the rush an order arrives every 1.11 s on average (rate 0.9).
+    """
     return [
         {"at": 1200, "path": "Shop.arrival.orders.rate", "value": 0.9},
         {

@@ -1,7 +1,7 @@
 """
 Orders with line items, low-level API.
 
-The low-level twin of `builder/postgres_orders_example.py` and
+The low-level version of `builder/postgres_orders_example.py` and
 `yaml/advanced/postgres_orders.yaml`. It wires `DynamicRealtimeEnvironment`, the
 registry and the connectors by hand. With the same seed it publishes the same orders
 as the other two.

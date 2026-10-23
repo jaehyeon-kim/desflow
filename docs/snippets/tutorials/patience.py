@@ -1,9 +1,10 @@
 """The Patience tutorial: orders leave after waiting too long, and none join near closing.
 
-One packer, 0.7 orders a second and 1.5 seconds of packing. Every record is printed
-to the terminal, and the script prints what happened to the orders with a patience
-of 30 seconds and with none at the end: python patience.py 2>/dev/null shows only
-those lines.
+One packer, an order every 1.43 seconds on average (rate 0.7) and 1.5 seconds of
+packing. Every record is printed to the terminal, and the script prints what happened
+to the orders with a patience of 30 seconds and with none at the end. To see only those
+lines, run:
+python patience.py 2>/dev/null
 """
 
 import logging
@@ -21,7 +22,7 @@ def shop(patience: float = 30) -> SimulationContext:
         SimulationContext(sim_id="Shop", factor=0, random_seed=42)
         .add_resource("packers", current_cap=1, max_cap=4)
         .add_service("packing", dist="constant", value=1.5)
-        # 0.7 orders a second: more than one packer can pack
+        # An order every 1.43 s on average (0.7 a second): more than one packer packs
         .add_arrival("orders", dist="exponential", rate=0.7)
         # --8<-- [start:watch]
         # Counts of finished, reneged and balked orders, and the mean wait, at the end

@@ -72,7 +72,7 @@ def animation(log: pd.DataFrame) -> Figure:
     return figure
 ```
 
-The two minutes make **61** frames, named 0, 2, 4 and on to 120, and the figure draws all **64** orders.
+The 2-minute run makes **61** frames, named 0, 2, 4 and on to 120, and the figure draws all **64** orders.
 
 ---
 
@@ -86,7 +86,7 @@ The two minutes make **61** frames, named 0, 2, 4 and on to 120, and the figure 
 
 ## Example
 
-The whole file. It imports the functions of Analyse the Event Log, so keep the two files in one folder.
+The whole file is below. It imports the functions of Analyse the Event Log, so keep the two files in one folder.
 
 ```python title="docs/snippets/guides/animate_a_run.py"
 """Animate a Run: the shop's event log, animated with vidigi.

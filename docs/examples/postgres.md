@@ -6,7 +6,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
 === "YAML"
 
-    This example builds the simulation of the builder example in the Builder tab from a YAML blueprint, with no Python. Each order is written to `orders`, and `PostgresIngress` polls `simulation_params` for updates. Orders with random line items in a second table are the [advanced Postgres example](advanced-postgres-orders.md), which keeps its generator in Python.
+    This example builds the simulation of the builder example in the Builder tab from a YAML blueprint, with no Python. Each order is written to `orders`, and `PostgresIngress` polls `simulation_params` for updates. The [Generate Related Records](advanced-postgres-orders.md) example adds random line items in a second table, and keeps its order generator in Python.
 
     **Quick Start**
 
@@ -54,7 +54,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
     **What It Does**
 
-    When the run starts, `PostgresEgress` creates the `orders` table and `PostgresIngress` creates `simulation_params`, if they do not exist. The run then writes one order per arrival until you stop it. The order id is the task id, so a second run skips the orders the first one wrote, until the table is dropped.
+    When the run starts, `PostgresEgress` creates the `orders` table and `PostgresIngress` creates `simulation_params`, if they do not exist. The run then writes one order per arrival until you stop it. The order id is the task id, and the primary key of `orders`. A second run numbers its orders from 0 again. `PostgresEgress` skips each order whose `order_id` is already in the table, so drop the table to write those orders again.
 
     In a second terminal, raise the arrival rate while it runs:
 
@@ -159,7 +159,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
     **Dynamic Parameter Updates (Ingress)**
 
-    This example also attaches a `PostgresIngress` listening to a `simulation_params` table. While the simulation runs, inserting a row with `path` and `value` into that table changes the parameter, such as the order arrival rate. The simulation fetches the new configuration within its poll interval, 2 seconds by default.
+    This example also attaches a `PostgresIngress` listening to a `simulation_params` table. While the simulation runs, inserting a row with `path` and `value` into that table changes the parameter, such as the order arrival rate. The simulation reads the new value within its poll interval, which is 2 seconds by default.
 
     **Quick Start**
 
@@ -205,7 +205,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
         odctl down postgres --volumes
         ```
 
-    **In a second terminal, execute the dynamic parameter update:**
+    **In a second terminal, change the parameter:**
     ```bash
     # Connect to the database container and inject the parameter (maintains audit history!)
     docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params (path, value) VALUES ('Shop.arrival.orders.rate', '5.0');"
@@ -335,7 +335,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
     **Dynamic Parameter Updates (Ingress)**
 
-    This example also attaches a `PostgresIngress` listening to a `simulation_params` table. While the simulation runs, inserting a row with `path` and `value` into that table changes the parameter, such as the order arrival rate. The simulation fetches the new configuration within its poll interval, 2 seconds by default.
+    This example also attaches a `PostgresIngress` listening to a `simulation_params` table. While the simulation runs, inserting a row with `path` and `value` into that table changes the parameter, such as the order arrival rate. The simulation reads the new value within its poll interval, which is 2 seconds by default.
 
     **Quick Start**
 
@@ -381,7 +381,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
         odctl down postgres --volumes
         ```
 
-    **In a second terminal, execute the dynamic parameter update:**
+    **In a second terminal, change the parameter:**
     ```bash
     # Connect to the database container and inject the parameter (maintains audit history!)
     docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params (path, value) VALUES ('Shop.arrival.orders.rate', '5.0');"
@@ -402,7 +402,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
     ```python title="examples/low-level/postgres_example.py"
     """Relational output, low-level API.
 
-    The low-level twin of `builder/postgres_example.py`. The simulation writes order
+    The low-level version of `builder/postgres_example.py`. The simulation writes order
     records to the PostgreSQL table `orders`. `PostgresEgress` creates the table at start,
     and `PostgresIngress` creates `simulation_params` and polls it for parameter updates.
 

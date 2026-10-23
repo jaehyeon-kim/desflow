@@ -10,7 +10,7 @@
 
 ## Task Flow
 
-The classes a task's flow is built from, and the signals and failures tasks share.
+A task's flow is built from the classes below. The signals and failures here are shared between tasks.
 
 <!-- prettier-ignore -->
 ::: desflow.core.signals.Signal
@@ -56,7 +56,7 @@ The classes a task's flow is built from, and the signals and failures tasks shar
 
 ## Loading a Model
 
-`SimulationContext.from_yaml` is the usual entry point for a blueprint. `build` is what it calls, and returns the `run` section as well. `load_context` loads a blueprint or a builder Python file from a folder, local or in object storage, as `desflow run` loads a blueprint. `Preview` is what `desflow run --sample` and `--stdout` pass to them.
+`SimulationContext.from_yaml` is the usual entry point for a blueprint. `from_yaml` calls `build`, which returns the context and the `run` section. `load_context` loads a blueprint or a builder Python file from a folder, local or in object storage, in the way `desflow run` loads a blueprint. `desflow run --sample` and `--stdout` pass a `Preview` to these functions.
 
 <!-- prettier-ignore -->
 ::: desflow.loading.load_context
@@ -363,7 +363,7 @@ The classes a task's flow is built from, and the signals and failures tasks shar
 
 ## Breakdowns, Schedules and Replay
 
-SimPy processes and readers the builder and YAML use, which low-level code starts itself.
+The builder and YAML start these SimPy processes and readers for you. Low-level code starts them itself.
 
 <!-- prettier-ignore -->
 ::: desflow.core.breakdowns.run_breakdowns

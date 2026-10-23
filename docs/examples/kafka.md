@@ -60,15 +60,15 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
 
     **What It Does**
 
-    The run keeps going until you stop it. When it starts, `KafkaEgress` creates `sim-events` and `sim-telemetry` if they do not exist. The run then publishes task lifecycle events to `sim-events` and packer metrics to `sim-telemetry`, and applies parameter updates sent to `sim-config`.
+    The run keeps going until you stop it. When it starts, `KafkaEgress` creates `sim-events` and `sim-telemetry` if they do not exist. The run then publishes task lifecycle events to `sim-events`, and the packers' four readings (`capacity`, `in_use`, `queue_length` and `utilization`) and the task's `in_progress` to `sim-telemetry`. It applies parameter updates sent to `sim-config`.
 
-    The dashboard in the Quick Start works with this run unchanged, because it reads the same topics and the same four packer metrics.
+    The dashboard in the Quick Start works with this run unchanged, because it reads the same topics and the same four packer readings.
 
-    `KAFKA_BOOTSTRAP_SERVERS` overrides the broker address, because the blueprint reads it with `${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}`.
+    The blueprint reads the broker address with `${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}`, so the environment variable `KAFKA_BOOTSTRAP_SERVERS` overrides it.
 
     **Full Source Code**
 
-    The blueprint wires both Kafka connectors and declares the packers, the packing service, the order arrival and the task. The finished event of each task is the fixed `payload`, and `stats: minimal` publishes the packers' four built-in readings and the task's `in_progress` every 2 simulation seconds, as `with_stats("minimal", interval=2.0)` and `env.setup_stats` do in the builder and low-level versions.
+    The blueprint wires both Kafka connectors and declares the packers, the packing service, the order arrival and the task. The finished event of each task is the fixed `payload`. `stats: minimal` publishes the packers' four built-in readings and the task's `in_progress` every 2 simulation seconds. `with_stats("minimal", interval=2.0)` does the same in the builder version, and `env.setup_stats` in the low-level version.
 
     Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
@@ -175,11 +175,11 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
         odctl down kafka-lite --volumes
         ```
 
-    The run keeps going until you stop it. It logs one line per order as a packer starts on it, publishes task lifecycle events to `sim-events` and resource metrics to `sim-telemetry`.
+    The run keeps going until you stop it. It logs one line per order when a packer starts on it. It publishes task lifecycle events to `sim-events`, and the packers' four readings (`capacity`, `in_use`, `queue_length` and `utilization`) and the task's `in_progress` to `sim-telemetry`.
 
     **Full Source Code**
 
-    This script connects the simulation to Kafka topics and utilizes Pydantic models for structured event logging.
+    This script connects the simulation to Kafka topics and uses Pydantic models to fix the fields and types of the events.
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
@@ -190,7 +190,7 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
     to Kafka for input and output. `KafkaIngress` reads parameter updates from `sim-config`,
     so the running simulation can be steered without restarting it. `KafkaEgress`
     publishes lifecycle events to `sim-events` and metrics to `sim-telemetry`, with
-    Pydantic models giving the events a declared shape.
+    Pydantic models that fix the fields and types of the events.
 
     Needs a broker: `odctl up kafka-lite`. Runs until interrupted with Ctrl + C.
     """
@@ -256,9 +256,9 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
     @app.task(service_id="packing", resource_id="packers")
     def pack_order(task_id: int, context):
         """
-        The @task decorator automatically locks the resource and emits the
-        'queued' and 'started' events. We just execute our custom logic
-        and return the final payload.
+        The @task decorator requests the resource and publishes the 'queued'
+        and 'started' events. The function adds its own logic and returns the
+        finished payload.
         """
         logger.info(f"Task {task_id} started at sim time: {context._env.now:.2f}s")
 
@@ -361,18 +361,18 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
         odctl down kafka-lite --volumes
         ```
 
-    The run keeps going until you stop it. It logs one line per order as a packer starts on it, publishes task lifecycle events to `sim-events` and resource metrics to `sim-telemetry`.
+    The run keeps going until you stop it. It logs one line per order when a packer starts on it. It publishes task lifecycle events to `sim-events`, and the packers' four readings (`capacity`, `in_use`, `queue_length` and `utilization`) and the task's `in_progress` to `sim-telemetry`.
 
     **Full Source Code**
 
-    This script connects the simulation to Kafka topics and utilizes Pydantic models for structured event logging.
+    This script connects the simulation to Kafka topics and uses Pydantic models to fix the fields and types of the events.
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
     ```python title="examples/low-level/kafka_example.py"
     """Kafka Digital Twin, low-level API.
 
-    The low-level twin of `builder/kafka_example.py`, a shop packing orders, with
+    The low-level version of `builder/kafka_example.py`, a shop packing orders, with
     the environment, registry and connectors wired by hand. Like the builder version, it
     creates its topics first with `KafkaAdminConnector`.
 

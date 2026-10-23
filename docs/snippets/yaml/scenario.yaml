@@ -1,6 +1,7 @@
-# The first blueprint with a scripted experiment: a second packer starts at 30 s,
-# orders arrive twice as fast from 1 min, and the extra packer leaves at
-# 2 min. Every change lands at exactly that simulation time, on every run.
+# The first blueprint with a scripted experiment: a second packer starts at 30 s.
+# From 1 min, orders arrive twice as fast: the average gap falls from 5 s to 2.5 s
+# (rate 0.2 to 0.4). The extra packer leaves at 2 min. Every change lands at
+# exactly that simulation time, on every run.
 simulation:
   sim_id: Shop
   factor: 0
@@ -16,6 +17,7 @@ services:
   packing: {dist: normal, mean: 4 s, std: 1 s}
 
 arrivals:
+  # An order every 5 s on average (rate 0.2), 2.5 s from 1 min
   orders: {dist: exponential, rate: 0.2, spawn: pack_order}
 
 tasks:

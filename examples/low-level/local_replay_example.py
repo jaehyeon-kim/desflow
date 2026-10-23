@@ -1,6 +1,6 @@
 """Local replay: the orders of a recorded morning, at their recorded times, low-level API.
 
-The low-level twin of `builder/local_replay_example.py`. `read_trace` reads and
+The low-level version of `builder/local_replay_example.py`. `read_trace` reads and
 checks the rows of ../local_replay_orders.csv; a SimPy loop waits for each row's
 time and starts its order, which carries the row's order_id and items. The last
 row is at 73 seconds; after it the arrival stops, and the run ends at 120.

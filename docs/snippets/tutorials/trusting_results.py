@@ -1,10 +1,11 @@
 """The Trusting Results tutorial: the busy hour, measured after a warm-up, builder.
 
-Three packers, orders at 1.8 a second and the measured packing times. Every record is
-printed to the terminal. At the end the script prints the mean wait without and with
-the warm-up, the mean wait of 5 runs after each of three candidate warm-ups, then the
-mean and half-width of two outputs over 5, 10, 20 and 40 replications:
-python trusting_results.py 2>/dev/null shows only those lines.
+Three packers pack orders that arrive at 1.8 a second on average, with the packing
+times measured at the bench. Every record is printed to the terminal. At the end the
+script prints the mean wait without and with the warm-up, the mean wait of 5 runs
+after each of three candidate warm-ups, then the mean and half-width of two outputs
+over 5, 10, 20 and 40 replications. To see only those lines, run:
+python trusting_results.py 2>/dev/null
 """
 
 import logging
@@ -36,7 +37,7 @@ def shop(warmup="2 min") -> SimulationContext:
         .add_arrival("orders", dist="exponential", rate=1.8)
         .add_service("packing", dist="empirical", values=MEASURED)
         # --8<-- [start:plot]
-        # wait_mean every 10 seconds is the mean wait so far: plot it against sim_ts
+        # Every 10 seconds, wait_mean is the mean wait so far: plot it against sim_ts
         .with_stats("typical", interval=10)
         .add_egress(ConsoleEgress())
         # --8<-- [end:plot]
@@ -86,7 +87,7 @@ def warmups(n=5) -> dict:
 
 # --8<-- [end:warmups]
 def precision(result) -> dict:
-    """Each output's mean and half-width over the first 5, 10, 20 and 40 runs."""
+    """Each output's mean and half-width over the first 5, 10, 20 and 40 replications."""
     return {
         (measure, n): interval(result.values[measure][:n])
         for measure in MEASURES

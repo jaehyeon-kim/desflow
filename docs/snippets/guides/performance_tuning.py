@@ -60,7 +60,7 @@ def shop() -> SimulationContext:
 
 # --8<-- [start:measure]
 def throughput(app: SimulationContext, until: float) -> dict:
-    """Runs a model with a counting sink: the records and records per second."""
+    """Runs a model with a counting sink: the record count and the records per second."""
     count = Count()
     app.add_egress(count)
     gc.collect()

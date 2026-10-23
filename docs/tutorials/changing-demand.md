@@ -1,21 +1,22 @@
 # Changing Demand
 
-The shop's one packer packs an order in 1.5 seconds, and orders usually arrive at 0.4 a second. From 20 to 40 minutes a promotion brings 0.9 a second, more than one packer can pack. This page asks: **what does a 20-minute rush do to waits, and does a second packer for the rush keep them short?** It runs the hour with one packer through the rush and with two.
+The shop's one packer packs an order in 1.5 seconds, so it can pack 40 orders a minute. Orders usually arrive every 2.5 seconds on average (24 a minute, `rate: 0.4`). From 20 to 40 minutes a promotion brings an order every 1.11 seconds on average (54 a minute, `rate: 0.9`), more than one packer can pack. This page asks: **what does a 20-minute rush do to waits, and does a second packer for the rush keep them short?** It runs the hour with one packer through the rush and with two.
 
 ## What You Add
 
-A **schedule**: changes to the arrival rate and the number of packers at set times. The shop is the one from [First Simulation](first-simulation.md), with packing at a constant 1.5 seconds.
+This page adds a **schedule**: changes to the arrival rate and the number of packers at set times. The shop is the one from [First Simulation](first-simulation.md), with packing at a constant 1.5 seconds.
 
 ---
 
 ## Write the Schedule
 
-A schedule is a list of steps, each a registry path, a value and the simulation time it applies at. The rush is four steps: the rate and the packers change at 20 minutes and change back at 40:
+A schedule is a list of steps. Each step names a registry path, a value and the simulation time at which the value applies. The rush is four steps: the rate and the packers change at 20 minutes and change back at 40:
 
 === "YAML"
 
     ```yaml title="docs/snippets/yaml/changing_demand.yaml:schedule"
-    # The rush: 0.9 orders a second from 20 to 40 minutes, and RUSH_PACKERS for it
+    # The rush from 20 to 40 minutes: an order every 1.11 s on average (rate 0.9),
+    # and RUSH_PACKERS packers
     scenario:
       - {at: 20 min, path: Shop.arrival.orders.rate, value: 0.9}
       - {at: 20 min, path: Shop.resources.packers.current_cap, value: "${RUSH_PACKERS:-1}"}
@@ -28,7 +29,8 @@ A schedule is a list of steps, each a registry path, a value and the simulation 
 === "Builder"
 
     ```python title="docs/snippets/tutorials/changing_demand.py:schedule"
-    # The rush: 0.9 orders a second from 20 to 40 minutes, and rush_packers for it
+    # The rush from 20 to 40 minutes: an order every 1.11 s on average (rate 0.9),
+    # and rush_packers packers
     .add_scenario(
         [
             {"at": "20 min", "path": "Shop.arrival.orders.rate", "value": 0.9},
@@ -51,7 +53,10 @@ A schedule is a list of steps, each a registry path, a value and the simulation 
 
     ```python title="docs/snippets/tutorials/changing_demand_low_level.py:schedule"
     def schedule(rush_packers):
-        """The rush: 0.9 orders a second from 20 to 40 minutes, and rush_packers for it."""
+        """The rush from 20 to 40 minutes, with rush_packers packers.
+
+        During the rush an order arrives every 1.11 s on average (rate 0.9).
+        """
         return [
             {"at": 1200, "path": "Shop.arrival.orders.rate", "value": 0.9},
             {
@@ -71,13 +76,13 @@ A schedule is a list of steps, each a registry path, a value and the simulation 
     env.process(run_scenario(env, schedule(rush_packers), until=3600))
     ```
 
-The steps follow the simulation clock, so the schedule repeats exactly on every run and at any `factor`. A step at a time applies before every other event at that time: the order that arrives at 20 minutes draws its next gap from the rush rate. [Time-varying Arrivals](../guides/time-varying-arrivals.md#boundaries) sets out these boundaries.
+The steps follow the simulation clock, so the schedule repeats exactly on every run and at any `factor`. A step applies before every other event at its time: the order that arrives at 20 minutes draws its next gap from the rush rate. [Time-varying Arrivals](../guides/time-varying-arrivals.md#boundaries) sets out these boundaries.
 
 ---
 
 ## Result
 
-What does a 20-minute rush do to waits? With one packer, it builds a queue for the whole rush: the mean wait over the hour is **147.74 seconds** and the longest **416.75 seconds**, more than 6 minutes. A second packer for the rush keeps the mean at **0.74 seconds** and the longest at **6.06**. Both pack the same **1,978** orders:
+What does a 20-minute rush do to waits? With one packer, it builds a queue for the whole rush. In one run of the hour with the seed 42, the mean wait over the hour is **147.74 seconds** and the longest **416.75 seconds**, more than 6 minutes. A second packer for the rush keeps the mean at **0.74 seconds** and the longest at **6.06**. Both pack the same **1,978** orders:
 
 ![Waits by the time packing started: with one packer they climb from 20 minutes to 417 s at 47 minutes and are back to near 0 by 54 minutes; with two packers in the rush they stay near 0](../assets/charts/rush-waits.png)
 
@@ -90,7 +95,7 @@ The Builder and Low-level scripts print both plans:
 
 ## Why It Works
 
-During the rush one packer would need 0.9 × 1.5 = 1.35 seconds of packing every second, more than it has: 0.9 orders arrive a second and the packer finishes about 0.67, so the queue grows by about 0.23 orders a second for as long as the rush lasts. That is a **finite overload**: when the rush ends the load falls to 0.6, and the packer works the queue off, here by about 54 minutes. A load that stays at 1 or above is different: its queue grows for as long as the run lasts, and no run length gives a stable mean wait, as [Queueing Basics](../des/queueing-basics.md#utilisation) explains. A finite overload has an answer, but it depends on the schedule: a mean over the hour mixes the quiet minutes with the rush, so report the longest wait, or the waits during the rush, beside it. With two packers the rush load is 0.68 a packer, and waits stay short.
+During the rush one packer would need 0.9 × 1.5 = 1.35 seconds of packing every second, more than it has. Orders arrive at 54 a minute and the packer finishes at most 40, so the queue grows by about 14 orders a minute for as long as the rush lasts. An overload that ends is a **finite overload**. When the rush ends the load falls to 0.4 × 1.5 = 0.6, and the packer works off the queue, here by about 54 minutes. A load that stays at 1 or above is different: its queue grows for as long as the run lasts, and no run length gives a stable mean wait, as [Queueing Basics](../des/queueing-basics.md#utilisation) explains. A finite overload has an answer, but the answer depends on the schedule. A mean over the hour mixes the quiet minutes with the rush, so report the longest wait, or the waits during the rush, beside it. With two packers the rush load is 1.35 ÷ 2 = 0.68 for each packer, below 1, so waits stay short.
 
 ---
 
@@ -124,7 +129,8 @@ During the rush one packer would need 0.9 × 1.5 = 1.35 seconds of packing every
             resource: packers
             payload: {event_type: order_packed}
 
-        # The rush: 0.9 orders a second from 20 to 40 minutes, and RUSH_PACKERS for it
+        # The rush from 20 to 40 minutes: an order every 1.11 s on average (rate 0.9),
+        # and RUSH_PACKERS packers
         scenario:
           - {at: 20 min, path: Shop.arrival.orders.rate, value: 0.9}
           - {at: 20 min, path: Shop.resources.packers.current_cap, value: "${RUSH_PACKERS:-1}"}
@@ -146,10 +152,11 @@ During the rush one packer would need 0.9 × 1.5 = 1.35 seconds of packing every
         ```python title="docs/snippets/tutorials/changing_demand.py"
         """The Changing Demand tutorial: a 20-minute rush, with one packer or two.
 
-        One packer and 1.5 seconds of packing; orders arrive at 0.4 a second, and at 0.9
-        from 20 to 40 minutes. Every record is printed to the terminal, and the script
-        prints the waits with one packer through the rush and with a second packer for it:
-        python changing_demand.py 2>/dev/null shows only those lines.
+        One packer and 1.5 seconds of packing. An order arrives every 2.5 seconds on average
+        (rate 0.4), and every 1.11 seconds (rate 0.9) from 20 to 40 minutes. Every record is
+        printed to the terminal, and the script prints the waits with one packer through the
+        rush and with a second packer for it. To see only those lines, run:
+        python changing_demand.py 2>/dev/null
         """
 
         import logging
@@ -168,7 +175,8 @@ During the rush one packer would need 0.9 × 1.5 = 1.35 seconds of packing every
                 .add_resource("packers", current_cap=1, max_cap=2)
                 .add_service("packing", dist="constant", value=1.5)
                 .add_arrival("orders", dist="exponential", rate=0.4)
-                # The rush: 0.9 orders a second from 20 to 40 minutes, and rush_packers for it
+                # The rush from 20 to 40 minutes: an order every 1.11 s on average (rate 0.9),
+                # and rush_packers packers
                 .add_scenario(
                     [
                         {"at": "20 min", "path": "Shop.arrival.orders.rate", "value": 0.9},
@@ -233,10 +241,11 @@ During the rush one packer would need 0.9 × 1.5 = 1.35 seconds of packing every
         ```python title="docs/snippets/tutorials/changing_demand_low_level.py"
         """The Changing Demand tutorial: a 20-minute rush, with one packer or two.
 
-        One packer and 1.5 seconds of packing; orders arrive at 0.4 a second, and at 0.9
-        from 20 to 40 minutes. Every record is printed to the terminal, and the script
-        prints the waits with one packer through the rush and with a second packer for it:
-        python changing_demand_low_level.py 2>/dev/null shows only those lines.
+        One packer and 1.5 seconds of packing. An order arrives every 2.5 seconds on average
+        (rate 0.4), and every 1.11 seconds (rate 0.9) from 20 to 40 minutes. Every record is
+        printed to the terminal, and the script prints the waits with one packer through the
+        rush and with a second packer for it. To see only those lines, run:
+        python changing_demand_low_level.py 2>/dev/null
         """
 
         import itertools
@@ -266,7 +275,10 @@ During the rush one packer would need 0.9 × 1.5 = 1.35 seconds of packing every
 
 
         def schedule(rush_packers):
-            """The rush: 0.9 orders a second from 20 to 40 minutes, and rush_packers for it."""
+            """The rush from 20 to 40 minutes, with rush_packers packers.
+
+            During the rush an order arrives every 1.11 s on average (rate 0.9).
+            """
             return [
                 {"at": 1200, "path": "Shop.arrival.orders.rate", "value": 0.9},
                 {

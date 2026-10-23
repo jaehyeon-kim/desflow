@@ -22,7 +22,9 @@ services:
 # --8<-- [start:attributes]
 arrivals:
   # Each order starts with these attributes, read as attr.gift
+  # An order every 2 s on average (rate 0.5)
   orders: {dist: exponential, rate: 0.5, spawn: check_order, attributes: {gift: 0}}
+  # A gift order every 10 s on average (rate 0.1)
   gifts: {dist: exponential, rate: 0.1, spawn: check_order, attributes: {gift: 1}}
 # --8<-- [end:attributes]
   deliveries: {dist: constant, value: 30 s, spawn: restock}

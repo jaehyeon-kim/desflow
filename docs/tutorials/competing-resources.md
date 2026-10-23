@@ -1,16 +1,16 @@
 # Competing Resources
 
-The shop now picks each order from the shelves before packing it. One picker fetches the order in a second and carries it to the one packing bench, where packing takes 2 seconds on average. The picker could put the order down by the bench and go back for the next one, or stay with it until the bench is free, so the order is never left unattended. This page asks: **what does holding one resource while waiting for another cost?** It compares the two over an hour, with an order every 2.5 seconds.
+The shop now picks each order from the shelves before packing it. One picker fetches the order in a second and carries it to the one packing bench, where packing takes 2 seconds on average. The picker could put the order down by the bench and go back for the next one, or stay with it until the bench is free, so the order is never left unattended. This page asks: **what does holding one resource while waiting for another cost?** It compares the two over an hour, with an order every 2.5 seconds on average (24 a minute).
 
 ## What You Add
 
-A second resource, the `bench`, and a handoff: the picking task keeps the picker for the packing task, which gives it back once the order is on the bench.
+This page adds a second resource, the `bench`, and a handoff: the picking task keeps the picker for the packing task, which gives it back once the order is on the bench.
 
 ---
 
 ## Hold One While Waiting for Another
 
-In SimPy a process holds a resource for as long as its request is granted and not released, and it can ask for a second resource while it holds the first: nested `with` blocks. A desflow task does the same in two ways. It can list several resources, `resource: [picker, bench]`, and hold them all while it works; or it can hand a unit to the next task of its flow with `keep`, as [Several Resources](../user-guide/resources/several-resources.md#how-to-use-it) describes:
+In SimPy a process holds a resource from the moment its request is granted until it releases the resource. It can request a second resource while it holds the first, with nested `with` blocks. A desflow task does the same in two ways. It can list several resources, `resource: [picker, bench]`, and hold them all while it works. Or it can hand a unit to the next task of its flow with `keep`, as [Several Resources](../user-guide/resources/several-resources.md#how-to-use-it) describes:
 
 === "YAML"
 
@@ -93,7 +93,7 @@ In SimPy a process holds a resource for as long as its request is granted and no
 
     The picker's request is not in a `with` block, because the next process releases it.
 
-While the order waits for the bench it holds the picker: a **partial holding**. Nothing grants the picker and the bench together; each is acquired in turn, and the units already held stay held while the task waits for the next. The picker's busy share counts that waiting time:
+While the order waits for the bench it holds the picker: a **partial holding**. Nothing grants the picker and the bench together. Each is acquired in turn, and the units already held stay held while the task waits for the next. The picker's busy share includes that waiting time:
 
 === "YAML"
 
@@ -120,13 +120,13 @@ While the order waits for the bench it holds the picker: a **partial holding**. 
 
 ## One Order of Acquisition
 
-Two orders that each hold one resource and wait for the other wait for ever: a **deadlock**. If a picking task held the picker and waited for the bench while a wrapping task held the bench and waited for the picker, both could stop. desflow prevents it by refusing such a model when it is built: every task, handoffs included, must acquire shared resources in one order, and the error names the two tasks that disagree. Here every order goes picker first, then bench.
+Two orders that each hold one resource and wait for the other wait for ever: a **deadlock**. If a picking task held the picker and waited for the bench while a wrapping task held the bench and waited for the picker, both could stop. desflow prevents a deadlock by refusing such a model when it is built. Every task, handoffs included, must acquire shared resources in one order, and the error names the two tasks that disagree. Here every order goes picker first, then bench.
 
 ---
 
 ## Result
 
-What does holding the picker while waiting for the bench cost? When the picker frees itself, orders wait **0.32 seconds** for it and **5.89 seconds** for the bench, **6.21 seconds** in all. When it stays with the order, the wait moves to the picker, **8.77 seconds**, and orders wait only **1.09 seconds** for the bench, **9.85 seconds** in all; the picker is busy **82.7%** of the time instead of **39.8%**, most of it standing by the bench:
+What does holding the picker while waiting for the bench cost? Each figure here is a mean from one run of the hour with the seed 42. When the picker puts the order down and goes back, orders wait **0.32 seconds** for the picker and **5.89 seconds** for the bench, **6.21 seconds** in all. When the picker stays with the order, the wait moves to the picker: orders wait **8.77 seconds** for it and only **1.09 seconds** for the bench, **9.85 seconds** in all. The picker is then busy **82.7%** of the time instead of **39.8%**, most of it standing by the bench:
 
 ![Mean wait of an order: freeing the picker, 0.32 s for the picker and 5.89 s for the bench, 6.21 s in all; keeping the picker, 8.77 s and 1.09 s, 9.85 s in all](../assets/charts/handoff-waits.png)
 
@@ -139,7 +139,7 @@ keeps the picker: wait to pick   8.77 s, to pack  1.09 s, picker busy 82.7%
 
 ## Why It Works
 
-The bench is the [bottleneck](../des/queueing-basics.md#flow-balance-and-the-bottleneck): it is busy 80% of the time. When the picker waits at the bench, its own time is spent on the bench's queue, so the picker is busy longer than its work needs and the next order waits for it. Releasing a resource as soon as it is no longer needed keeps the waits where the work is. [Queueing Basics](../des/queueing-basics.md#utilisation) explains utilisation. [Several Resources](../user-guide/resources/several-resources.md#several-resources) describes several resources, handoffs and the order rule.
+Each order brings 2 seconds of packing on average and arrives every 2.5 seconds on average, so the bench is busy 2 ÷ 2.5 = 80% of the time and the picker 1 ÷ 2.5 = 40%. The bench is the busier of the two, the [bottleneck](../des/queueing-basics.md#flow-balance-and-the-bottleneck). When the picker waits at the bench, its own time is spent on the bench's queue, so the picker is busy longer than its work needs and the next order waits for it. Releasing a resource as soon as it is no longer needed keeps the waits where the work is. [Queueing Basics](../des/queueing-basics.md#utilisation) explains utilisation. [Several Resources](../user-guide/resources/several-resources.md#several-resources) describes several resources, handoffs and the order rule.
 
 ---
 
@@ -196,10 +196,10 @@ The bench is the [bottleneck](../des/queueing-basics.md#flow-balance-and-the-bot
         ```python title="docs/snippets/tutorials/competing_resources.py"
         """The Competing Resources tutorial: an order keeps the picker until it is on the bench.
 
-        One picker, one packing bench, and an order every 2.5 seconds on average. Every
-        record is printed to the terminal, and the script prints the waits and the picker's
-        busy share with and without the handoff at the end:
-        python competing_resources.py 2>/dev/null shows only those lines.
+        One picker, one packing bench, and an order every 2.5 seconds on average. Every record
+        is printed to the terminal, and the script prints the waits and the picker's busy share
+        with and without the handoff at the end. To see only those lines, run:
+        python competing_resources.py 2>/dev/null
         """
 
         import logging
@@ -278,10 +278,10 @@ The bench is the [bottleneck](../des/queueing-basics.md#flow-balance-and-the-bot
         ```python title="docs/snippets/tutorials/competing_resources_low_level.py"
         """The Competing Resources tutorial: an order keeps the picker until it is on the bench.
 
-        One picker, one packing bench, and an order every 2.5 seconds on average. Every
-        record is printed to the terminal, and the script prints the waits and the picker's
-        busy share with and without the handoff at the end:
-        python competing_resources_low_level.py 2>/dev/null shows only those lines.
+        One picker, one packing bench, and an order every 2.5 seconds on average. Every record
+        is printed to the terminal, and the script prints the waits and the picker's busy share
+        with and without the handoff at the end. To see only those lines, run:
+        python competing_resources_low_level.py 2>/dev/null
         """
 
         import itertools

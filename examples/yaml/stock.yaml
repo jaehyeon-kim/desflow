@@ -1,11 +1,11 @@
 # Stock, parcels and express orders in YAML.
 #
-# The twin of examples/builder/stock_example.py. Packing an order takes one box from
+# The YAML version of examples/builder/stock_example.py. Packing an order takes one box from
 # the stock container and puts the packed parcel in the parcels store, where a
 # courier collects it; two parcels packed yesterday are already there. Express
 # orders have priority 1 and standard orders 2: the packers serve the lowest
-# priority first, and a courier takes the lowest priority parcel first. The stock
-# runs out, so packing waits until a restock at 40 seconds
+# priority value first, and a courier takes the parcel with the lowest priority
+# value first. The stock runs out, so packing waits until a restock at 40 seconds
 # sets the level to 30.
 #
 # Needs no containers. Runs unpaced and ends after 60 simulation seconds.
@@ -28,7 +28,7 @@ stores:
   parcels:
     current_cap: 10
     max_cap: 10
-    # A courier takes the lowest priority first, the oldest first among equals
+    # A courier takes the lowest priority value first, the oldest first among equals
     priority: true
     # Two standard parcels packed yesterday: [priority, item] pairs
     items:

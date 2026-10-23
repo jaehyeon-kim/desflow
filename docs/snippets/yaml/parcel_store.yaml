@@ -12,7 +12,7 @@ stores:
   parcels:
     current_cap: 10
     max_cap: 10
-    # A courier takes the lowest priority first, the oldest first among equals
+    # A courier takes the lowest priority value first, the oldest first among equals
     priority: true
     # Left from yesterday: [priority, item] pairs, held before the first put
     items:

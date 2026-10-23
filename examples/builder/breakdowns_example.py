@@ -25,6 +25,7 @@ app = (
     .add_breakdown(
         "station",
         # Calendar time from a repair, or the start, to the next failure
+        # A failure every 60 s on average (rate 0.0167)
         time_to_failure={"dist": "exponential", "rate": 0.0167},
         repair={"dist": "uniform", "low": 5, "high": 15},
         # The orders being packed are interrupted, and follow their on_interrupt
@@ -32,6 +33,7 @@ app = (
     )
     # --8<-- [end:station]
     .add_service("packing", dist="triangular", low=1, mode=2, high=4)
+    # An order every 1.67 s on average (rate 0.6)
     .add_arrival("orders", dist="exponential", rate=0.6)
     # Every 60 seconds: the station's down state, downtime and failures
     .with_stats("basic", interval=60.0)

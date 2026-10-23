@@ -4,7 +4,7 @@ Each earlier page added one idea to the shop and answered one question. This pag
 
 ## What You Add
 
-No new feature: the study uses the built-in commands of the earlier pages, in the order of a study. `desflow fit` from [Fit the Inputs](fit-the-inputs.md) fits the inputs to the records. `desflow explain --verify` from [Checking a Model](checking-a-model.md) checks the program against the queueing formulas. An experiment, as in [Comparing Designs](comparing-designs.md), compares the model with values observed in the shop, measures each design with the same seeds and checks the decision rule. `desflow report` writes the report. The model joins picking before packing, from [A Flow of Tasks](flow-of-tasks.md), and a shelf that each order takes from, from [Stock](stock.md).
+This page adds no new feature: the study uses the built-in commands of the earlier pages, in the order of a study. `desflow fit` from [Fit the Inputs](fit-the-inputs.md) fits the inputs to the records. `desflow explain --verify` from [Checking a Model](checking-a-model.md) checks the program against the queueing formulas. An experiment, as in [Comparing Designs](comparing-designs.md), compares the model with values observed in the shop, measures each design with the same seeds and checks the decision rule. `desflow report` writes the report. The model puts picking before packing, as in [A Flow of Tasks](flow-of-tasks.md), and adds a shelf of boxes that each order takes one from, as in [Stock](stock.md).
 
 To follow along, put the files from [Full Files](#full-files) and the two CSV files this page links in one folder. Fitting needs the `fit` extra: `pip install "desflow[fit]"`.
 
@@ -12,7 +12,7 @@ To follow along, put the files from [Full Files](#full-files) and the two CSV fi
 
 ## Fit the Inputs
 
-The shop recorded 300 orders in a busy hour: the gap since the order before, and the time to pick and to pack each, in seconds. [`complete_model_observed.csv`](https://raw.githubusercontent.com/jaehyeon-kim/desflow/main/docs/snippets/tutorials/complete_model_observed.csv) holds them; the values are illustrative, and a real study uses the shop's own records. Fit each column, with no time below 0:
+For each of 300 orders in a busy hour, the shop recorded the gap since the order before, the time to pick the order and the time to pack it, in seconds. [`complete_model_observed.csv`](https://raw.githubusercontent.com/jaehyeon-kim/desflow/main/docs/snippets/tutorials/complete_model_observed.csv) holds them. The values are illustrative, and a real study uses the shop's own records. Fit each column, with no time below 0:
 
 === "YAML"
 
@@ -97,9 +97,9 @@ empirical         fitted                                       values: 300 numbe
 * best: gamma
 ```
 
-The gamma has the lowest [AIC](../des/a-simulation-study.md#aic-and-the-ks-test), and its KS p-value of 0.9484 gives no reason to reject it; [AIC and the KS Test](../des/a-simulation-study.md#aic-and-the-ks-test) explains both scores. The same tables give a KS p-value of 0.995 for the exponential of the gaps and 0.634 for the gamma of the picking times.
+The gamma has the lowest [AIC](../des/a-simulation-study.md#aic-and-the-ks-test), and its KS p-value of 0.9484 gives no reason to reject it. [AIC and the KS Test](../des/a-simulation-study.md#aic-and-the-ks-test) explains both scores. The same tables give a KS p-value of 0.995 for the exponential of the gaps and 0.634 for the gamma of the picking times.
 
-The gaps fit an exponential, the distribution of orders placed independently of each other, at about 1.5 orders a second. The picking and packing times fit a gamma, each with a mean near the data's, about 0.44 and 1.75 seconds. These are inputs: the fit says which distribution draws times like the recorded ones. Whether the model then behaves like the shop is a separate question, answered by its outputs below. The model reads the fits in place of the times:
+The gaps fit an exponential distribution at about 1.5 orders a second, which is the distribution of the gaps between orders placed independently of each other. The picking and packing times each fit a gamma distribution, with means of about 0.44 and 1.75 seconds, close to the means of the data. These are inputs: the fit says which distribution draws times like the recorded ones. Whether the model then behaves like the shop is a separate question, answered by its outputs below. The model reads the fits in place of the times:
 
 === "YAML"
 
@@ -128,7 +128,7 @@ The gaps fit an exponential, the distribution of orders placed independently of 
     .add_service("packing", **FITS["packing"])
     ```
 
-    `FITS` holds `result.settings()` of each fit, with the six significant digits the files hold, so the builder draws the same values as the blueprint.
+    `FITS` holds `result.settings()` of each fit, with the same six significant digits as the fitted files that the blueprint reads, so the builder draws the same values as the blueprint.
 
 === "Low-level"
 
@@ -298,7 +298,7 @@ Each order is picked, then packed, then shipped in a box from the shelf. A deliv
         env.stats.flow_finished("deliveries")
     ```
 
-    `shop["stock"].get(1)` and `put(1000)` are SimPy's container operations, which [Stock](stock.md) introduced: each waits until the shelf holds the boxes, or has room for them.
+    `shop["stock"].get(1)` and `put(1000)` are SimPy's container operations, which [Stock](stock.md) introduced. `get` waits until the shelf holds a box, and `put` waits until the shelf has room for the boxes.
 
 The three tabs publish the same records. The model keeps the `typical` statistics, so each task has a mean wait and each resource a [utilisation](../des/queueing-basics.md#utilisation).
 
@@ -310,7 +310,7 @@ A model is checked twice before it answers anything: against the model on paper,
 
 ### Against Theory
 
-`desflow explain --verify` puts the queueing formulas beside 10 runs of the model:
+`desflow explain --verify` puts the queueing formulas beside 10 replications of the model:
 
 === "YAML"
 
@@ -335,13 +335,13 @@ A model is checked twice before it answers anything: against the model on paper,
     picking, packing = FITS["picking"], FITS["packing"]
     pick_mean = picking["shape"] * picking["scale"]  # a gamma's mean
     pick_use = rate * pick_mean  # one picker
-    # One server, Poisson arrivals: Kingman's formula, exact here, with a gamma's
-    # squared coefficient of variation 1 / shape
+    # One server with Poisson arrivals, where Kingman's formula is exact; a gamma's
+    # squared coefficient of variation is 1 / shape
     pick_wait = pick_use / (1 - pick_use) * (1 + 1 / picking["shape"]) / 2 * pick_mean
     pack_use = rate * packing["shape"] * packing["scale"] / 3  # three packers
     ```
 
-    and compare them with 10 runs:
+    and compare them with 10 replications:
 
     ```python title="docs/snippets/tutorials/complete_model_low_level.py:check"
     formulas = by_hand()
@@ -358,7 +358,7 @@ A model is checked twice before it answers anything: against the model on paper,
         )
     ```
 
-    The formulas give the picker 66.92% and a wait of 0.561 seconds, and the packers 88.01%. The runs measure 67.26 ± 0.67%, 0.569 ± 0.035 seconds and 88.16 ± 0.99%, so each formula lies inside its interval.
+    The formulas give the picker a utilisation of 66.92% and a mean wait of 0.561 seconds, and the packers a utilisation of 88.01%. Over the 10 replications, the means are 67.26 ± 0.67%, 0.569 ± 0.035 seconds and 88.16 ± 0.99%, so each value from the formulas lies inside its interval.
 
 The resources, what is not estimated, and the comparison:
 
@@ -398,11 +398,11 @@ Not compared:
 --verify checks the implementation against the queueing analysis where it applies; it does not show that the model is close enough to the real system
 ```
 
-The picker is one server fed straight by the orders, whose gaps are exponential, so [Kingman's formula](../des/queueing-basics.md#variation-lengthens-waits) gives its wait exactly, and the utilisation, the queue and the wait all agree with the runs. The packers' utilisation agrees too, and they are the [bottleneck](../des/queueing-basics.md#flow-balance-and-the-bottleneck), at 0.88. Their wait has no closed formula, because three packers with gamma times are outside the formulas' assumptions, so the runs alone measure it. The shipping step takes a box from the shelf, which the formulas leave out, so the orders' throughput is not compared either. Agreement shows that the program computes what the model on paper says. It says nothing about whether the model is close enough to the shop.
+The picker is one server, and the orders reach it directly, with exponential gaps. For such a server [Kingman's formula](../des/queueing-basics.md#variation-lengthens-waits) gives the wait exactly, and the utilisation, the queue and the wait all agree with the runs. The packers' utilisation agrees too, and at a utilisation of 0.88 they are the [bottleneck](../des/queueing-basics.md#flow-balance-and-the-bottleneck). Three packers with gamma times are outside the formulas' assumptions, so their wait has no closed formula, and only the runs measure it. The shipping step takes a box from the shelf, which the formulas leave out, so the orders' throughput is not compared either. Agreement shows that the program computes what the model on paper says. It says nothing about whether the model is close enough to the shop.
 
 ### Against the Shop
 
-Say the shop also measured, over the busy hour after its first 2 minutes, a mean wait of 0.57 seconds for picking, 1.9 seconds for packing, and the packers busy 88% of the time. [`complete_model_outputs.csv`](https://raw.githubusercontent.com/jaehyeon-kim/desflow/main/docs/snippets/yaml/complete_model_outputs.csv) holds these values, with the unit, population and horizon of each. They were chosen by hand close to the means of the model's runs of today's design, so they agree with the model by construction: the page shows the method, not evidence about a real shop. The experiment run in [Compare the Designs](#compare-the-designs) places each beside the interval of today's design, `current`:
+Suppose the shop also measured, over the busy hour after its first 2 minutes, a mean wait of 0.57 seconds for picking, 1.9 seconds for packing, and the packers busy 88% of the time. [`complete_model_outputs.csv`](https://raw.githubusercontent.com/jaehyeon-kim/desflow/main/docs/snippets/yaml/complete_model_outputs.csv) holds these values, with the unit, population and horizon of each. They were chosen by hand to be close to the model's means for today's design, so they agree with the model by construction. The page shows the method, not evidence about a real shop. The experiment run in [Compare the Designs](#compare-the-designs) places each beside the interval of today's design, `current`:
 
 === "YAML"
 
@@ -427,13 +427,13 @@ Say the shop also measured, over the busy hour after its first 2 minutes, a mean
 
     The same key, in the same mapping as the model below.
 
-All three values lie inside the model's interval for their mean: 0.57 inside **0.55 to 0.58** seconds, 1.9 inside **1.75 to 2.08**, and 88 inside **87.44 to 88.47**. An interval for a mean is narrow, though, and one observed hour varies like one run, not like a mean of 40 runs. Across the 40 runs of `current`, the standard deviation of one run is 0.048 seconds for the picking wait, 0.515 seconds for the packing wait and 1.615 percentage points for the packers' utilisation. Only 7, 9 and 9 of the 40 runs fall inside the three intervals. A real observed hour can therefore fall outside an interval while the model is right, and a study judges it against the spread of single runs as well. Here each observed value lies well within one such standard deviation of the model's mean: 0.57 is 0.16 standard deviations from the mean, 1.9 is 0.03 and 88 is 0.03.
+All three values lie inside the model's interval for their mean: 0.57 inside **0.55 to 0.58** seconds, 1.9 inside **1.75 to 2.08**, and 88 inside **87.44 to 88.47**. An interval for a mean is narrow, though. One observed hour varies as much as one run does, not as little as a mean of 40 replications. Across the 40 replications of `current`, the standard deviation of one run is 0.048 seconds for the picking wait, 0.515 seconds for the packing wait and 1.615 percentage points for the packers' utilisation. Only 7, 9 and 9 of the 40 replications fall inside the three intervals. A real observed hour can therefore fall outside an interval while the model is right, so a study also compares the observed value with the spread of single runs. Here each observed value lies well within one such standard deviation of the model's mean: 0.57 is 0.16 standard deviations from the mean, 1.9 is 0.03 and 88 is 0.03.
 
 ---
 
 ## Choose Warm-up and Precision
 
-Each run starts with the shop empty. The real busy hour does not start empty, because orders are already in the shop, so the study treats the hour as [steady state](../des/output-analysis.md#terminating-or-steady-state) and leaves out the empty start. Run today's design 40 times after three candidate warm-ups and compare the mean waits:
+Each run starts with the shop empty. The real busy hour does not start empty, because orders are already in the shop when it starts. The study therefore treats the hour as [steady state](../des/output-analysis.md#terminating-or-steady-state) and leaves out the empty start. Run today's design 40 times after three candidate warm-ups and compare the mean waits:
 
 === "YAML"
 
@@ -441,7 +441,7 @@ Each run starts with the shop empty. The real busy hour does not start empty, be
     WARMUP=0 desflow run complete_model.yaml --replications 40 --measure tasks.pick_order.wait_mean --measure tasks.pack_order.wait_mean
     ```
 
-    `WARMUP="10 min"` runs the third candidate, and the file's own 2 minutes the second.
+    `WARMUP="10 min"` runs the third candidate, and the file's own setting of 2 minutes is the second.
 
 === "Builder"
 
@@ -461,7 +461,7 @@ Each run starts with the shop empty. The real busy hour does not start empty, be
     }
     ```
 
-The mean waits, in seconds, with the 95% half-width:
+The mean waits over the 40 replications, in seconds, with the 95% half-width:
 
 | Warm-up | Picking | Packing |
 |---|---|---|
@@ -469,9 +469,9 @@ The mean waits, in seconds, with the 95% half-width:
 | 2 minutes | 0.562 ± 0.015 | 1.916 ± 0.165 |
 | 10 minutes | 0.563 ± 0.015 | 1.915 ± 0.175 |
 
-Without a warm-up the mean packing wait is 0.013 seconds lower, well inside the half-width, and 10 minutes give the same as 2. By the rule of taking the shortest warm-up after which a longer one moves no mean by more than its half-width, none is needed here. The study keeps 2 minutes, because [Output Analysis](../des/output-analysis.md#one-run-starts-empty) advises choosing the warm-up conservatively. The comparison holds for this shop and this hour only: a busier shop or another horizon needs it again.
+Without a warm-up, the mean packing wait is 0.013 seconds lower than with 2 minutes, well inside the half-width. A warm-up of 10 minutes gives the same means as 2 minutes. The rule is to take the shortest warm-up after which a longer one moves no mean by more than its half-width. By that rule, no warm-up is needed here. The study keeps 2 minutes, because [Output Analysis](../des/output-analysis.md#one-run-starts-empty) advises choosing the warm-up conservatively. The comparison holds for this shop and this hour only, and a busier shop or another horizon needs it run again.
 
-The precision the decision needs is set by the rule: each interval must lie wholly on one side of 1 second. With 40 runs of each design, the experiment below gives half-widths of at most 0.17 seconds, and the interval nearest the bound, the fourth packer's picking wait, ends at **0.58** seconds. Every interval is far from 1 second, so 40 runs are enough. A design whose interval crossed 1 second would need more runs before it could be decided ([How Many Replications](../des/output-analysis.md#how-many-replications)).
+The precision the decision needs is set by the rule: each interval must lie wholly on one side of 1 second. With 40 replications of each design, the experiment below gives half-widths of at most 0.17 seconds. The interval nearest the bound, that of the fourth packer's picking wait, ends at **0.58** seconds. Every interval is far from 1 second, so 40 replications are enough. A design whose interval crossed 1 second would need more replications before it could be decided ([How Many Replications](../des/output-analysis.md#how-many-replications)).
 
 ---
 
@@ -497,7 +497,7 @@ The experiment runs each design 40 times, with the measures of the decision and 
 === "Builder"
 
     ```python title="docs/snippets/tutorials/complete_model.py:model"
-    # The busy hour, with its 2-minute warm-up; 40 runs of each design
+    # The busy hour, with its 2-minute warm-up; 40 replications of each design
     "model": shop,
     "until": "1 h",
     "replications": 40,
@@ -562,7 +562,7 @@ Each design changes one capacity, and every design runs with the same seeds, so 
 
     The same keys, in the same mapping as the model.
 
-The checks state the decision rule for the design it recommends, and that no order waits for a box in any of the three designs:
+The checks state the decision rule for the recommended design, and that no order waits for a box in any of the three designs:
 
 === "YAML"
 
@@ -571,7 +571,7 @@ The checks state the decision rule for the design it recommends, and that no ord
       # The recommended design: the upper end of each wait's interval is under 1 second
       - {measure: tasks.pick_order.wait_mean, variant: fourth-packer, max: 1}
       - {measure: tasks.pack_order.wait_mean, variant: fourth-packer, max: 1}
-      # No order waits for a shipping box, in each of the three designs
+      # In each of the three designs, no order waits for a shipping box
       - {measure: tasks.ship_order.wait_mean, variant: current, max: 0}
       - {measure: tasks.ship_order.wait_mean, variant: second-picker, max: 0}
       - {measure: tasks.ship_order.wait_mean, variant: fourth-packer, max: 0}
@@ -584,7 +584,7 @@ The checks state the decision rule for the design it recommends, and that no ord
         # The recommended design: the upper end of each wait's interval is under 1 s
         {"measure": "tasks.pick_order.wait_mean", "variant": "fourth-packer", "max": 1},
         {"measure": "tasks.pack_order.wait_mean", "variant": "fourth-packer", "max": 1},
-        # No order waits for a shipping box, in each of the three designs
+        # In each of the three designs, no order waits for a shipping box
         {"measure": "tasks.ship_order.wait_mean", "variant": "current", "max": 0},
         {"measure": "tasks.ship_order.wait_mean", "variant": "second-picker", "max": 0},
         {"measure": "tasks.ship_order.wait_mean", "variant": "fourth-packer", "max": 0},
@@ -614,7 +614,7 @@ Run it:
     python complete_model_low_level.py
     ```
 
-Each design's mean waits in seconds and the packers' utilisation in percent, with the 95% half-width:
+The table gives each design's mean waits over its 40 replications, in seconds, and the packers' utilisation in percent, with the 95% half-width:
 
 | Design | Picking wait | Packing wait | Packers busy |
 |---|---|---|---|
@@ -624,11 +624,11 @@ Each design's mean waits in seconds and the packers' utilisation in percent, wit
 
 ![Mean picking and packing waits of the three designs with their 95% half-widths, beside a line at 1 second. Current: picking 0.56, packing 1.92. Second picker: picking 0.04, packing 2.17. Fourth packer: picking 0.56, packing 0.15.](../assets/charts/complete-waits.png)
 
-Only the fourth packer keeps both waits under 1 second. Seed by seed, it cuts the packing wait by **1.77 ± 0.16** seconds and leaves the picking wait as it was. A second picker cuts the picking wait by 0.52 ± 0.01 seconds but lengthens the packing wait by 0.26 ± 0.02. One picker passes orders on one at a time, spaced by its picking times; two pickers pass them on as they arrive, closer together, so more of them meet three busy packers. `explain` named the packers as the bottleneck, and the experiment measures by how much each design moves it. Every design draws from the same three streams, `arrival.orders`, `service.packing` and `service.picking`, and the constant deliveries draw none, so every difference is [paired](../des/output-analysis.md#comparing-designs). No order waited for a box in the three designs, so the shelf does not limit the answer.
+Only the fourth packer keeps both waits under 1 second. Seed by seed, it cuts the packing wait by **1.77 ± 0.16** seconds and leaves the picking wait as it was. A second picker cuts the picking wait by 0.52 ± 0.01 seconds but lengthens the packing wait by 0.26 ± 0.02 seconds. One picker passes orders on one at a time, with at least one picking time between them. Two pickers pass orders on closer together, nearer the times they arrive, so more orders find all three packers busy. `explain` named the packers as the bottleneck, and the experiment measures how much each design changes the wait there. Every design draws from the same three random streams, `arrival.orders`, `service.packing` and `service.picking`, and the constant deliveries draw from none. Every difference is therefore [paired](../des/output-analysis.md#comparing-designs). In none of the three designs did an order wait for a box, so the shelf does not limit the answer.
 
 ### Test the Sensitivity
 
-The recommendation rests on the fitted arrival rate of 1.50719 orders a second. That rate is fitted from 300 gaps, so its standard error, the standard deviation of the fitted rate over repeated samples, is about 1/√300 of the rate, about 6%. A 95% interval for the rate reaches about 1.96 standard errors either side, about 11%, so a rate 10% higher is a change the data cannot rule out. The experiment therefore also runs the fourth packer with orders 10% faster, at 1.65791 a second. It is a variant, but not a design to recommend:
+The recommendation rests on the fitted arrival rate of 1.50719 orders a second. The rate is fitted from 300 gaps. Its standard error is the standard deviation of the fitted rate over repeated samples. For an exponential fit, the standard error is about the rate ÷ √n for n gaps, so here it is about 1/√300 of the rate, about 6%. A 95% interval for the rate reaches about 1.96 standard errors either side, about 11%, so the data cannot rule out a rate 10% higher. The experiment therefore also runs the fourth packer with orders 10% faster, at 1.65791 orders a second. The new variant is a test of the recommendation, not a design to recommend:
 
 === "YAML"
 
@@ -681,7 +681,7 @@ A sixth and a seventh check state that both waits stay under 1 second:
 
     The same key, in the same mapping as the model.
 
-With orders 10% faster, the picking wait is **0.78 ± 0.02** seconds, the packing wait **0.23 ± 0.01**, and the packers are busy 72.59 ± 0.41% of the time. Both upper ends stay under 1 second, 0.80 and 0.24, and the sixth and seventh checks pass. The run shows something the three designs did not: orders now wait for shipping boxes, 0.22 ± 0.14 seconds on average. In 21 of the 40 runs some orders waited for a box, and the highest mean wait of one run was 1.84 seconds. A delivery of 1,000 boxes every 10 minutes is 1.67 boxes a second, only just above 1.66 orders a second, so in some runs the shelf is empty before the next delivery. A busier hour would need larger or more frequent deliveries as well as the fourth packer.
+With orders 10% faster, the mean picking wait over the 40 replications is **0.78 ± 0.02** seconds, the mean packing wait **0.23 ± 0.01** seconds, and the packers are busy 72.59 ± 0.41% of the time. Both upper ends stay under 1 second, at 0.80 and 0.24 seconds, so the sixth and seventh checks pass. The variant shows something the three designs did not: orders now wait for shipping boxes, 0.22 ± 0.14 seconds on average. In 21 of the 40 replications some orders waited for a box, and the highest mean wait of one run was 1.84 seconds. A delivery of 1,000 boxes every 10 minutes is 1.67 boxes a second, only just above 1.66 orders a second. Orders arrive at random, so in some periods they take boxes faster than the deliveries replace them, and the shelf is empty before the next delivery. A busier hour would need larger or more frequent deliveries as well as the fourth packer.
 
 ---
 
@@ -791,11 +791,11 @@ desflow report results/complete-model
 
 ## Result
 
-Which shop design should be recommended? The fourth packer. With it, the picking wait is **0.56 ± 0.02** seconds and the packing wait **0.15 ± 0.01**, so both upper ends are under 1 second, and every check passes. Today's shop waits **1.92 ± 0.16** seconds to pack, and a second picker would lengthen that wait by 0.26 seconds. The model agrees with the formulas where they apply, each observed value lies inside the model's interval for its mean, and a warm-up of none to 10 minutes moves the waits by less than their half-widths. With orders 10% faster, the fourth packer still keeps both waits under 1 second, but orders then sometimes wait for shipping boxes. The data on this page are illustrative; a real study reaches its recommendation from the shop's own records.
+Which shop design should be recommended? The fourth packer. With it, the mean picking wait over 40 replications is **0.56 ± 0.02** seconds and the mean packing wait **0.15 ± 0.01** seconds. Both upper ends are under 1 second, and every check passes. In today's shop the mean packing wait is **1.92 ± 0.16** seconds, and a second picker would lengthen it by 0.26 seconds. The model agrees with the formulas where they apply, and each observed value lies inside the model's interval for its mean. Any warm-up from none to 10 minutes changes the mean waits by less than their half-widths. With orders 10% faster, the fourth packer still keeps both waits under 1 second, but orders then sometimes wait for shipping boxes. The data on this page are illustrative, and a real study reaches its recommendation from the shop's own records.
 
 ## Why It Works
 
-Each step answers a different doubt about the result: the fits about the inputs, the formulas about the program, the observed values about the model, the warm-up and the replications about chance, and the paired seeds about the size of each difference. [A Simulation Study](../des/a-simulation-study.md) sets out the steps, [Checking and Validating](../des/checking-and-validating.md) the checks, and [Output Analysis](../des/output-analysis.md) the warm-up, the replications and the paired comparison. The report keeps all of it together, so another reader can repeat the study and see what it rests on.
+Each step answers a different doubt about the result. The fits test the inputs, the formulas test the program, and the observed values test the model. The warm-up removes the empty start, the replications measure the effect of chance, and the paired seeds measure the size of each difference. [A Simulation Study](../des/a-simulation-study.md) sets out the steps, [Checking and Validating](../des/checking-and-validating.md) the checks, and [Output Analysis](../des/output-analysis.md) the warm-up, the replications and the paired comparison. The report records every step in one file, so another reader can repeat the study and see what it rests on.
 
 ---
 
@@ -900,7 +900,7 @@ Each step answers a different doubt about the result: the fits about the inputs,
           # The recommended design: the upper end of each wait's interval is under 1 second
           - {measure: tasks.pick_order.wait_mean, variant: fourth-packer, max: 1}
           - {measure: tasks.pack_order.wait_mean, variant: fourth-packer, max: 1}
-          # No order waits for a shipping box, in each of the three designs
+          # In each of the three designs, no order waits for a shipping box
           - {measure: tasks.ship_order.wait_mean, variant: current, max: 0}
           - {measure: tasks.ship_order.wait_mean, variant: second-picker, max: 0}
           - {measure: tasks.ship_order.wait_mean, variant: fourth-packer, max: 0}
@@ -1015,7 +1015,7 @@ Each step answers a different doubt about the result: the fits about the inputs,
 
 
         def warmups() -> dict:
-            """The mean waits of 40 runs of today's shop, after three candidate warm-ups."""
+            """The mean waits of 40 replications of today's shop, after three candidate warm-ups."""
             return {
                 warmup: replicate(shop, 40, seed=42, until="1 h", warmup=warmup, measures=WAITS)
                 for warmup in (0, "2 min", "10 min")
@@ -1025,7 +1025,7 @@ Each step answers a different doubt about the result: the fits about the inputs,
         EXPERIMENT = {
             "experiment": "complete-model",
             "question": "Which design keeps both mean waits of the busy hour under 1 second?",
-            # The busy hour, with its 2-minute warm-up; 40 runs of each design
+            # The busy hour, with its 2-minute warm-up; 40 replications of each design
             "model": shop,
             "until": "1 h",
             "replications": 40,
@@ -1062,7 +1062,7 @@ Each step answers a different doubt about the result: the fits about the inputs,
                 # The recommended design: the upper end of each wait's interval is under 1 s
                 {"measure": "tasks.pick_order.wait_mean", "variant": "fourth-packer", "max": 1},
                 {"measure": "tasks.pack_order.wait_mean", "variant": "fourth-packer", "max": 1},
-                # No order waits for a shipping box, in each of the three designs
+                # In each of the three designs, no order waits for a shipping box
                 {"measure": "tasks.ship_order.wait_mean", "variant": "current", "max": 0},
                 {"measure": "tasks.ship_order.wait_mean", "variant": "second-picker", "max": 0},
                 {"measure": "tasks.ship_order.wait_mean", "variant": "fourth-packer", "max": 0},
@@ -1306,7 +1306,7 @@ Each step answers a different doubt about the result: the fits about the inputs,
 
 
         def run(egress=(), until=3600):
-            """One busy hour from seed 42, its records sent to `egress`."""
+            """One busy hour from the seed 42, its records sent to `egress`."""
             env = DynamicRealtimeEnvironment(factor=0.0)
             # Waits, utilisation and the stock's level, published at the end
             env.setup_stats("Shop", "typical", interval=3600)
@@ -1331,8 +1331,8 @@ Each step answers a different doubt about the result: the fits about the inputs,
             picking, packing = FITS["picking"], FITS["packing"]
             pick_mean = picking["shape"] * picking["scale"]  # a gamma's mean
             pick_use = rate * pick_mean  # one picker
-            # One server, Poisson arrivals: Kingman's formula, exact here, with a gamma's
-            # squared coefficient of variation 1 / shape
+            # One server with Poisson arrivals, where Kingman's formula is exact; a gamma's
+            # squared coefficient of variation is 1 / shape
             pick_wait = pick_use / (1 - pick_use) * (1 + 1 / picking["shape"]) / 2 * pick_mean
             pack_use = rate * packing["shape"] * packing["scale"] / 3  # three packers
             return {
@@ -1343,7 +1343,7 @@ Each step answers a different doubt about the result: the fits about the inputs,
 
 
         def check():
-            """10 runs of the busy hour beside the formulas worked by hand."""
+            """10 replications of the busy hour beside the formulas worked by hand."""
             formulas = by_hand()
             runs = replicate(
                 SHOP, 10, seed=42, until=3600, warmup=WARMUP, measures=list(formulas)
@@ -1360,7 +1360,7 @@ Each step answers a different doubt about the result: the fits about the inputs,
 
 
         def warmups() -> dict:
-            """The mean waits of 40 runs of today's shop, after three candidate warm-ups."""
+            """The mean waits of 40 replications of today's shop, after three candidate warm-ups."""
             return {
                 warmup: replicate(SHOP, 40, seed=42, until=3600, warmup=warmup, measures=WAITS)
                 for warmup in (0, WARMUP, 600)

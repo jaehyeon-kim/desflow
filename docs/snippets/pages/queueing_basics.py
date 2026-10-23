@@ -102,7 +102,7 @@ def mmc_wait(units: int, arrival_rate: float) -> float:
 
 
 def kingman_wait(utilisation: float, arrival_cv: float, service_cv: float) -> float:
-    """Kingman's approximation of the mean wait in a one-server queue."""
+    """Kingman's formula for the mean wait in a one-server queue."""
     variability = (arrival_cv**2 + service_cv**2) / 2
     return utilisation / (1 - utilisation) * variability * SERVICE
 

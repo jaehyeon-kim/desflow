@@ -40,7 +40,7 @@ checks:
   # The recommended design: the upper end of each wait's interval is under 1 second
   - {measure: tasks.pick_order.wait_mean, variant: fourth-packer, max: 1}
   - {measure: tasks.pack_order.wait_mean, variant: fourth-packer, max: 1}
-  # No order waits for a shipping box, in each of the three designs
+  # In each of the three designs, no order waits for a shipping box
   - {measure: tasks.ship_order.wait_mean, variant: current, max: 0}
   - {measure: tasks.ship_order.wait_mean, variant: second-picker, max: 0}
   - {measure: tasks.ship_order.wait_mean, variant: fourth-packer, max: 0}

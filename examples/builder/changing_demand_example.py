@@ -1,8 +1,9 @@
 """Changing demand: a rush of orders and a second packer for it, on a schedule, builder API.
 
-Orders arrive at 0.4 a second, and at 0.8 during a rush from 120 to 180 seconds; a
-second packer works during the rush. Each change applies before every other event at
-its time, so the arrival gap drawn at 120 already uses the rush rate.
+An order arrives every 2.5 seconds on average (rate 0.4), and every 1.25 seconds
+(rate 0.8) during a rush from 120 to 180 seconds. A second packer works during the
+rush. Each change applies before every other event at its time, so the arrival gap
+drawn at 120 already uses the rush rate.
 
 Needs no containers. Runs unpaced and ends after 300 simulation seconds.
 """

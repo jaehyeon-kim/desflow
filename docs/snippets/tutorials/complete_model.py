@@ -96,7 +96,7 @@ DESIGNS = ["current", "second-picker", "fourth-packer"]
 
 
 def warmups() -> dict:
-    """The mean waits of 40 runs of today's shop, after three candidate warm-ups."""
+    """The mean waits of 40 replications of today's shop, after three candidate warm-ups."""
     # --8<-- [start:warmups]
     return {
         warmup: replicate(shop, 40, seed=42, until="1 h", warmup=warmup, measures=WAITS)
@@ -109,7 +109,7 @@ EXPERIMENT = {
     "experiment": "complete-model",
     "question": "Which design keeps both mean waits of the busy hour under 1 second?",
     # --8<-- [start:model]
-    # The busy hour, with its 2-minute warm-up; 40 runs of each design
+    # The busy hour, with its 2-minute warm-up; 40 replications of each design
     "model": shop,
     "until": "1 h",
     "replications": 40,
@@ -154,7 +154,7 @@ EXPERIMENT = {
         # The recommended design: the upper end of each wait's interval is under 1 s
         {"measure": "tasks.pick_order.wait_mean", "variant": "fourth-packer", "max": 1},
         {"measure": "tasks.pack_order.wait_mean", "variant": "fourth-packer", "max": 1},
-        # No order waits for a shipping box, in each of the three designs
+        # In each of the three designs, no order waits for a shipping box
         {"measure": "tasks.ship_order.wait_mean", "variant": "current", "max": 0},
         {"measure": "tasks.ship_order.wait_mean", "variant": "second-picker", "max": 0},
         {"measure": "tasks.ship_order.wait_mean", "variant": "fourth-packer", "max": 0},

@@ -1,6 +1,6 @@
 # Interruptions: express orders preempt regular ones, and a fire drill interrupts packing, in YAML.
 #
-# The twin of examples/builder/interruptions_example.py. One packer serves express
+# The YAML version of examples/builder/interruptions_example.py. One packer serves express
 # orders (priority 0) before regular ones (priority 1), and an express order takes
 # the packer from a regular order being packed. The regular order is preempted,
 # queues again and resumes with the packing time it had left. At 60 seconds a fire

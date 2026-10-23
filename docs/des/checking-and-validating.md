@@ -51,11 +51,12 @@ def run_fixed(gap: float, service: float, until: float, packers: int = 1) -> dic
     return app.env.stats.readings()
 ```
 
-With one order every 3 seconds and 1.5 seconds to pack, orders arrive at 3, 6 and on to 3,597 seconds, so 1,199 arrive in the hour. A packer is free each time, so no order waits, and the packer works 1,199 × 1.5 seconds of the 3,600, which is 49.96%. With one order every second the packer can never keep up: 3,599 orders arrive, 2,399 finish, and 1,200 are in the shop at the end. The code checks each of these numbers:
+With one order every 3 seconds and 1.5 seconds to pack, orders arrive at 3, 6 and on to 3,597 seconds, so 1,199 arrive in the hour. Each order is packed in 1.5 seconds, before the next arrives 3 seconds later. The packer is therefore free each time, no order waits, and the packer works 1,199 × 1.5 seconds of the 3,600, which is 49.96%. With one order every second the packer can never keep up, because it needs 1.5 seconds for each: 3,599 orders arrive, 2,399 finish, and 1,200 are in the shop at the end. The code checks each of these numbers:
 
 ```python title="docs/snippets/pages/checking_and_validating.py:checks"
 # One order every 3 s and 1.5 s to pack: orders arrive at 3, 6, ... 3597 s, so 1,199 of
-# them, and none waits. The packer works 1,199 x 1.5 s of the 3,600 s: 49.96%.
+# them. Each is packed before the next arrives, so none waits. The packer works
+# 1,199 x 1.5 s of the 3,600 s: 49.96%.
 easy = run_fixed(gap=3, service=1.5, until=3600)
 assert easy["Shop.stats.flows.orders.started"] == 1199
 assert easy["Shop.stats.tasks.pack_order.wait_max"] == 0
@@ -73,7 +74,7 @@ assert overloaded["Shop.stats.flows.orders.in_system"] == 3599 - 2399
 assert overloaded["Shop.stats.resources.packers.utilization_avg"] > 99.9
 ```
 
-The second case is also an extreme-condition test: with demand above capacity, the queue must grow for as long as the run lasts. A model that cannot show this has a fault. Two more cases of this kind are no arrivals, which should give no orders started or finished, and a huge number of packers, which should give no waits. The code runs both, with one order every 10,000 seconds in an hour and with 100 packers for an order a second:
+The second case is also an extreme-condition test: with demand above capacity, the queue must grow for as long as the run lasts. A model that cannot show this has a fault. Two more cases of this kind are no arrivals, which should give no orders started or finished, and a huge number of packers, which should give no waits. The code runs both: one order every 10,000 seconds, so no order arrives in the hour, and 100 packers for an order a second:
 
 ```python title="docs/snippets/pages/checking_and_validating.py:extremes"
 # No order arrives within the hour: none starts and none finishes.
@@ -91,7 +92,7 @@ assert many_packers["Shop.stats.tasks.pack_order.wait_max"] == 0
 
 ## Check the Statistics Against Each Other
 
-Some relations hold for every model that settles, so they test the statistics without any hand calculation. [Little's law](queueing-basics.md#littles-law) is the main one. It ties the queue length to the arrival rate and the mean wait, and a run measures the three separately, so if they disagree, one of them is wrong. Queueing Basics states the law and checks it on a run of the shop.
+Some relations hold for every model that settles, so they test the statistics without any hand calculation. [Little's law](queueing-basics.md#littles-law) is the main one. It ties the queue length to the arrival rate and the mean wait. A run measures the three separately, so if they disagree, one of them is wrong. Queueing Basics states the law and checks it on a run of the shop.
 
 [Measuring a Run](../tutorials/measuring-a-run.md) shows the same idea on a shorter run, and the counts in [Statistics](../user-guide/statistics.md) must also add up: when no order balks or reneges, the orders started over the whole run are those finished plus those still in the shop.
 
@@ -109,13 +110,13 @@ For a simple case there may be a formula. One packer with exponential gaps and s
 
 Validation needs evidence from the real system. Law suggests comparing the model's results with the existing system's, where there is one, along with a walk-through of the assumptions by the people who know the system, and sensitivity analysis. For the shop, give the model the inputs of a real day and compare its mean wait, queue length and utilisation with what happened. They need to agree closely enough for the decision, not exactly.
 
-The [lecture notes](https://courses.ie.bilkent.edu.tr/ie324/wp-content/uploads/sites/4/2016/09/Validation.pdf) on Banks et al. describe calibration as iterative: compare the model with the real system, adjust it, compare again. They also have three steps, which are to build a model with high face validity, to validate the model's assumptions, and to compare input-output behaviour with the real system's data, so the assumptions and inputs are checked and not only the outputs. [Choosing Inputs](../tutorials/choosing-inputs.md) and [Fit the Inputs](../tutorials/fit-the-inputs.md) cover the inputs, and [Local Replay](../tutorials/local-replay.md) runs a model on the arrivals of a real trace. When the real system does not exist yet, as for a proposed design, there is nothing to compare with. Then validity rests on the assumptions and on sensitivity analysis.
+The [lecture notes](https://courses.ie.bilkent.edu.tr/ie324/wp-content/uploads/sites/4/2016/09/Validation.pdf) on Banks et al. describe calibration as iterative: compare the model with the real system, adjust it, compare again. They also give three steps: build a model with high face validity, validate the model's assumptions, and compare input-output behaviour with the real system's data. The assumptions and the inputs are then checked, and not only the outputs. [Choosing Inputs](../tutorials/choosing-inputs.md) and [Fit the Inputs](../tutorials/fit-the-inputs.md) cover the inputs, and [Local Replay](../tutorials/local-replay.md) runs a model on the arrivals of a real trace. When the real system does not exist yet, as for a proposed design, there is nothing to compare with. Then validity rests on the assumptions and on sensitivity analysis.
 
 ---
 
 ## Test the Sensitivity
 
-A model has inputs that are estimates. **Sensitivity analysis** changes them and sees whether the answer changes. If a 6% change in the arrival rate changes the decision, the estimate needs more work. If it does not, it does not. [Parameter Sweeps](../tutorials/parameter-sweeps.md) does it for the shop: with three packers a rate 6% above the estimate more than doubles the mean wait to 5.55 seconds, and with four packers the wait is at most 0.35 seconds at every rate, so the choice of four packers holds whatever the demand within the range.
+A model has inputs that are estimates. **Sensitivity analysis** changes them and sees whether the answer changes. If a 6% change in the arrival rate changes the decision, the estimate needs more work. If the decision stays the same, the estimate is good enough. [Parameter Sweeps](../tutorials/parameter-sweeps.md) does this for the shop. With three packers, a rate 6% above the estimate more than doubles the mean wait, from 2.48 to 5.55 seconds, each the mean of 20 replications. With four packers, the mean wait is at most 0.35 seconds at every rate in the sweep, so the choice of four packers holds for any demand in that range.
 
 ---
 

@@ -1,9 +1,10 @@
 """The Priorities tutorial: express orders go before regular ones, builder.
 
-One packer, regular orders at 0.45 a second and express orders at 0.15, and 1.5
-seconds of packing. Every record is printed to the terminal, and the script prints
-the mean wait of each kind of order under each queue order at the end:
-python priorities.py 2>/dev/null shows only those lines.
+One packer and 1.5 seconds of packing. A regular order arrives every 2.22 seconds on
+average (rate 0.45), and an express order every 6.67 seconds (rate 0.15). Every record
+is printed to the terminal, and the script prints the mean wait of each kind of order
+under each queue order at the end. To see only those lines, run:
+python priorities.py 2>/dev/null
 """
 
 import logging
@@ -26,7 +27,7 @@ def shop(queue: str = "priority") -> SimulationContext:
     app = (
         SimulationContext(sim_id="Shop", factor=0, random_seed=42)
         .add_service("packing", dist="constant", value=1.5)
-        # 0.6 orders a second in all, one in four of them express
+        # An order every 1.67 s on average in all (0.6 a second), one in four express
         .add_arrival("orders", dist="exponential", rate=0.45)
         .add_arrival("express", dist="exponential", rate=0.15)
         .with_stats("typical", interval=3600)  # the mean wait of each task

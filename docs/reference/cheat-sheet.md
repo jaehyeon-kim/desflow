@@ -1,6 +1,6 @@
 # Cheat Sheet
 
-The common YAML keys and builder calls side by side, each linked to the page that explains it. [YAML Format](yaml-format.md) lists every key, and the [API Reference](../api.md) every call. In the builder column, `app` is a `SimulationContext`, and a task's settings are arguments of `@app.task(...)`.
+This page shows the common YAML keys and builder calls side by side, each linked to the page that explains it. [YAML Format](yaml-format.md) lists every key, and the [API Reference](../api.md) every call. In the builder column, `app` is a `SimulationContext`, and a task's settings are arguments of `@app.task(...)`.
 
 ## Simulation
 
@@ -16,7 +16,7 @@ The common YAML keys and builder calls side by side, each linked to the page tha
 | To | YAML | Builder | Read |
 |---|---|---|---|
 | Draw a service time | `services: {packing: {dist: normal, mean: 3, std: 0.5}}` | `app.add_service("packing", dist="normal", mean=3, std=0.5)` | [Arrivals and Services](../user-guide/arrivals-and-services.md) |
-| Start a task at random gaps | `arrivals: {orders: {dist: exponential, rate: 0.5, spawn: pack}}` | `app.add_arrival("orders", dist="exponential", rate=0.5, spawn="pack")` | [Arrivals and Services](../user-guide/arrivals-and-services.md) |
+| Start a task at random gaps (here every 2 seconds on average) | `arrivals: {orders: {dist: exponential, rate: 0.5, spawn: pack}}` | `app.add_arrival("orders", dist="exponential", rate=0.5, spawn="pack")` | [Arrivals and Services](../user-guide/arrivals-and-services.md) |
 | Give each entity attributes | `arrivals.<name>.attributes` | `app.add_arrival(..., attributes={...})` | [Task Flow](../user-guide/task-flow.md) |
 | Replay recorded arrivals | `arrivals.<name>.replay: {path, time}` | `app.add_arrival_replay(name, source)` | [Local Replay](../tutorials/local-replay.md) |
 | Fit a service time to data | `desflow fit`, then `!include` | `fit_column(values)` | [Input Fitting](../user-guide/input-fitting.md) |
@@ -26,7 +26,7 @@ The common YAML keys and builder calls side by side, each linked to the page tha
 | To | YAML | Builder | Read |
 |---|---|---|---|
 | Add staff or machines | `resources: {packers: {current_cap: 2, max_cap: 4}}` | `app.add_resource("packers", current_cap=2, max_cap=4)` | [Resources](../user-guide/resources/index.md) |
-| Declare a resource with one unit, or none to wait for | `resources: {packers: {}}`, or `{current_cap: .inf}` for no limit | `app.add_resource("packers")`, or `current_cap=float("inf")` | [Resources](../user-guide/resources/index.md#declare-a-resource) |
+| Declare a resource with one unit, or with no limit | `resources: {packers: {}}`, or `{current_cap: .inf}` for no limit | `app.add_resource("packers")`, or `current_cap=float("inf")` | [Resources](../user-guide/resources/index.md#declare-a-resource) |
 | Refuse a request when the line is long | `queue_limit: 5` | `add_resource(..., queue_limit=5)` | [Resources](../user-guide/resources/index.md#queue-limit) |
 | Read how many units are held or wait | `users.packers`, `queue.packers` in a condition | `context.get_resource("packers").count`, `.users`, `.queue` | [Resources](../user-guide/resources/index.md#read-the-queue-and-users) |
 | Build a resource from your own class | `type: !python shop_logic.MyPackers` | `add_resource(..., type=MyPackers)` | [Custom Resource Types](../user-guide/resources/custom-resource-types.md#custom-resource-types) |

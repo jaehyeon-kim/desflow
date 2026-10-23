@@ -9,7 +9,7 @@ simulation:
   warmup: 2000  # seconds left out of every measure, while the queue fills
 
 arrivals:
-  # 0.75 orders a second with one packer; RATE=1.5 with PACKERS=2
+  # An order every 1.33 s on average (rate 0.75) with one packer; RATE=1.5 with PACKERS=2
   orders:
     dist: exponential
     rate: ${RATE:-0.75}

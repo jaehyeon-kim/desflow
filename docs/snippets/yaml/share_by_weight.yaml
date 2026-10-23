@@ -7,7 +7,7 @@ simulation:
 
 # --8<-- [start:resource]
 resources:
-  # queue: priority lets a task set a priority; the class orders the waiting line itself
+  # queue: priority lets a task set a priority; the class orders the waiting requests itself
   packers:
     current_cap: 1
     max_cap: 4

@@ -1,6 +1,6 @@
 """Filtered inventory: couriers take only parcels for their own area, low-level API.
 
-The low-level twin of `builder/filtered_inventory_example.py`. Packed orders go on
+The low-level version of `builder/filtered_inventory_example.py`. Packed orders go on
 one shelf as parcels, each with the area it is going to. A courier for the north or
 the south takes the oldest parcel for its own area, with a filter, and leaves
 without one if none comes within 20 seconds.

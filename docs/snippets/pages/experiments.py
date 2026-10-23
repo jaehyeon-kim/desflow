@@ -43,7 +43,8 @@ EXPERIMENT = {
     "seed": 42,
     "measures": ["tasks.pack.wait_mean"],
     "variants": {"two": {}, "three": {"Shop.resources.packers.current_cap": 3}},
-    # A sweep would run every variant at each rate: 6 designs
+    # A sweep would run every variant at each rate, an order every 2.86, 2.5 or
+    # 2.22 seconds on average: 6 designs
     # "sweep": {"Shop.arrival.orders.rate": [0.35, 0.4, 0.45]},
     "compare": [{"baseline": "two", "variant": "three"}],
     "checks": [{"measure": "tasks.pack.wait_mean", "variant": "two", "max": 2}],

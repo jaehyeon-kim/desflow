@@ -1,6 +1,6 @@
 """Measuring a run, low-level API: built-in statistics, a warm-up and ground truth.
 
-The low-level twin of `builder/measuring_example.py`. `env.setup_stats` publishes
+The low-level version of `builder/measuring_example.py`. `env.setup_stats` publishes
 every statistic of the packers and the pack task every 5 minutes. The pack task
 reports when each order is queued, started and finished to `env.stats`, which is
 what the builder's tasks do for you. `setup_egress` ends a 3-minute warm-up: no sink

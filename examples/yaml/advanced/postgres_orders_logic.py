@@ -4,9 +4,9 @@
 def order_generator(context, arrival: str, max_items: int):
     """Publishes an order and its items on every arrival.
 
-    Draws from `context.sampler.rng`, the generator seeded by `random_seed`, so a
-    seeded run repeats the same orders. The `__table__` key names the table each
-    record is written to.
+    Draws from `context.sampler.rng`, the random number generator seeded by
+    `random_seed`, so a seeded run repeats the same orders. The `__table__` key
+    names the table each record is written to.
     """
     rng = context.sampler.rng
     order_id = 1

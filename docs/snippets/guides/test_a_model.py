@@ -1,6 +1,7 @@
 """Test a Model: functional, unit and back tests of the shop, with pytest.
 
-The shop has packers, exponential orders at 0.5 a second and 1.5 seconds of packing.
+The shop has packers, an order every 2 seconds on average (exponential, rate 0.5)
+and 1.5 seconds of packing.
 Write the saved results once with `save_results()`, then run the tests with:
 pytest test_a_model.py
 `save_results()` writes test_a_model_saved.json, the results the back test compares

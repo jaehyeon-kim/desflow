@@ -1,6 +1,6 @@
 # The model of the experiment in experiment.yaml: one hour of the shop.
 #
-# The twin of the shop function in examples/builder/experiment_example.py. Two packers,
+# The YAML version of the shop function in examples/builder/experiment_example.py. Two packers,
 # orders every 2.5 seconds on average and a packing time of 4 seconds on average.
 # It has no sinks and no statistics level: the experiment runs it without sinks and
 # keeps the statistics its measures need.
@@ -22,6 +22,7 @@ services:
   packing: {dist: gamma, shape: 4, scale: 1}
 
 arrivals:
+  # An order every 2.5 s on average (rate 0.4)
   orders: {dist: exponential, rate: 0.4, spawn: pack}
 
 tasks:

@@ -1,8 +1,9 @@
 """Patience: orders that leave the queue, and orders that refuse to join, low-level API.
 
-The low-level twin of `builder/patience_example.py`. One packer serves more orders
-than it can pack. An online order waits at most 20 seconds for the packer and a
-walk-in customer 10; one that waits longer leaves the queue and publishes reneged.
+The low-level version of `builder/patience_example.py`. More orders arrive than one
+packer can pack. An online order waits at most 20 seconds for the packer, and a
+walk-in order at most 10. An order that waits longer leaves the queue and publishes
+reneged.
 From 100 seconds the courier has made its last collection, so new orders balk: they
 publish balked and never join the queue.
 

@@ -4,7 +4,7 @@ Models a shop packing orders with `SimulationContext` and connects the simulatio
 to Kafka for input and output. `KafkaIngress` reads parameter updates from `sim-config`,
 so the running simulation can be steered without restarting it. `KafkaEgress`
 publishes lifecycle events to `sim-events` and metrics to `sim-telemetry`, with
-Pydantic models giving the events a declared shape.
+Pydantic models that fix the fields and types of the events.
 
 Needs a broker: `odctl up kafka-lite`. Runs until interrupted with Ctrl + C.
 """
@@ -70,9 +70,9 @@ app = (
 @app.task(service_id="packing", resource_id="packers")
 def pack_order(task_id: int, context):
     """
-    The @task decorator automatically locks the resource and emits the
-    'queued' and 'started' events. We just execute our custom logic
-    and return the final payload.
+    The @task decorator requests the resource and publishes the 'queued'
+    and 'started' events. The function adds its own logic and returns the
+    finished payload.
     """
     logger.info(f"Task {task_id} started at sim time: {context._env.now:.2f}s")
 

@@ -1,8 +1,8 @@
 # Fast-Forward to Parquet
 
-A week of a shop's orders, generated at `factor=0.0` and written to Parquet files on the local disk or in S3-compatible storage. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../user-guide/ways-to-write.md) compares the three.
+This example generates a week of a shop's orders at `factor=0.0` and writes them to Parquet files, on the local disk or in S3-compatible storage. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../user-guide/ways-to-write.md) compares the three.
 
-desflow is built for real-time digital twins, but the same model can also run faster than real time. With the time factor at 0 and a chosen start time, a run generates a large amount of historical data in seconds, or predicts future states.
+desflow is built for real-time digital twins, but the same model can also run faster than real time. With `factor` set to 0 and a chosen start time, a run generates a large amount of historical data in seconds. It can also run ahead of the present to predict future states.
 
 === "YAML"
 
@@ -42,9 +42,9 @@ desflow is built for real-time digital twins, but the same model can also run fa
 
     **What It Does**
 
-    The run writes each batch as a Parquet file of its own, such as `data/events_1a2b3c4d.parquet`, and ends on its own: `default_path` is a file name prefix, not a folder, as [Egress](../user-guide/egress.md#parquet-and-json-lines) explains, with how to read the files back as one table. A second run adds its files beside the first run's, so delete `data/` before running again, or set `DEST_PATH` to a new folder. On a laptop a week of simulated time takes about 20 seconds and writes 725 files with 3.6 million rows, one row per lifecycle event. Without a router, the egress drops telemetry and writes each event as one flat row, so the columns are `stream_type`, `sim_ts`, `timestamp`, `key`, `task`, `instance`, `path_id` and `status`. `logical_start_time: -7d` stamps the week as history that ends now.
+    The run writes each batch as a Parquet file of its own, such as `data/events_1a2b3c4d.parquet`, and ends on its own. `default_path` is a file name prefix, not a folder. [Egress](../user-guide/egress.md#parquet-and-json-lines) explains the file names and how to read the files back as one table. A second run adds its files beside the first run's, so delete `data/` before running again, or set `DEST_PATH` to a new folder. On a laptop, one run of a week of simulated time takes about 20 seconds. It writes 725 files with 3.6 million rows in all, one row per lifecycle event. Without a router, the egress drops telemetry and writes each event as one flat row, so the columns are `stream_type`, `sim_ts`, `timestamp`, `key`, `task`, `instance`, `path_id` and `status`. `logical_start_time: -7d` stamps the week as history that ends now.
 
-    To write to S3 instead, install `odctl` (`uv tool install "odctl>=1.0,<2"` or `pip install "odctl>=1.0,<2"`), start the object store, and set these variables before the run command. All three versions read the same ones. The chunks land under the `odctl-dev/history/` prefix, browsable at <http://localhost:8889>.
+    To write to S3 instead, install `odctl` (`uv tool install "odctl>=1.0,<2"` or `pip install "odctl>=1.0,<2"`), start the object store, and set these variables before the run command. All three versions read the same ones. The files are written under the `odctl-dev/history/` prefix, which you can browse at <http://localhost:8889>.
 
     ```bash
     odctl up storage
@@ -151,7 +151,7 @@ desflow is built for real-time digital twins, but the same model can also run fa
         python parquet_example.py
         ```
 
-    To write to S3 instead, install `odctl` (`uv tool install "odctl>=1.0,<2"` or `pip install "odctl>=1.0,<2"`), start the object store, and set these variables before the run command. All three versions read the same ones. The chunks land under the `odctl-dev/history/` prefix, browsable at <http://localhost:8889>.
+    To write to S3 instead, install `odctl` (`uv tool install "odctl>=1.0,<2"` or `pip install "odctl>=1.0,<2"`), start the object store, and set these variables before the run command. All three versions read the same ones. The files are written under the `odctl-dev/history/` prefix, which you can browse at <http://localhost:8889>.
 
     ```bash
     odctl up storage
@@ -163,7 +163,7 @@ desflow is built for real-time digital twins, but the same model can also run fa
 
     **Full Source Code**
 
-    This script simulates the shop over a 7-day period. It demonstrates how to route lifecycle events to one Parquet dataset, flattened into rows, and write them out instantly.
+    This script simulates 7 days of the shop. It flattens the lifecycle events into rows, routes them to one Parquet dataset and writes them as fast as the machine allows.
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
@@ -171,10 +171,11 @@ desflow is built for real-time digital twins, but the same model can also run fa
     """
     Historical Data Generation Example.
 
-    Demonstrates using SimulationContext as a fast-forward data engine.
-    By setting `factor=0.0`, the SimPy clock detaches from wall-clock time,
-    executing the same shop logic instantly to generate a week of
-    historical orders for machine learning models, written to Parquet on disk or S3.
+    Uses SimulationContext to generate data faster than real time. With
+    `factor=0.0` the SimPy clock is detached from the wall clock, so the shop model
+    generates a week of historical orders as fast as the machine allows, for example
+    as training data for machine learning models. The orders are written to Parquet
+    on disk or S3.
     """
 
     import logging
@@ -244,7 +245,7 @@ desflow is built for real-time digital twins, but the same model can also run fa
 
     # The week of backdating this example exists to demonstrate. It sits at module scope
     # because the builder below needs it, and the builder has to stay at module scope for
-    # the decorators further down to attach to it. The low-level twin computes the same
+    # the decorators further down to attach to it. The low-level version computes the same
     # value inside run(), where it has no such constraint.
     LOGICAL_START_TIME = datetime.now(timezone.utc) - timedelta(days=7)
 
@@ -256,8 +257,8 @@ desflow is built for real-time digital twins, but the same model can also run fa
             sim_id="Shop",
             factor=0.0,
             random_seed=42,
-            # Without this the example logs that it is backdating a week and then timestamps
-            # every record from the current clock, which is the opposite of what it claims.
+            # Without this, the example would log that it backdates a week but stamp every
+            # record from the current clock.
             logical_start_time=LOGICAL_START_TIME,
         )
         .add_egress(ParquetStorageEgress(path_router=router, filesystem=filesystem))
@@ -347,7 +348,7 @@ desflow is built for real-time digital twins, but the same model can also run fa
         python parquet_example.py
         ```
 
-    To write to S3 instead, install `odctl` (`uv tool install "odctl>=1.0,<2"` or `pip install "odctl>=1.0,<2"`), start the object store, and set these variables before the run command. All three versions read the same ones. The chunks land under the `odctl-dev/history/` prefix, browsable at <http://localhost:8889>.
+    To write to S3 instead, install `odctl` (`uv tool install "odctl>=1.0,<2"` or `pip install "odctl>=1.0,<2"`), start the object store, and set these variables before the run command. All three versions read the same ones. The files are written under the `odctl-dev/history/` prefix, which you can browse at <http://localhost:8889>.
 
     ```bash
     odctl up storage
@@ -359,14 +360,14 @@ desflow is built for real-time digital twins, but the same model can also run fa
 
     **Full Source Code**
 
-    This script simulates the shop over a 7-day period. It demonstrates how to route lifecycle events to one Parquet dataset, flattened into rows, and write them out.
+    This script simulates 7 days of the shop. It flattens the lifecycle events into rows, routes them to one Parquet dataset and writes them as fast as the machine allows.
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
     ```python title="examples/low-level/parquet_example.py"
     """Historical data generation, low-level API.
 
-    The low-level twin of `builder/parquet_example.py`. It wires
+    The low-level version of `builder/parquet_example.py`. It wires
     `DynamicRealtimeEnvironment`, the registry and the connectors by hand rather than
     through the builder, which shows what `SimulationContext` does for you.
 

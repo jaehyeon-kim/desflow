@@ -93,7 +93,7 @@ SETS = {"backorder": {"backordered": 1}}
 
 def payload(name, entity):
     if name == "ship_order":
-        # A payload includes attributes only when it asks for them
+        # A payload includes attributes only when it names them
         return {
             "event_type": "order_shipped",
             "express": entity.attributes.get("express"),

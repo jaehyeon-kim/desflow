@@ -8,7 +8,7 @@ A process runs alongside the [tasks](index.md); this page shows how to write one
 
 ### A Process
 
-A process runs alongside the tasks. This one sends the packers on a 5-second break every 50 seconds:
+This process sends the packers on a 5-second break every 50 seconds:
 
 === "YAML"
 
@@ -63,7 +63,7 @@ The limits of this page are listed with those of the whole section, in [Stabilit
 
 ## Example: Process Interaction
 
-The `process-interaction` example puts these together: a child flow, a failure that `on_fail` handles, and orders that wait for a courier's signal or a time limit. It needs no Docker service and ends on its own after 300 simulation seconds.
+The `process-interaction` example combines a child flow, a failure that `on_fail` handles, and orders that wait for a courier's signal or a time limit. It needs no Docker service and ends on its own after 300 simulation seconds.
 
 === "YAML"
 

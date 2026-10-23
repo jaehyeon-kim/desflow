@@ -137,7 +137,7 @@ Put your broker address and credentials in `egress`, then run `python kafka_secu
 
 ??? example "Full script"
 
-    The complete file. It needs a Kafka cluster that uses SASL PLAIN:
+    The complete file is below. It needs a Kafka cluster that uses SASL PLAIN:
 
     ```python title="docs/snippets/guides/kafka_security.py"
     """The secured Kafka connections of the Secure Kafka page, and a shop that uses one.

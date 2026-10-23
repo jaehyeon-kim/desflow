@@ -1,5 +1,5 @@
 # The OML hot rolling digital twin as a blueprint. The parameters and the Kafka
-# wiring that generator.py builds in Python are declared here. The processes stay
+# connectors that generator.py builds in Python are declared here. The processes stay
 # in sim_logic.py, and hot_rolling_adapter.py beside this file adapts them.
 #
 # Place this file and the adapter in sim_control/, then run from there:

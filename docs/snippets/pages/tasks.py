@@ -52,10 +52,12 @@ def print_label(task_id: int):
 
 # --8<-- [start:builder-arrival]
 # Each arrival starts one pack_order
+# An order every 5 s on average (rate 0.2)
 app.add_arrival("orders", dist="exponential", rate=0.2, spawn="pack_order")
 # --8<-- [end:builder-arrival]
 
 # --8<-- [start:builder-arrival-loop]
+# A return every 10 s on average (rate 0.1)
 app.add_arrival("returns", dist="exponential", rate=0.1)
 
 
@@ -162,6 +164,7 @@ def run_low_level(until):
     env.registry.register_sim_parameter(
         SimParameter(
             sim_id="Shop",
+            # An order every 5 s on average (rate 0.2)
             arrival={"orders": DistributionConfig(dist="exponential", rate=0.2)},
             service={
                 "packing": DistributionConfig(dist="normal", mean=4.0, std=1.0),

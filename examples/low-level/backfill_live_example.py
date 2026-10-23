@@ -1,7 +1,7 @@
 """
 Backfill-then-live Example, low-level API.
 
-The low-level twin of `builder/backfill_live_example.py`. One run produces both
+The low-level version of `builder/backfill_live_example.py`. One run produces both
 halves of a tiered dataset. Until `go_live_at` the clock is detached from the wall
 clock, so ten minutes of backdated shop orders are written to Parquet as fast as the
 machine allows. From `go_live_at` the same run is paced at one simulated second per
@@ -50,6 +50,7 @@ LOGICAL_START_TIME = GO_LIVE_AT - HISTORY
 
 PARAMS = SimParameter(
     sim_id="Shop",
+    # An order every 2 s on average (rate 0.5)
     arrival={"orders": DistributionConfig(dist="exponential", rate=0.5)},
     service={"packing": DistributionConfig(dist="normal", mean=2.0, std=0.2)},
     resources={"packers": CapacityConfig(current_cap=4, max_cap=10)},
@@ -132,7 +133,7 @@ def run():
         factor=0.0,  # unpaced, so the history costs no real time
         logical_start_time=LOGICAL_START_TIME,
         go_live_at=GO_LIVE_AT,  # from here, one simulated second per real second
-        strict=False,  # a live run with a sink that blocks goes on
+        strict=False,  # a live run goes on when a slow sink makes it fall behind
     )
     env.registry.register_sim_parameter(PARAMS)
     env.setup_egress(

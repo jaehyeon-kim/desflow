@@ -1,9 +1,9 @@
 """The Fit the Inputs tutorial: which distribution fits the 40 packing times? builder.
 
-Fits the 40 packing times measured at the bench to every family, prints the table
-of candidates, then runs the busy hour 40 times, each after a 2-minute warm-up, with
-the best fit, with the gamma fit and with the 40 times themselves, and prints the
-mean wait of each.
+Fits every family to the 40 packing times measured at the bench and prints the table
+of candidates. Then it runs the busy hour 40 times with each of three packing
+distributions: the best fit, the gamma fit and the 40 times themselves. Each run
+leaves out a 2-minute warm-up. The script prints the mean wait for each distribution.
 """
 
 import logging

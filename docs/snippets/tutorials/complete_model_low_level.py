@@ -180,7 +180,7 @@ def model(env, sampler):
 
 
 def run(egress=(), until=3600):
-    """One busy hour from seed 42, its records sent to `egress`."""
+    """One busy hour from the seed 42, its records sent to `egress`."""
     env = DynamicRealtimeEnvironment(factor=0.0)
     # Waits, utilisation and the stock's level, published at the end
     env.setup_stats("Shop", "typical", interval=3600)
@@ -206,8 +206,8 @@ def by_hand() -> dict:
     picking, packing = FITS["picking"], FITS["packing"]
     pick_mean = picking["shape"] * picking["scale"]  # a gamma's mean
     pick_use = rate * pick_mean  # one picker
-    # One server, Poisson arrivals: Kingman's formula, exact here, with a gamma's
-    # squared coefficient of variation 1 / shape
+    # One server with Poisson arrivals, where Kingman's formula is exact; a gamma's
+    # squared coefficient of variation is 1 / shape
     pick_wait = pick_use / (1 - pick_use) * (1 + 1 / picking["shape"]) / 2 * pick_mean
     pack_use = rate * packing["shape"] * packing["scale"] / 3  # three packers
     # --8<-- [end:by-hand]
@@ -219,7 +219,7 @@ def by_hand() -> dict:
 
 
 def check():
-    """10 runs of the busy hour beside the formulas worked by hand."""
+    """10 replications of the busy hour beside the formulas worked by hand."""
     # --8<-- [start:check]
     formulas = by_hand()
     runs = replicate(
@@ -238,7 +238,7 @@ def check():
 
 
 def warmups() -> dict:
-    """The mean waits of 40 runs of today's shop, after three candidate warm-ups."""
+    """The mean waits of 40 replications of today's shop, after three candidate warm-ups."""
     # --8<-- [start:warmups]
     return {
         warmup: replicate(SHOP, 40, seed=42, until=3600, warmup=warmup, measures=WAITS)

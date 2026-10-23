@@ -4,13 +4,13 @@
 
 ## What You Add
 
-A `sweep` in the experiment: a registry path and the values it takes. The model and the two designs are those of Comparing Designs.
+This page adds a `sweep` to the experiment: a registry path and the values it takes. The model and the two designs are those of Comparing Designs.
 
 ---
 
 ## Sweep One Input
 
-A sweep runs every variant at every value of its paths. Here that is two variants at four rates, 8 designs, each run 20 times with the same 20 seeds:
+A sweep runs every variant at every value of its paths. Here that is two variants, three and four packers, at four arrival rates from 1.6 to 1.9 orders a second. That makes 8 designs, each run 20 times with the same 20 seeds:
 
 === "YAML"
 
@@ -39,9 +39,9 @@ A sweep runs every variant at every value of its paths. Here that is two variant
     "sweep": {"Shop.arrival.orders.rate": [1.6, 1.7, 1.8, 1.9]},
     ```
 
-Changing one input while every other stays as it is shows how sensitive the answer is to that input. This is **one-factor sensitivity**. A sweep with two paths runs every combination of their values, so its size is the product of the list lengths.
+Changing one input while every other input stays the same is called **one-factor sensitivity** analysis. It shows how much the answer depends on that input. A sweep with two paths runs every combination of their values, so its size is the product of the list lengths.
 
-Run it with `desflow experiment parameter_sweeps_experiment.yaml`, or `python parameter_sweeps.py` and `python parameter_sweeps_low_level.py`. Each design's name is its variant followed by its swept value, such as `three Shop.arrival.orders.rate=1.9`, and `results.csv` and `summary.csv` have a column for the swept path. The mean wait of each design over its 20 replications, with the 95% [half-width](../des/output-analysis.md#interval-and-half-width). The row for 1.8 orders a second is the experiment of Comparing Designs; [Common Mistakes](../des/common-mistakes.md#taking-one-run-as-the-answer) explains why the busy hour's figures differ between pages:
+Run it with `desflow experiment parameter_sweeps_experiment.yaml`, or `python parameter_sweeps.py` and `python parameter_sweeps_low_level.py`. Each design's name is its variant followed by its swept value, such as `three Shop.arrival.orders.rate=1.9`, and `results.csv` and `summary.csv` have a column for the swept path. The table gives the mean wait of each design over its 20 replications, with the 95% [half-width](../des/output-analysis.md#interval-and-half-width). The row for 1.8 orders a second is the experiment of Comparing Designs. [Common Mistakes](../des/common-mistakes.md#taking-one-run-as-the-answer) explains why the busy hour's figures differ between pages:
 
 | Orders a second | Three packers (s) | Four packers (s) |
 |---|---|---|
@@ -56,13 +56,13 @@ Run it with `desflow experiment parameter_sweeps_experiment.yaml`, or `python pa
 
 The mean wait of each design against the arrival rate, with its 95% interval:
 
-![The busy hour's mean wait over 20 runs at 1.6, 1.7, 1.8 and 1.9 orders a second: with three packers it rises from 0.97 to 1.47, 2.48 and 5.55 seconds, its interval widening with the rate; with four packers it stays between 0.17 and 0.35 seconds](../assets/charts/sweep-waits.png)
+![The busy hour's mean wait over 20 replications at 1.6, 1.7, 1.8 and 1.9 orders a second. With three packers it rises from 0.97 to 1.47, 2.48 and 5.55 seconds, and its interval widens with the rate. With four packers it stays between 0.17 and 0.35 seconds](../assets/charts/sweep-waits.png)
 
-How much does the answer depend on the arrival rate? With three packers, a great deal: 1.9 orders a second, about 6% above the estimate, more than doubles the mean wait to **5.55 seconds**, and 1.6 orders a second cuts it to 0.97. With four packers the mean wait stays under **0.35 seconds** at every rate. So the decision to add a packer holds whatever the demand within this range, while the three-packer wait cannot be predicted well without a better estimate of the rate.
+How much does the answer depend on the arrival rate? With three packers, a great deal. A rate of 1.9 orders a second, about 6% above the estimate, more than doubles the mean wait, to **5.55 seconds**. A rate of 1.6 orders a second cuts it to 0.97 seconds. With four packers the mean wait stays under **0.35 seconds** at every rate. The decision to add a packer therefore holds at every rate in this range. The three-packer wait, on the other hand, cannot be predicted well without a better estimate of the rate.
 
 ## Why It Works
 
-Three packers that take 1.5 seconds an order on average pack 2 orders a second at most. At 1.9 orders a second they are busy 95% of the time, and close to that limit a small rise in demand makes the queue much longer, so the wait grows faster than the rate, as [Queueing Basics](../des/queueing-basics.md#waits-near-full-use) explains. Four packers stay below 72% busy at every rate in the sweep, far from their limit. Every design ran with the same seeds, so the differences between rows come from the rate, not from chance. The intervals widen with the rate, because a busier shop varies more from run to run.
+Three packers that take 1.5 seconds an order on average pack 2 orders a second at most. At 1.9 orders a second they are busy 95% of the time. Close to that limit, a small rise in demand makes the queue much longer, so the wait grows faster than the rate, as [Queueing Basics](../des/queueing-basics.md#waits-near-full-use) explains. Four packers stay below 72% busy at every rate in the sweep, far from their limit. Every design ran with the same seeds, so the differences between rows come from the rate, not from different random draws. The intervals widen with the rate, because a busier shop varies more from run to run.
 
 ---
 
@@ -99,8 +99,8 @@ Three packers that take 1.5 seconds an order on average pack 2 orders a second a
         ```python title="docs/snippets/tutorials/parameter_sweeps.py"
         """The Parameter Sweeps tutorial: the wait at four arrival rates, builder.
 
-        The busy hour of Trusting Results with three packers and with four, each at four
-        arrival rates, run 20 times with the same seeds. The experiment writes its artifacts and
+        Runs the busy hour of Trusting Results with three packers and with four, each at four
+        arrival rates, 20 times with the same seeds. The experiment writes its artifacts and
         report to results/demand, and the script prints each design's mean wait.
         """
 
@@ -145,8 +145,8 @@ Three packers that take 1.5 seconds an order on average pack 2 orders a second a
         ```python title="docs/snippets/tutorials/parameter_sweeps_low_level.py"
         """The Parameter Sweeps tutorial: the wait at four arrival rates, low-level.
 
-        The busy hour of Trusting Results with three packers and with four, each at four
-        arrival rates, run 20 times with the same seeds. The experiment writes its artifacts and
+        Runs the busy hour of Trusting Results with three packers and with four, each at four
+        arrival rates, 20 times with the same seeds. The experiment writes its artifacts and
         report to results/demand, and the script prints each design's mean wait.
         """
 

@@ -85,6 +85,7 @@ app = (
     SimulationContext(sim_id="Shop", factor=0.0, random_seed=42)
     .add_resource("packers", current_cap=1, max_cap=4, queue="priority")
     .add_service("packing", dist="constant", value=1.5)
+    # An order every 2 s on average (rate 0.5)
     .add_arrival("orders", dist="exponential", rate=0.5, attributes={"tier": 2})
 )
 

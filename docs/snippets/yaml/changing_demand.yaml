@@ -22,7 +22,8 @@ tasks:
     payload: {event_type: order_packed}
 
 # --8<-- [start:schedule]
-# The rush: 0.9 orders a second from 20 to 40 minutes, and RUSH_PACKERS for it
+# The rush from 20 to 40 minutes: an order every 1.11 s on average (rate 0.9),
+# and RUSH_PACKERS packers
 scenario:
   - {at: 20 min, path: Shop.arrival.orders.rate, value: 0.9}
   - {at: 20 min, path: Shop.resources.packers.current_cap, value: "${RUSH_PACKERS:-1}"}

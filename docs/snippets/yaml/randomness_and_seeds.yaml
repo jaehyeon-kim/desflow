@@ -12,13 +12,13 @@ resources:
   packers: {current_cap: 3, max_cap: 10}
 
 services:
-  # Packing varies: 1.5 seconds on average, give or take 0.5
+  # Packing varies: 1.5 seconds on average, with a standard deviation of 0.5
   packing: {dist: normal, mean: 1.5 s, std: 0.5 s}
 
 # --8<-- [start:returns]
 arrivals:
   orders: {dist: exponential, rate: 1.8, spawn: pack_order}
-  # Returned parcels: about one every 5 seconds
+  # Returned parcels: one every 5 seconds on average
   returns: {dist: exponential, rate: 0.2, spawn: receive_return}
 
 tasks:

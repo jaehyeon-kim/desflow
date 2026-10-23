@@ -1,9 +1,10 @@
 """The Interruptions tutorial: express orders take the packer from regular ones.
 
-One packer, regular orders at 0.45 a second and express orders at 0.15, and 1.5
-seconds of packing. Every record is printed to the terminal, and the script prints
-what preemption did to regular orders under each policy at the end:
-python interruptions_low_level.py 2>/dev/null shows only those lines.
+One packer and 1.5 seconds of packing. A regular order arrives every 2.22 seconds on
+average (rate 0.45), and an express order every 6.67 seconds (rate 0.15). Every record
+is printed to the terminal, and the script prints what preemption did to regular orders
+under each policy at the end. To see only those lines, run:
+python interruptions_low_level.py 2>/dev/null
 """
 
 import itertools
@@ -29,7 +30,7 @@ logging.basicConfig(
 PARAMS = SimParameter(
     sim_id="Shop",
     arrival={
-        # 0.6 orders a second in all, one in four of them express
+        # An order every 1.67 s on average in all (0.6 a second), one in four express
         "orders": DistributionConfig(dist="exponential", rate=0.45),
         "express": DistributionConfig(dist="exponential", rate=0.15),
     },

@@ -39,7 +39,7 @@ env = DynamicRealtimeEnvironment(
     factor=0.0,
     logical_start_time=go_live_at - timedelta(days=7),
     go_live_at=go_live_at,
-    strict=False,  # a live run with a sink that blocks goes on
+    strict=False,  # a live run goes on when a slow sink makes it fall behind
 )
 
 if __name__ == "__main__":

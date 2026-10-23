@@ -42,6 +42,7 @@ env = DynamicRealtimeEnvironment(factor=0.0)  # unpaced; 1.0 follows the wall cl
 env.registry.register_sim_parameter(
     SimParameter(
         sim_id="Shop",
+        # An order every 2 s on average (rate 0.5)
         arrival={"orders": DistributionConfig(dist="exponential", rate=0.5)},
         service={"packing": DistributionConfig(dist="normal", mean=1.5, std=0.3)},
         resources={"packers": CapacityConfig(current_cap=1, max_cap=3)},
@@ -73,7 +74,7 @@ finished = DynamicStore(env, "Shop", "finished")
 sampler = Sampler(seed=42)  # a random stream per distribution, from one seed
 ```
 
-Each reads its capacity from the registry when it is created, so the parameters must be registered first, and adds itself to the statistics. `Sampler(seed=42)` gives each registered distribution a random stream of its own, so a run repeats exactly, as [Arrivals and Services](arrivals-and-services.md#seeding) describes.
+Each one reads its capacity from the registry when it is created, so the parameters must be registered first. Each one also adds itself to the statistics. `Sampler(seed=42)` gives each registered distribution a random stream of its own, so a run repeats exactly, as [Arrivals and Services](arrivals-and-services.md#seeding) describes.
 
 ## Write the Processes
 
@@ -104,7 +105,7 @@ def order(env, key, task_id):
 
 The service time is drawn once the order has a packer and a box, from the configuration the registry holds at that moment, so a change made while it waited still applies to it.
 
-The arrival loop keeps the configuration object rather than a copy of the rate, so the next draw uses whatever rate the registry holds. It gives each order its key, `orders-1`, `orders-2`:
+The arrival loop keeps the configuration object rather than a copy of the rate. The registry changes that object in place when a new rate arrives, so the next draw uses the current rate. It gives each order its key, `orders-1`, `orders-2`:
 
 ```python title="docs/snippets/pages/low_level.py:arrivals"
 def arrivals(env):
@@ -161,7 +162,7 @@ finally:
 
 `ConsoleEgress` writes each record as a log line at INFO level, so logging is switched on first. `env.run` is SimPy's, so `until` is a number of simulation seconds; `time_to_seconds` converts a duration such as `"10 min"`. `teardown` in `finally` publishes the last statistics, flushes the last records and stops both threads, even when the run stops with Ctrl+C or an error.
 
-A script can run the model in segments with `env.run(until=...)` again, as in SimPy, and `env.schedule(event, priority, delay)` is SimPy's own: `simpy.events.URGENT` puts an event before the `NORMAL` ones at its time. [Run Length](time-and-pacing/run-length.md#run-in-segments) covers segments, `strict`, `sync()` and `env.resume_pacing()`.
+A script can run the model in segments by calling `env.run(until=...)` again, as in SimPy. `env.schedule(event, priority, delay)` is SimPy's own: `simpy.events.URGENT` puts an event before the `NORMAL` ones at its time. [Run Length](time-and-pacing/run-length.md#run-in-segments) covers segments, `strict`, `sync()` and `env.resume_pacing()`.
 
 An environment subclass is plain Python: `class Traced(DynamicRealtimeEnvironment)`, whose `__init__` takes `**kwargs` and passes them on, and whose `step` or `schedule` calls `super()`. `step` runs once per event inside `run()`, desflow's own included.
 
@@ -222,6 +223,7 @@ Beyond those, a process can do anything SimPy can model.
     env.registry.register_sim_parameter(
         SimParameter(
             sim_id="Shop",
+            # An order every 2 s on average (rate 0.5)
             arrival={"orders": DistributionConfig(dist="exponential", rate=0.5)},
             service={"packing": DistributionConfig(dist="normal", mean=1.5, std=0.3)},
             resources={"packers": CapacityConfig(current_cap=1, max_cap=3)},

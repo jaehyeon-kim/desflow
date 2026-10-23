@@ -10,7 +10,7 @@ Make a resource fail at random and be repaired, decide what happens to the work 
 2. Choose `work`: `interrupt`, the default, stops the tasks being served when the resource fails; `finish` lets them finish and stops only new work.
 3. With `interrupt`, give the task an `on_interrupt`: `resume` packs what was left after the repair, `restart` packs again from the start, and `abandon` ends the order.
 
-Here a packing station of two units fails about once a minute and takes 5 to 15 seconds to repair:
+Here a packing station of two units fails about once a minute on average (`rate: 0.0167`) and takes 5 to 15 seconds to repair:
 
 === "YAML"
 
@@ -21,6 +21,7 @@ Here a packing station of two units fails about once a minute and takes 5 to 15 
         max_cap: 3
         breakdown:
           # Calendar time from a repair, or the start, to the next failure.
+          # A failure every 60 s on average (rate 0.0167)
           time_to_failure: {dist: exponential, rate: 0.0167}
           repair: {dist: uniform, low: 5 s, high: 15 s}
           # The orders being packed are interrupted, and follow their on_interrupt.
@@ -34,6 +35,7 @@ Here a packing station of two units fails about once a minute and takes 5 to 15 
     .add_breakdown(
         "station",
         # Calendar time from a repair, or the start, to the next failure
+        # A failure every 60 s on average (rate 0.0167)
         time_to_failure={"dist": "exponential", "rate": 0.0167},
         repair={"dist": "uniform", "low": 5, "high": 15},
         # The orders being packed are interrupted, and follow their on_interrupt
@@ -47,6 +49,7 @@ Here a packing station of two units fails about once a minute and takes 5 to 15 
     breakdowns={
         "station": BreakdownConfig(
             # Calendar time from a repair, or the start, to the next failure
+            # A failure every 60 s on average (rate 0.0167)
             time_to_failure=DistributionConfig(dist="exponential", rate=0.0167),
             repair=DistributionConfig(dist="uniform", low=5, high=15),
             # The orders being packed are interrupted
@@ -69,15 +72,15 @@ Here a packing station of two units fails about once a minute and takes 5 to 15 
 
     An interrupted order catches `simpy.Interrupt`, whose cause is `"breakdown"`, gives back its request and asks again, as the full file shows.
 
-The failure clock runs on calendar time: the next failure is drawn at the start and after each repair, whether the station is busy or idle. While the station is down its capacity is 0, so no order starts, and every unit fails together. Its `current_cap` keeps the planned value: a scenario step or an ingress message that changes it during the repair sets the capacity the station returns to, and does not end the repair. The station publishes an event keyed by its name at each failure, `{"status": "down", "reason": "failure"}`, and at each repair, `{"status": "repaired", "reason": "failure"}`. The two distributions are registry paths, `Shop.breakdown.station.time_to_failure` and `.repair`, so a live change can make failures more or less frequent.
+The failure clock runs on calendar time: the next failure is drawn at the start and after each repair, whether the station is busy or idle. While the station is down its capacity is 0, so no order starts. All its units fail together. Its `current_cap` keeps the planned value: a scenario step or an ingress message that changes it during the repair sets the capacity the station returns to, and does not end the repair. The station publishes an event keyed by its name at each failure, `{"status": "down", "reason": "failure"}`, and at each repair, `{"status": "repaired", "reason": "failure"}`. The two distributions are registry paths, `Shop.breakdown.station.time_to_failure` and `.repair`, so a live change can make failures more or less frequent.
 
-A breakdown that lets work finish and then holds the resource for a fixed time each day is a capacity schedule; [Time-varying Arrivals](time-varying-arrivals.md) writes it as scenario steps.
+A breakdown that lets work finish and then holds the resource for a fixed time each day is a capacity schedule. [Time-varying Arrivals](time-varying-arrivals.md) writes it as scenario steps.
 
 ---
 
 ## Check the Downtime
 
-With statistics at `minimal` or above, the station publishes `down`, 1 while it is down and 0 otherwise; from `basic`, `downtime`, the seconds it has been down, and `failures`, how many times it has failed. This function runs the example, finds the down periods from the events, and checks both counts against them:
+With statistics at `minimal` or above, the station publishes `down`: 1 while it is down and 0 otherwise. From `basic` it also publishes `downtime`, the seconds it has been down, and `failures`, how many times it has failed. This function runs the example, finds the down periods from the events, and checks both counts against them:
 
 ```python title="docs/snippets/guides/breakdowns.py:check"
 def availability(path: str) -> dict:
@@ -114,13 +117,13 @@ def availability(path: str) -> dict:
     }
 ```
 
-For the example it returns five down periods, the first from 84.6 to 98.5 seconds, **52.5** seconds of downtime in 300 (17.5 percent), and **8** orders interrupted, all 8 resumed after a repair. Report the downtime beside the waits: a station that is down 17.5 percent of the time has that much less capacity, and its waits grow as on [Queues and Capacity](../tutorials/queues-and-capacity.md).
+For one 300-second run of the example it returns five down periods, the first from 84.6 to 98.5 seconds, **52.5** seconds of downtime in 300 (17.5 percent), and **8** orders interrupted, all 8 resumed after a repair. Report the downtime beside the waits: a station that is down 17.5 percent of the time has that much less capacity, and its waits grow as on [Queues and Capacity](../tutorials/queues-and-capacity.md).
 
 ---
 
 ## Example
 
-The `breakdowns` example is the model above: two units at a packing station, orders at 0.6 a second, and every order packed once the station is back. It needs no Docker service and ends on its own after 300 simulation seconds.
+The `breakdowns` example is the model above: two units at a packing station, an order every 1.67 seconds on average (`rate: 0.6`), and every order packed once the station is back. It needs no Docker service and ends on its own after 300 simulation seconds.
 
 === "YAML"
 

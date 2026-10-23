@@ -28,7 +28,7 @@ logging.getLogger("desflow").setLevel(logging.WARNING)
 HERE = Path(__file__).resolve().parent
 
 # --8<-- [start:fixed]
-# Three packers, an order every second and 4 seconds to pack each
+# Three packers; an order arrives every second and takes 4 seconds to pack
 FIXED = SimParameter(
     sim_id="Shop",
     arrival={"orders": DistributionConfig(dist="constant", value=1)},

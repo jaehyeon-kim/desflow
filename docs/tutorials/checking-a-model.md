@@ -4,18 +4,26 @@
 
 ## What You Add
 
-Checks on the model, written as tests that fail when a check fails: a run with fixed inputs against a trace worked by hand, runs at the extremes against estimates made by hand, [Little's law](../des/queueing-basics.md#littles-law) and the queueing formulas of `desflow explain --verify`, a comparison with values observed in the real shop, and a check that the decision survives a higher rate. [Checking and Validating](../des/checking-and-validating.md) explains each kind of check; this page applies them to the shop.
+This page adds checks on the model, written as tests that fail when a check fails:
+
+- a run with fixed inputs, against a trace worked by hand;
+- runs at the extremes, against estimates made by hand;
+- [Little's law](../des/queueing-basics.md#littles-law) and the queueing formulas of `desflow explain --verify`;
+- a comparison with values observed in the real shop;
+- a check that the decision still holds at a higher rate.
+
+[Checking and Validating](../des/checking-and-validating.md) explains each kind of check, and this page applies them to the shop.
 
 ---
 
 ## Trace Fixed Inputs
 
-Replace every random input with a constant, and the run has one answer that can be worked out by hand. Three packers, an order every second and 4 seconds to pack each, for 10 seconds:
+Replace every random input with a constant, and the run has one answer that can be worked out by hand. Here the shop has three packers, an order arrives every second, each order takes 4 seconds to pack, and the run lasts 10 seconds:
 
 === "YAML"
 
     ```yaml title="docs/snippets/yaml/checking_a_model.yaml:fixed"
-    # Three packers, an order every second and 4 seconds to pack each
+    # Three packers; an order arrives every second and takes 4 seconds to pack
     resources:
       packers: {current_cap: 3, max_cap: 10}
 
@@ -45,7 +53,7 @@ Replace every random input with a constant, and the run has one answer that can 
 === "Low-level"
 
     ```python title="docs/snippets/tutorials/checking_a_model_low_level.py:fixed"
-    # Three packers, an order every second and 4 seconds to pack each
+    # Three packers; an order arrives every second and takes 4 seconds to pack
     FIXED = SimParameter(
         sim_id="Shop",
         arrival={"orders": DistributionConfig(dist="constant", value=1)},
@@ -56,7 +64,7 @@ Replace every random input with a constant, and the run has one answer that can 
 
     The full file reuses `order_generator` and `pack_order` from Trusting Results: SimPy's `env.timeout(...)` makes each gap, and `packers.request()` waits for a free packer, as [SimPy and desflow](../des/simpy-and-desflow.md#resources) describes.
 
-Worked by hand, orders arrive at 1, 2, ... 9 seconds. The first three start at once. Each later order starts when a packer frees, 4 seconds after that packer started. The run stops at 10 seconds, before the events at that time:
+Worked by hand, orders arrive at 1, 2, ... 9 seconds. The first three start at once. Each later order starts when a packer becomes free, 4 seconds after that packer started its last order. The run stops at 10 seconds, before the events at that time:
 
 | Order | Arrives | Starts | Waits | Finishes |
 |---|---|---|---|---|
@@ -66,7 +74,7 @@ Worked by hand, orders arrive at 1, 2, ... 9 seconds. The first three start at o
 | 7 | 7 | 9 | 2 | after 10 |
 | 8, 9 | 8, 9 | not by 10 | | |
 
-So **4** orders finish and **5** are still in the shop. Seven orders started packing, and all 9 that arrived count in `flows.orders.started`. The seven have waits that add up to 5 seconds, so the mean wait is 5 / 7 = **0.714** seconds and the longest is **2**. The packers are busy 24 of their 30 seconds, **80%**, and the queue holds 8 order-seconds in 10 seconds, an average of **0.8**. The run reports the same six numbers. A difference here is a bug in the program or in the trace by hand, and either one needs finding before any experiment.
+By the table, **4** orders finish and **5** are still in the shop. Seven orders started packing, and all 9 that arrived count in `flows.orders.started`. The waits of the seven add up to 5 seconds, so the mean wait is 5 / 7 = **0.714** seconds, and the longest is **2** seconds. The three packers can work 3 × 10 = 30 seconds in all, and they are busy for 24 of them, **80%**. Orders 8 and 9 are still waiting at 10 seconds, after 2 seconds and 1 second, so the time orders spend in the queue adds up to 5 + 3 = 8 seconds. Over 10 seconds that gives an average queue of 8 ÷ 10 = **0.8** orders. The run reports the same six numbers. A difference here means a mistake in the program or in the trace worked by hand, and the mistake must be found before any experiment.
 
 ---
 
@@ -119,7 +127,7 @@ A fixed trace checks the logic, not the busy hour itself. Run the busy hour with
     ],
     ```
 
-The summary also has the task's counts, such as `tasks.pack_order.finished`, without naming them. The designs are variants of the number of packers:
+The summary also has the task's counts, such as `tasks.pack_order.finished`, although `measures` does not name them. The designs are variants of the number of packers:
 
 === "YAML"
 
@@ -144,7 +152,7 @@ The summary also has the task's counts, such as `tasks.pack_order.finished`, wit
 
     The same keys, in the same mapping as the model.
 
-One packer takes 1.5 seconds an order on average, so it can finish at most 3,480 / 1.5 = 2,320 orders in the 3,480 seconds after the warm-up. Over the experiment's 20 replications, the one-packer design finishes **2,318** orders on average, with the packer busy **100%** of the time and a mean wait of about **1,179** seconds. Ten packers would be busy 1.8 × 1.5 / 10 = 27% of the time; the experiment measures **27.08%** on average, and the mean wait rounds to **0.00** seconds. Turn each extreme into a check, so a later change that breaks it fails. A check tests the far end of the interval, so it passes only when the whole interval is within the bound:
+One packer takes 1.5 seconds an order on average, so it can finish at most 3,480 / 1.5 = 2,320 orders in the 3,480 seconds after the warm-up. Over the experiment's 20 replications, the one-packer design finishes **2,318** orders on average, with the packer busy **100%** of the time and a mean wait of about **1,179** seconds. Ten packers would be busy 1.8 orders a second × 1.5 seconds ÷ 10 packers = 27% of the time. The experiment measures **27.08%** on average, and the mean wait rounds to **0.00** seconds. Turn each extreme into a check, so a later change that breaks it fails. A check tests the far end of the interval, so it passes only when the whole interval is within the bound:
 
 === "YAML"
 
@@ -182,7 +190,7 @@ Two checks compare the run with queueing theory: Little's law, which holds for a
 
 ### Little's Law
 
-[Little's law](../des/queueing-basics.md#littles-law) says the average queue equals the arrival rate times the mean wait. The experiment measures the three separately, so they test each other. The arrival rate is the orders that arrived after the warm-up, `flows.orders.started`, divided by the 3,480 seconds:
+[Little's law](../des/queueing-basics.md#littles-law) says the average queue equals the arrival rate times the mean wait. The experiment measures the three separately, so they test each other. The arrival rate is the number of orders that arrived after the warm-up, `flows.orders.started`, divided by the 3,480 seconds that follow the warm-up:
 
 === "YAML"
 
@@ -209,7 +217,7 @@ Two checks compare the run with queueing theory: Little's law, which holds for a
 
     The same function, with `HORIZON = 3600 - WARMUP`.
 
-With three packers the queue averages **4.488** orders, and 1.8065 orders a second × 2.479 seconds = **4.478**. They agree. With one packer they also roughly agree: a queue of **2,127.6** against 1.8065 × 1,179.0 = **2,129.9**. One packer's queue grows through the whole run and never settles, so its mean depends on how long the run lasts, and the agreement there proves less than it does for three packers. Agreement with the law shows the statistics are consistent with each other. It does not show the model is right for the shop: a model with the wrong packing times would agree just as well.
+Over the 20 replications with three packers, the queue averages **4.488** orders, and 1.8065 orders a second × 2.479 seconds = **4.478** orders. The two agree. With one packer they also roughly agree: a queue of **2,127.6** orders against 1.8065 × 1,179.0 = **2,129.9**. One packer's queue grows through the whole run and never settles, so its mean depends on how long the run lasts. The agreement there therefore proves less than it does for three packers. Agreement with the law shows the statistics are consistent with each other. It does not show the model is right for the shop: a model with the wrong packing times would agree just as well.
 
 ### Queueing Formulas With explain
 
@@ -223,7 +231,7 @@ With three packers the queue averages **4.488** orders, and 1.8065 orders a seco
 
 === "Builder"
 
-    `context.analyze(verify=True, replications=10)` returns the same comparison for a context loaded from a blueprint, or from a builder file with `load_context`. A context built in a script's own code cannot be built again for the runs, so it refuses `verify=True`; use `desflow explain --verify` on the file.
+    `context.analyze(verify=True, replications=10)` returns the same comparison for a context loaded from a blueprint, or from a builder file with `load_context`. A context built in a script's own code cannot be built again for the runs, so it refuses `verify=True`. Use `desflow explain --verify` on the file instead.
 
 === "Low-level"
 
@@ -253,13 +261,13 @@ Not compared:
 --verify checks the implementation against the queueing analysis where it applies; it does not show that the model is close enough to the real system
 ```
 
-The utilisation of 0.9 and the throughput of 1.8 orders a second agree with the runs. The measured wait, 2.252 ± 0.2476 seconds, is the mean of the 10 runs after the blueprint's 2-minute warm-up, with the seeds of Trusting Results, so it is that page's 10-replication figure; [Common Mistakes](../des/common-mistakes.md#taking-one-run-as-the-answer) explains why the busy hour's figures differ between pages. The wait and the queue length have no analytical value, and the `Not estimated` line says why: three packers with measured packing times have no closed formula. For them the interval of the experiment is the check, as the next section shows. Agreement shows the program computes what the model on paper says; it says nothing about whether the model is close enough to the real shop. [Check Against Theory](../guides/check-against-theory.md) runs the same check on a shop the formulas describe in full.
+The utilisation of 0.9 and the throughput of 1.8 orders a second agree with the replications. The measured wait, 2.252 ± 0.2476 seconds, is the mean of the 10 replications after the blueprint's 2-minute warm-up. The replications use the seeds of Trusting Results, so the figure equals that page's figure for 10 replications. [Common Mistakes](../des/common-mistakes.md#taking-one-run-as-the-answer) explains why the busy hour's figures differ between pages. The wait and the queue length have no analytical value, and the `Not estimated` line says why: three packers with measured packing times have no closed formula. For them the interval of the experiment is the check, as the next section shows. Agreement shows that the program computes what the model on paper says. It says nothing about whether the model is close enough to the real shop. [Check Against Theory](../guides/check-against-theory.md) runs the same check on a shop the formulas describe in full.
 
 ---
 
 ## Compare With the Real Shop
 
-Only the real shop can show the model is adequate. The observed values below are illustrative; a real check uses the shop's own records. Say the shop recorded a mean wait of 2.6 seconds and a utilisation of 91% over 58 minutes of a busy hour with three packers. [`checking_a_model_observed.csv`](https://raw.githubusercontent.com/jaehyeon-kim/desflow/main/docs/snippets/yaml/checking_a_model_observed.csv) holds them, with the unit, population and horizon of each, as [Experiment Results](../user-guide/experiments/experiment-results.md#compare-with-observed-values) describes; download it into the folder that holds the experiment and the scripts. The experiment places each value beside the three-packer interval:
+Only data from the real shop can show that the model is adequate. The observed values below are illustrative, and a real check uses the shop's own records. Suppose the shop recorded a mean wait of 2.6 seconds and a utilisation of 91% over 58 minutes of a busy hour with three packers. [`checking_a_model_observed.csv`](https://raw.githubusercontent.com/jaehyeon-kim/desflow/main/docs/snippets/yaml/checking_a_model_observed.csv) holds them, with the unit, population and horizon of each, as [Experiment Results](../user-guide/experiments/experiment-results.md#compare-with-observed-values) describes. Download it into the folder that holds the experiment and the scripts. The experiment places each value beside the three-packer interval:
 
 === "YAML"
 
@@ -284,13 +292,13 @@ Only the real shop can show the model is adequate. The observed values below are
 
     The same key, in the same mapping as the model.
 
-The busy-hour wait with three packers and measured packing times has no exact formula in [Queueing Basics](../des/queueing-basics.md), so the experiment's interval is the check. The interval covers only the model's spread from run to run, not the error in the shop's own measurement. One rule applies to both measures: a value outside its interval is a disagreement that the study must explain before it trusts the model for the decision. The observed mean wait of 2.6 seconds is inside its interval, **2.16 to 2.80**, so the wait agrees. The observed utilisation of 91% is outside its interval, **89.70 to 90.96**, so the utilisation is a disagreement to explain, for example by checking how the shop measured it or whether the packing times are right.
+The busy-hour wait with three packers and measured packing times has no exact formula in [Queueing Basics](../des/queueing-basics.md), so the experiment's interval is the check. The interval covers only the model's spread from run to run, not the error in the shop's own measurement. One rule applies to both measures: a value outside its interval is a disagreement that the study must explain before it trusts the model for the decision. Each interval is the 95% interval of the model's mean over the 20 replications with three packers. The observed mean wait of 2.6 seconds is inside its interval, **2.16 to 2.80** seconds, so the wait agrees. The observed utilisation of 91% is outside its interval, **89.70 to 90.96%**, so the utilisation is a disagreement to explain. The study could, for example, check how the shop measured its utilisation, or whether the packing times are right.
 
 ---
 
 ## Test the Sensitivity
 
-[Parameter Sweeps](parameter-sweeps.md) found that the four-packer wait stays low at every rate. Keep that as a check, so a change to the model that breaks it fails. Add the chosen design at a rate 6% above the estimate:
+[Parameter Sweeps](parameter-sweeps.md) found that the four-packer wait stays low at every rate. Keep that as a check, so a change to the model that breaks it fails. Add a design with four packers, the chosen number, at 1.9 orders a second, about 6% above the estimate of 1.8:
 
 === "YAML"
 
@@ -337,7 +345,7 @@ Then bound it:
 
     The same keys, in the same mapping as the model.
 
-At 1.9 orders a second four packers wait **0.35 ± 0.02** seconds, so the upper end, 0.37, is under the bound of 0.5.
+At 1.9 orders a second, the mean wait with four packers is **0.35 ± 0.02** seconds over 20 replications. The upper end of its interval, 0.37 seconds, is under the bound of 0.5 seconds, so the check passes.
 
 ---
 
@@ -351,7 +359,7 @@ Run the checks after every change to the model, in the same way as the tests of 
     desflow experiment checking_a_model_experiment.yaml
     ```
 
-    The command writes the results and the report, then exits with status 1 when a check fails, so a CI job that runs it fails too. Run `desflow run checking_a_model.yaml` and compare its statistics with the table above after a change to the model's logic.
+    The command writes the results and the report, then exits with status 1 when a check fails, so a CI job that runs it fails too. After a change to the model's logic, also run `desflow run checking_a_model.yaml` and compare its statistics with the hand-worked figures in [Trace Fixed Inputs](#trace-fixed-inputs).
 
 === "Builder"
 
@@ -374,7 +382,7 @@ Run the checks after every change to the model, in the same way as the tests of 
     pytest checking_a_model.py
     ```
 
-    pytest collects the `test_` functions of a file named on its command line. `run_experiment` raises `CheckFailed` when a check fails, which fails the second test.
+    pytest collects the `test_` functions of a file named on its command line. `run_experiment` raises `CheckFailed` when a check fails, and the exception fails the second test.
 
 === "Low-level"
 
@@ -390,13 +398,13 @@ Run the checks after every change to the model, in the same way as the tests of 
 
 Each value observed in the real shop beside the three-packer interval of the experiment:
 
-![Two panels for three packers. On the left, the model's mean wait of 2.48 seconds over 20 runs with its 95% interval from 2.16 to 2.80 seconds, and the observed 2.6 seconds inside it. On the right, the model's utilisation of 90.33% with its interval from 89.70 to 90.96%, and the observed 91% above it](../assets/charts/checking-observed.png)
+![Two panels for three packers. On the left, the model's mean wait of 2.48 seconds over 20 replications with its 95% interval from 2.16 to 2.80 seconds, and the observed 2.6 seconds inside it. On the right, the model's utilisation of 90.33% with its interval from 89.70 to 90.96%, and the observed 91% above it](../assets/charts/checking-observed.png)
 
-Does the program do what the model on paper says, and is the model good enough to decide the number of packers? The program does what the model on paper says. The fixed run matches the trace by hand: **4** orders finished, **5** still in the shop and a mean wait of **0.714** seconds. One packer finishes **2,318** orders against 2,320 by hand, and ten are busy **27.08%** of the time against 27%. Little's law holds for three packers, **4.488** against 4.478, and the measured utilisation agrees with the formula's 0.9. Four packers stay at **0.35 ± 0.02** seconds at a rate 6% higher, and all three checks pass. The observed values are illustrative; a real check uses the shop's own records. Against them the mean wait of 2.6 seconds lies inside the simulated **2.16 to 2.80**, but the utilisation of 91% lies outside **89.70 to 90.96**. The model is good enough for the decision only once the study has explained that disagreement.
+Does the program do what the model on paper says, and is the model good enough to decide the number of packers? The program does what the model on paper says. The fixed run matches the trace by hand: **4** orders finished, **5** still in the shop and a mean wait of **0.714** seconds. One packer finishes **2,318** orders on average against 2,320 by hand, and ten packers are busy **27.08%** of the time against 27%. Little's law holds for three packers, with a mean queue of **4.488** orders against 4.478, and the measured utilisation agrees with the formula's 0.9. With four packers at a rate 6% higher, the mean wait is **0.35 ± 0.02** seconds, and all three checks pass. The observed values are illustrative, and a real check uses the shop's own records. Against them the mean wait of 2.6 seconds lies inside the simulated **2.16 to 2.80**, but the utilisation of 91% lies outside **89.70 to 90.96**. The model is good enough for the decision only once the study has explained that disagreement.
 
 ## Why It Works
 
-The trace, the extremes, Little's law and the queueing formulas test the program against the model on paper: verification, in the terms of [Checking and Validating](../des/checking-and-validating.md#verification-and-validation). The observed values and the sensitivity check test the model against the shop and the decision: validation. Written as tests, the checks run again after every change, so a model that was checked once stays checked.
+The trace, the extremes, Little's law and the queueing formulas test the program against the model on paper. [Checking and Validating](../des/checking-and-validating.md#verification-and-validation) calls these checks verification. The observed values and the sensitivity check test the model against the shop and the decision, and that page calls them validation. Written as tests, the checks run again after every change, so a model that was checked once stays checked.
 
 ---
 
@@ -414,7 +422,7 @@ The trace, the extremes, Little's law and the queueing formulas test the program
           factor: 0
           random_seed: 42
 
-        # Three packers, an order every second and 4 seconds to pack each
+        # Three packers; an order arrives every second and takes 4 seconds to pack
         resources:
           packers: {current_cap: 3, max_cap: 10}
 
@@ -663,7 +671,7 @@ The trace, the extremes, Little's law and the queueing formulas test the program
 
         HERE = Path(__file__).resolve().parent
 
-        # Three packers, an order every second and 4 seconds to pack each
+        # Three packers; an order arrives every second and takes 4 seconds to pack
         FIXED = SimParameter(
             sim_id="Shop",
             arrival={"orders": DistributionConfig(dist="constant", value=1)},

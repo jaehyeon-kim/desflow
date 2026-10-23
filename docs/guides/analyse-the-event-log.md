@@ -50,7 +50,7 @@ def read_events(out: Path) -> Table:
     return ds.dataset(out, format="parquet").to_table()
 ```
 
-Two minutes of the shop write **191** rows: 64 queued events, 64 started and 63 finished, because one order is still being packed when the run ends.
+One 2-minute run of the shop writes **191** rows: 64 queued events, 64 started and 63 finished, because one order is still being packed when the run ends.
 
 ---
 
@@ -96,7 +96,7 @@ The log has **318** rows for **64** orders, and its columns are `entity_id`, `ev
 
 ## Find Waits and Throughput
 
-An order's wait is the time from its arrival to the start of packing, and its time in the shop is the time from its arrival to its departure. Throughput is the orders that left in each minute of the run:
+An order's wait is the time from its arrival to the start of packing, and its time in the shop is the time from its arrival to its departure. Throughput is the number of orders that left in each minute of the run:
 
 ```python title="docs/snippets/guides/analyse_the_event_log.py:waits"
 def times(log: Table, event: str) -> dict:
@@ -131,13 +131,13 @@ def throughput_per_minute(log: Table, seconds: float) -> float:
     return len(times(log, "depart")) / (seconds / 60)
 ```
 
-The first order waits **0.0** seconds and is in the shop **1.5**. The mean wait is **1.250** seconds and the longest is **3.66**, in one 2-minute run of a shop with one packer, not the busy hour of the tutorials. **63** orders leave in two minutes, a throughput of **31.5** orders a minute. The 64th is still being packed, so it has a wait and no time in the shop. [Common Mistakes](../des/common-mistakes.md#taking-one-run-as-the-answer) explains why the tutorials' figures for a wait differ between pages.
+The first order waits **0.0** seconds and is in the shop for **1.5** seconds. The mean wait is **1.250** seconds and the longest wait is **3.66** seconds, in one 2-minute run of a shop with one packer, not the busy hour of the tutorials. **63** orders leave in two minutes, a throughput of **31.5** orders a minute. The 64th is still being packed, so it has a wait and no time in the shop. [Common Mistakes](../des/common-mistakes.md#taking-one-run-as-the-answer) explains why the tutorials' figures for a wait differ between pages.
 
 ---
 
 ## Example
 
-The whole file. `python analyse_the_event_log.py` writes the files to `analyse_output/` and prints the counts above.
+The whole file is below. `python analyse_the_event_log.py` writes the files to `analyse_output/` and prints the counts above.
 
 ```python title="docs/snippets/guides/analyse_the_event_log.py"
 """Analyse the Event Log: a run written to Parquet, read back as an event log.

@@ -4,7 +4,7 @@
 
 ## What You Add
 
-`desflow fit`, or `fit_column` in Python, on the 40 packing times, and the fitted settings in the busy hour of [Choosing Inputs](choosing-inputs.md) in place of the times themselves. Fitting needs the `fit` extra: `pip install "desflow[fit]"`.
+This page runs `desflow fit`, or `fit_column` in Python, on the 40 packing times. It then uses the fitted settings in the busy hour of [Choosing Inputs](choosing-inputs.md), in place of the times themselves. Fitting needs the `fit` extra: `pip install "desflow[fit]"`.
 
 ---
 
@@ -18,7 +18,7 @@ Fit the times, which are in seconds and cannot be below 0:
     desflow fit packing_times.csv --column packing_seconds --lower 0 --out fitted/packing.yaml --plot fit.png
     ```
 
-    `packing_times.csv` has a column `packing_seconds` with the 40 times; `desflow examples get fitting` downloads it as `fitting/packing_times.csv`. `--out` writes the best candidate's settings, and `--plot` draws the data against it.
+    `packing_times.csv` has a column `packing_seconds` with the 40 times. `desflow examples get fitting` downloads it as `fitting/packing_times.csv`. `--out` writes the best candidate's settings, and `--plot` draws the data against it.
 
 === "Builder"
 
@@ -36,7 +36,7 @@ Fit the times, which are in seconds and cannot be below 0:
     print(result.text())  # every candidate, its status and diagnostics
     ```
 
-Each family is fitted by maximum likelihood, which chooses the parameters under which the measured values are most probable, then checked and given one row:
+desflow fits each family by maximum likelihood: it chooses the parameters under which the measured values are most probable. It then checks each fit and prints one row per family:
 
 <!-- records: fit-table -->
 ```text
@@ -55,7 +55,7 @@ empirical         fitted                                       values: 40 number
 * best: triangular
 ```
 
-Lower AIC is better, and a small KS p-value is a reason to reject a family; [A Simulation Study](../des/a-simulation-study.md#aic-and-the-ks-test) explains both scores. `exponential` was rejected: its standard deviation equals its mean, 1.5 seconds, more than three times the data's. `constant` was skipped, because the times are not all equal. `normal` fitted, but it can draw below 0, so it is not chosen while a family that stays within the bounds fits. `empirical`, the 40 times themselves, is always offered. The lowest AIC is the `triangular`, marked best, with `gamma` 0.11 behind it.
+Lower AIC is better, and a small KS p-value is a reason to reject a family; [A Simulation Study](../des/a-simulation-study.md#aic-and-the-ks-test) explains both scores. `exponential` was rejected: its standard deviation equals its mean, 1.5 seconds, more than three times the data's 0.4832. `constant` was skipped, because the times are not all equal. `normal` fitted, but it can draw below 0, so desflow does not choose it while another family that stays within the bounds fits. `empirical`, the 40 times themselves, is always offered. The `triangular` has the lowest AIC, 56.68, and is marked best; `gamma` is 0.11 behind it.
 
 ---
 
@@ -63,7 +63,7 @@ Lower AIC is better, and a small KS p-value is a reason to reject a family; [A S
 
 `--plot`, or `result.plot("fit.png")`, draws the data against 10,000 values drawn from the best fit through desflow's `Sampler`, as a run draws them:
 
-![On the left, the histogram of the 40 packing times over the histogram of 10,000 values drawn from the fitted triangular between 0.55 and 2.84 seconds with its mode at 1.2; on the right, a Q-Q plot whose points lie close to the diagonal from 0.7 to 2.7 seconds](../assets/charts/fit-the-inputs.png)
+![On the left, the histogram of the 40 packing times over the histogram of 10,000 values drawn from the fitted triangular between 0.55 and 2.84 seconds with its mode at 1.2. On the right, a Q-Q plot whose points lie close to the diagonal from 0.7 to 2.7 seconds](../assets/charts/fit-the-inputs.png)
 
 On the left, the data and the generated values cover the same range. On the right, each sorted packing time is plotted against the generated value at the same quantile; points on the diagonal mean the two agree. Forty values cannot show much more than that.
 
@@ -110,15 +110,15 @@ The fitted settings go where the 40 times were:
     )
     ```
 
-`result.settings()` returns the best candidate's settings and `result.settings("gamma")` another's, with the same six significant digits the file holds, so a script and a blueprint that use one fit draw the same values.
+`result.settings()` returns the best candidate's settings, and `result.settings("gamma")` returns the gamma's. Both keep six significant digits, as the file does, so a script and a blueprint that use the same fit draw the same values.
 
 ---
 
 ## Does the Choice Matter?
 
-Run the busy hour 40 times with each distribution, each time with a different seed. These runs are **[replications](../des/output-analysis.md#replications)**: the mean wait differs from run to run, and the 95% [half-width](../des/output-analysis.md#interval-and-half-width) below says how far the mean of the 40 runs can be from the true mean wait. Each run also leaves out its first 2 minutes, a **[warm-up](../des/output-analysis.md#one-run-starts-empty)**, because the shop starts empty and its first orders wait less than later ones. [Trusting Results](trusting-results.md) shows how to choose both numbers. In YAML, `desflow run fit_the_inputs.yaml --replications 40 --measure tasks.pack_order.wait_mean` runs the best fit; `--candidates gamma` on `desflow fit` writes the gamma fit instead. The mean wait of each, with its half-width:
+Run the busy hour 40 times with each distribution, each time with a different seed. These runs are **[replications](../des/output-analysis.md#replications)**: the mean wait differs from replication to replication, and the 95% [half-width](../des/output-analysis.md#interval-and-half-width) below says how far the mean of the 40 replications can be from the true mean wait. Each replication also leaves out its first 2 minutes, a **[warm-up](../des/output-analysis.md#one-run-starts-empty)**, because the shop starts empty and its first orders wait less than later ones. [Trusting Results](trusting-results.md) shows how to choose both numbers. In YAML, `desflow run fit_the_inputs.yaml --replications 40 --measure tasks.pack_order.wait_mean` runs the best fit. `--candidates gamma` on `desflow fit` writes the gamma fit instead. The table gives each distribution's mean packing time, and the mean wait over the 40 replications with its half-width:
 
-| Packing time | Mean (s) | Mean wait (s) |
+| Packing time | Mean packing time (s) | Mean wait over 40 replications (s) |
 |---|---|---|
 | triangular, the lowest AIC | 1.53 | 2.93 ± 0.25 |
 | gamma | 1.50 | 2.33 ± 0.19 |
@@ -128,11 +128,11 @@ Run the busy hour 40 times with each distribution, each time with a different se
 
 ## Result
 
-Which supported distribution fits the 40 packing times? The `triangular` has the lowest AIC, but the `gamma` fits almost as well, 0.11 behind, and by a common rule of thumb an AIC difference below 2 does not tell two fits apart. The choice does change the answer: the triangular gives a mean wait of **2.93 ± 0.25 seconds**, the gamma **2.33 ± 0.19**, which agrees with the 2.32 ± 0.20 of the 40 times. So the gamma is the better choice for this question.
+Which supported distribution fits the 40 packing times? The `triangular` has the lowest AIC, but the `gamma` fits almost as well, 0.11 behind. A common rule says that an AIC difference below 2 does not tell two fits apart. The choice does change the answer: the triangular gives a mean wait of **2.93 ± 0.25 seconds**, and the gamma **2.33 ± 0.19**, which agrees with the 2.32 ± 0.20 of the 40 times. The gamma fits almost as well and gives the same answer as the measured times, so it is the better choice for this question.
 
 ## Why It Works
 
-The triangular's mean is (0.546 + 1.2 + 2.838) ÷ 3 = 1.53 seconds, 2% above the data's 1.50, while the gamma keeps the data's mean exactly, as shape × scale = 9.558 × 0.157 = 1.50. With the packers busy 90% of the time, 2% more packing is a large share of their spare time, so the wait grows far more than 2%. [Common Mistakes](../des/common-mistakes.md#choosing-a-normal-or-uniform-by-habit) lists the choice of a family by habit, and [Input Fitting](../user-guide/input-fitting.md) describes every option and outcome.
+The triangular's mean is (0.546 + 1.2 + 2.838) ÷ 3 = 1.53 seconds, 2% above the data's 1.50. The gamma keeps the data's mean exactly: shape × scale = 9.558 × 0.157 = 1.50. With the packers busy 90% of the time, 2% more packing raises utilisation to about 0.92, and the packers' spare time falls from 10% to about 8%, a fifth less. The wait depends on the spare time, as [Waits Near Full Use](../des/queueing-basics.md#waits-near-full-use) shows, so it grows far more than 2%: 2.93 seconds against 2.33. [Common Mistakes](../des/common-mistakes.md#choosing-a-normal-or-uniform-by-habit) lists the choice of a family by habit, and [Input Fitting](../user-guide/input-fitting.md) describes every option and outcome.
 
 ---
 
@@ -181,10 +181,10 @@ The triangular's mean is (0.546 + 1.2 + 2.838) ÷ 3 = 1.53 seconds, 2% above the
         ```python title="docs/snippets/tutorials/fit_the_inputs.py"
         """The Fit the Inputs tutorial: which distribution fits the 40 packing times? builder.
 
-        Fits the 40 packing times measured at the bench to every family, prints the table
-        of candidates, then runs the busy hour 40 times, each after a 2-minute warm-up, with
-        the best fit, with the gamma fit and with the 40 times themselves, and prints the
-        mean wait of each.
+        Fits every family to the 40 packing times measured at the bench and prints the table
+        of candidates. Then it runs the busy hour 40 times with each of three packing
+        distributions: the best fit, the gamma fit and the 40 times themselves. Each run
+        leaves out a 2-minute warm-up. The script prints the mean wait for each distribution.
         """
 
         import logging
@@ -263,10 +263,10 @@ The triangular's mean is (0.546 + 1.2 + 2.838) ÷ 3 = 1.53 seconds, 2% above the
         ```python title="docs/snippets/tutorials/fit_the_inputs_low_level.py"
         """The Fit the Inputs tutorial: which distribution fits the 40 packing times? low-level.
 
-        Fits the 40 packing times measured at the bench to every family, prints the table
-        of candidates, then runs the busy hour 40 times, each after a 2-minute warm-up, with
-        the best fit, with the gamma fit and with the 40 times themselves, and prints the
-        mean wait of each.
+        Fits every family to the 40 packing times measured at the bench and prints the table
+        of candidates. Then it runs the busy hour 40 times with each of three packing
+        distributions: the best fit, the gamma fit and the 40 times themselves. Each run
+        leaves out a 2-minute warm-up. The script prints the mean wait for each distribution.
         """
 
         import logging

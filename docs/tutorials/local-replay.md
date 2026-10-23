@@ -1,10 +1,10 @@
 # Local Replay
 
-The shop recorded every order of one morning, 09:00 to 10:00 on 1 October 2026: 1,963 orders, 0.545 a second on average. A model with exponential gaps at that rate says one packer keeps waits short. This page asks: **what does the shop do with the same orders, at the times they were really placed?** It replays the recorded morning and compares it with the model.
+The shop recorded every order of one morning, 09:00 to 10:00 on 1 October 2026: 1,963 orders, one every 1.83 seconds on average (33 a minute). A model with exponential gaps at that rate says one packer keeps waits short. This page asks: **what does the shop do with the same orders, at the times they were really placed?** It replays the recorded morning and compares it with the model.
 
 ## What You Add
 
-A **replayed arrival**: arrivals taken from the rows of a file instead of a distribution. The shop is the one from [First Simulation](first-simulation.md), with packing at a constant 1.5 seconds. The recorded orders are [`local_replay_orders.csv`](https://raw.githubusercontent.com/jaehyeon-kim/desflow/main/docs/snippets/tutorials/local_replay_orders.csv), one row per order; download it into the folder that holds the blueprint and the scripts:
+This page adds a **replayed arrival**: arrivals taken from the rows of a file instead of a distribution. The shop is the one from [First Simulation](first-simulation.md), with packing at a constant 1.5 seconds. The recorded orders are [`local_replay_orders.csv`](https://raw.githubusercontent.com/jaehyeon-kim/desflow/main/docs/snippets/tutorials/local_replay_orders.csv), one row per order. Download it into the folder that holds the blueprint and the scripts:
 
 ```text
 ordered_at,order_id,items
@@ -85,9 +85,9 @@ Each row becomes one arrival at its time, and the fields named in `fields` becom
             env.process(pack_order(env, sampler, packers, key, task_id, row.fields))
     ```
 
-    `read_trace` reads and checks the rows; each `row` has its simulation `time`, its row `number` and its `fields`.
+    `read_trace` reads and checks the rows. Each `row` has its simulation `time`, its row `number` and its `fields`.
 
-The rows are read and checked when the run starts, by the rules that [Replay](../user-guide/arrivals-and-services.md#replay) lists. In the morning's file, times are given to a tenth of a second, so 74 rows have the same time as the row above them, and they arrive in the order of the file. The 19 orders after 10:00 are at or after `until`, so they never arrive. Row 501 has no time, and `on_invalid: skip` leaves it out with a warning:
+The rows are read and checked when the run starts, by the rules that [Replay](../user-guide/arrivals-and-services.md#replay) lists. In the morning's file, times are given to a tenth of a second, so 74 rows have the same time as the row above them. Rows with the same time arrive in the order of the file. The 19 orders after 10:00 are at or after `until`, so they never arrive. Row 501 has no time, and `on_invalid: skip` leaves it out with a warning:
 
 ```text
 Skipped row 501, which has no valid ordered_at: ''
@@ -99,7 +99,7 @@ A Parquet file works the same way and needs the `parquet` extra.
 
 ## Result
 
-What does the shop do with the orders of the real morning? Something the model does not show. Replayed, the orders wait **91.31 seconds** on average and up to **295.40 seconds**; the model at the same mean rate waits **2.57 seconds** on average and at most **14.34**. The recorded morning holds two bursts, at 09:15 and 09:40, of three minutes each. Each builds a queue that the packer clears only by about 32 and 54 minutes:
+What does the shop do with the orders of the real morning? The replay shows something the model does not. Replayed, the orders wait **91.31 seconds** on average and up to **295.40 seconds**. In one run of the model, with exponential gaps at the same mean rate and the seed 42, orders wait **2.57 seconds** on average and at most **14.34**. The recorded morning holds two bursts of three minutes each, at 09:15 and 09:40. The packer clears the queue of the first burst only at about 09:32, and the queue of the second at about 09:54:
 
 ![Waits by the time packing started: the recorded orders wait up to 295 s after the bursts at 15 and 40 minutes; the exponential model stays near 0 all hour](../assets/charts/replay-waits.png)
 
@@ -112,7 +112,7 @@ modelled: 1905 packed, mean wait  2.57 s, longest  14.34 s
 
 ## Why It Works
 
-A mean rate says how many orders come in an hour, not when they come. Exponential gaps spread the orders evenly over the hour, with small random clusters; the recorded morning has bursts that push the load above one packer for minutes at a time, a finite overload like the rush of [Changing Demand](changing-demand.md). Replaying the recorded rows keeps the bursts, so it shows waits the fitted model cannot. Use a replay to check a model against the data it was fitted to, as [Checking and Validating](../des/checking-and-validating.md#compare-with-the-real-shop) describes: when the two disagree, the arrivals are not exponential at one rate, and the model needs a schedule, as on [Time-varying Arrivals](../guides/time-varying-arrivals.md), or the replay itself.
+A mean rate says how many orders come in an hour, not when they come. Exponential gaps spread the orders evenly over the hour, with small random clusters. The recorded morning has bursts that push the load above what one packer can pack for minutes at a time: a finite overload, like the rush of [Changing Demand](changing-demand.md). Replaying the recorded rows keeps the bursts, so it shows waits the fitted model cannot. Use a replay to check a model against the data it was fitted to, as [Checking and Validating](../des/checking-and-validating.md#compare-with-the-real-shop) describes. When the two disagree, the arrivals are not exponential at one rate, and the model needs a schedule, as on [Time-varying Arrivals](../guides/time-varying-arrivals.md), or the replay itself.
 
 ---
 
@@ -171,11 +171,12 @@ A mean rate says how many orders come in an hour, not when they come. Exponentia
         ```python title="docs/snippets/tutorials/local_replay.py"
         """The Local Replay tutorial: a recorded morning of orders, against a model of it.
 
-        One packer and 1.5 seconds of packing. The orders of 09:00 to 10:00 on 1 October
-        2026 arrive at their recorded times from local_replay_orders.csv; a second run
-        draws exponential gaps at the same mean rate, 0.545 orders a second. Every record
-        is printed to the terminal, and the script prints the waits of both runs:
-        python local_replay.py 2>/dev/null shows only those lines.
+        One packer and 1.5 seconds of packing. The orders of 09:00 to 10:00 on 1 October 2026
+        arrive at their recorded times from local_replay_orders.csv. A second run draws
+        exponential gaps at the same mean rate: an order every 1.83 seconds on average (rate
+        0.545). Every record is printed to the terminal, and the script prints the waits of both
+        runs. To see only those lines, run:
+        python local_replay.py 2>/dev/null
         """
 
         import logging
@@ -267,11 +268,12 @@ A mean rate says how many orders come in an hour, not when they come. Exponentia
         ```python title="docs/snippets/tutorials/local_replay_low_level.py"
         """The Local Replay tutorial: a recorded morning of orders, against a model of it.
 
-        One packer and 1.5 seconds of packing. The orders of 09:00 to 10:00 on 1 October
-        2026 arrive at their recorded times from local_replay_orders.csv; a second run
-        draws exponential gaps at the same mean rate, 0.545 orders a second. Every record
-        is printed to the terminal, and the script prints the waits of both runs:
-        python local_replay_low_level.py 2>/dev/null shows only those lines.
+        One packer and 1.5 seconds of packing. The orders of 09:00 to 10:00 on 1 October 2026
+        arrive at their recorded times from local_replay_orders.csv. A second run draws
+        exponential gaps at the same mean rate: an order every 1.83 seconds on average (rate
+        0.545). Every record is printed to the terminal, and the script prints the waits of both
+        runs. To see only those lines, run:
+        python local_replay_low_level.py 2>/dev/null
         """
 
         import itertools

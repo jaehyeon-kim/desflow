@@ -1,6 +1,6 @@
 # A flow of tasks in YAML: pick, wrap gifts, pack, then ship.
 #
-# The twin of examples/builder/flow_example.py. Each order is an entity with a key,
+# The YAML version of examples/builder/flow_example.py. Each order is an entity with a key,
 # such as orders-1 or gifts-1, that every event of every task it passes through
 # carries. Gift orders carry the attribute gift: 1 and are wrapped after picking;
 # the others go straight to packing. One parcel in ten fails its check and is packed

@@ -1,9 +1,10 @@
 """The Live Changes tutorial: a label printer jam, written as a scenario, builder.
 
-One packer and 1.5 seconds of packing; orders arrive at 0.4 a second. From 20 to 30
-minutes a jammed label printer slows packing to 3 seconds. The events are written to
-events/ and the ground-truth records of the jam to labels/, and the script prints
-the mean waits with and without the jam: python live_changes.py
+One packer takes 1.5 seconds to pack an order, and an order arrives every 2.5 seconds
+on average (rate 0.4). From 20 to 30 minutes a jammed label printer slows packing to
+3 seconds. The events are written to events/ and the ground-truth records of the jam
+to labels/, and the script prints the mean waits with and without the jam.
+Run it with: python live_changes.py
 With the argument live, it sends the jam live: python live_changes.py live
 """
 

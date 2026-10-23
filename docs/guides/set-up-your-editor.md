@@ -1,6 +1,6 @@
 # Set Up Your Editor
 
-Get completion for the keys of a blueprint and a mark under a misspelt key or a value of the wrong kind, as you type. It builds on [YAML Blueprints](../user-guide/blueprints.md), which describes what a blueprint file is, and on [YAML Keys](../reference/yaml-keys.md), which lists every key the editor will offer.
+Get completion for the keys of a blueprint as you type, and a mark under a misspelt key or a value of the wrong kind. It builds on [YAML Blueprints](../user-guide/blueprints.md), which describes what a blueprint file is, and on [YAML Keys](../reference/yaml-keys.md), which lists every key the editor will offer.
 
 The editor checks the shape of the file against the blueprint JSON Schema. It does not run the model, so `desflow run` is still what proves a blueprint works.
 
@@ -30,7 +30,7 @@ The editor checks the shape of the file against the blueprint JSON Schema. It do
     }
     ```
 
-4. The `yaml.customTags` entries tell the extension about the tags a blueprint uses. Without them, it marks `!python`, and an `!include` written as a mapping, as unknown tags, and it marks a file name given to `!include` as the wrong type. They go in the same `.vscode/settings.json`; your user settings work too.
+4. The `yaml.customTags` entries tell the extension about the tags a blueprint uses. Without them, it marks `!python`, and an `!include` written as a mapping, as unknown tags, and it marks a file name given to `!include` as the wrong type. They go in the same `.vscode/settings.json`. Your user settings work too.
 5. Open the file and write a key. The editor offers the keys of the section you are in, shows the section's description when you hover over it, and underlines a key it does not know or a value of the wrong kind.
 
 To work offline, or to pin the schema to the version you have installed, write the copy that comes with the package to a file and name that file instead of the address:
@@ -47,7 +47,7 @@ The address above always serves the latest release, so it can offer keys that an
 
 ## What the Editor Cannot Check
 
-The schema describes the shape of one file. These stay for `desflow run`, which reports each with the file and line:
+The schema describes the shape of one file. `desflow run` checks the following instead, and reports each with the file and line:
 
 - The content of a file named by `!include`.
 - Whether the module and attribute of a `!python` reference exist.
@@ -63,7 +63,7 @@ Where a value is a number, a whole number, `true` or `false`, or one of a fixed 
 
 ## Example
 
-The whole blueprint, with the line that names the schema highlighted. Run it with `desflow run editor_setup.yaml`.
+Below is the whole blueprint, with the line that names the schema highlighted. Run it with `desflow run editor_setup.yaml`.
 
 ```yaml title="docs/snippets/yaml/editor_setup.yaml" hl_lines="3"
 # A small blueprint with the line that tells the Red Hat YAML extension which schema to use.

@@ -1,12 +1,12 @@
 # Check Against Theory
 
-Check a model against the queueing formulas, on a queue the formulas describe. A model that agrees is computing what it should; a model that differs has a defect to find. It builds on [Queues and Capacity](../tutorials/queues-and-capacity.md), which explains [utilisation](../des/queueing-basics.md#utilisation) and the waits the formulas give, and on [Checking a Model](../tutorials/checking-a-model.md), which places this check among the others. The formulas are those of [Queueing Basics](../des/queueing-basics.md).
+Check a model against the queueing formulas, on a queue the formulas describe. A model that agrees is computing what it should. A model that differs has a defect to find. It builds on [Queues and Capacity](../tutorials/queues-and-capacity.md), which explains [utilisation](../des/queueing-basics.md#utilisation) and the waits the formulas give, and on [Checking a Model](../tutorials/checking-a-model.md), which places this check among the others. The formulas are those of [Queueing Basics](../des/queueing-basics.md).
 
 ---
 
 ## Build a Queue the Formulas Describe
 
-The [M/M/1](../des/queueing-basics.md#kendalls-notation) and M/M/c formulas hold when the gaps between arrivals and the service times are exponential, every arrival joins one queue and waits until it is served, and nothing changes while the model runs. This shop has one packer, 0.75 orders a second and a mean packing time of 1 second, so utilisation is 0.75:
+The [M/M/1](../des/queueing-basics.md#kendalls-notation) and M/M/c formulas hold when the gaps between arrivals and the service times are exponential, every arrival joins one queue and waits until it is served, and nothing changes while the model runs. This shop has one packer, an order every 1.33 seconds on average (`rate: 0.75`) and a mean packing time of 1 second. Its utilisation is therefore 0.75 × 1 ÷ 1 = 0.75:
 
 ```yaml title="docs/snippets/yaml/check_against_theory.yaml:shop" hl_lines="5 11 15 19"
 simulation:
@@ -16,7 +16,7 @@ simulation:
   warmup: 2000  # seconds left out of every measure, while the queue fills
 
 arrivals:
-  # 0.75 orders a second with one packer; RATE=1.5 with PACKERS=2
+  # An order every 1.33 s on average (rate 0.75) with one packer; RATE=1.5 with PACKERS=2
   orders:
     dist: exponential
     rate: ${RATE:-0.75}
@@ -42,7 +42,7 @@ run:
 
 The highlighted lines are the [warm-up](../des/output-analysis.md#one-run-starts-empty), which leaves out the first 2,000 seconds while the queue fills from empty, and the three numbers the formulas read: the arrival rate, the service rate and the number of packers. `RATE` and `PACKERS` set the second case below.
 
-Work out the wait by hand first. For one packer it is ρ ÷ (1 − ρ) × the mean service time, where ρ is the utilisation; for several, [Erlang C](../des/queueing-basics.md#several-packers), the chance that every packer is busy, divided by (c ÷ the mean service time − the arrival rate):
+Work out the mean wait by hand first. For one packer it is ρ ÷ (1 − ρ) × the mean service time, where ρ is the utilisation. For several packers it is [Erlang C](../des/queueing-basics.md#several-packers), the chance that every packer is busy, divided by (c ÷ the mean service time − the arrival rate):
 
 ```python title="docs/snippets/guides/check_against_theory.py:by-hand"
 load = rate * service  # packers' worth of work arriving each second
@@ -55,7 +55,7 @@ busy = last / (sum(load**k / math.factorial(k) for k in range(packers)) + last)
 return busy / (packers / service - rate)
 ```
 
-One packer at 0.75 waits 0.75 ÷ 0.25 × 1 = 3 seconds, and two packers at 1.5 orders a second wait 1.286 seconds.
+With one packer at utilisation 0.75, the mean wait is 0.75 ÷ 0.25 × 1 = 3 seconds. With two packers and 1.5 orders a second, it is 1.286 seconds.
 
 ---
 
@@ -105,7 +105,7 @@ Verify: 10 runs to 20000 s, seed 42
 --verify checks the implementation against the queueing analysis where it applies; it does not show that the model is close enough to the real system
 ```
 
-Every measure agrees: the utilisation, the queue length Lq = λ × Wq, the wait of 3 seconds and the throughput. Two packers at the same utilisation use Erlang C:
+Every measure agrees: the utilisation, the queue length Lq = λ × Wq, the mean wait of 3 seconds and the throughput. With two packers at the same utilisation, the wait comes from Erlang C:
 
 ```bash
 PACKERS=2 RATE=1.5 desflow explain check_against_theory.yaml --verify --replications 10
@@ -152,7 +152,7 @@ A context built in a script's own code refuses `verify=True`, because the runs n
 
 ## Read a Difference
 
-A pair that differs on a model the formulas describe points at the model: a wrong rate or unit, a task that holds its resource longer than its service, or a route that sends entities somewhere else. A short run can differ by chance, so add [replications](../des/output-analysis.md#replications), or a longer `until`, before looking for a defect. With replications, each pair's 95% interval misses a correct value about 1 time in 20, so one difference among many pairs is expected now and then: run it again with more replications or another seed before looking for a defect. Agreement shows the program computes what the model on paper says. It says nothing about whether the model is close enough to the real shop, which only a comparison with the shop's own records can show, as [Checking a Model](../tutorials/checking-a-model.md) does.
+A pair that differs on a model the formulas describe points at the model: a wrong rate or unit, a task that holds its resource longer than its service, or a route that sends entities somewhere else. A short run can differ by chance, so add [replications](../des/output-analysis.md#replications), or a longer `until`, before looking for a defect. With replications, each pair's 95% interval misses a correct value about 1 time in 20. Among many pairs, one difference is therefore expected now and then. Run the check again with more replications or another seed before looking for a defect. Agreement shows the program computes what the model on paper says. It says nothing about whether the model is close enough to the real shop, which only a comparison with the shop's own records can show, as [Checking a Model](../tutorials/checking-a-model.md) does.
 
 ---
 
@@ -177,7 +177,7 @@ utilisation 0.75, status OK
 wait: no closed formula for c > 1 with non-exponential times; run --verify
 ```
 
-The utilisation is still known here, because it needs only the rates. The same rule applies to every model: the formulas hold in a plain network of queues, where each task holds at most one resource, each queue serves first come, first served, and nothing blocks, removes, delays or reorders work. Anything else takes the part of the model where it happens, and everything after it in the flow, out of the formulas' reach:
+The utilisation is still known here, because it needs only the rates. The same rule applies to every model: the formulas hold in a plain network of queues, where each task holds at most one resource, each queue serves first come, first served, and nothing blocks, removes, delays or reorders work. Anything else puts the part of the model where it happens, and everything after it in the flow, outside what the formulas cover:
 
 - a task's `patience`, `balk`, `fail`, `keep`, `wait`, `get`, `put`, `signal`, `subscribe`, `interrupt` or `on` actions, preemption, or several resources held at once: that task and every task after it;
 - a resource's `queue_limit`, custom type or breakdowns: the tasks that use it and every task after them;
@@ -186,7 +186,7 @@ The utilisation is still known here, because it needs only the rates. The same r
 - a scenario step that changes a parameter, live ingress, or an `add_process` function: every arrival and every task;
 - a replayed arrival, a hand-written arrival loop or a `next` function: every rate they could change.
 
-A task out of reach has no rate, so each resource it uses has no utilisation, status or wait, and it is not ranked as the [bottleneck](../des/queueing-basics.md#flow-balance-and-the-bottleneck). When no resource has a utilisation, `explain` says that no bottleneck can be named, and why. Each unknown value is printed under `Not estimated`, with the first reason found.
+A task outside what the formulas cover has no rate, so each resource it uses has no utilisation, status or wait, and it is not ranked as the [bottleneck](../des/queueing-basics.md#flow-balance-and-the-bottleneck). When no resource has a utilisation, `explain` says that no bottleneck can be named, and why. Each unknown value is printed under `Not estimated`, with the first reason found.
 
 One value is given but not compared. With one packer and gaps that are not exponential, such as constant or uniform gaps, [Kingman's formula](../des/queueing-basics.md#variation-lengthens-waits) gives the wait only approximately, so `explain` shows it as an estimate. `--verify` marks that wait and the queue length `not compared`, because a correct model can differ from an approximation.
 
@@ -218,7 +218,7 @@ python check_against_theory.py
       warmup: 2000  # seconds left out of every measure, while the queue fills
 
     arrivals:
-      # 0.75 orders a second with one packer; RATE=1.5 with PACKERS=2
+      # An order every 1.33 s on average (rate 0.75) with one packer; RATE=1.5 with PACKERS=2
       orders:
         dist: exponential
         rate: ${RATE:-0.75}
@@ -300,7 +300,7 @@ python check_against_theory.py
 
 
     if __name__ == "__main__":
-        print(f"one packer at 0.75 orders a second: {by_hand(1, 0.75):.3f} s")
+        print(f"one packer, an order every 1.33 s (rate 0.75): {by_hand(1, 0.75):.3f} s")
         print(f"two packers at 1.5 orders a second: {by_hand(2, 1.5):.3f} s")
         verify()
         unsupported()

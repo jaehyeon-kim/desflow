@@ -4,7 +4,7 @@ In its busy hour the shop gets 1.8 orders a second, and packing still takes 1.5 
 
 ## What You Add
 
-More orders, then more packers, and `desflow explain`, which works out the load from the model before it runs. The shop is the one from [First Simulation](first-simulation.md), with the arrival rate of the busy hour, a run of one hour, and the number of packers as a setting you change between runs.
+This page adds more orders, then more packers, and `desflow explain`, which works out the load from the model before it runs. The shop is the one from [First Simulation](first-simulation.md), with the arrival rate of the busy hour, a run of one hour, and the number of packers as a setting you change between runs.
 
 ---
 
@@ -14,14 +14,14 @@ Before running anything, work out how busy the packers would be. **[Utilisation]
 
 > utilisation = arrival rate × mean service time ÷ number of units
 
-The **load** is the top half of that: 1.8 orders a second × 1.5 seconds = 2.7 packers' worth of work arriving every second. One packer would be busy 270% of the time, which is impossible: it falls further behind with every order.
+The **load** is the part above the division: arrival rate × mean service time. Here it is 1.8 orders a second × 1.5 seconds = 2.7, so each second brings 2.7 seconds of packing, enough work for 2.7 packers. One packer would be busy 270% of the time, which is impossible: it falls further behind with every order.
 
 - With utilisation below 1 a model is **stable**: the queue rises and falls, but stays bounded.
 - At 1 or above it is not: the queue grows for as long as the run lasts, and every order waits longer than the one before.
 
-So the shop needs at least 3 packers (2.7 ÷ 3 = 0.9). [Queueing Basics](../des/queueing-basics.md) explains utilisation, and why the queue grows without limit at 1 or above. Each resource in a model has its own utilisation, and the one with the highest utilisation is the **[bottleneck](../des/queueing-basics.md#flow-balance-and-the-bottleneck)**: it decides how long everything waits.
+The shop needs at least 3 packers, the fewest that bring utilisation below 1: 2.7 ÷ 3 = 0.9. [Queueing Basics](../des/queueing-basics.md) explains utilisation, and why the queue grows without limit at 1 or above. Each resource in a model has its own utilisation. The one with the highest utilisation is the **[bottleneck](../des/queueing-basics.md#flow-balance-and-the-bottleneck)**: it decides how long everything waits.
 
-Here is the busy hour. The arrival rate is 1.8, and `until` is one hour of simulation time:
+Here is the busy hour. The arrival rate is 1.8 orders a second, and `until` is one hour of simulation time:
 
 === "YAML"
 
@@ -69,7 +69,7 @@ Here is the busy hour. The arrival rate is 1.8, and `until` is one hour of simul
     arrival={"orders": DistributionConfig(dist="exponential", rate=1.8)},
     ```
 
-A blueprint takes durations wherever it takes a time, such as `until: 1 h` and `value: 1.5 s`; a plain number is seconds. `factor: 0` runs the hour unpaced, in about a second, because nobody needs to watch it in real time.
+A blueprint accepts a duration with a unit wherever it takes a time, such as `until: 1 h` and `value: 1.5 s`, and reads a plain number as seconds. `factor: 0` runs the hour unpaced: as fast as the computer can, in about a second. Nobody needs to watch this run in real time.
 
 ---
 
@@ -78,7 +78,7 @@ A blueprint takes durations wherever it takes a time, such as `until: 1 h` and `
 `desflow explain` does this arithmetic from the model itself, without running it. It reads three numbers for each resource and works out the fourth:
 
 - **λ** (lambda), the arrival rate: `rate: 1.8` of `arrivals.orders`;
-- **μ** (mu), the service rate, one over the mean service time: `value: 1.5 s` of `services.packing` gives 1 ÷ 1.5 = 0.667 orders a second for each packer;
+- **μ** (mu), the service rate, one over the mean service time: `value: 1.5 s` of `services.packing` gives 1 ÷ 1.5 = 0.667 orders a second for each packer, one order every 1.5 seconds (40 a minute);
 - **c**, the number of units: `current_cap` of `resources.packers`;
 - **ρ** (rho), the utilisation: λ ÷ (c × μ).
 
@@ -104,7 +104,7 @@ A blueprint takes durations wherever it takes a time, such as `until: 1 h` and `
 
 === "Low-level"
 
-    The low-level API builds the processes itself and declares no link between an arrival, a task and a resource, so `explain` has nothing to read. A low-level process that a builder model starts with `add_process` shows as an opaque node in the graph.
+    The low-level API builds the processes itself and declares no link between an arrival, a task and a resource, so `explain` has nothing to read. A low-level process that a builder model starts with `add_process` shows in the graph as one node, whose steps `explain` cannot see.
 
 It prints the graph from each arrival, the resources, the utilisation at each number of units the resource allows, and hints:
 
@@ -144,7 +144,7 @@ Hints for utilisation 0.85:
   packers with 1 unit: utilisation 0.85 at 0.5667 requests a second
 ```
 
-The tree shows each order starting `pack_order`, which uses `packers`, and the flow ending after it. The resources table gives λ 1.8, μ 0.667, c 1 and utilisation ρ 2.7, so the status is `UNSTABLE`. The wait (`Wq`) and the number in the shop (`L`) are left blank, and the reason is printed below the tables: the queue grows for as long as the run lasts. The table by units covers 1 to 10 packers, up to `max_cap`: `CONGESTED` from 0.85, `UNSTABLE` from 1. Three packers are stable but congested at 0.9, and the hint names 4 as the fewest packers at or below 0.85. The second hint is the rate of requests into the resource that gives the target utilisation at its current units: 0.5667 orders a second keeps one packer at 0.85. In a network, that rate includes the requests that come back for rework, not only new arrivals.
+The tree shows each order starting `pack_order`, which uses `packers`, and the flow ending after it. The status is `CONGESTED` from utilisation 0.85 and `UNSTABLE` from 1. The resources table gives λ 1.8 orders a second, μ 0.667 orders a second, c 1 and utilisation ρ 2.7, so the status is `UNSTABLE`. The wait (`Wq`) and the number in the shop (`L`) are left blank. The reason is printed below the tables: the queue grows for as long as the run lasts. The table by units covers 1 to 10 packers, up to `max_cap`. Three packers are stable but congested at utilisation 0.9, and the first hint names 4 as the fewest packers at or below 0.85. The second hint keeps the current units and gives the rate of requests into the resource that reaches the target utilisation. With one packer, an arrival rate of 0.5667 orders a second, an order every 1.76 seconds (34 a minute), gives utilisation 0.85. In a network, that rate includes the requests that come back for rework, not only new arrivals.
 
 ---
 
@@ -176,9 +176,9 @@ The number of packers is the resource's `current_cap`. Each run sets it once:
     resources={"packers": CapacityConfig(current_cap=packers, max_cap=10)},
     ```
 
-    A `DynamicResource` with a `current_cap` of 3 behaves like a SimPy resource with three units: a request is granted as soon as any unit is free, so three orders are packed at once. [Resources](../user-guide/resources/index.md) describes how it is built and why.
+    A `DynamicResource` with a `current_cap` of 3 behaves like a SimPy resource with three units: a request is granted as soon as any unit is free, so up to three orders are packed at once. [Resources](../user-guide/resources/index.md) describes how it is built and why.
 
-    `env.run(until=...)` runs [SimPy's event loop](../des/simpy-and-desflow.md#environment-and-the-event-list) until that time, `DynamicRealtimeEnvironment` is desflow's form of [SimPy's `RealtimeEnvironment`](../des/simpy-and-desflow.md#real-time-environment), and a resource's capacity is its [number of units](../des/simpy-and-desflow.md#resources).
+    `env.run(until=...)` runs [SimPy's event loop](../des/simpy-and-desflow.md#environment-and-the-event-list) until that time. `DynamicRealtimeEnvironment` is desflow's form of [SimPy's `RealtimeEnvironment`](../des/simpy-and-desflow.md#real-time-environment). A resource's capacity is its [number of units](../des/simpy-and-desflow.md#resources).
 
 To read the mean wait, switch on the built-in statistics at the `typical` level, which keeps the mean wait of every task; [Measuring a Run](measuring-a-run.md) explains the levels.
 
@@ -207,7 +207,7 @@ Now run the hour with 1, 2, 3 and 4 packers:
 
 === "YAML"
 
-    The run publishes the mean wait as `Shop.stats.tasks.pack_order.wait_mean` at the end, among every event. `grep` keeps that line:
+    At the end, the run publishes the mean wait as `Shop.stats.tasks.pack_order.wait_mean`, among all its other records. `grep` keeps that line:
 
     ```bash
     for n in 1 2 3 4; do
@@ -258,13 +258,13 @@ packers 4: mean wait     0.20 s
 
 ## Waits Near Full Use
 
-With 2 packers, utilisation is 1.35. The queue grows all hour, so the mean wait says only how long the run was: run two hours and it roughly doubles. With 3 packers, utilisation is 0.9 and the wait settles. With 4 it is 0.675, and almost nobody waits.
+With 2 packers, utilisation is 1.35. The queue grows all hour, so the mean wait depends mainly on how long the run was: run two hours and it roughly doubles. With 3 packers, utilisation is 0.9 and the wait settles. With 4 it is 0.675, and almost nobody waits.
 
-A stable model can still wait a long time, because the wait grows much faster than utilisation near 1. For one packer with exponential gaps and service times, an M/M/1 queue in the notation [Queueing Basics](../des/queueing-basics.md#kendalls-notation) explains, the mean wait in the queue is ρ ÷ (1 − ρ) × the mean service time, where ρ is the utilisation. At utilisation 0.95 the factor is 0.95 ÷ 0.05 = 19, and at 0.8 it is 0.8 ÷ 0.2 = 4, so the wait at 0.95 is about 5 times the wait at 0.8. The chart draws the formula for the shop's 1.5-second packing, with the function `desflow explain` uses:
+A stable model can still wait a long time, because the wait grows much faster than utilisation near 1. Take one packer with exponential gaps and exponential service times: an M/M/1 queue, in the notation that [Queueing Basics](../des/queueing-basics.md#kendalls-notation) explains. Its mean wait in the queue is ρ ÷ (1 − ρ) × the mean service time, where ρ is the utilisation. At utilisation 0.95 the factor is 0.95 ÷ 0.05 = 19, and at 0.8 it is 0.8 ÷ 0.2 = 4, so the wait at 0.95 is about 5 times the wait at 0.8. The chart draws the formula for the shop's 1.5-second packing, with the function `desflow explain` uses:
 
 ![The M/M/1 mean wait against utilisation for a mean service of 1.5 seconds: 6.0 seconds at 0.8 and 28.5 seconds at 0.95, rising steeply towards 1](../assets/charts/queues-mm1.png)
 
-Variable times make the wait longer still. Bursts of arrivals, or packing times that vary a lot, fill the queue while the average load is moderate, and the queue takes a long time to empty again. [Kingman's formula](../des/queueing-basics.md#variation-lengthens-waits) puts a number on this for one server: it multiplies the M/M/1 wait by (ca² + cs²) ÷ 2, where ca and cs are the coefficients of variation of the gaps and of the service times, the standard deviation divided by the mean. An exponential time has a coefficient of 1 and a constant time 0, so the shop's constant packing halves the wait. `desflow explain` uses Kingman's formula for a resource with one unit, and [Choosing Inputs](choosing-inputs.md) measures the wait with constant, triangular, empirical and exponential packing times.
+Variable times make the wait longer still. Bursts of arrivals, or packing times that vary a lot, fill the queue while the average load is moderate, and the queue takes a long time to empty again. [Kingman's formula](../des/queueing-basics.md#variation-lengthens-waits) gives the size of the effect for one server. It multiplies the M/M/1 wait by (ca² + cs²) ÷ 2. Here ca and cs are the coefficients of variation of the gaps and of the service times, each the standard deviation divided by the mean. An exponential time has a coefficient of 1 and a constant time 0. With exponential gaps and constant packing the factor is (1² + 0²) ÷ 2 = 0.5, so the shop's constant packing halves the wait. `desflow explain` uses Kingman's formula for a resource with one unit, and [Choosing Inputs](choosing-inputs.md) measures the wait with constant, triangular, empirical and exponential packing times.
 
 Little's Law checks a run's output. In a model that settles, the mean number of orders waiting is the arrival rate times the mean wait, Lq = λ × Wq, and the number in the shop is L = λ × (Wq + mean service time). `desflow explain` prints L beside Wq, and [Queueing Basics](../des/queueing-basics.md#littles-law) checks the law against runs of the shop.
 
@@ -342,7 +342,7 @@ In a network, each task's rate comes from the tasks before it. This version of t
         arrival={"orders": DistributionConfig(dist="exponential", rate=1.6)},
         service={
             "packing": DistributionConfig(dist="constant", value=1.5),
-            # 0.4 s on average
+            # One check takes 0.4 s on average
             "checking": DistributionConfig(dist="exponential", rate=2.5),
         },
         resources={
@@ -386,7 +386,7 @@ In a network, each task's rate comes from the tasks before it. This version of t
 
     `explain` reads YAML and builder models only, because a low-level model declares no link between its tasks and resources.
 
-Every packed order is checked, and packing receives the new orders and the tenth of the checked ones. So the rate into packing is 1.6 + 0.1 × the rate into packing, which gives 1.6 ÷ 0.9 = 1.778 orders a second. `desflow explain queues_network.yaml` solves this [flow balance](../des/queueing-basics.md#flow-balance-and-the-bottleneck) for every task:
+Every packed order is checked, and packing receives the new orders, 1.6 a second, and the tenth of the checked orders that come back. Call the rate into packing x: then x = 1.6 + 0.1 × x, which gives x = 1.6 ÷ 0.9 = 1.778 orders a second. `desflow explain queues_network.yaml` solves this [flow balance](../des/queueing-basics.md#flow-balance-and-the-bottleneck) for every task:
 
 <!-- records: queues-network -->
 ```text
@@ -436,7 +436,7 @@ Not estimated:
   wait at checkers: its input is not one arrival or a Poisson flow, which Kingman's formula needs; run --verify
 ```
 
-The four packers are at 0.667 and the checker at 0.711, so the checker is the bottleneck. In the table by units, 3 packers would be at 0.889: with 3 the packers are the bottleneck, and the fourth packer moves it downstream to the checker. Relieving a bottleneck makes the next busiest resource the new one. `desflow explain` estimates neither wait here, and says why: four packers with constant packing have no closed formula, and the checker's input is the packers' output, which is neither one arrival nor a [Poisson](../des/queueing-basics.md#kendalls-notation) flow. `--verify`, in [Check Against Theory](../guides/check-against-theory.md), measures both.
+The four packers are at utilisation 0.667 and the checker at 0.711, the higher of the two, so the checker is the bottleneck. In the table by units, 3 packers would be at utilisation 0.889, above the checker: with 3 the packers are the bottleneck, and the fourth packer moves it downstream to the checker. Relieving a bottleneck makes the next busiest resource the new one. `desflow explain` estimates neither wait here, and says why: four packers with constant packing have no closed formula, and the checker's input is the packers' output, which is neither one arrival nor a [Poisson](../des/queueing-basics.md#kendalls-notation) flow. `--verify`, in [Check Against Theory](../guides/check-against-theory.md), measures both.
 
 ---
 
@@ -449,7 +449,7 @@ To keep a resource stable, lower its utilisation or its variability:
 - fewer arrivals: a lower `rate`;
 - less variable gaps or service times, which shorten the wait at the same utilisation.
 
-To test how a consumer of the records copes, do the opposite on purpose. From 0.85 a resource is congested, with long waits that come and go, and bursts make them longer. Above 1 it is overloaded: its queue, and the lag of everything after it, grows for as long as the overload lasts.
+To test how a consumer of the records copes, do the opposite on purpose. From utilisation 0.85 a resource is congested, with long waits that come and go, and bursts make them longer. Above 1 it is overloaded: its queue, and the lag of everything after it, grows for as long as the overload lasts.
 
 `--target` sets the utilisation the hints aim for, 0.85 by default. At 1 or above, the hints are for deliberate overload:
 
@@ -464,7 +464,7 @@ Hints for utilisation 1.2:
   packers with 1 unit: utilisation 1.2 at 0.8 requests a second
 ```
 
-With 2 packers the shop runs at 1.35, at least 1.2. With 1 packer, 0.8 orders a second gives exactly 1.2.
+With 2 packers the shop runs at utilisation 1.35, above the target of 1.2. With 1 packer, an arrival rate of 0.8 orders a second, an order every 1.25 seconds (48 a minute), gives exactly 1.2.
 
 A scenario step can raise the arrival rate while the model runs and push a resource past full use on purpose. [Changing Demand](changing-demand.md) runs such a rush, and its queue grows for as long as the rush lasts.
 
@@ -476,13 +476,13 @@ How many packers keep the mean wait under 10 seconds? **3 packers**, as the mean
 
 ![Mean wait in the busy hour for 1 to 4 packers on a log scale: 1127 seconds with 1, 426 with 2, 1.27 with 3 and 0.20 with 4; the 10-second line separates 2 from 3](../assets/charts/queues-wait.png)
 
-With 3 packers the mean wait is 1.27 seconds, from one run of the hour with constant packing and the seed 42. [Common Mistakes](../des/common-mistakes.md#taking-one-run-as-the-answer) explains why later pages give other figures for this wait. With 2 packers it is over 400 seconds and still growing when the hour ends. The answer is the first number of packers that brings utilisation below 1, because the shop's packing time is constant and 0.9 is not yet close enough to 1 for the wait to pass 10 seconds.
+With 3 packers the mean wait is 1.27 seconds, from one run of the hour with constant packing and the seed 42. [Common Mistakes](../des/common-mistakes.md#taking-one-run-as-the-answer) explains why later pages give other figures for this wait. With 2 packers it is over 400 seconds and still growing when the hour ends. The answer is the fewest packers that bring utilisation below 1. At utilisation 0.9 the wait stays under 10 seconds, because the shop's packing time is constant and 0.9 is not yet close enough to 1.
 
 ## Why It Works
 
-[Queueing Basics](../des/queueing-basics.md) explains why the wait grows without limit as utilisation reaches 1, which is what the table shows, and gives the formula for several packers sharing one queue. Each term of the utilisation is a live parameter, so a running model can be relieved, or overloaded on purpose, as [Live Parameters](../user-guide/live-parameters.md) shows. [Statistics](../user-guide/statistics.md) describes how the mean wait is measured.
+[Queueing Basics](../des/queueing-basics.md) explains why the wait grows without limit as utilisation reaches 1, as the table shows for 1 and 2 packers. It also gives the formula for several packers sharing one queue. Each term of the utilisation is a live parameter, so a running model can be relieved, or overloaded on purpose, as [Live Parameters](../user-guide/live-parameters.md) shows. [Statistics](../user-guide/statistics.md) describes how the mean wait is measured.
 
-The formulas describe a queue that has settled. A run starts with no orders in the shop, so its early output is lower than the settled waits, and a live change, such as a rush, causes a rise that takes time to pass. [Trusting Results](trusting-results.md) shows how to leave out a [warm-up](../des/output-analysis.md#one-run-starts-empty) and how long to run.
+The formulas describe a queue that has settled. A run starts with no orders in the shop, so its early waits are shorter than the settled waits. A live change, such as a rush, makes the waits rise, and they take time to settle again. [Trusting Results](trusting-results.md) shows how to leave out a [warm-up](../des/output-analysis.md#one-run-starts-empty) and how long to run.
 
 ---
 
@@ -690,7 +690,7 @@ The formulas describe a queue that has settled. A run starts with no orders in t
             arrival={"orders": DistributionConfig(dist="exponential", rate=1.6)},
             service={
                 "packing": DistributionConfig(dist="constant", value=1.5),
-                # 0.4 s on average
+                # One check takes 0.4 s on average
                 "checking": DistributionConfig(dist="exponential", rate=2.5),
             },
             resources={

@@ -34,7 +34,7 @@ class G:
     runs = 10
 ```
 
-In desflow these numbers are arguments of the parts they describe: `add_arrival("orders", dist="exponential", rate=0.5)`, `add_service("packing", dist="constant", value=1.5)` and `add_resource("packers", current_cap=1, max_cap=10)`. Each is stored in a registry under a path such as `Shop.resources.packers.current_cap`, and the model reads the registry whenever it needs the value. So the difference from `G` is that a value can change while the run goes on, from a scenario or a connector, and each change is checked before it is applied. A number of your own, such as a conveyor speed, goes in `add_variable` in the builder and `variables` in YAML. The run length and the number of runs are arguments of `run` and `replicate`, because they belong to the run and not to the system. [Live Parameters](../user-guide/live-parameters.md) lists the paths.
+In desflow these numbers are arguments of the parts they describe: `add_arrival("orders", dist="exponential", rate=0.5)` for an order every 2 seconds on average, `add_service("packing", dist="constant", value=1.5)` and `add_resource("packers", current_cap=1, max_cap=10)`. Each is stored in a registry under a path such as `Shop.resources.packers.current_cap`, and the model reads the registry whenever it needs the value. A value can therefore change while the run goes on, from a scenario or a connector, which a value in `G` cannot. Each change is checked before it is applied. A number of your own, such as a conveyor speed, goes in `add_variable` in the builder and `variables` in YAML. The run length and the number of runs are arguments of `run` and `replicate`, because they belong to the run and not to the system. [Live Parameters](../user-guide/live-parameters.md) lists the paths.
 
 ---
 
@@ -146,7 +146,7 @@ def trial():
     return result.summary[0]
 ```
 
-Both versions run 10 times for one hour from an empty shop, so the two answers estimate the same thing. They use different random numbers, so the values differ, but the check in the script asserts that they agree within their intervals. This shop has one packer and an order every 2 seconds on average, so its wait is not the wait of the tutorials' busy hour; [Common Mistakes](common-mistakes.md#taking-one-run-as-the-answer) explains why the busy hour's figures differ between pages.
+Both versions run 10 times for one hour from an empty shop, so the two answers estimate the same thing. Each line of the output below gives the mean wait over the 10 runs and the half-width of its 95% interval. The two versions use different random numbers, so the values differ, but the check in the script asserts that they agree within their intervals. This shop has one packer and an order every 2 seconds on average, so its wait is not the wait of the tutorials' busy hour. [Common Mistakes](common-mistakes.md#taking-one-run-as-the-answer) explains why the busy hour's figures differ between pages.
 
 ```text
 plain SimPy: mean wait 2.30 ± 0.20 s over 10 runs

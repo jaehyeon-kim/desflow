@@ -4,7 +4,7 @@
 
 ## What You Add
 
-An experiment: a file in YAML, or a mapping in Python, that names the model, the two designs, the comparison and a check. The model is the busy hour of Trusting Results, unchanged.
+This page adds an experiment: a file in YAML, or a mapping in Python, that names the model, the two designs, the comparison and a check. The model is the busy hour of Trusting Results, unchanged.
 
 ---
 
@@ -34,7 +34,7 @@ An experiment runs a model written in any of the three ways, for a number of rep
     "seed": 42,
     ```
 
-    `shop` is the function of Trusting Results that returns a new busy hour; the experiment calls it once per run.
+    `shop` is the function of Trusting Results that returns a new busy hour. The experiment calls it once per run.
 
 === "Low-level"
 
@@ -53,7 +53,7 @@ An experiment runs a model written in any of the three ways, for a number of rep
 
 ## Compare Two Designs
 
-Each variant names the registry values it changes before the clock starts. `three` changes nothing, so it is the busy hour as written; `four` sets the packers' capacity to 4. `pairing: common` gives both designs the same 20 seeds, and `compare` asks for their difference seed by seed:
+Each variant names the registry values it changes before the clock starts. `three` changes nothing, so it is the busy hour as written. `four` sets the packers' capacity to 4. `pairing: common` gives both designs the same 20 seeds, and `compare` asks for their difference seed by seed:
 
 === "YAML"
 
@@ -109,16 +109,16 @@ The experiment runs 40 replications, 20 of each design, and writes what it found
 | three | 2.48 ± 0.32 | 90.33 ± 0.63 |
 | four | 0.27 ± 0.01 | 67.70 ± 0.46 |
 
-The three-packer design ran with the same first 20 seeds as Trusting Results, so its row is that page's 20-replication row, not its 40-replication 2.32 seconds; [Common Mistakes](../des/common-mistakes.md#taking-one-run-as-the-answer) explains why the busy hour's figures differ between pages. The comparison, the four-packer value minus the three-packer value, seed by seed:
+The three-packer design ran with the first 20 of the seeds that Trusting Results used. Its row therefore equals that page's row for 20 replications, not its mean of 2.32 seconds over 40. [Common Mistakes](../des/common-mistakes.md#taking-one-run-as-the-answer) explains why the busy hour's figures differ between pages. The comparison gives the four-packer value minus the three-packer value, seed by seed:
 
 | Measure | Difference | Half-width | Random streams |
 |---|---|---|---|
 | `tasks.pack_order.wait_mean` | -2.21 s | 0.31 s | 2 shared |
-| `resources.packers.utilization_avg` | -22.63 points | 0.17 points | 2 shared |
+| `resources.packers.utilization_avg` | -22.63 percentage points | 0.17 percentage points | 2 shared |
 
-The difference in [utilisation](../des/queueing-basics.md#utilisation) is known to within 0.17 points, though each design's own utilisation is known only to within 0.63 and 0.46. The same seed gives both designs the same arrivals and packing times, so a busy run of one design is a busy run of the other, and their difference leaves most of the chance out. This is called **[common random numbers](../des/output-analysis.md#comparing-designs)**. The difference in waits is known to within 0.31 seconds, about as well as the three-packer wait itself, because with four packers the wait hardly varies.
+The difference in [utilisation](../des/queueing-basics.md#utilisation) has a half-width of 0.17 percentage points, although each design's own utilisation has a half-width of 0.63 or 0.46. The same seed gives both designs the same arrivals and packing times, so a busy run of one design is a busy run of the other. Their difference therefore leaves out most of the variation that comes from chance. Running every design with the same seeds is called **[common random numbers](../des/output-analysis.md#comparing-designs)**. The difference in waits has a half-width of 0.31 seconds, about the same as the half-width of the three-packer wait, 0.32 seconds. With four packers the wait hardly varies, so the difference varies about as much as the three-packer wait does.
 
-"2 shared" says both designs drew from the same two random streams, `arrival.orders` and `service.packing`. desflow records which streams each run drew from and lists any that only one design used, such as a gift-wrap step only one design has, because draws from such a stream are not paired. With `pairing: independent` each design gets seeds of its own instead, and a comparison is refused, since no seed then pairs one run of each design.
+"2 shared" says both designs drew from the same two random streams, `arrival.orders` and `service.packing`. desflow records which streams each run drew from. It lists any stream that only one design used, such as the stream of a gift-wrap step that only one design has, because draws from such a stream are not paired. With `pairing: independent` each design gets seeds of its own instead. A comparison is then refused, because no seed pairs one run of each design.
 
 ---
 
@@ -147,13 +147,13 @@ A check states what the answer must be. This one asks for a mean wait under half
 
     The same key, in the same mapping.
 
-A check compares the far end of the interval with its bound, the upper end here, so a mean that is below the bound only by chance does not pass. The upper end is 0.286 seconds, so the check passes. When a check fails, `desflow experiment` still writes every file and then exits with status 1, and `run_experiment` raises `CheckFailed`, so a script or a CI job stops on it.
+A check compares its bound with the end of the interval that is nearer to failing it, here the upper end. A mean that is below the bound only by chance has an upper end above the bound, so it does not pass. The upper end is 0.286 seconds, so the check passes. When a check fails, `desflow experiment` still writes every file, then exits with status 1, and `run_experiment` raises `CheckFailed`. Either way, a script or a CI job stops at the failed check.
 
 ---
 
 ## Read the Report
 
-The experiment writes `report.md` beside its results. It states the question, the model and its versions, the assumptions, each input distribution with where it came from, the run settings, the counts, the results, the comparison and the checks, and what the experiment does not state. The experiment names its assumptions, the source of its inputs and its limits:
+The experiment writes `report.md` beside its results. It states the question, the model and its versions, the assumptions, each input distribution with where it came from, the run settings, the counts, the results, the comparison and the checks, and what the experiment does not state. The experiment file names its assumptions, the source of its inputs and its limits:
 
 ```yaml title="docs/snippets/yaml/comparing_designs_experiment.yaml:report"
 assumptions:
@@ -174,13 +174,13 @@ The experiment states where the packing times came from but not the arrival rate
 
 The mean wait of each design over its 20 replications, with its 95% interval:
 
-![Bars of the busy hour's mean wait over 20 runs of each design with the same seeds: 2.48 ± 0.32 seconds with three packers and 0.27 ± 0.01 seconds with four, which is under the dashed half-second bound](../assets/charts/comparing-waits.png)
+![Bars of the busy hour's mean wait over 20 replications of each design with the same seeds: 2.48 ± 0.32 seconds with three packers and 0.27 ± 0.01 seconds with four, which is under the dashed half-second bound](../assets/charts/comparing-waits.png)
 
-Does a fourth packer cut the mean wait, and by how much? Yes: with the same seeds, a fourth packer cuts the busy hour's mean wait by **2.21 ± 0.31 seconds**, from 2.48 to 0.27 seconds over 20 replications of each, and the packers are busy **22.63 ± 0.17 points** less of the time. The whole interval of the difference is below zero, and the four-packer wait stays under the half-second bound.
+Does a fourth packer cut the mean wait, and by how much? Yes. Over 20 replications of each design with the same seeds, a fourth packer cuts the busy hour's mean wait by **2.21 ± 0.31 seconds**, from 2.48 to 0.27 seconds. The packers are busy **22.63 ± 0.17 percentage points** less of the time. The whole interval of the difference is below zero, and the four-packer wait stays under the half-second bound.
 
 ## Why It Works
 
-Two designs run with different seeds differ by the design and by chance, and the chance part can hide a small effect. Run with the same seeds, each pair of runs meets the same arrivals and the same packing times, so the chance part partly cancels in their difference, and the interval on the differences is narrower than the interval an unpaired comparison of the same runs gives. The interval is a [Student t interval](../des/output-analysis.md#interval-and-half-width) on the 20 differences, as in [Output Analysis](../des/output-analysis.md#comparing-designs), because each difference comes from a seed of its own.
+Two designs run with different seeds differ by the design and by chance, and the chance part can hide a small effect. When both designs run with the same seeds, each pair of runs has the same arrivals and the same packing times. The chance part then partly cancels in their difference, so the interval on the differences is narrower than the interval an unpaired comparison of the same runs gives. Each difference comes from a seed of its own, so the 20 differences are independent of each other. The interval is therefore a [Student t interval](../des/output-analysis.md#interval-and-half-width) on the 20 differences, as in [Output Analysis](../des/output-analysis.md#comparing-designs).
 
 ---
 
@@ -229,10 +229,10 @@ Two designs run with different seeds differ by the design and by chance, and the
         ```python title="docs/snippets/tutorials/comparing_designs.py"
         """The Comparing Designs tutorial: a fourth packer, builder.
 
-        The busy hour of Trusting Results, run 20 times with three packers and 20 times with
-        four, with the same seeds, and compared seed by seed. The experiment writes its artifacts
-        and report to results/four-packers, and the script prints the comparison and the
-        check.
+        Runs the busy hour of Trusting Results 20 times with three packers and 20 times with
+        four, with the same seeds, and compares the two designs seed by seed. The experiment
+        writes its artifacts and report to results/four-packers, and the script prints the
+        comparison and the check.
         """
 
         import logging
@@ -295,10 +295,10 @@ Two designs run with different seeds differ by the design and by chance, and the
         ```python title="docs/snippets/tutorials/comparing_designs_low_level.py"
         """The Comparing Designs tutorial: a fourth packer, low-level.
 
-        The busy hour of Trusting Results, run 20 times with three packers and 20 times with
-        four, with the same seeds, and compared seed by seed. The experiment writes its artifacts
-        and report to results/four-packers, and the script prints the comparison and the
-        check.
+        Runs the busy hour of Trusting Results 20 times with three packers and 20 times with
+        four, with the same seeds, and compares the two designs seed by seed. The experiment
+        writes its artifacts and report to results/four-packers, and the script prints the
+        comparison and the check.
         """
 
         import logging

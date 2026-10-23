@@ -1,9 +1,9 @@
 """The Competing Resources tutorial: an order keeps the picker until it is on the bench.
 
-One picker, one packing bench, and an order every 2.5 seconds on average. Every
-record is printed to the terminal, and the script prints the waits and the picker's
-busy share with and without the handoff at the end:
-python competing_resources.py 2>/dev/null shows only those lines.
+One picker, one packing bench, and an order every 2.5 seconds on average. Every record
+is printed to the terminal, and the script prints the waits and the picker's busy share
+with and without the handoff at the end. To see only those lines, run:
+python competing_resources.py 2>/dev/null
 """
 
 import logging

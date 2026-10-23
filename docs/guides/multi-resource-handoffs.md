@@ -1,6 +1,6 @@
 # Multi-Resource Handoffs
 
-A handoff passes an order from one resource to the next without letting go of the first too early. Here a picker carries each order to a packing bench. The order keeps the picker until the bench is free, so for a moment it holds both, and then it releases the picker. It builds on [Competing Resources](../tutorials/competing-resources.md), which measures what such a holding costs, and on [Several Resources](../user-guide/resources/several-resources.md#several-resources).
+A handoff passes an order from one resource to the next without letting go of the first too early. Here a picker carries each order to a packing bench. The picker stays with the order until the bench is free. For a moment the order holds both resources, and then it releases the picker. It builds on [Competing Resources](../tutorials/competing-resources.md), which measures what holding two resources costs, and on [Several Resources](../user-guide/resources/several-resources.md#several-resources).
 
 ![The order holds the picker for 1 s of walking and while it waits for the bench; when it reaches the bench it releases the picker, then holds the bench for 4 s of packing](../assets/diagrams/picker-handoff.png)
 
@@ -12,7 +12,7 @@ A handoff passes an order from one resource to the next without letting go of th
 2. Give the next task the second resource: `pack` waits for the bench while the order still holds the picker.
 3. Acquire the two resources in the same order everywhere. A task that takes the bench first and the picker second would be refused when the model is built, because two orders could then wait for each other for ever.
 
-In YAML the same tasks are `keep: [picker]` on `pick` and `resource: bench` on `pack`; in the low-level API the picker's request is released by the next process instead of a `with` block.
+In YAML the same tasks are `keep: [picker]` on `pick` and `resource: bench` on `pack`. In the low-level API the next process releases the picker's request, in place of a `with` block.
 
 ---
 
@@ -61,6 +61,6 @@ if __name__ == "__main__":
     app.run(until=30.0)
 ```
 
-Save it as `multi_resource_handoffs.py` and run `python multi_resource_handoffs.py`. It runs for 30 seconds in real time (`factor=1.0`) and prints each event. Orders arrive about once a second and packing takes 4 seconds, so the bench is the [bottleneck](../des/queueing-basics.md#flow-balance-and-the-bottleneck): an order that waits for the bench keeps the picker, and the orders behind it wait for the picker.
+Save it as `multi_resource_handoffs.py` and run `python multi_resource_handoffs.py`. It runs for 30 seconds in real time (`factor=1.0`) and prints each event. Orders arrive about once a second, and the one bench takes 4 seconds to pack each, so it can pack only one order every 4 seconds. The bench is therefore the [bottleneck](../des/queueing-basics.md#flow-balance-and-the-bottleneck): an order that waits for the bench keeps the picker, and the orders behind it wait for the picker.
 
-A task that needs both resources for the whole of its work lists them instead, `resource_id=["picker", "bench"]`; the `competing-resources` example on [Several Resources](../user-guide/resources/several-resources.md#example-competing-resources) has both kinds.
+A task that needs both resources for the whole of its work lists them instead, `resource_id=["picker", "bench"]`. The `competing-resources` example on [Several Resources](../user-guide/resources/several-resources.md#example-competing-resources) has both kinds.

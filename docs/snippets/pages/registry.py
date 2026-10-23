@@ -16,6 +16,7 @@ from desflow import (
 # --8<-- [start:paths]
 params = SimParameter(
     sim_id="Shop",
+    # An order every 2 s on average (rate 0.5)
     arrival={"orders": DistributionConfig(dist="exponential", rate=0.5)},
     service={"packing": DistributionConfig(dist="normal", mean=3.0, std=0.5)},
     resources={"packers": CapacityConfig(current_cap=2, max_cap=5)},

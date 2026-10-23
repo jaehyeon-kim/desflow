@@ -1,8 +1,8 @@
 # Queueing Basics
 
-A queue forms whenever work arrives faster than it can be served for a while, and the length of the wait depends on more than the averages. This page explains the few results of queueing theory that a simulation study uses, each with a run of the packing shop that checks it. The numbers on this page come from [queueing_basics.py](https://github.com/jaehyeon-kim/desflow/blob/main/docs/snippets/pages/queueing_basics.py), which asserts every one of them.
+A queue forms whenever, for a while, work arrives faster than it can be served. How long the work waits depends on more than the averages. This page explains the few results of queueing theory that a simulation study uses, each with a run of the packing shop that checks it. The numbers on this page come from [queueing_basics.py](https://github.com/jaehyeon-kim/desflow/blob/main/docs/snippets/pages/queueing_basics.py), which asserts every one of them.
 
-The sources are the Wikipedia articles on [Kendall's notation](https://en.wikipedia.org/wiki/Kendall%27s_notation), [Little's law](https://en.wikipedia.org/wiki/Little%27s_law), [Kingman's formula](https://en.wikipedia.org/wiki/Kingman%27s_formula) the [Erlang C formula](https://en.wikipedia.org/wiki/Erlang_(unit)#Erlang_C_formula) and the [Jackson network](https://en.wikipedia.org/wiki/Jackson_network). The explanations and the checks are our own.
+The sources are the Wikipedia articles on [Kendall's notation](https://en.wikipedia.org/wiki/Kendall%27s_notation), [Little's law](https://en.wikipedia.org/wiki/Little%27s_law), [Kingman's formula](https://en.wikipedia.org/wiki/Kingman%27s_formula), the [Erlang C formula](https://en.wikipedia.org/wiki/Erlang_(unit)#Erlang_C_formula) and the [Jackson network](https://en.wikipedia.org/wiki/Jackson_network). The explanations and the checks are our own.
 
 ---
 
@@ -28,9 +28,9 @@ The last place is the number of servers, and `c` stands for any number of them. 
 
 ## Utilisation
 
-The measure that decides everything is **utilisation**, the share of time a server is busy: the arrival rate times the mean service time, divided by the number of servers. Formulas and the `desflow explain` tables write it ρ (rho), with λ (lambda) for the arrival rate, μ (mu) for the service rate of one server, which is one over the mean service time, and c for the number of servers, so that utilisation ρ = λ ÷ (c × μ). In the busy hour, 1.8 orders a second, 1.5 seconds of packing and three packers give 1.8 × 1.5 ÷ 3 = 0.9.
+The measure that decides everything is **utilisation**, the share of time a server is busy: the arrival rate times the mean service time, divided by the number of servers. Formulas and the `desflow explain` tables write it ρ (rho). They write λ (lambda) for the arrival rate, μ (mu) for the service rate of one server (one over the mean service time), and c for the number of servers. Utilisation is then ρ = λ ÷ (c × μ). In the busy hour, 1.8 orders a second, 1.5 seconds of packing and three packers give 1.8 × 1.5 ÷ 3 = 0.9.
 
-Below 1 a queue is stable and its length settles. At 1 or above, when the gaps or the service times vary, the queue grows without limit. Above 1 it grows in every case, even when the gaps and service times are constant. [Queues and Capacity](../tutorials/queues-and-capacity.md) works this out for the shop.
+With utilisation below 1, a queue is stable and its length settles. At 1 or above, when the gaps or the service times vary, the queue grows without limit. Above 1 it grows in every case, even when the gaps and service times are constant. [Queues and Capacity](../tutorials/queues-and-capacity.md) works this out for the shop.
 
 ---
 
@@ -92,7 +92,7 @@ def constant(mean: float) -> dict:
     return {"dist": "constant", "value": mean}
 ```
 
-Run with `exponential` gaps of mean 1/1.8 s and `constant(1.5)` service, it prints:
+Run with `exponential` gaps of mean 1/1.8 s (an order every 0.56 seconds on average, 1.8 a second) and `constant(1.5)` service, it prints:
 
 <!-- records: queueing-little -->
 ```text
@@ -154,7 +154,7 @@ def mmc_wait(units: int, arrival_rate: float) -> float:
 
 
 def kingman_wait(utilisation: float, arrival_cv: float, service_cv: float) -> float:
-    """Kingman's approximation of the mean wait in a one-server queue."""
+    """Kingman's formula for the mean wait in a one-server queue."""
     variability = (arrival_cv**2 + service_cv**2) / 2
     return utilisation / (1 - utilisation) * variability * SERVICE
 ```
@@ -167,7 +167,7 @@ utilisation 0.9: mean wait M/M/1 13.50 s, M/D/1  6.75 s
 utilisation 0.95: mean wait M/M/1 28.50 s, M/D/1 14.25 s
 ```
 
-A queue that is stable can still make orders wait a long time, so a design that only keeps utilisation below 1 is not enough. This is also why the run length matters: near full use, a run needs to be long before its mean wait settles, as [Output Analysis](output-analysis.md) explains.
+A queue that is stable can still make orders wait a long time, so a design that only keeps utilisation below 1 is not enough. The run length also matters near full use: a run there needs to be long before its mean wait settles, as [Output Analysis](output-analysis.md) explains.
 
 ---
 
@@ -175,7 +175,7 @@ A queue that is stable can still make orders wait a long time, so a design that 
 
 With several packers sharing one queue, the wait depends on the chance that every packer is busy when an order arrives. For exponential gaps and service times (M/M/c) that chance is the **Erlang C** formula, and the mean wait in the queue is that chance divided by (c ÷ the mean service time − the arrival rate). The `erlang_c` and `mmc_wait` functions above compute it.
 
-More packers cut the wait faster than the share of work each does. One packer at utilisation 0.8 makes orders wait 6 seconds. Three packers at the same utilisation make them wait about 1.6 seconds, because an order waits only when all three are busy. Both values come from the formulas, and the script prints them:
+At the same utilisation, several packers give a shorter wait than one. With a mean packing time of 1.5 seconds, one packer at utilisation 0.8 gives a mean wait of 6 seconds. Three packers at utilisation 0.8 give a mean wait of about 1.6 seconds, because an order waits only when all three are busy. Both values come from the formulas, and the script prints them:
 
 <!-- records: queueing-packers -->
 ```text
@@ -187,15 +187,15 @@ three packers at utilisation 0.8: mean wait 1.62 s
 
 ## Variation Lengthens Waits
 
-Real gaps and service times are rarely exponential. **Kingman's approximation** covers any distributions, for one server: the mean wait is utilisation ÷ (1 − utilisation) × (arrival variation² + service variation²) ÷ 2 × the mean service time, where variation is the **coefficient of variation**, the standard deviation divided by the mean, so it is 1 for an exponential distribution and 0 for a constant one. With exponential gaps (variation 1) and constant service (variation 0) it gives half the M/M/1 wait, which is the M/D/1 result above.
+Real gaps and service times are rarely exponential. **Kingman's formula** gives an approximate mean wait for one server with any distributions. It measures the spread of each input by its **coefficient of variation**, the standard deviation divided by the mean, called variation for short. The variation is 1 for an exponential distribution and 0 for a constant one. The mean wait is then utilisation ÷ (1 − utilisation) × (arrival variation² + service variation²) ÷ 2 × the mean service time. With exponential gaps (variation 1) and constant service (variation 0) it gives half the M/M/1 wait, which is the M/D/1 result above.
 
-The `kingman_wait` function above computes it. Variation in the gaps counts as much as variation in the service times. A model whose inputs are replaced by their averages shows no queue at all. [Choosing Inputs](../tutorials/choosing-inputs.md) measures how much the spread of an input matters. [Common Mistakes](common-mistakes.md) lists the replacement among the errors that distort a result.
+The `kingman_wait` function above computes it. Variation in the gaps counts as much as variation in the service times. When both variations are 0, the formula gives no wait. A model whose inputs are replaced by their averages therefore shows no queue at all while utilisation is below 1. [Choosing Inputs](../tutorials/choosing-inputs.md) measures how much the spread of an input matters. [Common Mistakes](common-mistakes.md) lists replacing inputs by their averages among the errors that distort a result.
 
 ---
 
 ## Flow Balance and the Bottleneck
 
-In a network of tasks, the rate into each task is the rate of new work sent to it, plus, for each task before it, that task's rate times the share of its finished work routed to it. This is **flow balance**. Take the shop of [Queues and Capacity](../tutorials/queues-and-capacity.md#networks-and-bottlenecks) with a checker: orders arrive at 1.6 a second, every packed order is checked, and a tenth of the checked orders go back to packing. The rate into packing is then 1.6 + 0.1 × the rate into packing, so it is 1.6 ÷ 0.9 = 1.778 orders a second, and the checker receives the same 1.778.
+In a network of tasks, the rate into each task is the rate of new work sent to it, plus, for each task before it, that task's rate times the share of its finished work routed to it. This is **flow balance**. Take the shop of [Queues and Capacity](../tutorials/queues-and-capacity.md#networks-and-bottlenecks) with a checker: orders arrive at 1.6 a second, every packed order is checked, and a tenth of the checked orders go back to packing. The rate into packing is then 1.6 + 0.1 × the rate into packing. Solving for it gives 1.6 ÷ (1 − 0.1) = 1.6 ÷ 0.9 = 1.778 orders a second. Every packed order goes to the checker, so the checker receives the same 1.778.
 
 Each resource's utilisation follows from its rate. Four packers that take 1.5 seconds an order have a utilisation of 1.778 × 1.5 ÷ 4 = 0.667. One checker that takes 0.4 seconds an order on average has 1.778 × 0.4 = 0.711. The resource with the highest utilisation is the **bottleneck**, here the checker. It is the first to reach full use when demand grows, and adding units anywhere else does not raise the most the shop can handle. The script works out the figures, and `desflow explain` finds the same from the shop's blueprint, `queues_network.yaml`:
 
@@ -275,7 +275,7 @@ M/M/3 at utilisation 0.8: formula 1.62 s, mean of 10 runs 1.64 ± 0.06 s
 M/D/1 at utilisation 0.75, Kingman: formula 2.25 s, mean of 10 runs 2.23 ± 0.14 s
 ```
 
-The diagram names the busy hour M/D/3, which has no exact formula here. The check runs the shop as M/D/3 at arrival rate 1.8 and compares the runs with half the M/M/3 wait at this load:
+The diagram names the busy hour M/D/3, which has no exact formula here. For one packer, constant service halves the M/M/1 wait. The check runs the shop as M/D/3 at 1.8 orders a second and compares the runs with half the M/M/3 wait at this load, as an approximation:
 
 ```python title="docs/snippets/pages/queueing_basics.py:kendall"
 # The busy hour is M/D/3: exponential gaps (M), constant service (D), three packers.
@@ -293,7 +293,7 @@ check(
 M/D/3 at utilisation 0.9, half the M/M/3 wait: formula 2.04 s, mean of 10 runs 2.05 ± 0.13 s
 ```
 
-The runs (2.05 ± 0.13 seconds) agree with half the M/M/3 wait (2.04 seconds) at this load. They are 10 runs of 20,000 seconds with constant packing, each without its first 2,000 seconds, so the figure is not the one-hour figure of other pages; [Common Mistakes](common-mistakes.md#taking-one-run-as-the-answer) explains why the busy hour's figures differ.
+The runs (2.05 ± 0.13 seconds) agree with half the M/M/3 wait (2.04 seconds) at this load. They are 10 runs of 20,000 seconds with constant packing, each without its first 2,000 seconds, so the figure is not the one-hour figure of other pages. [Common Mistakes](common-mistakes.md#taking-one-run-as-the-answer) explains why the busy hour's figures differ.
 
 Kingman's formula is an approximation, and the script shows where it is not exact. For constant gaps of 2 seconds and exponential service (D/M/1) at utilisation 0.75:
 

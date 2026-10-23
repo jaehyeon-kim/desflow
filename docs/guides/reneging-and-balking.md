@@ -6,7 +6,7 @@ Give a task a time limit on its wait, a condition that stops it joining at all, 
 
 ## Leave After a Wait and Refuse to Join
 
-A task's `patience` is how long it may wait, for its `wait`, then its resource and then its `get`, before it leaves the queue and publishes `reneged`. It counts waiting time only: it pauses while the task is served, so a task that is preempted and queues again goes on with the time it has left; a get that gives up is cancelled, so it takes nothing later. Its `balk` is a condition checked before it joins the queue; when it holds, the task publishes `balked` and never asks for the resource. Here each order brings its own patience as an attribute, and no order joins after the courier's last collection at 100 seconds:
+A task's `patience` is how long it may wait before it leaves the queue and publishes `reneged`. The waiting covers its `wait`, then its resource and then its `get`. Patience counts waiting time only and pauses while the task is served. A task that is preempted and queues again therefore goes on with the time it has left. A get that gives up is cancelled, so it takes nothing later. A task's `balk` is a condition checked before it joins the queue. When the condition holds, the task publishes `balked` and never requests the resource. Here each order brings its own patience as an attribute, and no order joins after the courier's last collection at 100 seconds:
 
 === "YAML"
 
@@ -74,7 +74,7 @@ A task's `patience` is how long it may wait, for its `wait`, then its resource a
         env.stats.flow_finished(flow)
     ```
 
-    A low-level process writes both by hand: an `if` before the request, and SimPy's `request | env.timeout(patience)`, which happens when either event does. Leaving the `with` block takes a waiting request out of the queue at once, so it is never granted later.
+    A low-level process writes both by hand: an `if` before the request, and SimPy's `request | env.timeout(patience)`, which triggers when either event is processed. Leaving the `with` block takes a waiting request out of the queue at once, so it is never granted later.
 
 `patience` takes seconds, a duration such as `30 s`, an expression such as `attr.patience`, or in the builder a function of the task id and the entity's attributes. `balk` takes any condition an expression can write, such as `level.stock == 0`.
 
@@ -154,13 +154,13 @@ def balance(path: str) -> Counter:
     return outcome
 ```
 
-For the example below it returns 49 packed, 7 reneged, 17 balked and 1 being packed, 74 orders in all. A mean wait counts only the orders that were served, so report the reneged and balked counts beside it.
+For one 120-second run of the example below it returns 49 packed, 7 reneged, 17 balked and 1 being packed, 74 orders in all. A mean wait counts only the orders that were served, so report the reneged and balked counts beside it.
 
 ---
 
 ## Example
 
-The `patience` example is the model above: one packer, online orders with a patience of 20 seconds and walk-in customers with 10, and no new orders from 100 seconds. It needs no Docker service and ends on its own after 120 simulation seconds.
+The `patience` example is the model above: one packer, online orders with a patience of 20 seconds and walk-in orders with 10, and no new orders from 100 seconds. It needs no Docker service and ends on its own after 120 simulation seconds.
 
 === "YAML"
 

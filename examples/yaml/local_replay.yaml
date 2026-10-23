@@ -1,6 +1,6 @@
 # Local replay: the orders of a recorded morning, at their recorded times, in YAML.
 #
-# The twin of examples/builder/local_replay_example.py. Each row of
+# The YAML version of examples/builder/local_replay_example.py. Each row of
 # ../local_replay_orders.csv is one order, arriving at its time in seconds from the
 # start of the run and carrying its order_id and items as attributes. The last
 # row is at 73 seconds; after it the arrival stops, and the run ends at 120.

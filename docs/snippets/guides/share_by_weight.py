@@ -47,7 +47,7 @@ def builder_form():
             "orders", [{"time": 0, "tier": tier} for tier in TIERS], fields=["tier"]
         )
     )
-    # queue="priority" lets a task set a priority; the class orders the line itself
+    # queue="priority" lets a task set a priority; the class orders the waiting requests itself
     app.add_resource(
         "packers", current_cap=1, max_cap=4, queue="priority", type=WeightedPackers
     )

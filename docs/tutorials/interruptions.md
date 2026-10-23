@@ -4,13 +4,13 @@ A quarter of the shop's orders are express, as in [Priorities](priorities.md), b
 
 ## What You Add
 
-A packer that can be **preempted**, an `on_interrupt` policy on regular orders: `resume`, `restart` or `abandon`, and a **breakdown**, which interrupts work in the same way. The shop is the one from Priorities: one packer, regular orders at 0.45 a second and express orders at 0.15, and 1.5 seconds of packing.
+This page adds a packer that can be **preempted**, as [Preemption](#preemption) explains, and an `on_interrupt` policy on regular orders: `resume`, `restart` or `abandon`. It also adds a **breakdown**, which interrupts work in the same way. The shop is the one from Priorities: one packer and 1.5 seconds of packing. A regular order arrives every 2.22 seconds on average (`rate: 0.45`), and an express order every 6.67 seconds (`rate: 0.15`).
 
 ---
 
 ## Preemption
 
-Priority so far decided only who goes next. **Preemption** also stops the work in progress: SimPy's `PreemptiveResource` takes a unit from the user with the highest priority value when a request with a lower one finds every unit busy, and that user's process receives an `Interrupt`. In desflow it is `preempt: true` on a resource whose queue is `priority`:
+Priority so far decided only who goes next. **Preemption** also stops the work in progress. In SimPy, a request may find every unit of a `PreemptiveResource` busy. If its priority value is lower than that of a process holding a unit, the resource takes the unit from the holder with the highest priority value, and that process receives an `Interrupt`. In desflow it is `preempt: true` on a resource whose queue is `priority`:
 
 === "YAML"
 
@@ -38,9 +38,9 @@ Priority so far decided only who goes next. **Preemption** also stops the work i
     ),
     ```
 
-    [`preempt=True`](../des/simpy-and-desflow.md#resources) gives the resource SimPy's preemption, and the process that holds a unit [receives an interrupt](../des/simpy-and-desflow.md#interrupts) when it is preempted. The code below calls [`release(request)`](https://simpy.readthedocs.io/en/4.1.2/api_reference/simpy.resources.html#simpy.resources.resource.Resource.release), reads `env.active_process`, the [process that is running now](https://simpy.readthedocs.io/en/4.1.2/api_reference/simpy.core.html#simpy.core.Environment.active_process), and calls `request.cancel()`, which [takes a request that has not been granted out of the queue](https://simpy.readthedocs.io/en/4.1.2/api_reference/simpy.resources.html#simpy.resources.base.Put.cancel).
+    [`preempt=True`](../des/simpy-and-desflow.md#resources) gives the resource SimPy's preemption, and the process that holds a unit [receives an interrupt](../des/simpy-and-desflow.md#interrupts) when it is preempted. The code below calls [`release(request)`](https://simpy.readthedocs.io/en/4.1.2/api_reference/simpy.resources.html#simpy.resources.resource.Resource.release). It reads `env.active_process`, the [process that is running now](https://simpy.readthedocs.io/en/4.1.2/api_reference/simpy.core.html#simpy.core.Environment.active_process). It calls `request.cancel()`, which [takes a request that has not been granted out of the queue](https://simpy.readthedocs.io/en/4.1.2/api_reference/simpy.resources.html#simpy.resources.base.Put.cancel).
 
-Equal priorities do not preempt, so one express order does not take the packer from another; SimPy's one exception, a user whose request with `preempt: false` was made at the same moment, does not arise here.
+Equal priorities do not preempt, so one express order does not take the packer from another. SimPy's one exception, a user whose request with `preempt: false` was made at the same moment, does not arise here.
 
 ---
 
@@ -52,7 +52,7 @@ A preempted or interrupted task first gives back everything it holds and stops w
 - `restart`: it queues again and packs for a new time, drawn from the same seeded stream, as if the work were spoiled;
 - `abandon`: it ends, and its flow with it, unless `on_interrupt_next` names a task to go to.
 
-It publishes `preempted` (or `interrupted`) when it loses the packer, and `resumed` when it has it again. A `preempted` record names the express order that took the packer (`preempted_by`, its entity key) and the time the regular order had held it (`usage_since`):
+The task publishes `preempted` (or `interrupted`) when it loses the packer, and `resumed` when it has it again. A `preempted` record names the express order that took the packer (`preempted_by`, its entity key) and the time the regular order had held it (`usage_since`):
 
 === "YAML"
 
@@ -148,9 +148,9 @@ It publishes `preempted` (or `interrupted`) when it loses the packer, and `resum
         env.stats.flow_finished(arrival)
     ```
 
-    The process catches `simpy.Interrupt`, whose cause is SimPy's `Preempted` for a preemption, gives back its request, and asks again. That loop is what `on_interrupt` writes for you. SimPy delivers an interrupt as an `URGENT` event, so it comes before the other events at that time; [`env.schedule(event, priority, delay)`](https://simpy.readthedocs.io/en/4.1.2/api_reference/simpy.core.html#simpy.core.Environment.schedule) schedules your own events the same way.
+    The process catches `simpy.Interrupt`, whose cause is SimPy's `Preempted` for a preemption, gives back its request, and requests the packer again. `on_interrupt` writes that loop for you. SimPy delivers an interrupt as an `URGENT` event, so it comes before the other events at that time. [`env.schedule(event, priority, delay)`](https://simpy.readthedocs.io/en/4.1.2/api_reference/simpy.core.html#simpy.core.Environment.schedule) schedules your own events the same way.
 
-The statistics count each `preempted`, `interrupted` and `resumed`; a resumed order's wait is the sum of its waits, and its packing time is the time it was packed:
+The statistics count each `preempted`, `interrupted` and `resumed`. A resumed order's wait is the sum of its waits, and its packing time is the total time it was packed:
 
 === "YAML"
 
@@ -177,7 +177,7 @@ The statistics count each `preempted`, `interrupted` and `resumed`; a resumed or
 
 ## Interrupt a Task
 
-Preemption is one source of interrupts; a model can send others. An `interrupt` names a task, and every instance of it that is running, waiting or being served, receives an interrupt with the `cause` given, and follows its `on_interrupt`. A `where` condition, such as `attr.order == 3`, limits it to the instances it holds for. Here the packer is called away at 30 minutes:
+Preemption is one source of interrupts, and a model can send others. An `interrupt` names a task. Every instance of that task that is running, waiting or being served receives an interrupt with the given `cause`, and follows its `on_interrupt`. A `where` condition, such as `attr.order == 3`, limits the interrupt to the instances for which the condition holds. Here the packer is called away at 30 minutes:
 
 === "YAML"
 
@@ -202,7 +202,7 @@ Preemption is one source of interrupts; a model can send others. An `interrupt` 
     app.add_process(called_away)
     ```
 
-    `context.interrupt(task, where=None, cause=None)` returns how many instances it reached; it never reaches the instance that calls it.
+    `context.interrupt(task, where=None, cause=None)` returns how many instances it reached. It never reaches the instance that calls it.
 
 === "Low-level"
 
@@ -215,7 +215,7 @@ Preemption is one source of interrupts; a model can send others. An `interrupt` 
             process.interrupt("called away")
     ```
 
-    `process.interrupt(cause)` is SimPy's; the model keeps its own list of the processes it may interrupt.
+    `process.interrupt(cause)` is SimPy's. The model keeps its own list of the processes it may interrupt.
 
 ---
 
@@ -227,7 +227,7 @@ A machine that fails interrupts the work it was doing in the same way, and each 
 
 ## Result
 
-What remains of a regular order's packing when an express order takes its packer? With `resume`, the time it had left: **344** preemptions cost regular orders a mean wait of **8.12 seconds**. With `restart`, nothing: each preempted order packs again from the start, preemptions rise to **393**, and the mean wait triples to **25.03 seconds**. With `abandon`, the order is lost: **313** are, and the **1,294** packed orders wait only **3.60 seconds**, because the queue loses everyone who was preempted:
+What remains of a regular order's packing when an express order takes its packer? Each figure here comes from one run of the hour with the seed 42. With `resume`, the time it had left remains: after **344** preemptions, regular orders wait **8.12 seconds** on average. With `restart`, nothing remains: each preempted order packs again from the start, preemptions rise to **393**, and the mean wait triples to **25.03 seconds**. With `abandon`, the order is lost: **313** orders are lost, and the **1,294** packed orders wait only **3.60 seconds** on average, because every preempted order leaves the queue:
 
 ![Mean wait of regular orders: resume 8.12 s with 1607 packed; restart 25.03 s with 1606 packed; abandon 3.60 s with 1294 packed](../assets/charts/interruption-policies.png)
 
@@ -241,7 +241,7 @@ abandon: 313 preempted, 1294 packed, mean wait  3.60 s, mean packing 1.50 s
 
 ## Why It Works
 
-Under `restart` the packer spends part of its time on packing that is thrown away, so it does more work for the same orders: the mean time packed rises from 1.50 to 1.69 seconds, the load nears what one packer can do, and waits grow fast, as [Queueing Basics](../des/queueing-basics.md#waits-near-full-use) explains. `resume` loses no work, so its waits are close to those of plain priority. `abandon` looks best only because the mean leaves out the orders it lost; count them beside it. [Priority and Preemption](../user-guide/resources/priority-and-preemption.md#preemption) describes preemption, and [Tasks and Processes](../user-guide/tasks-and-processes/index.md) the task's steps.
+Under `restart` the packer spends part of its time on packing that is thrown away, so it does more work for the same orders. The mean time packed rises from 1.50 to 1.69 seconds, and the load nears what one packer can do. Waits then grow fast, as [Queueing Basics](../des/queueing-basics.md#waits-near-full-use) explains. `resume` loses no work, so its waits are close to those of plain priority. `abandon` looks best only because the mean leaves out the orders it lost, so report their count beside it. [Priority and Preemption](../user-guide/resources/priority-and-preemption.md#preemption) describes preemption, and [Tasks and Processes](../user-guide/tasks-and-processes/index.md) the task's steps.
 
 ---
 
@@ -268,7 +268,7 @@ Under `restart` the packer spends part of its time on packing that is thrown awa
           packing: {dist: constant, value: 1.5 s}
 
         arrivals:
-          # 0.6 orders a second in all, one in four of them express
+          # An order every 1.67 s on average in all (0.6 a second), one in four express
           orders: {dist: exponential, rate: 0.45, spawn: pack_order}
           express: {dist: exponential, rate: 0.15, spawn: pack_express}
 
@@ -306,10 +306,11 @@ Under `restart` the packer spends part of its time on packing that is thrown awa
         ```python title="docs/snippets/tutorials/interruptions.py"
         """The Interruptions tutorial: express orders take the packer from regular ones.
 
-        One packer, regular orders at 0.45 a second and express orders at 0.15, and 1.5
-        seconds of packing. Every record is printed to the terminal, and the script prints
-        what preemption did to regular orders under each policy at the end:
-        python interruptions.py 2>/dev/null shows only those lines.
+        One packer and 1.5 seconds of packing. A regular order arrives every 2.22 seconds on
+        average (rate 0.45), and an express order every 6.67 seconds (rate 0.15). Every record
+        is printed to the terminal, and the script prints what preemption did to regular orders
+        under each policy at the end. To see only those lines, run:
+        python interruptions.py 2>/dev/null
         """
 
         import logging
@@ -330,7 +331,7 @@ Under `restart` the packer spends part of its time on packing that is thrown awa
                     "packers", current_cap=1, max_cap=4, queue="priority", preempt=True
                 )
                 .add_service("packing", dist="constant", value=1.5)
-                # 0.6 orders a second in all, one in four of them express
+                # An order every 1.67 s on average in all (0.6 a second), one in four express
                 .add_arrival("orders", dist="exponential", rate=0.45)
                 .add_arrival("express", dist="exponential", rate=0.15)
                 # Counts of preemptions and resumptions, and the mean wait and service, at the end
@@ -404,10 +405,11 @@ Under `restart` the packer spends part of its time on packing that is thrown awa
         ```python title="docs/snippets/tutorials/interruptions_low_level.py"
         """The Interruptions tutorial: express orders take the packer from regular ones.
 
-        One packer, regular orders at 0.45 a second and express orders at 0.15, and 1.5
-        seconds of packing. Every record is printed to the terminal, and the script prints
-        what preemption did to regular orders under each policy at the end:
-        python interruptions_low_level.py 2>/dev/null shows only those lines.
+        One packer and 1.5 seconds of packing. A regular order arrives every 2.22 seconds on
+        average (rate 0.45), and an express order every 6.67 seconds (rate 0.15). Every record
+        is printed to the terminal, and the script prints what preemption did to regular orders
+        under each policy at the end. To see only those lines, run:
+        python interruptions_low_level.py 2>/dev/null
         """
 
         import itertools
@@ -433,7 +435,7 @@ Under `restart` the packer spends part of its time on packing that is thrown awa
         PARAMS = SimParameter(
             sim_id="Shop",
             arrival={
-                # 0.6 orders a second in all, one in four of them express
+                # An order every 1.67 s on average in all (0.6 a second), one in four express
                 "orders": DistributionConfig(dist="exponential", rate=0.45),
                 "express": DistributionConfig(dist="exponential", rate=0.15),
             },

@@ -55,12 +55,12 @@ empirical         fitted                                       values: 299 numbe
 
 ## Read the Table
 
-- **Skipped** families were not fitted, and the reason says why. Here the log's times are to a tenth of a second, so 5 gaps are 0, and `gamma`, `weibull` and `lognormal`, which need every value above 0, are skipped.
-- **Did not fit** means scipy's fit failed; its message is the reason. Here the truncated normal's search did not settle, because the gaps are far from a normal shape.
+- **Skipped** families were not fitted, and the reason says why. Here the log's times are given to a tenth of a second, so some orders share a time, and 5 gaps are 0. `gamma`, `weibull` and `lognormal` need every value above 0, so they are skipped.
+- **Did not fit** means scipy's fit failed. Its message is the reason. Here the truncated normal's search did not settle, because the gaps are far from a normal shape.
 - **Rejected** families were fitted, but their mean or standard deviation is more than 25% from the data's, or a parameter is out of range. Here `uniform` and `triangular` reach far beyond most gaps.
-- **Fitted** families have an [AIC](../des/a-simulation-study.md#aic-and-the-ks-test), lower is better, and a Kolmogorov-Smirnov p-value, which is approximate. The `exponential` has the lowest AIC and a p-value of 0.84, and its rate of 0.364 an order a second is one over the mean gap of 2.75 seconds. `normal` fits too, but it can draw below 0.
+- **Fitted** families have an [AIC](../des/a-simulation-study.md#aic-and-the-ks-test), where lower is better, and a Kolmogorov-Smirnov p-value, which is approximate. The `exponential` has the lowest AIC and a p-value of 0.84. Its rate, `rate: 0.36388`, is one over the mean gap of 2.75 seconds: an order every 2.75 seconds on average. `normal` fits too, but it can draw below 0.
 
-Two families within an AIC of 2 of each other fit about equally well; run the model with each and see whether the answer changes, as [Fit the Inputs](../tutorials/fit-the-inputs.md#does-the-choice-matter) does. Read `--plot fit.png`, or `result.plot("fit.png")`, as well as the table.
+Two families within an AIC of 2 of each other fit about equally well. Run the model with each and see whether the answer changes, as [Fit the Inputs](../tutorials/fit-the-inputs.md#does-the-choice-matter) does. Read `--plot fit.png`, or `result.plot("fit.png")`, as well as the table.
 
 ---
 
@@ -115,13 +115,13 @@ When every family is skipped, rejected or did not fit, the best is the `empirica
 result = fit_column(gaps(), unit="s", candidates=["empirical"], bins=10)
 ```
 
-On the command line, `--candidates empirical --bins 10`. An empirical distribution never draws a value outside the data's range, so it cannot produce a gap longer than the longest one in the log.
+On the command line, the same is `--candidates empirical --bins 10`. An empirical distribution never draws a value outside the data's range, so it cannot produce a gap longer than the longest one in the log.
 
 ---
 
 ## Example
 
-The whole script fits the gaps and runs the shop for an hour with the fitted arrivals; one packer packs 1,302 orders. It reads `order_log.csv` from its own folder, so run it in a clone of the repository:
+The whole script fits the gaps and runs the shop for an hour with the fitted arrivals. In that one run, one packer packs 1,302 orders. It reads `order_log.csv` from its own folder, so run it in a clone of the repository:
 
 ```bash
 # The script and the order log are in docs/snippets/guides/ of the repository

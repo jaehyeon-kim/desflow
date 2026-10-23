@@ -1,12 +1,12 @@
 # Test a Model
 
-Write tests for a model that run with pytest and fail when a change breaks it: a functional test of what the model does when an input changes, a unit test of one component on its own, and a back test against results saved from an earlier run. It builds on [Checking a Model](../tutorials/checking-a-model.md), which checks the shop by hand, against observed values and against [Little's law](../des/queueing-basics.md#littles-law), and on [Checking and Validating](../des/checking-and-validating.md), which says what each check proves. The three kinds of test follow the [Tests chapter](https://des.hsma.co.uk/tests.html) of the HSMA book on discrete event simulation. You need pytest: `pip install pytest`.
+Write tests for a model that run with pytest and fail when a change breaks it. This page writes three kinds: a functional test of what the model does when an input changes, a unit test of one component on its own, and a back test against results saved from an earlier run. It builds on [Checking a Model](../tutorials/checking-a-model.md), which checks the shop by hand, against observed values and against [Little's law](../des/queueing-basics.md#littles-law), and on [Checking and Validating](../des/checking-and-validating.md), which says what each check proves. The three kinds of test follow the [Tests chapter](https://des.hsma.co.uk/tests.html) of the HSMA book on discrete event simulation. You need pytest: `pip install pytest`.
 
 ---
 
 ## Build a Model to Test
 
-A test changes one input and runs the model again, so write the model as a function of its inputs and return the numbers a test reads. This shop takes the number of packers, the order rate and the seed, and `results` runs ten minutes of it:
+A test changes one input and runs the model again, so write the model as a function of its inputs and return the numbers a test reads. This shop takes the number of packers, the order rate and the seed. `results` runs ten minutes of it:
 
 ```python title="docs/snippets/guides/test_a_model.py:shop"
 def shop(packers=2, rate=0.5, seed=42) -> SimulationContext:
@@ -59,13 +59,13 @@ def test_more_packers_shorten_the_wait():
     assert waits[0] > waits[1] > waits[2]
 ```
 
-The test asserts the direction of the change, not the waits themselves. They are **2.055**, **0.111** and **0.016** seconds, one 10-minute run each of this shop, not the busy hour of the tutorials, and a test of the direction still passes when a change to the model moves them a little. [Common Mistakes](../des/common-mistakes.md#taking-one-run-as-the-answer) explains why the tutorials' figures for a wait differ between pages.
+The test asserts the direction of the change, not the waits themselves. The waits are **2.055**, **0.111** and **0.016** seconds, from one 10-minute run each of this shop, not the busy hour of the tutorials. A test of the direction still passes when a change to the model moves them a little. [Common Mistakes](../des/common-mistakes.md#taking-one-run-as-the-answer) explains why the tutorials' figures for a wait differ between pages.
 
 ---
 
 ## Write a Unit Test
 
-A unit test checks one component alone. A distribution refuses a rate of 0, which would mean no orders ever, and a negative time to pack, so `DistributionConfig` raises `ValueError` for each. `pytest.mark.parametrize` runs one test for each setting:
+A unit test checks one component alone. A distribution refuses a rate of 0, which would mean no orders ever. It also refuses a negative time to pack. `DistributionConfig` raises `ValueError` for each. `pytest.mark.parametrize` runs one test for each setting:
 
 ```python title="docs/snippets/guides/test_a_model.py:unit"
 @pytest.mark.parametrize(
@@ -123,12 +123,13 @@ pytest test_a_model.py
 
 ## Example
 
-The whole file.
+Below is the whole file.
 
 ```python title="docs/snippets/guides/test_a_model.py"
 """Test a Model: functional, unit and back tests of the shop, with pytest.
 
-The shop has packers, exponential orders at 0.5 a second and 1.5 seconds of packing.
+The shop has packers, an order every 2 seconds on average (exponential, rate 0.5)
+and 1.5 seconds of packing.
 Write the saved results once with `save_results()`, then run the tests with:
 pytest test_a_model.py
 `save_results()` writes test_a_model_saved.json, the results the back test compares

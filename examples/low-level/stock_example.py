@@ -1,6 +1,6 @@
 """Stock, parcels and express orders, low-level API.
 
-The low-level twin of `builder/stock_example.py`. Packing an order takes one box from
+The low-level version of `builder/stock_example.py`. Packing an order takes one box from
 the `stock` container and puts the packed parcel in the `parcels` store, where a
 courier collects it; two parcels packed yesterday are already there. The packers'
 queue order is `priority`, so express orders (priority 1) are served before standard
@@ -125,7 +125,7 @@ def build(env):
     """Builds the packers, the store and the container, in the builder's order."""
     return {
         "packers": DynamicResource(env, "Shop", "packers", queue="priority"),
-        # A courier takes the lowest priority first, the oldest first among equals
+        # A courier takes the lowest priority value first, the oldest first among equals
         "parcels": DynamicStore(env, "Shop", "parcels", priority=True, items=YESTERDAY),
         "stock": DynamicContainer(env, "Shop", "stock"),
     }

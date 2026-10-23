@@ -4,13 +4,13 @@ Packed orders now wait for a courier, who comes every 10 minutes and takes every
 
 ## What You Add
 
-A signal, `courier_left`, that the courier fires as it leaves, and a `dispatch` task that waits for either the signal or its limit, whichever comes first. The shop is the one from [First Simulation](first-simulation.md): one packer, an order every 2 seconds on average and 1.5 seconds of packing.
+This page adds a signal, `courier_left`, that the courier fires as it leaves, and a `dispatch` task that waits for either the signal or its limit, whichever comes first. The shop is the one from [First Simulation](first-simulation.md): one packer, an order every 2 seconds on average and 1.5 seconds of packing.
 
 ---
 
 ## A Signal
 
-So far a process has waited for time, a resource or an item. Processes can also wait for each other. In SimPy one process yields an event, and another succeeds it; every process waiting for the event resumes. desflow gives such an event a name, a **signal**: declared once, fired by a task when it finishes, and fired again later, each firing waking every waiter that waits at that moment:
+So far a process has waited for time, a resource or an item. Processes can also wait for each other. In SimPy one process yields an event, and another process succeeds it, which marks the event as happened. Every process waiting for the event then resumes. desflow gives such an event a name and calls it a **signal**. A signal is declared once, and a task fires it when the task finishes. The signal can fire again later, and each firing wakes every process that is waiting for it at that moment:
 
 === "YAML"
 
@@ -89,7 +89,7 @@ The courier arrives every 10 minutes, and its task fires the signal with its pay
 
 ## Wait for the First of Two
 
-A packed order waits for the courier or for its limit. SimPy waits for the first of several events with `a | b`, an `AnyOf`; desflow's `wait` takes the same with `any` and a name for each branch. After the wait, `wait.<branch>.done` says whether that branch happened, so `next` can route on it:
+A packed order waits for the courier or for its limit. SimPy waits for the first of several events with `a | b`, an `AnyOf`. desflow's `wait` does the same with `any`, whose branches each have a name, here `courier` and `limit`. After the wait, `wait.<branch>.done` says whether that branch happened, so `next` can route on it:
 
 === "YAML"
 
@@ -146,7 +146,7 @@ A packed order waits for the courier or for its limit. SimPy waits for the first
         env.process(send(env, key, task, ids))
     ```
 
-    `env.any_of([...])` is the `AnyOf`; its value holds the events that happened, so `courier in done` is the YAML's `wait.courier.done`.
+    `env.any_of([...])` is the `AnyOf`. Its value holds the events that happened, so `courier in done` is the YAML's `wait.courier.done`.
 
 The task publishes `queued` when it starts waiting and `started` when the wait ends, so its wait statistics measure the time waiting for the courier:
 
@@ -175,7 +175,7 @@ The task publishes `queued` when it starts waiting and `started` when the wait e
 
 ## Result
 
-When does a waiting order resume? When the courier leaves, if that is within its limit, and at the limit otherwise. With a limit of 5 minutes, **6,952** orders go by courier and **7,020** by post; with a limit of 8 minutes, **11,005** go by courier and **2,872** by post, and the mean wait for dispatch rises from **225.3** to **288.2** seconds:
+When does a waiting order resume? It resumes when the courier leaves, if the courier leaves within the order's limit, and at the limit otherwise. Each figure here comes from one run of the 8-hour day with the seed 42. With a limit of 5 minutes, **6,952** orders go by courier and **7,020** by post. With a limit of 8 minutes, **11,005** go by courier and **2,872** by post, and the mean wait for dispatch rises from **225.3** to **288.2** seconds:
 
 ![With a limit of 5 minutes, 6952 orders by courier and 7020 by post; with 8 minutes, 11005 by courier and 2872 by post](../assets/charts/courier-shares.png)
 
@@ -188,7 +188,7 @@ limit 8 min: 11005 by courier, 2872 by post, mean wait  288.2 s
 
 ## Why It Works
 
-Orders are packed at random moments, so the time from packing to the next courier is spread evenly over the 10 minutes between couriers. A limit of 5 minutes catches the courier for half the orders, and a limit of 8 minutes for 8 in 10, which is what the runs show. Every waiting order resumes at the same firing, which is why the courier takes them all at once. [SimPy and desflow](../des/simpy-and-desflow.md#waiting-for-one-or-all) shows the plain SimPy forms, [Signals and Waiting](../user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows) describes every kind of wait, and [Wait for One or All](../guides/wait-for-one-or-all.md) shows ties and failures.
+Orders are packed at random moments, so the time from packing to the next courier is spread evenly over the 10 minutes between couriers. A limit of 5 minutes catches the courier for half the orders, and a limit of 8 minutes for 8 in 10. The runs show these shares: 50% and 79% of the orders go by courier. Every waiting order resumes at the same firing, so the courier takes them all at once. [SimPy and desflow](../des/simpy-and-desflow.md#waiting-for-one-or-all) shows the plain SimPy forms. [Signals and Waiting](../user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows) describes every kind of wait, and [Wait for One or All](../guides/wait-for-one-or-all.md) shows ties and failures.
 
 ---
 
@@ -263,10 +263,10 @@ Orders are packed at random moments, so the time from packing to the next courie
         ```python title="docs/snippets/tutorials/process_interaction.py"
         """The Process Interaction tutorial: packed orders wait for the courier, with a limit.
 
-        One packer, an order every 2 seconds on average, and a courier every 10 minutes.
-        Every record is printed to the terminal, and the script prints how many orders went
-        by courier and by post, with limits of 5 and 8 minutes, at the end:
-        python process_interaction.py 2>/dev/null shows only those lines.
+        One packer, an order every 2 seconds on average, and a courier every 10 minutes. Every
+        record is printed to the terminal, and the script prints how many orders went by courier
+        and by post, with limits of 5 and 8 minutes, at the end. To see only those lines, run:
+        python process_interaction.py 2>/dev/null
         """
 
         import logging
@@ -368,10 +368,10 @@ Orders are packed at random moments, so the time from packing to the next courie
         ```python title="docs/snippets/tutorials/process_interaction_low_level.py"
         """The Process Interaction tutorial: packed orders wait for the courier, with a limit.
 
-        One packer, an order every 2 seconds on average, and a courier every 10 minutes.
-        Every record is printed to the terminal, and the script prints how many orders went
-        by courier and by post, with limits of 5 and 8 minutes, at the end:
-        python process_interaction_low_level.py 2>/dev/null shows only those lines.
+        One packer, an order every 2 seconds on average, and a courier every 10 minutes. Every
+        record is printed to the terminal, and the script prints how many orders went by courier
+        and by post, with limits of 5 and 8 minutes, at the end. To see only those lines, run:
+        python process_interaction_low_level.py 2>/dev/null
         """
 
         import itertools

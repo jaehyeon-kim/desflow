@@ -1,23 +1,23 @@
 # Trusting Results
 
-[Measuring a Run](measuring-a-run.md) read five numbers from one run of the busy hour. The run started with an empty shop: no orders waiting and every packer free. A real shop at that hour is never empty, so the first orders of the run wait less than they would. This page asks: **is one run enough?** It answers in two parts: how much of the start to leave out, and how many runs give an answer precise enough to act on.
+[Measuring a Run](measuring-a-run.md) read five numbers from one run of the busy hour. The run started with an empty shop: no orders waiting and every packer free. A real shop at that hour is never empty. The first orders of the run find free packers, so they wait less than orders in the real shop would. This page asks: **is one run enough?** It answers in two parts: how much of the start to leave out, and how many runs give an answer precise enough to act on.
 
 ## What You Add
 
-A `warmup` on the run, then [replications](../des/output-analysis.md#replications): the same run repeated with other seeds. The model simulates the same busy hour as Measuring a Run.
+This page adds a `warmup` to the run, then [replications](../des/output-analysis.md#replications): the same run repeated with other seeds. The model simulates the same busy hour as Measuring a Run.
 
 ---
 
 ## Plot the Start
 
-Some runs have a natural start and end, such as a shop that opens empty at 9:00 and closes at 17:00; these are **[terminating](../des/output-analysis.md#terminating-or-steady-state)** runs, and the empty start is part of what they measure. Others stand for a system that keeps going, such as the shop in the middle of its busy hour; these are **steady-state** runs, and the empty start is a distortion called **[initialisation bias](../des/output-analysis.md#one-run-starts-empty)**. The busy hour is a steady-state run.
+Some runs have a natural start and end, such as a shop that opens empty at 9:00 and closes at 17:00. These are **[terminating](../des/output-analysis.md#terminating-or-steady-state)** runs, and the empty start is part of what they measure. Other runs stand for a system that keeps going, such as the shop in the middle of its busy hour. These are **steady-state** runs, and their empty start is a distortion called **[initialisation bias](../des/output-analysis.md#one-run-starts-empty)**. The busy hour is a steady-state run.
 
 To see how long the distortion lasts, plot an output over time and look for where it stops trending. Publish the statistics every 10 seconds: `wait_mean` is then the mean wait of every order so far, and `queue_length` is the queue at that moment.
 
 === "YAML"
 
     ```yaml title="docs/snippets/yaml/trusting_results.yaml:plot"
-    # wait_mean every 10 seconds is the mean wait so far: plot it against sim_ts
+    # Every 10 seconds, wait_mean is the mean wait so far: plot it against sim_ts
     stats: {level: typical, interval: 10}
 
     egress:
@@ -27,7 +27,7 @@ To see how long the distortion lasts, plot an output over time and look for wher
 === "Builder"
 
     ```python title="docs/snippets/tutorials/trusting_results.py:plot"
-    # wait_mean every 10 seconds is the mean wait so far: plot it against sim_ts
+    # Every 10 seconds, wait_mean is the mean wait so far: plot it against sim_ts
     .with_stats("typical", interval=10)
     .add_egress(ConsoleEgress())
     ```
@@ -35,18 +35,24 @@ To see how long the distortion lasts, plot an output over time and look for wher
 === "Low-level"
 
     ```python title="docs/snippets/tutorials/trusting_results_low_level.py:plot"
-    # wait_mean every 10 seconds is the mean wait so far: plot it against sim_ts
+    # Every 10 seconds, wait_mean is the mean wait so far: plot it against sim_ts
     env.setup_stats("Shop", "typical", interval=10)
-    # The warm-up is set with the sinks: none receives a record before it, and the
-    # statistics start again when it ends
+    # The warm-up is set with the sinks: no sink receives a record stamped before it
+    # ends, and the statistics start again from zero when it ends
     env.setup_egress([ConsoleEgress()], warmup=warmup)
     ```
 
 Plot the two against `sim_ts` for the first 15 minutes:
 
-![Over the first 15 minutes of the busy hour, the queue read every 10 seconds moves between 0 and 13 from the first minute on; the mean wait so far climbs from 0.46 seconds to about 1.5 seconds in the first two minutes, then wanders between 1.1 and 1.6 seconds; a dashed line marks the end of a 2-minute warm-up](../assets/charts/trusting-warmup.png)
+![Over the first 15 minutes of the busy hour, the queue read every 10 seconds moves between 0 and 13 from the first minute on. The mean wait so far climbs from 0.46 seconds to about 1.5 seconds in the first two minutes, then moves up and down between 1.1 and 1.6 seconds. A dashed line marks the end of a 2-minute warm-up](../assets/charts/trusting-warmup.png)
 
-The queue reaches its usual range within the first minute. The mean wait so far climbs for about a minute and a half, because the first orders found free packers, then moves up and down with no trend. The plot shows one seed only, so it cannot settle the [warm-up](../des/output-analysis.md#one-run-starts-empty). It suggests three candidates: 1 minute, when the queue reaches its usual range; 2 minutes, which covers the climb of the mean wait; and 4 minutes, twice that, to see whether a longer warm-up still moves the mean. The next section sets 2 minutes, and [Compare Warm-ups](#compare-warm-ups), after the replications, checks the three candidates with five seeds.
+The queue reaches its usual range within the first minute. The mean wait so far climbs for about a minute and a half, because the first orders found free packers. After that it moves up and down with no trend. The plot shows one seed only, and another seed could climb for longer, so the plot cannot settle the [warm-up](../des/output-analysis.md#one-run-starts-empty) on its own. It suggests three candidates:
+
+- 1 minute, when the queue reaches its usual range;
+- 2 minutes, which covers the climb of the mean wait;
+- 4 minutes, twice that, to see whether a longer warm-up still moves the mean.
+
+The next section sets 2 minutes. [Compare Warm-ups](#compare-warm-ups), after the replications, checks the three candidates with five seeds.
 
 ---
 
@@ -75,9 +81,9 @@ A `warmup` time leaves the start out of everything the run reports:
     WARMUP = 120.0  # seconds, passed to setup_egress in run below
     ```
 
-    In the low-level API the warm-up is an argument of `env.setup_egress`, as the `plot` step above shows, because it is the sinks that leave the records out.
+    In the low-level API the warm-up is an argument of `env.setup_egress`, as the `plot` step above shows, because the sinks are what leave the records out.
 
-A run has one warm-up, in simulation time. Every sink leaves out the records and telemetry stamped before it, and the built-in statistics start again from zero at that moment, so they describe the rest of the run only. An order that queued before the warm-up ended and started after it counts with its whole wait. The warm-up is not `go_live_at`, which sends early records to one sink and later ones to another and drops nothing; [Time and Pacing](../user-guide/time-and-pacing/index.md) compares the two.
+A run has one warm-up, in simulation time. Every sink leaves out the records and telemetry stamped before the warm-up ends. The built-in statistics start again from zero when it ends, so they describe only the rest of the run. An order that queued before the warm-up ended and started after it counts with its whole wait. The warm-up differs from `go_live_at`, which sends early records to one sink and later ones to another, and drops nothing. [Time and Pacing](../user-guide/time-and-pacing/index.md) compares the two.
 
 Run the hour without and with the warm-up. `WARMUP=0 desflow run trusting_results.yaml` runs the YAML version without it; the Builder and Low-level scripts print both:
 
@@ -91,9 +97,9 @@ with a 2 min warm-up: mean wait 1.381 s
 
 ## Run It With Other Seeds
 
-The run in [Leave Out the Start](#leave-out-the-start) used one seed, 42. Another seed draws other arrival gaps and packing times, and gives another mean wait. One run cannot show how far apart those answers are, because the waits of orders in one run follow each other and are not independent samples. **Replications** show it: the same run repeated with other seeds, each giving one independent value of every statistic.
+The run in [Leave Out the Start](#leave-out-the-start) used one seed, 42. Another seed draws other arrival gaps and packing times, and gives another mean wait. One run cannot show how far apart those answers are. Within one run, an order's wait depends on the orders queued ahead of it, so the waits are not independent samples. **Replications** show it: the same run repeated with other seeds, each giving one independent value of every statistic.
 
-Run the busy hour 40 times. The 40 seeds are spawned from the seed 42, so the set repeats exactly, and each replication leaves out the same 2-minute warm-up:
+Run the busy hour 40 times. The 40 seeds are spawned from the seed 42, so every run of the command uses the same 40 seeds. Each replication leaves out the same 2-minute warm-up:
 
 === "YAML"
 
@@ -135,7 +141,7 @@ Run the busy hour 40 times. The 40 seeds are spawned from the seed 42, so the se
 
 Each replication runs unpaced with no sinks and reads the built-in statistics at its end. [Replications](../user-guide/replications.md) describes every option.
 
-The mean of the 40 values is the estimate. Its **[confidence interval](../des/output-analysis.md#interval-and-half-width)** says how far off it may be: with 95% confidence, the true mean lies within the estimate plus or minus the **half-width**. The seeds are spawned in order, so the first 10 of the 40 replications are the 10 a run with `--replications 10` makes. The table reads the estimate after the first 5, 10 and 20 replications and after all 40:
+The mean of the 40 values is the estimate. Its **[95% interval](../des/output-analysis.md#interval-and-half-width)** says how far off it may be: with 95% confidence, the true mean lies within the estimate plus or minus the **half-width**. The seeds are spawned in order, so the first 10 of the 40 replications are the 10 a run with `--replications 10` makes. The table reads the estimate after the first 5, 10 and 20 replications and after all 40:
 
 | Replications | Mean wait (s) | Half-width (s) | Wait half-width share | Utilisation (%) | Half-width (%) | Utilisation half-width share |
 |---|---|---|---|---|---|---|
@@ -144,21 +150,21 @@ The mean of the 40 values is the estimate. Its **[confidence interval](../des/ou
 | 20 | 2.48 | 0.32 | 13.0% | 90.33 | 0.63 | 0.7% |
 | 40 | 2.32 | 0.20 | 8.4% | 90.03 | 0.45 | 0.5% |
 
-The 40 mean waits range from 1.45 to 4.39 seconds. The run with the seed 42 measured 1.38 seconds, lower than any of them. [Common Mistakes](../des/common-mistakes.md#taking-one-run-as-the-answer) explains why other pages give other figures for this wait.
+The mean waits of the 40 replications range from 1.45 to 4.39 seconds. The single run with the seed 42 measured 1.38 seconds, lower than any of them. [Common Mistakes](../des/common-mistakes.md#taking-one-run-as-the-answer) explains why other pages give other figures for this wait.
 
 ---
 
 ## Choose the Precision
 
-How many replications are enough depends on the decision, not on a fixed number such as 30. Choose the precision each output needs. Here it is a half-width within 10% of the mean. [Utilisation](../des/queueing-basics.md#utilisation) meets it with 5 replications. Of the replication counts in the table of [Run It With Other Seeds](#run-it-with-other-seeds), the mean wait first meets it at 40, because waits vary far more from run to run than how busy the packers are. So each output has its own precision, and the replications must be enough for the least precise output the decision reads.
+How many replications are enough depends on the decision, not on a fixed number such as 30. Choose the precision each output needs. Here it is a half-width within 10% of the mean. [Utilisation](../des/queueing-basics.md#utilisation) meets it with 5 replications. Of the replication counts in the table of [Run It With Other Seeds](#run-it-with-other-seeds), the mean wait first meets it at 40, because waits vary far more from run to run than how busy the packers are. Each output therefore needs its own number of replications, and the study needs enough replications for the least precise output the decision uses.
 
-The half-width shrinks with √n, so 10 replications at 11.0% suggest about 10 × (11.0 ÷ 10)² ≈ 12 for 10%. That is a guide, not a promise: the half-width is itself an estimate, and 20 replications gave 13.0%. Add replications, then read the half-width again.
+The half-width shrinks in proportion to 1 ÷ √n, so a half-width k times smaller needs about k² times as many replications. 10 replications gave 11.0%, so 10% needs about 10 × (11.0 ÷ 10)² ≈ 12. That figure is a guide, not a promise: the half-width is itself an estimate, and 20 replications gave 13.0%. Add replications, then read the half-width again.
 
 ---
 
 ## Compare Warm-ups
 
-One seed is one path through the hour. Run five replications after each candidate warm-up, with the same five seeds spawned from 42, and compare the mean waits. Five replications are enough here, although the mean wait needs 40 for 10% precision. The comparison asks only whether a longer warm-up moves the mean by more than its half-width, and each candidate runs the same five seeds:
+One seed gives one path through the hour. Run five replications after each candidate warm-up, with the same five seeds spawned from 42, and compare the mean waits. Five replications are enough here, although the mean wait needs 40 for 10% precision. The comparison does not need a precise mean: it asks only whether a longer warm-up moves the mean by more than its half-width. Each candidate runs the same five seeds, so a difference between candidates comes from the warm-up and not from the seeds:
 
 === "YAML"
 
@@ -209,13 +215,13 @@ Keep the shortest warm-up after which a longer one no longer moves the mean by m
 
 ## Result
 
-Is one run enough? No. Its start does not distort it: over five seeds, a warm-up of **1 minute** is enough by the comparison of three candidates, and the page keeps **2 minutes** to cover the climb in the plot. A 2-minute warm-up moves the mean wait of one run only from 1.382 to 1.381 seconds: the shop fills within a minute or two, and one hour is long enough that those minutes hardly count. A shorter run, or a start further from the usual state, such as a shop that opens with a backlog of orders, needs the warm-up much more. But one run's answer depends on its seed. The run with the seed 42 measured 1.38 seconds, lower than every one of 40 replications. Over 40 replications the mean wait is **2.32 ± 0.20 seconds** with 95% confidence, within the chosen 10% precision, and the packers are busy **90.03 ± 0.45%** of the time.
+Is one run enough? No. Its empty start is not the problem. Over five seeds, the comparison of three candidates finds a warm-up of **1 minute** enough, and the page keeps **2 minutes** to cover the climb in the plot. In the run with the seed 42, a 2-minute warm-up changes the mean wait only from 1.382 to 1.381 seconds. The shop fills within a minute or two, and those minutes are a small part of one hour. A shorter run, or a start further from the usual state, such as a shop that opens with a backlog of orders, needs the warm-up much more. The problem is that one run's answer depends on its seed. The run with the seed 42 measured 1.38 seconds, lower than every one of 40 replications. Over 40 replications the mean wait is **2.32 ± 0.20 seconds** with 95% confidence, within the chosen 10% precision, and the packers are busy **90.03 ± 0.45%** of the time.
 
 ## Why It Works
 
-Initialisation bias ([Output Analysis](../des/output-analysis.md#one-run-starts-empty) explains it) fades as the model forgets how it started: here the queue that the first orders found empty is full again within a minute. The warmed-up numbers still pass the check from Measuring a Run. 6,024 orders were packed in the 3,480 seconds after the warm-up, 1.73 a second, and 1.73 × 1.381 seconds = 2.39, which is the `queue_length_avg` of 2.40 that the same statistics report. [Statistics](../user-guide/statistics.md) describes how the reset works.
+Initialisation bias ([Output Analysis](../des/output-analysis.md#one-run-starts-empty) explains it) fades once the state of the shop no longer depends on how the run started. Here the queue, empty for the first orders, reaches its usual range within a minute. The warmed-up numbers still pass the [Little's law](../des/queueing-basics.md#littles-law) check from Measuring a Run. In the 3,480 seconds after the warm-up, 6,024 orders were packed, 1.73 a second. 1.73 orders a second × 1.381 seconds of mean wait = 2.39 orders waiting on average, which matches the `queue_length_avg` of 2.40 that the same statistics report. [Statistics](../user-guide/statistics.md) describes how the reset works.
 
-Replications ([Output Analysis](../des/output-analysis.md#replications) explains them) are independent of each other because each has its own seed, so the spread of their values measures how much the answer depends on chance. With few replications the spread itself is uncertain, and the t quantile widens the interval to allow for it: 2.776 for 5 replications, 2.023 for 40.
+Replications ([Output Analysis](../des/output-analysis.md#replications) explains them) are independent of each other because each has its own seed, so the spread of their values measures how much the answer depends on chance. With few replications the spread itself is uncertain. The [Student t quantile](../des/output-analysis.md#interval-and-half-width) allows for it: the half-width is the standard error times 2.776 for 5 replications, and times 2.023 for 40.
 
 ---
 
@@ -257,7 +263,7 @@ Replications ([Output Analysis](../des/output-analysis.md#replications) explains
             resource: packers
             payload: {event_type: order_packed}
 
-        # wait_mean every 10 seconds is the mean wait so far: plot it against sim_ts
+        # Every 10 seconds, wait_mean is the mean wait so far: plot it against sim_ts
         stats: {level: typical, interval: 10}
 
         egress:
@@ -272,11 +278,12 @@ Replications ([Output Analysis](../des/output-analysis.md#replications) explains
         ```python title="docs/snippets/tutorials/trusting_results.py"
         """The Trusting Results tutorial: the busy hour, measured after a warm-up, builder.
 
-        Three packers, orders at 1.8 a second and the measured packing times. Every record is
-        printed to the terminal. At the end the script prints the mean wait without and with
-        the warm-up, the mean wait of 5 runs after each of three candidate warm-ups, then the
-        mean and half-width of two outputs over 5, 10, 20 and 40 replications:
-        python trusting_results.py 2>/dev/null shows only those lines.
+        Three packers pack orders that arrive at 1.8 a second on average, with the packing
+        times measured at the bench. Every record is printed to the terminal. At the end the
+        script prints the mean wait without and with the warm-up, the mean wait of 5 runs
+        after each of three candidate warm-ups, then the mean and half-width of two outputs
+        over 5, 10, 20 and 40 replications. To see only those lines, run:
+        python trusting_results.py 2>/dev/null
         """
 
         import logging
@@ -305,7 +312,7 @@ Replications ([Output Analysis](../des/output-analysis.md#replications) explains
                 .add_resource("packers", current_cap=3, max_cap=10)
                 .add_arrival("orders", dist="exponential", rate=1.8)
                 .add_service("packing", dist="empirical", values=MEASURED)
-                # wait_mean every 10 seconds is the mean wait so far: plot it against sim_ts
+                # Every 10 seconds, wait_mean is the mean wait so far: plot it against sim_ts
                 .with_stats("typical", interval=10)
                 .add_egress(ConsoleEgress())
             )
@@ -350,7 +357,7 @@ Replications ([Output Analysis](../des/output-analysis.md#replications) explains
 
 
         def precision(result) -> dict:
-            """Each output's mean and half-width over the first 5, 10, 20 and 40 runs."""
+            """Each output's mean and half-width over the first 5, 10, 20 and 40 replications."""
             return {
                 (measure, n): interval(result.values[measure][:n])
                 for measure in MEASURES
@@ -378,11 +385,12 @@ Replications ([Output Analysis](../des/output-analysis.md#replications) explains
         ```python title="docs/snippets/tutorials/trusting_results_low_level.py"
         """The Trusting Results tutorial: the busy hour, measured after a warm-up, low-level.
 
-        Three packers, orders at 1.8 a second and the measured packing times. Every record is
-        printed to the terminal. At the end the script prints the mean wait without and with
-        the warm-up, the mean wait of 5 runs after each of three candidate warm-ups, then the
-        mean and half-width of two outputs over 5, 10, 20 and 40 replications:
-        python trusting_results_low_level.py 2>/dev/null shows only those lines.
+        Three packers pack orders that arrive at 1.8 a second on average, with the packing
+        times measured at the bench. Every record is printed to the terminal. At the end the
+        script prints the mean wait without and with the warm-up, the mean wait of 5 runs
+        after each of three candidate warm-ups, then the mean and half-width of two outputs
+        over 5, 10, 20 and 40 replications. To see only those lines, run:
+        python trusting_results_low_level.py 2>/dev/null
         """
 
         import logging
@@ -456,10 +464,10 @@ Replications ([Output Analysis](../des/output-analysis.md#replications) explains
         def run(warmup=WARMUP, until=3600, factor=0.0):
             env = DynamicRealtimeEnvironment(factor=factor)
             env.registry.register_sim_parameter(PARAMS)
-            # wait_mean every 10 seconds is the mean wait so far: plot it against sim_ts
+            # Every 10 seconds, wait_mean is the mean wait so far: plot it against sim_ts
             env.setup_stats("Shop", "typical", interval=10)
-            # The warm-up is set with the sinks: none receives a record before it, and the
-            # statistics start again when it ends
+            # The warm-up is set with the sinks: no sink receives a record stamped before it
+            # ends, and the statistics start again from zero when it ends
             env.setup_egress([ConsoleEgress()], warmup=warmup)
             packers = DynamicResource(env, "Shop", "packers")
             env.process(order_generator(env, Sampler(seed=42), packers))
@@ -502,7 +510,7 @@ Replications ([Output Analysis](../des/output-analysis.md#replications) explains
 
 
         def precision(result) -> dict:
-            """Each output's mean and half-width over the first 5, 10, 20 and 40 runs."""
+            """Each output's mean and half-width over the first 5, 10, 20 and 40 replications."""
             return {
                 (measure, n): interval(result.values[measure][:n])
                 for measure in MEASURES

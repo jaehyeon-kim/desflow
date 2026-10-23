@@ -80,7 +80,7 @@ NETWORK = SimParameter(
     arrival={"orders": DistributionConfig(dist="exponential", rate=1.6)},
     service={
         "packing": DistributionConfig(dist="constant", value=1.5),
-        # 0.4 s on average
+        # One check takes 0.4 s on average
         "checking": DistributionConfig(dist="exponential", rate=2.5),
     },
     resources={

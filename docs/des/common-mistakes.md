@@ -28,7 +28,7 @@ def means():
     return mean(fixed), mean(random_gaps)
 ```
 
-With constant gaps and constant packing times the mean wait is 0.00 seconds. With exponential gaps of the same mean and the same packing time it is 2.45 seconds, over the same 10 [replications](output-analysis.md#replications). Use the distribution you measured, not its mean. [Choosing Inputs](../tutorials/choosing-inputs.md) shows the effect of the spread on the shop, and [Queueing Basics](queueing-basics.md) gives the formula that ties the wait to the variation.
+With constant gaps and constant packing times, the mean wait over 10 [replications](output-analysis.md#replications) is 0.00 seconds. With exponential gaps of the same mean and the same packing time, it is 2.45 seconds over the same 10 replications. Use the distribution you measured, not its mean. [Choosing Inputs](../tutorials/choosing-inputs.md) shows the effect of the spread on the shop, and [Queueing Basics](queueing-basics.md) gives the formula that ties the wait to the variation.
 
 ---
 
@@ -43,13 +43,13 @@ def negative_share(mean_time=1.5, sd=1.0, draws=100_000):
     return sum(rng.gauss(mean_time, sd) < 0 for _ in range(draws)) / draws
 ```
 
-About 6.7% of the draws are below zero, so the model would have to clip them, which changes the mean, or fail. A uniform distribution has the opposite problem: it gives every value between its ends the same weight, which real times seldom have. Fit a distribution to the data, and let a goodness-of-fit check and a plot say which family it is. [Input Fitting](../user-guide/input-fitting.md) does this, and [Fit the Inputs](../tutorials/fit-the-inputs.md) works an example. With no data, a triangular distribution of the least, most likely and greatest values is a usual stand-in. Law's pitfall 18 warns against using one when data could be collected, because the greatest value is hard to choose and the long right tail of real times matters. Collect the data if you can.
+About 6.7% of 100,000 draws are below zero. The model would have to clip them, which changes the mean, or fail. A uniform distribution has the opposite problem: it gives every value between its ends the same weight, which real times seldom have. Fit a distribution to the data, and let a goodness-of-fit check and a plot say which family it is. [Input Fitting](../user-guide/input-fitting.md) does this, and [Fit the Inputs](../tutorials/fit-the-inputs.md) works an example. With no data, a triangular distribution of the least, most likely and greatest values is a usual stand-in. Law's pitfall 18 warns against using one when data could be collected, because the greatest value is hard to choose and the long right tail of real times matters. Collect the data if you can.
 
 ---
 
 ## Taking One Run as the Answer
 
-One run is one sample. Run the busy hour on three packers 10 times with different seeds, and the mean wait of a run is not the same twice.
+One run is one sample. Run the busy hour with three packers 10 times with different seeds, and the mean wait of a run is not the same twice.
 
 ```python title="docs/snippets/pages/common_mistakes.py:one_run"
 def spread_of_runs():
@@ -58,13 +58,13 @@ def spread_of_runs():
     return min(runs), max(runs), mean(runs)
 ```
 
-The runs range from 1.52 seconds, 28% below the mean, to 2.75 seconds, 30% above it, and the mean is 2.11 seconds. A report that gave one run alone could be that far off. The busy hour's mean wait has other values on other pages, because the pages run it in different ways: one run or several replications, constant or empirical packing times, with or without a [warm-up](output-analysis.md#one-run-starts-empty), and for one hour or longer. Each page says which. These 10 runs use constant packing and no warm-up. [Trusting Results](../tutorials/trusting-results.md) reads 2.25 seconds after its first 10 replications, because its shop uses the empirical packing times and a 2-minute warm-up. Run replications and report the mean with an interval. [Output Analysis](output-analysis.md) explains replications and how many to use.
+The runs range from 1.52 seconds, 28% below the mean, to 2.75 seconds, 30% above it, and the mean is 2.11 seconds. A report that gave one run alone could be that far off. The busy hour's mean wait has other values on other pages, because the pages run it in different ways: one run or several replications, constant or empirical packing times, with or without a [warm-up](output-analysis.md#one-run-starts-empty), and for one hour or longer. Each page says which. These 10 runs use constant packing and no warm-up. [Trusting Results](../tutorials/trusting-results.md) measures 2.25 seconds over its first 10 replications, because its shop uses the empirical packing times and a 2-minute warm-up. Run replications and report the mean with an interval. [Output Analysis](output-analysis.md) explains replications and how many to use.
 
 ---
 
 ## No Warm-up for a Steady State
 
-A run starts with an empty shop, so the first orders find no queue, and the mean of a short run is biased low. The effect is largest when the shop is nearly full. Take one packer and an order about every 1.58 seconds, so that the packer is busy 95% of the time, and run it for 30 minutes from empty.
+A run starts with an empty shop, so the first orders find no queue, and the mean of a short run is biased low. The effect is largest when the shop is nearly full. Take one packer and an order about every 1.58 seconds on average. With 1.5 seconds of packing, the packer is busy 1.5 ÷ 1.58 = 95% of the time. Run the shop for 30 minutes from empty.
 
 ```python title="docs/snippets/pages/common_mistakes.py:warmup"
 def empty_start(until=1800, warmup=None):
@@ -82,7 +82,7 @@ def empty_start(until=1800, warmup=None):
     return row["mean"], row["half_width"], long_run
 ```
 
-The mean wait of 40 such runs is 11.4 seconds, with an interval of 2.1 seconds either side, and the formula for the long-run wait of this shop gives 14.25 seconds. The interval does not reach it, so the start has pulled the figure down. Longer runs that leave out their first part remove the bias:
+The mean wait of 40 such runs is 11.4 seconds, with a 95% interval of 2.1 seconds either side. The formula for the long-run wait of this shop gives 14.25 seconds. The interval ends below it, so the empty start has pulled the figure down. Forty longer runs that each leave out their first 4,000 seconds remove the bias:
 
 ```python title="docs/snippets/pages/common_mistakes.py:warmup-fix"
 value, half_width, long_run = empty_start(until=20_000, warmup=4000)
@@ -101,7 +101,7 @@ The interval now contains 14.25 seconds. Terminating questions do not need a war
 
 ## Comparing Designs With One Run Each
 
-Packing in 1.45 seconds instead of 1.5 is a real improvement, and 20 runs of each design show how little one run of each can say about it.
+Packing in 1.45 seconds instead of 1.5 is a real improvement. Twenty runs of each design show how little one run of each can say about it.
 
 ```python title="docs/snippets/pages/common_mistakes.py:pairs"
 def one_run_each():
@@ -113,10 +113,10 @@ def one_run_each():
     return wrong, len(slow), mean(slow), mean(fast)
 ```
 
-Over the 20 runs each, with seeds spawned from 1 for the slower design and from 2 for the faster one, the mean wait is 1.99 seconds for the slower design and 1.51 seconds for the faster. These runs are not paired, so they are not the runs of the paired comparison in [Output Analysis](output-analysis.md#comparing-designs), which runs both designs with the seeds spawned from 42. But when the runs are matched in order, first with first, in 4 of the 20 matches the slower design's run was at or below the faster design's run, so one run each would have said the change did not help. Compare designs with the same number of replications each and an interval on the difference, using common random numbers to reduce the noise. [Comparing Designs](../tutorials/comparing-designs.md) does this on the shop.
+Over the 20 runs each, with seeds spawned from 1 for the slower design and from 2 for the faster one, the mean wait is 1.99 seconds for the slower design and 1.51 seconds for the faster. These runs are not paired, so they are not the runs of the paired comparison in [Output Analysis](output-analysis.md#comparing-designs), which runs both designs with the seeds spawned from 42. Now match the runs in order, first with first. In 4 of the 20 matches, the slower design's run had a mean wait at or below the faster design's run. In those matches, one run of each design would have said the change did not help. Compare designs with the same number of replications each and an interval on the difference. Use [common random numbers](output-analysis.md#comparing-designs) to reduce the random variation in the difference. [Comparing Designs](../tutorials/comparing-designs.md) does this on the shop.
 
 ---
 
 ## Treating One Run's Statistics as Independent
 
-The mean wait of orders in one run is a mean of values that depend on each other: a long wait is followed by another long wait, because the second order stood in the line the first one made. The usual interval formula assumes independent values, so an interval built from the orders of one run is too narrow. Build the interval from the replications, each of which is independent of the others. [Output Analysis](output-analysis.md) shows how, and [Checking and Validating](checking-and-validating.md) lists the checks that catch the other mistakes before a result is reported.
+The mean wait of orders in one run is a mean of values that depend on each other: a long wait is followed by another long wait, because the second order waited in the same queue, behind the first. The usual interval formula assumes independent values, so an interval built from the orders of one run is too narrow. Build the interval from the replications, each of which is independent of the others. [Output Analysis](output-analysis.md) shows how, and [Checking and Validating](checking-and-validating.md) lists the checks that catch the other mistakes before a result is reported.

@@ -8,7 +8,7 @@ from fractions import Fraction
 from desflow import ResourceBase
 
 # --8<-- [start:weights]
-# Tier 1 is served three times for every once of tier 2
+# Tier 1 is served three times for each time tier 2 is served
 WEIGHTS = {1: 3, 2: 1}
 # --8<-- [end:weights]
 

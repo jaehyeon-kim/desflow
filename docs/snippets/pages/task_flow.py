@@ -24,11 +24,14 @@ app = (
 )
 # --8<-- [start:builder-attributes]
 # Each order starts with these attributes, read as attr.gift
+# An order every 2 s on average (rate 0.5)
 app.add_arrival("orders", dist="exponential", rate=0.5, attributes={"gift": 0})
+# A gift order every 10 s on average (rate 0.1)
 app.add_arrival("gifts", dist="exponential", rate=0.1, attributes={"gift": 1})
 # --8<-- [end:builder-attributes]
 # --8<-- [start:builder-key]
 # Keys ret-00001, ret-00002 instead of returns-1, from the counter, which starts at 1
+# A return every 20 s on average (rate 0.05)
 app.add_arrival("returns", dist="exponential", rate=0.05, key=lambda n: f"ret-{n:05d}")
 # --8<-- [end:builder-key]
 

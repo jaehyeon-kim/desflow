@@ -1,7 +1,7 @@
 """The Parameter Sweeps tutorial: the wait at four arrival rates, low-level.
 
-The busy hour of Trusting Results with three packers and with four, each at four
-arrival rates, run 20 times with the same seeds. The experiment writes its artifacts and
+Runs the busy hour of Trusting Results with three packers and with four, each at four
+arrival rates, 20 times with the same seeds. The experiment writes its artifacts and
 report to results/demand, and the script prints each design's mean wait.
 """
 

@@ -4,7 +4,7 @@ This example models a shop receiving orders. The simulation writes each order to
 
 === "YAML"
 
-    This example builds the simulation of the builder example in the Builder tab from a YAML blueprint, with no Python. `RedisEgress` writes order records to the `order_events` stream, which each record's `__stream__` key names, and `RedisIngress` subscribes to the `simulation_params` channel.
+    This example builds the simulation of the builder example in the Builder tab from a YAML blueprint, with no Python. `RedisEgress` writes order records to the `order_events` stream, named by each record's `__stream__` key. `RedisIngress` subscribes to the `simulation_params` channel.
 
     **Quick Start**
 
@@ -58,11 +58,11 @@ This example models a shop receiving orders. The simulation writes each order to
     docker exec -it valkey valkey-cli --user user --pass password PUBLISH simulation_params '{"path": "Shop.arrival.orders.rate", "value": 10.0}'
     ```
 
-    `RedisIngress` does not log the message it receives, so the sign that the update landed is that `XLEN order_events` climbs about five times faster.
+    `RedisIngress` does not log the message it receives. To see that the update took effect, watch `XLEN order_events`: it climbs about five times faster than before.
 
     **Full Source Code**
 
-    `record_order` has no service or resource, so it publishes its fixed `payload` as soon as an arrival spawns it, with the task id added as `order_id`. A mapping payload is a constant, so every order here comes from the `web` channel; the builder and low-level versions publish the same records.
+    `record_order` has no service or resource, so it publishes its fixed `payload` as soon as an arrival spawns it, with the task id added as `order_id`. A mapping payload is a constant, so every order record here has the same `channel` field, `web`. The builder and low-level versions publish the same records.
 
     Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
@@ -149,7 +149,7 @@ This example models a shop receiving orders. The simulation writes each order to
             task_id += 1
     ```
 
-    Each entry holds one field, `payload`, containing the JSON of the published record. `RedisEgress` reads `__stream__` from inside `value`, which is where both `context.publish` and `publish_event` put the dictionary you pass them, so order records go to `order_events` and everything else to the `events` stream named in the constructor. The key itself is removed before writing, so it does not appear in the stored payload.
+    Each entry holds one field, `payload`, containing the JSON of the published record. `RedisEgress` reads `__stream__` from inside `value`, where both `context.publish` and `publish_event` put the dictionary you pass them. Order records name `order_events`, so they go there. Every other record goes to `events`, the stream named in the constructor. The key itself is removed before writing, so it does not appear in the stored payload.
 
     **Dynamic Parameter Updates (Ingress)**
 
@@ -199,12 +199,12 @@ This example models a shop receiving orders. The simulation writes each order to
         odctl down valkey --volumes
         ```
 
-    **In a second terminal, execute the dynamic parameter update:**
+    **In a second terminal, change the parameter:**
     ```bash
     # Connect to the Valkey container and publish the parameter update
     docker exec -it valkey valkey-cli --user user --pass password PUBLISH simulation_params '{"path": "Shop.arrival.orders.rate", "value": 10.0}'
     ```
-    `RedisIngress` does not log the message it receives, so the sign that the update landed is the throughput. The arrival rate goes from 2.0 to 10.0 per second, and `XLEN order_events` climbs about five times faster than before.
+    `RedisIngress` does not log the message it receives. To see that the update took effect, watch `XLEN order_events`. The arrival rate goes from 2.0 to 10.0 orders a second, so the stream grows about five times faster than before.
 
     ```bash
     # Clean up the infrastructure when finished
@@ -332,12 +332,12 @@ This example models a shop receiving orders. The simulation writes each order to
         odctl down valkey --volumes
         ```
 
-    **In a second terminal, execute the dynamic parameter update:**
+    **In a second terminal, change the parameter:**
     ```bash
     # Connect to the Valkey container and publish the parameter update
     docker exec -it valkey valkey-cli --user user --pass password PUBLISH simulation_params '{"path": "Shop.arrival.orders.rate", "value": 10.0}'
     ```
-    `RedisIngress` does not log the message it receives, so the sign that the update landed is the throughput. The arrival rate goes from 2.0 to 10.0 per second, and `XLEN order_events` climbs about five times faster than before.
+    `RedisIngress` does not log the message it receives. To see that the update took effect, watch `XLEN order_events`. The arrival rate goes from 2.0 to 10.0 orders a second, so the stream grows about five times faster than before.
 
     ```bash
     # Clean up the infrastructure when finished
@@ -351,7 +351,7 @@ This example models a shop receiving orders. The simulation writes each order to
     ```python title="examples/low-level/redis_example.py"
     """Redis Streams output with live parameter updates, low-level API.
 
-    The low-level twin of `builder/redis_example.py`. The simulation records each
+    The low-level version of `builder/redis_example.py`. The simulation records each
     order as it is placed. `RedisEgress` writes the records to the `order_events` stream,
     named by each record's `__stream__` key, and `RedisIngress` subscribes to the
     `simulation_params` channel.

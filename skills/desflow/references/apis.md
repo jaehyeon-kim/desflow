@@ -9,7 +9,7 @@ The `local` example is a shop that packs orders. The three files give the same r
 ```yaml
 # Local simulation in YAML, with no Python and no containers.
 #
-# The twin of examples/builder/local_example.py. This simulation models a shop
+# The YAML version of examples/builder/local_example.py. This simulation models a shop
 # packing orders. ConsoleEgress prints events and telemetry to the terminal.
 # A scenario adds packers at 10 seconds and removes one at 20 seconds.
 # The run ends on its own after 30 simulation seconds.
@@ -153,10 +153,10 @@ if __name__ == "__main__":
 ```python
 """Local simulation, low-level API, no containers.
 
-The low-level twin of `builder/local_example.py`, built on `DynamicRealtimeEnvironment`
-directly. It models a shop packing orders and uses `ConsoleEgress` to print events
-and telemetry. A scenario process adds packers at 10 seconds and removes one at
-20 seconds. The built-in statistics show the effect.
+The low-level version of `builder/local_example.py`, built on
+`DynamicRealtimeEnvironment` directly. It models a shop packing orders and uses
+`ConsoleEgress` to print events and telemetry. A scenario process adds packers at
+10 seconds and removes one at 20 seconds. The built-in statistics show the effect.
 
 Needs no containers. Ends on its own after 30 simulation seconds.
 """

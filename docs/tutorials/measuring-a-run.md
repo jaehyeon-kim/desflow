@@ -4,13 +4,13 @@ Most of the pages so far read one number, the mean wait. A run knows much more: 
 
 ## What You Add
 
-`stats: typical`, the built-in statistics at the level that includes waits. The model simulates the busy hour with 3 packers from [Queues and Capacity](queues-and-capacity.md), and draws each packing time from 40 times measured at the bench, each equally likely.
+This page adds `stats: typical`, the built-in statistics at the level that includes waits. The model simulates the busy hour with 3 packers from [Queues and Capacity](queues-and-capacity.md), and draws each packing time from 40 times measured at the bench, each equally likely.
 
 ---
 
 ## Switch On Statistics
 
-desflow keeps statistics about a run as it goes, and publishes them as telemetry every 10 simulation seconds and once more at the end, so the last value of each is the state at the end. They are off by default, because most runs only generate data. A level switches them on: `none` (the default), `minimal`, `basic`, `typical` or `all`, each publishing what the one before it does and more. `typical` adds each task's mean and maximum wait and service time, and [Statistics](../user-guide/statistics.md#choose-a-level) lists what each level adds. Switch on `typical`:
+desflow keeps statistics about a run as it goes. It publishes them as telemetry every 10 simulation seconds and once more at the end, so the last value of each statistic is the state at the end of the run. Statistics are off by default, because most runs only generate data. A level switches them on: `none` (the default), `minimal`, `basic`, `typical` or `all`, each publishing what the one before it does and more. `typical` adds each task's mean and maximum wait and service time. [Statistics](../user-guide/statistics.md#choose-a-level) lists what each level adds. Switch on `typical`:
 
 === "YAML"
 
@@ -33,7 +33,7 @@ desflow keeps statistics about a run as it goes, and publishes them as telemetry
     env.setup_stats("Shop", "typical", interval=10)
     ```
 
-    The environment keeps the statistics in `env.stats`. Resources report their own changes, but a low-level process has no task for desflow to watch, so it reports each step itself: `env.stats.task_queued`, `task_started` and `task_finished` with the task's name and instance id, and `flow_started` and `flow_finished` when the order enters and leaves the shop. The full file below shows them.
+    The environment keeps the statistics in `env.stats`. Resources report their own changes. A low-level process has no task for desflow to watch, so the process reports each step itself. It calls `env.stats.task_queued`, `task_started` and `task_finished` with the task's name and instance id, and `flow_started` and `flow_finished` when the order enters and leaves the shop. The full file below shows them.
 
 The statistics are telemetry, so they reach every sink, and they can also be read in Python at the end of the run:
 
@@ -86,13 +86,13 @@ Every name has the same form, `<sim_id>.stats.<kind>.<name>.<statistic>`, such a
 [TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.flows.orders.in_system', 'value': 11}
 ```
 
-`tasks.pack_order.finished` counts the orders the task finished, and `flows.orders.finished` counts the orders that left the shop, named by the arrival that started them; with one task the two are equal. `flows.orders.started` counts the orders that entered, 6,261, and `flows.orders.in_system` the 11 still in the shop when the hour ended, which `tasks.pack_order.in_progress` also counts: the mean wait describes the orders that started packing, and [End Conditions](end-conditions.md) shows what a run leaves out when it ends. The mean wait is 1.38 seconds.
+`tasks.pack_order.finished` counts the orders the task finished. `flows.orders.finished` counts the orders that left the shop, and the flow is named after the arrival that started them, `orders`. With one task the two counts are equal. `flows.orders.started` counts the orders that entered the shop, 6,261. `flows.orders.in_system` counts the 11 orders still in the shop when the hour ended, and `tasks.pack_order.in_progress` gives the same 11. The mean wait is 1.38 seconds, over the orders that started packing; [End Conditions](end-conditions.md) shows what a run leaves out when it ends.
 
 ---
 
 ## Counts and Averages Over Time
 
-The statistics are of two kinds. A **count**, such as `finished`, adds one for each order. An **average over time**, such as `utilization_avg` or `queue_length_avg`, weighs each value by how long it lasted. Look at the area under the number of busy packers:
+The statistics are of two kinds. A **count**, such as `finished`, adds one for each order. An **average over time**, also called a time-weighted average, such as `utilization_avg` or `queue_length_avg`, weighs each value by how long it lasted. Look at the area under the number of busy packers:
 
 ![Busy packers over 10 seconds: 1 for 2 seconds, 3 for 4 seconds, 2 for 4 seconds; the areas 2, 12 and 8 add up to 22, so the time-weighted average is 2.2 busy packers, while a reading at 10 seconds sees 2](../assets/diagrams/stats-time-weighted.png)
 
@@ -100,7 +100,7 @@ desflow adds the area every time the value changes, so the average is exact at a
 
 ![The number of orders waiting over the first five minutes, between 0 and 10; readings every 10 seconds average 2.60, while the time-weighted average is 2.19](../assets/charts/measuring-queue.png)
 
-The queue rises and falls many times between two readings, and a handful of readings can land on high points by chance. Here they average 2.60 orders, while the queue held 2.19 orders on average over the same five minutes.
+The queue rises and falls many times between two readings, and a handful of readings can land on high points by chance. Here the readings average 2.60 orders, while the average over time for the same five minutes is 2.19 orders.
 
 ---
 
@@ -111,17 +111,22 @@ The time each order spends in the shop has two parts, both measured from the tas
 - **wait** runs from `queued` to `started`: the time spent waiting for a packer;
 - **service** runs from `started` to the finished event: the time spent being packed.
 
-`service_mean` is 1.50 seconds, the mean of the measured times, and `service_max` is 2.7 seconds, the longest of them, so the model draws what it was given. `wait_max` is 9.38 seconds: one order waited almost seven times as long as the average one.
+`service_mean` is 1.50 seconds and `service_max` is 2.7 seconds. The 40 measured times have the same mean and the same longest time, so the model draws what it was given. `wait_max` is 9.38 seconds: one order waited almost seven times as long as the average one.
 
 ---
 
 ## Result
 
-What does a run tell me? One hour of the busy shop tells you that the packers were busy **86.6%** of the time on average, the queue held **2.41** orders on average, an order waited **1.38 seconds** on average and **9.38 seconds** at most, and **6,250** orders were packed.
+What does a run tell me? One run of one hour of the busy shop tells you that:
+
+- the packers were busy **86.6%** of the time on average;
+- the queue held **2.41** orders on average;
+- an order waited **1.38 seconds** on average and **9.38 seconds** at most;
+- **6,250** orders were packed.
 
 ## Why It Works
 
-The numbers check each other. [Little's Law](../des/queueing-basics.md#littles-law) says that the average number waiting equals the rate at which orders arrive times the average time each waits. 6,250 orders in 3,600 seconds is 1.74 a second, and 1.74 × 1.38 = 2.40, which is `queue_length_avg`. The [utilisation](../des/queueing-basics.md#utilisation) checks the same way: 1.74 orders a second × 1.50 seconds ÷ 3 packers = 0.87. A set of statistics that fails a check like this one points to a mistake in the model or in how it is read, as [Checking and Validating](../des/checking-and-validating.md#check-the-statistics-against-each-other) explains. [Statistics](../user-guide/statistics.md) describes how each one is computed, and the [Statistics reference](../reference/statistics.md) lists every name each level publishes.
+The numbers check each other. [Little's Law](../des/queueing-basics.md#littles-law) says that the average number waiting equals the rate at which orders arrive times the average time each waits. 6,250 orders in 3,600 seconds is 1.74 a second, and 1.74 × 1.38 = 2.40, which matches `queue_length_avg`, 2.41. The [utilisation](../des/queueing-basics.md#utilisation) checks the same way: 1.74 orders a second × 1.50 seconds ÷ 3 packers = 0.87. A set of statistics that fails a check like this one points to a mistake in the model or in how it is read, as [Checking and Validating](../des/checking-and-validating.md#check-the-statistics-against-each-other) explains. [Statistics](../user-guide/statistics.md) describes how each one is computed, and the [Statistics reference](../reference/statistics.md) lists every name each level publishes.
 
 ---
 

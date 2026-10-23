@@ -16,7 +16,7 @@ from desflow import (
 
 # --8<-- [start:builder-store]
 app = SimulationContext(sim_id="Shop", factor=0.0)
-# A courier takes the lowest priority first, the oldest first among equals.
+# A courier takes the lowest priority value first, the oldest first among equals.
 # Left from yesterday: (priority, item) pairs, held before the first put.
 app.add_store(
     "parcels",

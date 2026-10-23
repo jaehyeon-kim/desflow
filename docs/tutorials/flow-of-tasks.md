@@ -1,20 +1,26 @@
 # A Flow of Tasks
 
-Until now an order was one task: it was packed and left. A real order is picked from the shelves, packed and shipped; sometimes an item is out of stock, and sometimes a parcel fails its check and is packed again. This page asks: **how do orders move through pick, pack and ship?** It answers with two shares: how many orders go to backorder, and how many parcels are packed again.
+Until now an order was one task: it was packed and left. A real order is picked from the shelves, packed and shipped. Sometimes an item is out of stock, and sometimes a parcel fails its check and is packed again. This page asks: **how do orders move through pick, pack and ship?** It answers with two shares: how many orders go to backorder, and how many parcels are packed again.
 
 ## What You Add
 
-Three tasks in a row, `pick_order`, `pack_order` and `ship_order`; a `backorder` delay for an order picked while the shelf of boxes from [Stock](stock.md) is empty; and an `express` attribute that each order carries. The shop has two pickers and two packers, orders at 0.4 a second and express orders at 0.1, and a delivery of 53 boxes every 100 seconds, a little more than orders take. It runs for an hour.
+This page adds three tasks in a row: `pick_order`, `pack_order` and `ship_order`. It also adds a `backorder` delay for an order picked while the shelf of boxes from [Stock](stock.md) is empty, and an `express` attribute that each order carries. The shop has two pickers and two packers. A regular order arrives every 2.5 seconds on average (24 a minute, `rate: 0.4`), and an express order every 10 seconds (6 a minute, `rate: 0.1`). A delivery of 53 boxes comes every 100 seconds, a little more than the orders take. The run lasts an hour.
 
 Look at the flow first:
 
-![Arrivals spawn pick_order. When level.stock is 0 it leads to backorder, a timed step of 1 minute that sets backordered and leads back to pick_order; otherwise to pack_order, which takes a box from stock. pack_order leads to ship_order with weight 95, and back to itself with weight 5. ship_order ends the flow](../assets/diagrams/shop-flow.png)
+![Arrivals spawn pick_order. When level.stock is 0 it leads to backorder, a timed step of 1 minute that sets backordered and leads back to pick_order. Otherwise it leads to pack_order, which takes a box from stock. pack_order leads to ship_order with weight 95, and back to itself with weight 5. ship_order ends the flow](../assets/diagrams/shop-flow.png)
 
 ---
 
 ## Chain the Tasks
 
-Choosing where an entity goes next is called **routing**. In desflow a task, which [Tasks and Processes](../user-guide/tasks-and-processes/index.md) describes, names what follows it with `next`. `next` is a task name, which always leads there; a list of `when` rules, each a condition and a task, where the first rule that holds wins and `default` catches the rest; or `weights`, below. A task with no `next` ends the order's flow.
+Choosing where an entity goes next is called **routing**. In desflow a task names what follows it with `next`; [Tasks and Processes](../user-guide/tasks-and-processes/index.md) describes tasks. `next` takes one of three forms:
+
+- a task name, which always leads there;
+- a list of `when` rules, each a condition and a task: the first rule that holds wins, and `default` catches the rest;
+- `weights`, which [Rework](#rework) shows.
+
+A task with no `next` ends the order's flow.
 
 === "YAML"
 
@@ -73,9 +79,9 @@ Choosing where an entity goes next is called **routing**. In desflow a task, whi
 
     In SimPy terms, a process that starts another process with `env.process(...)` is how one step leads to the next. [SimPy and desflow](../des/simpy-and-desflow.md#processes-and-waiting-for-a-process) describes processes.
 
-The rule reads `level.stock`, the level of the container `stock`, at the moment picking finishes; [Stores and Containers](../user-guide/stores-and-containers.md) describes containers. Each name in a condition says where its value comes from: `level.` for a store or container, `attr.` for the entity's attributes, `payload.` for the finished task's payload, and `registry["..."]` for a live parameter. [Task Flow](../user-guide/task-flow.md) lists everything a condition can use.
+The rule reads `level.stock`, the level of the container `stock`, at the moment picking finishes. [Stores and Containers](../user-guide/stores-and-containers.md) describes containers. Each name in a condition says where its value comes from: `level.` for a store or container, `attr.` for the entity's attributes, `payload.` for the finished task's payload, and `registry["..."]` for a live parameter. [Task Flow](../user-guide/task-flow.md) lists everything a condition can use.
 
-Every event of every task carries the order's key, `orders-1`, so one order can be followed through its whole flow; `task` names the task, and `instance` numbers its runs. Each task has one counter, shared by its arrivals and by `next`, so a re-pick after a backorder gets a new id. In the full builder file the arrival loops take the id from `context.next_instance("pick_order")`; the low-level file keeps one `counters` entry per task.
+Every event of every task carries the order's key, `orders-1`, so one order can be followed through its whole flow. `task` names the task, and `instance` numbers its runs. Each task has one counter, shared by its arrivals and by `next`, so a re-pick after a backorder gets a new id. In the full builder file the arrival loops take the id from `context.next_instance("pick_order")`, and the low-level file keeps one `counters` entry per task.
 
 ---
 
@@ -122,7 +128,7 @@ An order picked while the shelf is empty waits for the supplier for a minute, th
 
 ## Rework
 
-One parcel in 20 fails its check and is packed again. Sending work back to a task it has passed is called **rework**. `weights` chooses the next task at random, in proportion to the weights, from a random stream of the routing task's own, `route.pack_order`, so a seeded run repeats and the choice does not change any other draw:
+One parcel in 20 fails its check and is packed again. Sending work back to a task it has passed is called **rework**. `weights` chooses the next task at random, in proportion to the weights. It draws from the routing task's own random number stream, `route.pack_order`. So a seeded run repeats, and the choice does not change any other draw:
 
 === "YAML"
 
@@ -193,7 +199,7 @@ An order is an **entity** with **attributes**: values it carries from task to ta
 
     `Entity(key, arrival, attributes)` is the order, created by the arrival process; the full file below shows it.
 
-Attributes are not published. A condition reads them as `attr.express`, and a payload includes them only when it asks: `ship_order` names `express` and `backordered`, so its finished event carries both. This is `orders-172`, which was picked while the shelf was empty, backordered, picked again and packed twice:
+Attributes are not published. A condition reads them as `attr.express`, and a payload includes them only when it names them: `ship_order` names `express` and `backordered`, so its finished event carries both. This is `orders-172`, which was picked while the shelf was empty, backordered, picked again and packed twice:
 
 <!-- records: one-order-flow -->
 ```text
@@ -229,11 +235,11 @@ How do orders move through pick, pack and ship? Most go straight through, and a 
 | `pack_order` | 1,849 |
 | `ship_order` | 1,775 |
 
-**4.3% of picks led to backorder** (80 of 1,857), and **4.0% of parcels were packed again** (74 of 1,849 packs did not lead to a shipment). The weights ask for 5%; the run drew a few less.
+**4.3% of picks led to backorder** (80 of 1,857), and **4.0% of parcels were packed again** (74 of 1,849 packs did not lead to a shipment). The weights set 5%, and this one run of the hour drew a few fewer.
 
 ## Why It Works
 
-In a flow, each task's arrival rate follows from the rates into it and the routing weights: this is **[flow balance](../des/queueing-basics.md#flow-balance-and-the-bottleneck)**. Every pack leads to a shipment with probability 0.95, so each order is packed 1 ÷ 0.95 = 1.05 times on average, and the packers see 5% more work than there are orders. A rework loop raises [utilisation](../des/queueing-basics.md#utilisation) in the same way, which is why it belongs in the load you work out before running. [Queueing Basics](../des/queueing-basics.md#waits-near-full-use) shows why waits grow quickly near full use. [Task Flow](../user-guide/task-flow.md) describes routing in full.
+**[Flow balance](../des/queueing-basics.md#flow-balance-and-the-bottleneck)** is the rule that, in a flow, each task's arrival rate follows from the rates into it and the routing weights. Every pack leads to a shipment with probability 0.95, so each order is packed 1 ÷ 0.95 = 1.05 times on average, and the packers see 5% more work than there are orders. A rework loop therefore raises [utilisation](../des/queueing-basics.md#utilisation), so it belongs in the load you work out before running. [Queueing Basics](../des/queueing-basics.md#waits-near-full-use) shows why waits grow quickly near full use. [Task Flow](../user-guide/task-flow.md) describes routing in full.
 
 ---
 
@@ -504,7 +510,7 @@ In a flow, each task's arrival rate follows from the rates into it and the routi
 
         def payload(name, entity):
             if name == "ship_order":
-                # A payload includes attributes only when it asks for them
+                # A payload includes attributes only when it names them
                 return {
                     "event_type": "order_shipped",
                     "express": entity.attributes.get("express"),

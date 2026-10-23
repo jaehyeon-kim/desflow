@@ -1,6 +1,6 @@
 """Process events: a one-shot signal, a spawn after a delay, a subscribe and an on: action, low-level API.
 
-The low-level twin of `builder/process_events_example.py`. A guard starts an alarm
+The low-level version of `builder/process_events_example.py`. A guard starts an alarm
 round and is told when it ends; a packed order fires the `ready` signal from its own
 payload, which a shipper waiting for it reads; and closing time starts a sweep one
 second later, as a new entity. In the low-level API each of these is plain SimPy:
