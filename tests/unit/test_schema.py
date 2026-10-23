@@ -31,8 +31,12 @@ NOT_BLUEPRINTS = {
     "docs/snippets/yaml/parameter_sweeps_experiment.yaml",
     "docs/snippets/yaml/comparing_designs_experiment.yaml",
     "docs/snippets/yaml/checking_a_model_experiment.yaml",
+    "docs/snippets/yaml/complete_model_experiment.yaml",
     "docs/snippets/yaml/fitted/orders.yaml",
     "docs/snippets/yaml/fitted/packing.yaml",
+    "docs/snippets/yaml/fitted/complete_orders.yaml",
+    "docs/snippets/yaml/fitted/complete_picking.yaml",
+    "docs/snippets/yaml/fitted/complete_packing.yaml",
 }
 FOLDERS = ("examples/yaml", "tests/conformance/blueprints", "docs/snippets/yaml")
 

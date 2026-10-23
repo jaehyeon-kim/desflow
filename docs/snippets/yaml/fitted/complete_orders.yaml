@@ -1,0 +1,3 @@
+# Fitted by desflow fit from complete_model_observed.csv, column gap_seconds: exponential, from 300 values in s, written in seconds.
+dist: exponential
+rate: 1.50719

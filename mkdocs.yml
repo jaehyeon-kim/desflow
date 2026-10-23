@@ -200,6 +200,7 @@ nav:
               - Comparing Designs: tutorials/comparing-designs.md
               - Parameter Sweeps: tutorials/parameter-sweeps.md
               - Checking a Model: tutorials/checking-a-model.md
+              - Complete Model: tutorials/complete-model.md
           - Running Live:
               - Live Changes: tutorials/live-changes.md
               - Streaming Out: tutorials/streaming-out.md

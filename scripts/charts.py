@@ -728,6 +728,42 @@ def animate_a_run() -> None:
     )
 
 
+def complete_waits() -> None:
+    """Complete Model: the mean picking and packing waits of the three designs, with
+    their 95% intervals, against the 1-second bound."""
+    module = _module("complete_model")
+    with tempfile.TemporaryDirectory() as folder:
+        result = module.experiment(output=Path(folder))
+    rows = {(r["design"], r["statistic"]): r for r in result.summary}
+    designs = module.DESIGNS
+    fig, ax = plt.subplots(figsize=(WIDTH, HEIGHT))
+    for offset, (measure, label, color) in enumerate(
+        (
+            ("tasks.pick_order.wait_mean", "picking wait", BLUE),
+            ("tasks.pack_order.wait_mean", "packing wait", ORANGE),
+        )
+    ):
+        means = [rows[d, measure]["mean"] for d in designs]
+        widths = [rows[d, measure]["half_width"] for d in designs]
+        ax.bar(
+            [i + (offset - 0.5) * 0.36 for i in range(len(designs))],
+            means,
+            0.36,
+            yerr=widths,
+            capsize=4,
+            color=color,
+            label=label,
+        )
+    ax.axhline(1, color=GREY, linestyle="--", linewidth=2)
+    ax.text(2.55, 1.06, "1 second", color=GREY, ha="right")
+    ax.set_xticks(range(len(designs)), designs)
+    ax.set_ylabel("mean wait (s), with 95% interval")
+    ax.set_ylim(0, 2.6)
+    ax.set_title("Only the fourth packer keeps both waits under 1 second")
+    ax.legend(frameon=False, loc="upper left")
+    _save(fig, "complete-waits")
+
+
 CHARTS: Dict[str, Callable[[], None]] = {
     "distribution-shapes": distribution_shapes,
     "priorities-wait": priorities_wait,
@@ -746,6 +782,7 @@ CHARTS: Dict[str, Callable[[], None]] = {
     "queues-mm1": queues_mm1,
     "choosing-inputs": choosing_inputs,
     "fit-the-inputs": fit_the_inputs,
+    "complete-waits": complete_waits,
     "animate-a-run": animate_a_run,
 }
 

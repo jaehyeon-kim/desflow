@@ -23,6 +23,7 @@ RUN_BY_OTHER_TESTS = {
     "check_against_theory.yaml",
     "checking_a_model.yaml",
     "choosing_inputs.yaml",
+    "complete_model.yaml",
     "competing_resources.yaml",
     "end_conditions.yaml",
     "filtered_inventory.yaml",

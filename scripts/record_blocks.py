@@ -195,6 +195,54 @@ def checking_explain() -> List[str]:
     return _from(lines, "Not estimated:")
 
 
+def _between(lines: List[str], start: str, end: str) -> List[str]:
+    """The lines from the first that starts with `start` to the one before `end`."""
+    first = next(i for i, line in enumerate(lines) if line.startswith(start))
+    last = next(i for i, line in enumerate(lines) if line.startswith(end))
+    return lines[first:last]
+
+
+def complete_fit() -> List[str]:
+    """Complete Model: the candidates for the observed packing times."""
+    return _command(
+        "fit",
+        "docs/snippets/tutorials/complete_model_observed.csv",
+        "--column",
+        "packing_seconds",
+        "--lower",
+        "0",
+    )
+
+
+def complete_explain() -> List[str]:
+    """Complete Model: the resources, what is not estimated, and the verify table."""
+    lines = _explain(
+        "docs/snippets/yaml/complete_model.yaml",
+        "--verify",
+        "--replications",
+        "10",
+    )
+    return (
+        _between(lines, "Resources", "pickers by units")
+        + _between(lines, "Bottleneck:", "Hints for")
+        + _from(lines, "Verify:")
+    )
+
+
+def complete_experiment() -> List[str]:
+    """Complete Model: the comparisons, checks and observed values of its report."""
+    import tempfile
+
+    from desflow import run_experiment
+
+    with tempfile.TemporaryDirectory() as folder:
+        report = run_experiment(
+            ROOT / "docs/snippets/yaml/complete_model_experiment.yaml",
+            output=Path(folder),
+        ).report.split("\n")
+    return report[report.index("## Comparisons") : report.index("## Limits") - 1]
+
+
 _THEORY = "docs/snippets/yaml/check_against_theory.yaml"
 
 
@@ -635,6 +683,9 @@ BLOCKS: Dict[str, Callable[[], List[str]]] = {
     "queues-overload": queues_overload,
     "queues-rush": queues_rush,
     "checking-explain": checking_explain,
+    "complete-fit": complete_fit,
+    "complete-explain": complete_explain,
+    "complete-experiment": complete_experiment,
     "theory-one": theory_one,
     "theory-two": theory_two,
     "theory-python": theory_python,

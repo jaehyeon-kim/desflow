@@ -1,0 +1,67 @@
+# The Complete Model tutorial: which shop design should be recommended?
+# Run it with: desflow experiment complete_model_experiment.yaml
+# Rebuild the report from its files with: desflow report results/complete-model
+experiment: complete-model
+question: Which design keeps both mean waits of the busy hour under 1 second?
+# --8<-- [start:model]
+# The busy hour, with its 2-minute warm-up; 40 runs of each design
+model: complete_model.yaml
+until: 1 h
+replications: 40
+seed: 42
+measures:
+  - tasks.pick_order.wait_mean
+  - tasks.pack_order.wait_mean
+  - resources.packers.utilization_avg
+  - tasks.ship_order.wait_mean
+# --8<-- [end:model]
+# --8<-- [start:observed]
+# Values made from the model's own runs to show the method, not shop records;
+# the real shop runs the current design
+observed: {file: complete_model_outputs.csv, variant: current}
+# --8<-- [end:observed]
+# --8<-- [start:designs]
+# Every design runs with the same seeds, so they are compared seed by seed
+pairing: common
+compare:
+  - {baseline: current, variant: second-picker}
+  - {baseline: current, variant: fourth-packer}
+variants:
+  current: {}
+  second-picker: {Shop.resources.pickers.current_cap: 2}
+  fourth-packer: {Shop.resources.packers.current_cap: 4}
+  # --8<-- [end:designs]
+  # --8<-- [start:sensitivity]
+  # The recommended design, with orders 10% faster than the fitted rate of 1.50719
+  fourth-packer-busier: {Shop.resources.packers.current_cap: 4, Shop.arrival.orders.rate: 1.65791}
+  # --8<-- [end:sensitivity]
+# --8<-- [start:checks]
+checks:
+  # The recommended design: the upper end of each wait's interval is under 1 second
+  - {measure: tasks.pick_order.wait_mean, variant: fourth-packer, max: 1}
+  - {measure: tasks.pack_order.wait_mean, variant: fourth-packer, max: 1}
+  # No order waits for a shipping box, in each of the three designs
+  - {measure: tasks.ship_order.wait_mean, variant: current, max: 0}
+  - {measure: tasks.ship_order.wait_mean, variant: second-picker, max: 0}
+  - {measure: tasks.ship_order.wait_mean, variant: fourth-packer, max: 0}
+  # --8<-- [end:checks]
+  # --8<-- [start:sensitivity-check]
+  # With orders 10% faster, the fourth packer keeps both waits under 1 second
+  - {measure: tasks.pick_order.wait_mean, variant: fourth-packer-busier, max: 1}
+  - {measure: tasks.pack_order.wait_mean, variant: fourth-packer-busier, max: 1}
+  # --8<-- [end:sensitivity-check]
+# --8<-- [start:report]
+assumptions:
+  - Orders arrive at random, at a steady rate, through the busy hour.
+  - One picker and three packers work the whole hour; nobody takes a break.
+  - Every order is one parcel in one shipping box.
+inputs:
+  Shop.arrival.orders: gaps between 300 orders observed in the shop, fitted by desflow fit
+  Shop.service.picking: picking times of the same 300 orders, fitted by desflow fit
+  Shop.service.packing: packing times of the same 300 orders, fitted by desflow fit
+  Shop.arrival.deliveries: the supplier's schedule, a delivery every 10 minutes
+limits:
+  - One busy hour only; the rest of the day is not modelled.
+  - The observed values were made from the model's own runs, so comparing with them shows the method only.
+output: results/complete-model
+# --8<-- [end:report]
