@@ -211,7 +211,7 @@ All five events share the key `orders-1`, so an order can be followed through ev
 
 ![The steps of run(), top to bottom: check the tasks; call run.before; build the environment; make the Sampler from random_seed or a seed drawn and logged; switch on statistics; register the parameters; start ingress, then egress with its warm-up; build resources, stores and containers; start loops and processes; env.run(until); and in finally, the teardown](../../assets/diagrams/run-sequence.png)
 
-Until `run()` is called nothing exists but the description: `context.env`, `context.spawn` and `context.get_resource` raise `RuntimeError` before it. Teardown runs in a `finally` block, so the last statistics are published and every sink is flushed even when the run stops with an error or Ctrl+C.
+Until `run()` is called nothing exists but the description, and the runtime helpers that [Builder API](../builder-api.md) lists raise `RuntimeError`. Teardown runs in a `finally` block, so the last statistics are published and every sink is flushed even when the run stops with an error or Ctrl+C.
 
 ### What `@app.task` Does
 
@@ -244,4 +244,4 @@ A YAML task and its `spawn` make the same task and arrival loop that the builder
 - **An interrupt gives back everything.** An interrupted task cancels its waits and releases every unit it holds before it follows its `on_interrupt`, so a resumed task queues again behind the requests already waiting: [Interruptions](../../tutorials/interruptions.md).
 - **A finished event is exactly the payload.** It has no `status` or `path_id` unless the payload includes them.
 - **A condition branch checks after every change.** A model with many waits on conditions and many changes does work in proportion to both.
-- **Runtime helpers need a running simulation.** `context.spawn`, `context.call`, `context.signal`, `context.get_resource`, `context.get_store`, `context.get_container` and `context.env` raise `RuntimeError` before `run()`; call them inside a loop, task or process.
+- **Runtime helpers need a running simulation.** They raise `RuntimeError` before `run()`, as [Builder API](../builder-api.md) lists; call them inside a loop, task or process.

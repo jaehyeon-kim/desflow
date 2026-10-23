@@ -74,3 +74,9 @@ This resource keeps how long each request waited:
             yield request
             yield env.timeout(2.0)
     ```
+
+---
+
+## Stability and Limits
+
+The limits of this page are listed with those of the whole section, in [Stability and Limits](index.md#stability-and-limits) on the Resources page.

@@ -157,3 +157,9 @@ paused.run(until=10)
 paused.resume_pacing()  # the next event waits factor seconds per second from here
 paused.run(until=20)
 ```
+
+---
+
+## Stability and Limits
+
+The limits of this page are listed with those of the whole section, in [Stability and Limits](index.md#stability-and-limits) on the Time and Pacing page.

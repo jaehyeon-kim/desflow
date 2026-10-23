@@ -2,7 +2,7 @@
 
 Let an AI coding assistant write, check and run desflow blueprints with the rules of the library in front of it, instead of guessing them. It builds on [YAML Blueprints](../user-guide/blueprints.md) and on [Set Up Your Editor](set-up-your-editor.md), whose schema the assistant also uses.
 
-The skill is a folder, `skills/desflow/`, in the Agent Skills format that Claude Code and other assistants read. Its `SKILL.md` tells the assistant how to pick a way to write the model, how to write and run a blueprint, the rules assistants get wrong, and how to run a study with a seed, a warm-up and replications. It links to files for every key, every distribution, every connector, the `local` example in all three APIs, and the blueprint JSON Schema. The folder is generated from the code, so it lists what the release has.
+The skill is a folder, `skills/desflow/`, in the Agent Skills format that Claude Code and other assistants read. Its `SKILL.md` tells the assistant how to pick a way to write the model, how to write and run a blueprint, the rules assistants get wrong, and how to run a study with a seed, a [warm-up](../des/output-analysis.md#one-run-starts-empty) and [replications](../des/output-analysis.md#replications). It links to files for every key, every distribution, every connector, the `local` example in all three APIs, and the blueprint JSON Schema. The folder is generated from the code, so it lists what the release has.
 
 ---
 
@@ -31,7 +31,7 @@ gh skill install jaehyeon-kim/desflow desflow --agent claude-code --scope user
 
 ## What to Check
 
-An assistant can still write a model that runs and answers the wrong question. Read the blueprint before you trust its records, and check `desflow run` ends without an error. The skill asks the assistant to run a study rather than one run, so ask for the confidence interval, and read [Trusting Results](../tutorials/trusting-results.md) for what a number from a simulation supports.
+An assistant can still write a model that runs and answers the wrong question. Read the blueprint before you trust its records, and check `desflow run` ends without an error. The skill asks the assistant to run a study rather than one run, so ask for the [confidence interval](../des/output-analysis.md#interval-and-half-width), and read [Trusting Results](../tutorials/trusting-results.md) for what a number from a simulation supports.
 
 ---
 

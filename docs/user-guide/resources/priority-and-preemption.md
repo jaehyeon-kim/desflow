@@ -207,7 +207,15 @@ A `breakdown` makes a resource fail at random and be repaired. `time_to_failure`
 
 `work` says what happens to the tasks being served: `interrupt`, the default, interrupts each with the cause `breakdown`, and it follows its `on_interrupt`; `finish` lets them finish. Each failure and repair publishes an event keyed by the resource's name, with `status` `down` or `repaired` and `reason: failure`. [Breakdowns](../../guides/breakdowns.md) checks the downtime of the example, and [Interruptions](../../tutorials/interruptions.md) explains `on_interrupt`.
 
-### Example: Interruptions
+---
+
+## Stability and Limits
+
+The limits of this page are listed with those of the whole section, in [Stability and Limits](index.md#stability-and-limits) on the Resources page.
+
+---
+
+## Example: Interruptions
 
 The `interruptions` example: express orders preempt regular ones, and a fire drill at 60 seconds interrupts the order being packed; each resumes with the packing time it had left. It needs no Docker service and ends on its own after 120 simulation seconds.
 

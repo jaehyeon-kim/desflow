@@ -111,7 +111,15 @@ A task can also hand a unit to the next task of its flow with `keep`: the next t
 
 **One order of acquisition.** Two tasks that acquire the same two resources in opposite orders can each hold one and wait for ever for the other. desflow refuses such a model when it is built, naming both tasks: every task, `keep` handoffs and `request` branches of a wait included, must acquire shared resources in one order ([Wait for a Unit, an Item or Room](../../guides/wait-for-one-or-all.md#wait-for-a-unit-an-item-or-room)). [Competing Resources](../../tutorials/competing-resources.md) shows what a partial holding costs.
 
-### Example: Competing Resources
+---
+
+## Stability and Limits
+
+The limits of this page are listed with those of the whole section, in [Stability and Limits](index.md#stability-and-limits) on the Resources page.
+
+---
+
+## Example: Competing Resources
 
 The `competing-resources` example: orders keep the picker until they are on the bench, and gifts hold the picker and the bench together. It needs no Docker service and ends on its own after 120 simulation seconds.
 

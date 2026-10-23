@@ -8,6 +8,7 @@ is unpaced, and the whole file takes a few seconds.
 """
 
 import math
+from pathlib import Path
 
 from desflow import SimulationContext, replicate
 
@@ -135,7 +136,9 @@ def check(
 ) -> None:
     """Print a check, assert the formula lies in the interval and that the page's figures are right: the formula value, the mean and the half-width."""
     mean, half_width = measured
-    print(f"{label}: formula {theory:.2f} s, runs {mean:.2f} ± {half_width:.2f} s")
+    print(
+        f"{label}: formula {theory:.2f} s, mean of 10 runs {mean:.2f} ± {half_width:.2f} s"
+    )
     assert abs(mean - theory) <= half_width, label
     assert abs(theory - shown[0]) < 0.006, label
     assert abs(mean - shown[1]) < 0.006 and abs(half_width - shown[2]) < 0.006, label
@@ -162,19 +165,21 @@ if __name__ == "__main__":
     # --8<-- [start:formulas]
     for rho, exponential_wait in ((0.5, 1.5), (0.75, 4.5), (0.9, 13.5), (0.95, 28.5)):
         wait = mm1_wait(rho)
-        print(f"utilisation {rho}: M/M/1 {wait:5.2f} s, M/D/1 {wait / 2:5.2f} s")
+        print(
+            f"utilisation {rho}: mean wait M/M/1 {wait:5.2f} s, M/D/1 {wait / 2:5.2f} s"
+        )
         assert math.isclose(wait, exponential_wait)
         assert math.isclose(kingman_wait(rho, 1, 0), exponential_wait / 2)
     assert mm1_wait(0.95) > 2 * mm1_wait(
         0.9
     )  # from 0.9 to 0.95 the wait more than doubles
     one_packer = mm1_wait(0.8)
-    print(f"one packer at utilisation 0.8: {one_packer:.1f} s")
+    print(f"one packer at utilisation 0.8: mean wait {one_packer:.1f} s")
     assert math.isclose(one_packer, 6.0)
     three_packers = mmc_wait(
         3, 1.6
     )  # three packers at the same utilisation, 1.6 / (3 / 1.5)
-    print(f"three packers at utilisation 0.8: {three_packers:.2f} s")
+    print(f"three packers at utilisation 0.8: mean wait {three_packers:.2f} s")
     assert abs(three_packers - 1.62) < 0.005
     # --8<-- [end:formulas]
 
@@ -182,20 +187,20 @@ if __name__ == "__main__":
     for rho, figures in ((0.5, (1.50, 1.47, 0.06)), (0.75, (4.50, 4.46, 0.33))):
         arrival = exponential(SERVICE / rho)
         check(
-            f"M/M/1 at {rho}",
+            f"M/M/1 at utilisation {rho}",
             mm1_wait(rho),
             measured_wait(arrival, exponential(SERVICE), 1, 20_000),
             figures,
         )
     check(
-        "M/M/3 at 0.8",
+        "M/M/3 at utilisation 0.8",
         mmc_wait(3, 1.6),
         measured_wait(exponential(1 / 1.6), exponential(SERVICE), 3, 30_000),
         (1.62, 1.64, 0.06),
     )
     arrival = exponential(SERVICE / 0.75)
     check(
-        "M/D/1 at 0.75, Kingman",
+        "M/D/1 at utilisation 0.75, Kingman",
         kingman_wait(0.75, 1, 0),
         measured_wait(arrival, constant(SERVICE), 1, 20_000),
         (2.25, 2.23, 0.14),
@@ -206,7 +211,7 @@ if __name__ == "__main__":
     # The busy hour is M/D/3: exponential gaps (M), constant service (D), three packers.
     # The runs are compared with half the M/M/3 wait at this load.
     check(
-        "M/D/3 at 0.9, half the M/M/3 wait",
+        "M/D/3 at utilisation 0.9, half the M/M/3 wait",
         mmc_wait(3, 1.8) / 2,
         measured_wait(exponential(1 / 1.8), constant(SERVICE), 3, 20_000),
         (2.04, 2.05, 0.13),
@@ -219,9 +224,29 @@ if __name__ == "__main__":
     )
     kingman = kingman_wait(0.75, 0, 1)
     print(
-        f"D/M/1 at 0.75: Kingman {kingman:.2f} s, runs {mean:.2f} ± {half_width:.2f} s"
+        f"D/M/1 at utilisation 0.75: Kingman {kingman:.2f} s, mean of 10 runs {mean:.2f} ± {half_width:.2f} s"
     )
     # --8<-- [end:dm1]
     assert abs(kingman - 2.25) < 0.005
     assert abs(mean - 1.78) < 0.006 and abs(half_width - 0.09) < 0.006
     assert abs(mean - kingman) > half_width  # the approximation is outside the interval
+
+    # --8<-- [start:flow]
+    # Orders arrive at 1.6 a second, and a tenth of the checked orders go back to packing,
+    # so the rate into packing solves: rate = 1.6 + 0.1 x rate.
+    flow_rate = 1.6 / (1 - 0.1)
+    packers = flow_rate * 1.5 / 4  # four packers, 1.5 seconds an order
+    checker = flow_rate * 0.4  # one checker, 0.4 seconds an order on average
+    print(f"rate into packing and into checking: {flow_rate:.3f} orders a second")
+    print(f"utilisation: packers {packers:.3f}, checker {checker:.3f}")
+    # desflow explain works out the same figures from the blueprint
+    network = Path(__file__).parents[1] / "yaml" / "queues_network.yaml"
+    explanation = SimulationContext.from_yaml(str(network)).analyze()
+    print(f"desflow explain names the bottleneck: {explanation.bottleneck}")
+    # --8<-- [end:flow]
+    by_name = {r.name: r for r in explanation.resources}
+    assert abs(flow_rate - 1.778) < 0.0005
+    assert abs(packers - 0.667) < 0.0005 and abs(checker - 0.711) < 0.0005
+    assert math.isclose(by_name["packers"].utilization, packers)
+    assert math.isclose(by_name["checkers"].utilization, checker)
+    assert explanation.bottleneck == "checkers"

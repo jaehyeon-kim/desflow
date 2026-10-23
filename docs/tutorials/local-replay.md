@@ -87,18 +87,11 @@ Each row becomes one arrival at its time, and the fields named in `fields` becom
 
     `read_trace` reads and checks the rows; each `row` has its simulation `time`, its row `number` and its `fields`.
 
-The rows are read and checked when the run starts:
+The rows are read and checked when the run starts, by the rules that [Replay](../user-guide/arrivals-and-services.md#replay) lists. In the morning's file, times are given to a tenth of a second, so 74 rows have the same time as the row above them, and they arrive in the order of the file. The 19 orders after 10:00 are at or after `until`, so they never arrive. Row 501 has no time, and `on_invalid: skip` leaves it out with a warning:
 
-- **Rows must be in time order.** The first row out of order stops the run, named with its row number.
-- **Rows at equal times** arrive at that time in the order of the file. Times are recorded to a tenth of a second, so 74 rows of the recorded morning have the same time as the row above them.
-- **A row without a valid time** stops the run, unless `on_invalid` is `skip`: then it is left out with a warning. Row 501 of the recorded morning has no time:
-
-    ```text
-    Skipped row 501, which has no valid ordered_at: ''
-    ```
-
-- **A row before the start** of the run stops it; **rows at or after `until`** never arrive. The file holds 19 orders after 10:00, which this run leaves out.
-- **After the last row** the arrival stops, with one INFO line, and the run goes on until `until`.
+```text
+Skipped row 501, which has no valid ordered_at: ''
+```
 
 A Parquet file works the same way and needs the `parquet` extra.
 

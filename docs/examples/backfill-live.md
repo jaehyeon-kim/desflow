@@ -602,41 +602,7 @@ They are independent. `go_live_at` changes pacing only; it never routes a record
 
 ![From logical_start_time to go_live_at the run writes the backdated history to Parquet without waiting; from go_live_at to the end it streams records to Kafka in real time](../assets/diagrams/backfill-timeline.png)
 
-In the Builder version, the three settings make the run:
-
-```python title="examples/builder/backfill_live_example.py:builder"
-app = (
-    SimulationContext(
-        sim_id="Shop",
-        # Unpaced to begin with, so the history costs no real time.
-        factor=0.0,
-        random_seed=42,
-        logical_start_time=LOGICAL_START_TIME,
-        # From here the same run is paced at one simulated second per real second.
-        go_live_at=GO_LIVE_AT,
-    )
-    .add_egress(ParquetStorageEgress(path_router=history_router), when=is_history)
-    .add_egress(
-        KafkaEgress(
-            event_topic=EVENT_TOPIC,
-            telemetry_topic=TELEMETRY_TOPIC,
-            bootstrap_servers=BOOTSTRAP_SERVERS,
-        ),
-        when=is_live,
-    )
-    # Only batch_size governs the history. The interval flush is a simulation process,
-    # started only when factor is non-zero as the egress is set up, and this run starts
-    # at 0.0. It starts at go-live, so the live tail also flushes every 10 seconds.
-    .with_batching(batch_size=2000, flush_interval=10.0)
-    .add_resource("packers", current_cap=4, max_cap=10)
-    .add_service("packing", dist="normal", mean=2.0, std=0.2)
-    .add_arrival("orders", dist="exponential", rate=0.5)
-    # The packers' readings every 30 simulation seconds
-    .with_stats("minimal", interval=30.0)
-)
-```
-
-[Time and Pacing](../user-guide/time-and-pacing/index.md#how-it-works) describes how the switch is applied, and the cases where `go_live_at` is before the start or after the end of the run.
+The Builder tab above sets all three in the `SimulationContext` and its two `add_egress` calls. [Time and Pacing](../user-guide/time-and-pacing/index.md#how-it-works) describes how the switch is applied, and the cases where `go_live_at` is before the start or after the end of the run.
 
 ---
 
@@ -672,17 +638,4 @@ The two halves look different enough that the second can be mistaken for a hang.
 
 ## Low-level API
 
-`go_live_at` behaves identically on `DynamicRealtimeEnvironment`, alongside `logical_start_time`:
-
-```python title="docs/snippets/pages/backfill_live.py:low-level"
-go_live_at = datetime.now(timezone.utc)
-
-env = DynamicRealtimeEnvironment(
-    factor=0.0,
-    logical_start_time=go_live_at - timedelta(days=7),
-    go_live_at=go_live_at,
-    strict=False,  # a live run with a sink that blocks goes on
-)
-```
-
-`env.factor` reports `0.0` until the logical clock reaches `go_live_at`, and `1.0` afterwards.
+`go_live_at` behaves identically on `DynamicRealtimeEnvironment`, alongside `logical_start_time`, as the Low-level tab above shows. `env.factor` reports `0.0` until the logical clock reaches `go_live_at`, and `1.0` afterwards.

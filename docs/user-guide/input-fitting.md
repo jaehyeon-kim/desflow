@@ -80,7 +80,7 @@ The settings have six significant digits, the same numbers the YAML file holds, 
 
 ### How the Best Is Chosen
 
-The best is the fitted family with the lowest AIC among those that cannot draw outside `--lower` and `--upper`. When every value is the same, it is `constant`. When no family within the bounds fitted, it is `empirical`, which never draws outside the data's range. Only when there is no empirical candidate is a fitted family that can draw outside the bounds chosen. A family that is rejected, did not fit or was skipped is never chosen.
+The best is the fitted family with the lowest [AIC](../des/a-simulation-study.md#aic-and-the-ks-test) among those that cannot draw outside `--lower` and `--upper`. When every value is the same, it is `constant`. When no family within the bounds fitted, it is `empirical`, which never draws outside the data's range. Only when there is no empirical candidate is a fitted family that can draw outside the bounds chosen. A family that is rejected, did not fit or was skipped is never chosen.
 
 An AIC difference below about 2 does not tell two families apart. Check what the choice changes in the model's answer, as [Fit the Inputs](../tutorials/fit-the-inputs.md#does-the-choice-matter) does.
 
@@ -127,7 +127,47 @@ The command fails only when no candidate is usable, `empirical` included, which 
 
     `DistributionConfig(**result.settings())`, as the `fit` section above shows.
 
-### Example: Fitted Inputs
+---
+
+## How It Works
+
+**Data first.** The values are read, missing ones counted and left out, and invalid ones refused or, with `--drop-invalid`, counted and left out. They are converted to seconds. Then each family is checked against the data before it is fitted: enough values, positive values where the family needs them, and not a constant column.
+
+**Maximum likelihood, location at 0.** desflow's families have no location parameter: a gamma or a Weibull starts at 0. scipy can fit a location too, which moves the start of the distribution to wherever the data suggests: for the 40 packing times plus one outlier of 120 seconds, a free location puts a gamma's start at 0.70 seconds, the smallest value, with a shape of 0.21 and a scale of 81, which desflow cannot use. So the location of `exponential`, `gamma`, `weibull` and `lognormal` is fixed at 0, and each fit is converted to desflow's parameters:
+
+| Family | Fitted with | desflow's parameters |
+|---|---|---|
+| `exponential` | `scipy.stats.expon.fit(x, floc=0)` | `rate` = 1 ÷ scale |
+| `normal` | `scipy.stats.norm.fit(x)` | `mean`, `std` |
+| `lognormal` | `scipy.stats.lognorm.fit(x, floc=0)` | the variable's `mean` = scale × e^(s²/2) and `std` = mean × √(e^(s²) − 1) |
+| `truncated_normal` | the likelihood of `scipy.stats.truncnorm` with `low` fixed, maximised by `scipy.optimize.minimize` | `mean`, `std`, `low` |
+| `uniform` | `scipy.stats.uniform.fit(x)` | `low`, `high` |
+| `triangular` | `scipy.stats.triang.fit(x)` | `low`, `mode`, `high` |
+| `gamma` | `scipy.stats.gamma.fit(x, floc=0)` | `shape`, `scale` |
+| `weibull` | `scipy.stats.weibull_min.fit(x, floc=0)` | `shape`, `scale` |
+| `constant` | every value is the same | `value` |
+| `empirical` | the values, or `numpy.histogram` with `--bins` | `values`, or `edges` and `counts` |
+
+Each fit runs on its own, so one that fails is a row, not a crash.
+
+**Checks.** Every fitted result is checked before it can be chosen: each parameter must be finite and within the family's rules, the same rules a blueprint's distribution is checked against, and the family's mean and standard deviation, from desflow's own formulas, must be within `--tolerance` of the data's. A result that fails is `rejected` with the reason. Some bad fits pass these checks: the three values 1.0, 1.0000001 and 1.0000002 fitted to a gamma give a shape of 1.4 × 10¹⁴ and a scale of 7.1 × 10⁻¹⁵, with the right mean and spread, which is why `--min-count` exists.
+
+**Diagnostics.** For each fitted family: the log-likelihood of the data, AIC computed as 2k − 2 × log-likelihood, where k counts the fitted parameters (a fixed location does not count), and the [Kolmogorov-Smirnov statistic](../des/a-simulation-study.md#aic-and-the-ks-test) and p-value from `scipy.stats.kstest`. The p-value assumes the parameters were known in advance; they were estimated from the same data, so it is approximate and tends to be too high. `empirical` has no AIC.
+
+**Plot.** The generated values are drawn through desflow's `Sampler`, seeded, with the same smallest delay a run applies, so the plot shows what a run draws and repeats exactly.
+
+---
+
+## Stability and Limits
+
+- **Size of the extra.** Measured in new Python 3.12 environments on macOS, scipy 1.18.1 takes about 70 MB installed with uv and about 100 MB with pip, which also compiles bytecode, and 20 to 37 MB to download, depending on the platform. matplotlib and its dependencies, beyond the NumPy desflow already needs, add about 55 MB with uv and about 70 MB with pip. That is why fitting is not in the base install.
+- **Local files only.** The command reads a CSV file. Reading from a database or an object store, and automated selection beyond the lowest AIC, come later.
+- **A fit is not a validation.** A family that fits the data well can still change the model's answer, and a model whose inputs fit can still answer the question badly. Compare the model's output with the real system's, as [Experiment Results](experiments/experiment-results.md#compare-with-observed-values) does.
+- **One column at a time.** Each column is fitted on its own, so a dependence between two inputs, such as larger orders taking longer to pack, is not captured.
+
+---
+
+## Example: Fitted Inputs
 
 The `fitting` example fits the 40 packing times of the tutorials and runs one hour of a two-packer shop with the fitted packing time. It needs no Docker service and ends on its own.
 
@@ -248,41 +288,3 @@ The `fitting` example fits the 40 packing times of the tutorials and runs one ho
         ```
 
     The whole file is [`examples/low-level/fitting_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/fitting_example.py).
-
----
-
-## How It Works
-
-**Data first.** The values are read, missing ones counted and left out, and invalid ones refused or, with `--drop-invalid`, counted and left out. They are converted to seconds. Then each family is checked against the data before it is fitted: enough values, positive values where the family needs them, and not a constant column.
-
-**Maximum likelihood, location at 0.** desflow's families have no location parameter: a gamma or a Weibull starts at 0. scipy can fit a location too, which moves the start of the distribution to wherever the data suggests: for the 40 packing times plus one outlier of 120 seconds, a free location puts a gamma's start at 0.70 seconds, the smallest value, with a shape of 0.21 and a scale of 81, which desflow cannot use. So the location of `exponential`, `gamma`, `weibull` and `lognormal` is fixed at 0, and each fit is converted to desflow's parameters:
-
-| Family | Fitted with | desflow's parameters |
-|---|---|---|
-| `exponential` | `scipy.stats.expon.fit(x, floc=0)` | `rate` = 1 ÷ scale |
-| `normal` | `scipy.stats.norm.fit(x)` | `mean`, `std` |
-| `lognormal` | `scipy.stats.lognorm.fit(x, floc=0)` | the variable's `mean` = scale × e^(s²/2) and `std` = mean × √(e^(s²) − 1) |
-| `truncated_normal` | the likelihood of `scipy.stats.truncnorm` with `low` fixed, maximised by `scipy.optimize.minimize` | `mean`, `std`, `low` |
-| `uniform` | `scipy.stats.uniform.fit(x)` | `low`, `high` |
-| `triangular` | `scipy.stats.triang.fit(x)` | `low`, `mode`, `high` |
-| `gamma` | `scipy.stats.gamma.fit(x, floc=0)` | `shape`, `scale` |
-| `weibull` | `scipy.stats.weibull_min.fit(x, floc=0)` | `shape`, `scale` |
-| `constant` | every value is the same | `value` |
-| `empirical` | the values, or `numpy.histogram` with `--bins` | `values`, or `edges` and `counts` |
-
-Each fit runs on its own, so one that fails is a row, not a crash.
-
-**Checks.** Every fitted result is checked before it can be chosen: each parameter must be finite and within the family's rules, the same rules a blueprint's distribution is checked against, and the family's mean and standard deviation, from desflow's own formulas, must be within `--tolerance` of the data's. A result that fails is `rejected` with the reason. Some bad fits pass these checks: the three values 1.0, 1.0000001 and 1.0000002 fitted to a gamma give a shape of 1.4 × 10¹⁴ and a scale of 7.1 × 10⁻¹⁵, with the right mean and spread, which is why `--min-count` exists.
-
-**Diagnostics.** For each fitted family: the log-likelihood of the data, AIC computed as 2k − 2 × log-likelihood, where k counts the fitted parameters (a fixed location does not count), and the Kolmogorov-Smirnov statistic and p-value from `scipy.stats.kstest`. The p-value assumes the parameters were known in advance; they were estimated from the same data, so it is approximate and tends to be too high. `empirical` has no AIC.
-
-**Plot.** The generated values are drawn through desflow's `Sampler`, seeded, with the same smallest delay a run applies, so the plot shows what a run draws and repeats exactly.
-
----
-
-## Stability and Limits
-
-- **Size of the extra.** Measured in new Python 3.12 environments on macOS, scipy 1.18.1 takes about 70 MB installed with uv and about 100 MB with pip, which also compiles bytecode, and 20 to 37 MB to download, depending on the platform. matplotlib and its dependencies, beyond the NumPy desflow already needs, add about 55 MB with uv and about 70 MB with pip. That is why fitting is not in the base install.
-- **Local files only.** The command reads a CSV file. Reading from a database or an object store, and automated selection beyond the lowest AIC, come later.
-- **A fit is not a validation.** A family that fits the data well can still change the model's answer, and a model whose inputs fit can still answer the question badly. Compare the model's output with the real system's, as [Experiment Results](experiments/experiment-results.md#compare-with-observed-values) does.
-- **One column at a time.** Each column is fitted on its own, so a dependence between two inputs, such as larger orders taking longer to pack, is not captured.

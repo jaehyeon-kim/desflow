@@ -108,7 +108,7 @@ The last two lines are the service in a blueprint and in the builder. The variab
 
 ## Same Mean, Different Waits
 
-All four candidates have the same mean, so the packers are equally busy with each: utilisation 0.9. Run the hour with each, and read the mean wait from the statistics at the `typical` level, which [Measuring a Run](measuring-a-run.md) explains:
+All four candidates have the same mean, so the packers are equally busy with each: [utilisation](../des/queueing-basics.md#utilisation) 0.9. Run the hour with each, and read the mean wait from the statistics at the `typical` level, which [Measuring a Run](measuring-a-run.md) explains:
 
 === "YAML"
 

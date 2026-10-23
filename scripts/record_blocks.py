@@ -21,6 +21,7 @@ Usage:
 
 import ast
 import contextlib
+import functools
 import importlib.util
 import logging
 import os
@@ -175,16 +176,6 @@ def queues_overload() -> List[str]:
     """Queues and Capacity: the hints for deliberate overload."""
     lines = _explain("docs/snippets/yaml/queues_and_capacity.yaml", "--target", "1.2")
     return _from(lines, "Hints for")
-
-
-def queues_rush() -> List[str]:
-    """Queues and Capacity: the packers' queue every 5 minutes, with a rush at 10."""
-    lines = _command("run", "docs/snippets/yaml/queues_overload.yaml", "--stdout")
-    return [
-        re.sub(r'"timestamp":"[^"]*"', '"timestamp":"..."', line)
-        for line in lines
-        if "packers.queue_length" in line
-    ]
 
 
 def checking_explain() -> List[str]:
@@ -534,6 +525,17 @@ def resources_printed() -> List[str]:
     return _script_output("docs/snippets/pages/resources.py")
 
 
+@functools.lru_cache(maxsize=None)
+def _queueing() -> List[str]:
+    """What the Queueing Basics snippet prints, run once for all of its blocks."""
+    return _script_output("docs/snippets/pages/queueing_basics.py")
+
+
+def _queueing_lines(start: int, end: int) -> Callable[[], List[str]]:
+    """Queueing Basics: the printed lines from `start` up to `end`, for one block."""
+    return lambda: _queueing()[start:end]
+
+
 def holder_readings() -> List[str]:
     """Stores and Containers: the readings before and after the stock count."""
     lines = _yaml("docs/snippets/yaml/stores_containers.yaml")
@@ -673,6 +675,14 @@ BLOCKS: Dict[str, Callable[[], List[str]]] = {
     "refused-expressions": refused_expressions,
     "holder-readings": holder_readings,
     "resources-printed": resources_printed,
+    "queueing-little": _queueing_lines(0, 3),
+    "queueing-utilisation": _queueing_lines(3, 4),
+    "queueing-formulas": _queueing_lines(4, 8),
+    "queueing-packers": _queueing_lines(8, 10),
+    "queueing-checks": _queueing_lines(10, 14),
+    "queueing-kendall": _queueing_lines(14, 15),
+    "queueing-dm1": _queueing_lines(15, 16),
+    "queueing-flow": _queueing_lines(16, 19),
     "task-events": task_events,
     "invalid-parameters": invalid_parameters,
     "refused-update": refused_update,
@@ -695,7 +705,6 @@ BLOCKS: Dict[str, Callable[[], List[str]]] = {
     "queues-explain": queues_explain,
     "queues-network": queues_network,
     "queues-overload": queues_overload,
-    "queues-rush": queues_rush,
     "checking-explain": checking_explain,
     "complete-fit": complete_fit,
     "complete-explain": complete_explain,

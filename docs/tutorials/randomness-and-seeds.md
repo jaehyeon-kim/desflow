@@ -34,7 +34,7 @@ desflow never runs without a seed. When you give none, it draws one, uses it, an
 
 === "Low-level"
 
-    The low-level API never draws a seed for you: you pass one to `Sampler`. A `Sampler()` with no seed draws nothing at random, and every sample is the distribution's mean (for a `truncated_normal`, its `mean` or its `low`, whichever is higher), which suits a test that needs fixed times. To start from a new seed each run, draw one yourself, for example with `secrets.randbelow(2**32)`, and print it.
+    The low-level API never draws a seed for you: you pass one to `Sampler`. A `Sampler()` with no seed draws nothing at random, as [Arrivals and Services](../user-guide/arrivals-and-services.md#how-it-works) explains. To start from a new seed each run, draw one yourself, for example with `secrets.randbelow(2**32)`, and print it.
 
 ---
 

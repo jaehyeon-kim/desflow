@@ -106,7 +106,7 @@ class Trial:
         return [Model(run).run() for run in range(G.runs)]
 ```
 
-In desflow this loop is `replicate`. It runs the model `n` times, gives each run its own seed spawned from one seed, reads the statistics at the end of each run, and returns the interval for each measure you name. You do not write the loop, the seeding or the interval. [Replications](../user-guide/replications.md) explains the options, and [Trusting Results](../tutorials/trusting-results.md) uses it on the shop.
+In desflow this loop is `replicate`. It runs the model `n` times, gives each run its own seed spawned from one seed, reads the statistics at the end of each run, and returns the [interval](output-analysis.md#interval-and-half-width) for each measure you name. You do not write the loop, the seeding or the interval. [Replications](../user-guide/replications.md) explains the options, and [Trusting Results](../tutorials/trusting-results.md) uses it on the shop.
 
 ---
 

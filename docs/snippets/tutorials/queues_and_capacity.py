@@ -3,7 +3,7 @@
 Orders arrive at 1.8 a second and each takes 1.5 seconds to pack. `explain` prints
 what `desflow explain` prints for the shop. The script runs the hour once for each
 number of packers, unpaced, and prints the mean wait of each run. `network` is the
-shop with a checker and rework, and `rush` the half hour that a rush overloads.
+shop with a checker and rework.
 """
 
 from desflow import SimulationContext
@@ -74,26 +74,6 @@ def network() -> SimulationContext:
 
     # print(render_terminal(app.analyze())) prints what desflow explain prints
     # --8<-- [end:network]
-    return app
-
-
-def rush() -> SimulationContext:
-    """Three packers keep up with 1.8 orders a second until a rush at 10 minutes."""
-    app = SimulationContext(sim_id="Shop", factor=0, random_seed=42)
-    app.add_service("packing", dist="constant", value=1.5)
-    app.add_arrival("orders", dist="exponential", rate=1.8, spawn="pack_order")
-    app.add_resource("packers", current_cap=3, max_cap=10)
-    # --8<-- [start:rush]
-    # The rush: 2.4 orders a second from 10 minutes, utilisation 2.4 x 1.5 / 3 = 1.2
-    app.add_step(at=600, path="Shop.arrival.orders.rate", value=2.4)
-    # The queue length, published every 5 minutes
-    app.with_stats("minimal", interval=300)
-    # --8<-- [end:rush]
-
-    @app.task(service_id="packing", resource_id="packers")
-    def pack_order(task_id):
-        return {"event_type": "order_packed"}
-
     return app
 
 

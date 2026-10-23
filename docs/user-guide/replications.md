@@ -1,6 +1,6 @@
 # Replications
 
-One run of a model is one sample: another seed draws other times and gives other values. Replications run the same model with many seeds and summarise each built-in statistic with a mean and a confidence interval. This page shows how to run them from the command line and from Python, in each of the three ways to write a model, what they return and send to the sinks, and how the seeds and intervals are made.
+One run of a model is one sample: another seed draws other times and gives other values. [Replications](../des/output-analysis.md#replications) run the same model with many seeds and summarise each built-in statistic with a mean and a [confidence interval](../des/output-analysis.md#interval-and-half-width). This page shows how to run them from the command line and from Python, in each of the three ways to write a model, what they return and send to the sinks, and how the seeds and intervals are made.
 
 ---
 
@@ -103,7 +103,7 @@ Three replications give a wide interval; [Trusting Results](../tutorials/trustin
 
 ### Repeat One Replication
 
-Each replication's seed is a plain integer, recorded in `seeds` and in every row of the table, so any replication repeats on its own: `desflow run shop.yaml --seed <its seed>`, `random_seed` in a builder context, or `Sampler(seed=...)` in the low-level API, with the same end time, drain and warm-up. That run publishes its event records, which replications do not.
+Each replication's seed is a plain integer, recorded in `seeds` and in every row of the table, so any replication repeats on its own: `desflow run shop.yaml --seed <its seed>`, `random_seed` in a builder context, or `Sampler(seed=...)` in the low-level API, with the same end time, drain and [warm-up](../des/output-analysis.md#one-run-starts-empty). That run publishes its event records, which replications do not.
 
 ### What the Sinks Receive
 
@@ -127,7 +127,33 @@ When the model has sinks, a blueprint's `egress` or a builder's `add_egress`, th
 
 [Records and Telemetry](../reference/records-and-telemetry.md#telemetry-names) lists the names.
 
-### Example: Replications
+---
+
+## How It Works
+
+**Seeds.** The replications' seeds are `numpy.random.SeedSequence(seed).spawn(n)`, each turned into one plain integer. The same seed gives the same list, and a longer list starts with the shorter one, so 40 replications begin with the 10 that `n=10` runs. Within a replication each distribution draws from a random sequence of its own, as in any run ([Randomness and Seeds](../tutorials/randomness-and-seeds.md)).
+
+**One replication.** Each replication builds the model again: it reads the blueprint, calls the factory, or calls the low-level function with a new environment and sampler. It runs unpaced, at `factor` 0, with no ingress, no egress and no statistics timer, applies the warm-up and the `overrides` before the clock starts, and reads `env.stats.readings()` at its end. A blueprint's `run.before` functions run once per replication, and once more when the model has sinks, for the build that sends them the result.
+
+**Intervals.** The half-width is t × s ÷ √n, where s is the sample standard deviation of the n values and t the Student t quantile at (1 + level) ÷ 2 with n − 1 degrees of freedom. desflow computes the quantile itself, from the t distribution's cumulative probability by bisection, so replications need nothing beyond a base install; the tests check it against a published table.
+
+**Workers.** With `workers` above 1, replications run in a pool of that many processes. Each process imports the model, so it must be a blueprint path or a function defined at the top of a module; a lambda or a function defined inside another function is refused with that reason. The values are the same as with one worker.
+
+**Sinks.** When the model has sinks, it is built once more after the last replication, with its sinks but without its ingress and with the clock at the end time, and is not run. Its own statistics are switched off, so the sinks receive only the result. A model without sinks is not built again.
+
+---
+
+## Stability and Limits
+
+- **No event records.** Replications send no event records: twenty streams of orders with different seeds in one sink could not be told apart. Repeat one replication with its seed to get its records.
+- **Independent seeds only.** Every replication of one call has its own seed. Comparing two designs with the same seeds, and checking that their random streams line up, is an experiment's job ([Experiments](experiments/index.md)).
+- **Same model each time.** A builder factory must return a new context on every call; a context that has run keeps its entity counters and is not a new replication.
+- **Built-in statistics only.** A replication summarises the built-in statistics at its end. Readings of your own, published with `context.publish`, are not summarised.
+- **Steady state and terminating runs.** The warm-up applies to each replication. A run with a natural start and end, such as a shop day, keeps its empty start and needs no warm-up. [Output Analysis](../des/output-analysis.md#terminating-or-steady-state) explains the two kinds of run.
+
+---
+
+## Example: Replications
 
 The `replications` example runs one hour of the shop 20 times, with seeds spawned from 42 and a 3-minute warm-up, and prints the mean and half-width of every statistic up to `typical`. It needs no Docker service and ends on its own.
 
@@ -261,27 +287,3 @@ The `replications` example runs one hour of the shop 20 times, with seeds spawne
     ```
 
     The whole file is [`examples/low-level/replications_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/replications_example.py).
-
----
-
-## How It Works
-
-**Seeds.** The replications' seeds are `numpy.random.SeedSequence(seed).spawn(n)`, each turned into one plain integer. The same seed gives the same list, and a longer list starts with the shorter one, so 40 replications begin with the 10 that `n=10` runs. Within a replication each distribution draws from a random sequence of its own, as in any run ([Randomness and Seeds](../tutorials/randomness-and-seeds.md)).
-
-**One replication.** Each replication builds the model again: it reads the blueprint, calls the factory, or calls the low-level function with a new environment and sampler. It runs unpaced, at `factor` 0, with no ingress, no egress and no statistics timer, applies the warm-up and the `overrides` before the clock starts, and reads `env.stats.readings()` at its end. A blueprint's `run.before` functions run once per replication, and once more when the model has sinks, for the build that sends them the result.
-
-**Intervals.** The half-width is t × s ÷ √n, where s is the sample standard deviation of the n values and t the Student t quantile at (1 + level) ÷ 2 with n − 1 degrees of freedom. desflow computes the quantile itself, from the t distribution's cumulative probability by bisection, so replications need nothing beyond a base install; the tests check it against a published table.
-
-**Workers.** With `workers` above 1, replications run in a pool of that many processes. Each process imports the model, so it must be a blueprint path or a function defined at the top of a module; a lambda or a function defined inside another function is refused with that reason. The values are the same as with one worker.
-
-**Sinks.** When the model has sinks, it is built once more after the last replication, with its sinks but without its ingress and with the clock at the end time, and is not run. Its own statistics are switched off, so the sinks receive only the result. A model without sinks is not built again.
-
----
-
-## Stability and Limits
-
-- **No event records.** Replications send no event records: twenty streams of orders with different seeds in one sink could not be told apart. Repeat one replication with its seed to get its records.
-- **Independent seeds only.** Every replication of one call has its own seed. Comparing two designs with the same seeds, and checking that their random streams line up, is an experiment's job ([Experiments](experiments/index.md)).
-- **Same model each time.** A builder factory must return a new context on every call; a context that has run keeps its entity counters and is not a new replication.
-- **Built-in statistics only.** A replication summarises the built-in statistics at its end. Readings of your own, published with `context.publish`, are not summarised.
-- **Steady state and terminating runs.** The warm-up applies to each replication. A run with a natural start and end, such as a shop day, keeps its empty start and needs no warm-up.

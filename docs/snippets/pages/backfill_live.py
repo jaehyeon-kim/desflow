@@ -33,7 +33,6 @@ app.add_egress(parquet, when=is_history, batch_size=200_000)
 app.add_egress(kafka, when=is_live, batch_size=500, flush_interval=1.0)
 # --8<-- [end:per-sink]
 
-# --8<-- [start:low-level]
 go_live_at = datetime.now(timezone.utc)
 
 env = DynamicRealtimeEnvironment(
@@ -42,7 +41,6 @@ env = DynamicRealtimeEnvironment(
     go_live_at=go_live_at,
     strict=False,  # a live run with a sink that blocks goes on
 )
-# --8<-- [end:low-level]
 
 if __name__ == "__main__":
     # Until the logical clock reaches go_live_at, the run is unpaced.

@@ -53,7 +53,15 @@ A process runs alongside the tasks. This one sends the packers on a 5-second bre
 
 Setting `current_cap` to 0 stops new work but not the work in progress: [Resources](../resources/index.md) explains what happens to busy units when a capacity drops.
 
-### Example: Process Interaction
+---
+
+## Stability and Limits
+
+The limits of this page are listed with those of the whole section, in [Stability and Limits](index.md#stability-and-limits) on the Tasks and Processes page.
+
+---
+
+## Example: Process Interaction
 
 The `process-interaction` example puts these together: a child flow, a failure that `on_fail` handles, and orders that wait for a courier's signal or a time limit. It needs no Docker service and ends on its own after 300 simulation seconds.
 

@@ -208,7 +208,54 @@ def inspect_return(task_id: int):
     return {"ok": False}
 ```
 
-### Example: A Flow of Tasks
+---
+
+## How It Works
+
+**Conditions.** A condition is a Python expression, parsed with Python's `ast` module and checked against a list of what is allowed before it is ever evaluated; nothing goes through `eval`. It may use:
+
+- numbers, `True` and `False`, and the arithmetic `+`, `-`, `*`, `/`, `//` and `%`;
+- the comparisons `<`, `<=`, `>`, `>=`, `==` and `!=`, strings compared with `==` or `!=`, and `in` and `not in` with `items(<store>)` on the right;
+- `and`, `or`, `not`, and the conditional form `a if c else b`;
+- names with their source as a prefix: `payload.<field>`, `attr.<name>`, `level.<name>`, `users.<name>` (how many units of a resource are held), `queue.<name>` (how many requests wait for it, [Resources](resources/index.md#read-the-queue-and-users)), `putters.<name>` and `getters.<name>` (how many puts and gets wait at a store or container), `count(<store>)` and `items(<store>)` (how many items a store holds, and the list of them; [Stores and Containers](stores-and-containers.md#registry-paths-readings-and-conditions)), `item.<field>` (the item the task's store `get` took, [Stores and Containers](stores-and-containers.md#pick-an-item-or-give-up-waiting)), `wait.<branch>.done`, `.ok` and `.value` (the task's wait) and `signal.<name>.count`, `.ok` and `.value` ([Signals and Waiting](tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows)), `process.<name>`, `.instance` and `.target` ([Tasks and Processes](tasks-and-processes/index.md#processes-and-the-low-level-api)), and `registry["<path>"]`;
+- `t`, the simulation time in seconds.
+
+A name carries its source so that adding a payload field cannot change what an attribute of the same name means, and so registry paths, which contain dots, can be written whole. Anything else is refused with a message that names it:
+
+```python title="docs/snippets/pages/task_flow.py:refused"
+for text in ("payload.total ** 2", "x > 1", "open('orders.csv')"):
+    try:
+        Expression(text)
+    except ValueError as error:
+        print(error)
+```
+
+<!-- records: refused-expressions -->
+```text
+'payload.total ** 2' uses the operator Pow, which an expression cannot
+'x > 1' uses the name 'x' (write payload.<field>, attr.<name>, level.<name>, users.<name>, queue.<name>, putters.<name>, getters.<name>, item.<field>, count(<store>), items(<store>), wait.<branch>.<part>, signal.<name>.<part>, process.<name>, registry["<path>"] or t), which an expression cannot
+'open('orders.csv')' uses a Call other than count(<store>) or items(<store>), which an expression cannot
+```
+
+A blueprint is checked when it loads: every condition parses, every task a rule names exists, every `level.<name>` names a store or container, every `users.<name>` and `queue.<name>` names a resource, every `putters.<name>` and `getters.<name>` a store or container, every `count(...)` and `items(...)` a store, and every `registry["..."]` is a path of the model, each with its YAML line. The builder makes the same checks when `run()` starts. A name that is missing when a condition is evaluated, such as a payload field, raises an error naming the expression.
+
+**Weights.** The weights are turned into cumulative shares once. Each choice draws one uniform number from the routing task's stream and picks the task whose share it falls in.
+
+**Starting the Next Task.** When a task finishes, it applies `set`, builds the `Upstream`, asks its rules for the next task and starts it as a new SimPy process, with the same entity and the next instance id from the task's counter. An arrival that spawns the task uses the same counter, so no two runs of a task share an id. In SimPy terms, one process starting the next is the whole mechanism; [SimPy and desflow](../des/simpy-and-desflow.md) describes processes.
+
+---
+
+## Stability and Limits
+
+- **Flow balance.** The rate into each task follows from the rates into the tasks before it and the routing shares. With weights 9 to 1 back to packing, each order is packed 1 ÷ 0.9 = 1.11 times on average, so the packers see 11% more work than there are orders.
+- **Rework raises utilisation.** Work the load out with the rework included, as [Queues and Capacity](../tutorials/queues-and-capacity.md) does, or a rework loop can push a resource past full use. [Queueing Basics](../des/queueing-basics.md#utilisation) explains utilisation.
+- **Refused expressions.** `**`, function calls, indexing other than `registry["..."]`, list and dictionary literals, and bare names other than `t` are refused.
+- **One entity, one flow.** A task leads to at most one next task; splitting one order into several, or joining several into one, comes after 1.0.
+- **`decide` is kept free.** The task key `decide` is kept for decisions sent from outside for one entity, planned after 1.0; today it is refused like any unknown key.
+
+---
+
+## Example: A Flow of Tasks
 
 The `flow` example: orders are picked, gift orders are wrapped, one parcel in ten is packed again, and every order is shipped. Wrapping and shipping are timed steps. It needs no Docker service and ends on its own.
 
@@ -390,48 +437,3 @@ The `flow` example: orders are picked, gift orders are wrapped, one parcel in te
     ```
 
     The whole file is [`examples/low-level/flow_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/flow_example.py).
-
----
-
-## How It Works
-
-**Conditions.** A condition is a Python expression, parsed with Python's `ast` module and checked against a list of what is allowed before it is ever evaluated; nothing goes through `eval`. It may use:
-
-- numbers, `True` and `False`, and the arithmetic `+`, `-`, `*`, `/`, `//` and `%`;
-- the comparisons `<`, `<=`, `>`, `>=`, `==` and `!=`, strings compared with `==` or `!=`, and `in` and `not in` with `items(<store>)` on the right;
-- `and`, `or`, `not`, and the conditional form `a if c else b`;
-- names with their source as a prefix: `payload.<field>`, `attr.<name>`, `level.<name>`, `users.<name>` (how many units of a resource are held), `queue.<name>` (how many requests wait for it, [Resources](resources/index.md#read-the-queue-and-users)), `putters.<name>` and `getters.<name>` (how many puts and gets wait at a store or container), `count(<store>)` and `items(<store>)` (how many items a store holds, and the list of them; [Stores and Containers](stores-and-containers.md#registry-paths-readings-and-conditions)), `item.<field>` (the item the task's store `get` took, [Stores and Containers](stores-and-containers.md#pick-an-item-or-give-up-waiting)), `wait.<branch>.done`, `.ok` and `.value` (the task's wait) and `signal.<name>.count`, `.ok` and `.value` ([Signals and Waiting](tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows)), `process.<name>`, `.instance` and `.target` ([Tasks and Processes](tasks-and-processes/index.md#processes-and-the-low-level-api)), and `registry["<path>"]`;
-- `t`, the simulation time in seconds.
-
-A name carries its source so that adding a payload field cannot change what an attribute of the same name means, and so registry paths, which contain dots, can be written whole. Anything else is refused with a message that names it:
-
-```python title="docs/snippets/pages/task_flow.py:refused"
-for text in ("payload.total ** 2", "x > 1", "open('orders.csv')"):
-    try:
-        Expression(text)
-    except ValueError as error:
-        print(error)
-```
-
-<!-- records: refused-expressions -->
-```text
-'payload.total ** 2' uses the operator Pow, which an expression cannot
-'x > 1' uses the name 'x' (write payload.<field>, attr.<name>, level.<name>, users.<name>, queue.<name>, putters.<name>, getters.<name>, item.<field>, count(<store>), items(<store>), wait.<branch>.<part>, signal.<name>.<part>, process.<name>, registry["<path>"] or t), which an expression cannot
-'open('orders.csv')' uses a Call other than count(<store>) or items(<store>), which an expression cannot
-```
-
-A blueprint is checked when it loads: every condition parses, every task a rule names exists, every `level.<name>` names a store or container, every `users.<name>` and `queue.<name>` names a resource, every `putters.<name>` and `getters.<name>` a store or container, every `count(...)` and `items(...)` a store, and every `registry["..."]` is a path of the model, each with its YAML line. The builder makes the same checks when `run()` starts. A name that is missing when a condition is evaluated, such as a payload field, raises an error naming the expression.
-
-**Weights.** The weights are turned into cumulative shares once. Each choice draws one uniform number from the routing task's stream and picks the task whose share it falls in.
-
-**Starting the Next Task.** When a task finishes, it applies `set`, builds the `Upstream`, asks its rules for the next task and starts it as a new SimPy process, with the same entity and the next instance id from the task's counter. An arrival that spawns the task uses the same counter, so no two runs of a task share an id. In SimPy terms, one process starting the next is the whole mechanism; [SimPy and desflow](../des/simpy-and-desflow.md) describes processes.
-
----
-
-## Stability and Limits
-
-- **Flow balance.** The rate into each task follows from the rates into the tasks before it and the routing shares. With weights 9 to 1 back to packing, each order is packed 1 ÷ 0.9 = 1.11 times on average, so the packers see 11% more work than there are orders.
-- **Rework raises utilisation.** Work the load out with the rework included, as [Queues and Capacity](../tutorials/queues-and-capacity.md) does, or a rework loop can push a resource past full use.
-- **Refused expressions.** `**`, function calls, indexing other than `registry["..."]`, list and dictionary literals, and bare names other than `t` are refused.
-- **One entity, one flow.** A task leads to at most one next task; splitting one order into several, or joining several into one, comes after 1.0.
-- **`decide` is kept free.** The task key `decide` is kept for decisions sent from outside for one entity, planned after 1.0; today it is refused like any unknown key.

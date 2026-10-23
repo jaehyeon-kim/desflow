@@ -2,7 +2,7 @@
 
 **Realistic event streams from a simulation you can steer while it runs.**
 
-> **dynamic-des is now desflow.** The package was renamed in 0.20.0: install `desflow`, import `desflow` and run `desflow`. Code that imports `dynamic_des` and scripts that run `ddes` keep working with a warning until 0.30.0, and the [Changelog](about/changelog.md) says what to change.
+> **dynamic-des is now desflow.** [Installation](getting-started.md#install-the-package) says what the rename changes.
 
 Most test data generators write random rows. desflow writes the events of a working process: orders queue for packers, packing slows down at busy times, and a backlog builds when arrivals outpace capacity. The data has the cause and effect of a real system, because it comes from a [SimPy](https://simpy.readthedocs.io/) discrete-event simulation.
 

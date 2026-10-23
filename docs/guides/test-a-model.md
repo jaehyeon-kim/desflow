@@ -1,6 +1,6 @@
 # Test a Model
 
-Write tests for a model that run with pytest and fail when a change breaks it: a functional test of what the model does when an input changes, a unit test of one component on its own, and a back test against results saved from an earlier run. It builds on [Checking a Model](../tutorials/checking-a-model.md), which checks the shop by hand, against observed values and against Little's law, and on [Checking and Validating](../des/checking-and-validating.md), which says what each check proves. The three kinds of test follow the [Tests chapter](https://des.hsma.co.uk/tests.html) of the HSMA book on discrete event simulation. You need pytest: `pip install pytest`.
+Write tests for a model that run with pytest and fail when a change breaks it: a functional test of what the model does when an input changes, a unit test of one component on its own, and a back test against results saved from an earlier run. It builds on [Checking a Model](../tutorials/checking-a-model.md), which checks the shop by hand, against observed values and against [Little's law](../des/queueing-basics.md#littles-law), and on [Checking and Validating](../des/checking-and-validating.md), which says what each check proves. The three kinds of test follow the [Tests chapter](https://des.hsma.co.uk/tests.html) of the HSMA book on discrete event simulation. You need pytest: `pip install pytest`.
 
 ---
 

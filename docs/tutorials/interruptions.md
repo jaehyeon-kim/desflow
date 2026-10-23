@@ -221,54 +221,7 @@ Preemption is one source of interrupts; a model can send others. An `interrupt` 
 
 ## A Breakdown
 
-A machine that fails interrupts the work it was doing in the same way. A resource's `breakdown` makes it fail at random times and be repaired: here a packing station fails about once a minute and takes 5 to 15 seconds to repair:
-
-=== "YAML"
-
-    ```yaml title="examples/yaml/breakdowns.yaml:station"
-    resources:
-      station:
-        current_cap: 2
-        max_cap: 3
-        breakdown:
-          # Calendar time from a repair, or the start, to the next failure.
-          time_to_failure: {dist: exponential, rate: 0.0167}
-          repair: {dist: uniform, low: 5 s, high: 15 s}
-          # The orders being packed are interrupted, and follow their on_interrupt.
-          work: interrupt
-    ```
-
-=== "Builder"
-
-    ```python title="examples/builder/breakdowns_example.py:station"
-    .add_resource("station", current_cap=2, max_cap=3)
-    .add_breakdown(
-        "station",
-        # Calendar time from a repair, or the start, to the next failure
-        time_to_failure={"dist": "exponential", "rate": 0.0167},
-        repair={"dist": "uniform", "low": 5, "high": 15},
-        # The orders being packed are interrupted, and follow their on_interrupt
-        work="interrupt",
-    )
-    ```
-
-=== "Low-level"
-
-    ```python title="examples/low-level/breakdowns_example.py:station"
-    breakdowns={
-        "station": BreakdownConfig(
-            # Calendar time from a repair, or the start, to the next failure
-            time_to_failure=DistributionConfig(dist="exponential", rate=0.0167),
-            repair=DistributionConfig(dist="uniform", low=5, high=15),
-            # The orders being packed are interrupted
-            work="interrupt",
-        )
-    },
-    ```
-
-    `run_breakdowns(env, station, sampler)` is the SimPy process that puts the station down and repairs it.
-
-With `work: interrupt`, each order being packed when the station fails receives an interrupt whose cause is `breakdown` and follows its `on_interrupt`, as a preempted order does. During the repair the station's **effective capacity** is 0, so no order starts, while its `current_cap` keeps the planned value; a change to it during the repair sets the capacity the station returns to. With `work: finish`, the orders being packed finish, and only new work waits for the repair. [Breakdowns](../guides/breakdowns.md) checks the downtime of the example.
+A machine that fails interrupts the work it was doing in the same way, and each order being packed follows its `on_interrupt`, as [Breakdowns](../guides/breakdowns.md) shows.
 
 ---
 

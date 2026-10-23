@@ -1,6 +1,6 @@
 # Comparing Designs
 
-[Trusting Results](trusting-results.md) measured the busy hour with three packers: over 40 replications the mean wait was 2.32 ± 0.20 seconds. The shop could hire a fourth packer. This page asks: **does a fourth packer cut the mean wait, and by how much?** It runs both designs as an experiment, with the same seeds, and compares them seed by seed.
+[Trusting Results](trusting-results.md) measured the busy hour with three packers: over 40 [replications](../des/output-analysis.md#replications) the mean wait was 2.32 ± 0.20 seconds. The shop could hire a fourth packer. This page asks: **does a fourth packer cut the mean wait, and by how much?** It runs both designs as an experiment, with the same seeds, and compares them seed by seed.
 
 ## What You Add
 
@@ -47,7 +47,7 @@ An experiment runs a model written in any of the three ways, for a number of rep
     "seed": 42,
     ```
 
-    The low-level model has no warm-up of its own, so the experiment gives it one.
+    The low-level model has no [warm-up](../des/output-analysis.md#one-run-starts-empty) of its own, so the experiment gives it one.
 
 ---
 
@@ -102,7 +102,7 @@ Run it:
     python comparing_designs_low_level.py
     ```
 
-The experiment runs 40 replications, 20 of each design, and writes what it found to `results/four-packers`. Each design's results, with the 95% half-width:
+The experiment runs 40 replications, 20 of each design, and writes what it found to `results/four-packers`. Each design's results, with the 95% [half-width](../des/output-analysis.md#interval-and-half-width):
 
 | Design | Mean wait (s) | Utilisation (%) |
 |---|---|---|
@@ -116,7 +116,7 @@ The three-packer design ran with the same first 20 seeds as Trusting Results, so
 | `tasks.pack_order.wait_mean` | -2.21 s | 0.31 s | 2 shared |
 | `resources.packers.utilization_avg` | -22.63 points | 0.17 points | 2 shared |
 
-The difference in utilisation is known to within 0.17 points, though each design's own utilisation is known only to within 0.63 and 0.46. The same seed gives both designs the same arrivals and packing times, so a busy run of one design is a busy run of the other, and their difference leaves most of the chance out. This is called **common random numbers**. The difference in waits is known to within 0.31 seconds, about as well as the three-packer wait itself, because with four packers the wait hardly varies.
+The difference in [utilisation](../des/queueing-basics.md#utilisation) is known to within 0.17 points, though each design's own utilisation is known only to within 0.63 and 0.46. The same seed gives both designs the same arrivals and packing times, so a busy run of one design is a busy run of the other, and their difference leaves most of the chance out. This is called **[common random numbers](../des/output-analysis.md#comparing-designs)**. The difference in waits is known to within 0.31 seconds, about as well as the three-packer wait itself, because with four packers the wait hardly varies.
 
 "2 shared" says both designs drew from the same two random streams, `arrival.orders` and `service.packing`. desflow records which streams each run drew from and lists any that only one design used, such as a gift-wrap step only one design has, because draws from such a stream are not paired. With `pairing: independent` each design gets seeds of its own instead, and a comparison is refused, since no seed then pairs one run of each design.
 
@@ -180,7 +180,7 @@ Does a fourth packer cut the mean wait, and by how much? Yes: with the same seed
 
 ## Why It Works
 
-Two designs run with different seeds differ by the design and by chance, and the chance part can hide a small effect. Run with the same seeds, each pair of runs meets the same arrivals and the same packing times, so the chance part partly cancels in their difference, and the interval on the differences is narrower than the interval an unpaired comparison of the same runs gives. The interval is a Student t interval on the 20 differences, as in [Output Analysis](../des/output-analysis.md#comparing-designs), because each difference comes from a seed of its own.
+Two designs run with different seeds differ by the design and by chance, and the chance part can hide a small effect. Run with the same seeds, each pair of runs meets the same arrivals and the same packing times, so the chance part partly cancels in their difference, and the interval on the differences is narrower than the interval an unpaired comparison of the same runs gives. The interval is a [Student t interval](../des/output-analysis.md#interval-and-half-width) on the 20 differences, as in [Output Analysis](../des/output-analysis.md#comparing-designs), because each difference comes from a seed of its own.
 
 ---
 

@@ -10,17 +10,7 @@ Most of the pages so far read one number, the mean wait. A run knows much more: 
 
 ## Switch On Statistics
 
-desflow keeps statistics about a run as it goes, and publishes them as telemetry every 10 simulation seconds and once more at the end, so the last value of each is the state at the end. They are off by default, because most runs only generate data. A level switches them on, and each level answers one more question:
-
-| Level | Question it answers | Adds |
-|---|---|---|
-| `none` | | nothing (the default) |
-| `minimal` | What is happening now? | each resource's `capacity`, `in_use`, `queue_length` and `utilization`, and each task's `in_progress` |
-| `basic` | How much got done, and how busy was it? | `finished` counts, each arrival's `started` and `in_system`, and `utilization_avg` and `queue_length_avg` over time |
-| `typical` | How long did orders take? | each task's `wait_mean`, `wait_max`, `service_mean` and `service_max` |
-| `all` | How long did the slowest take? | each task's `wait_p50`, `wait_p95` and `wait_p99`, and the same for service |
-
-Each level includes the ones above it. Switch on `typical`:
+desflow keeps statistics about a run as it goes, and publishes them as telemetry every 10 simulation seconds and once more at the end, so the last value of each is the state at the end. They are off by default, because most runs only generate data. A level switches them on: `none` (the default), `minimal`, `basic`, `typical` or `all`, each publishing what the one before it does and more. `typical` adds each task's mean and maximum wait and service time, and [Statistics](../user-guide/statistics.md#choose-a-level) lists what each level adds. Switch on `typical`:
 
 === "YAML"
 
@@ -131,7 +121,7 @@ What does a run tell me? One hour of the busy shop tells you that the packers we
 
 ## Why It Works
 
-The numbers check each other. [Little's Law](../des/queueing-basics.md#littles-law) says that the average number waiting equals the rate at which orders arrive times the average time each waits. 6,250 orders in 3,600 seconds is 1.74 a second, and 1.74 × 1.38 = 2.40, which is `queue_length_avg`. The utilisation checks the same way: 1.74 orders a second × 1.50 seconds ÷ 3 packers = 0.87. A set of statistics that fails a check like this one points to a mistake in the model or in how it is read, as [Checking and Validating](../des/checking-and-validating.md#check-the-statistics-against-each-other) explains. [Statistics](../user-guide/statistics.md) describes how each one is computed, and the [Statistics reference](../reference/statistics.md) lists every name each level publishes.
+The numbers check each other. [Little's Law](../des/queueing-basics.md#littles-law) says that the average number waiting equals the rate at which orders arrive times the average time each waits. 6,250 orders in 3,600 seconds is 1.74 a second, and 1.74 × 1.38 = 2.40, which is `queue_length_avg`. The [utilisation](../des/queueing-basics.md#utilisation) checks the same way: 1.74 orders a second × 1.50 seconds ÷ 3 packers = 0.87. A set of statistics that fails a check like this one points to a mistake in the model or in how it is read, as [Checking and Validating](../des/checking-and-validating.md#check-the-statistics-against-each-other) explains. [Statistics](../user-guide/statistics.md) describes how each one is computed, and the [Statistics reference](../reference/statistics.md) lists every name each level publishes.
 
 ---
 

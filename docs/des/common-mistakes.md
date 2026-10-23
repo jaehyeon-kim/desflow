@@ -28,7 +28,7 @@ def means():
     return mean(fixed), mean(random_gaps)
 ```
 
-With constant gaps and constant packing times the mean wait is 0.00 seconds. With exponential gaps of the same mean and the same packing time it is 2.45 seconds, over the same 10 replications. Use the distribution you measured, not its mean. [Choosing Inputs](../tutorials/choosing-inputs.md) shows the effect of the spread on the shop, and [Queueing Basics](queueing-basics.md) gives the formula that ties the wait to the variation.
+With constant gaps and constant packing times the mean wait is 0.00 seconds. With exponential gaps of the same mean and the same packing time it is 2.45 seconds, over the same 10 [replications](output-analysis.md#replications). Use the distribution you measured, not its mean. [Choosing Inputs](../tutorials/choosing-inputs.md) shows the effect of the spread on the shop, and [Queueing Basics](queueing-basics.md) gives the formula that ties the wait to the variation.
 
 ---
 
@@ -58,7 +58,7 @@ def spread_of_runs():
     return min(runs), max(runs), mean(runs)
 ```
 
-The runs range from 1.52 seconds, 28% below the mean, to 2.75 seconds, 30% above it, and the mean is 2.11 seconds. A report that gave one run alone could be that far off. The busy hour's mean wait has other values on other pages, because the pages run it in different ways: one run or several replications, constant or empirical packing times, with or without a warm-up, and for one hour or longer. Each page says which. These 10 runs use constant packing and no warm-up. [Trusting Results](../tutorials/trusting-results.md) reads 2.25 seconds after its first 10 replications, because its shop uses the empirical packing times and a 2-minute warm-up. Run replications and report the mean with an interval. [Output Analysis](output-analysis.md) explains replications and how many to use.
+The runs range from 1.52 seconds, 28% below the mean, to 2.75 seconds, 30% above it, and the mean is 2.11 seconds. A report that gave one run alone could be that far off. The busy hour's mean wait has other values on other pages, because the pages run it in different ways: one run or several replications, constant or empirical packing times, with or without a [warm-up](output-analysis.md#one-run-starts-empty), and for one hour or longer. Each page says which. These 10 runs use constant packing and no warm-up. [Trusting Results](../tutorials/trusting-results.md) reads 2.25 seconds after its first 10 replications, because its shop uses the empirical packing times and a 2-minute warm-up. Run replications and report the mean with an interval. [Output Analysis](output-analysis.md) explains replications and how many to use.
 
 ---
 

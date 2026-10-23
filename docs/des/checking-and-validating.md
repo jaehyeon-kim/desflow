@@ -2,7 +2,7 @@
 
 A model that runs is not a model that is right. This page explains how to check a model in two ways that need different evidence: **verification** asks whether the program does what the model on paper says, and **validation** asks whether that model is a good enough picture of the real system for the question. Both are done on the way through a [simulation study](a-simulation-study.md), and neither is finished by one test.
 
-The two terms, and the trace, the reasonableness checks, review by someone else, calibration and the three-step approach, follow Banks, Carson, Nelson and Nicol, *Discrete-Event System Simulation*, chapter 10, and Law, "How to Conduct a Successful Simulation Study" (Winter Simulation Conference, 2003). We read the chapter through [lecture notes on it](https://courses.ie.bilkent.edu.tr/ie324/wp-content/uploads/sites/4/2016/09/Validation.pdf), and [the paper](https://www.informs-sim.org/wsc03papers/009.pdf) itself. The checks with Little's law, with a formula and with fixed gaps, the extreme-condition tests, the explanations and the shop examples are our own.
+The two terms, and the trace, the reasonableness checks, review by someone else, calibration and the three-step approach, follow Banks, Carson, Nelson and Nicol, *Discrete-Event System Simulation*, chapter 10, and Law, "How to Conduct a Successful Simulation Study" (Winter Simulation Conference, 2003). We read the chapter through [lecture notes on it](https://courses.ie.bilkent.edu.tr/ie324/wp-content/uploads/sites/4/2016/09/Validation.pdf), and [the paper](https://www.informs-sim.org/wsc03papers/009.pdf) itself. The checks with [Little's law](queueing-basics.md#littles-law), with a formula and with fixed gaps, the extreme-condition tests, the explanations and the shop examples are our own.
 
 ---
 
@@ -91,19 +91,7 @@ assert many_packers["Shop.stats.tasks.pack_order.wait_max"] == 0
 
 ## Check the Statistics Against Each Other
 
-Some relations hold for every model that settles, so they test the statistics without any hand calculation. **Little's law** is the main one: the average number of orders in a system equals the arrival rate times the average time an order spends in it. The queue length, the arrival rate and the mean wait are measured separately, so if they disagree, one of them is wrong. [Queueing Basics](queueing-basics.md) runs this check on one run of 20,000 seconds (about 5.6 hours) at the busy hour's rates, with constant packing: a queue of 3.417 orders against 1.782 orders a second times a wait of 1.9175 seconds, which is 3.417. The run is longer than the one-hour runs of other pages, and [Common Mistakes](common-mistakes.md#taking-one-run-as-the-answer) explains why the figures differ. The code makes that run and checks the figures:
-
-```python title="docs/snippets/pages/checking_and_validating.py:little"
-# Little's law on the busy hour of Queueing Basics: queue length = arrival rate x mean wait
-rate, (queue, wait), _ = little()
-print(
-    f"queue {queue:.3f}, arrival rate {rate:.3f} x wait {wait:.4f} = {rate * wait:.3f}"
-)
-```
-
-```text
-queue 3.417, arrival rate 1.782 x wait 1.9175 = 3.417
-```
+Some relations hold for every model that settles, so they test the statistics without any hand calculation. [Little's law](queueing-basics.md#littles-law) is the main one. It ties the queue length to the arrival rate and the mean wait, and a run measures the three separately, so if they disagree, one of them is wrong. Queueing Basics states the law and checks it on a run of the shop.
 
 [Measuring a Run](../tutorials/measuring-a-run.md) shows the same idea on a shorter run, and the counts in [Statistics](../user-guide/statistics.md) must also add up: when no order balks or reneges, the orders started over the whole run are those finished plus those still in the shop.
 
@@ -111,7 +99,7 @@ queue 3.417, arrival rate 1.782 x wait 1.9175 = 3.417
 
 ## Check Against a Formula
 
-For a simple case there may be a formula. One packer with exponential gaps and service times at utilisation 0.75 has a mean wait of 4.5 seconds when the service time averages 1.5 seconds. A run of the model, repeated with several seeds, must produce an interval that contains it. [Queueing Basics](queueing-basics.md) gives the formulas for one and several servers, and shows runs of the shop within their intervals. A formula tests the part of the model it covers. It cannot test priorities, breakdowns or changing demand, which is why those are the parts to check by hand and by comparison with the real shop.
+For a simple case there may be a formula. One packer with exponential gaps and service times at [utilisation](queueing-basics.md#utilisation) 0.75 has a mean wait of 4.5 seconds when the service time averages 1.5 seconds. A run of the model, repeated with several seeds, must produce an interval that contains it. [Queueing Basics](queueing-basics.md) gives the formulas for one and several servers, and shows runs of the shop within their intervals. A formula tests the part of the model it covers. It cannot test priorities, breakdowns or changing demand, which is why those are the parts to check by hand and by comparison with the real shop.
 
 `desflow explain` applies these formulas to a model without running it: it gives each resource's utilisation, and the mean wait where a formula applies. `desflow explain --verify` then runs the model and compares what the run measures with those values. This is verification. It checks that the program agrees with the queueing formulas, and that the model's rates, units and service times are consistent with each other. It is not validation: it does not show that the model is close enough to the real shop. Where the formulas do not hold, it gives no value and does not compare, with the reason; [Check Against Theory](../guides/check-against-theory.md#when-the-formulas-do-not-apply) states the rule. The same page shows the commands and how to read a difference.
 

@@ -18,7 +18,7 @@ Look at the diagram for the order of the steps. Two steps are checks: [Check the
 
 Start by writing down the question and the measures that will answer it. A study with no well-defined objective cannot say when it is finished, and Law lists this first among the pitfalls. Without specific questions the right level of model detail cannot be set either. For the shop the question is: **how many packers keep the mean wait under 10 seconds in the busy hour?** The measures are the mean wait of an order and how busy the packers are. The question also fixes the period (the busy hour), the system (the packing area, not the whole warehouse) and who decides (the shop manager).
 
-[Queues and Capacity](../tutorials/queues-and-capacity.md) answers this question: 3 packers. [Trusting Results](../tutorials/trusting-results.md) measures the mean wait of an order with 3 packers over 40 replications, with the empirical packing times and a 2-minute warm-up: 2.32 ± 0.20 seconds, as [Output Analysis](output-analysis.md#replications) explains. [Common Mistakes](common-mistakes.md#taking-one-run-as-the-answer) explains why other pages give other figures for this wait.
+[Queues and Capacity](../tutorials/queues-and-capacity.md) answers this question: 3 packers. [Trusting Results](../tutorials/trusting-results.md) measures the mean wait of an order with 3 packers over 40 replications, with the empirical packing times and a 2-minute [warm-up](output-analysis.md#one-run-starts-empty): 2.32 ± 0.20 seconds, as [Output Analysis](output-analysis.md#replications) explains. [Common Mistakes](common-mistakes.md#taking-one-run-as-the-answer) explains why other pages give other figures for this wait.
 
 ---
 
@@ -33,6 +33,15 @@ Before writing code, collect what is known about the system and write the **conc
 Each input is an estimate until it is measured. For the shop these are the arrival rate and the packing time. Take the data from the real system where it exists, choose a distribution for each input, and test how much the choice matters. [Choosing Inputs](../tutorials/choosing-inputs.md) compares the candidate distributions, and [Fit the Inputs](../tutorials/fit-the-inputs.md) fits them to measured times. A model with an input nobody has measured is still usable, as long as the study tests how far the answer depends on it, as [Parameter Sweeps](../tutorials/parameter-sweeps.md) does.
 
 The question decides how much detail goes in. Law warns against building one model element for each element of the real system: more detail costs run time, can miss the deadline and can hide the factors that matter. Add detail only when it can change the decision. [Building Blocks](../user-guide/building-blocks.md) lists the parts a model can have.
+
+### AIC and the KS Test
+
+Fitting a distribution to measured times gives a candidate from each family, such as a gamma or a lognormal, and two scores say how well each candidate matches the data. For the shop's 40 packing times, [Fit the Inputs](../tutorials/fit-the-inputs.md#fit-the-packing-times) gives the triangular an AIC of 56.68 and the gamma 56.79.
+
+- **AIC**, Akaike's information criterion, scores how likely the data is under the fitted family, with a penalty for each parameter the fit chose: 2k − 2 × the log-likelihood, where k is the number of parameters. Lower is better. Only the difference between two families' AIC on the same data means anything, and by a common guideline a difference below 2 does not tell two fits apart.
+- **KS**, the Kolmogorov-Smirnov statistic, is the largest gap between the share of the data below a value and the share the family puts below it. Its **p-value** is the chance of a gap at least that large if the data came from the family; a small p-value, such as below 0.05, is a reason to reject the family. When the family was fitted to the same data, the p-value is approximate and tends to be too high.
+
+A good score does not settle the choice. Run the model with each close candidate and check whether the answer changes, as Fit the Inputs does. The sources are the Wikipedia articles on the [Akaike information criterion](https://en.wikipedia.org/wiki/Akaike_information_criterion) and the [Kolmogorov-Smirnov test](https://en.wikipedia.org/wiki/Kolmogorov%E2%80%93Smirnov_test).
 
 ---
 

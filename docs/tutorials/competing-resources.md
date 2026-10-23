@@ -10,7 +10,7 @@ A second resource, the `bench`, and a handoff: the picking task keeps the picker
 
 ## Hold One While Waiting for Another
 
-In SimPy a process holds a resource for as long as its request is granted and not released, and it can ask for a second resource while it holds the first: nested `with` blocks. A desflow task does the same in two ways. It can list several resources, `resource: [picker, bench]`, and hold them all while it works; or it can hand a unit to the next task of its flow with `keep`, and that task gives it back once it starts:
+In SimPy a process holds a resource for as long as its request is granted and not released, and it can ask for a second resource while it holds the first: nested `with` blocks. A desflow task does the same in two ways. It can list several resources, `resource: [picker, bench]`, and hold them all while it works; or it can hand a unit to the next task of its flow with `keep`, as [Several Resources](../user-guide/resources/several-resources.md#how-to-use-it) describes:
 
 === "YAML"
 
@@ -139,7 +139,7 @@ keeps the picker: wait to pick   8.77 s, to pack  1.09 s, picker busy 82.7%
 
 ## Why It Works
 
-The bench is the bottleneck: it is busy 80% of the time. When the picker waits at the bench, its own time is spent on the bench's queue, so the picker becomes a second bottleneck and the next order waits for it. Releasing a resource as soon as it is no longer needed keeps the waits where the work is. [Queueing Basics](../des/queueing-basics.md#parts-of-a-queue) explains utilisation. [Several Resources](../user-guide/resources/several-resources.md#several-resources) describes several resources, handoffs and the order rule.
+The bench is the [bottleneck](../des/queueing-basics.md#flow-balance-and-the-bottleneck): it is busy 80% of the time. When the picker waits at the bench, its own time is spent on the bench's queue, so the picker is busy longer than its work needs and the next order waits for it. Releasing a resource as soon as it is no longer needed keeps the waits where the work is. [Queueing Basics](../des/queueing-basics.md#utilisation) explains utilisation. [Several Resources](../user-guide/resources/several-resources.md#several-resources) describes several resources, handoffs and the order rule.
 
 ---
 

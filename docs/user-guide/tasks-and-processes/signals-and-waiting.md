@@ -218,7 +218,15 @@ An `on:` list runs actions when a signal fires or a task ends, before any waiter
 
 A drain waits for a task's `on:` actions and for the `on:` actions of signals its tasks fire, so a final task that fires a signal with `on:` actions leaves only after they have run.
 
-### Example: Process Events
+---
+
+## Stability and Limits
+
+The limits of this page are listed with those of the whole section, in [Stability and Limits](index.md#stability-and-limits) on the Tasks and Processes page.
+
+---
+
+## Example: Process Events
 
 The `process-events` example puts the event features together: a guard who starts an alarm round and is told when it ends (`subscribe`), a packed order that fires the `ready` signal from its own payload (an `on:` action with `fire ... from`) for a waiting shipper, and a one-shot `closing` signal whose `on:` spawns a sweep one second later (`spawn` with `after`). The arrival gaps are set so each happens once. It needs no Docker service and ends on its own after 12 simulation seconds.
 

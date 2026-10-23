@@ -1,6 +1,6 @@
 # Complete Model
 
-Each earlier page added one idea to the shop and answered one question. This page carries out a whole study, from the shop's own records to a recommendation, in the steps of [A Simulation Study](../des/a-simulation-study.md). In the busy hour the shop has one picker and three packers, and it can hire one more person, as a second picker or a fourth packer. This page asks: **which shop design should be recommended?** The measures are the mean wait for picking and the mean wait for packing, over the orders that start each step after a warm-up, which [Choose Warm-up and Precision](#choose-warm-up-and-precision) sets at 2 minutes. The decision rule: recommend the design in which the upper end of the 95% interval of both mean waits is under 1 second. The boundary is one busy hour, from an order's arrival to its shipment, with the shelf of shipping boxes and its deliveries. The assumptions are that orders arrive at random at a steady rate, that the picker and the packers work the whole hour, and that each order is one parcel in one box.
+Each earlier page added one idea to the shop and answered one question. This page carries out a whole study, from the shop's own records to a recommendation, in the steps of [A Simulation Study](../des/a-simulation-study.md). In the busy hour the shop has one picker and three packers, and it can hire one more person, as a second picker or a fourth packer. This page asks: **which shop design should be recommended?** The measures are the mean wait for picking and the mean wait for packing, over the orders that start each step after a [warm-up](../des/output-analysis.md#one-run-starts-empty), which [Choose Warm-up and Precision](#choose-warm-up-and-precision) sets at 2 minutes. The decision rule: recommend the design in which the upper end of the [95% interval](../des/output-analysis.md#interval-and-half-width) of both mean waits is under 1 second. The boundary is one busy hour, from an order's arrival to its shipment, with the shelf of shipping boxes and its deliveries. The assumptions are that orders arrive at random at a steady rate, that the picker and the packers work the whole hour, and that each order is one parcel in one box.
 
 ## What You Add
 
@@ -97,7 +97,7 @@ empirical         fitted                                       values: 300 numbe
 * best: gamma
 ```
 
-The gamma has the lowest AIC, and its KS p-value of 0.9484 gives no reason to reject it; [Fit the Inputs](fit-the-inputs.md#fit-the-packing-times) explains both. The same tables give a KS p-value of 0.995 for the exponential of the gaps and 0.634 for the gamma of the picking times.
+The gamma has the lowest [AIC](../des/a-simulation-study.md#aic-and-the-ks-test), and its KS p-value of 0.9484 gives no reason to reject it; [AIC and the KS Test](../des/a-simulation-study.md#aic-and-the-ks-test) explains both scores. The same tables give a KS p-value of 0.995 for the exponential of the gaps and 0.634 for the gamma of the picking times.
 
 The gaps fit an exponential, the distribution of orders placed independently of each other, at about 1.5 orders a second. The picking and packing times fit a gamma, each with a mean near the data's, about 0.44 and 1.75 seconds. These are inputs: the fit says which distribution draws times like the recorded ones. Whether the model then behaves like the shop is a separate question, answered by its outputs below. The model reads the fits in place of the times:
 
@@ -300,7 +300,7 @@ Each order is picked, then packed, then shipped in a box from the shelf. A deliv
 
     `shop["stock"].get(1)` and `put(1000)` are SimPy's container operations, which [Stock](stock.md) introduced: each waits until the shelf holds the boxes, or has room for them.
 
-The three tabs publish the same records. The model keeps the `typical` statistics, so each task has a mean wait and each resource a utilisation.
+The three tabs publish the same records. The model keeps the `typical` statistics, so each task has a mean wait and each resource a [utilisation](../des/queueing-basics.md#utilisation).
 
 ---
 
@@ -398,7 +398,7 @@ Not compared:
 --verify checks the implementation against the queueing analysis where it applies; it does not show that the model is close enough to the real system
 ```
 
-The picker is one server fed straight by the orders, whose gaps are exponential, so Kingman's formula gives its wait exactly, and the utilisation, the queue and the wait all agree with the runs. The packers' utilisation agrees too, and they are the bottleneck, at 0.88. Their wait has no closed formula, because three packers with gamma times are outside the formulas' assumptions, so the runs alone measure it. The shipping step takes a box from the shelf, which the formulas leave out, so the orders' throughput is not compared either. Agreement shows that the program computes what the model on paper says. It says nothing about whether the model is close enough to the shop.
+The picker is one server fed straight by the orders, whose gaps are exponential, so [Kingman's formula](../des/queueing-basics.md#variation-lengthens-waits) gives its wait exactly, and the utilisation, the queue and the wait all agree with the runs. The packers' utilisation agrees too, and they are the [bottleneck](../des/queueing-basics.md#flow-balance-and-the-bottleneck), at 0.88. Their wait has no closed formula, because three packers with gamma times are outside the formulas' assumptions, so the runs alone measure it. The shipping step takes a box from the shelf, which the formulas leave out, so the orders' throughput is not compared either. Agreement shows that the program computes what the model on paper says. It says nothing about whether the model is close enough to the shop.
 
 ### Against the Shop
 
@@ -433,7 +433,7 @@ All three values lie inside the model's interval for their mean: 0.57 inside **0
 
 ## Choose Warm-up and Precision
 
-Each run starts with the shop empty. The real busy hour does not start empty, because orders are already in the shop, so the study treats the hour as steady state and leaves out the empty start. Run today's design 40 times after three candidate warm-ups and compare the mean waits:
+Each run starts with the shop empty. The real busy hour does not start empty, because orders are already in the shop, so the study treats the hour as [steady state](../des/output-analysis.md#terminating-or-steady-state) and leaves out the empty start. Run today's design 40 times after three candidate warm-ups and compare the mean waits:
 
 === "YAML"
 
@@ -624,7 +624,7 @@ Each design's mean waits in seconds and the packers' utilisation in percent, wit
 
 ![Mean picking and packing waits of the three designs with their 95% half-widths, beside a line at 1 second. Current: picking 0.56, packing 1.92. Second picker: picking 0.04, packing 2.17. Fourth packer: picking 0.56, packing 0.15.](../assets/charts/complete-waits.png)
 
-Only the fourth packer keeps both waits under 1 second. Seed by seed, it cuts the packing wait by **1.77 ± 0.16** seconds and leaves the picking wait as it was. A second picker cuts the picking wait by 0.52 ± 0.01 seconds but lengthens the packing wait by 0.26 ± 0.02. One picker passes orders on one at a time, spaced by its picking times; two pickers pass them on as they arrive, closer together, so more of them meet three busy packers. `explain` named the packers as the bottleneck, and the experiment measures by how much each design moves it. Every design draws from the same three streams, `arrival.orders`, `service.packing` and `service.picking`, and the constant deliveries draw none, so every difference is paired. No order waited for a box in the three designs, so the shelf does not limit the answer.
+Only the fourth packer keeps both waits under 1 second. Seed by seed, it cuts the packing wait by **1.77 ± 0.16** seconds and leaves the picking wait as it was. A second picker cuts the picking wait by 0.52 ± 0.01 seconds but lengthens the packing wait by 0.26 ± 0.02. One picker passes orders on one at a time, spaced by its picking times; two pickers pass them on as they arrive, closer together, so more of them meet three busy packers. `explain` named the packers as the bottleneck, and the experiment measures by how much each design moves it. Every design draws from the same three streams, `arrival.orders`, `service.packing` and `service.picking`, and the constant deliveries draw none, so every difference is [paired](../des/output-analysis.md#comparing-designs). No order waited for a box in the three designs, so the shelf does not limit the answer.
 
 ### Test the Sensitivity
 

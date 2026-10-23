@@ -2,8 +2,7 @@
 
 Orders arrive at 1.8 a second and each takes 1.5 seconds to pack. The script runs the
 hour once for each number of packers, unpaced, and prints the mean wait of each run.
-`run_network` is the shop with a checker and rework, and `run_rush` the half hour
-that a rush overloads.
+`run_network` is the shop with a checker and rework.
 """
 
 import itertools
@@ -17,7 +16,6 @@ from desflow import (
     Sampler,
     SimParameter,
     Upstream,
-    run_scenario,
 )
 
 UNTIL = 3600  # the busy hour, in seconds
@@ -150,26 +148,6 @@ def run_network(until=UNTIL):
     STEPS["check_order"][2].rng = sampler.generator("route.check_order")
     counters = {name: itertools.count() for name in STEPS}
     env.process(network_orders(env, sampler, shop, counters))
-    try:
-        env.run(until=until)
-    finally:
-        env.teardown()
-    return env
-
-
-def run_rush(until=1800):
-    """Three packers until a rush at 10 minutes; returns the environment."""
-    env = DynamicRealtimeEnvironment(factor=0.0)
-    env.registry.register_sim_parameter(params(3))
-    # --8<-- [start:rush]
-    # The rush: 2.4 orders a second from 10 minutes, utilisation 2.4 x 1.5 / 3 = 1.2
-    rush = [{"at": 600, "path": "Shop.arrival.orders.rate", "value": 2.4}]
-    env.process(run_scenario(env, rush, until=until))
-    # The queue length, published every 5 minutes
-    env.setup_stats("Shop", "minimal", interval=300)
-    # --8<-- [end:rush]
-    packers = DynamicResource(env, "Shop", "packers")
-    env.process(order_generator(env, Sampler(seed=42), packers))
     try:
         env.run(until=until)
     finally:

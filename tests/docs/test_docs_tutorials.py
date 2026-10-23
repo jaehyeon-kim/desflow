@@ -153,23 +153,6 @@ def test_queues_and_capacity_network_is_the_same_in_three_apis():
     assert _counts(builder.env.stats.readings()) == _counts(low_level.stats.readings())
 
 
-def test_queues_and_capacity_rush_overloads_in_three_apis():
-    """Push It Past Full Use: after the rush the queue is 328 at 30 minutes, in
-    every tab, as the record block on the page shows."""
-    app = SimulationContext.from_yaml(BLUEPRINTS / "queues_overload.yaml")
-    app.run()
-    builder = _load("queues_and_capacity").rush()
-    builder.run(until=1800)
-    low_level = _load("queues_and_capacity_low_level").run_rush()
-    name = "Shop.stats.resources.packers.queue_length"
-    assert (
-        app.env.stats.readings()[name]
-        == builder.env.stats.readings()[name]
-        == low_level.stats.readings()[name]
-        == 328
-    )
-
-
 def _wait_of(events, key):
     times = {e["value"].get("status"): e["sim_ts"] for e in events if e["key"] == key}
     return round(times["started"] - times["queued"], 3)

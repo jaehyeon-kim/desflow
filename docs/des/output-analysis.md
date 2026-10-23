@@ -21,7 +21,7 @@ The busy hour of [Trusting Results](../tutorials/trusting-results.md) is treated
 
 ## One Run Starts Empty
 
-A run starts with an empty shop, and the first orders find every packer free. Their waits are shorter than the waits of the hour as a whole, so the mean wait of a run is biased low by its start. Look at the diagram for the two parts of a run: in the warm-up the shop fills from empty and the queue has not settled, so it is left out of the statistics, and the measured period, once the queue has settled, is what the statistics cover.
+A run starts with an empty shop, and the first orders find every packer free. Their waits are shorter than the waits of the hour as a whole, so the mean wait of a run is biased low by its start. When the question is the long run, as for the busy hour, this distortion is called **initialisation bias**. Look at the diagram for the two parts of a run: in the warm-up the shop fills from empty and the queue has not settled, so it is left out of the statistics, and the measured period, once the queue has settled, is what the statistics cover.
 
 ![One run from an empty shop: a warm-up (left out of the statistics), then the measured period, then the end of the run at until](../assets/diagrams/run-phases.png)
 
@@ -29,7 +29,7 @@ A **warm-up** is a time at the start of a run whose observations are discarded. 
 
 Choose the warm-up from evidence, not from habit. Plot a running statistic from the start of the run, such as the queue length or the mean wait so far, for several seeds, and pick a time after which they all move up and down with no trend. Law's paper shows a plot made with Welch's method for this, in which the warm-up is the time after which the average has levelled off, and advises choosing it conservatively. Compare a few candidate cutoffs as well: run the replications with each, and take the shortest after which a longer warm-up no longer moves the mean by more than its half-width. [Trusting Results](../tutorials/trusting-results.md#compare-warm-ups) does it for the shop: over five seeds, the comparison of 1, 2 and 4 minutes gives 1 minute, and the tutorial keeps 2 minutes, because the mean wait so far of one run climbs for about a minute and a half. A 2-minute warm-up moves the mean wait of one run of the busy hour only from 1.382 to 1.381 seconds, because an hour is long enough that its first minutes hardly count. A shorter run, or one that starts far from the usual state, needs the warm-up much more.
 
-A warm-up is not a fix for a model that never settles. If utilisation is 1 or more, there is no steady state, and no warm-up will find one, as [Queueing Basics](queueing-basics.md) explains.
+A warm-up is not a fix for a model that never settles. If [utilisation](queueing-basics.md#utilisation) is 1 or more, there is no steady state, and no warm-up will find one, as [Queueing Basics](queueing-basics.md) explains.
 
 ---
 
@@ -37,11 +37,17 @@ A warm-up is not a fix for a model that never settles. If utilisation is 1 or mo
 
 The waits of orders in one run follow each other: after a busy period, many orders in a row wait long. They are not independent samples, so the usual formula for the spread of an average, which assumes independent samples, gives an interval that is too narrow. Law lists this as a pitfall, along with treating one run as the truth.
 
-**Replications** avoid the problem. Each replication is the same run with its own random stream, so it has its own mean wait, and gives one independent value of each statistic. The mean of those values is the estimate, and a 95% interval is the mean plus or minus t × s ÷ √n, where s is the standard deviation of the n values and t is the Student t quantile for n − 1 degrees of freedom. Look at the diagram for the flow from runs to one interval.
+**Replications** avoid the problem. Each replication is the same run with its own random stream, so it has its own mean wait, and gives one independent value of each statistic. The mean of those values is the estimate, and the [interval](#interval-and-half-width) below says how precise it is. Look at the diagram for the flow from runs to one interval.
 
 ![Four runs, each with its own stream, combine into one mean wait with a 95% interval](../assets/diagrams/replication-interval.png)
 
 In the busy hour of the shop, with the empirical packing times and a 2-minute warm-up, 40 replications give a mean wait of 2.32 ± 0.20 seconds, and the one run with the seed 42 measured 1.38 seconds, lower than any of the 40. One run would have given a confident and wrong answer. [Common Mistakes](common-mistakes.md#taking-one-run-as-the-answer) explains why other pages give other figures for this wait. [Trusting Results](../tutorials/trusting-results.md) shows these runs, [Replications](../user-guide/replications.md) describes the commands and the seeds, which are spawned from one seed so that the set repeats exactly, and [Randomness and Seeds](../tutorials/randomness-and-seeds.md) explains the streams.
+
+---
+
+## Interval and Half-width
+
+A **95% interval**, in full a 95% confidence interval, is the mean of the n replications plus or minus a **half-width** of t × s ÷ √n. Here s is the standard deviation of the n values, and s ÷ √n is the **standard error**, an estimate of how far the mean itself varies from one set of replications to the next. t is the **Student t quantile** for n − 1 degrees of freedom, one less than the number of replications. t is slightly above 2 for 20 or more replications, and larger for fewer, because s is then a rougher estimate. Over many studies, about 95% of the intervals built this way contain the true mean. In the busy hour above, 2.32 ± 0.20 seconds has a half-width of 0.20 seconds, so the interval runs from 2.12 to 2.52 seconds.
 
 ---
 
@@ -63,7 +69,7 @@ The warm-up adds a third group, orders that were in the shop when the warm-up en
 
 ## Comparing Designs
 
-To tell whether a design is better, compare the designs with the same random numbers. Run each design with the same seeds, so that each pair of runs meets the same arrivals and the same service times, and take the difference seed by seed. The chance part partly cancels, so the interval on the differences is narrower than the interval an unpaired comparison of the same runs gives, as [Comparing Designs](../tutorials/comparing-designs.md) uses it: a fourth packer cuts the busy hour's mean wait by 2.21 ± 0.31 seconds.
+To tell whether a design is better, compare the designs with the same random numbers. Run each design with the same seeds, so that each pair of runs meets the same arrivals and the same service times, and take the difference seed by seed. This is a **paired comparison**, and the shared random numbers are called **common random numbers**. The chance part partly cancels, so the interval on the differences is narrower than the interval an unpaired comparison of the same runs gives, as [Comparing Designs](../tutorials/comparing-designs.md) uses it: a fourth packer cuts the busy hour's mean wait by 2.21 ± 0.31 seconds.
 
 The check below shows the effect on 40 runs of the busy hour with 3 packers, 20 packing in 1.5 seconds and 20 packing in 1.45 seconds, with the same 20 seeds. It builds two intervals for the difference of the mean waits from the same runs: one paired by seed, and one that treats the designs as independent.
 

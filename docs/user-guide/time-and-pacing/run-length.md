@@ -1,6 +1,6 @@
 # Run Length
 
-This page shows how a run starts and ends, described in [Time and Pacing](index.md): the warm-up, the initial time, the run length, stopping early, draining, stepping and running in segments.
+This page shows how a run starts and ends, described in [Time and Pacing](index.md): the [warm-up](../../des/output-analysis.md#one-run-starts-empty), the initial time, the run length, stopping early, draining, stepping and running in segments.
 
 ---
 
@@ -202,7 +202,15 @@ It prints `paused at 40.0`. Segments give the records one `run()` gives, the tel
 - The event that ends a segment stays in the queue: `peek()` gives the segment's time and `step()` processes it.
 - `advance()` does not move the wall-clock anchor. A paced run that waited between segments is behind when it goes on, so call `env.resume_pacing()` first.
 
-### Example: End Conditions
+---
+
+## Stability and Limits
+
+The limits of this page are listed with those of the whole section, in [Stability and Limits](index.md#stability-and-limits) on the Time and Pacing page.
+
+---
+
+## Example: End Conditions
 
 The `end-conditions` example: a drain after closing time, a stop when the boxes run out, and the counts of orders still in the shop. It needs no Docker service and ends on its own.
 

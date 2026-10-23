@@ -55,7 +55,7 @@ empirical         fitted                                       values: 40 number
 * best: triangular
 ```
 
-**AIC**, Akaike's information criterion, scores how likely the data is under the fitted family, with a penalty for each parameter; lower is better. **KS** is the largest gap between the data's cumulative share and the family's, and its p-value is approximate, because the family was fitted to the same data. `exponential` was rejected: its standard deviation equals its mean, 1.5 seconds, more than three times the data's. `constant` was skipped, because the times are not all equal. `normal` fitted, but it can draw below 0, so it is not chosen while a family that stays within the bounds fits. `empirical`, the 40 times themselves, is always offered. The lowest AIC is the `triangular`, marked best, with `gamma` 0.11 behind it.
+Lower AIC is better, and a small KS p-value is a reason to reject a family; [A Simulation Study](../des/a-simulation-study.md#aic-and-the-ks-test) explains both scores. `exponential` was rejected: its standard deviation equals its mean, 1.5 seconds, more than three times the data's. `constant` was skipped, because the times are not all equal. `normal` fitted, but it can draw below 0, so it is not chosen while a family that stays within the bounds fits. `empirical`, the 40 times themselves, is always offered. The lowest AIC is the `triangular`, marked best, with `gamma` 0.11 behind it.
 
 ---
 
@@ -116,7 +116,7 @@ The fitted settings go where the 40 times were:
 
 ## Does the Choice Matter?
 
-Run the busy hour 40 times with each distribution, each time with a different seed. These runs are **replications**: the mean wait differs from run to run, and the 95% half-width below says how far the mean of the 40 runs can be from the true mean wait. Each run also leaves out its first 2 minutes, a **warm-up**, because the shop starts empty and its first orders wait less than later ones. [Trusting Results](trusting-results.md) shows how to choose both numbers. In YAML, `desflow run fit_the_inputs.yaml --replications 40 --measure tasks.pack_order.wait_mean` runs the best fit; `--candidates gamma` on `desflow fit` writes the gamma fit instead. The mean wait of each, with its half-width:
+Run the busy hour 40 times with each distribution, each time with a different seed. These runs are **[replications](../des/output-analysis.md#replications)**: the mean wait differs from run to run, and the 95% [half-width](../des/output-analysis.md#interval-and-half-width) below says how far the mean of the 40 runs can be from the true mean wait. Each run also leaves out its first 2 minutes, a **[warm-up](../des/output-analysis.md#one-run-starts-empty)**, because the shop starts empty and its first orders wait less than later ones. [Trusting Results](trusting-results.md) shows how to choose both numbers. In YAML, `desflow run fit_the_inputs.yaml --replications 40 --measure tasks.pack_order.wait_mean` runs the best fit; `--candidates gamma` on `desflow fit` writes the gamma fit instead. The mean wait of each, with its half-width:
 
 | Packing time | Mean (s) | Mean wait (s) |
 |---|---|---|

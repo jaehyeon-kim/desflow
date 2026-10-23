@@ -12,11 +12,7 @@ Look at the order of the parts: orders arrive, wait in the packer queue, take th
 
 ## Install
 
-The core package includes the `desflow` command:
-
-```bash
-pip install desflow
-```
+Install the core package, which includes the `desflow` command, as [Installation](../getting-started.md#install-the-package) shows.
 
 ---
 

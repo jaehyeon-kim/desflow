@@ -313,7 +313,7 @@ A published record goes through the same steps for each sink:
 ![A record from publish_event, publish_telemetry or publish_label is offered to every egress. Each checks whether it takes it: events and telemetry for the data sinks and labels only for a labels sink, after the warm-up, and its when. A record it takes goes into its buffer until batch_size or flush_interval, then into its queue of at most max_queued_batches, and the egress thread writes it](../assets/diagrams/egress-path.png)
 
 1. `publish_event`, `publish_telemetry` or `publish_label` builds the record as a plain dictionary.
-2. Each sink tests it once: a label only for a labels sink, and nothing else for one; nothing stamped before the warm-up; then its `when`.
+2. Each sink tests it once: a label only for a labels sink, and nothing else for one; nothing stamped before the [warm-up](../des/output-analysis.md#one-run-starts-empty); then its `when`.
 3. The record goes into that sink's buffer. When the buffer reaches `batch_size`, or the sink's timer fires, the buffer is handed to the sink's queue as one batch.
 4. The egress thread takes batches from each queue and writes them with the sink's connector.
 

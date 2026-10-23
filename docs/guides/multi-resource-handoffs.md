@@ -8,8 +8,8 @@ A handoff passes an order from one resource to the next without letting go of th
 
 ## Steps
 
-1. Give the first task the resource and `keep` it: `pick` holds the picker and, instead of releasing it when it finishes, hands it to the next task.
-2. Give the next task the second resource: `pack` waits for the bench while the order still holds the picker, and gives the picker back as soon as it publishes `started`.
+1. Give the first task the resource and `keep` it: `pick` holds the picker and hands it to the next task, as [Several Resources](../user-guide/resources/several-resources.md#how-to-use-it) describes.
+2. Give the next task the second resource: `pack` waits for the bench while the order still holds the picker.
 3. Acquire the two resources in the same order everywhere. A task that takes the bench first and the picker second would be refused when the model is built, because two orders could then wait for each other for ever.
 
 In YAML the same tasks are `keep: [picker]` on `pick` and `resource: bench` on `pack`; in the low-level API the picker's request is released by the next process instead of a `with` block.
@@ -61,6 +61,6 @@ if __name__ == "__main__":
     app.run(until=30.0)
 ```
 
-Save it as `multi_resource_handoffs.py` and run `python multi_resource_handoffs.py`. It runs for 30 seconds in real time (`factor=1.0`) and prints each event. Orders arrive about once a second and packing takes 4 seconds, so the bench is the bottleneck: an order that waits for the bench keeps the picker, and the orders behind it wait for the picker.
+Save it as `multi_resource_handoffs.py` and run `python multi_resource_handoffs.py`. It runs for 30 seconds in real time (`factor=1.0`) and prints each event. Orders arrive about once a second and packing takes 4 seconds, so the bench is the [bottleneck](../des/queueing-basics.md#flow-balance-and-the-bottleneck): an order that waits for the bench keeps the picker, and the orders behind it wait for the picker.
 
 A task that needs both resources for the whole of its work lists them instead, `resource_id=["picker", "bench"]`; the `competing-resources` example on [Several Resources](../user-guide/resources/several-resources.md#example-competing-resources) has both kinds.

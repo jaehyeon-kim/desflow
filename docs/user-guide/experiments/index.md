@@ -1,12 +1,12 @@
 # Experiments
 
-An experiment answers a question with many runs rather than one. It runs designs of a model, each with replications, compares them seed by seed, checks them against bounds, places them beside values observed in the real system, and writes its results and a report to files. This page describes the experiment file, the Python call and every setting; [Experiment Results](experiment-results.md) describes the files an experiment writes and its report. It runs on one machine and needs no server.
+An experiment answers a question with many runs rather than one. It runs designs of a model, each with [replications](../../des/output-analysis.md#replications), compares them seed by seed, checks them against bounds, places them beside values observed in the real system, and writes its results and a report to files. This page describes the experiment file, the Python call and every setting; [Experiment Results](experiment-results.md) describes the files an experiment writes and its report. It runs on one machine and needs no server.
 
 ---
 
 ## What It Is
 
-A **design** is the model with some registry values changed before the clock starts: a variant, or a variant at one point of a sweep. An experiment runs every design with the same number of [replications](../replications.md), reads the built-in statistics at the end of each run, and summarises each with a mean and a confidence interval. [Comparing Designs](../../tutorials/comparing-designs.md) and [Parameter Sweeps](../../tutorials/parameter-sweeps.md) use one on the shop.
+A **design** is the model with some registry values changed before the clock starts: a variant, or a variant at one point of a sweep. An experiment runs every design with the same number of [replications](../replications.md), reads the built-in statistics at the end of each run, and summarises each with a mean and a [confidence interval](../../des/output-analysis.md#interval-and-half-width). [Comparing Designs](../../tutorials/comparing-designs.md) and [Parameter Sweeps](../../tutorials/parameter-sweeps.md) use one on the shop.
 
 ---
 
@@ -156,9 +156,31 @@ Each variant sets registry paths before the clock starts, as a live update would
 
 With `pairing: common`, every design runs with the same seeds, so a design's replication 3 and another design's replication 3 meet the same arrivals and service times, and their difference leaves most of the chance out ([Comparing Designs](../../tutorials/comparing-designs.md#compare-two-designs)). With `pairing: independent`, each design's seeds are spawned from a seed of its own, and `compare` is refused.
 
-The same seeds pair two runs only where both draw from the same random streams. Each distribution has a stream of its own, named by its registry path without the sim id, such as `service.packing`. The experiment records the streams each run drew from, and each comparison lists the streams both designs used and any that only one used. A stream only one design uses, such as a gift-wrap step only one design has, is not paired.
+The same seeds pair two runs only where both draw from the same random streams. Each distribution has a stream of its own, named by its registry path without the sim id, such as `service.packing`. The experiment records the streams each run drew from, and each comparison lists the streams both designs used and any that only one used. A stream only one design uses, such as a gift-wrap step only one design has, is not [paired](../../des/output-analysis.md#comparing-designs).
 
-### Example: An Experiment
+---
+
+## How It Works
+
+**Before running.** The experiment builds the model once without running it, records its compiled parameters, and refuses an `inputs` path that is not a distribution. It then builds each design the same way, so a bad registry path or value fails before any run. It reads the observed file and refuses a row that does not match its measure.
+
+**Runs.** Each design runs its replications as [Replications](../replications.md#how-it-works) describes: each run builds the model again, unpaced, with no ingress and no egress, and reads the statistics at its end. The statistics level is the lowest that publishes every measure, and at least `basic`, so the counts are there. A low-level model's parameters are put back after each run, so a variant's value or a live change in one run is never where the next run starts.
+
+**Intervals.** Every interval, of a design's mean and of a difference, is the Student t interval of [Replications](../replications.md#how-it-works), at the experiment's `level`.
+
+---
+
+## Stability and Limits
+
+- **Finite designs only.** Variants and sweeps list their values. Latin hypercube designs, sampling uncertain inputs and searching for the best design are not part of an experiment.
+- **No event records.** An experiment writes its files and sends nothing to the model's sinks. Run one design with one seed to see its records.
+- **End of a run.** A run ends at `until`, unless `stop` ends it earlier or `drain` runs it on until the model is empty; a blueprint's own `run.stop` and `run.drain` apply when the experiment does not set them. Entities still in the model at the end are not finished, so a count of finished entities leaves them out; the Counts section of the report ([Read the Report](experiment-results.md#read-the-report)) shows what each design started, finished and left.
+- **Observed values are outputs.** The observed comparison is a check of the model's output against the real system's for the question asked. It does not fit inputs, and one value inside an interval does not make a model valid for every question.
+- **One machine.** `workers` runs replications in parallel processes on one machine; there is no distributed or server executor.
+
+---
+
+## Example: An Experiment
 
 The `experiment` example is the experiment above: one hour of the shop with two packers and with three, 20 replications of each with the same seeds, a comparison, a check, and the mean wait observed in the real shop. Its shop is not the busy hour of the tutorials: an order arrives every 2.5 seconds on average and packing takes 4 seconds on average, so its waits differ from theirs. The example needs no Docker service and ends on its own. [Common Mistakes](../../des/common-mistakes.md#taking-one-run-as-the-answer) explains why the tutorials' figures for a wait differ between pages.
 
@@ -327,23 +349,3 @@ The `experiment` example is the experiment above: one hour of the shop with two 
     ```
 
     The whole file is [`examples/low-level/experiment_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/experiment_example.py).
-
----
-
-## How It Works
-
-**Before running.** The experiment builds the model once without running it, records its compiled parameters, and refuses an `inputs` path that is not a distribution. It then builds each design the same way, so a bad registry path or value fails before any run. It reads the observed file and refuses a row that does not match its measure.
-
-**Runs.** Each design runs its replications as [Replications](../replications.md#how-it-works) describes: each run builds the model again, unpaced, with no ingress and no egress, and reads the statistics at its end. The statistics level is the lowest that publishes every measure, and at least `basic`, so the counts are there. A low-level model's parameters are put back after each run, so a variant's value or a live change in one run is never where the next run starts.
-
-**Intervals.** Every interval, of a design's mean and of a difference, is the Student t interval of [Replications](../replications.md#how-it-works), at the experiment's `level`.
-
----
-
-## Stability and Limits
-
-- **Finite designs only.** Variants and sweeps list their values. Latin hypercube designs, sampling uncertain inputs and searching for the best design are not part of an experiment.
-- **No event records.** An experiment writes its files and sends nothing to the model's sinks. Run one design with one seed to see its records.
-- **End of a run.** A run ends at `until`, unless `stop` ends it earlier or `drain` runs it on until the model is empty; a blueprint's own `run.stop` and `run.drain` apply when the experiment does not set them. Entities still in the model at the end are not finished, so a count of finished entities leaves them out; the Counts section of the report ([Read the Report](experiment-results.md#read-the-report)) shows what each design started, finished and left.
-- **Observed values are outputs.** The observed comparison is a check of the model's output against the real system's for the question asked. It does not fit inputs, and one value inside an interval does not make a model valid for every question.
-- **One machine.** `workers` runs replications in parallel processes on one machine; there is no distributed or server executor.

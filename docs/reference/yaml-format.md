@@ -68,7 +68,7 @@ The arguments of `SimulationContext`. [Time and Pacing](../user-guide/time-and-p
 | `initial_time` | the simulation clock's reading when the run starts, in seconds or a duration; 0 by default |
 | `timezone` | an IANA name, such as `Australia/Melbourne`, that timestamps are written in, with their offset; a `logical_start_time` or `go_live_at` without an offset, and `now`, are read in it; the zone of `logical_start_time`, or UTC, by default |
 | `lag_interval` | simulation seconds or a duration between `system.simulation.lag_seconds` readings; 0 turns them off; by default off at `factor: 0` and every second otherwise |
-| `strict` | `true` raises `RuntimeError` when a paced step is more than `factor` seconds behind the wall clock, as SimPy's `RealtimeEnvironment(strict=True)` does; `false` by default, and never checked at `factor: 0` |
+| `strict` | `true` raises `RuntimeError` when a paced run falls behind the wall clock; `false` by default, as [Strict Pacing](../user-guide/time-and-pacing/clocks-and-pacing.md#strict-pacing) explains |
 | `environment` | a `!python` reference to a subclass of `DynamicRealtimeEnvironment` the model runs on; the subclass's `__init__` takes `**kwargs` and passes them on |
 
 ## resources, stores and containers

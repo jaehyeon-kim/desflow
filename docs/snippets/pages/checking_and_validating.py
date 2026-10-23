@@ -4,13 +4,7 @@ tests/docs runs this file. Each run is unpaced and covers one simulated hour, so
 finishes in under a second.
 """
 
-import sys
-from pathlib import Path
-
 from desflow import SimulationContext
-
-sys.path.insert(0, str(Path(__file__).parent))
-from queueing_basics import little  # noqa: E402
 
 
 # --8<-- [start:fixed]
@@ -76,13 +70,3 @@ print(
     round(easy["Shop.stats.resources.packers.utilization_avg"], 2),
 )
 print("overloaded: in system", overloaded["Shop.stats.flows.orders.in_system"])
-
-# --8<-- [start:little]
-# Little's law on the busy hour of Queueing Basics: queue length = arrival rate x mean wait
-rate, (queue, wait), _ = little()
-print(
-    f"queue {queue:.3f}, arrival rate {rate:.3f} x wait {wait:.4f} = {rate * wait:.3f}"
-)
-# --8<-- [end:little]
-assert abs(queue - 3.417) < 0.0005 and abs(rate - 1.782) < 0.0005
-assert abs(wait - 1.9175) < 0.00005 and abs(queue - rate * wait) < 0.01 * queue

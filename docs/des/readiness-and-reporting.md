@@ -14,7 +14,7 @@ Ready is a statement about a decision, not about a model. The shop model is read
 
 The open book [HSMA: the little book of DES](https://des.hsma.co.uk/) has a chapter, [Model Readiness Checklist](https://des.hsma.co.uk/model_checklist.html), that sorts what a model needs into three levels.
 
-- **Bronze** is the level for small to medium decisions within one organisation. It asks for views of the model running, checks of the core logic, enough replications and a warm-up, a fixed seed, a comparison with the real system, a review of the process with the people who know it, and documentation.
+- **Bronze** is the level for small to medium decisions within one organisation. It asks for views of the model running, checks of the core logic, enough [replications](output-analysis.md#replications) and a [warm-up](output-analysis.md#one-run-starts-empty), a fixed seed, a comparison with the real system, a review of the process with the people who know it, and documentation.
 - **Silver** is the level for larger or costlier decisions, or for models used across several areas. It adds a formal reporting checklist such as STRESS-DES, documented code, a code review, automated tests, an open licence, version control and a sensitivity analysis.
 - **Gold** is the level for models that will be reused, adapted or published. It adds a documentation site and a changelog, identifiers for the authors, an archive of the code, an online environment to run the model in, parallel runs, a web app and an animation, formal methods for the warm-up and the number of replications, and tests against historical data.
 
@@ -48,7 +48,7 @@ Some readiness items cost nothing in desflow, and some need you. Look at the tab
 | Item | In desflow |
 |---|---|
 | A fixed seed and independent streams | `random_seed` fixes a run, and `replicate` makes one integer seed for each replication from one seed and records them, so the same call gives the same results and any replication can be repeated alone. See [Replications](../user-guide/replications.md) |
-| Enough replications, with an interval | `replicate` gives the mean and the half-width of the 95% interval. How many is your decision, taken as [Output Analysis](output-analysis.md) shows |
+| Enough replications, with an interval | `replicate` gives the mean and the [half-width of the 95% interval](output-analysis.md#interval-and-half-width). [How many](output-analysis.md#how-many-replications) is your decision |
 | The designs and the inputs on record | An experiment records the compiled parameters of each design and writes its summary, its comparisons, its checks and a `report.md`. See [Experiments](../user-guide/experiments/index.md) |
 | A comparison with the real system | An experiment can read an observed file and compare it with the model. See [Experiment Results](../user-guide/experiments/experiment-results.md). Which data to use is your decision |
 | A view of the model running | Every event and reading is a record, which you can read or send to a sink. See [Egress, Batching and Delivery](../user-guide/egress.md) |

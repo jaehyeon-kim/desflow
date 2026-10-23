@@ -1,10 +1,10 @@
 # Checking a Model
 
-[Comparing Designs](comparing-designs.md) chose a fourth packer from the busy hour model of [Trusting Results](trusting-results.md), and [Parameter Sweeps](parameter-sweeps.md) found the choice holds for rates from 1.6 to 1.9 orders a second. Both answers are only as good as the model. This page asks: **does the program do what the model on paper says, and is that model good enough to decide the number of packers?** The decision is three packers or four. The measures are the mean wait and the packers' utilisation. The boundary is the busy hour, after its 2-minute warm-up. The assumptions are those of Trusting Results: orders at random at 1.8 a second, and the 40 packing times measured at the bench.
+[Comparing Designs](comparing-designs.md) chose a fourth packer from the busy hour model of [Trusting Results](trusting-results.md), and [Parameter Sweeps](parameter-sweeps.md) found the choice holds for rates from 1.6 to 1.9 orders a second. Both answers are only as good as the model. This page asks: **does the program do what the model on paper says, and is that model good enough to decide the number of packers?** The decision is three packers or four. The measures are the mean wait and the packers' [utilisation](../des/queueing-basics.md#utilisation). The boundary is the busy hour, after its 2-minute [warm-up](../des/output-analysis.md#one-run-starts-empty). The assumptions are those of Trusting Results: orders at random at 1.8 a second, and the 40 packing times measured at the bench.
 
 ## What You Add
 
-Checks on the model, written as tests that fail when a check fails: a run with fixed inputs against a trace worked by hand, runs at the extremes against estimates made by hand, Little's law and the queueing formulas of `desflow explain --verify`, a comparison with values observed in the real shop, and a check that the decision survives a higher rate. [Checking and Validating](../des/checking-and-validating.md) explains each kind of check; this page applies them to the shop.
+Checks on the model, written as tests that fail when a check fails: a run with fixed inputs against a trace worked by hand, runs at the extremes against estimates made by hand, [Little's law](../des/queueing-basics.md#littles-law) and the queueing formulas of `desflow explain --verify`, a comparison with values observed in the real shop, and a check that the decision survives a higher rate. [Checking and Validating](../des/checking-and-validating.md) explains each kind of check; this page applies them to the shop.
 
 ---
 
@@ -72,7 +72,7 @@ So **4** orders finish and **5** are still in the shop. Seven orders started pac
 
 ## Push to the Extremes
 
-A fixed trace checks the logic, not the busy hour itself. Run the busy hour with settings whose results can be estimated without the model. The checks run as an [experiment](../user-guide/experiments/index.md) on the busy hour, 20 replications of each design:
+A fixed trace checks the logic, not the busy hour itself. Run the busy hour with settings whose results can be estimated without the model. The checks run as an [experiment](../user-guide/experiments/index.md) on the busy hour, 20 [replications](../des/output-analysis.md#replications) of each design:
 
 === "YAML"
 

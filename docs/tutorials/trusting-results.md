@@ -4,13 +4,13 @@
 
 ## What You Add
 
-A `warmup` on the run, then replications: the same run repeated with other seeds. The model simulates the same busy hour as Measuring a Run.
+A `warmup` on the run, then [replications](../des/output-analysis.md#replications): the same run repeated with other seeds. The model simulates the same busy hour as Measuring a Run.
 
 ---
 
 ## Plot the Start
 
-Some runs have a natural start and end, such as a shop that opens empty at 9:00 and closes at 17:00; these are **terminating** runs, and the empty start is part of what they measure. Others stand for a system that keeps going, such as the shop in the middle of its busy hour; these are **steady-state** runs, and the empty start is a distortion called **initialisation bias**. The busy hour is a steady-state run.
+Some runs have a natural start and end, such as a shop that opens empty at 9:00 and closes at 17:00; these are **[terminating](../des/output-analysis.md#terminating-or-steady-state)** runs, and the empty start is part of what they measure. Others stand for a system that keeps going, such as the shop in the middle of its busy hour; these are **steady-state** runs, and the empty start is a distortion called **[initialisation bias](../des/output-analysis.md#one-run-starts-empty)**. The busy hour is a steady-state run.
 
 To see how long the distortion lasts, plot an output over time and look for where it stops trending. Publish the statistics every 10 seconds: `wait_mean` is then the mean wait of every order so far, and `queue_length` is the queue at that moment.
 
@@ -46,7 +46,7 @@ Plot the two against `sim_ts` for the first 15 minutes:
 
 ![Over the first 15 minutes of the busy hour, the queue read every 10 seconds moves between 0 and 13 from the first minute on; the mean wait so far climbs from 0.46 seconds to about 1.5 seconds in the first two minutes, then wanders between 1.1 and 1.6 seconds; a dashed line marks the end of a 2-minute warm-up](../assets/charts/trusting-warmup.png)
 
-The queue reaches its usual range within the first minute. The mean wait so far climbs for about a minute and a half, because the first orders found free packers, then moves up and down with no trend. The plot shows one seed only, so it cannot settle the warm-up. It suggests three candidates: 1 minute, when the queue reaches its usual range; 2 minutes, which covers the climb of the mean wait; and 4 minutes, twice that, to see whether a longer warm-up still moves the mean. The next section sets 2 minutes, and [Compare Warm-ups](#compare-warm-ups), after the replications, checks the three candidates with five seeds.
+The queue reaches its usual range within the first minute. The mean wait so far climbs for about a minute and a half, because the first orders found free packers, then moves up and down with no trend. The plot shows one seed only, so it cannot settle the [warm-up](../des/output-analysis.md#one-run-starts-empty). It suggests three candidates: 1 minute, when the queue reaches its usual range; 2 minutes, which covers the climb of the mean wait; and 4 minutes, twice that, to see whether a longer warm-up still moves the mean. The next section sets 2 minutes, and [Compare Warm-ups](#compare-warm-ups), after the replications, checks the three candidates with five seeds.
 
 ---
 
@@ -135,7 +135,7 @@ Run the busy hour 40 times. The 40 seeds are spawned from the seed 42, so the se
 
 Each replication runs unpaced with no sinks and reads the built-in statistics at its end. [Replications](../user-guide/replications.md) describes every option.
 
-The mean of the 40 values is the estimate. Its **confidence interval** says how far off it may be: with 95% confidence, the true mean lies within the estimate plus or minus the **half-width**, which is t × s ÷ √n, where s is the spread of the n values and t a quantile of the Student t distribution. The seeds are spawned in order, so the first 10 of the 40 replications are the 10 a run with `--replications 10` makes. The table reads the estimate after the first 5, 10 and 20 replications and after all 40:
+The mean of the 40 values is the estimate. Its **[confidence interval](../des/output-analysis.md#interval-and-half-width)** says how far off it may be: with 95% confidence, the true mean lies within the estimate plus or minus the **half-width**. The seeds are spawned in order, so the first 10 of the 40 replications are the 10 a run with `--replications 10` makes. The table reads the estimate after the first 5, 10 and 20 replications and after all 40:
 
 | Replications | Mean wait (s) | Half-width (s) | Wait half-width share | Utilisation (%) | Half-width (%) | Utilisation half-width share |
 |---|---|---|---|---|---|---|
@@ -150,7 +150,7 @@ The 40 mean waits range from 1.45 to 4.39 seconds. The run with the seed 42 meas
 
 ## Choose the Precision
 
-How many replications are enough depends on the decision, not on a fixed number such as 30. Choose the precision each output needs. Here it is a half-width within 10% of the mean. Utilisation meets it with 5 replications. Of the replication counts in the table of [Run It With Other Seeds](#run-it-with-other-seeds), the mean wait first meets it at 40, because waits vary far more from run to run than how busy the packers are. So each output has its own precision, and the replications must be enough for the least precise output the decision reads.
+How many replications are enough depends on the decision, not on a fixed number such as 30. Choose the precision each output needs. Here it is a half-width within 10% of the mean. [Utilisation](../des/queueing-basics.md#utilisation) meets it with 5 replications. Of the replication counts in the table of [Run It With Other Seeds](#run-it-with-other-seeds), the mean wait first meets it at 40, because waits vary far more from run to run than how busy the packers are. So each output has its own precision, and the replications must be enough for the least precise output the decision reads.
 
 The half-width shrinks with √n, so 10 replications at 11.0% suggest about 10 × (11.0 ÷ 10)² ≈ 12 for 10%. That is a guide, not a promise: the half-width is itself an estimate, and 20 replications gave 13.0%. Add replications, then read the half-width again.
 

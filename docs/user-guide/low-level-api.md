@@ -62,7 +62,7 @@ env.setup_egress([ConsoleEgress()])  # starts the egress thread
 env.setup_stats("Shop", "basic", interval=60)  # readings and counts every minute
 ```
 
-`setup_egress` starts the egress thread, which writes every record the processes publish. `setup_ingress` starts the ingress thread for parameter changes from outside, and `setup_stats` switches on the built-in statistics. [Egress](egress.md) lists the arguments of `setup_egress`, including a warm-up and labels sinks.
+`setup_egress` starts the egress thread, which writes every record the processes publish. `setup_ingress` starts the ingress thread for parameter changes from outside, and `setup_stats` switches on the built-in statistics. [Egress](egress.md) lists the arguments of `setup_egress`, including a [warm-up](../des/output-analysis.md#one-run-starts-empty) and labels sinks.
 
 ## Create Resources, Containers and Stores
 
@@ -167,27 +167,27 @@ An environment subclass is plain Python: `class Traced(DynamicRealtimeEnvironmen
 
 ---
 
-## What It Does for You
+## How It Works
 
-Little: the environment paces the clock, holds the registry, writes records on the egress thread and keeps the statistics that `setup_stats` switches on. Everything else is your code. [Builder API](builder-api.md#what-it-does-for-you) lists what `SimulationContext.run()` writes for you on top of the same steps.
+The environment does little for you. It paces the clock, holds the registry, writes records on the egress thread and keeps the statistics that `setup_stats` switches on. Everything else is your code. [Builder API](builder-api.md#how-it-works) lists what `SimulationContext.run()` writes for you on top of the same steps.
 
 ---
 
-## Errors and Limits
+## Stability and Limits
 
 Nothing is checked before the run as a whole. Each call checks only what it reads, when it runs:
 
 - **An unregistered path raises `KeyError`** when a resource, a process or a `registry.get` asks for it, so register the parameters before creating anything that reads them.
 - **A record without egress is dropped.** Until `setup_egress` runs, `publish_event` and `publish_telemetry` do nothing, without an error.
-- **A `Sampler()` with no seed draws nothing at random.** Every sample is the distribution's mean (for a `truncated_normal`, its `mean` or its `low`, whichever is higher), so give it a seed.
-- **A paced run is strict by default.** `DynamicRealtimeEnvironment(strict=True)` raises `RuntimeError` when a paced step is more than `factor` seconds behind the wall clock, as SimPy's does, and never at `factor` 0. A live script with a sink that can block passes `strict=False`.
+- **A `Sampler()` with no seed draws nothing at random,** as [Arrivals and Services](arrivals-and-services.md#how-it-works) explains, so give it a seed.
+- **A paced run is strict by default.** [Strict Pacing](time-and-pacing/clocks-and-pacing.md#strict-pacing) gives what it does and its default in each API.
 - **An unhandled failure stops the run under `stop`.** `DynamicRealtimeEnvironment(on_unhandled_failure=...)` is `stop` by default, as a plain SimPy environment is: a one-shot `Signal` failure that nobody waits for raises `SignalFailed`, so the run stops. Pass `"continue"` to defuse such a failure and let the run go on. A re-arming signal's failure is always defused, and an exception raised in a process stops the run under both. The keyword must be `stop` or `continue`.
 
 Beyond those, a process can do anything SimPy can model.
 
 ---
 
-## Full Script
+## Example
 
 ??? example "Full script"
 

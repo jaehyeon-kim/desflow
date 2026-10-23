@@ -121,48 +121,7 @@ run:
   until: 3 min
 ```
 
-The builder and the low-level API take the same steps, as a list of mappings. Here are the steps of the `changing_demand` example in each API:
-
-=== "YAML"
-
-    ```yaml title="examples/yaml/changing_demand.yaml:schedule"
-    scenario:
-      # The rush: twice the orders, and a second packer, from 120 to 180 seconds
-      - {at: 120, path: Shop.arrival.orders.rate, value: 0.8}
-      - {at: 120, path: Shop.resources.packers.current_cap, value: 2}
-      - {at: 180, path: Shop.arrival.orders.rate, value: 0.4}
-      - {at: 180, path: Shop.resources.packers.current_cap, value: 1}
-    ```
-
-=== "Builder"
-
-    ```python title="examples/builder/changing_demand_example.py:schedule"
-    # The rush: twice the orders, and a second packer, from 120 to 180 seconds
-    app.add_scenario(
-        [
-            {"at": 120, "path": "Shop.arrival.orders.rate", "value": 0.8},
-            {"at": 120, "path": "Shop.resources.packers.current_cap", "value": 2},
-            {"at": 180, "path": "Shop.arrival.orders.rate", "value": 0.4},
-            {"at": 180, "path": "Shop.resources.packers.current_cap", "value": 1},
-        ]
-    )
-    ```
-
-    `add_step(at, path=..., value=..., record=...)` adds one step.
-
-=== "Low-level"
-
-    ```python title="examples/low-level/changing_demand_example.py:schedule"
-    # The rush: twice the orders, and a second packer, from 120 to 180 seconds
-    SCHEDULE = [
-        {"at": 120, "path": "Shop.arrival.orders.rate", "value": 0.8},
-        {"at": 120, "path": "Shop.resources.packers.current_cap", "value": 2},
-        {"at": 180, "path": "Shop.arrival.orders.rate", "value": 0.4},
-        {"at": 180, "path": "Shop.resources.packers.current_cap", "value": 1},
-    ]
-    ```
-
-    `env.process(run_scenario(env, SCHEDULE, until=300))` applies them; `until` is the run's end, as a step there never applies.
+The builder and the low-level API take the same steps, as a list of mappings; [Time-varying Arrivals](../guides/time-varying-arrivals.md#steps) shows one schedule in each API.
 
 A scenario is not a connector. It is a SimPy process that waits on the simulation clock, so each step lands at exactly its `at`, on every run and at any `factor`, including 0. A step applies before every other event at its time, so an arrival gap drawn at that moment uses the new value; steps at the same time apply in the order written, and a step at or after `until` never applies. [Time-varying Arrivals](../guides/time-varying-arrivals.md#boundaries) shows each case. Every path of a blueprint's scenario is checked against the model's registry when the file loads, so a misspelt path stops the load with its line; the builder checks its paths when the run starts. `LocalIngress` waits on the wall clock instead, and an unknown path is only logged when it is due. A scenario and an ingress connector can run together, so a scripted baseline can run while an operator steers over Kafka; when both change the same path, the later write wins.
 
@@ -182,17 +141,7 @@ scenario:
     record: {fault: label_printer_offline}
 ```
 
-Labels go only to sinks with `when: labels`, and those sinks receive nothing else, so the labels never reach the pipeline under test and a scorer reads them apart from the data:
-
-```yaml title="docs/snippets/yaml/ground_truth.yaml:sinks"
-egress:
-  # The data under test: events and telemetry, and no label
-  - type: Console
-  # The labels only, for a scorer that checks what a detector found
-  - type: Jsonl
-    config: {default_path: labels/labels.jsonl}
-    when: labels
-```
+Labels go only to sinks with `when: labels`, and those sinks receive nothing else, so the labels never reach the pipeline under test and a scorer reads them apart from the data. [Choose What Each Sink Gets](egress.md#choose-what-each-sink-gets) shows the sinks of this blueprint.
 
 ![A scenario step at 30 seconds updates the registry, which raises the order rate the data sink sees, and publishes a label with path, old, new and label to the when: labels sink only](../assets/diagrams/ground-truth.png)
 

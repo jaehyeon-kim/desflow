@@ -10,7 +10,7 @@ Change the arrival rate and the staffing at set times, such as a rush at lunch o
 2. Write one step for each change, with the simulation time it applies at, `at`, in seconds or as a duration such as `20 min`.
 3. Return each parameter to its usual value with a later step; a schedule does not repeat on its own.
 
-Here orders arrive twice as fast from 120 to 180 seconds, and a second packer works for that time:
+The blueprint of the same name in [Changing Demand](../tutorials/changing-demand.md) runs for an hour and packs in a constant 1.5 seconds. Its rush lasts from 20 to 40 minutes, with an order every 1.11 seconds on average (`rate: 0.9`). The example below, `examples/yaml/changing_demand.yaml`, runs for 5 minutes, and packing takes 1 to 3 seconds, most often 2 (a triangular distribution). From 120 to 180 seconds orders arrive twice as fast, an order every 1.25 seconds on average (`rate: 0.8`), and a second packer works for that time:
 
 === "YAML"
 

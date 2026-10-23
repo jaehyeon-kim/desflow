@@ -22,7 +22,7 @@ A resource is a number of identical units: packers, packing benches, checkout la
 
 ### Declare a Resource
 
-A resource has a `current_cap`, the number of units now, and a `max_cap`, the most a live change can set. Both are whole numbers, and both may be left out: `current_cap` is then 1 and `max_cap` is the `current_cap`, so `packers: {}` is a resource of one unit, as `simpy.Resource(env)` is. `current_cap: .inf` (`float("inf")` in Python) is a resource with no limit: every request is granted at once, `capacity` is published as `null` and `utilization` as 0. `queue_limit` sets the most requests that may wait ([Refuse to Join](../../tutorials/patience.md#refuse-to-join)). A request made while that many wait raises `QueueFull` (in `desflow.resources.resource`), a `RuntimeError` with SimPy's message "Cannot append event. Queue is full.", before the request is granted or preempts a user; a task that catches it balks, and a `request` branch of a `wait` fails the wait. `run()` builds a `DynamicResource` for each one the context declares; in the low-level API you build it after registering the parameters, or with no registration at all, when it has one unit:
+A resource has a `current_cap`, the number of units now, and a `max_cap`, the most a live change can set. Both are whole numbers, and both may be left out: `current_cap` is then 1 and `max_cap` is the `current_cap`, so `packers: {}` is a resource of one unit, as `simpy.Resource(env)` is. `current_cap: .inf` (`float("inf")` in Python) is a resource with no limit: every request is granted at once, `capacity` is published as `null` and `utilization` as 0. `queue_limit` sets the most requests that may wait, as [Queue Limit](#queue-limit) describes. `run()` builds a `DynamicResource` for each one the context declares; in the low-level API you build it after registering the parameters, or with no registration at all, when it has one unit:
 
 === "YAML"
 
@@ -114,6 +114,10 @@ capacity 2, in use 4
 The last line is the capacity drop that Under Live Changes describes, below. The same four requests, drawn:
 
 ![Four requests join in the order orders-1, express-1, orders-2, express-2. fifo serves them in that order; lifo serves express-2, orders-2, express-1, orders-1; priority serves express-1 and express-2 first, then orders-1 and orders-2](../../assets/diagrams/queue-order.png)
+
+### Queue Limit
+
+A resource with a `queue_limit` of 5 (`queue_limit: 5` in a blueprint, `add_resource(..., queue_limit=5)` in the builder, and the same argument of `DynamicResource`) refuses a request made while five requests wait already, as SimPy's `SortedQueue(maxlen=5)` does. The refusal comes before a grant or a preemption, so a limit of 0 refuses every request. A task that is refused balks: it gives back the units it holds, publishes `balked` with the name of the resource, counts as balked and ends its flow. When the limited resource is the first the task asks for and the task waits for nothing before, it balks before it publishes `queued`. A `request` branch of a `wait` on a full resource fails the wait at once, with SimPy's message "Cannot append event. Queue is full.", in an `any` and in an `all` wait. A task whose won `request` branch was preempted balks when it asks again on a full line, and it reneges when its patience runs out while it waits for the unit it asked for again, as for a `resource:` unit. In the low-level API `request()` raises `QueueFull` (in `desflow.resources.resource`), a `RuntimeError` with that message, which your process catches as it would catch a balk condition. A reneged or cancelled request leaves the line, which makes room for the next. [Refuse to Join](../../tutorials/patience.md#refuse-to-join) shows the other way an order balks, by a condition of its own.
 
 ### Cancel and Release
 
@@ -238,7 +242,7 @@ Until the owed units finish, `in_use` is above `capacity`, and the `utilization`
 
 ## Stability and Limits
 
-- **Utilisation decides waits.** A resource whose load is at or above its capacity has a queue that grows for as long as the run lasts; [Queues and Capacity](../../tutorials/queues-and-capacity.md) shows how to work it out.
+- **Utilisation decides waits.** A resource whose load is at or above its capacity has a queue that grows for as long as the run lasts; [Queues and Capacity](../../tutorials/queues-and-capacity.md) shows how to work it out, and [Queueing Basics](../../des/queueing-basics.md#utilisation) explains utilisation.
 - **Priority needs `queue: priority`.** A task priority on a resource of another order is a load error, while a low-level request's priority is ignored under `fifo` and `lifo`.
 - **Priority can starve.** Under `priority`, a request with a high number is served only when no lower number is waiting; if the low numbers alone keep the resource busy, it is never served.
 - **One order of acquisition.** A model whose tasks acquire two resources in opposite orders is refused; [Several Resources](several-resources.md#several-resources) explains why.

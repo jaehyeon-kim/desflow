@@ -6,7 +6,7 @@ The builder works in two phases. You describe the simulation with its methods an
 
 ![You call add_resource, add_service, add_arrival, @app.task, add_process, add_ingress and add_egress; run() then creates the DynamicRealtimeEnvironment, starts the ingress and egress threads, and starts the processes and runs the clock](../assets/diagrams/builder-then-run.png)
 
-Until `run()`, `context.env`, `context.spawn` and `context.get_resource` raise `RuntimeError`, so they belong inside loops, tasks and processes.
+Until `run()`, the runtime helpers `context.spawn`, `context.call`, `context.signal`, `context.get_resource`, `context.get_store`, `context.get_container` and `context.env` raise `RuntimeError`, so they belong inside loops, tasks and processes.
 
 ---
 
@@ -153,7 +153,7 @@ if __name__ == "__main__":
 
 ---
 
-## What It Does for You
+## How It Works
 
 `run()` takes the steps a [low-level script](low-level-api.md) writes by hand, in the same order, and adds these:
 
@@ -165,7 +165,7 @@ if __name__ == "__main__":
 
 ---
 
-## Errors and Limits
+## Stability and Limits
 
 A mistake stops the script before the clock starts. A method raises `ValueError` when it is called with a value it cannot take: an `environment` that is not a subclass of `DynamicRealtimeEnvironment`, a `fire` action with `urgent` or `after` on a signal that is not `once=True` (raised at `start()`), a negative `after`, a distribution parameter out of range or one its family does not take, an unknown queue order, a `current_cap` or `max_cap` that is not a whole number or infinity, a `max_cap` below 1 given with no `current_cap`, a `type` that is not a subclass of `ResourceBase`, a negative `queue_limit` or one on a `type` with a `PutQueue` of its own, a task with a resource but no service, a priority without a resource, an unknown `on_interrupt`, a second task with the same name, a `spawn` with an `after` of 0 or less, or a `fire` action given both `value` and `from`. `run()` then checks what each task names, before the clock or any connector starts, and raises `ValueError` for a resource, service, store, container, signal or task that was not added, a priority on a resource that does not queue by priority, two tasks that acquire resources in opposite orders, a spawned task that shares an arrival's name, a `fire` action's `from` that names both a signal and a task or neither, and a `level.<name>`, `users.<name>`, `queue.<name>`, `signal.<name>`, `wait.<branch>` or `registry["..."]` that an expression reads but that does not exist.
 
@@ -173,13 +173,13 @@ The builder's limits are those of its tasks and its resources:
 
 - **Resources are fixed when the run starts.** `run()` creates every resource, store and container before the clock starts, and has no call to add one later; [Dynamic Topology](../guides/dynamic-topology.md) adds one with the low-level API.
 - **`advance()` needs a started run.** It raises `RuntimeError` before `start()`, after `close()` and after the run's own end, and `ValueError` for a time that is not after `now`; [Run in Segments](time-and-pacing/run-length.md#run-in-segments) shows it.
-- **`strict` defaults to False here.** `SimulationContext(strict=True)` raises `RuntimeError` when a paced step is more than `factor` seconds behind, as the low-level environment does by default.
+- **`strict` defaults to False here.** [Strict Pacing](time-and-pacing/clocks-and-pacing.md#strict-pacing) gives what it does and its default in each API.
 - **`environment=` takes a subclass of `DynamicRealtimeEnvironment`.** The context builds it in `start()` with the arguments it builds its own with, so its `__init__` takes `**kwargs` and passes them on.
 - **A subscribe refuses a processed event.** `context.subscribe(event)` raises `RuntimeError` when the event has already happened, or when it is called outside a process.
 
 ---
 
-## Full Script
+## Example
 
 ??? example "Full script"
 

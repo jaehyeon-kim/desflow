@@ -96,9 +96,9 @@ A subclass that overrides `__init__` takes `**kwargs` and passes them on, becaus
 
 ---
 
-## What It Does for You
+## How It Works
 
-`from_yaml` makes the builder calls for you, so a blueprint gets everything [the builder does](builder-api.md#what-it-does-for-you), and it checks the whole file before anything runs. A file is read and checked in five steps, and any step that fails stops the load with a `BlueprintError` before anything runs:
+`from_yaml` makes the builder calls for you, so a blueprint gets everything [the builder does](builder-api.md#how-it-works), and it checks the whole file before anything runs. A file is read and checked in five steps, and any step that fails stops the load with a `BlueprintError` before anything runs:
 
 ![from_yaml and desflow run read the file, check every field, check the names, build the context and check the paths, in that order, and return a SimulationContext; any step that fails raises BlueprintError with the file and line](../assets/diagrams/blueprint-loading.png)
 
@@ -110,7 +110,7 @@ A subclass that overrides `__init__` takes `**kwargs` and passes them on, becaus
 
 ---
 
-## Errors and Limits
+## Stability and Limits
 
 An error at any step is mapped back to its line through the source map:
 

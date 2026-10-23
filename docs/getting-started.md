@@ -22,7 +22,7 @@ Install the core library with uv or pip:
     pip install desflow
     ```
 
-desflow was called dynamic-des before 0.20.0. Code that imports `dynamic_des` and scripts that run `ddes` keep working with a warning until 0.30.0, and the [Changelog](about/changelog.md) says what to change.
+desflow was called dynamic-des before 0.20.0: install `desflow`, import `desflow` and run `desflow`. Code that imports `dynamic_des` and scripts that run `ddes` keep working with a warning until 0.30.0, and the [Changelog](about/changelog.md) says what to change.
 
 The connectors are optional extras, for example `uv add "desflow[kafka,parquet]"` or `pip install "desflow[kafka,parquet]"`:
 

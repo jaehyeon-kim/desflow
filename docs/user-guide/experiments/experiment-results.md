@@ -8,7 +8,7 @@ This page shows what an [experiment](index.md) compares, checks and writes: the 
 
 ### Compare Designs
 
-Each `compare` pair gives, for each measure and each sweep point, the variant's value minus the baseline's in each replication, the mean of those differences and its Student t half-width. An interval that does not contain 0 says the designs differ at that confidence level.
+Each `compare` pair gives, for each measure and each sweep point, the variant's value minus the baseline's in each [replication](../../des/output-analysis.md#replications), the mean of those differences and its [Student t](../../des/output-analysis.md#interval-and-half-width) half-width. An interval that does not contain 0 says the designs differ at that confidence level.
 
 ### Check Results
 
@@ -34,7 +34,7 @@ A check whose measure is not in `measures` is refused. The experiment writes eve
 | `in_system` of a flow and `in_progress` of a task | `count` | `end of run` |
 | other readings, such as `queue_length` | `count`, or `amount` for a container | `end of run` |
 
-The horizon is `until` minus the warm-up, in seconds or a duration such as `57 min`; it describes a run that ends at `until`, so with a `stop` or a `drain` the observed values must cover the same entities as the simulated ones. This compares the model's output with the real system's; it is not the fitting of an input distribution, which [Input Fitting](../input-fitting.md) covers.
+The horizon is `until` minus the [warm-up](../../des/output-analysis.md#one-run-starts-empty), in seconds or a duration such as `57 min`; it describes a run that ends at `until`, so with a `stop` or a `drain` the observed values must cover the same entities as the simulated ones. This compares the model's output with the real system's; it is not the fitting of an input distribution, which [Input Fitting](../input-fitting.md) covers.
 
 ### Files
 

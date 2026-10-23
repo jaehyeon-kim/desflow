@@ -434,7 +434,73 @@ A condition can also read how many tasks wait at a store or container, and what 
 
 A condition that reads one of these names is checked again when a put or get joins or leaves a queue. A condition that does not, such as `level.stock == 0`, is checked as before. A queue change is not a change of level, so `level_avg` does not move. The `marshal` task of [Example: Fuel Dock](#example-fuel-dock) waits on `putters.lane >= 1`.
 
-### Example: Stock, Parcels and Express Orders
+---
+
+## How It Works
+
+A container keeps a level between 0 and its capacity, with a queue of getters and a queue of putters. A `get` succeeds as soon as the level covers its amount, and a `put` as soon as there is room for all of it; until then each waits in its queue, in the order it arrived:
+
+![A DynamicContainer called stock holds a level up to its current_cap. Getters wait below it until the level covers their amount, putters until there is room; a live update of the level from the registry, clamped to between 0 and current_cap, wakes both](../assets/diagrams/container-level.png)
+
+A store keeps a list of items, up to its capacity. A `put` adds an item at the end, and a `get` takes the first, so items leave in the order they came; a `get` with a filter takes the first item its filter accepts:
+
+![A DynamicStore called parcels holds items, each a finished payload, up to its current_cap. Putters wait until there is room; getters wait until there is an item, and take the oldest](../assets/diagrams/store-items.png)
+
+**SimPy and desflow.** Underneath are SimPy's `Container`; a `FilterStore` for a store, which serves its gets as `Store` does while no waiting get has a filter; and a `PriorityStore` for a priority store, which hands out the lowest item first. A full put that waits for room and an empty get that waits for an item or an amount are checked against plain SimPy in all three APIs; [SimPy Compatibility](../reference/simpy-compatibility.md) lists the checks. SimPy's capacities are fixed when they are created; desflow's follow the registry, keep the registry's `level` in step with every put and get, and report each change to the statistics. [SimPy and desflow](../des/simpy-and-desflow.md) compares the two.
+
+---
+
+## Under Live Changes
+
+- **Capacity** follows `current_cap`, clamped to between 0 and `max_cap`. A higher capacity wakes waiting putters. A capacity below what is held destroys nothing: puts wait until enough has been taken.
+- **A container's level** is set by an update to its `level` path, as a stock count or a restock from outside would. The new level is clamped to between 0 and `current_cap`, with a warning, and it wakes both queues: a higher level serves waiting getters, and a lower one can make room for putters.
+- **A store or container with no limit** can be given a number as `current_cap` during a run, and `.inf` or the text `"inf"` sets no limit again. Lowering destroys nothing, as above.
+- **`current_cap` is the capacity, not a level.** A model that used a container's `current_cap` as a level, such as the wear of a roll, moves it to `level`.
+
+The stock count in [`stores_containers.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/docs/snippets/yaml/stores_containers.yaml), in each way of writing:
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/stores_containers.yaml:level"
+    scenario:
+      # A stock count at 30 seconds: the level path sets what the container holds
+      - {at: 30, path: Shop.containers.stock.level, value: 50}
+    ```
+
+=== "Builder"
+
+    ```python title="docs/snippets/pages/stores_containers.py:builder-level"
+    def stock_count(context: SimulationContext):
+        """A stock count at 30 seconds: the level path sets what the container holds."""
+        yield context.env.timeout(30)
+        context.env.registry.update("Shop.containers.stock.level", 50)
+
+
+    app.add_process(stock_count)
+    ```
+
+=== "Low-level"
+
+    ```python title="docs/snippets/pages/stores_containers.py:low-level-level"
+    def stock_count_process(env):
+        """A stock count: sets the level; waiting gets and puts are woken."""
+        yield env.timeout(30)
+        env.registry.update("Shop.containers.stock.level", 50)
+    ```
+
+---
+
+## Stability and Limits
+
+- **A container that never refills** blocks its getters for good, and a task that waits for stock while holding a resource blocks the resource too. Supply has to keep up with demand, as [Stock](../tutorials/stock.md) shows.
+- **Whole items.** A store's capacity is a whole number or no limit, and it holds items, not amounts.
+- **A put or get with `wait: false`** is never cancelled, so a supply that outpaces its consumers grows the queue without end. A run drops what is still waiting when it ends.
+- **A filter checks every waiting get on each put.** A store with many waiting gets and a filter that rarely matches does work in proportion to both, as SimPy's `FilterStore` does.
+- **One store or container per get or put.** A task has at most one `get` and one `put`.
+
+---
+
+## Example: Stock, Parcels and Express Orders
 
 The `stock` example puts it together: packing takes a box from a container and puts the parcel in a store, which starts with two parcels from yesterday, and a courier collects them. Express orders go first, at the packers and, as the parcels store is a priority store, at the courier. The stock runs out, so packing waits until a restock at 40 seconds sets the level to 30. It needs no Docker service and ends on its own.
 
@@ -601,7 +667,9 @@ The `stock` example puts it together: packing takes a box from a container and p
 
     The whole file is [`examples/low-level/stock_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/stock_example.py).
 
-### Example: Filtered Inventory
+---
+
+## Example: Filtered Inventory
 
 The `filtered-inventory` example puts the filter and the patience together: packed orders go on one shelf as parcels for the north or the south, and each courier takes the oldest parcel for its own area, or leaves without one after 20 seconds. It needs no Docker service and ends on its own after 120 simulation seconds.
 
@@ -713,7 +781,9 @@ The `filtered-inventory` example puts the filter and the patience together: pack
 
     The whole file is [`examples/low-level/filtered_inventory_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/filtered_inventory_example.py).
 
-### Example: Fuel Dock
+---
+
+## Example: Fuel Dock
 
 The `fuel-dock` example puts the pieces of this page together: fuel trucks wait in a lane of your own type that gives back the newest truck first, a crew unloads one every 7 seconds, a tank truck puts fuel into a tank of 100 without waiting for the put, which waits in the tank's queue once the tank is nearly full, and a marshal calls the overflow bay once a truck waits outside the full lane. It needs no Docker service and ends on its own after 40 simulation seconds.
 
@@ -824,67 +894,3 @@ The `fuel-dock` example puts the pieces of this page together: fuel trucks wait 
         ```
 
     The whole file is [`examples/low-level/fuel_dock_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/fuel_dock_example.py).
-
----
-
-## How It Works
-
-A container keeps a level between 0 and its capacity, with a queue of getters and a queue of putters. A `get` succeeds as soon as the level covers its amount, and a `put` as soon as there is room for all of it; until then each waits in its queue, in the order it arrived:
-
-![A DynamicContainer called stock holds a level up to its current_cap. Getters wait below it until the level covers their amount, putters until there is room; a live update of the level from the registry, clamped to between 0 and current_cap, wakes both](../assets/diagrams/container-level.png)
-
-A store keeps a list of items, up to its capacity. A `put` adds an item at the end, and a `get` takes the first, so items leave in the order they came; a `get` with a filter takes the first item its filter accepts:
-
-![A DynamicStore called parcels holds items, each a finished payload, up to its current_cap. Putters wait until there is room; getters wait until there is an item, and take the oldest](../assets/diagrams/store-items.png)
-
-**SimPy and desflow.** Underneath are SimPy's `Container`; a `FilterStore` for a store, which serves its gets as `Store` does while no waiting get has a filter; and a `PriorityStore` for a priority store, which hands out the lowest item first. A full put that waits for room and an empty get that waits for an item or an amount are checked against plain SimPy in all three APIs; [SimPy Compatibility](../reference/simpy-compatibility.md) lists the checks. SimPy's capacities are fixed when they are created; desflow's follow the registry, keep the registry's `level` in step with every put and get, and report each change to the statistics. [SimPy and desflow](../des/simpy-and-desflow.md) compares the two.
-
----
-
-## Under Live Changes
-
-- **Capacity** follows `current_cap`, clamped to between 0 and `max_cap`. A higher capacity wakes waiting putters. A capacity below what is held destroys nothing: puts wait until enough has been taken.
-- **A container's level** is set by an update to its `level` path, as a stock count or a restock from outside would. The new level is clamped to between 0 and `current_cap`, with a warning, and it wakes both queues: a higher level serves waiting getters, and a lower one can make room for putters.
-- **A store or container with no limit** can be given a number as `current_cap` during a run, and `.inf` or the text `"inf"` sets no limit again. Lowering destroys nothing, as above.
-- **`current_cap` is the capacity, not a level.** A model that used a container's `current_cap` as a level, such as the wear of a roll, moves it to `level`.
-
-The stock count in [`stores_containers.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/docs/snippets/yaml/stores_containers.yaml), in each way of writing:
-
-=== "YAML"
-
-    ```yaml title="docs/snippets/yaml/stores_containers.yaml:level"
-    scenario:
-      # A stock count at 30 seconds: the level path sets what the container holds
-      - {at: 30, path: Shop.containers.stock.level, value: 50}
-    ```
-
-=== "Builder"
-
-    ```python title="docs/snippets/pages/stores_containers.py:builder-level"
-    def stock_count(context: SimulationContext):
-        """A stock count at 30 seconds: the level path sets what the container holds."""
-        yield context.env.timeout(30)
-        context.env.registry.update("Shop.containers.stock.level", 50)
-
-
-    app.add_process(stock_count)
-    ```
-
-=== "Low-level"
-
-    ```python title="docs/snippets/pages/stores_containers.py:low-level-level"
-    def stock_count_process(env):
-        """A stock count: sets the level; waiting gets and puts are woken."""
-        yield env.timeout(30)
-        env.registry.update("Shop.containers.stock.level", 50)
-    ```
-
----
-
-## Stability and Limits
-
-- **A container that never refills** blocks its getters for good, and a task that waits for stock while holding a resource blocks the resource too. Supply has to keep up with demand, as [Stock](../tutorials/stock.md) shows.
-- **Whole items.** A store's capacity is a whole number or no limit, and it holds items, not amounts.
-- **A put or get with `wait: false`** is never cancelled, so a supply that outpaces its consumers grows the queue without end. A run drops what is still waiting when it ends.
-- **A filter checks every waiting get on each put.** A store with many waiting gets and a filter that rarely matches does work in proportion to both, as SimPy's `FilterStore` does.
-- **One store or container per get or put.** A task has at most one `get` and one `put`.

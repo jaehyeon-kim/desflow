@@ -1,6 +1,6 @@
 # Time and Pacing
 
-A run has two clocks, and a run can follow the wall clock, ignore it, or switch from one to the other. This page shows how to read the current time and which parts of the environment run on each thread; [Clocks and Pacing](clocks-and-pacing.md) shows the clock settings, and [Run Length](run-length.md) the warm-up and how long a run lasts.
+A run has two clocks, and a run can follow the wall clock, ignore it, or switch from one to the other. This page shows how to read the current time and which parts of the environment run on each thread; [Clocks and Pacing](clocks-and-pacing.md) shows the clock settings, and [Run Length](run-length.md) the [warm-up](../../des/output-analysis.md#one-run-starts-empty) and how long a run lasts.
 
 ---
 

@@ -27,7 +27,7 @@ The common YAML keys and builder calls side by side, each linked to the page tha
 |---|---|---|---|
 | Add staff or machines | `resources: {packers: {current_cap: 2, max_cap: 4}}` | `app.add_resource("packers", current_cap=2, max_cap=4)` | [Resources](../user-guide/resources/index.md) |
 | Declare a resource with one unit, or none to wait for | `resources: {packers: {}}`, or `{current_cap: .inf}` for no limit | `app.add_resource("packers")`, or `current_cap=float("inf")` | [Resources](../user-guide/resources/index.md#declare-a-resource) |
-| Refuse a request when the line is long | `queue_limit: 5` | `add_resource(..., queue_limit=5)` | [Patience](../tutorials/patience.md#refuse-to-join) |
+| Refuse a request when the line is long | `queue_limit: 5` | `add_resource(..., queue_limit=5)` | [Resources](../user-guide/resources/index.md#queue-limit) |
 | Read how many units are held or wait | `users.packers`, `queue.packers` in a condition | `context.get_resource("packers").count`, `.users`, `.queue` | [Resources](../user-guide/resources/index.md#read-the-queue-and-users) |
 | Build a resource from your own class | `type: !python shop_logic.MyPackers` | `add_resource(..., type=MyPackers)` | [Custom Resource Types](../user-guide/resources/custom-resource-types.md#custom-resource-types) |
 | Serve by priority | `queue: priority` and a task's `priority` | `add_resource(..., queue="priority")` and `@app.task(priority=)` | [Priorities](../tutorials/priorities.md) |

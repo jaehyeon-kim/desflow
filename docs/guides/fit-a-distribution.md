@@ -58,7 +58,7 @@ empirical         fitted                                       values: 299 numbe
 - **Skipped** families were not fitted, and the reason says why. Here the log's times are to a tenth of a second, so 5 gaps are 0, and `gamma`, `weibull` and `lognormal`, which need every value above 0, are skipped.
 - **Did not fit** means scipy's fit failed; its message is the reason. Here the truncated normal's search did not settle, because the gaps are far from a normal shape.
 - **Rejected** families were fitted, but their mean or standard deviation is more than 25% from the data's, or a parameter is out of range. Here `uniform` and `triangular` reach far beyond most gaps.
-- **Fitted** families have an AIC, lower is better, and a Kolmogorov-Smirnov p-value, which is approximate. The `exponential` has the lowest AIC and a p-value of 0.84, and its rate of 0.364 an order a second is one over the mean gap of 2.75 seconds. `normal` fits too, but it can draw below 0.
+- **Fitted** families have an [AIC](../des/a-simulation-study.md#aic-and-the-ks-test), lower is better, and a Kolmogorov-Smirnov p-value, which is approximate. The `exponential` has the lowest AIC and a p-value of 0.84, and its rate of 0.364 an order a second is one over the mean gap of 2.75 seconds. `normal` fits too, but it can draw below 0.
 
 Two families within an AIC of 2 of each other fit about equally well; run the model with each and see whether the answer changes, as [Fit the Inputs](../tutorials/fit-the-inputs.md#does-the-choice-matter) does. Read `--plot fit.png`, or `result.plot("fit.png")`, as well as the table.
 
