@@ -13,10 +13,10 @@
         <link rel="canonical" href="https://jaehyeon.me/desflow/latest/about/why-desflow/">
       
       
-        <link rel="prev" href="../roadmap/">
+        <link rel="prev" href="../../reference/cheat-sheet/">
       
       
-        <link rel="next" href="../changelog/">
+        <link rel="next" href="../roadmap/">
       
       
         
@@ -4054,6 +4054,44 @@
                 
   
   
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why desflow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
   
   
     <li class="md-nav__item">
@@ -4073,125 +4111,6 @@
   
 
       </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-    
-  
-  
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Why desflow
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Why desflow
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#why-it-exists" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Why It Exists
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#how-it-is-built" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        How It Is Built
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#how-a-change-is-checked" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        How a Change Is Checked
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#what-the-tests-hold" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What the Tests Hold
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -4252,58 +4171,6 @@
     
   
   
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#why-it-exists" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Why It Exists
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#how-it-is-built" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        How It Is Built
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#how-a-change-is-checked" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        How a Change Is Checked
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#what-the-tests-hold" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What the Tests Hold
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
 </nav>
                   </div>
                 </div>
@@ -4323,25 +4190,17 @@
 
 
 <h1 id="why-desflow">Why desflow</h1>
-<p>This page says why desflow exists, and how it is built, including how much of it AI agents write and how that work is checked.</p>
-<hr />
-<h2 id="why-it-exists">Why It Exists</h2>
-<p>Most test data generators write random rows. desflow writes the events of a working process: orders queue for packers, packing slows down at busy times, and a backlog builds when arrivals outpace capacity. The records have the cause and effect of a real system, because they come from a <a href="https://simpy.readthedocs.io/">SimPy</a> simulation. <a href="../../des/simpy-and-desflow/">SimPy and desflow</a> shows each SimPy construct beside its desflow form.</p>
-<p>The parameters of the simulation can change while it runs, from Kafka, Redis, PostgreSQL or a timed scenario, and the pipeline downstream sees the effect. The records go to Kafka, databases and files, and one run can write a week of history at full speed and then keep streaming in real time. The <a href="../roadmap/">Roadmap</a> lists what comes before 1.0.</p>
-<hr />
-<h2 id="how-it-is-built">How It Is Built</h2>
-<p>AI agents write much of the code and the documentation of desflow. The checks below are there so that you can see what is verified instead of guessing.</p>
-<p>The owner of the project sets the design, the plans and every decision, and approves each commit and each release. An agent never decides what desflow does.</p>
-<hr />
-<h2 id="how-a-change-is-checked">How a Change Is Checked</h2>
-<p>A writer agent makes a change. A second, fresh reviewer agent then checks every claim of the change against its source and every number against a run or the test that asserts it. The findings are fixed, and the rounds repeat until a review finds nothing serious. An audit runs before each release.</p>
-<hr />
-<h2 id="what-the-tests-hold">What the Tests Hold</h2>
-<p>Three sets of tests stay in the repository, and each runs on a push to <code>main</code> and on every pull request to <code>main</code>:</p>
+<p>I like building demo apps, and every demo app needs data. I could not find enough public APIs that suited my projects, and the fake data scripts I wrote were not effective, because they differed from one app to the next.</p>
+<p>Then I came across discrete-event simulation (DES). A DES models the process itself: what arrives, which resources serve it and how long each step takes. The data follows from that model, so it has cause and effect, as a real system does. For example, a queue grows because orders arrive faster than packers can handle them. A few numbers, such as an arrival rate, a capacity and a service time, are enough for queues, waits and backlogs that change over time. A simulation also runs much faster than real time, and the same seed gives the same data every time.</p>
+<p><a href="https://simpy.readthedocs.io/">SimPy</a> is the standard DES library for Python, but it could not do two things I needed: change the parameters of a simulation while it runs, and write the events to external systems. So I started this project, under the name dynamic-des, to add both.</p>
+<p>Later I found that creating a simulation the SimPy way is not easy. I had used the builder pattern in PySpark, so I applied it here and added a builder in Python. Not everyone is a Python programmer, though, so I also added a YAML format, an idea I took from Apache Beam YAML.</p>
+<p>Next I looked for ways to manage and schedule simulations from a server, an idea inspired by Airflow. That is when I changed the name to desflow. I will build the server while I learn from Architecture Patterns with Python by Harry Percival and Bob Gregory, which I expect to be fun.</p>
+<p>More features came along the way. desflow now has feature parity with SimPy. I think detailed docs are one of the reasons FastAPI became so popular, so I added a <a href="../../des/how-it-works/">Learn</a> section that teaches DES itself, not only desflow. It is there to help desflow grow, and also to help anyone who is new to DES, whether or not they use desflow. <code>desflow explain</code>, which explains a simulation, comes next, together with more Learn pages that use it. The <a href="../roadmap/">Roadmap</a> shows each step.</p>
+<p>I use desflow in my own projects, such as the demos in <a href="https://github.com/jaehyeon-kim/benchtop">benchtop</a>. It is useful for three kinds of project:</p>
 <ul>
-<li><strong>SimPy behaviour.</strong> Every SimPy feature marked native on the <a href="../../reference/simpy-compatibility/">SimPy Compatibility</a> page is compared with plain SimPy in the low-level, builder and YAML forms. The page lists each feature's status: native and checked, or a difference kept by design. The tests are in <a href="https://github.com/jaehyeon-kim/desflow/tree/main/tests/conformance"><code>tests/conformance/</code></a>, and the <a href="https://github.com/jaehyeon-kim/desflow/blob/main/.github/workflows/pipeline.yml"><code>simpy-range</code> job</a> runs them at the lowest and the newest SimPy that desflow allows.</li>
-<li><strong>Documentation.</strong> Every Python and YAML block on a page is a copy of a file that a test runs, except the hot rolling adapter and its blueprint, and every answer a page states is asserted by its test. The tests are in <a href="https://github.com/jaehyeon-kim/desflow/tree/main/tests/docs"><code>tests/docs/</code></a>.</li>
-<li><strong>Records.</strong> Every example and scenario runs on the last release and on the new commit, and the records are compared. A difference fails the <a href="https://github.com/jaehyeon-kim/desflow/blob/main/.github/workflows/pipeline.yml"><code>regression</code> job</a> unless the change is listed as intended.</li>
+<li><strong>Data engineering.</strong> Batch and streaming pipelines need data that moves like a real system. desflow writes it to Kafka, Redis, PostgreSQL, Parquet and JSONL files, and Iceberg tables, as history at full speed and then live.</li>
+<li><strong>ML and MLOps.</strong> A model that predicts delays or load needs training data in which queues build and clear for a reason. When a parameter changes during a run, the data shifts at a known time, which is what a drift monitor has to catch.</li>
+<li><strong>AI.</strong> An anomaly detector or an AI agent needs a known answer to be scored against. A seeded run can plant a fault and record what it planted as label records. An AI coding assistant can already write and check blueprints with the <a href="../../guides/use-an-ai-assistant/">desflow skill</a>, and after 1.0 the simulation server will let AI agents build, run and change simulations through tools.</li>
 </ul>
 
 

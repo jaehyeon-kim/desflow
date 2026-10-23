@@ -37539,6 +37539,26 @@ The common YAML keys and builder calls side by side, each linked to the page tha
 | Compare designs                                    | `desflow experiment FILE`                             | `run_experiment(spec)`                                                  | [Experiments](https://jaehyeon.me/desflow/latest/user-guide/experiments/index.md)                                                           |
 # About
 
+# Why desflow
+
+I like building demo apps, and every demo app needs data. I could not find enough public APIs that suited my projects, and the fake data scripts I wrote were not effective, because they differed from one app to the next.
+
+Then I came across discrete-event simulation (DES). A DES models the process itself: what arrives, which resources serve it and how long each step takes. The data follows from that model, so it has cause and effect, as a real system does. For example, a queue grows because orders arrive faster than packers can handle them. A few numbers, such as an arrival rate, a capacity and a service time, are enough for queues, waits and backlogs that change over time. A simulation also runs much faster than real time, and the same seed gives the same data every time.
+
+[SimPy](https://simpy.readthedocs.io/) is the standard DES library for Python, but it could not do two things I needed: change the parameters of a simulation while it runs, and write the events to external systems. So I started this project, under the name dynamic-des, to add both.
+
+Later I found that creating a simulation the SimPy way is not easy. I had used the builder pattern in PySpark, so I applied it here and added a builder in Python. Not everyone is a Python programmer, though, so I also added a YAML format, an idea I took from Apache Beam YAML.
+
+Next I looked for ways to manage and schedule simulations from a server, an idea inspired by Airflow. That is when I changed the name to desflow. I will build the server while I learn from Architecture Patterns with Python by Harry Percival and Bob Gregory, which I expect to be fun.
+
+More features came along the way. desflow now has feature parity with SimPy. I think detailed docs are one of the reasons FastAPI became so popular, so I added a [Learn](https://jaehyeon.me/desflow/latest/des/how-it-works/index.md) section that teaches DES itself, not only desflow. It is there to help desflow grow, and also to help anyone who is new to DES, whether or not they use desflow. `desflow explain`, which explains a simulation, comes next, together with more Learn pages that use it. The [Roadmap](https://jaehyeon.me/desflow/latest/about/roadmap/index.md) shows each step.
+
+I use desflow in my own projects, such as the demos in [benchtop](https://github.com/jaehyeon-kim/benchtop). It is useful for three kinds of project:
+
+- **Data engineering.** Batch and streaming pipelines need data that moves like a real system. desflow writes it to Kafka, Redis, PostgreSQL, Parquet and JSONL files, and Iceberg tables, as history at full speed and then live.
+- **ML and MLOps.** A model that predicts delays or load needs training data in which queues build and clear for a reason. When a parameter changes during a run, the data shifts at a known time, which is what a drift monitor has to catch.
+- **AI.** An anomaly detector or an AI agent needs a known answer to be scored against. A seeded run can plant a fault and record what it planted as label records. An AI coding assistant can already write and check blueprints with the [desflow skill](https://jaehyeon.me/desflow/latest/guides/use-an-ai-assistant/index.md), and after 1.0 the simulation server will let AI agents build, run and change simulations through tools.
+
 # Roadmap
 
 Releases come in the order shown, without dates: a release ships when it is ready. Each item links to its GitHub issue.
@@ -37659,42 +37679,6 @@ The server ships after 1.0, as 1.x releases installed with the `server` extra.
 - **Rename to desflow:** the package, its import name and its command are all `desflow`. The old `dynamic-des` names still work, with a warning, until 0.30.0.
 
 The [Changelog](https://jaehyeon.me/desflow/latest/about/changelog/index.md) lists every release.
-
-# Why desflow
-
-This page says why desflow exists, and how it is built, including how much of it AI agents write and how that work is checked.
-
-______________________________________________________________________
-
-## Why It Exists
-
-Most test data generators write random rows. desflow writes the events of a working process: orders queue for packers, packing slows down at busy times, and a backlog builds when arrivals outpace capacity. The records have the cause and effect of a real system, because they come from a [SimPy](https://simpy.readthedocs.io/) simulation. [SimPy and desflow](https://jaehyeon.me/desflow/latest/des/simpy-and-desflow/index.md) shows each SimPy construct beside its desflow form.
-
-The parameters of the simulation can change while it runs, from Kafka, Redis, PostgreSQL or a timed scenario, and the pipeline downstream sees the effect. The records go to Kafka, databases and files, and one run can write a week of history at full speed and then keep streaming in real time. The [Roadmap](https://jaehyeon.me/desflow/latest/about/roadmap/index.md) lists what comes before 1.0.
-
-______________________________________________________________________
-
-## How It Is Built
-
-AI agents write much of the code and the documentation of desflow. The checks below are there so that you can see what is verified instead of guessing.
-
-The owner of the project sets the design, the plans and every decision, and approves each commit and each release. An agent never decides what desflow does.
-
-______________________________________________________________________
-
-## How a Change Is Checked
-
-A writer agent makes a change. A second, fresh reviewer agent then checks every claim of the change against its source and every number against a run or the test that asserts it. The findings are fixed, and the rounds repeat until a review finds nothing serious. An audit runs before each release.
-
-______________________________________________________________________
-
-## What the Tests Hold
-
-Three sets of tests stay in the repository, and each runs on a push to `main` and on every pull request to `main`:
-
-- **SimPy behaviour.** Every SimPy feature marked native on the [SimPy Compatibility](https://jaehyeon.me/desflow/latest/reference/simpy-compatibility/index.md) page is compared with plain SimPy in the low-level, builder and YAML forms. The page lists each feature's status: native and checked, or a difference kept by design. The tests are in [`tests/conformance/`](https://github.com/jaehyeon-kim/desflow/tree/main/tests/conformance), and the [`simpy-range` job](https://github.com/jaehyeon-kim/desflow/blob/main/.github/workflows/pipeline.yml) runs them at the lowest and the newest SimPy that desflow allows.
-- **Documentation.** Every Python and YAML block on a page is a copy of a file that a test runs, except the hot rolling adapter and its blueprint, and every answer a page states is asserted by its test. The tests are in [`tests/docs/`](https://github.com/jaehyeon-kim/desflow/tree/main/tests/docs).
-- **Records.** Every example and scenario runs on the last release and on the new commit, and the records are compared. A difference fails the [`regression` job](https://github.com/jaehyeon-kim/desflow/blob/main/.github/workflows/pipeline.yml) unless the change is listed as intended.
 
 # Changelog
 
