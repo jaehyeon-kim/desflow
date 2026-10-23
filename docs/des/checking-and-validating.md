@@ -113,6 +113,8 @@ queue 3.417, arrival rate 1.782 x wait 1.9175 = 3.417
 
 For a simple case there may be a formula. One packer with exponential gaps and service times at utilisation 0.75 has a mean wait of 4.5 seconds when the service time averages 1.5 seconds. A run of the model, repeated with several seeds, must produce an interval that contains it. [Queueing Basics](queueing-basics.md) gives the formulas for one and several servers, and shows runs of the shop within their intervals. A formula tests the part of the model it covers. It cannot test priorities, breakdowns or changing demand, which is why those are the parts to check by hand and by comparison with the real shop.
 
+`desflow explain` applies these formulas to a model without running it: it gives each resource's utilisation, and the mean wait where a formula applies. `desflow explain --verify` then runs the model and compares what the run measures with those values. This is verification. It checks that the program agrees with the queueing formulas, and that the model's rates, units and service times are consistent with each other. It is not validation: it does not show that the model is close enough to the real shop. Where the formulas do not hold, it gives no value and does not compare, with the reason; [Check Against Theory](../guides/check-against-theory.md#when-the-formulas-do-not-apply) states the rule. The same page shows the commands and how to read a difference.
+
 ---
 
 ## Compare With the Real Shop

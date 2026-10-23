@@ -4,7 +4,7 @@
 
 ## What You Add
 
-Checks on the model, written as tests that fail when a check fails: a run with fixed inputs against a trace worked by hand, runs at the extremes against estimates made by hand, Little's law, a comparison with values observed in the real shop, and a check that the decision survives a higher rate. [Checking and Validating](../des/checking-and-validating.md) explains each kind of check; this page applies them to the shop.
+Checks on the model, written as tests that fail when a check fails: a run with fixed inputs against a trace worked by hand, runs at the extremes against estimates made by hand, Little's law and the queueing formulas of `desflow explain --verify`, a comparison with values observed in the real shop, and a check that the decision survives a higher rate. [Checking and Validating](../des/checking-and-validating.md) explains each kind of check; this page applies them to the shop.
 
 ---
 
@@ -176,7 +176,11 @@ One packer takes 1.5 seconds an order on average, so it can finish at most 3,480
 
 ---
 
-## Check Little's Law
+## Check It Against Theory
+
+Two checks compare the run with queueing theory: Little's law, which holds for any model that settles, and the formulas `desflow explain` applies where their assumptions hold.
+
+### Little's Law
 
 [Little's law](../des/queueing-basics.md#littles-law) says the average queue equals the arrival rate times the mean wait. The experiment measures the three separately, so they test each other. The arrival rate is the orders that arrived after the warm-up, `flows.orders.started`, divided by the 3,480 seconds:
 
@@ -206,6 +210,50 @@ One packer takes 1.5 seconds an order on average, so it can finish at most 3,480
     The same function, with `HORIZON = 3600 - WARMUP`.
 
 With three packers the queue averages **4.488** orders, and 1.8065 orders a second × 2.479 seconds = **4.478**. They agree. With one packer they also roughly agree: a queue of **2,127.6** against 1.8065 × 1,179.0 = **2,129.9**. One packer's queue grows through the whole run and never settles, so its mean depends on how long the run lasts, and the agreement there proves less than it does for three packers. Agreement with the law shows the statistics are consistent with each other. It does not show the model is right for the shop: a model with the wrong packing times would agree just as well.
+
+### Queueing Formulas With explain
+
+`desflow explain --verify` puts the queueing formulas beside runs of the model. It works out what the formulas give for each resource, runs the model unpaced, and marks each pair as agreeing or differing. Here it runs the busy hour of Trusting Results ten times:
+
+=== "YAML"
+
+    ```bash
+    desflow explain trusting_results.yaml --verify --replications 10
+    ```
+
+=== "Builder"
+
+    `context.analyze(verify=True, replications=10)` returns the same comparison for a context loaded from a blueprint, or from a builder file with `load_context`. A context built in a script's own code cannot be built again for the runs, so it refuses `verify=True`; use `desflow explain --verify` on the file.
+
+=== "Low-level"
+
+    A low-level model declares no link between its arrivals, tasks and resources, so `explain` cannot analyse it. Its Little's law check above is the theory check that applies.
+
+The end of its output:
+
+<!-- records: checking-explain -->
+```text
+Not estimated:
+  wait at packers: no closed formula for c > 1 with non-exponential times; run --verify
+Hints for utilisation 0.85:
+  packers with 4 units: utilisation 0.675, at most 0.85
+  packers with 3 units: utilisation 0.85 at 1.7 requests a second
+Verify: 10 runs to 3600 s, seed 42
++---------------------------------------------------------------------------+
+| node       | measure      | analysis | measured |        ± | result       |
+|------------+--------------+----------+----------+----------+--------------|
+| packers    | utilization  |      0.9 |   0.9034 | 0.009148 | agrees       |
+| packers    | queue_length |        - |    4.066 |    0.469 | not compared |
+| pack_order | wait         |        - |    2.252 |   0.2476 | not compared |
+| orders     | throughput   |      1.8 |    1.807 |  0.01546 | agrees       |
++---------------------------------------------------------------------------+
+Not compared:
+  packers queue_length: no closed formula for c > 1 with non-exponential times
+  pack_order wait: no closed formula for c > 1 with non-exponential times
+--verify checks the implementation against the queueing analysis where it applies; it does not show that the model is close enough to the real system
+```
+
+The utilisation of 0.9 and the throughput of 1.8 orders a second agree with the runs. The wait and the queue length have no analytical value, and the `Not estimated` line says why: three packers with measured packing times have no closed formula. For them the interval of the experiment is the check, as the next section shows. Agreement shows the program computes what the model on paper says; it says nothing about whether the model is close enough to the real shop. [Check Against Theory](../guides/check-against-theory.md) runs the same check on a shop the formulas describe in full.
 
 ---
 
@@ -340,11 +388,11 @@ Run the checks after every change to the model, in the same way as the tests of 
 
 ## Result
 
-Does the program do what the model on paper says, and is the model good enough to decide the number of packers? The program does what the model on paper says. The fixed run matches the trace by hand: **4** orders finished, **5** still in the shop and a mean wait of **0.714** seconds. One packer finishes **2,318** orders against 2,320 by hand, and ten are busy **27.08%** of the time against 27%. Little's law holds for three packers, **4.488** against 4.478. Four packers stay at **0.35 ± 0.02** seconds at a rate 6% higher, and all three checks pass. The observed values are illustrative; a real check uses the shop's own records. Against them the mean wait of 2.6 seconds lies inside the simulated **2.16 to 2.80**, but the utilisation of 91% lies outside **89.70 to 90.96**. The model is good enough for the decision only once the study has explained that disagreement.
+Does the program do what the model on paper says, and is the model good enough to decide the number of packers? The program does what the model on paper says. The fixed run matches the trace by hand: **4** orders finished, **5** still in the shop and a mean wait of **0.714** seconds. One packer finishes **2,318** orders against 2,320 by hand, and ten are busy **27.08%** of the time against 27%. Little's law holds for three packers, **4.488** against 4.478, and the measured utilisation agrees with the formula's 0.9. Four packers stay at **0.35 ± 0.02** seconds at a rate 6% higher, and all three checks pass. The observed values are illustrative; a real check uses the shop's own records. Against them the mean wait of 2.6 seconds lies inside the simulated **2.16 to 2.80**, but the utilisation of 91% lies outside **89.70 to 90.96**. The model is good enough for the decision only once the study has explained that disagreement.
 
 ## Why It Works
 
-The trace, the extremes and Little's law test the program against the model on paper: verification, in the terms of [Checking and Validating](../des/checking-and-validating.md#verification-and-validation). The observed values and the sensitivity check test the model against the shop and the decision: validation. Written as tests, the checks run again after every change, so a model that was checked once stays checked.
+The trace, the extremes, Little's law and the queueing formulas test the program against the model on paper: verification, in the terms of [Checking and Validating](../des/checking-and-validating.md#verification-and-validation). The observed values and the sensitivity check test the model against the shop and the decision: validation. Written as tests, the checks run again after every change, so a model that was checked once stays checked.
 
 ---
 

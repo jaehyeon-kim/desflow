@@ -156,6 +156,7 @@ desflow.core.context.SimulationContext.add_step(at: float | str, path: str | Non
 desflow.core.context.SimulationContext.add_store(name: str, current_cap: float | None = None, max_cap: float | None = None, priority: bool = False, items: list[Any] | None = None, type: type[desflow.resources.store.StoreBase] | None = None) -> SimulationContext
 desflow.core.context.SimulationContext.add_variable(name: str, value: Any) -> SimulationContext
 desflow.core.context.SimulationContext.advance(until: float | str | simpy.events.Event) -> Any
+desflow.core.context.SimulationContext.analyze(verify: bool = False, *, until: float | str | None = None, seed: int | None = None, replications: int | None = None, target: float = 0.85) -> Explanation
 desflow.core.context.SimulationContext.arrival_loop(arrival_id: str) -> collections.abc.Callable[]
 desflow.core.context.SimulationContext.call(task: str, *args: Any, entity: desflow.models.flow.Entity | None = None, upstream: desflow.models.flow.Upstream | None = None, **kwargs: Any) -> simpy.events.Process
 desflow.core.context.SimulationContext.close() -> None
@@ -244,6 +245,13 @@ desflow.core.signals.Signal.fire(value: Any = None, urgent: bool = False, after:
 desflow.core.signals.Signal.wait() -> simpy.events.Event
 desflow.core.signals.SignalFailed(signal: str, reason: Any)
 desflow.core.task.TaskFailed(task: str, reason: Any)
+desflow.explain.analysis.analyze(graph: desflow.explain.models.Graph, target: float = 0.85) -> desflow.explain.models.Explanation
+desflow.explain.graph.build_graph(context: SimulationContext) -> desflow.explain.models.Graph
+desflow.explain.models.Explanation(*, schema_version: Literal['0'] = '0', sim_id: str, target: float, graph: desflow.explain.models.Graph, arrivals: list[desflow.explain.models.ArrivalResult], tasks: list[desflow.explain.models.TaskResult], resources: list[desflow.explain.models.ResourceResult], holders: list[desflow.explain.models.HolderResult], bottleneck: str | None = None, bottleneck_reason: str | None = None, hints: list[desflow.explain.models.Hint] = [], verification: desflow.explain.models.Verification | None = None) -> None
+desflow.explain.models.Explanation.model_config: dict
+desflow.explain.render.render_terminal(explanation: desflow.explain.models.Explanation, width: int | None = None) -> str
+desflow.explain.render.to_json(explanation: desflow.explain.models.Explanation) -> str
+desflow.explain.verify.verify(model: Any, explanation: desflow.explain.models.Explanation, until: float | str | None = None, seed: int | None = None, replications: int | None = None) -> desflow.explain.models.Explanation
 desflow.fit_column = desflow.analysis.fit.fit_column
 desflow.load_context = desflow.loading.load_context
 desflow.loading.load_context(folder: str | pathlib.Path, entry: str, preview: desflow.blueprint.build.Preview | None = None) -> desflow.core.context.SimulationContext
@@ -366,6 +374,14 @@ desflow examples get --force/--no-force :: option, boolean, default False, optio
 desflow experiment :: exit codes 0, 1, 2
 desflow experiment FILE :: argument, file, default None, required
 desflow experiment --output :: option, path, default None, optional
+desflow explain :: exit codes 0, 1, 2
+desflow explain SOURCE :: argument, str, default None, required
+desflow explain --json :: option, boolean, default False, optional
+desflow explain --verify :: option, boolean, default False, optional
+desflow explain --until :: option, str, default None, optional
+desflow explain --seed :: option, int, default None, optional
+desflow explain --replications :: option, int range, default None, optional
+desflow explain --target :: option, float, default 0.85, optional
 desflow fit :: exit codes 0, 1, 2
 desflow fit FILE :: argument, file, default None, required
 desflow fit --column :: option, str, default None, required

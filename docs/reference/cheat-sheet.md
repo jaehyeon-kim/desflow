@@ -91,5 +91,6 @@ The common YAML keys and builder calls side by side, each linked to the page tha
 | Print the first events of a blueprint as JSON lines | `desflow run FILE --sample 5` | not in the builder | [YAML Format](yaml-format.md#running-a-blueprint) |
 | Print every record of a run in place of its sinks | `desflow run FILE --stdout` | not in the builder | [YAML Format](yaml-format.md#running-a-blueprint) |
 | Find a distribution's parameters from a mean and std | `desflow dist gamma --mean 1.5 --std 0.5` | the same command | [Choosing Inputs](../tutorials/choosing-inputs.md#measured-times) |
+| Show the graph, utilisation and waits before a run, and check them with runs | `desflow explain FILE --verify` | `app.analyze()`; `verify=True` for a context loaded from a file | [Queues and Capacity](../tutorials/queues-and-capacity.md#explain-the-load) |
 | Repeat a run with other seeds | `desflow run FILE --replications 20` | `replicate(model, 20, seed=, until=)` | [Replications](../user-guide/replications.md) |
 | Compare designs | `desflow experiment FILE` | `run_experiment(spec)` | [Experiments](../user-guide/experiments/index.md) |

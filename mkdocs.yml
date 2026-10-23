@@ -240,6 +240,7 @@ nav:
       - Set Up Your Editor: guides/set-up-your-editor.md
       - Use an AI Assistant: guides/use-an-ai-assistant.md
       - Fit a Distribution: guides/fit-a-distribution.md
+      - Check Against Theory: guides/check-against-theory.md
       - Test a Model: guides/test-a-model.md
       - Analyse the Event Log: guides/analyse-the-event-log.md
       - Animate a Run: guides/animate-a-run.md
@@ -283,6 +284,7 @@ nav:
           - desflow fit: reference/cli/fit.md
           - desflow schema: reference/cli/schema.md
           - desflow dist: reference/cli/dist.md
+          - desflow explain: reference/cli/explain.md
           - desflow examples: reference/cli/examples.md
           - desflow examples get: reference/cli/examples-get.md
   - About:

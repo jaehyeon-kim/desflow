@@ -107,6 +107,38 @@ def queues_wait() -> None:
     _save(fig, "queues-wait")
 
 
+def queues_mm1() -> None:
+    """Queues and Capacity: the M/M/1 mean wait against utilisation, from the formula
+    `desflow explain` uses, so the chart and the command agree."""
+    import numpy as np
+
+    from desflow.explain.formulas import kingman_wait
+
+    service = 1.5  # seconds, the shop's mean packing time
+    rho = np.linspace(0.05, 0.97, 200)
+    # Exponential gaps and service: ca² = cs² = 1, the M/M/1 wait
+    waits = [kingman_wait(r, 1.0, 1.0, service) for r in rho]
+    fig, ax = plt.subplots(figsize=(WIDTH, HEIGHT))
+    ax.plot(rho, waits, color=BLUE, linewidth=2.5)
+    for r in (0.8, 0.95):
+        wait = kingman_wait(r, 1.0, 1.0, service)
+        ax.plot([r], [wait], "o", color=ORANGE)
+        ax.annotate(
+            f"{wait:.1f} s at {r:g}",
+            (r, wait),
+            xytext=(-12, 0),
+            textcoords="offset points",
+            ha="right",
+            va="center",
+        )
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 50)
+    ax.set_xlabel("utilisation")
+    ax.set_ylabel("mean wait in the queue (seconds)")
+    ax.set_title("One packer, exponential gaps and service, mean service 1.5 s")
+    _save(fig, "queues-mm1")
+
+
 def _draws(config, n: int = 20000):
     """`n` draws of a distribution, as the run draws them."""
     from desflow import Sampler
@@ -711,6 +743,7 @@ CHARTS: Dict[str, Callable[[], None]] = {
     "trusting-warmup": trusting_warmup,
     "measuring-queue": measuring_queue,
     "queues-wait": queues_wait,
+    "queues-mm1": queues_mm1,
     "choosing-inputs": choosing_inputs,
     "fit-the-inputs": fit_the_inputs,
     "animate-a-run": animate_a_run,

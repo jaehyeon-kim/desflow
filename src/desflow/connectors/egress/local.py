@@ -81,7 +81,9 @@ class ConsoleEgress(BaseEgress):
                 # sys.stdout is read at each write, so a caller that replaces it,
                 # such as a test runner, receives the lines
                 batch = drop_reserved_keys(batch, self)
-                sys.stdout.write("".join(orjson.dumps(r).decode() + "\n" for r in batch))
+                sys.stdout.write(
+                    "".join(orjson.dumps(r).decode() + "\n" for r in batch)
+                )
                 sys.stdout.flush()
                 continue
             if not logger.isEnabledFor(logging.INFO):

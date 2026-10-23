@@ -83,3 +83,26 @@ def test_every_chart_is_drawn_by_the_script_and_used_on_a_page():
     pages = "\n".join(p.read_text() for p in (ROOT / "docs").rglob("*.md"))
     unused = [name for name in sorted(images) if f"charts/{files[name]}" not in pages]
     assert not unused, f"No page uses these charts: {unused}"
+
+
+def test_every_tape_is_recorded_by_the_script_and_its_gif_used_on_a_page():
+    """vhs tapes under docs/assets/tapes/ that scripts/diagrams.py records."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "diagrams", ROOT / "scripts" / "diagrams.py"
+    )
+    assert spec is not None and spec.loader is not None
+    diagrams = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(diagrams)
+    tapes = {p.stem for p in (ROOT / "docs" / "assets" / "tapes").glob("*.tape")}
+    assert tapes == set(diagrams.TAPES), (
+        "List every tape in TAPES in scripts/diagrams.py"
+    )
+    pages = "\n".join(p.read_text() for p in (ROOT / "docs").rglob("*.md"))
+    missing = [str(gif) for gif in diagrams.TAPES.values() if not gif.exists()]
+    unused = [
+        gif.name for gif in diagrams.TAPES.values() if f"charts/{gif.name}" not in pages
+    ]
+    assert not missing, f"Record these with scripts/diagrams.py: {missing}"
+    assert not unused, f"No page uses these GIFs: {unused}"

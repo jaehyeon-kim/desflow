@@ -141,6 +141,88 @@ def queues_table() -> List[str]:
     return [f"packers {n}: mean wait {module.mean_wait(n):8.2f} s" for n in range(1, 5)]
 
 
+def _explain(*arguments: str, **variables: str) -> List[str]:
+    """What `desflow explain` prints, with these environment variables and no others
+    of the names a blueprint reads."""
+    names = {"PACKERS": None, "RATE": None, **variables}
+    kept = {k: v for k, v in names.items() if v is not None}
+    with mock.patch.dict(os.environ, kept):
+        for name in names:
+            if name not in kept:
+                os.environ.pop(name, None)
+        return _command("explain", *arguments)
+
+
+def _from(lines: List[str], start: str) -> List[str]:
+    """The lines from the first that starts with `start`."""
+    first = next(i for i, line in enumerate(lines) if line.startswith(start))
+    return lines[first:]
+
+
+def queues_explain() -> List[str]:
+    """Queues and Capacity: `desflow explain` on the busy hour."""
+    return _explain("docs/snippets/yaml/queues_and_capacity.yaml")
+
+
+def queues_network() -> List[str]:
+    """Queues and Capacity: the network of packing and checking, with why neither
+    wait is estimated, up to its hints."""
+    lines = _explain("docs/snippets/yaml/queues_network.yaml")
+    return lines[: next(i for i, line in enumerate(lines) if line.startswith("Hints"))]
+
+
+def queues_overload() -> List[str]:
+    """Queues and Capacity: the hints for deliberate overload."""
+    lines = _explain("docs/snippets/yaml/queues_and_capacity.yaml", "--target", "1.2")
+    return _from(lines, "Hints for")
+
+
+def queues_rush() -> List[str]:
+    """Queues and Capacity: the packers' queue every 5 minutes, with a rush at 10."""
+    lines = _command("run", "docs/snippets/yaml/queues_overload.yaml", "--stdout")
+    return [
+        re.sub(r'"timestamp":"[^"]*"', '"timestamp":"..."', line)
+        for line in lines
+        if "packers.queue_length" in line
+    ]
+
+
+def checking_explain() -> List[str]:
+    """Checking a Model: the busy hour of Trusting Results against the formulas."""
+    lines = _explain(
+        "docs/snippets/yaml/trusting_results.yaml", "--verify", "--replications", "10"
+    )
+    return _from(lines, "Not estimated:")
+
+
+_THEORY = "docs/snippets/yaml/check_against_theory.yaml"
+
+
+def theory_one() -> List[str]:
+    """Check Against Theory: one packer, verified with 10 runs."""
+    return _explain(_THEORY, "--verify", "--replications", "10")
+
+
+def theory_two() -> List[str]:
+    """Check Against Theory: two packers, the comparison."""
+    lines = _explain(
+        _THEORY, "--verify", "--replications", "10", PACKERS="2", RATE="1.5"
+    )
+    return _from(lines, "Verify:")
+
+
+def theory_python() -> List[str]:
+    """Check Against Theory: the comparison from Python."""
+    module = _module("docs/snippets/guides/check_against_theory.py")
+    return _printed(module.verify)
+
+
+def theory_unsupported() -> List[str]:
+    """Check Against Theory: two packers with constant packing."""
+    module = _module("docs/snippets/guides/check_against_theory.py")
+    return _printed(module.unsupported)
+
+
 # A run without a seed draws one at random. The seed lines show this one, so the
 # page does not change on every run; the line is otherwise the code's own.
 _DRAWN_SEED = 3166812249
@@ -548,6 +630,15 @@ BLOCKS: Dict[str, Callable[[], List[str]]] = {
     "first-trace": first_trace,
     "first-sample": first_sample,
     "queues-table": queues_table,
+    "queues-explain": queues_explain,
+    "queues-network": queues_network,
+    "queues-overload": queues_overload,
+    "queues-rush": queues_rush,
+    "checking-explain": checking_explain,
+    "theory-one": theory_one,
+    "theory-two": theory_two,
+    "theory-python": theory_python,
+    "theory-unsupported": theory_unsupported,
     "seed-line-yaml": seed_line_yaml,
     "seed-line-builder": seed_line_builder,
     "twelfth-order": twelfth_order,

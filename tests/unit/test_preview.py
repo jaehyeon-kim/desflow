@@ -114,7 +114,9 @@ def test_stdout_prints_each_record_once_whatever_the_files_entries(tmp_path):
       - {type: Console, when: !python split.late}
     """
     one = "egress:\n  - type: Console\n"
-    shop = SHOP.replace("random_seed: 7", "random_seed: 7, logical_start_time: 2026-01-01")
+    shop = SHOP.replace(
+        "random_seed: 7", "random_seed: 7, logical_start_time: 2026-01-01"
+    )
     outputs = [
         _run(_write(tmp_path, shop + egress, name), "--stdout", "--until", 4)
         for name, egress in (("split.yaml", textwrap.dedent(split)), ("one.yaml", one))

@@ -7,7 +7,7 @@ in `src/desflow/blueprint/models.py` and committed as
 never calls `model_json_schema`, so it does not depend on the Pydantic version that
 wrote it.
 
-Plain `Blueprint.model_json_schema()` cannot be used as it is, for four reasons:
+Plain `Blueprint.model_json_schema()` cannot be used as it is, for five reasons:
 
 - It raises on the callable fields (`Task.payload`, `Process.function`,
   `Telemetry.function`, `Run.before`). Here a callable, and a `Type[...]` field, is a
@@ -25,9 +25,13 @@ Plain `Blueprint.model_json_schema()` cannot be used as it is, for four reasons:
 - `Connector.type` accepts any string in the model, and `build.py` refuses an unknown
   name. The schema lists the names `build.py` knows.
 
+It also writes `src/desflow/explain/explain.schema.json`, the schema of
+`desflow explain --json`, from the `Explanation` model as it is.
+
 Usage: uv run python scripts/gen_schema.py
 """
 
+import argparse
 import json
 import tomllib
 from pathlib import Path
@@ -39,10 +43,12 @@ from pydantic.json_schema import GenerateJsonSchema
 from desflow.blueprint.build import EGRESS_TYPES, INGRESS_TYPES
 from desflow.blueprint.models import Blueprint, _Model
 from desflow.config import INTERRUPT_POLICIES, STATS_LEVELS
+from desflow.explain.models import Explanation
 from desflow.utils import MULTIPLIERS
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_FILE = ROOT / "src" / "desflow" / "blueprint" / "blueprint.schema.json"
+EXPLAIN_FILE = ROOT / "src" / "desflow" / "explain" / "explain.schema.json"
 SCHEMA_ID = "https://jaehyeon.me/desflow/latest/schema/blueprint.schema.json"
 DIALECT = "https://json-schema.org/draft/2020-12/schema"
 
@@ -356,10 +362,23 @@ def text() -> str:
     return json.dumps(schema(), indent=2, sort_keys=False, allow_nan=False) + "\n"
 
 
+def explain_text() -> str:
+    """The schema of `desflow explain --json`, as the committed file holds it: the
+    `Explanation` model's own schema, which `tests/unit/test_explain.py` compares."""
+    schema = Explanation.model_json_schema()
+    return json.dumps(schema, indent=2, sort_keys=False, allow_nan=False) + "\n"
+
+
 def main() -> None:
-    """Writes the schema into the package."""
+    """Writes the blueprint schema and the explain schema into the package."""
+    # --help prints the module docstring and exits before anything is written
+    argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    ).parse_args()
     SCHEMA_FILE.write_text(text(), encoding="utf-8")
     print(f"Wrote {SCHEMA_FILE.relative_to(ROOT)}")
+    EXPLAIN_FILE.write_text(explain_text(), encoding="utf-8")
+    print(f"Wrote {EXPLAIN_FILE.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":

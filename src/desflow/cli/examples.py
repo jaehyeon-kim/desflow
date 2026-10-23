@@ -91,4 +91,3 @@ def _examples_get(
         typer.echo(f"Run the {each} version: {run_hint(example, each)}")
     for note in example.notes:
         typer.echo(note)
-

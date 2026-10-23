@@ -172,6 +172,46 @@ The classes a task's flow is built from, and the signals and failures tasks shar
       heading_level: 3
       show_root_heading: true
 
+## Explaining a Model
+
+`SimulationContext.analyze` is the usual entry point, and `desflow explain` prints the same `Explanation`. `build_graph`, `analyze` and `verify` are the steps it takes, and `render_terminal` and `to_json` print the result. The JSON form is experimental through 1.x.
+
+<!-- prettier-ignore -->
+::: desflow.explain.models.Explanation
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.explain.graph.build_graph
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.explain.analysis.analyze
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.explain.verify.verify
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.explain.render.render_terminal
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.explain.render.to_json
+    options:
+      heading_level: 3
+      show_root_heading: true
+
 ## Environment
 
 <!-- prettier-ignore -->

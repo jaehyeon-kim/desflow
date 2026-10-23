@@ -105,6 +105,70 @@ def test_queues_and_capacity_three_packers(api, monkeypatch):
     assert min(n for n, w in waits.items() if w < 10) == 3
 
 
+def test_queues_and_capacity_explain_is_the_same_in_yaml_and_builder(monkeypatch):
+    """The Builder tab prints what desflow explain prints for the blueprint: one
+    packer at utilisation 2.7, and 4 packers the fewest below 0.85."""
+    from typer.testing import CliRunner
+
+    from desflow.cli import app
+
+    monkeypatch.delenv("PACKERS", raising=False)
+    path = BLUEPRINTS / "queues_and_capacity.yaml"
+    printed = CliRunner().invoke(app, ["explain", str(path)]).stdout
+    assert _load("queues_and_capacity").explain(1) == printed
+    packers = SimulationContext.from_yaml(path).analyze().resources[0]
+    assert (packers.utilization, packers.status) == (pytest.approx(2.7), "UNSTABLE")
+    assert (
+        packers.capacities[3].status == "OK"
+        and packers.capacities[2].status == "CONGESTED"
+    )
+
+
+def _counts(readings):
+    return {
+        k: v
+        for k, v in readings.items()
+        if any(part in k for part in (".tasks.", ".flows.", ".resources."))
+    }
+
+
+def test_queues_and_capacity_network_is_the_same_in_three_apis():
+    """Networks and Bottlenecks: the Builder tab's model explains as the blueprint
+    does, with the checker the bottleneck, and runs as the Low-level tab's does."""
+    from typer.testing import CliRunner
+
+    from desflow.cli import app
+    from desflow.explain.render import render_terminal
+
+    path = BLUEPRINTS / "queues_network.yaml"
+    printed = CliRunner().invoke(app, ["explain", str(path)]).stdout
+    builder = _load("queues_and_capacity").network()
+    explanation = builder.analyze()
+    assert render_terminal(explanation) == printed
+    assert explanation.bottleneck == "checkers"
+    builder.with_stats("typical", interval=3600)
+    builder.run(until=3600)
+    low_level = _load("queues_and_capacity_low_level").run_network()
+    assert _counts(builder.env.stats.readings()) == _counts(low_level.stats.readings())
+
+
+def test_queues_and_capacity_rush_overloads_in_three_apis():
+    """Push It Past Full Use: after the rush the queue is 328 at 30 minutes, in
+    every tab, as the record block on the page shows."""
+    app = SimulationContext.from_yaml(BLUEPRINTS / "queues_overload.yaml")
+    app.run()
+    builder = _load("queues_and_capacity").rush()
+    builder.run(until=1800)
+    low_level = _load("queues_and_capacity_low_level").run_rush()
+    name = "Shop.stats.resources.packers.queue_length"
+    assert (
+        app.env.stats.readings()[name]
+        == builder.env.stats.readings()[name]
+        == low_level.stats.readings()[name]
+        == 328
+    )
+
+
 def _wait_of(events, key):
     times = {e["value"].get("status"): e["sim_ts"] for e in events if e["key"] == key}
     return round(times["started"] - times["queued"], 3)

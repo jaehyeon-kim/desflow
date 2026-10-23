@@ -9,7 +9,16 @@ from typing import Annotated
 
 import typer
 
-from desflow.cli import dist, examples, experiment, fit, report, run, schema
+from desflow.cli import (
+    dist,
+    examples,
+    experiment,
+    explain,
+    fit,
+    report,
+    run,
+    schema,
+)
 
 app = typer.Typer(
     help="Run desflow simulations defined in YAML blueprint files, and download the examples.",
@@ -43,7 +52,7 @@ def _main(
     """Run desflow simulations defined in YAML blueprint files, and download the examples."""
 
 
-for _module in (run, experiment, report, fit, schema, examples, dist):
+for _module in (run, experiment, report, fit, schema, examples, dist, explain):
     _module.register(app)
 
 

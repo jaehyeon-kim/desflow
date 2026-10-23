@@ -5,6 +5,7 @@ file loads the same way, so a command that takes either kind of file has one pat
 """
 
 import atexit
+import functools
 import importlib.util
 import itertools
 import shutil
@@ -53,14 +54,18 @@ def load_context(
         ImportError: If `folder` is a URI and pyarrow is not installed.
         BlueprintError: If a blueprint is invalid.
     """
-    path = _local_folder(folder) / entry
+    local = _local_folder(folder)
+    path = local / entry
     if path.suffix != _PYTHON_SUFFIX:
         return SimulationContext.from_yaml(path, preview)
     if preview is not None:
         raise ValueError(
             f"a preview runs a YAML blueprint, and {entry} is a Python file"
         )
-    return _python_context(path)
+    context = _python_context(path)
+    # analyze(verify=True) builds a new copy from the local file
+    context._source = functools.partial(load_context, local, entry)
+    return context
 
 
 def _local_folder(folder: Union[str, Path]) -> Path:

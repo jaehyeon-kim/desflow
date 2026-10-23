@@ -13,11 +13,15 @@ Each `<name>.drawio` becomes one image beside it:
 Files whose name starts with an underscore, such as `_legend.drawio`, hold the shared
 shapes and are not exported.
 
+Each tape in `TAPES`, under docs/assets/tapes/, records a terminal session with vhs
+to the GIF it names, from the repository root, when it is named on the command line.
+Run it with `uv run`, so the session finds the `desflow` command of this checkout.
+
 The images are committed, so the docs build needs none of the tools this script uses:
 the draw.io desktop app (`drawio` on the PATH), Google Chrome (the macOS path, or the
 `CHROME` environment variable) and ffmpeg.
 
-Usage: python scripts/diagrams.py [name ...]
+Usage: uv run python scripts/diagrams.py [name ...]
 """
 
 import os
@@ -28,7 +32,11 @@ import sys
 import tempfile
 from pathlib import Path
 
-DIAGRAMS = Path(__file__).resolve().parent.parent / "docs" / "assets" / "diagrams"
+ASSETS = Path(__file__).resolve().parent.parent / "docs" / "assets"
+DIAGRAMS = ASSETS / "diagrams"
+# Each vhs tape, by name, and the GIF it records; tests/docs/test_docs_diagrams.py
+# checks that every tape is listed and every GIF is used on a page
+TAPES = {"explain": ASSETS / "charts" / "explain.gif"}
 CHROME = os.environ.get(
     "CHROME", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 )
@@ -173,7 +181,23 @@ def _export_one(source):
     return out
 
 
+def _record(name):
+    """Records a tape with vhs from the repository root."""
+    _require("vhs")
+    tape = ASSETS / "tapes" / f"{name}.tape"
+    subprocess.run(
+        ["vhs", "-o", str(TAPES[name]), str(tape)], check=True, cwd=ASSETS.parents[1]
+    )
+    return TAPES[name]
+
+
 def main(names):
+    tapes = [n for n in names if n in TAPES]
+    for name in tapes:
+        print(f"{name}.tape -> {_record(name).name}")
+    names = [n for n in names if n not in TAPES]
+    if tapes and not names:
+        return
     for tool in ("drawio", "ffmpeg", CHROME):
         _require(tool)
     sources = sorted(p for p in DIAGRAMS.glob("*.drawio") if not p.name.startswith("_"))

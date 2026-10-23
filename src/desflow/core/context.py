@@ -66,6 +66,7 @@ from desflow.utils import suggestion, time_to_seconds
 if TYPE_CHECKING:
     # build.py imports this module, so the import is for type checkers only
     from desflow.blueprint.build import Preview
+    from desflow.explain.models import Explanation
 
 logger = logging.getLogger(__name__)
 
@@ -273,6 +274,11 @@ class SimulationContext:
         self._entity_counters: Dict[str, "itertools.count[int]"] = {}
         self._instance_counters: Dict[str, "itertools.count[int]"] = {}
         self._startup_loops: List[Tuple[Callable, Optional[str]]] = []
+        # The functions add_process started, which explain shows as opaque nodes
+        self._processes: List[Callable] = []
+        # What builds this model again, a blueprint path or a function, set by
+        # from_yaml and load_context, so analyze(verify=True) can run a copy
+        self._source: Any = None
 
         # Set by from_yaml from the blueprint's `run` section.
         self._default_until: Any = None
@@ -350,6 +356,7 @@ class SimulationContext:
             context.go_live_at = None
             context._sample_limit = preview.sample
         context._repeat_hint = f"Repeat it with: desflow run {path} --seed {{seed}}"
+        context._source = Path(path)
         return context
 
     # ==========================================
@@ -942,9 +949,7 @@ class SimulationContext:
                 refused when the run starts.
         """
         params = {
-            k: v
-            for k, v in locals().items()
-            if k not in ("attributes", "key", "spawn")
+            k: v for k, v in locals().items() if k not in ("attributes", "key", "spawn")
         }
         self._arrivals_config[name] = _distribution(dist, params)
         self._arrival_entities[name] = (dict(attributes or {}), key)
@@ -1319,6 +1324,7 @@ class SimulationContext:
             ```
         """
         self._startup_loops.append((functools.partial(func, self, **kwargs), None))
+        self._processes.append(func)
         return self
 
     # ==========================================
@@ -2006,6 +2012,60 @@ class SimulationContext:
             arrival=self._arrivals_config,
             variables=self._variables_config,
         )
+
+    def analyze(
+        self,
+        verify: bool = False,
+        *,
+        until: Union[float, str, None] = None,
+        seed: Optional[int] = None,
+        replications: Optional[int] = None,
+        target: float = 0.85,
+    ) -> "Explanation":
+        """
+        Explains the model: its graph, and the queueing estimates that apply to it.
+
+        The graph and the analysis come from what the builder declared, before
+        `start()`, and leave the context as it was: it is not started, and a run
+        after it gives the same records as a run without it. `desflow explain`
+        prints the same `Explanation`.
+
+        Args:
+            verify: Also run the model unpaced and compare its statistics with the
+                analysis. The run uses a new copy of the model, built again from
+                the blueprint or the Python file it came from.
+            until: The end of the verifying run, in seconds or as a duration; the
+                blueprint's `run.until` when not given.
+            seed: The verifying run's seed; the model's `random_seed`, or one
+                drawn, when not given.
+            replications: Verify with this many runs, 2 or more, and an interval
+                for each measure, instead of one run.
+            target: The utilisation the tuning hints aim for, above 0 and at most
+                10; at 1 or above the hints are for deliberate overload.
+
+        Returns:
+            Explanation: The graph, the estimates per arrival, task, resource, store
+                and container, the bottleneck, the hints, and with `verify` the
+                comparison.
+
+        Raises:
+            ValueError: If `target` is out of range, or `verify` is asked of a
+                context built in code, which cannot be built again, or with no
+                end time.
+        """
+        from desflow.explain.analysis import analyze
+        from desflow.explain.verify import verify as run_verify
+        from desflow.explain.graph import build_graph
+
+        explanation = analyze(build_graph(self), target)
+        if not verify:
+            return explanation
+        if self._source is None:
+            raise ValueError(
+                "verify needs a model it can build again; use desflow explain "
+                "--verify FILE"
+            )
+        return run_verify(self._source, explanation, until, seed, replications)
 
     def run(
         self,

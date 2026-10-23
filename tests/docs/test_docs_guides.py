@@ -392,3 +392,31 @@ def test_editor_settings_hold_the_schema_and_the_three_tags():
         "!include mapping:object",
     ]
     assert list(settings["yaml.schemas"].values()) == ["blueprints/*.yaml"]
+
+
+def test_check_against_theory_agrees_with_the_formulas(capsys, monkeypatch):
+    """The wait by hand is 3 s for one packer and 1.286 s for two; explain gives the
+    same values; 10 runs of the blueprint agree on every measure; and two packers
+    with constant packing have no wait estimate, with D3's reason."""
+    from desflow import SimulationContext
+
+    module = _load("check_against_theory")
+    blueprint = ROOT / "docs" / "snippets" / "yaml" / "check_against_theory.yaml"
+    assert module.BLUEPRINT == blueprint
+    assert round(module.by_hand(1, 0.75), 3) == 3.0
+    assert round(module.by_hand(2, 1.5), 3) == 1.286
+    packers = SimulationContext.from_yaml(blueprint).analyze().resources[0]
+    assert packers.wait == pytest.approx(module.by_hand(1, 0.75), abs=1e-9)
+    with monkeypatch.context() as patch:
+        patch.setenv("PACKERS", "2")
+        patch.setenv("RATE", "1.5")
+        two = SimulationContext.from_yaml(blueprint).analyze().resources[0]
+    assert two.wait == pytest.approx(module.by_hand(2, 1.5), abs=1e-9)
+    explanation = module.verify()
+    assert [c.differs for c in explanation.verification.comparisons] == [False] * 4
+    unsupported = module.unsupported()
+    assert (unsupported.utilization, unsupported.wait) == (0.75, None)
+    assert unsupported.wait_reason == (
+        "no closed formula for c > 1 with non-exponential times; run --verify"
+    )
+    capsys.readouterr()

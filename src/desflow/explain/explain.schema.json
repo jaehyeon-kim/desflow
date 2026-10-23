@@ -1,0 +1,824 @@
+{
+  "$defs": {
+    "ArrivalResult": {
+      "additionalProperties": false,
+      "description": "An arrival's rate and the variability of its gaps.\n\nAttributes:\n    name: The arrival's name.\n    rate: \u03bb, entities a second; None when unknown.\n    ca2: The squared coefficient of variation of the gaps.\n    reason: Why the rate is unknown.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rate"
+        },
+        "ca2": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ca2"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "ArrivalResult",
+      "type": "object"
+    },
+    "CapacityRow": {
+      "additionalProperties": false,
+      "description": "Utilisation at one number of units.\n\nAttributes:\n    capacity: The number of units.\n    utilization: \u03c1 at that number.\n    status: `OK`, `CONGESTED` or `UNSTABLE`.",
+      "properties": {
+        "capacity": {
+          "title": "Capacity",
+          "type": "integer"
+        },
+        "utilization": {
+          "title": "Utilization",
+          "type": "number"
+        },
+        "status": {
+          "enum": [
+            "OK",
+            "CONGESTED",
+            "UNSTABLE"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "capacity",
+        "utilization",
+        "status"
+      ],
+      "title": "CapacityRow",
+      "type": "object"
+    },
+    "Comparison": {
+      "additionalProperties": false,
+      "description": "One analytical value beside the value a run measured.\n\nAttributes:\n    node: The resource, task or arrival.\n    measure: What is compared: `utilization`, `queue_length`, `wait` or\n        `throughput`.\n    analytical: The value of the analysis; None where it has none.\n    measured: The run's value, or the mean of the replications; None when a\n        run has no reading for it.\n    half_width: The half-width of the replications' interval.\n    differs: True when they disagree: by more than 10 percent for one run;\n        for replications, by more than the interval's half-width and more\n        than 1 percent; None without an analytical value or a reading.\n    reason: Why the measure is not compared: where `analytical` is None, or\n        where a run has no reading.",
+      "properties": {
+        "node": {
+          "title": "Node",
+          "type": "string"
+        },
+        "measure": {
+          "title": "Measure",
+          "type": "string"
+        },
+        "analytical": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Analytical"
+        },
+        "measured": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Measured"
+        },
+        "half_width": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Half Width"
+        },
+        "differs": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Differs"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        }
+      },
+      "required": [
+        "node",
+        "measure"
+      ],
+      "title": "Comparison",
+      "type": "object"
+    },
+    "Edge": {
+      "additionalProperties": false,
+      "description": "A link between two nodes.\n\nAttributes:\n    source: The id of the node it leaves.\n    target: The id of the node it reaches.\n    kind: `spawn` (an arrival or a task starts an entity at a task), `uses`\n        (a task holds a resource), `next` (a task's route to the next task or\n        to the exit), `takes` and `gives` (a task's get and put).\n    probability: The share of the source's entities that take a `next` edge,\n        where the rules fix it; None where the run decides it.",
+      "properties": {
+        "source": {
+          "title": "Source",
+          "type": "string"
+        },
+        "target": {
+          "title": "Target",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "spawn",
+            "uses",
+            "next",
+            "takes",
+            "gives"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "probability": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Probability"
+        }
+      },
+      "required": [
+        "source",
+        "target",
+        "kind"
+      ],
+      "title": "Edge",
+      "type": "object"
+    },
+    "Graph": {
+      "additionalProperties": false,
+      "description": "A model as nodes and edges, read from its declared linkage.\n\nAttributes:\n    sim_id: The model's sim id.\n    nodes: Every node.\n    edges: Every edge.\n    features: What changes demand or capacity during the run, for the whole\n        model, such as `scenario steps`.",
+      "properties": {
+        "sim_id": {
+          "title": "Sim Id",
+          "type": "string"
+        },
+        "nodes": {
+          "items": {
+            "$ref": "#/$defs/Node"
+          },
+          "title": "Nodes",
+          "type": "array"
+        },
+        "edges": {
+          "items": {
+            "$ref": "#/$defs/Edge"
+          },
+          "title": "Edges",
+          "type": "array"
+        },
+        "features": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Features",
+          "type": "array"
+        }
+      },
+      "required": [
+        "sim_id",
+        "nodes",
+        "edges"
+      ],
+      "title": "Graph",
+      "type": "object"
+    },
+    "Hint": {
+      "additionalProperties": false,
+      "description": "A change that brings a resource to the target utilisation.\n\nAttributes:\n    resource: The resource's name.\n    kind: `servers` (a number of units) or `rate` (the rate into it at its\n        current units).\n    value: The number of units, or the rate.\n    text: The hint as a sentence.",
+      "properties": {
+        "resource": {
+          "title": "Resource",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "servers",
+            "rate"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "number"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "resource",
+        "kind",
+        "value",
+        "text"
+      ],
+      "title": "Hint",
+      "type": "object"
+    },
+    "HolderResult": {
+      "additionalProperties": false,
+      "description": "A store's or container's put and get rates.\n\nAttributes:\n    name: Its name.\n    kind: `store` or `container`.\n    put_rate: Puts a second from the tasks that add to it, where known.\n    get_rate: Gets a second from the tasks that take from it, where known.\n    reason: Why there is no queueing analysis.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "store",
+            "container"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "put_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Put Rate"
+        },
+        "get_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Get Rate"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "kind",
+        "reason"
+      ],
+      "title": "HolderResult",
+      "type": "object"
+    },
+    "Node": {
+      "additionalProperties": false,
+      "description": "One part of the model.\n\nAttributes:\n    id: Unique in the graph: the kind and the name, such as `task:pack_order`.\n    kind: `arrival`, `task`, `resource`, `store`, `container`, `opaque` or\n        `exit`.\n    label: The name in the model, such as `pack_order`.\n    opaque: True for code `explain` cannot read, such as a hand-written\n        `arrival_loop` or an `add_process` function.\n    distribution: An arrival's gaps or a task's service, as its parameters\n        such as `{\"dist\": \"exponential\", \"rate\": 1.8}`; None for a replayed\n        arrival or a task without a service.\n    capacity: A resource's `current_cap`; None for no limit.\n    max_capacity: A resource's `max_cap`; None for no limit.\n    features: What the queueing formulas leave out, such as `patience`.\n    queue: A resource's queue order: `fifo`, `lifo` or `priority`.\n    priority: A task's priority as it was given: a number, an expression's\n        text, or `function`; None for none, which ranks 0.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "arrival",
+            "task",
+            "resource",
+            "store",
+            "container",
+            "opaque",
+            "exit"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "opaque": {
+          "default": false,
+          "title": "Opaque",
+          "type": "boolean"
+        },
+        "distribution": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Distribution"
+        },
+        "capacity": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Capacity"
+        },
+        "max_capacity": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Capacity"
+        },
+        "features": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Features",
+          "type": "array"
+        },
+        "queue": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Queue"
+        },
+        "priority": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Priority"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "label"
+      ],
+      "title": "Node",
+      "type": "object"
+    },
+    "ResourceResult": {
+      "additionalProperties": false,
+      "description": "A resource's load, utilisation, status and wait estimate.\n\nAttributes:\n    name: The resource's name.\n    rate: \u03bb, requests a second, summed over its tasks.\n    service_mean: \u03c4, the mean service time weighted by each task's rate.\n    service_rate: \u03bc = 1 / \u03c4.\n    servers: c, its `current_cap`; None for no limit.\n    utilization: \u03c1 = \u03bb \u03c4 / c.\n    status: `OK` below 0.85, `CONGESTED` from 0.85, `UNSTABLE` from 1.\n    wait: Wq, the mean wait in the queue, where a formula applies.\n    queue_length: Lq = \u03bb Wq.\n    in_system: L = \u03bb (Wq + \u03c4).\n    method: The formula behind the wait: `kingman` (exact, for a Poisson\n        input), `kingman_approx` (an approximation, for other gaps, which\n        `--verify` does not compare), `erlang_c` or `no_limit`.\n    reason: Why the utilisation is unknown.\n    wait_reason: Why the wait is not estimated.\n    capacities: \u03c1 at each number of units the resource allows.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rate"
+        },
+        "service_mean": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Service Mean"
+        },
+        "service_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Service Rate"
+        },
+        "servers": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Servers"
+        },
+        "utilization": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Utilization"
+        },
+        "status": {
+          "anyOf": [
+            {
+              "enum": [
+                "OK",
+                "CONGESTED",
+                "UNSTABLE"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Status"
+        },
+        "wait": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Wait"
+        },
+        "queue_length": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Queue Length"
+        },
+        "in_system": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "In System"
+        },
+        "method": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Method"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "wait_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Wait Reason"
+        },
+        "capacities": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/CapacityRow"
+          },
+          "title": "Capacities",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "ResourceResult",
+      "type": "object"
+    },
+    "TaskResult": {
+      "additionalProperties": false,
+      "description": "A task's rate from flow balance, and its service.\n\nAttributes:\n    name: The task's name.\n    rate: \u03bb, instances started a second; None when unknown.\n    service_mean: The effective mean service time; 0 without a service.\n    cs2: The squared coefficient of variation of the service time.\n    reason: Why the rate is unknown.",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rate"
+        },
+        "service_mean": {
+          "default": 0.0,
+          "title": "Service Mean",
+          "type": "number"
+        },
+        "cs2": {
+          "default": 0.0,
+          "title": "Cs2",
+          "type": "number"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "TaskResult",
+      "type": "object"
+    },
+    "Verification": {
+      "additionalProperties": false,
+      "description": "What `--verify` ran and found.\n\nAttributes:\n    until: The end of each run.\n    warmup: The model's warm-up; the measures leave it out.\n    seed: The seed, or the seed the replications' seeds come from.\n    replications: The number of runs, or None for one.\n    comparisons: Every comparison.\n    note: What the check does and does not show.",
+      "properties": {
+        "until": {
+          "title": "Until",
+          "type": "number"
+        },
+        "warmup": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Warmup"
+        },
+        "seed": {
+          "title": "Seed",
+          "type": "integer"
+        },
+        "replications": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Replications"
+        },
+        "comparisons": {
+          "items": {
+            "$ref": "#/$defs/Comparison"
+          },
+          "title": "Comparisons",
+          "type": "array"
+        },
+        "note": {
+          "title": "Note",
+          "type": "string"
+        }
+      },
+      "required": [
+        "until",
+        "seed",
+        "comparisons",
+        "note"
+      ],
+      "title": "Verification",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A model's graph and its analysis.\n\nAttributes:\n    schema_version: The version of this shape, `\"0\"` while it is\n        experimental.\n    sim_id: The model's sim id.\n    target: The utilisation the hints aim for.\n    graph: The graph.\n    arrivals: Each arrival.\n    tasks: Each task.\n    resources: Each resource.\n    holders: Each store and container.\n    bottleneck: The resource with the highest utilisation the formulas cover.\n    bottleneck_reason: Why no bottleneck can be named, when none is.\n    hints: Changes that bring each resource to `target`.\n    verification: What `--verify` found, when it ran.",
+  "properties": {
+    "schema_version": {
+      "const": "0",
+      "default": "0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "sim_id": {
+      "title": "Sim Id",
+      "type": "string"
+    },
+    "target": {
+      "title": "Target",
+      "type": "number"
+    },
+    "graph": {
+      "$ref": "#/$defs/Graph"
+    },
+    "arrivals": {
+      "items": {
+        "$ref": "#/$defs/ArrivalResult"
+      },
+      "title": "Arrivals",
+      "type": "array"
+    },
+    "tasks": {
+      "items": {
+        "$ref": "#/$defs/TaskResult"
+      },
+      "title": "Tasks",
+      "type": "array"
+    },
+    "resources": {
+      "items": {
+        "$ref": "#/$defs/ResourceResult"
+      },
+      "title": "Resources",
+      "type": "array"
+    },
+    "holders": {
+      "items": {
+        "$ref": "#/$defs/HolderResult"
+      },
+      "title": "Holders",
+      "type": "array"
+    },
+    "bottleneck": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Bottleneck"
+    },
+    "bottleneck_reason": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Bottleneck Reason"
+    },
+    "hints": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/Hint"
+      },
+      "title": "Hints",
+      "type": "array"
+    },
+    "verification": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Verification"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "sim_id",
+    "target",
+    "graph",
+    "arrivals",
+    "tasks",
+    "resources",
+    "holders"
+  ],
+  "title": "Explanation",
+  "type": "object"
+}

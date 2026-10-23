@@ -20,6 +20,7 @@ EXPERIMENTS = sorted(YAML.glob("*_experiment.yaml"))
 # answer their page gives, so a short run here would check nothing more
 RUN_BY_OTHER_TESTS = {
     "changing_demand.yaml",
+    "check_against_theory.yaml",
     "checking_a_model.yaml",
     "choosing_inputs.yaml",
     "competing_resources.yaml",
