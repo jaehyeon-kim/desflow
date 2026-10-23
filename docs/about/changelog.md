@@ -9,6 +9,10 @@ Each release, newest first: what changed, then under Upgrading what to change in
 - [YAML Keys](../reference/yaml-keys.md) lists every key of a blueprint with its type and default, generated from the schema.
 - A skill for AI coding assistants, `skills/desflow/`, teaches them to write, check and run blueprints, and to run a study with a seed, a warm-up and replications. It installs by copying the folder or with `gh skill install`. See [Use an AI Assistant](../guides/use-an-ai-assistant.md).
 - `resource.queue.items`, which 0.23.0 deprecated, is removed. See Upgrading.
+- The Learn section gains [A Simulation Study](../des/a-simulation-study.md), [Checking and Validating](../des/checking-and-validating.md), [Queueing Basics](../des/queueing-basics.md), [Output Analysis](../des/output-analysis.md), [Coming from SimPy](../des/coming-from-simpy.md), [Common Mistakes](../des/common-mistakes.md) and [Readiness and Reporting](../des/readiness-and-reporting.md), with the tutorials [Checking a Model](../tutorials/checking-a-model.md), [Live Changes](../tutorials/live-changes.md) and [Streaming Out](../tutorials/streaming-out.md).
+- The How-To section gains [Test a Model](../guides/test-a-model.md), [Analyse the Event Log](../guides/analyse-the-event-log.md), [Animate a Run](../guides/animate-a-run.md) and [Share by Weight](../guides/share-by-weight.md), which shares one resource between classes by weight.
+- [Run Length](../user-guide/time-and-pacing/run-length.md) states the order of events due at the same time.
+- [Why desflow](why-desflow.md) says what the library is for.
 - The JSONL file sink's progress line every 10 batches names it `JSONL Writer`. It said `Parquet Writer`.
 
 ### Upgrading

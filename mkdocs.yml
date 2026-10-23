@@ -240,6 +240,10 @@ nav:
       - Set Up Your Editor: guides/set-up-your-editor.md
       - Use an AI Assistant: guides/use-an-ai-assistant.md
       - Fit a Distribution: guides/fit-a-distribution.md
+      - Test a Model: guides/test-a-model.md
+      - Analyse the Event Log: guides/analyse-the-event-log.md
+      - Animate a Run: guides/animate-a-run.md
+      - Share by Weight: guides/share-by-weight.md
       - Complex Routing (Kafka): guides/complex-routing.md
       - Avro and Pydantic: guides/avro-and-pydantic.md
       - Secure Kafka: guides/kafka-security.md
@@ -272,6 +276,7 @@ nav:
       - Cheat Sheet: reference/cheat-sheet.md
   - About:
       - Roadmap: about/roadmap.md
+      - Why desflow: about/why-desflow.md
       - Changelog: about/changelog.md
 
 markdown_extensions:

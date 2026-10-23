@@ -156,6 +156,8 @@ dev = [
     # mkdocs-redirects 1.2.3 does.
     "mkdocs-gen-files==0.6.0",
     "jsonschema>=4.26.0",
+    # scripts/charts.py animates a run for the Animate a Run page.
+    "vidigi>=2.0.0",
 ]
 
 [tool.pytest.ini_options]

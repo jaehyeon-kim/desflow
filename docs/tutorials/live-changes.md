@@ -122,6 +122,7 @@ The labels go only to a sink with `when: labels`, for the reasons [Live Paramete
             JsonlStorageEgress(default_path=f"{out}/labels/labels.jsonl"),
         ],
         labels=[False, True],
+        flush_interval=flush_interval,
     )
     ```
 
@@ -312,8 +313,11 @@ During the jam the packer finishes one order every 3 seconds, 0.33 a second, whi
               schedule: [[0.5, Shop.service.packing.value, 3.0]]
 
         egress:
+          # Flush every 60 simulated seconds: at this pace the default of 1 s flushes on a timer
+          # over and over, and desflow warns about it
           - type: Jsonl
             config: {default_path: events/orders.jsonl}
+            flush_interval: 60
           - type: Jsonl
             config: {default_path: labels/labels.jsonl}
             when: labels
@@ -451,6 +455,9 @@ During the jam the packer finishes one order every 3 seconds, 0.33 a second, whi
             app.factor = 0.005
             # Half a wall-clock second after the start, set packing to 3 seconds
             app.add_ingress(LocalIngress(schedule=[(0.5, "Shop.service.packing.value", 3.0)]))
+            # Flush every 60 simulated seconds: at this pace the default of 1 s flushes on a
+            # timer over and over, and desflow warns about it
+            app.with_batching(batch_size=500, flush_interval=60)
             app.run(until="5 min")
             return app
 
@@ -557,7 +564,12 @@ During the jam the packer finishes one order every 3 seconds, 0.33 a second, whi
 
 
         def run(
-            out: Path, jam: bool = True, factor: float = 0.0, until: float = 3600, ingress=None
+            out: Path,
+            jam: bool = True,
+            factor: float = 0.0,
+            until: float = 3600,
+            ingress=None,
+            flush_interval: float = 1.0,
         ):
             # strict=False lets a paced run fall behind the wall clock without stopping
             env = DynamicRealtimeEnvironment(factor=factor, strict=False)
@@ -571,6 +583,7 @@ During the jam the packer finishes one order every 3 seconds, 0.33 a second, whi
                     JsonlStorageEgress(default_path=f"{out}/labels/labels.jsonl"),
                 ],
                 labels=[False, True],
+                flush_interval=flush_interval,
             )
             if ingress:
                 env.setup_ingress(ingress)
@@ -641,7 +654,11 @@ During the jam the packer finishes one order every 3 seconds, 0.33 a second, whi
             """The same jam sent live, half a second of wall-clock time after the start."""
             # Half a wall-clock second after the start, set packing to 3 seconds
             ingress = [LocalIngress(schedule=[(0.5, "Shop.service.packing.value", 3.0)])]
-            return run(out, jam=False, factor=0.005, until=300, ingress=ingress)
+            # Flush every 60 simulated seconds: at this pace the default of 1 s flushes on a
+            # timer over and over, and desflow warns about it
+            return run(
+                out, jam=False, factor=0.005, until=300, ingress=ingress, flush_interval=60
+            )
 
 
         if __name__ == "__main__":

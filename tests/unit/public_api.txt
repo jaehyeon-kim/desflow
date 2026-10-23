@@ -206,7 +206,7 @@ desflow.core.environment.DynamicRealtimeEnvironment.watch_changes(callback: coll
 desflow.core.expressions.Expression(text: str)
 desflow.core.expressions.Expression.evaluate(scope: desflow.core.expressions.Scope) -> Any
 desflow.core.expressions.Expression.reads_queues: property
-desflow.core.flow.Router(rules: None | str | collections.abc.Mapping[str, Any] | collections.abc.Callable[[desflow.models.flow.Upstream], str | None], rng: numpy.random._generator.Generator | None = None)
+desflow.core.flow.Router(rules: None | str | collections.abc.Mapping[str, Any] | collections.abc.Callable[[desflow.models.flow.Upstream], str | None], rng: numpy.random.Generator | None = None)
 desflow.core.flow.Router.choose(upstream: desflow.models.flow.Upstream, env: Any = None, levels: collections.abc.Mapping[str, Any] | None = None, item: Any = None, scope: desflow.core.expressions.Scope | None = None) -> str | None
 desflow.core.flow.Router.conditions: property
 desflow.core.flow.Router.weighted: property
@@ -229,8 +229,8 @@ desflow.core.registry.SimulationRegistry.register_store(sim_id: str, name: str, 
 desflow.core.registry.SimulationRegistry.set_exactly(path: str, value: Any) -> None
 desflow.core.registry.SimulationRegistry.update(path: str, new_value: Any)
 desflow.core.replay.read_trace(source: str | pathlib.Path | collections.abc.Iterable[collections.abc.Mapping[str, Any]], time: str = 'time', unit: str = 's', fields: str | collections.abc.Sequence[str] = 'all', on_invalid: str = 'error', start: datetime.datetime | None = None, initial_time: float = 0.0) -> list[desflow.core.replay.Row]
-desflow.core.sampler.Sampler(rng: numpy.random._generator.Generator | None = None, *, seed: int | None = None)
-desflow.core.sampler.Sampler.generator(name: str) -> numpy.random._generator.Generator | None
+desflow.core.sampler.Sampler(rng: numpy.random.Generator | None = None, *, seed: int | None = None)
+desflow.core.sampler.Sampler.generator(name: str) -> numpy.random.Generator | None
 desflow.core.sampler.Sampler.sample(config: desflow.models.params.DistributionConfig, min_delay: float = 1e-05) -> float
 desflow.core.sampler.Sampler.streams: property
 desflow.core.scenario.run_scenario(env: Any, steps: collections.abc.Iterable[collections.abc.Mapping[str, Any]], until: float | None = None, interrupt: collections.abc.Callable[..., Any] | None = None)

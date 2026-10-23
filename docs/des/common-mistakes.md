@@ -12,7 +12,7 @@ A model built to "see what happens" has no way to be finished, because nothing s
 
 ## Copying the Real System in Full
 
-A model with every detail of the real shop takes long to build, is hard to check, and needs data for each detail that nobody collected. Leave out whatever the question does not depend on. The test is to ask of each part: would the answer change if it were different? If not, drop it. [A Simulation Study](a-simulation-study.md) calls this describing the system on paper, then choosing what to keep.
+A model with every detail of the real shop takes long to build, is hard to check, and needs data for each detail that nobody collected. Leave out whatever the question does not depend on. The test is to ask of each part: would the answer change if it were different? If not, drop it. [A Simulation Study](a-simulation-study.md) writes this down as the conceptual model, and lets the question decide how much detail goes in.
 
 ---
 

@@ -59,7 +59,8 @@ A blueprint can also call Python with `!python module.attribute`, so a model rar
 - `!python module.attribute` imports the module and returns the attribute. The module is found on `sys.path`, which includes the folder of the YAML file, so a Python file beside the blueprint works from any directory.
 - `!include path` puts a mapping from another YAML file in place, with the path relative to the file that names it.
 - `${VAR}` reads an environment variable and `${VAR:-default}` gives a default when it is unset or empty. An unquoted value is read as YAML reads it after the replacement, so `factor: ${SIM_FACTOR:-0}` is the number 0. `$${` writes a literal `${`. A variable without a default that is unset stops the load.
-- An arrival's `spawn` names one task. The task passes the entity on with `next`. A spawned task must not have the same name as an arrival.
+- An arrival's `spawn` names one task. The task passes the entity on with `next`.
+- A task's `spawn` and an `on:` spawn action start a task as a new entity. A task that a task's `spawn` or an `on:` spawn starts must not share an arrival's name.
 - A connector `type` is a short name with its capital letter, such as `Console` or `Kafka`. [references/connectors.md](references/connectors.md) lists them and the extra each one needs.
 - A resource or store has a whole-number capacity. A container holds a continuous amount, so its capacity and level can be fractional.
 - A misspelt key is refused, not ignored. Fix the key instead of removing it.

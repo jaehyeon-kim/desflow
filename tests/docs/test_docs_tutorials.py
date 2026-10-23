@@ -905,7 +905,9 @@ def test_live_changes_live_then_scenario(name, tmp_path, monkeypatch, capsys):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(sys, "argv", [f"{name}.py", "live"])
     runpy.run_path(str(TUTORIALS / f"{name}.py"), run_name="__main__")
-    assert capsys.readouterr().out == "packing after the live change: 3.0 s\n"
+    captured = capsys.readouterr()
+    assert captured.out == "packing after the live change: 3.0 s\n"
+    assert "flushed on its timer" not in captured.err
     module.live(tmp_path / "live")
     got = module.outcomes(tmp_path)
     got["last_longer"] = round(got["last_longer"], 3)

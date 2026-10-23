@@ -78,7 +78,12 @@ def order_generator(env, sampler, packers):
 
 
 def run(
-    out: Path, jam: bool = True, factor: float = 0.0, until: float = 3600, ingress=None
+    out: Path,
+    jam: bool = True,
+    factor: float = 0.0,
+    until: float = 3600,
+    ingress=None,
+    flush_interval: float = 1.0,
 ):
     # strict=False lets a paced run fall behind the wall clock without stopping
     env = DynamicRealtimeEnvironment(factor=factor, strict=False)
@@ -93,6 +98,7 @@ def run(
             JsonlStorageEgress(default_path=f"{out}/labels/labels.jsonl"),
         ],
         labels=[False, True],
+        flush_interval=flush_interval,
     )
     # --8<-- [end:sinks]
     if ingress:
@@ -168,7 +174,11 @@ def live(out: Path):
     # Half a wall-clock second after the start, set packing to 3 seconds
     ingress = [LocalIngress(schedule=[(0.5, "Shop.service.packing.value", 3.0)])]
     # --8<-- [end:live]
-    return run(out, jam=False, factor=0.005, until=300, ingress=ingress)
+    # Flush every 60 simulated seconds: at this pace the default of 1 s flushes on a
+    # timer over and over, and desflow warns about it
+    return run(
+        out, jam=False, factor=0.005, until=300, ingress=ingress, flush_interval=60
+    )
 
 
 if __name__ == "__main__":

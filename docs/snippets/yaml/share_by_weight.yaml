@@ -1,0 +1,40 @@
+# The Share by Weight guide: one packer shared between two tiers of orders by weight.
+# Run it with: desflow run share_by_weight.yaml
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+# --8<-- [start:resource]
+resources:
+  # queue: priority lets a task set a priority; the class orders the waiting line itself
+  packers:
+    current_cap: 1
+    max_cap: 4
+    queue: priority
+    type: !python share_by_weight_logic.WeightedPackers
+# --8<-- [end:resource]
+
+services:
+  packing: {dist: constant, value: 1 s}
+
+# Nine orders at time 0, each with a tier
+arrivals:
+  orders:
+    replay: {path: share_by_weight_orders.csv, time: time, unit: s}
+    spawn: pack_order
+
+# --8<-- [start:task]
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    priority: attr.tier  # the tier of the order is the class of its request
+    payload: {event_type: order_packed}
+# --8<-- [end:task]
+
+egress:
+  - type: Console
+
+run:
+  until: 20 s

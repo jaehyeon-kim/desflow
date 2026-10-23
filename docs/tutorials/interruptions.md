@@ -38,6 +38,8 @@ Priority so far decided only who goes next. **Preemption** also stops the work i
     ),
     ```
 
+    [`preempt=True`](../des/simpy-and-desflow.md#resources) gives the resource SimPy's preemption, and the process that holds a unit [receives an interrupt](../des/simpy-and-desflow.md#interrupts) when it is preempted. The code below calls [`release(request)`](https://simpy.readthedocs.io/en/4.1.2/api_reference/simpy.resources.html#simpy.resources.resource.Resource.release), reads `env.active_process`, the [process that is running now](https://simpy.readthedocs.io/en/4.1.2/api_reference/simpy.core.html#simpy.core.Environment.active_process), and calls `request.cancel()`, which [takes a request that has not been granted out of the queue](https://simpy.readthedocs.io/en/4.1.2/api_reference/simpy.resources.html#simpy.resources.base.Put.cancel).
+
 Equal priorities do not preempt, so one express order does not take the packer from another; SimPy's one exception, a user whose request with `preempt: false` was made at the same moment, does not arise here.
 
 ---
@@ -146,7 +148,7 @@ It publishes `preempted` (or `interrupted`) when it loses the packer, and `resum
         env.stats.flow_finished(arrival)
     ```
 
-    The process catches `simpy.Interrupt`, whose cause is SimPy's `Preempted` for a preemption, gives back its request, and asks again. That loop is what `on_interrupt` writes for you. SimPy delivers an interrupt as an `URGENT` event, so it comes before the other events at that time; `env.schedule(event, priority, delay)` schedules your own events the same way.
+    The process catches `simpy.Interrupt`, whose cause is SimPy's `Preempted` for a preemption, gives back its request, and asks again. That loop is what `on_interrupt` writes for you. SimPy delivers an interrupt as an `URGENT` event, so it comes before the other events at that time; [`env.schedule(event, priority, delay)`](https://simpy.readthedocs.io/en/4.1.2/api_reference/simpy.core.html#simpy.core.Environment.schedule) schedules your own events the same way.
 
 The statistics count each `preempted`, `interrupted` and `resumed`; a resumed order's wait is the sum of its waits, and its packing time is the time it was packed:
 

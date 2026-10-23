@@ -83,6 +83,26 @@ def resolve(path: str) -> Any:
     raise ImportError(path)
 
 
+def _public_module(cls: type) -> str:
+    """The module a class is written under: its own, unless a segment of that path is
+    private (`pathlib._local` on Python 3.13), then the nearest parent that exports the
+    same object under its name (`pathlib`)."""
+    parts = cls.__module__.split(".")
+    if not any(part.startswith("_") for part in parts):
+        return cls.__module__
+    for cut in range(len(parts) - 1, 0, -1):
+        name = ".".join(parts[:cut])
+        if any(part.startswith("_") for part in parts[:cut]):
+            continue
+        try:
+            parent = importlib.import_module(name)
+        except ImportError:
+            continue
+        if getattr(parent, cls.__qualname__, None) is cls:
+            return name
+    return cls.__module__
+
+
 def _annotation(value: Any) -> str:
     if value is inspect.Parameter.empty:
         return ""
@@ -114,7 +134,7 @@ def _annotation(value: Any) -> str:
     if isinstance(value, type):
         if value.__module__ in _SHORT_MODULES:
             return value.__qualname__
-        return f"{value.__module__}.{value.__qualname__}"
+        return f"{_public_module(value)}.{value.__qualname__}"
     return _ADDRESS.sub("", repr(value))
 
 

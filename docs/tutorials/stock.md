@@ -81,6 +81,8 @@ Packing an order takes one box. The task gets its packer first and then its box,
         yield shop["stock"].get(1)
     ```
 
+    The stock is a SimPy container: `get(1)` is an event that happens when the level covers the amount, and the process waits at the `yield` until then. [SimPy and desflow](../des/simpy-and-desflow.md#containers-and-stores) describes containers and stores.
+
 A delivery arrives every 100 seconds, and its task puts the boxes on the shelf. It waits while there is no room for all of them. It has no service and no resource, so it takes no time and publishes its payload once the boxes are on the shelf:
 
 === "YAML"

@@ -73,7 +73,7 @@ app.run(until="1 week")  # 604,800 simulation seconds; a number is seconds too
 
 The run stops at `until` before any event due at exactly that time, as SimPy's `run(until=...)` does: an order due at the horizon never arrives, and a task due to finish there stays unfinished. Statistics published at teardown read the model at `until`.
 
-Events due at the same time run by priority, and then in the order they were scheduled (SimPy 4.1.2, `core.py`: `schedule` and `run`; `URGENT` and `NORMAL` in `events.py`). `run(until=...)` schedules its stop at urgent priority, so the stop comes before the ordinary events due at that time. A scenario step is also urgent, so it applies before a task that finishes at its time ([Live Parameters](../live-parameters.md#script-an-experiment)). A change from an ingress connector or from another task is an ordinary event, so a task that finishes at the same time sees it before or after by scheduling order. Here two orders are packed at 5 seconds, and one is due at the horizon of 10 seconds:
+Events due at the same time run by priority, and then in the order they were scheduled (SimPy 4.1.2, `core.py`: `schedule` and `run`; `URGENT` and `NORMAL` in `events.py`). `run(until=...)` schedules its stop at urgent priority, so the stop comes before the ordinary events due at that time. How a scenario step or a change from an ingress connector ranks among them is in [Live Parameters](../live-parameters.md#script-an-experiment). Here two orders are packed at 5 seconds, and one is due at the horizon of 10 seconds:
 
 ```python title="docs/snippets/pages/pacing.py:same-time"
 ties = DynamicRealtimeEnvironment(factor=0.0)

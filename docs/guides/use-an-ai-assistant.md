@@ -35,6 +35,57 @@ An assistant can still write a model that runs and answers the wrong question. R
 
 ---
 
+## Example
+
+The install command from the steps, then a blueprint of the kind the assistant writes for a shop with a lunch rush. Run it with `desflow run changing_demand.yaml`.
+
+```bash
+gh skill install jaehyeon-kim/desflow desflow --agent claude-code --scope user
+```
+
+```yaml title="docs/snippets/yaml/changing_demand.yaml"
+# The Changing Demand tutorial: a 20-minute rush, with one packer or two.
+# Run it with: desflow run changing_demand.yaml
+# With a second packer for the rush: RUSH_PACKERS=2 desflow run changing_demand.yaml
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+resources:
+  packers: {current_cap: 1, max_cap: 2}
+
+services:
+  packing: {dist: constant, value: 1.5 s}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.4, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+
+# The rush: 0.9 orders a second from 20 to 40 minutes, and RUSH_PACKERS for it
+scenario:
+  - {at: 20 min, path: Shop.arrival.orders.rate, value: 0.9}
+  - {at: 20 min, path: Shop.resources.packers.current_cap, value: "${RUSH_PACKERS:-1}"}
+  - {at: 40 min, path: Shop.arrival.orders.rate, value: 0.4}
+  - {at: 40 min, path: Shop.resources.packers.current_cap, value: 1}
+
+# Orders packed, and the mean and longest wait, at the end
+stats: {level: typical, interval: 2 h}
+
+egress:
+  - type: Console
+
+run:
+  until: 1 h
+```
+
+---
+
 ## Sources
 
-The folder layout and the `SKILL.md` fields follow the [Agent Skills specification](https://agentskills.io/specification). The folders Claude Code reads are in its [skills documentation](https://code.claude.com/docs/en/skills). The `gh skill install` flags are those of `gh skill install --help` in GitHub CLI 2.95.0. The install was not run for this page.
+The folder layout and the `SKILL.md` fields follow the [Agent Skills specification](https://agentskills.io/specification). The folders Claude Code reads are in its [skills documentation](https://code.claude.com/docs/en/skills). The `gh skill install` flags are those of `gh skill install --help` in GitHub CLI 2.95.0.

@@ -6,6 +6,10 @@
 [![Python Versions](https://img.shields.io/pypi/pyversions/desflow.svg)](https://pypi.org/project/desflow/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+To check what desflow does against plain SimPy, see [SimPy Compatibility](https://jaehyeon.me/desflow/latest/reference/simpy-compatibility/).
+
+To see why it exists and how it is built, read [Why desflow](https://jaehyeon.me/desflow/latest/about/why-desflow/).
+
 **Realistic event streams from a simulation you can steer while it runs.**
 
 > **dynamic-des is now desflow.** The package was renamed in 0.20.0: install `desflow`, import `desflow` and run `desflow`. Code that imports `dynamic_des` and scripts that run `ddes` keep working with a warning until 0.30.0, and the [Changelog](https://jaehyeon.me/desflow/latest/about/changelog/) says what to change.

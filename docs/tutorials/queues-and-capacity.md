@@ -102,6 +102,8 @@ The number of packers is the resource's `current_cap`. Each run sets it once:
 
     A `DynamicResource` with a `current_cap` of 3 behaves like a SimPy resource with three units: a request is granted as soon as any unit is free, so three orders are packed at once. [Resources](../user-guide/resources/index.md) describes how it is built and why.
 
+    `env.run(until=...)` runs [SimPy's event loop](../des/simpy-and-desflow.md#environment-and-the-event-list) until that time, `DynamicRealtimeEnvironment` is desflow's form of [SimPy's `RealtimeEnvironment`](../des/simpy-and-desflow.md#real-time-environment), and a resource's capacity is its [number of units](../des/simpy-and-desflow.md#resources).
+
 To read the mean wait, switch on the built-in statistics at the `typical` level, which keeps the mean wait of every task; [Measuring a Run](measuring-a-run.md) explains the levels.
 
 === "YAML"

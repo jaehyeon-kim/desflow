@@ -132,6 +132,9 @@ def live(out: Path) -> SimulationContext:
     # Half a wall-clock second after the start, set packing to 3 seconds
     app.add_ingress(LocalIngress(schedule=[(0.5, "Shop.service.packing.value", 3.0)]))
     # --8<-- [end:live]
+    # Flush every 60 simulated seconds: at this pace the default of 1 s flushes on a
+    # timer over and over, and desflow warns about it
+    app.with_batching(batch_size=500, flush_interval=60)
     app.run(until="5 min")
     return app
 
