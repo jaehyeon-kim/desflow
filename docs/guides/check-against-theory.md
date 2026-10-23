@@ -174,7 +174,7 @@ print(f"wait: {packers.wait_reason}")
 <!-- records: theory-unsupported -->
 ```text
 utilisation 0.75, status OK
-wait: no closed formula for c > 1 with non-exponential times; run --verify
+wait: no closed formula for c > 1 with non-exponential times; run --verify to measure it
 ```
 
 The utilisation is still known here, because it needs only the rates. The same rule applies to every model: the formulas hold in a plain network of queues, where each task holds at most one resource, each queue serves first come, first served, and nothing blocks, removes, delays or reorders work. Anything else puts the part of the model where it happens, and everything after it in the flow, outside what the formulas cover:

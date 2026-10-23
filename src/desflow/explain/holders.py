@@ -2,7 +2,7 @@
 
 from typing import Dict, List
 
-from desflow.explain.models import Graph, HolderResult, TaskResult
+from desflow.explain.models import VERIFY_HINT, Graph, HolderResult, TaskResult
 
 
 def holder_results(graph: Graph, tasks: Dict[str, TaskResult]) -> List[HolderResult]:
@@ -34,7 +34,7 @@ def holder_results(graph: Graph, tasks: Dict[str, TaskResult]) -> List[HolderRes
                 kind=node.kind,  # type: ignore[arg-type]
                 put_rate=totals["gives"],
                 get_rate=totals["takes"],
-                reason=f"no queueing analysis for a {node.kind}; run --verify",
+                reason=f"no queueing analysis for a {node.kind}{VERIFY_HINT}",
             )
         )
     return results

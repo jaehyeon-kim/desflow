@@ -1,6 +1,11 @@
 # Checking a Model
 
-[Comparing Designs](comparing-designs.md) chose a fourth packer from the busy hour model of [Trusting Results](trusting-results.md), and [Parameter Sweeps](parameter-sweeps.md) found the choice holds for rates from 1.6 to 1.9 orders a second. Both answers are only as good as the model. This page asks: **does the program do what the model on paper says, and is that model good enough to decide the number of packers?** The decision is three packers or four. The measures are the mean wait and the packers' [utilisation](../des/queueing-basics.md#utilisation). The boundary is the busy hour, after its 2-minute [warm-up](../des/output-analysis.md#one-run-starts-empty). The assumptions are those of Trusting Results: orders at random at 1.8 a second, and the 40 packing times measured at the bench.
+[Comparing Designs](comparing-designs.md) chose a fourth packer from the busy hour model of [Trusting Results](trusting-results.md), and [Parameter Sweeps](parameter-sweeps.md) found the choice holds for rates from 1.6 to 1.9 orders a second. Both answers are only as good as the model. This page asks: **does the program do what the model on paper says, and is that model good enough to decide the number of packers?**
+
+- **Decision:** three packers or four.
+- **Measures:** the mean wait and the packers' [utilisation](../des/queueing-basics.md#utilisation).
+- **Runs:** one run of 10 seconds with fixed inputs, then the busy hour after its 2-minute [warm-up](../des/output-analysis.md#one-run-starts-empty), 20 replications of each design with seeds spawned from 42, and 10 replications for `desflow explain --verify`.
+- **Assumptions:** those of Trusting Results: orders at random at 1.8 a second, and the 40 packing times measured at the bench.
 
 ## What You Add
 
@@ -18,7 +23,7 @@ This page adds checks on the model, written as tests that fail when a check fail
 
 ## Trace Fixed Inputs
 
-Replace every random input with a constant, and the run has one answer that can be worked out by hand. Here the shop has three packers, an order arrives every second, each order takes 4 seconds to pack, and the run lasts 10 seconds:
+Replace every random input with a constant, and the run has one answer that can be worked out by hand. Here the shop has three packers, an order arrives every second, each order takes 4 seconds to pack, and the run lasts 10 seconds. Save the files from [Full Files](#full-files) in one folder and run the commands there:
 
 === "YAML"
 
@@ -242,7 +247,7 @@ The end of its output:
 <!-- records: checking-explain -->
 ```text
 Not estimated:
-  wait at packers: no closed formula for c > 1 with non-exponential times; run --verify
+  wait at packers: no closed formula for c > 1 with non-exponential times
 Hints for utilisation 0.85:
   packers with 4 units: utilisation 0.675, at most 0.85
   packers with 3 units: utilisation 0.85 at 1.7 requests a second
@@ -261,13 +266,13 @@ Not compared:
 --verify checks the implementation against the queueing analysis where it applies; it does not show that the model is close enough to the real system
 ```
 
-The utilisation of 0.9 and the throughput of 1.8 orders a second agree with the replications. The measured wait, 2.252 ± 0.2476 seconds, is the mean of the 10 replications after the blueprint's 2-minute warm-up. The replications use the seeds of Trusting Results, so the figure equals that page's figure for 10 replications. [Common Mistakes](../des/common-mistakes.md#taking-one-run-as-the-answer) explains why the busy hour's figures differ between pages. The wait and the queue length have no analytical value, and the `Not estimated` line says why: three packers with measured packing times have no closed formula. For them the interval of the experiment is the check, as the next section shows. Agreement shows that the program computes what the model on paper says. It says nothing about whether the model is close enough to the real shop. [Check Against Theory](../guides/check-against-theory.md) runs the same check on a shop the formulas describe in full.
+The utilisation of 0.9 and the throughput of 1.8 orders a second agree with the replications. `explain` and `--verify` give the utilisation as a fraction, so 0.9034 is 90.34%, while the experiment's statistics give a percentage. The measured wait, 2.252 ± 0.2476 seconds, is the mean of the 10 replications after the blueprint's 2-minute warm-up. The replications use the seeds of Trusting Results, so the figure equals [that page's figure for 10 replications](../des/common-mistakes.md#busy-hour-figures). The wait and the queue length have no analytical value, and the `Not estimated` line says why: three packers with measured packing times have no closed formula. For them the interval of the experiment is the check, as the next section shows. Agreement shows that the program computes what the model on paper says. It says nothing about whether the model is close enough to the real shop. [Check Against Theory](../guides/check-against-theory.md) runs the same check on a shop the formulas describe in full.
 
 ---
 
 ## Compare With the Real Shop
 
-Only data from the real shop can show that the model is adequate. The observed values below are illustrative, and a real check uses the shop's own records. Suppose the shop recorded a mean wait of 2.6 seconds and a utilisation of 91% over 58 minutes of a busy hour with three packers. [`checking_a_model_observed.csv`](https://raw.githubusercontent.com/jaehyeon-kim/desflow/main/docs/snippets/yaml/checking_a_model_observed.csv) holds them, with the unit, population and horizon of each, as [Experiment Results](../user-guide/experiments/experiment-results.md#compare-with-observed-values) describes. Download it into the folder that holds the experiment and the scripts. The experiment places each value beside the three-packer interval:
+Only data from the real shop can show that the model is adequate. The observed values below are illustrative, and a real check uses the shop's own records. Suppose the shop recorded a mean wait of 2.6 seconds and a utilisation of 91% over 58 minutes of a busy hour with three packers. `checking_a_model_observed.csv`, in [Full Files](#full-files), holds them, with the unit, population and horizon of each, as [Experiment Results](../user-guide/experiments/experiment-results.md#compare-with-observed-values) describes. The experiment places each value beside the three-packer interval:
 
 === "YAML"
 
@@ -351,7 +356,7 @@ At 1.9 orders a second, the mean wait with four packers is **0.35 ± 0.02** seco
 
 ## Run the Checks
 
-Run the checks after every change to the model, in the same way as the tests of any program:
+Run the checks after every change to the model, in the same way as the tests of any program. The Builder and Low-level tabs run [pytest](https://docs.pytest.org/), which desflow does not install. Run it with `uv run --with desflow --with pytest pytest checking_a_model.py`, or install it with `uv add --dev pytest` in a uv project or `pip install pytest`:
 
 === "YAML"
 
@@ -483,7 +488,53 @@ The trace, the extremes, Little's law and the queueing formulas test the program
         output: results/checking-a-model
         ```
 
-        The experiment runs `trusting_results.yaml`, which is in the full files of [Trusting Results](trusting-results.md#full-files).
+        ```yaml title="docs/snippets/yaml/trusting_results.yaml"
+        # The Trusting Results tutorial: the busy hour, measured after a warm-up.
+        # Run it with: desflow run trusting_results.yaml
+        # Without the warm-up: WARMUP=0 desflow run trusting_results.yaml
+        simulation:
+          sim_id: Shop
+          factor: 0
+          random_seed: 42
+          # Records and statistics start after the first 2 minutes; 0 keeps everything
+          warmup: ${WARMUP:-2 min}
+
+        resources:
+          packers: {current_cap: 3, max_cap: 10}
+
+        arrivals:
+          orders: {dist: exponential, rate: 1.8, spawn: pack_order}
+
+        services:
+          # The 40 packing times measured at the bench, in seconds
+          packing:
+            dist: empirical
+            values: [1.5, 2.5, 2.4, 1.2, 1.3, 1.2, 1.8, 1.4, 2.0, 0.7,
+                     2.7, 1.4, 1.9, 1.4, 1.3, 1.8, 2.0, 1.4, 1.4, 1.9,
+                     1.1, 0.8, 1.7, 1.1, 0.7, 1.1, 1.2, 0.9, 0.8, 1.5,
+                     2.1, 1.3, 1.1, 1.7, 1.9, 1.3, 1.8, 2.2, 1.4, 1.1]
+
+        tasks:
+          pack_order:
+            service: packing
+            resource: packers
+            payload: {event_type: order_packed}
+
+        # Every 10 seconds, wait_mean is the mean wait so far: plot it against sim_ts
+        stats: {level: typical, interval: 10}
+
+        egress:
+          - type: Console
+
+        run:
+          until: 1 h
+        ```
+
+        ```csv title="docs/snippets/yaml/checking_a_model_observed.csv"
+        measure,value,unit,population,horizon
+        tasks.pack_order.wait_mean,2.6,s,started instances,58 min
+        resources.packers.utilization_avg,91.0,percent,time average,58 min
+        ```
 
     === "Builder"
 
@@ -637,7 +688,116 @@ The trace, the extremes, Little's law and the queueing formulas test the program
                 print(f"observed {row['measure']}: {row['value']} inside={row['inside']}")
         ```
 
-        It imports from `trusting_results.py`, which is in the full files of [Trusting Results](trusting-results.md#full-files).
+        ```python title="docs/snippets/tutorials/trusting_results.py"
+        """The Trusting Results tutorial: the busy hour, measured after a warm-up, builder.
+
+        Three packers pack orders that arrive at 1.8 a second on average, with the packing
+        times measured at the bench. Every record is printed to the terminal. At the end the
+        script prints the mean wait without and with the warm-up, the mean wait of 5 runs
+        after each of three candidate warm-ups, then the mean and half-width of two outputs
+        over 5, 10, 20 and 40 replications. To see only those lines, run:
+        python trusting_results.py 2>/dev/null
+        """
+
+        import logging
+
+        from desflow import ConsoleEgress, SimulationContext, replicate
+        from desflow.analysis import interval
+
+        logging.basicConfig(
+            level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
+        )
+
+        # The 40 packing times measured at the bench, in seconds
+        MEASURED = [
+            1.5, 2.5, 2.4, 1.2, 1.3, 1.2, 1.8, 1.4, 2.0, 0.7,
+            2.7, 1.4, 1.9, 1.4, 1.3, 1.8, 2.0, 1.4, 1.4, 1.9,
+            1.1, 0.8, 1.7, 1.1, 0.7, 1.1, 1.2, 0.9, 0.8, 1.5,
+            2.1, 1.3, 1.1, 1.7, 1.9, 1.3, 1.8, 2.2, 1.4, 1.1,
+        ]  # fmt: skip
+
+
+        def shop(warmup="2 min") -> SimulationContext:
+            """The busy hour; records and statistics start after `warmup`."""
+            app = (
+                # Records and statistics start after the first 2 minutes; None keeps everything
+                SimulationContext(sim_id="Shop", factor=0, random_seed=42, warmup=warmup)
+                .add_resource("packers", current_cap=3, max_cap=10)
+                .add_arrival("orders", dist="exponential", rate=1.8)
+                .add_service("packing", dist="empirical", values=MEASURED)
+                # Every 10 seconds, wait_mean is the mean wait so far: plot it against sim_ts
+                .with_stats("typical", interval=10)
+                .add_egress(ConsoleEgress())
+            )
+
+            @app.task(service_id="packing", resource_id="packers")
+            def pack_order(task_id: int):
+                return {"event_type": "order_packed"}
+
+            @app.arrival_loop("orders")
+            def order_generator(context: SimulationContext):
+                task_id = 0
+                while True:
+                    order = yield context.wait_for_arrival("orders")
+                    context.spawn(pack_order(task_id, entity=order))
+                    task_id += 1
+
+            return app
+
+
+        def mean_wait(warmup) -> float:
+            """Runs the busy hour and returns the mean wait it measured."""
+            app = shop(warmup)
+            app.run(until="1 h")
+            return app.env.stats.readings()["Shop.stats.tasks.pack_order.wait_mean"]
+
+
+        MEASURES = ["tasks.pack_order.wait_mean", "resources.packers.utilization_avg"]
+
+
+        def replications(n=40):
+            """Runs the busy hour n times, each after the warm-up, with seeds spawned from 42."""
+            return replicate(shop, n, seed=42, until="1 h", measures=MEASURES)
+
+
+        def warmups(n=5) -> dict:
+            """The mean wait of n runs after each candidate warm-up, with seeds spawned from 42."""
+            wait = ["tasks.pack_order.wait_mean"]
+            return {
+                warmup: replicate(shop, n, seed=42, until="1 h", warmup=warmup, measures=wait)
+                for warmup in ("1 min", "2 min", "4 min")
+            }
+
+
+        def precision(result) -> dict:
+            """Each output's mean and half-width over the first 5, 10, 20 and 40 replications."""
+            return {
+                (measure, n): interval(result.values[measure][:n])
+                for measure in MEASURES
+                for n in (5, 10, 20, 40)
+            }
+
+
+        if __name__ == "__main__":
+            print(f"without a warm-up: mean wait {mean_wait(None):.3f} s")
+            print(f"with a 2 min warm-up: mean wait {mean_wait('2 min'):.3f} s")
+            for warmup, result in warmups().items():
+                row = result.summary[0]
+                print(
+                    f"warm-up {warmup}: mean wait {row['mean']:.3f} ± {row['half_width']:.2f} s"
+                )
+            for (measure, n), result in precision(replications()).items():
+                share = result.half_width / result.mean
+                print(
+                    f"{measure}, {n} runs: {result.mean:.2f} ± {result.half_width:.2f} ({share:.1%})"
+                )
+        ```
+
+        ```csv title="docs/snippets/tutorials/checking_a_model_observed.csv"
+        measure,value,unit,population,horizon
+        tasks.pack_order.wait_mean,2.6,s,started instances,58 min
+        resources.packers.utilization_avg,91.0,percent,time average,58 min
+        ```
 
     === "Low-level"
 
@@ -786,4 +946,159 @@ The trace, the extremes, Little's law and the queueing formulas test the program
                 print(f"observed {row['measure']}: {row['value']} inside={row['inside']}")
         ```
 
-        It imports from `trusting_results_low_level.py`, which is in the full files of [Trusting Results](trusting-results.md#full-files).
+        ```python title="docs/snippets/tutorials/trusting_results_low_level.py"
+        """The Trusting Results tutorial: the busy hour, measured after a warm-up, low-level.
+
+        Three packers pack orders that arrive at 1.8 a second on average, with the packing
+        times measured at the bench. Every record is printed to the terminal. At the end the
+        script prints the mean wait without and with the warm-up, the mean wait of 5 runs
+        after each of three candidate warm-ups, then the mean and half-width of two outputs
+        over 5, 10, 20 and 40 replications. To see only those lines, run:
+        python trusting_results_low_level.py 2>/dev/null
+        """
+
+        import logging
+
+        from desflow import (
+            CapacityConfig,
+            ConsoleEgress,
+            DistributionConfig,
+            DynamicRealtimeEnvironment,
+            DynamicResource,
+            LowLevelModel,
+            Sampler,
+            SimParameter,
+            replicate,
+        )
+        from desflow.analysis import interval
+
+        logging.basicConfig(
+            level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
+        )
+
+        # The 40 packing times measured at the bench, in seconds
+        MEASURED = [
+            1.5, 2.5, 2.4, 1.2, 1.3, 1.2, 1.8, 1.4, 2.0, 0.7,
+            2.7, 1.4, 1.9, 1.4, 1.3, 1.8, 2.0, 1.4, 1.4, 1.9,
+            1.1, 0.8, 1.7, 1.1, 0.7, 1.1, 1.2, 0.9, 0.8, 1.5,
+            2.1, 1.3, 1.1, 1.7, 1.9, 1.3, 1.8, 2.2, 1.4, 1.1,
+        ]  # fmt: skip
+
+        PARAMS = SimParameter(
+            sim_id="Shop",
+            arrival={"orders": DistributionConfig(dist="exponential", rate=1.8)},
+            service={"packing": DistributionConfig(dist="empirical", values=MEASURED)},
+            resources={"packers": CapacityConfig(current_cap=3, max_cap=10)},
+        )
+
+
+        def pack_order(env, sampler, packers, key, task_id):
+            """One order, which reports each step to the statistics."""
+            path_id = "Shop.service.packing"
+
+            def publish(value):
+                env.publish_event(key, value, task="pack_order", instance=task_id)
+
+            publish({"path_id": path_id, "status": "queued"})
+            env.stats.flow_started("orders")  # the order enters the shop
+            env.stats.task_queued("pack_order", task_id)
+            with packers.request() as request:
+                yield request
+                publish({"path_id": path_id, "status": "started"})
+                env.stats.task_started("pack_order", task_id)
+                yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
+                publish({"event_type": "order_packed"})
+            env.stats.task_finished("pack_order", task_id)
+            env.stats.flow_finished("orders")  # the order leaves the shop
+
+
+        def order_generator(env, sampler, packers):
+            arrival = env.registry.get_config("Shop.arrival.orders")
+            task_id = 0
+            while True:
+                yield env.timeout(sampler.sample(arrival))
+                env.process(pack_order(env, sampler, packers, f"orders-{task_id + 1}", task_id))
+                task_id += 1
+
+
+        # Records and statistics start after the first 2 minutes; None keeps everything
+        WARMUP = 120.0  # seconds, passed to setup_egress in run below
+
+
+        def run(warmup=WARMUP, until=3600, factor=0.0):
+            env = DynamicRealtimeEnvironment(factor=factor)
+            env.registry.register_sim_parameter(PARAMS)
+            # Every 10 seconds, wait_mean is the mean wait so far: plot it against sim_ts
+            env.setup_stats("Shop", "typical", interval=10)
+            # The warm-up is set with the sinks: no sink receives a record stamped before it
+            # ends, and the statistics start again from zero when it ends
+            env.setup_egress([ConsoleEgress()], warmup=warmup)
+            packers = DynamicResource(env, "Shop", "packers")
+            env.process(order_generator(env, Sampler(seed=42), packers))
+            try:
+                env.run(until=until)
+            finally:
+                env.teardown()
+            return env
+
+
+        def mean_wait(warmup) -> float:
+            """Runs the busy hour and returns the mean wait it measured."""
+            return run(warmup).stats.readings()["Shop.stats.tasks.pack_order.wait_mean"]
+
+
+        MEASURES = ["tasks.pack_order.wait_mean", "resources.packers.utilization_avg"]
+
+
+        def model(env, sampler):
+            """The busy hour in a given environment: replicate sets the statistics."""
+            env.registry.register_sim_parameter(PARAMS)
+            packers = DynamicResource(env, "Shop", "packers")
+            env.process(order_generator(env, sampler, packers))
+
+
+        def replications(n=40):
+            """Runs the busy hour n times, each after the warm-up, with seeds spawned from 42."""
+            shop = LowLevelModel(model, sim_id="Shop")
+            return replicate(shop, n, seed=42, until=3600, warmup=WARMUP, measures=MEASURES)
+
+
+        def warmups(n=5) -> dict:
+            """The mean wait of n runs after each candidate warm-up, with seeds spawned from 42."""
+            shop = LowLevelModel(model, sim_id="Shop")
+            wait = ["tasks.pack_order.wait_mean"]
+            return {
+                warmup: replicate(shop, n, seed=42, until=3600, warmup=warmup, measures=wait)
+                for warmup in (60, WARMUP, 240)
+            }
+
+
+        def precision(result) -> dict:
+            """Each output's mean and half-width over the first 5, 10, 20 and 40 replications."""
+            return {
+                (measure, n): interval(result.values[measure][:n])
+                for measure in MEASURES
+                for n in (5, 10, 20, 40)
+            }
+
+
+        if __name__ == "__main__":
+            print(f"without a warm-up: mean wait {mean_wait(None):.3f} s")
+            print(f"with a 2 min warm-up: mean wait {mean_wait(WARMUP):.3f} s")
+            for warmup, result in warmups().items():
+                row = result.summary[0]
+                print(
+                    f"warm-up {warmup:g} s: mean wait {row['mean']:.3f} ± {row['half_width']:.2f} s"
+                )
+            for (measure, n), result in precision(replications()).items():
+                share = result.half_width / result.mean
+                print(
+                    f"{measure}, {n} runs: {result.mean:.2f} ± {result.half_width:.2f} ({share:.1%})"
+                )
+        ```
+
+        ```csv title="docs/snippets/tutorials/checking_a_model_observed.csv"
+        measure,value,unit,population,horizon
+        tasks.pack_order.wait_mean,2.6,s,started instances,58 min
+        resources.packers.utilization_avg,91.0,percent,time average,58 min
+        ```

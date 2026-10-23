@@ -1,6 +1,11 @@
 # Queues and Capacity
 
-In its busy hour the shop gets 1.8 orders a second, and packing still takes 1.5 seconds. One packer cannot keep up. This page asks: **how many packers keep the mean wait under 10 seconds?** The decision is the number of packers for the busy hour. The measures are the packers' [utilisation](../des/queueing-basics.md#utilisation) and the mean wait. The boundary is four runs of the hour, one for each number of packers, each with the seed 42. The assumptions are that orders arrive at random at a steady rate, and that every order takes the same time to pack.
+In its busy hour the shop gets 1.8 orders a second, and packing still takes 1.5 seconds. One packer cannot keep up. This page asks: **how many packers keep the mean wait under 10 seconds?**
+
+- **Decision:** the number of packers for the busy hour.
+- **Measures:** the packers' [utilisation](../des/queueing-basics.md#utilisation) and the mean wait.
+- **Runs:** four runs of the hour, one for each number of packers, each with the seed 42.
+- **Assumptions:** orders arrive at random at a steady rate, and every order takes the same time to pack.
 
 ## What You Add
 
@@ -82,13 +87,15 @@ A blueprint accepts a duration with a unit wherever it takes a time, such as `un
 - **c**, the number of units: `current_cap` of `resources.packers`;
 - **ρ** (rho), the utilisation: λ ÷ (c × μ).
 
+Save the files from [Full Files](#full-files) in one folder and run the commands there.
+
 === "YAML"
 
     ```bash
     desflow explain queues_and_capacity.yaml
     ```
 
-    The file is the one above, with `PACKERS` not set, so one packer. The recording shows the command in a terminal:
+    The file is `queues_and_capacity.yaml` from [Full Files](#full-files). Its packers come from the variable `PACKERS`, as [Run It With More Packers](#run-it-with-more-packers) shows, and with `PACKERS` not set the shop has one packer. The recording shows the command in a terminal:
 
     ![desflow explain on the busy hour: the graph of orders, pack_order and packers, the resources table with utilisation 2.7, the table of 1 to 10 packers and the hints](../assets/charts/explain.gif)
 
@@ -386,7 +393,7 @@ In a network, each task's rate comes from the tasks before it. This version of t
 
     `explain` reads YAML and builder models only, because a low-level model declares no link between its tasks and resources.
 
-Every packed order is checked, and packing receives the new orders, 1.6 a second, and the tenth of the checked orders that come back. Call the rate into packing x: then x = 1.6 + 0.1 × x, which gives x = 1.6 ÷ 0.9 = 1.778 orders a second. `desflow explain queues_network.yaml` solves this [flow balance](../des/queueing-basics.md#flow-balance-and-the-bottleneck) for every task:
+Every packed order is checked, and packing receives the new orders, 1.6 a second, and the tenth of the checked orders that come back. Call the rate into packing x: then x = 1.6 + 0.1 × x, which gives x = 1.6 ÷ 0.9 = 1.778 orders a second. `desflow explain queues_network.yaml` solves this [flow balance](../des/queueing-basics.md#flow-balance-and-the-bottleneck) for every task. This is its output without the hints at the end:
 
 <!-- records: queues-network -->
 ```text
@@ -432,8 +439,8 @@ checkers by units
 +---------------------+
 Bottleneck: checkers
 Not estimated:
-  wait at packers: no closed formula for c > 1 with non-exponential times; run --verify
-  wait at checkers: its input is not one arrival or a Poisson flow, which Kingman's formula needs; run --verify
+  wait at packers: no closed formula for c > 1 with non-exponential times; run --verify to measure it
+  wait at checkers: its input is not one arrival or a Poisson flow, which Kingman's formula needs; run --verify to measure it
 ```
 
 The four packers are at utilisation 0.667 and the checker at 0.711, the higher of the two, so the checker is the bottleneck. In the table by units, 3 packers would be at utilisation 0.889, above the checker: with 3 the packers are the bottleneck, and the fourth packer moves it downstream to the checker. Relieving a bottleneck makes the next busiest resource the new one. `desflow explain` estimates neither wait here, and says why: four packers with constant packing have no closed formula, and the checker's input is the packers' output, which is neither one arrival nor a [Poisson](../des/queueing-basics.md#kendalls-notation) flow. `--verify`, in [Check Against Theory](../guides/check-against-theory.md), measures both.
@@ -457,6 +464,8 @@ To test how a consumer of the records copes, do the opposite on purpose. From ut
 desflow explain queues_and_capacity.yaml --target 1.2
 ```
 
+The end of its output, the hints:
+
 <!-- records: queues-overload -->
 ```text
 Hints for utilisation 1.2:
@@ -476,7 +485,7 @@ How many packers keep the mean wait under 10 seconds? **3 packers**, as the mean
 
 ![Mean wait in the busy hour for 1 to 4 packers on a log scale: 1127 seconds with 1, 426 with 2, 1.27 with 3 and 0.20 with 4; the 10-second line separates 2 from 3](../assets/charts/queues-wait.png)
 
-With 3 packers the mean wait is 1.27 seconds, from one run of the hour with constant packing and the seed 42. [Common Mistakes](../des/common-mistakes.md#taking-one-run-as-the-answer) explains why later pages give other figures for this wait. With 2 packers it is over 400 seconds and still growing when the hour ends. The answer is the fewest packers that bring utilisation below 1. At utilisation 0.9 the wait stays under 10 seconds, because the shop's packing time is constant and 0.9 is not yet close enough to 1.
+With 3 packers the mean wait is 1.27 seconds, from [one run of the hour](../des/common-mistakes.md#busy-hour-figures) with constant packing and the seed 42. With 2 packers it is over 400 seconds and still growing when the hour ends. The answer is the fewest packers that bring utilisation below 1. At utilisation 0.9 the wait stays under 10 seconds, because the shop's packing time is constant and 0.9 is not yet close enough to 1.
 
 ## Why It Works
 
@@ -528,6 +537,48 @@ The formulas describe a queue that has settled. A run starts with no orders in t
 
         # The mean wait of pack_order, published once an hour and at the end
         stats: {level: typical, interval: 1 h}
+        ```
+
+        ```yaml title="docs/snippets/yaml/queues_network.yaml"
+        # Queues and Capacity: the busy shop as a network. Packed orders are checked, and
+        # one in ten goes back to be packed again.
+        # Explain it with: desflow explain queues_network.yaml
+        simulation:
+          sim_id: Shop
+          factor: 0
+          random_seed: 42
+
+        arrivals:
+          orders: {dist: exponential, rate: 1.6, spawn: pack_order}
+
+        services:
+          packing: {dist: constant, value: 1.5 s}
+          checking: {dist: exponential, rate: 2.5}  # 0.4 s on average
+
+        resources:
+          packers: {current_cap: 4, max_cap: 10}
+          checkers: {current_cap: 1, max_cap: 4}
+
+        tasks:
+          pack_order:
+            service: packing
+            resource: packers
+            payload: {event_type: order_packed}
+            next: check_order
+          check_order:
+            service: checking
+            resource: checkers
+            payload: {event_type: order_checked}
+            # Nine in ten pass; the tenth is packed again
+            next: {weights: {ship_order: 9, pack_order: 1}}
+          ship_order:
+            payload: {event_type: order_shipped}
+
+        egress:
+          - type: Console
+
+        run:
+          until: 1 h
         ```
 
     === "Builder"

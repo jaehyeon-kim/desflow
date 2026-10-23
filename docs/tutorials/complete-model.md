@@ -1,18 +1,43 @@
 # Complete Model
 
-Each earlier page added one idea to the shop and answered one question. This page carries out a whole study, from the shop's own records to a recommendation, in the steps of [A Simulation Study](../des/a-simulation-study.md). In the busy hour the shop has one picker and three packers, and it can hire one more person, as a second picker or a fourth packer. This page asks: **which shop design should be recommended?** The measures are the mean wait for picking and the mean wait for packing, over the orders that start each step after a [warm-up](../des/output-analysis.md#one-run-starts-empty), which [Choose Warm-up and Precision](#choose-warm-up-and-precision) sets at 2 minutes. The decision rule: recommend the design in which the upper end of the [95% interval](../des/output-analysis.md#interval-and-half-width) of both mean waits is under 1 second. The boundary is one busy hour, from an order's arrival to its shipment, with the shelf of shipping boxes and its deliveries. The assumptions are that orders arrive at random at a steady rate, that the picker and the packers work the whole hour, and that each order is one parcel in one box.
+Each earlier page added one idea to the shop and answered one question. This page carries out a whole study, from the shop's own records to a recommendation, in the steps of [A Simulation Study](../des/a-simulation-study.md). In the busy hour the shop has one picker and three packers, and it can hire one more person, as a second picker or a fourth packer. This page asks: **which shop design should be recommended?**
+
+- **Decision:** today's shop, a second picker or a fourth packer. The rule: recommend the design in which the upper end of the [95% interval](../des/output-analysis.md#interval-and-half-width) of both mean waits is under 1 second.
+- **Measures:** the mean wait for picking and the mean wait for packing, over the orders that start each step after a [warm-up](../des/output-analysis.md#one-run-starts-empty), which [Choose Warm-up and Precision](#choose-warm-up-and-precision) sets at 2 minutes.
+- **Runs:** one busy hour, from an order's arrival to its shipment, with the shelf of shipping boxes and its deliveries. Each design runs 40 replications with the same seeds, spawned from 42. Before that, `desflow explain --verify` runs 10 replications, and [Choose Warm-up and Precision](#choose-warm-up-and-precision) runs today's design 40 times after each of three warm-ups.
+- **Assumptions:** orders arrive at random at a steady rate, the picker and the packers work the whole hour, and each order is one parcel in one box.
 
 ## What You Add
 
 This page adds no new feature: the study uses the built-in commands of the earlier pages, in the order of a study. `desflow fit` from [Fit the Inputs](fit-the-inputs.md) fits the inputs to the records. `desflow explain --verify` from [Checking a Model](checking-a-model.md) checks the program against the queueing formulas. An experiment, as in [Comparing Designs](comparing-designs.md), compares the model with values observed in the shop, measures each design with the same seeds and checks the decision rule. `desflow report` writes the report. The model puts picking before packing, as in [A Flow of Tasks](flow-of-tasks.md), and adds a shelf of boxes that each order takes one from, as in [Stock](stock.md).
 
-To follow along, put the files from [Full Files](#full-files) and the two CSV files this page links in one folder. Fitting needs the `fit` extra: `pip install "desflow[fit]"`.
+Fitting needs the `fit` extra, which adds scipy and matplotlib:
+
+```bash
+# The desflow command, with uv
+uv tool install "desflow[fit]"
+
+# A Python file, with uv outside a project
+uv run --with "desflow[fit]" python complete_model.py
+
+# In a uv project
+uv add "desflow[fit]"
+
+# With pip
+pip install "desflow[fit]"
+```
 
 ---
 
 ## Fit the Inputs
 
-For each of 300 orders in a busy hour, the shop recorded the gap since the order before, the time to pick the order and the time to pack it, in seconds. [`complete_model_observed.csv`](https://raw.githubusercontent.com/jaehyeon-kim/desflow/main/docs/snippets/tutorials/complete_model_observed.csv) holds them. The values are illustrative, and a real study uses the shop's own records. Fit each column, with no time below 0:
+For each of 300 orders in a busy hour, the shop recorded the gap since the order before, the time to pick the order and the time to pack it, in seconds. [`complete_model_observed.csv`](https://raw.githubusercontent.com/jaehyeon-kim/desflow/main/docs/snippets/tutorials/complete_model_observed.csv) holds them. The values are illustrative, and a real study uses the shop's own records. Save the files from [Full Files](#full-files) in one folder, download the records into it, and run the commands there:
+
+```bash
+curl -O https://raw.githubusercontent.com/jaehyeon-kim/desflow/main/docs/snippets/tutorials/complete_model_observed.csv
+```
+
+Fit each column, with no time below 0:
 
 === "YAML"
 
@@ -83,17 +108,17 @@ Each fit also comes with its diagnostics. The table `desflow fit` prints for the
 <!-- records: complete-fit -->
 ```text
 300 rows: 300 used, 0 missing, 0 invalid
-family            status              AIC      KS p (approx.)  parameters or reason
-exponential       rejected                                     its std is 1.752, the data's is 0.5887: more than 25% apart
-normal            fitted            537.5 0.05413      0.3311  mean=1.7518, std=0.588695 (can draw below the lower bound 0)
-lognormal         fitted            534.3  0.0501      0.4248  mean=1.75783, std=0.643777
-truncated_normal  fitted            536.5 0.05303      0.3552  mean=1.74874, std=0.593237, low=0
-constant          skipped                                      the values are not all equal
-uniform           rejected                                     its std is 0.9093, the data's is 0.5887: more than 25% apart
-triangular        fitted            546.3  0.1169   0.0004971  low=0.465992, mode=1.41, high=3.71725
-gamma *           fitted            523.3 0.02959      0.9484  shape=8.56765, scale=0.204467
-weibull           fitted            534.9 0.05002       0.427  shape=3.1729, scale=1.95579
-empirical         fitted                                       values: 300 numbers
+family            status              AIC  KS stat KS p (approx.)  parameters or reason
+exponential       rejected                                         its std is 1.752, the data's is 0.5887: more than 25% apart
+normal            fitted            537.5  0.05413         0.3311  mean=1.7518, std=0.588695 (can draw below the lower bound 0)
+lognormal         fitted            534.3   0.0501         0.4248  mean=1.75783, std=0.643777
+truncated_normal  fitted            536.5  0.05303         0.3552  mean=1.74874, std=0.593237, low=0
+constant          skipped                                          the values are not all equal
+uniform           rejected                                         its std is 0.9093, the data's is 0.5887: more than 25% apart
+triangular        fitted            546.3   0.1169      0.0004971  low=0.465992, mode=1.41, high=3.71725
+gamma *           fitted            523.3  0.02959         0.9484  shape=8.56765, scale=0.204467
+weibull           fitted            534.9  0.05002          0.427  shape=3.1729, scale=1.95579
+empirical         fitted                                           values: 300 numbers
 * best: gamma
 ```
 
@@ -115,6 +140,8 @@ The gaps fit an exponential distribution at about 1.5 orders a second, which is 
       picking: !include fitted/complete_picking.yaml
       packing: !include fitted/complete_packing.yaml
     ```
+
+    The fitted file of the gaps holds only a distribution, and an arrival also needs its `spawn`. `!include {file: ..., spawn: pick_order}` reads the file and adds the other keys to it. [Input Fitting](../user-guide/input-fitting.md) describes both forms of `!include`.
 
 === "Builder"
 
@@ -373,10 +400,10 @@ Resources
 +---------------------------------------------------------------------+
 Bottleneck: packers
 Not estimated:
-  task ship_order: it has get, which the formulas leave out; run --verify
-  task restock: it has put, which the formulas leave out; run --verify
-  wait at packers: no closed formula for c > 1 with non-exponential times; run --verify
-  container stock: no queueing analysis for a container; run --verify
+  task ship_order: it has get, which the formulas leave out
+  task restock: it has put, which the formulas leave out
+  wait at packers: no closed formula for c > 1 with non-exponential times
+  container stock: no queueing analysis for a container
 Verify: 10 runs to 3600 s, seed 42
 +---------------------------------------------------------------------------+
 | node       | measure      | analysis | measured |        ± | result       |
@@ -402,7 +429,7 @@ The picker is one server, and the orders reach it directly, with exponential gap
 
 ### Against the Shop
 
-Suppose the shop also measured, over the busy hour after its first 2 minutes, a mean wait of 0.57 seconds for picking, 1.9 seconds for packing, and the packers busy 88% of the time. [`complete_model_outputs.csv`](https://raw.githubusercontent.com/jaehyeon-kim/desflow/main/docs/snippets/yaml/complete_model_outputs.csv) holds these values, with the unit, population and horizon of each. They were chosen by hand to be close to the model's means for today's design, so they agree with the model by construction. The page shows the method, not evidence about a real shop. The experiment run in [Compare the Designs](#compare-the-designs) places each beside the interval of today's design, `current`:
+Suppose the shop also measured, over the busy hour after its first 2 minutes, a mean wait of 0.57 seconds for picking, 1.9 seconds for packing, and the packers busy 88% of the time. `complete_model_outputs.csv`, in [Full Files](#full-files), holds these values, with the unit, population and horizon of each. They were chosen by hand to be close to the model's means for today's design, so they agree with the model by construction. The page shows the method, not evidence about a real shop. The experiment run in [Compare the Designs](#compare-the-designs) places each beside the interval of today's design, `current`:
 
 === "YAML"
 
@@ -427,7 +454,15 @@ Suppose the shop also measured, over the busy hour after its first 2 minutes, a 
 
     The same key, in the same mapping as the model below.
 
-All three values lie inside the model's interval for their mean: 0.57 inside **0.55 to 0.58** seconds, 1.9 inside **1.75 to 2.08**, and 88 inside **87.44 to 88.47**. An interval for a mean is narrow, though. One observed hour varies as much as one run does, not as little as a mean of 40 replications. Across the 40 replications of `current`, the standard deviation of one run is 0.048 seconds for the picking wait, 0.515 seconds for the packing wait and 1.615 percentage points for the packers' utilisation. Only 7, 9 and 9 of the 40 replications fall inside the three intervals. A real observed hour can therefore fall outside an interval while the model is right, so a study also compares the observed value with the spread of single runs. Here each observed value lies well within one such standard deviation of the model's mean: 0.57 is 0.16 standard deviations from the mean, 1.9 is 0.03 and 88 is 0.03.
+All three values lie inside the model's interval for their mean: 0.57 inside **0.55 to 0.58** seconds, 1.9 inside **1.75 to 2.08**, and 88 inside **87.44 to 88.47**.
+
+An interval for a mean is narrow, though, and one observed hour is not a mean. One observed hour varies as much as one run does. Across the 40 replications of `current`, the standard deviation of one run is:
+
+- 0.048 seconds for the picking wait;
+- 0.515 seconds for the packing wait;
+- 1.615 percentage points for the packers' utilisation.
+
+Only 7, 9 and 9 of the 40 single runs fall inside the three intervals. A real observed hour can therefore fall outside an interval while the model is right. For this reason a study also compares the observed value with the spread of single runs. Here each observed value lies within one such standard deviation of the model's mean: 0.57 is 0.16 standard deviations from it, 1.9 is 0.03 and 88 is 0.03.
 
 ---
 
@@ -469,7 +504,7 @@ The mean waits over the 40 replications, in seconds, with the 95% half-width:
 | 2 minutes | 0.562 ± 0.015 | 1.916 ± 0.165 |
 | 10 minutes | 0.563 ± 0.015 | 1.915 ± 0.175 |
 
-Without a warm-up, the mean packing wait is 0.013 seconds lower than with 2 minutes, well inside the half-width. A warm-up of 10 minutes gives the same means as 2 minutes. The rule is to take the shortest warm-up after which a longer one moves no mean by more than its half-width. By that rule, no warm-up is needed here. The study keeps 2 minutes, because [Output Analysis](../des/output-analysis.md#one-run-starts-empty) advises choosing the warm-up conservatively. The comparison holds for this shop and this hour only, and a busier shop or another horizon needs it run again.
+Without a warm-up, the mean packing wait is 0.013 seconds lower than with 2 minutes, well inside the half-width. A warm-up of 10 minutes gives the same means as 2 minutes. Every candidate therefore passes the comparison. The rule of [Output Analysis](../des/output-analysis.md#one-run-starts-empty) also needs the warm-up to cover the climb in a plot of the start. This shop has no plot of its own. Its packers are about as busy as those of [Trusting Results](trusting-results.md#plot-the-start), 88% of the time against 90%, and that page's plot climbs for about a minute and a half. The study therefore keeps 2 minutes. The comparison holds for this shop and this hour only, and a busier shop or another horizon needs it run again.
 
 The precision the decision needs is set by the rule: each interval must lie wholly on one side of 1 second. With 40 replications of each design, the experiment below gives half-widths of at most 0.17 seconds. The interval nearest the bound, that of the fourth packer's picking wait, ends at **0.58** seconds. Every interval is far from 1 second, so 40 replications are enough. A design whose interval crossed 1 second would need more replications before it could be decided ([How Many Replications](../des/output-analysis.md#how-many-replications)).
 
@@ -922,6 +957,13 @@ Each step answers a different doubt about the result. The fits test the inputs, 
         output: results/complete-model
         ```
 
+        ```csv title="docs/snippets/yaml/complete_model_outputs.csv"
+        measure,value,unit,population,horizon
+        tasks.pick_order.wait_mean,0.57,s,started instances,58 min
+        tasks.pack_order.wait_mean,1.9,s,started instances,58 min
+        resources.packers.utilization_avg,88.0,percent,time average,58 min
+        ```
+
     === "Builder"
 
         ```python title="docs/snippets/tutorials/complete_model.py"
@@ -1127,6 +1169,13 @@ Each step answers a different doubt about the result. The fits test the inputs, 
                         f"warm-up {warmup}: {row['measure']} {row['mean']:.3f} ± {row['half_width']:.3f}"
                     )
             print(f"recommended: {recommended(experiment())}")
+        ```
+
+        ```csv title="docs/snippets/tutorials/complete_model_outputs.csv"
+        measure,value,unit,population,horizon
+        tasks.pick_order.wait_mean,0.57,s,started instances,58 min
+        tasks.pack_order.wait_mean,1.9,s,started instances,58 min
+        resources.packers.utilization_avg,88.0,percent,time average,58 min
         ```
 
     === "Low-level"
@@ -1467,4 +1516,11 @@ Each step answers a different doubt about the result. The fits test the inputs, 
                         f"warm-up {warmup} s: {row['measure']} {row['mean']:.3f} ± {row['half_width']:.3f}"
                     )
             print(f"recommended: {recommended(experiment())}")
+        ```
+
+        ```csv title="docs/snippets/tutorials/complete_model_outputs.csv"
+        measure,value,unit,population,horizon
+        tasks.pick_order.wait_mean,0.57,s,started instances,58 min
+        tasks.pack_order.wait_mean,1.9,s,started instances,58 min
+        resources.packers.utilization_avg,88.0,percent,time average,58 min
         ```

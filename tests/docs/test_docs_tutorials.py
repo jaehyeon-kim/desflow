@@ -385,10 +385,8 @@ def _yaml_waits(path, tasks=("pack_express", "pack_order")):
     return {t: round(r[f"Shop.stats.tasks.{t}.wait_mean"], 2) for t in tasks}
 
 
-def _priority_yaml(tmp_path, name, fifo=False, orders=0.45, express=0.15):
+def _priority_yaml(tmp_path, name, fifo=False):
     text = (BLUEPRINTS / "priorities.yaml").read_text()
-    text = text.replace("rate: 0.45, spawn", f"rate: {orders}, spawn")
-    text = text.replace("rate: 0.15, spawn", f"rate: {express}, spawn")
     if fifo:
         text = text.replace(", queue: priority}", "}")
         text = "\n".join(
@@ -418,16 +416,15 @@ def test_priorities_four_waits(api, tmp_path):
     assert waits == PRIORITY_WAITS
 
 
-def test_priorities_starvation(tmp_path):
-    """The regular waits as load rises."""
-    for total, regular in ((0.5, 2.50), (0.55, 3.98)):
-        path = _priority_yaml(
-            tmp_path,
-            f"load{total}",
-            orders=round(total * 0.75, 4),
-            express=round(total / 4, 4),
-        )
-        waits = _yaml_waits(path)
+def test_priorities_starvation(monkeypatch):
+    """The regular waits as load rises, with the rates the page's command sets."""
+    for orders, express, regular in (
+        ("0.375", "0.125", 2.50),
+        ("0.4125", "0.1375", 3.98),
+    ):
+        monkeypatch.setenv("ORDERS_RATE", orders)
+        monkeypatch.setenv("EXPRESS_RATE", express)
+        waits = _yaml_waits(BLUEPRINTS / "priorities.yaml")
         assert waits["pack_order"] == regular and waits["pack_express"] < 1
 
 
@@ -535,6 +532,21 @@ def test_filtered_inventory_outcomes(api):
         app.add_egress(outcome)
         app.run()
         counts = outcome.counts
+        # The flow statistics give the same counts: cancelled is started minus
+        # finished minus the orders still waiting
+        readings = app.env.stats.readings()
+        for size in "SML":
+            flow = f"Shop.stats.flows.orders_{size.lower()}"
+            filled = readings[f"{flow}.finished"]
+            waiting = readings[f"{flow}.in_system"]
+            assert filled == counts[(size, "filled")]
+            assert (
+                readings[f"{flow}.started"] - filled - waiting
+                == counts[(size, "cancelled")]
+            )
+        # The figures of the page's sum for the medium orders
+        assert readings["Shop.stats.flows.orders_m.started"] == 1454
+        assert readings["Shop.stats.flows.orders_m.in_system"] == 29
     elif api == "builder":
         counts = builder.outcomes()
     else:
@@ -575,15 +587,16 @@ def test_process_interaction_courier_shares(api, monkeypatch):
 
 
 INTERRUPTION_OUTCOMES = {
-    "resume": (344, 1607, 8.12, 1.50),
-    "restart": (393, 1606, 25.03, 1.69),
-    "abandon": (313, 1294, 3.60, 1.50),
+    "resume": (344, 3, 1607, 8.12, 1.50),
+    "restart": (393, 23, 1606, 25.33, 1.69),
+    "abandon": (312, 2, 1293, 3.60, 1.50),
 }
 
 
 @pytest.mark.parametrize("api", APIS)
 def test_interruptions_policies(api, monkeypatch):
-    """Restart triples the regular wait, abandon loses 313 orders."""
+    """Restart triples the regular wait, abandon loses 312 orders, and the call at
+    31 minutes reaches orders under every policy."""
     for policy, expected in INTERRUPTION_OUTCOMES.items():
         if api == "yaml":
             monkeypatch.setenv("POLICY", policy)
@@ -593,6 +606,7 @@ def test_interruptions_policies(api, monkeypatch):
             name = "Shop.stats.tasks.pack_order.{}".format
             got = (
                 r[name("preempted")],
+                r.get(name("interrupted"), 0),
                 r[name("finished")],
                 r[name("wait_mean")],
                 r[name("service_mean")],
@@ -600,8 +614,14 @@ def test_interruptions_policies(api, monkeypatch):
         else:
             module = _load("interruptions" + ("" if api == "builder" else "_low_level"))
             o = module.outcomes(policy)
-            got = (o["preempted"], o["finished"], o["wait_mean"], o["service_mean"])
-        assert (got[0], got[1], round(got[2], 2), round(got[3], 2)) == expected
+            got = (
+                o["preempted"],
+                o["interrupted"],
+                o["finished"],
+                o["wait_mean"],
+                o["service_mean"],
+            )
+        assert (*got[:3], round(got[3], 2), round(got[4], 2)) == expected
 
 
 @pytest.mark.parametrize("api", APIS)
@@ -970,7 +990,7 @@ def test_live_changes_local_ingress(api, tmp_path, monkeypatch):
     if api == "yaml":
         app = SimulationContext.from_yaml(BLUEPRINTS / "live_changes_live.yaml")
         app.run()
-        env, out = app.env, tmp_path
+        env, out = app.env, tmp_path / "live"
     elif api == "builder":
         env, out = helpers.live(tmp_path).env, tmp_path
     else:
@@ -1081,22 +1101,25 @@ def _fit_cli(*args):
 
 
 @pytest.mark.parametrize("api", APIS)
-def test_fit_the_inputs(api, tmp_path, capsys):
+def test_fit_the_inputs(api, tmp_path, capsys, monkeypatch):
     """Triangular has the lowest AIC, gamma is 0.11 behind; the triangular raises
-    the mean wait to 2.93 s while the gamma agrees with the 40 times."""
+    the mean wait to 2.93 s while the gamma agrees with the 40 times. In YAML each
+    fit is the file the page shows, and PACKING_FIT loads the gamma's."""
     pytest.importorskip("scipy")
     from desflow import replicate
 
     if api == "yaml":
         data = BLUEPRINTS / "packing_times.csv"
-        out = tmp_path / "fitted" / "packing.yaml"
-        table = _fit_cli(
-            data, "--column", "packing_seconds", "--lower", "0", "--out", out
-        )
-        assert out.read_text() == (BLUEPRINTS / "fitted" / "packing.yaml").read_text()
+        blueprint = tmp_path / "fit_the_inputs.yaml"
+        blueprint.write_text((BLUEPRINTS / "fit_the_inputs.yaml").read_text())
+        monkeypatch.delenv("PACKING_FIT", raising=False)
         waits = {}
-        for name, extra in (("triangular", []), ("gamma", ["--candidates", "gamma"])):
-            _fit_cli(
+        for name, file, extra in (
+            ("triangular", "packing.yaml", []),
+            ("gamma", "packing_gamma.yaml", ["--candidates", "gamma"]),
+        ):
+            out = tmp_path / "fitted" / file
+            printed = _fit_cli(
                 data,
                 "--column",
                 "packing_seconds",
@@ -1106,8 +1129,11 @@ def test_fit_the_inputs(api, tmp_path, capsys):
                 out,
                 *extra,
             )
-            blueprint = tmp_path / "fit_the_inputs.yaml"
-            blueprint.write_text((BLUEPRINTS / "fit_the_inputs.yaml").read_text())
+            assert out.read_text() == (BLUEPRINTS / "fitted" / file).read_text()
+            if name == "triangular":
+                table = printed
+            else:
+                monkeypatch.setenv("PACKING_FIT", f"fitted/{file}")
             [row] = replicate(
                 blueprint,
                 40,
@@ -1164,9 +1190,13 @@ def test_complete_model_fits(api, tmp_path):
             assert out.read_text() == (fitted / name).read_text()
         # The KS p-values the page quotes for the two fits it does not show
         orders, picking = tables["orders"], tables["picking"]
-        assert "exponential *     fitted            355.9 0.02357       0.995" in orders
         assert (
-            "gamma *           fitted           -101.7 0.04252      0.6341" in picking
+            "exponential *     fitted            355.9  0.02357          0.995"
+            in orders
+        )
+        assert (
+            "gamma *           fitted           -101.7  0.04252         0.6341"
+            in picking
         )
     else:
         module = _load("complete_model" + ("" if api == "builder" else "_low_level"))

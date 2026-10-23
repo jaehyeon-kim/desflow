@@ -1,6 +1,11 @@
 # Choosing Inputs
 
-Packing takes 1.5 seconds on average. So far the model has used exactly that: a `constant` 1.5 seconds. Real packing times vary, and a model's results are only as accurate as the times it draws. This page asks: **which distribution fits packing times?** The decision is which candidate distribution the model uses for packing. The measures are the shape of each candidate beside the measured times, and the busy hour's mean wait with each. The boundary is four runs of the busy hour, one for each candidate, each with the seed 42. The assumptions are that orders arrive at random at 1.8 a second, and that the times measured at the bench stand for every packer.
+Packing takes 1.5 seconds on average. So far the model has used exactly that: a `constant` 1.5 seconds. Real packing times vary, and a model's results are only as accurate as the times it draws. This page asks: **which distribution fits packing times?**
+
+- **Decision:** which candidate distribution the model uses for packing.
+- **Measures:** the shape of each candidate beside the measured times, and the busy hour's mean wait with each.
+- **Runs:** four runs of the busy hour, one for each candidate, each with the seed 42.
+- **Assumptions:** orders arrive at random at 1.8 a second, and the times measured at the bench stand for every packer.
 
 ## What You Add
 
@@ -38,7 +43,7 @@ Choosing a distribution for an input is called **input modelling**. Often there 
     TRIANGULAR = DistributionConfig(dist="triangular", low=1, mode=1.25, high=2.25)
     ```
 
-Its mean is (low + mode + high) ÷ 3 = (1 + 1.25 + 2.25) ÷ 3 = 1.5 seconds. In a blueprint every time-valued parameter takes a duration such as `1.25 s` or `2 min`; a plain number is seconds.
+Its mean is (low + mode + high) ÷ 3 = (1 + 1.25 + 2.25) ÷ 3 = 1.5 seconds.
 
 ---
 
@@ -86,7 +91,7 @@ When times can be measured, use them. An **empirical** distribution draws from a
 
 The values are taken when the model is loaded. A registry path holds one number, and a list is not one number. So an `empirical` distribution has no registry path, and its values do not change while the run goes on. The other distributions have one path per parameter, such as `Shop.service.triangular.mode`.
 
-The measured times have a mean of 1.5 seconds and a standard deviation of 0.4832 seconds. A family fitted to them, such as a `gamma`, takes other parameters: a `shape` and a `scale`. `desflow dist` turns a mean and a standard deviation into them:
+The measured times have a mean of 1.5 seconds and a standard deviation of 0.4832 seconds. A family fitted to them, such as a `gamma`, takes other parameters: a `shape` and a `scale`. `desflow dist` turns a mean and a standard deviation into them. Save the files from [Full Files](#full-files) in one folder and run the commands there:
 
 ```bash
 desflow dist gamma --mean 1.5 --std 0.4832
@@ -102,7 +107,7 @@ YAML: {dist: gamma, shape: 9.63671, scale: 0.155655}
 Python: dist="gamma", shape=9.63671, scale=0.155655
 ```
 
-The last two lines are the service in a blueprint and in the builder. The variability label is desflow's own scale for the standard deviation divided by the mean: `none` at 0, `low` below 0.75, `moderate` from 0.75 to 1.33, and `high` above 1.33. It is `low` here, because the standard deviation is about a third of the mean (0.322). An `exponential` has a standard deviation equal to its mean, a ratio of 1, so it is `moderate`.
+The last two lines are the service in a blueprint and in the builder. The variability label is desflow's own scale for the standard deviation divided by the mean: `none` at 0, `low` below 0.75, `moderate` from 0.75 to 1.33, and `high` above 1.33. It is `low` here, because the standard deviation is about a third of the mean (0.322). An `exponential` has a standard deviation equal to its mean, a ratio of 1, so it is `moderate`. The fourth line is the value a `Sampler` with no seed gives for every draw. A run always has a seed, draws at random and never uses that value; a test can use it to get the same times on every run, as [Arrivals and Services](../user-guide/arrivals-and-services.md#how-it-works) explains.
 
 ---
 
@@ -175,7 +180,7 @@ Which distribution fits packing times? **The empirical distribution**, because i
 
 ![On the left, the four packing distributions: exponential spread from 0 to over 6 seconds, empirical and triangular between 0.5 and 2.75 seconds, constant a line at 1.5; on the right, the mean waits: constant 1.27, triangular 1.28, empirical 1.35 and exponential 2.37 seconds](../assets/charts/choosing-inputs.png)
 
-With the empirical distribution the mean wait is **1.35 seconds**, from one run of the hour with the seed 42, like each figure here. It is not the 1.38 seconds of [Measuring a Run](measuring-a-run.md), although both use the same 40 measured times. The service is called `empirical` here and `packing` there. Each service draws from a random number stream named after its registry path, `service.empirical` or `service.packing`, so the two draw different numbers. The times therefore come in another order, as [Randomness and Seeds](randomness-and-seeds.md) explains. The constant mean gives 1.27 seconds, 6% shorter than with the measured times. The exponential guess gives 2.37 seconds, 75% longer. The expert's triangle is close to the constant, because its range is narrower than the measured one.
+With the empirical distribution the mean wait is **1.35 seconds**, from [one run of the hour with the seed 42 and no warm-up](../des/common-mistakes.md#busy-hour-figures), like each figure here. The constant mean gives 1.27 seconds, 6% shorter than with the measured times. The exponential guess gives 2.37 seconds, 75% longer. The expert's triangle is close to the constant, because its range is narrower than the measured one.
 
 ## Why It Works
 

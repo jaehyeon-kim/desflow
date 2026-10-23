@@ -1,6 +1,11 @@
 # Streaming Out
 
-The shop of [Changing Demand](changing-demand.md), without the rush, packs orders for an hour. It has one packer, which takes 1.5 seconds to pack an order, and an order arrives every 2.5 seconds on average (24 a minute, `rate: 0.4`). A team downstream wants a file of the finished orders. This page asks: **which records reach the team's files, how does the team find every record of one order, and when are the files complete?** The decision is what the file sink receives and when the team's job may read the folder. The measures are the records each sink receives, the files the file sink writes and the rows in each. The boundary is the hour. The assumptions are an unpaced run (`factor: 0`) and the default batch of 500 records.
+The shop of [Changing Demand](changing-demand.md), without the rush, packs orders for an hour. It has one packer, which takes 1.5 seconds to pack an order, and an order arrives every 2.5 seconds on average (24 a minute, `rate: 0.4`). A team downstream wants a file of the finished orders. This page asks: **which records reach the team's files, how does the team find every record of one order, and when are the files complete?**
+
+- **Decision:** what the file sink receives, and when the team's job may read the folder.
+- **Measures:** the records each sink receives, the files the file sink writes and the rows in each.
+- **Runs:** one unpaced run (`factor: 0`) of the hour with the seed 42.
+- **Assumptions:** the default batch of 500 records.
 
 ## What You Add
 
@@ -78,7 +83,7 @@ The predicate sees the record as published, so an event's payload is still under
 
 ## Find One Order's Records
 
-Every event carries three names. `key` names the entity, here the order, and the arrival names the orders `orders-1`, `orders-2`, and so on. `task` names the task, and `instance` names this run of it. The terminal shows the three events of `orders-12`, each with the same three names:
+Save the files from [Full Files](#full-files) in one folder and run the commands there: `desflow run streaming_out.yaml`, `python streaming_out.py` or `python streaming_out_low_level.py`. Every event carries three names. `key` names the entity, here the order, and the arrival names the orders `orders-1`, `orders-2`, and so on. `task` names the task, and `instance` names this run of it. The terminal shows the three events of `orders-12`, each with the same three names:
 
 ```text
 [EVT] {'sim_ts': 26.97, 'timestamp': '...', 'key': 'orders-12', 'task': 'pack_order', 'instance': 11, 'value': {'path_id': 'Shop.service.packing', 'status': 'queued'}}

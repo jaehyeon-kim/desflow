@@ -11,13 +11,19 @@ from typing import Dict, List, Optional, Tuple
 
 from desflow.explain.arrivals import exponential
 from desflow.explain.formulas import UNSTABLE_AT, erlang_wait, kingman_wait
-from desflow.explain.models import Graph, Node, ResourceResult, TaskResult
+from desflow.explain.models import (
+    VERIFY_HINT,
+    Graph,
+    Node,
+    ResourceResult,
+    TaskResult,
+)
 from desflow.explain.poisson import direct_arrival
 
-D3 = "no closed formula for c > 1 with non-exponential times; run --verify"
+D3 = "no closed formula for c > 1 with non-exponential times" + VERIFY_HINT
 _RENEWAL = (
     "its input is not one arrival or a Poisson flow, which Kingman's formula "
-    "needs; run --verify"
+    "needs" + VERIFY_HINT
 )
 
 

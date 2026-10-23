@@ -1,10 +1,15 @@
 # Measuring a Run
 
-Most of the pages so far read one number, the mean wait. A run knows much more. This page asks: **what does a run tell me?** The decision is which numbers to read from a run before acting on it. The measures are five of the numbers the run publishes: the packers' [utilisation](../des/queueing-basics.md#utilisation), the mean queue, the mean and longest wait, and the orders packed. The boundary is one run of the busy hour, with the seed 42, starting with an empty shop. The assumptions are that orders arrive at random at 1.8 a second, and that the times measured at the bench stand for every packer.
+Most of the pages so far read one number, the mean wait. A run knows much more. This page asks: **what does a run tell me?**
+
+- **Decision:** which numbers to read from a run before acting on it.
+- **Measures:** five of the numbers the run publishes: the packers' [utilisation](../des/queueing-basics.md#utilisation), the mean queue, the mean and longest wait, and the orders packed.
+- **Runs:** one run of the busy hour, with the seed 42, starting with an empty shop.
+- **Assumptions:** orders arrive at random at 1.8 a second, and the times measured at the bench stand for every packer.
 
 ## What You Add
 
-This page adds `stats: typical`, the built-in statistics at the level that includes waits. The model simulates the busy hour with 3 packers from [Queues and Capacity](queues-and-capacity.md), and draws each packing time from 40 times measured at the bench, each equally likely.
+This page adds `stats: typical`, the built-in statistics at the level that includes waits. The model simulates the busy hour with 3 packers from [Queues and Capacity](queues-and-capacity.md), and draws each packing time from 40 times measured at the bench, each equally likely. The model calls this an `empirical` distribution. Real packing times vary, so these times describe the shop better than the constant 1.5 seconds of the earlier pages; [Choosing Inputs](choosing-inputs.md#measured-times) explains the distribution and compares it with others.
 
 ---
 
@@ -65,7 +70,7 @@ The statistics are telemetry, so they reach every sink, and they can also be rea
             print(f"{name} = {value}")
     ```
 
-Every name has the same form, `<sim_id>.stats.<kind>.<name>.<statistic>`, such as `Shop.stats.tasks.pack_order.wait_mean`. These are the statistics published at the end of the hour:
+Every name has the same form, `<sim_id>.stats.<kind>.<name>.<statistic>`, such as `Shop.stats.tasks.pack_order.wait_mean`. Save the files from [Full Files](#full-files) in one folder and run the commands there: `desflow run measuring_a_run.yaml`, `python measuring_a_run.py` or `python measuring_a_run_low_level.py`. These are the statistics published at the end of the hour:
 
 <!-- records: measuring-final -->
 ```text
@@ -86,7 +91,7 @@ Every name has the same form, `<sim_id>.stats.<kind>.<name>.<statistic>`, such a
 [TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.flows.orders.in_system', 'value': 11}
 ```
 
-`tasks.pack_order.finished` counts the orders the task finished. `flows.orders.finished` counts the orders that left the shop, and the flow is named after the arrival that started them, `orders`. With one task the two counts are equal. `flows.orders.started` counts the orders that entered the shop, 6,261. `flows.orders.in_system` counts the 11 orders still in the shop when the hour ended, and `tasks.pack_order.in_progress` gives the same 11. The mean wait is 1.38 seconds, over the orders that started packing; [End Conditions](end-conditions.md) shows what a run leaves out when it ends.
+The utilisation statistics are percentages: `utilization_avg` 86.56 means the packers were busy 86.56% of the time, and `utilization` 100.0 means all three were busy at the end. `desflow explain` and `--verify` give utilisation as a fraction, 0.9 for 90%. The names use the spelling `utilization`, and the text uses "utilisation" for the same thing. `tasks.pack_order.finished` counts the orders the task finished. `flows.orders.finished` counts the orders that left the shop, and the flow is named after the arrival that started them, `orders`. With one task the two counts are equal. `flows.orders.started` counts the orders that entered the shop, 6,261. `flows.orders.in_system` counts the 11 orders still in the shop when the hour ended, and `tasks.pack_order.in_progress` gives the same 11. The mean wait is 1.38 seconds, over the orders that started packing in [this one run with the seed 42](../des/common-mistakes.md#busy-hour-figures); [End Conditions](end-conditions.md) shows what a run leaves out when it ends.
 
 ---
 

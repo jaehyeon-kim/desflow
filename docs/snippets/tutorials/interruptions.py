@@ -68,9 +68,9 @@ def shop(policy: str = "resume") -> SimulationContext:
 
     # --8<-- [start:interrupt]
     def called_away(context: SimulationContext):
-        """The packer is called away at 30 minutes: every regular order in the shop,
+        """The packer is called away at 31 minutes: every regular order in the shop,
         waiting or being packed, is interrupted."""
-        yield context.env.timeout(1800)
+        yield context.env.timeout(1860)
         context.interrupt("pack_order", cause="called away")
 
     app.add_process(called_away)
@@ -97,6 +97,7 @@ if __name__ == "__main__":
     for policy in ("resume", "restart", "abandon"):
         r = outcomes(policy)
         print(
-            f"{policy:<7}: {r['preempted']} preempted, {r['finished']} packed, "
+            f"{policy:<7}: {r['preempted']} preempted, {r['interrupted']} called away, "
+            f"{r['finished']} packed, "
             f"mean wait {r['wait_mean']:5.2f} s, mean packing {r['service_mean']:4.2f} s"
         )

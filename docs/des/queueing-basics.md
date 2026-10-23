@@ -293,7 +293,7 @@ check(
 M/D/3 at utilisation 0.9, half the M/M/3 wait: formula 2.04 s, mean of 10 runs 2.05 ± 0.13 s
 ```
 
-The runs (2.05 ± 0.13 seconds) agree with half the M/M/3 wait (2.04 seconds) at this load. They are 10 runs of 20,000 seconds with constant packing, each without its first 2,000 seconds, so the figure is not the one-hour figure of other pages. [Common Mistakes](common-mistakes.md#taking-one-run-as-the-answer) explains why the busy hour's figures differ.
+The runs (2.05 ± 0.13 seconds) agree with half the M/M/3 wait (2.04 seconds) at this load. They are [10 runs of 20,000 seconds](common-mistakes.md#busy-hour-figures) with constant packing, each without its first 2,000 seconds, not one-hour runs.
 
 Kingman's formula is an approximation, and the script shows where it is not exact. For constant gaps of 2 seconds and exponential service (D/M/1) at utilisation 0.75:
 

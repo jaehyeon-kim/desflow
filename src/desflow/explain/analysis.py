@@ -12,14 +12,20 @@ from desflow.explain import loads, support
 from desflow.explain.arrivals import arrival_results
 from desflow.explain.capacity import hints
 from desflow.explain.holders import holder_results
-from desflow.explain.models import ArrivalResult, Explanation, Graph, TaskResult
+from desflow.explain.models import (
+    VERIFY_HINT,
+    ArrivalResult,
+    Explanation,
+    Graph,
+    TaskResult,
+)
 from desflow.explain.poisson import poisson_tasks
 from desflow.explain.rates import task_results
 from desflow.explain.waits import fill_wait, stations
 
 _PRIORITY = (
     "a priority queue serves its tasks in a different order from first come, "
-    "first served; run --verify"
+    "first served" + VERIFY_HINT
 )
 
 

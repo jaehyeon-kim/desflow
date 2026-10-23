@@ -40,6 +40,11 @@ tasks:
     payload: {event_type: order_filled}
   # --8<-- [end:take]
 
+# --8<-- [start:stats]
+# The counts of each arrival's orders, published once, at the end of the 8 hours
+stats: {level: basic, interval: 8 h}
+# --8<-- [end:stats]
+
 egress:
   - type: Console
 

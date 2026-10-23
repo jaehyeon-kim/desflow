@@ -1,6 +1,11 @@
 # Trusting Results
 
-[Measuring a Run](measuring-a-run.md) read five numbers from one run of the busy hour. The run started with an empty shop: no orders waiting and every packer free. A real shop at that hour is never empty. The first orders of the run find free packers, so they wait less than orders in the real shop would. This page asks: **is one run enough?** The decision is how much of the start to leave out, and how many runs give an answer precise enough to act on. The measures are the mean wait and the packers' [utilisation](../des/queueing-basics.md#utilisation), and how much each varies from run to run. The boundary is the busy hour with 3 packers, run once with the seed 42 and then with other seeds. The assumptions are those of Measuring a Run: orders at random at 1.8 a second, and the 40 packing times measured at the bench.
+[Measuring a Run](measuring-a-run.md) read five numbers from one run of the busy hour. The run started with an empty shop: no orders waiting and every packer free. A real shop at that hour is never empty. The first orders of the run find free packers, so they wait less than orders in the real shop would. This page asks: **is one run enough?**
+
+- **Decision:** how much of the start to leave out, and how many runs give an answer precise enough to act on.
+- **Measures:** the mean wait and the packers' [utilisation](../des/queueing-basics.md#utilisation), and how much each varies from run to run.
+- **Runs:** the busy hour with 3 packers, run once with the seed 42, then 40 times with seeds spawned from 42, then 5 times after each of three warm-ups.
+- **Assumptions:** those of Measuring a Run: orders at random at 1.8 a second, and the 40 packing times measured at the bench.
 
 ## What You Add
 
@@ -12,7 +17,7 @@ This page adds a `warmup` to the run, then [replications](../des/output-analysis
 
 Some runs have a natural start and end, such as a shop that opens empty at 9:00 and closes at 17:00. These are **[terminating](../des/output-analysis.md#terminating-or-steady-state)** runs, and the empty start is part of what they measure. Other runs stand for a system that keeps going, such as the shop in the middle of its busy hour. These are **steady-state** runs, and their empty start is a distortion called **[initialisation bias](../des/output-analysis.md#one-run-starts-empty)**. The busy hour is a steady-state run.
 
-To see how long the distortion lasts, plot an output over time and look for where it stops trending. Publish the statistics every 10 seconds: `wait_mean` is then the mean wait of every order so far, and `queue_length` is the queue at that moment.
+To see how long the distortion lasts, plot an output over time and look for where it stops trending. Save the files from [Full Files](#full-files) in one folder and run the commands there. Publish the statistics every 10 seconds: `wait_mean` is then the mean wait of every order so far, and `queue_length` is the queue at that moment.
 
 === "YAML"
 
@@ -150,7 +155,7 @@ The mean of the 40 values is the estimate. Its **[95% interval](../des/output-an
 | 20 | 2.48 | 0.32 | 13.0% | 90.33 | 0.63 | 0.7% |
 | 40 | 2.32 | 0.20 | 8.4% | 90.03 | 0.45 | 0.5% |
 
-The mean waits of the 40 replications range from 1.45 to 4.39 seconds. The single run with the seed 42 measured 1.38 seconds, lower than any of them. [Common Mistakes](../des/common-mistakes.md#taking-one-run-as-the-answer) explains why other pages give other figures for this wait.
+The mean waits of the 40 replications range from 1.45 to 4.39 seconds. The [single run with the seed 42](../des/common-mistakes.md#busy-hour-figures) measured 1.38 seconds, lower than any of them.
 
 ---
 
@@ -209,13 +214,13 @@ The mean wait over the five replications, in seconds, with its 95% half-width:
 | 2 minutes | 2.207 ± 0.47 |
 | 4 minutes | 2.232 ± 0.47 |
 
-Keep the shortest warm-up after which a longer one no longer moves the mean by more than its half-width, as [Output Analysis](../des/output-analysis.md#one-run-starts-empty) sets out. After 1 minute, the longer warm-ups move the mean by 0.011 and 0.036 seconds, far less than the half-width of 0.47 seconds, so the comparison gives **1 minute**. The plot of the seed 42 still climbs until about a minute and a half, and Output Analysis advises choosing the warm-up conservatively. So the page keeps **2 minutes**: it passes the comparison, and it is the shortest candidate that also covers the climb in the plot.
+[Output Analysis](../des/output-analysis.md#one-run-starts-empty) keeps the shortest candidate that passes this comparison and covers the climb in the plot. After 1 minute, the longer warm-ups move the mean by 0.011 and 0.036 seconds, far less than the half-width of 0.47 seconds, so every candidate passes, and the plot climbs until about a minute and a half, so the warm-up is **2 minutes**.
 
 ---
 
 ## Result
 
-Is one run enough? No. Its empty start is not the problem. Over five seeds, the comparison of three candidates finds a warm-up of **1 minute** enough, and the page keeps **2 minutes** to cover the climb in the plot. In the run with the seed 42, a 2-minute warm-up changes the mean wait only from 1.382 to 1.381 seconds. The shop fills within a minute or two, and those minutes are a small part of one hour. A shorter run, or a start further from the usual state, such as a shop that opens with a backlog of orders, needs the warm-up much more. The problem is that one run's answer depends on its seed. The run with the seed 42 measured 1.38 seconds, lower than every one of 40 replications. Over 40 replications the mean wait is **2.32 ± 0.20 seconds** with 95% confidence, within the chosen 10% precision, and the packers are busy **90.03 ± 0.45%** of the time.
+Is one run enough? No. Its empty start is not the problem. The warm-up is **2 minutes**, the shortest candidate that passes the comparison over five seeds and covers the climb in the plot. In the run with the seed 42, a 2-minute warm-up changes the mean wait only from 1.382 to 1.381 seconds. The shop fills within a minute or two, and those minutes are a small part of one hour. A shorter run, or a start further from the usual state, such as a shop that opens with a backlog of orders, needs the warm-up much more. The problem is that one run's answer depends on its seed. The run with the seed 42 measured 1.38 seconds, lower than every one of 40 replications. Over 40 replications the mean wait is **2.32 ± 0.20 seconds** with 95% confidence, within the chosen 10% precision, and the packers are busy **90.03 ± 0.45%** of the time.
 
 ## Why It Works
 

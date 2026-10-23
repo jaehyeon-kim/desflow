@@ -1,6 +1,11 @@
 # Process Interaction
 
-Packed orders now wait for a courier, who comes every 10 minutes and takes every order that is waiting. An order that waits too long goes by post instead, which costs more and takes longer. This page asks: **when does a waiting order resume, and how long must it be allowed to wait so that most orders go by courier?** The decision is how long a packed order may wait for the courier: 5 minutes or 8. The measures are the orders sent by courier and by post, and the mean wait for dispatch. The boundary is two runs of an 8-hour day, one for each limit, each with the seed 42, up to the moment each order leaves the shop: the courier's trip and the post are left out. The assumptions are that orders arrive at random, that every order takes the same time to pack, and that the courier is always on time.
+Packed orders now wait for a courier, who comes every 10 minutes and takes every order that is waiting. An order that waits too long goes by post instead, which costs more and takes longer. This page asks: **when does a waiting order resume, and how long must it be allowed to wait so that most orders go by courier?**
+
+- **Decision:** how long a packed order may wait for the courier: 5 minutes or 8.
+- **Measures:** the orders sent by courier and by post, and the mean wait for dispatch.
+- **Runs:** two runs of an 8-hour day, one for each limit, each with the seed 42, up to the moment each order leaves the shop: the courier's trip and the post are left out.
+- **Assumptions:** orders arrive at random, every order takes the same time to pack, and the courier is always on time.
 
 ## What You Add
 
@@ -36,7 +41,7 @@ So far a process has waited for time, a resource or an item. Processes can also 
 
     `Signal` holds one pending SimPy `Event`. `wait()` returns it, and `fire(value)` succeeds it and puts a fresh one in its place, so a process that starts waiting after a firing waits for the next one. [SimPy and desflow](../des/simpy-and-desflow.md#events-and-callbacks) describes events.
 
-The courier arrives every 10 minutes, and its task fires the signal with its payload:
+The courier arrives every 10 minutes, and its task fires the signal with its payload. Save the files from [Full Files](#full-files) in one folder and run the commands there:
 
 === "YAML"
 
@@ -175,7 +180,7 @@ The task publishes `queued` when it starts waiting and `started` when the wait e
 
 ## Result
 
-When does a waiting order resume? It resumes when the courier leaves, if the courier leaves within the order's limit, and at the limit otherwise. Each figure here comes from one run of the 8-hour day with the seed 42. With a limit of 5 minutes, **6,952** orders go by courier and **7,020** by post. With a limit of 8 minutes, **11,005** go by courier and **2,872** by post, and the mean wait for dispatch rises from **225.3** to **288.2** seconds:
+When does a waiting order resume? It resumes when the courier leaves, if the courier leaves within the order's limit, and at the limit otherwise. Each figure here comes from one run of the 8-hour day with the seed 42. With a limit of 5 minutes, **6,952** orders go by courier and **7,020** by post. With a limit of 8 minutes, **11,005** go by courier and **2,872** by post, and the mean wait for dispatch rises from **225.3** to **288.2** seconds. How long must an order be allowed to wait? Of the two limits, **8 minutes** is the one at which most orders go by courier, 79% of them; at 5 minutes fewer than half do:
 
 ![With a limit of 5 minutes, 6952 orders by courier and 7020 by post; with 8 minutes, 11005 by courier and 2872 by post](../assets/charts/courier-shares.png)
 

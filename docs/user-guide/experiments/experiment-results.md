@@ -61,7 +61,7 @@ An experiment writes six files to its output folder:
 - Comparisons, Checks, Observed Comparison and Limits.
 - Missing Inputs: what the experiment does not state, such as an input without a provenance. The report names it rather than filling it in.
 
-[Common Mistakes](../../des/common-mistakes.md#taking-one-run-as-the-answer) explains why the tutorials' figures for a wait differ between pages. The middle of the example's report follows. It is for the example's own shop, not the busy hour of the tutorials:
+The middle of the example's report follows. It is for the example's own shop, not the busy hour of the tutorials:
 
 <!-- records: experiment-report -->
 ```text

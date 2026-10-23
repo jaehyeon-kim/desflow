@@ -1,6 +1,11 @@
 # Stock
 
-Every order needs a box, and boxes come from a shelf that a delivery fills every 100 seconds. In that time about 50 orders arrive on average, and each takes one box. This page asks: **what happens when stock runs out?** The decision is the size of each delivery: 60 boxes or 40. The measures are the mean wait for packing and how often the shelf is empty. The boundary is two runs of the hour, one for each delivery size, each with the seed 42 and starting with 50 boxes on the shelf. The assumptions are that orders arrive at random, that every delivery comes on time, and that every order takes the same time to pack.
+Every order needs a box, and boxes come from a shelf that a delivery fills every 100 seconds. In that time about 50 orders arrive on average, and each takes one box. This page asks: **what happens when stock runs out?**
+
+- **Decision:** the size of each delivery: 60 boxes or 40.
+- **Measures:** the mean wait for packing and how often the shelf is empty.
+- **Runs:** two runs of the hour, one for each delivery size, each with the seed 42 and starting with 50 boxes on the shelf.
+- **Assumptions:** orders arrive at random, every delivery comes on time, and every order takes the same time to pack.
 
 ## What You Add
 
@@ -83,7 +88,7 @@ Packing an order takes one box. The task gets its packer first and then its box,
 
     The stock is a SimPy container: `get(1)` is an event that happens when the level covers the amount, and the process waits at the `yield` until then. [SimPy and desflow](../des/simpy-and-desflow.md#containers-and-stores) describes containers and stores.
 
-A delivery arrives every 100 seconds, and its task puts the boxes on the shelf. The task waits while there is no room for all of them. It has no service and no resource, so it takes no time and publishes its payload once the boxes are on the shelf:
+Save the files from [Full Files](#full-files) in one folder and run the commands there. A delivery arrives every 100 seconds, and its task puts the boxes on the shelf. The task waits while there is no room for all of them. It has no service and no resource, so it takes no time and publishes its payload once the boxes are on the shelf:
 
 === "YAML"
 
@@ -170,7 +175,7 @@ At the `minimal` level and above, the built-in statistics publish each container
     env.setup_stats("Shop", "typical", interval=10)
     ```
 
-With deliveries of 40, the shelf runs out before the second delivery. These are the readings around it, with the packer queue:
+With deliveries of 40, the shelf runs out before the second delivery. Each reading publishes every statistic of the level; the block keeps three of them around the stock-out: the packer queue, the level and the orders waiting for a box:
 
 <!-- records: stock-out -->
 ```text

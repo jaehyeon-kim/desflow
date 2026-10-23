@@ -1,6 +1,11 @@
 # Priorities
 
-A quarter of the shop's orders are now express: the customer paid for speed. With one packer and an order every 1.67 seconds on average (36 a minute), an order waits about 5 seconds on average. This page asks: **can express orders jump the queue?** And what does that cost the others? The decision is whether the packer serves express orders first or every order in order of arrival. The measures are the mean wait of express orders and of regular orders. The boundary is two runs of the hour, one for each queue order, each with the seed 42. The assumptions are that both kinds of order arrive at random at steady rates, and that every order takes the same time to pack.
+A quarter of the shop's orders are now express: the customer paid for speed. With one packer and an order every 1.67 seconds on average (36 a minute), an order waits about 5 seconds on average. This page asks: **can express orders jump the queue?** And what does that cost the others?
+
+- **Decision:** whether the packer serves express orders first or every order in order of arrival.
+- **Measures:** the mean wait of express orders and of regular orders.
+- **Runs:** two runs of the hour, one for each queue order, each with the seed 42, then runs at two lower arrival rates.
+- **Assumptions:** both kinds of order arrive at random at steady rates, and every order takes the same time to pack.
 
 ## What You Add
 
@@ -14,7 +19,7 @@ Which waiting entity a resource serves next is its **queue discipline**. The usu
 
 ![Four requests join in the order orders-1, express-1, orders-2, express-2. fifo serves them in that order; lifo serves express-2, orders-2, express-1, orders-1; priority serves express-1 and express-2 first, then orders-1 and orders-2](../assets/diagrams/queue-order.png)
 
-SimPy has a `PriorityResource` for the priority discipline, and a `PriorityStore` for items. In desflow every resource has a `queue`: `fifo` (the default), `lifo` or `priority`. Under `priority` the lowest number goes first, and requests with the same priority are served first in, first out:
+SimPy has a `PriorityResource` for the priority discipline, and a `PriorityStore` for items. In desflow every resource has a `queue`: `fifo` (the default), `lifo` or `priority`. Under `priority` the lowest number goes first, and requests with the same priority are served first in, first out. Save the files from [Full Files](#full-files) in one folder and run the commands there:
 
 === "YAML"
 
@@ -97,7 +102,13 @@ Both kinds of order use the same packer, so they share one queue. The built-in s
 
 ## Starvation
 
-Priority has a price. A regular order is served only when no express order is waiting, so every express order that arrives while it waits pushes it back. The price grows quickly as the shop gets busier. Run the hour once with the seed 42 at each of three total arrival rates, with a quarter of the orders express each time. The mean wait of a regular order is 2.50 seconds at 30 orders a minute in all (0.5 a second), 3.98 seconds at 33 a minute (0.55) and 6.94 seconds at 36 a minute (0.6). Express orders wait less than a second on average at all three rates. If express orders alone kept the packer busy, regular orders would never be served at all: they would **starve**.
+Priority has a price. A regular order is served only when no express order is waiting, so every express order that arrives while it waits pushes it back. The price grows quickly as the shop gets busier. Run the hour once with the seed 42 at each of three total arrival rates, with a quarter of the orders express each time. In YAML, the variables `ORDERS_RATE` and `EXPRESS_RATE` set the two rates, 0.45 and 0.15 a second when they are not set. This command runs 30 orders a minute in all (0.5 a second):
+
+```bash
+ORDERS_RATE=0.375 EXPRESS_RATE=0.125 desflow run priorities.yaml 2>&1 | grep wait_mean
+```
+
+`ORDERS_RATE=0.4125 EXPRESS_RATE=0.1375` runs 33 a minute (0.55). The mean wait of a regular order is 2.50 seconds at 30 orders a minute, 3.98 seconds at 33 a minute and 6.94 seconds at 36 a minute (0.6). Express orders wait less than a second on average at all three rates. If express orders alone kept the packer busy, regular orders would never be served at all: they would **starve**.
 
 ---
 
@@ -145,9 +156,10 @@ Priority does not make the packer faster, so it cannot remove waiting. It only d
           packing: {dist: constant, value: 1.5 s}
 
         arrivals:
-          # An order every 1.67 s on average in all (0.6 a second), one in four express
-          orders: {dist: exponential, rate: 0.45, spawn: pack_order}
-          express: {dist: exponential, rate: 0.15, spawn: pack_express}
+          # An order every 1.67 s on average in all (0.6 a second), one in four express;
+          # ORDERS_RATE and EXPRESS_RATE set other rates
+          orders: {dist: exponential, rate: "${ORDERS_RATE:-0.45}", spawn: pack_order}
+          express: {dist: exponential, rate: "${EXPRESS_RATE:-0.15}", spawn: pack_express}
 
         tasks:
           pack_order:

@@ -27,9 +27,7 @@ A `next` function or a hand-written arrival loop already makes every rate unknow
 from typing import Dict, Iterable, List
 
 from desflow.explain.loads import mixed_priorities, users
-from desflow.explain.models import Graph
-
-_VERIFY = "; run --verify"
+from desflow.explain.models import VERIFY_HINT, Graph
 
 
 def static_marks(graph: Graph) -> Dict[str, str]:
@@ -50,7 +48,7 @@ def static_marks(graph: Graph) -> Dict[str, str]:
     if whole:
         reason = f"the formulas leave out {', '.join(whole)}, which can change any work"
         arrivals = [n for n in graph.nodes if n.kind == "arrival"]
-        return {node.id: reason + _VERIFY for node in tasks + arrivals}
+        return {node.id: reason + VERIFY_HINT for node in tasks + arrivals}
     marks: Dict[str, str] = {}
     for task in tasks:
         if task.features:
@@ -100,7 +98,7 @@ def mark(
         reason: Why, without the "run --verify" ending.
     """
     for task in tasks:
-        marks.setdefault(task, reason + _VERIFY)
+        marks.setdefault(task, reason + VERIFY_HINT)
 
 
 def after(graph: Graph, starts: List[str]) -> List[str]:

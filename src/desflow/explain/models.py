@@ -16,6 +16,10 @@ NodeKind = Literal[
 EdgeKind = Literal["spawn", "uses", "next", "takes", "gives"]
 Status = Literal["OK", "CONGESTED", "UNSTABLE"]
 
+# The end of each reason the formulas give no value for: a run measures the value
+# instead. The terminal text leaves it out while `--verify` is running.
+VERIFY_HINT = "; run --verify to measure it"
+
 
 class _Model(BaseModel):
     model_config = ConfigDict(extra="forbid")

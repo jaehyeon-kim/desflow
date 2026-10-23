@@ -2,8 +2,6 @@
 
 **Realistic event streams from a simulation you can steer while it runs.**
 
-> **dynamic-des is now desflow.** [Installation](getting-started.md#install-the-package) says what the rename changes.
-
 Most test data generators write random rows. desflow writes the events of a working process: orders queue for packers, waits grow at busy times, and a backlog builds when orders arrive faster than the packers can pack them. The data comes from a [SimPy](https://simpy.readthedocs.io/) discrete-event simulation, so each change in it has a cause in the model, as in a real system.
 
 You can change an arrival rate or a capacity while the simulation runs, from **Kafka**, **Redis**, **PostgreSQL** or a timed scenario, and the pipeline downstream sees the effect. One run can write a week of history at full speed, then keep streaming in real time.

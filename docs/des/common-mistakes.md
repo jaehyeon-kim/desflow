@@ -58,7 +58,30 @@ def spread_of_runs():
     return min(runs), max(runs), mean(runs)
 ```
 
-The runs range from 1.52 seconds, 28% below the mean, to 2.75 seconds, 30% above it, and the mean is 2.11 seconds. A report that gave one run alone could be that far off. The busy hour's mean wait has other values on other pages, because the pages run it in different ways: one run or several replications, constant or empirical packing times, with or without a [warm-up](output-analysis.md#one-run-starts-empty), and for one hour or longer. Each page says which. These 10 runs use constant packing and no warm-up. [Trusting Results](../tutorials/trusting-results.md) measures 2.25 seconds over its first 10 replications, because its shop uses the empirical packing times and a 2-minute warm-up. Run replications and report the mean with an interval. [Output Analysis](output-analysis.md) explains replications and how many to use.
+The runs range from 1.52 seconds, 28% below the mean, to 2.75 seconds, 30% above it, and the mean is 2.11 seconds. A report that gave one run alone could be that far off. Run replications and report the mean with an interval. [Output Analysis](output-analysis.md) explains replications and how many to use.
+
+### Busy Hour Figures
+
+The pages of this site run the busy hour with 3 packers in different ways, so they give different figures for its mean wait. A figure changes with the number of runs, the packing times, the [warm-up](output-analysis.md#one-run-starts-empty), the run length and the seeds. The table lists each figure, the pages that give it and how it was run. Every run is one hour at 1.8 orders a second unless the row says otherwise. "Measured times" are the 40 packing times measured at the bench, drawn as an `empirical` distribution. "Replications" have seeds spawned from 42, and the first 5, 10 or 20 of the 40 are the replications a run of 5, 10 or 20 makes.
+
+| Mean wait (s) | Pages | How it was run |
+|---|---|---|
+| 1.27 | [Queues and Capacity](../tutorials/queues-and-capacity.md), [Choosing Inputs](../tutorials/choosing-inputs.md) | one run, seed 42, constant packing, no warm-up |
+| 1.28 | [Choosing Inputs](../tutorials/choosing-inputs.md) | one run, seed 42, the expert's triangular packing (1 to 2.25 s, mode 1.25), no warm-up |
+| 1.35 | [Choosing Inputs](../tutorials/choosing-inputs.md) | one run, seed 42, measured times in a service named `empirical`, no warm-up |
+| 1.38 | [Measuring a Run](../tutorials/measuring-a-run.md), [Trusting Results](../tutorials/trusting-results.md), [Output Analysis](output-analysis.md) | one run, seed 42, measured times in a service named `packing`, without a warm-up (1.382) or with a 2-minute warm-up (1.381) |
+| 2.37 | [Choosing Inputs](../tutorials/choosing-inputs.md) | one run, seed 42, exponential packing, no warm-up |
+| 2.11 | this page, [Taking One Run as the Answer](#taking-one-run-as-the-answer) | 10 replications, constant packing, no warm-up |
+| 1.99 | this page, [Comparing Designs With One Run Each](#comparing-designs-with-one-run-each) | 20 replications with seeds spawned from 1, constant packing, no warm-up |
+| 2.05 ± 0.13 | [Queueing Basics](queueing-basics.md#check-a-formula-against-the-shop) | 10 replications of 20,000 seconds, constant packing, the first 2,000 seconds left out |
+| 2.20 to 2.23 | [Trusting Results](../tutorials/trusting-results.md#compare-warm-ups) | 5 replications, measured times, warm-ups of 1, 2 and 4 minutes |
+| 2.25 ± 0.25 | [Trusting Results](../tutorials/trusting-results.md), [Checking a Model](../tutorials/checking-a-model.md) | 10 replications, measured times, 2-minute warm-up |
+| 2.48 ± 0.32 | [Trusting Results](../tutorials/trusting-results.md), [Comparing Designs](../tutorials/comparing-designs.md), [Parameter Sweeps](../tutorials/parameter-sweeps.md), [Checking a Model](../tutorials/checking-a-model.md), [Checking and Validating](checking-and-validating.md) | 20 replications, measured times, 2-minute warm-up |
+| 2.32 ± 0.20 | [Trusting Results](../tutorials/trusting-results.md), [Fit the Inputs](../tutorials/fit-the-inputs.md), [Comparing Designs](../tutorials/comparing-designs.md), [Output Analysis](output-analysis.md), [A Simulation Study](a-simulation-study.md) | 40 replications, measured times, 2-minute warm-up |
+| 2.33 ± 0.19 | [Fit the Inputs](../tutorials/fit-the-inputs.md) | 40 replications, the gamma fitted to the measured times, 2-minute warm-up |
+| 2.93 ± 0.25 | [Fit the Inputs](../tutorials/fit-the-inputs.md) | 40 replications, the triangular fitted to the measured times, 2-minute warm-up |
+
+The 1.35 and 1.38 seconds come from the same measured times. Each distribution draws from a random number stream named after its registry path, `service.empirical` or `service.packing`, so the two services draw the times in another order ([Randomness and Seeds](../tutorials/randomness-and-seeds.md#add-returns) explains the streams).
 
 ---
 

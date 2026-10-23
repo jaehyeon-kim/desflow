@@ -1,10 +1,15 @@
 # Randomness and Seeds
 
-Run the busy shop twice, and the orders arrive at different times and take different times to pack. A stochastic model, one that draws random times, behaves this way, but its results are then hard to check or to compare. This page asks: **why do runs differ, and how can you reproduce one?** The decision is how to set up runs so that a result can be checked and two versions of the model compared. The measures are the times of one order's events, on repeated runs and after a second arrival is added. The boundary is a run of one minute. The assumptions are that orders arrive at random at 1.8 a second, and that each packing time is drawn on its own, whatever the others were.
+Run the busy shop twice, and the orders arrive at different times and take different times to pack. A stochastic model, one that draws random times, behaves this way, but its results are then hard to check or to compare. This page asks: **why do runs differ, and how can you reproduce one?**
+
+- **Decision:** how to set up runs so that a result can be checked and two versions of the model compared.
+- **Measures:** the times of one order's events, on repeated runs and after a second arrival is added.
+- **Runs:** runs of one minute: two with no seed, then repeated runs with the seed 42, with and without a second arrival.
+- **Assumptions:** orders arrive at random at 1.8 a second, and each packing time is drawn on its own, whatever the others were.
 
 ## What You Add
 
-This page adds a seed, then a second arrival: returned parcels. The model simulates the busy hour from [Queues and Capacity](queues-and-capacity.md), using its answer of 3 packers. Packing times now vary: 1.5 seconds on average with a standard deviation of 0.5 seconds, drawn from a `normal` distribution.
+This page adds a seed, then a second arrival: returned parcels. The model simulates the busy hour from [Queues and Capacity](queues-and-capacity.md), using its answer of 3 packers. Packing times now vary: 1.5 seconds on average with a standard deviation of 0.5 seconds, drawn from a `normal` distribution. The normal only gives this page times that vary; [Choosing Inputs](choosing-inputs.md) chooses packing times from data. [Common Mistakes](../des/common-mistakes.md#choosing-a-normal-or-uniform-by-habit) explains why a normal is a poor model of a time: this one draws below 0 about once in 740 draws, and desflow raises such a draw to its minimum delay, as [Distributions](../reference/distributions.md) says.
 
 ---
 
@@ -12,11 +17,11 @@ This page adds a seed, then a second arrival: returned parcels. The model simula
 
 A simulation draws its random times from a **random number stream**: a long sequence of numbers that looks random but is computed from a starting value, the **seed**. The same seed gives the same sequence, and so the same run. A simulation given no seed starts from a new seed each time, so two runs give two different sets of records.
 
-desflow never runs without a seed. When you give none, it draws one, uses it, and logs it, so any run can be repeated afterwards:
+Save the files from [Full Files](#full-files) in one folder and run the commands there. desflow never runs without a seed. When you give none, it draws one, uses it, and logs it, so any run can be repeated afterwards:
 
 === "YAML"
 
-    Leave `random_seed` out of the `simulation` section and run the blueprint twice. Each run logs its seed with the command that repeats it:
+    Leave `random_seed` out of the `simulation` section and run the blueprint twice. Each run logs its seed with the command that repeats it. Each run draws its own seed, so your number differs from this one:
 
     <!-- records: seed-line-yaml -->
     ```text
@@ -25,7 +30,7 @@ desflow never runs without a seed. When you give none, it draws one, uses it, an
 
 === "Builder"
 
-    Leave `random_seed` out of `SimulationContext` and run the script twice. Each run logs its seed with the argument that repeats it:
+    Leave `random_seed` out of `SimulationContext` and run the script twice. Each run logs its seed with the argument that repeats it. Each run draws its own seed, so your number differs from this one:
 
     <!-- records: seed-line-builder -->
     ```text
@@ -146,7 +151,7 @@ Run it with the seed 42. `orders-12` has the same three events as before, at the
 
 ![With the seed 42, the first run draws arrival.orders and service.packing; the second run, with returns added, draws the same numbers from those two streams and adds a stream of its own, arrival.returns](../assets/diagrams/seed-sequences.png)
 
-With one shared stream, the returns would take some of the numbers the orders and packing used to get, and every later time would shift.
+With one shared stream, the returns would take some of the numbers the orders and packing used to get, and every later time would shift. The name is part of the stream, so renaming a service, an arrival or a task that routes by weights gives it a new stream, and a run with the same seed then changes. [Common Mistakes](../des/common-mistakes.md#busy-hour-figures) shows two such runs: the same measured packing times give 1.35 or 1.38 seconds of mean wait, depending on the service's name.
 
 ---
 

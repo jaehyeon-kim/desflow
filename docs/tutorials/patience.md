@@ -1,6 +1,11 @@
 # Patience
 
-The shop now gets an order every 1.43 seconds on average (42 a minute, `rate: 0.7`). Its one packer packs one every 1.5 seconds (40 a minute), so orders arrive faster than they can be packed. A real customer does not wait for ever: one whose order has not started within 30 seconds cancels it. The courier also leaves at the hour, so the shop takes no new orders in the last five minutes. This page asks: **which orders leave or refuse to join, and what does that do to the wait of the others?** The decision is which figures the shop reports for an hour in which customers may leave. The measures are the orders that leave the queue or refuse to join, and the mean and longest wait of the packed orders. The boundary is two runs of the hour, one with a patience of 30 seconds and one without, each with the seed 42. The assumptions are that orders arrive at random, that every order takes the same time to pack, and that every customer has the same patience.
+The shop now gets an order every 1.43 seconds on average (42 a minute, `rate: 0.7`). Its one packer packs one every 1.5 seconds (40 a minute), so orders arrive faster than they can be packed. A real customer does not wait for ever: one whose order has not started within 30 seconds cancels it. The courier also leaves at the hour, so the shop takes no new orders in the last five minutes. This page asks: **which orders leave or refuse to join, and what does that do to the wait of the others?**
+
+- **Decision:** which figures the shop reports for an hour in which customers may leave.
+- **Measures:** the orders that leave the queue or refuse to join, and the mean and longest wait of the packed orders.
+- **Runs:** two runs of the hour, one with a patience of 30 seconds and one without, each with the seed 42.
+- **Assumptions:** orders arrive at random, every order takes the same time to pack, and every customer has the same patience.
 
 ## What You Add
 
@@ -10,7 +15,7 @@ This page adds a `patience` and a `balk` condition to the packing task. The shop
 
 ## Leave After a Wait
 
-An entity that leaves a queue after waiting too long **reneges**. In SimPy it waits for whichever comes first, the unit or a timeout, with the `|` of two events (an `AnyOf`), then checks which one happened. In desflow it is the task's `patience`: how long the task may wait before it leaves the queue and publishes `reneged`. The patience covers the task's `wait`, then its resource, then its `get` from a store or container. It counts waiting time only, and pauses while the task is served. SimPy's pattern does the same when a preempted process waits again with the patience it has left:
+An entity that leaves a queue after waiting too long **reneges**. In SimPy it waits for whichever comes first, the unit or a timeout, with the `|` of two events (an `AnyOf`), then checks which one happened. In desflow it is the task's `patience`: how long the task may wait before it leaves the queue and publishes `reneged`. The patience covers the task's `wait`, then its resource, then its `get` from a store or container. It counts waiting time only, and pauses while the task is served. Save the files from [Full Files](#full-files) in one folder and run the commands there:
 
 === "YAML"
 

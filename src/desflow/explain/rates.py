@@ -13,7 +13,13 @@ from typing import Dict, List, Tuple
 import numpy as np
 
 from desflow.explain.arrivals import moments
-from desflow.explain.models import ArrivalResult, Graph, Node, TaskResult
+from desflow.explain.models import (
+    VERIFY_HINT,
+    ArrivalResult,
+    Graph,
+    Node,
+    TaskResult,
+)
 from desflow.explain.poisson import inflow
 
 # A loop whose entities never leave has a routing matrix with a spectral radius of 1
@@ -71,13 +77,13 @@ def _unknown(
         if e.kind in ("spawn", "next") and nodes[e.target].kind == "opaque"
     )
     if starters:
-        reason = f"{starters[0]} is code that can start any task; run --verify"
+        reason = f"{starters[0]} is code that can start any task{VERIFY_HINT}"
         return {node.id: reason for node in tasks}
     reasons: Dict[str, str] = {}
     for node in tasks:
         edges = inflow(graph, node.id)
         if not edges:
-            reasons[node.id] = "no declared arrival or task starts it; run --verify"
+            reasons[node.id] = "no declared arrival or task starts it" + VERIFY_HINT
         for edge in edges:
             source = nodes[edge.source]
             if source.kind == "arrival" and arrivals[source.label].rate is None:
@@ -88,12 +94,12 @@ def _unknown(
                 and edge.probability is None
             ):
                 reasons[node.id] = (
-                    f"the split after {source.label} depends on the run; run --verify"
+                    f"the split after {source.label} depends on the run{VERIFY_HINT}"
                 )
             elif source.kind == "task" and edge.probability is None:
                 reasons[node.id] = (
                     f"{source.label} spawns it only when it does not fail, and the "
-                    "share that fails is not known before a run; run --verify"
+                    f"share that fails is not known before a run{VERIFY_HINT}"
                 )
     for task in _downstream(graph, set(reasons)):
         if task not in reasons:

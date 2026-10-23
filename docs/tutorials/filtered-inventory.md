@@ -1,6 +1,11 @@
 # Filtered Inventory
 
-The shop now sells shirts in three sizes: small, medium and large. Shirts of every size go on one shelf. A new shirt arrives every 10 seconds on average, and a new order also arrives every 10 seconds on average. Each order is for one shirt of a given size. A customer cancels an order not filled within 10 minutes. Half the orders are for medium shirts, but only 4 shirts in 10 are medium. This page asks: **which waiting order can use the shirt that arrives, and which orders go unfilled?** The decision is whether the shop's mix of shirt sizes is right for its orders. The measures are the orders filled and cancelled for each size, and the shirts left on the shelf. The boundary is one run of a working day of 8 hours, with the seed 42, and covers only taking shirts from the shelf: packing is left out. The assumptions are that shirts and orders of each size arrive at random, each at a steady rate.
+The shop now sells shirts in three sizes: small, medium and large. Shirts of every size go on one shelf. A new shirt arrives every 10 seconds on average, and a new order also arrives every 10 seconds on average. Each order is for one shirt of a given size. A customer cancels an order not filled within 10 minutes. Half the orders are for medium shirts, but only 4 shirts in 10 are medium. This page asks: **which waiting order can use the shirt that arrives, and which orders go unfilled?**
+
+- **Decision:** whether the shop's mix of shirt sizes is right for its orders.
+- **Measures:** the orders filled and cancelled for each size, and the shirts left on the shelf.
+- **Runs:** one run of a working day of 8 hours, with the seed 42, covering only taking shirts from the shelf: packing is left out.
+- **Assumptions:** shirts and orders of each size arrive at random, each at a steady rate.
 
 ## What You Add
 
@@ -10,7 +15,7 @@ This page adds a `shelf` store, and a `filter` on the order's `get` that picks a
 
 ## One Shelf of Items
 
-A store holds items, and each item is a value of its own. Here each shirt is a mapping such as `{size: M}`, and a restock task puts it on the shelf. [Stores and Containers](../user-guide/stores-and-containers.md) describes stores:
+A store holds items, and each item is a value of its own. Here each shirt is a mapping such as `{size: M}`, and a restock task puts it on the shelf. [Stores and Containers](../user-guide/stores-and-containers.md) describes stores. Save the files from [Full Files](#full-files) in one folder and run the commands there:
 
 === "YAML"
 
@@ -126,6 +131,19 @@ size M: 1110 filled,  315 cancelled
 size L:  679 filled,    0 cancelled
 ```
 
+In YAML, the flow statistics of each arrival give the same counts. The blueprint publishes them once, at the end of the 8 hours:
+
+```yaml title="docs/snippets/yaml/filtered_inventory.yaml:stats"
+# The counts of each arrival's orders, published once, at the end of the 8 hours
+stats: {level: basic, interval: 8 h}
+```
+
+```bash
+desflow run filtered_inventory.yaml 2>&1 | grep "flows.orders_"
+```
+
+`flows.orders_m.finished` is the number of filled medium orders, 1,110. A cancelled order leaves its flow without finishing it, so the cancelled orders are `started` minus `finished` minus `in_system`, the orders still waiting at the end: 1,454 − 1,110 − 29 = 315. The task's own statistics, such as `tasks.take_shirt.reneged`, count every size together.
+
 ## Why It Works
 
 A filtered store works like one shelf with a separate queue for each kind of item. A medium order arrives every 20 seconds on average (3 a minute, `rate: 0.05`), and a medium shirt every 25 seconds (2.4 a minute, `rate: 0.04`). Medium orders therefore outnumber medium shirts all day, and their queue would grow without end if customers did not cancel after 10 minutes. Small shirts arrive every 33 seconds on average (1.8 a minute, `rate: 0.03`), and so do large shirts. Small orders arrive every 40 seconds on average (1.5 a minute, `rate: 0.025`), and so do large orders. There are more small and large shirts than orders of those sizes, so every small and large order is filled before its customer cancels. The shirts left over, 248 at the end of the run, wait on the shelf, which has room for 1,000. [SimPy and desflow](../des/simpy-and-desflow.md#containers-and-stores) compares stores and containers with SimPy's. [Stores and Containers](../user-guide/stores-and-containers.md#take-and-add) describes filters and cancelled gets.
@@ -176,6 +194,9 @@ A filtered store works like one shelf with a separate queue for each kind of ite
             # Adds the shirt the get took to the finished event
             item_field: shirt
             payload: {event_type: order_filled}
+
+        # The counts of each arrival's orders, published once, at the end of the 8 hours
+        stats: {level: basic, interval: 8 h}
 
         egress:
           - type: Console

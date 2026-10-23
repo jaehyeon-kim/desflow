@@ -37,17 +37,17 @@ On the command line, `desflow fit gaps.csv --column gap_seconds --unit s --lower
 <!-- records: fit-gaps -->
 ```text
 299 rows: 299 used, 0 missing, 0 invalid
-family            status              AIC      KS p (approx.)  parameters or reason
-exponential *     fitted             1205 0.03517      0.8404  rate=0.36388
-normal            fitted             1487  0.1707   4.359e-08  mean=2.74816, std=2.88857 (can draw below the lower bound 0)
-lognormal         skipped                                      lognormal needs every value above 0; 5 are not
-truncated_normal  did not fit                                  RuntimeError: Maximum number of function evaluations has been exceeded.
-constant          skipped                                      the values are not all equal
-uniform           rejected                                     its mean is 12.75, the data's is 2.748: more than 25% apart
-triangular        rejected                                     its mean is 7.702, the data's is 2.748: more than 25% apart
-gamma             skipped                                      gamma needs every value above 0; 5 are not
-weibull           skipped                                      weibull needs every value above 0; 5 are not
-empirical         fitted                                       values: 299 numbers
+family            status              AIC  KS stat KS p (approx.)  parameters or reason
+exponential *     fitted             1205  0.03517         0.8404  rate=0.36388
+normal            fitted             1487   0.1707      4.359e-08  mean=2.74816, std=2.88857 (can draw below the lower bound 0)
+lognormal         skipped                                          lognormal needs every value above 0; 5 are not
+truncated_normal  did not fit                                      RuntimeError: Maximum number of function evaluations has been exceeded.
+constant          skipped                                          the values are not all equal
+uniform           rejected                                         its mean is 12.75, the data's is 2.748: more than 25% apart
+triangular        rejected                                         its mean is 7.702, the data's is 2.748: more than 25% apart
+gamma             skipped                                          gamma needs every value above 0; 5 are not
+weibull           skipped                                          weibull needs every value above 0; 5 are not
+empirical         fitted                                           values: 299 numbers
 * best: exponential
 ```
 

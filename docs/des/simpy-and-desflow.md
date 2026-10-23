@@ -31,7 +31,7 @@ Each pair is the time of the next event and the clock before the step. The event
 event list: [(1.5, 0), (2.6, 1.5)], clock at 2.6
 ```
 
-In desflow, `env` is a `DynamicRealtimeEnvironment`, which is a SimPy environment with pacing added. The builder and YAML give the same operations as `app.run(until=...)`, `app.step()`, `app.peek()` and `run.until`.
+In desflow, `env` is a `DynamicRealtimeEnvironment`, which is a SimPy environment with pacing added. In the builder, `env.run(until=...)`, `env.step()` and `env.peek()` are `app.run(until=...)`, `app.step()` and `app.peek()`. In YAML, the end time is `run.until`.
 
 ---
 
@@ -391,14 +391,7 @@ SimPy's `factor` is fixed when the environment is made. desflow's environment ca
 
 ## What desflow Changes
 
-desflow keeps SimPy's event list, clock, processes and resources. It changes six things, one in each row of the table:
-
-- The clock can switch pacing.
-- The builder writes the common processes for you.
-- Random times are named distributions.
-- Resources follow a capacity that can change.
-- Every parameter can change while the run goes on.
-- Everything that happens is published as records.
+desflow keeps SimPy's event list, clock, processes and resources. It changes the six things in the table:
 
 | Part | In SimPy | In desflow |
 |---|---|---|

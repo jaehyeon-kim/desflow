@@ -1,0 +1,4 @@
+# Fitted by desflow fit from packing_times.csv, column packing_seconds: gamma, from 40 values in s, written in seconds.
+dist: gamma
+shape: 9.55777
+scale: 0.15694

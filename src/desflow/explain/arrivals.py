@@ -3,7 +3,7 @@
 from typing import Dict, List, Tuple
 
 from desflow.config import MIN_DELAY
-from desflow.explain.models import ArrivalResult, Graph, Node
+from desflow.explain.models import VERIFY_HINT, ArrivalResult, Graph, Node
 
 
 def moments(parameters: Dict) -> Tuple[float, float]:
@@ -48,7 +48,7 @@ def arrival_results(graph: Graph) -> List[ArrivalResult]:
             continue
         if node.distribution is None:
             results.append(
-                ArrivalResult(name=node.label, reason="replayed rows; run --verify")
+                ArrivalResult(name=node.label, reason="replayed rows" + VERIFY_HINT)
             )
             continue
         mean, variance = moments(node.distribution)

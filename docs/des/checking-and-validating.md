@@ -116,7 +116,7 @@ The [lecture notes](https://courses.ie.bilkent.edu.tr/ie324/wp-content/uploads/s
 
 ## Test the Sensitivity
 
-A model has inputs that are estimates. **Sensitivity analysis** changes them and sees whether the answer changes. If a 6% change in the arrival rate changes the decision, the estimate needs more work. If the decision stays the same, the estimate is good enough. [Parameter Sweeps](../tutorials/parameter-sweeps.md) does this for the shop. With three packers, a rate 6% above the estimate more than doubles the mean wait, from 2.48 to 5.55 seconds, each the mean of 20 replications. With four packers, the mean wait is at most 0.35 seconds at every rate in the sweep, so the choice of four packers holds for any demand in that range.
+A model has inputs that are estimates. **Sensitivity analysis** changes them and sees whether the answer changes. If a 6% change in the arrival rate changes the decision, the estimate needs more work. If the decision stays the same, the estimate is good enough. [Parameter Sweeps](../tutorials/parameter-sweeps.md) does this for the shop. With three packers, a rate 6% above the estimate more than doubles the mean wait, from 2.48 to 5.55 seconds, each the [mean of 20 replications after a 2-minute warm-up](common-mistakes.md#busy-hour-figures). With four packers, the mean wait is at most 0.35 seconds at every rate in the sweep, so the choice of four packers holds for any demand in that range.
 
 ---
 

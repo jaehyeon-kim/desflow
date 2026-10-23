@@ -1,10 +1,21 @@
 # Local Replay
 
-The shop recorded every order of one morning, 09:00 to 10:00 on 1 October 2026: 1,963 orders, one every 1.83 seconds on average (33 a minute). A model with exponential gaps at that rate says one packer keeps waits short. This page asks: **what does the shop do with the same orders, at the times they were really placed?** The decision is whether one packer is enough for that morning. The measures are the mean and the longest wait. The boundary is the recorded hour, from an order's arrival to the end of its packing. The assumption is that every order takes the same time to pack. It replays the recorded morning and compares it with the model.
+The shop recorded every order of one morning, 09:00 to 10:00 on 1 October 2026: 1,963 orders, one every 1.83 seconds on average (33 a minute). A model with exponential gaps at that rate says one packer keeps waits short. This page asks: **what does the shop do with the same orders, at the times they were really placed?**
+
+- **Decision:** whether one packer is enough for that morning.
+- **Measures:** the mean and the longest wait.
+- **Runs:** one replay of the recorded hour, and one run of the model with exponential gaps at the same mean rate and the seed 42, each from an order's arrival to the end of its packing.
+- **Assumptions:** every order takes the same time to pack.
 
 ## What You Add
 
-This page adds a **replayed arrival**: arrivals taken from the rows of a file instead of a distribution. The shop is the one from [First Simulation](first-simulation.md), with packing at a constant 1.5 seconds. The recorded orders are [`local_replay_orders.csv`](https://raw.githubusercontent.com/jaehyeon-kim/desflow/main/docs/snippets/tutorials/local_replay_orders.csv), one row per order. Download it into the folder that holds the blueprint and the scripts:
+This page adds a **replayed arrival**: arrivals taken from the rows of a file instead of a distribution. The shop is the one from [First Simulation](first-simulation.md), with packing at a constant 1.5 seconds. The recorded orders are [`local_replay_orders.csv`](https://raw.githubusercontent.com/jaehyeon-kim/desflow/main/docs/snippets/tutorials/local_replay_orders.csv), one row per order. Save the files from [Full Files](#full-files) in one folder and run the commands there. Download the recorded orders into the same folder:
+
+```bash
+curl -O https://raw.githubusercontent.com/jaehyeon-kim/desflow/main/docs/snippets/tutorials/local_replay_orders.csv
+```
+
+The file starts with these rows:
 
 ```text
 ordered_at,order_id,items
@@ -103,7 +114,7 @@ What does the shop do with the orders of the real morning? The replay shows some
 
 ![Waits by the time packing started: the recorded orders wait up to 295 s after the bursts at 15 and 40 minutes; the exponential model stays near 0 all hour](../assets/charts/replay-waits.png)
 
-The Builder and Low-level scripts print both runs:
+The replay packs 1,962 of the 1,963 recorded orders: the last is still being packed when the hour ends, and `flows.orders.in_system` is 1. The Builder and Low-level scripts print both runs:
 
 ```text
 recorded: 1962 packed, mean wait 91.31 s, longest 295.40 s

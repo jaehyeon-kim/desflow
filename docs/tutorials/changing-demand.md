@@ -1,6 +1,11 @@
 # Changing Demand
 
-The shop's one packer packs an order in 1.5 seconds, so it can pack 40 orders a minute. Orders usually arrive every 2.5 seconds on average (24 a minute, `rate: 0.4`). From 20 to 40 minutes a promotion brings an order every 1.11 seconds on average (54 a minute, `rate: 0.9`), more than one packer can pack. This page asks: **what does a 20-minute rush do to waits, and does a second packer for the rush keep them short?** The decision is one packer or two during the rush. The measures are the mean and the longest wait over the hour, and the number of orders packed. The boundary is two runs of the hour, one with one packer in the rush and one with two, each with the seed 42. The assumptions are that orders arrive at random at each rate, that every order takes the same time to pack, and that the rush starts and ends exactly on time.
+The shop's one packer packs an order in 1.5 seconds, so it can pack 40 orders a minute. Orders usually arrive every 2.5 seconds on average (24 a minute, `rate: 0.4`). From 20 to 40 minutes a promotion brings an order every 1.11 seconds on average (54 a minute, `rate: 0.9`), more than one packer can pack. This page asks: **what does a 20-minute rush do to waits, and does a second packer for the rush keep them short?**
+
+- **Decision:** one packer or two during the rush.
+- **Measures:** the mean and the longest wait over the hour, and the number of orders packed.
+- **Runs:** two runs of the hour, one with one packer in the rush and one with two, each with the seed 42.
+- **Assumptions:** orders arrive at random at each rate, every order takes the same time to pack, and the rush starts and ends exactly on time.
 
 ## What You Add
 
@@ -10,7 +15,7 @@ This page adds a **schedule**: changes to the arrival rate and the number of pac
 
 ## Write the Schedule
 
-A schedule is a list of steps. Each step names a registry path, a value and the simulation time at which the value applies. The rush is four steps: the rate and the packers change at 20 minutes and change back at 40:
+A schedule is a list of steps. Each step names a registry path, a value and the simulation time at which the value applies. The rush is four steps: the rate and the packers change at 20 minutes and change back at 40. Save the files from [Full Files](#full-files) in one folder and run the commands there:
 
 === "YAML"
 

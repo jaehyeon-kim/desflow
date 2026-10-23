@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Set
 from rich.console import Console
 from rich.tree import Tree
 
-from desflow.explain.models import Explanation, Graph, Node
+from desflow.explain.models import VERIFY_HINT, Explanation, Graph, Node
 from desflow.explain.tables import capacities, comparisons, resources
 
 
@@ -42,8 +42,9 @@ def render_terminal(explanation: Explanation, width: Optional[int] = None) -> st
     if explanation.bottleneck is not None:
         console.print(f"Bottleneck: {explanation.bottleneck}", soft_wrap=True)
     elif explanation.bottleneck_reason is not None:
+        why = _while_verifying(explanation, explanation.bottleneck_reason)
         console.print(
-            f"Bottleneck: none can be named: {explanation.bottleneck_reason}",
+            f"Bottleneck: none can be named: {why}",
             soft_wrap=True,
         )
     notes = _not_estimated(explanation)
@@ -150,4 +151,11 @@ def _not_estimated(explanation: Explanation) -> List[str]:
         elif r.wait_reason:
             lines.append(f"wait at {r.name}: {r.wait_reason}")
     lines += [f"{h.kind} {h.name}: {h.reason}" for h in explanation.holders]
-    return lines
+    return [_while_verifying(explanation, line) for line in lines]
+
+
+def _while_verifying(explanation: Explanation, reason: str) -> str:
+    """The reason, without the advice to run `--verify` when it is running."""
+    if explanation.verification is None:
+        return reason
+    return reason.removesuffix(VERIFY_HINT)

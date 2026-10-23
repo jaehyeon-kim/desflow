@@ -168,11 +168,11 @@ pip install "odctl>=1.0,<2"
 
 Each example needs at most one odctl profile. Start the profile before you run the example, and stop it afterwards:
 
-![The local, parquet, stock, flow and measuring examples need nothing started; kafka and backfill-live need odctl up kafka-lite; postgres and related-records need postgres; redis needs valkey; iceberg needs catalog; parquet written to S3 needs storage](assets/diagrams/example-infrastructure.png)
+![Every example that desflow examples marks (no service) needs nothing started; kafka and backfill-live need odctl up kafka-lite; postgres and related-records need postgres; redis needs valkey; iceberg needs catalog; parquet written to S3 needs storage](assets/diagrams/example-infrastructure.png)
 
 | Example | Start | Stop |
 |---|---|---|
-| local, parquet, stock, flow, measuring | nothing needed | |
+| every example that `desflow examples` marks `(no service)`, such as local, parquet and stock | nothing needed | |
 | kafka, backfill-live | `odctl up kafka-lite` | `odctl down kafka-lite --volumes` |
 | postgres, related-records | `odctl up postgres` | `odctl down postgres --volumes` |
 | redis | `odctl up valkey` | `odctl down valkey --volumes` |

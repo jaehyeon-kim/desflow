@@ -1,6 +1,11 @@
 # Live Changes
 
-The shop of [Changing Demand](changing-demand.md) has one packer, which takes 1.5 seconds to pack an order. An order arrives every 2.5 seconds on average (24 a minute, `rate: 0.4`). At 20 minutes the packer's label printer jams, and packing takes 3 seconds until the printer is fixed at 30 minutes. This page asks: **how long does the jam keep orders waiting after the fix, and how can someone who reads only the records tell what changed?** The decision is how long to keep a delay notice up after a fault on the bench is fixed. The measures are the mean wait of the orders queued in the 10 minutes of the jam and in the 10 minutes after it, and the records that name the change. The boundary is the hour. The assumptions are that the jam doubles the packing time and that orders arrive at random at the same rate throughout.
+The shop of [Changing Demand](changing-demand.md) has one packer, which takes 1.5 seconds to pack an order. An order arrives every 2.5 seconds on average (24 a minute, `rate: 0.4`). At 20 minutes the packer's label printer jams, and packing takes 3 seconds until the printer is fixed at 30 minutes. This page asks: **how long does the jam keep orders waiting after the fix, and how can someone who reads only the records tell what changed?**
+
+- **Decision:** how long to keep a delay notice up after a fault on the bench is fixed.
+- **Measures:** the mean wait of the orders queued in the 10 minutes of the jam and in the 10 minutes after it, and the records that name the change.
+- **Runs:** one run of the hour with the seed 42, a second run of the hour without the jam on the same seed, and a paced run of 5 minutes with the change sent live.
+- **Assumptions:** the jam doubles the packing time, and orders arrive at random at the same rate throughout.
 
 ## What You Add
 
@@ -128,7 +133,7 @@ The labels go only to a sink with `when: labels`, for the reasons [Live Paramete
 
     `labels` takes one entry per sink, in the order of the list.
 
-Each sink writes one file per batch, such as `labels/labels_1a2b3c4d.jsonl`. The run writes these two labels:
+Save the files from [Full Files](#full-files) in one folder and run the commands there: `desflow run live_changes.yaml`, `python live_changes.py` or `python live_changes_low_level.py`. Each sink writes one file per batch, such as `labels/labels_1a2b3c4d.jsonl`. A second run in the same folder adds new files beside the old ones, so start each run in an empty folder. The run writes these two labels:
 
 ```text
 {"stream_type":"label","sim_ts":1200.0,"timestamp":"...","path":"Shop.service.packing.value","old":1.5,"new":3.0,"label":{"intervention":"printer_jam"}}
@@ -170,7 +175,7 @@ def mean_wait(by_time: dict, start: float, end: float) -> float:
     return sum(window) / len(window)
 ```
 
-In YAML, delete the `scenario` block, run the file again in another folder, and read both folders with these functions. The Builder and Low-level scripts run both and print the results. The packing time is constant and draws no random numbers, so the jam does not change the arrival gaps the seed draws. Both runs therefore have the same orders at the same times, and each order's two waits can be compared one to one.
+The comparison is done in Python, with these functions, in every tab. In YAML, delete the `scenario` block, run the file again in another empty folder, and read the `events/` folders of both runs with the functions. The Builder and Low-level scripts run both and print the results. The packing time is constant and draws no random numbers, so the jam does not change the arrival gaps the seed draws. Both runs therefore have the same orders at the same times, and each order's two waits can be compared one to one.
 
 ---
 
@@ -204,7 +209,7 @@ A scenario is planned in advance. A change from outside arrives while the run go
 
     `env.setup_ingress(ingress)` starts it, and a SimPy process checks the ingress queue every 0.1 simulated seconds.
 
-Half a wall-clock second is 100 simulated seconds at this pace, and packing changes to 3 seconds about then. The exact time depends on how fast the machine runs, so it differs from run to run. The change publishes no label: an ingress update changes the registry and nothing else, so the `labels/` folder is never created. To keep the ground truth of a live change, the sender must record it itself. Send it live with `desflow run live_changes_live.yaml`, `python live_changes.py live` or `python live_changes_low_level.py live`. The two scripts print `packing after the live change: 3.0 s`. [Ingress](../user-guide/ingress.md) describes the connectors that read Kafka, Redis and PostgreSQL in the same way.
+Half a wall-clock second is 100 simulated seconds at this pace, and packing changes to 3 seconds about then. The exact time depends on how fast the machine runs, so it differs from run to run. The change publishes no label: an ingress update changes the registry and nothing else, so no `labels/` folder is created. `live_changes_live.yaml` writes to `live/`, so its files stay apart from those of `live_changes.yaml`. To keep the ground truth of a live change, the sender must record it itself. Send it live with `desflow run live_changes_live.yaml`, `python live_changes.py live` or `python live_changes_low_level.py live`. The two scripts print `packing after the live change: 3.0 s`. [Ingress](../user-guide/ingress.md) describes the connectors that read Kafka, Redis and PostgreSQL in the same way.
 
 ---
 
@@ -318,12 +323,13 @@ During the jam the packer finishes one order every 3 seconds (20 a minute), whil
 
         egress:
           # Flush every 60 simulated seconds: at this pace the default of 1 s flushes on a timer
-          # over and over, and desflow warns about it
+          # over and over, and desflow warns about it. The files go to live/, apart from the
+          # files of live_changes.yaml
           - type: Jsonl
-            config: {default_path: events/orders.jsonl}
+            config: {default_path: live/events/orders.jsonl}
             flush_interval: 60
           - type: Jsonl
-            config: {default_path: labels/labels.jsonl}
+            config: {default_path: live/labels/labels.jsonl}
             when: labels
 
         run:

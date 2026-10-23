@@ -1,6 +1,11 @@
 # Comparing Designs
 
-[Trusting Results](trusting-results.md) measured the busy hour with three packers: over 40 [replications](../des/output-analysis.md#replications) the mean wait was 2.32 ± 0.20 seconds. The shop could hire a fourth packer. This page asks: **does a fourth packer cut the mean wait, and by how much?** The decision is three packers or four. The measures are the mean wait and the packers' [utilisation](../des/queueing-basics.md#utilisation). The boundary is the busy hour after its 2-minute [warm-up](../des/output-analysis.md#one-run-starts-empty); the rest of the day is not modelled. The assumptions are those of Trusting Results: orders at random at 1.8 a second, and the 40 packing times measured at the bench.
+[Trusting Results](trusting-results.md) measured the busy hour with three packers: over 40 [replications](../des/output-analysis.md#replications) the mean wait was 2.32 ± 0.20 seconds. The shop could hire a fourth packer. This page asks: **does a fourth packer cut the mean wait, and by how much?**
+
+- **Decision:** three packers or four.
+- **Measures:** the mean wait and the packers' [utilisation](../des/queueing-basics.md#utilisation).
+- **Runs:** the busy hour after its 2-minute [warm-up](../des/output-analysis.md#one-run-starts-empty), 20 replications of each design with the same seeds, spawned from 42. The rest of the day is not modelled.
+- **Assumptions:** those of Trusting Results: orders at random at 1.8 a second, and the 40 packing times measured at the bench.
 
 ## What You Add
 
@@ -82,7 +87,7 @@ Each variant names the registry values it changes before the clock starts. `thre
 
     The same keys, in the same mapping as the model.
 
-Run it:
+Save the files from [Full Files](#full-files) in one folder and run the commands there:
 
 === "YAML"
 
@@ -102,14 +107,14 @@ Run it:
     python comparing_designs_low_level.py
     ```
 
-The experiment runs 40 replications, 20 of each design, and writes what it found to `results/four-packers`. Each design's results, with the 95% [half-width](../des/output-analysis.md#interval-and-half-width):
+The experiment runs 40 replications, 20 of each design, and writes what it found to `results/four-packers`. The command prints only where it wrote and the result of the check. Open `results/four-packers/report.md`: its Results and Comparisons sections hold the two tables below. Each design's results, with the 95% [half-width](../des/output-analysis.md#interval-and-half-width):
 
 | Design | Mean wait (s) | Utilisation (%) |
 |---|---|---|
 | three | 2.48 ± 0.32 | 90.33 ± 0.63 |
 | four | 0.27 ± 0.01 | 67.70 ± 0.46 |
 
-The three-packer design ran with the first 20 of the seeds that Trusting Results used. Its row therefore equals that page's row for 20 replications, not its mean of 2.32 seconds over 40. [Common Mistakes](../des/common-mistakes.md#taking-one-run-as-the-answer) explains why the busy hour's figures differ between pages. The comparison gives the four-packer value minus the three-packer value, seed by seed:
+The three-packer design ran with the first 20 of the seeds that Trusting Results used. Its row therefore equals [that page's row for 20 replications](../des/common-mistakes.md#busy-hour-figures), not its mean of 2.32 seconds over 40. The comparison gives the four-packer value minus the three-packer value, seed by seed:
 
 | Measure | Difference | Half-width | Random streams |
 |---|---|---|---|
@@ -222,7 +227,47 @@ Two designs run with different seeds differ by the design and by chance, and the
         output: results/four-packers
         ```
 
-        The model, `trusting_results.yaml`, is in the full files of [Trusting Results](trusting-results.md#full-files).
+        ```yaml title="docs/snippets/yaml/trusting_results.yaml"
+        # The Trusting Results tutorial: the busy hour, measured after a warm-up.
+        # Run it with: desflow run trusting_results.yaml
+        # Without the warm-up: WARMUP=0 desflow run trusting_results.yaml
+        simulation:
+          sim_id: Shop
+          factor: 0
+          random_seed: 42
+          # Records and statistics start after the first 2 minutes; 0 keeps everything
+          warmup: ${WARMUP:-2 min}
+
+        resources:
+          packers: {current_cap: 3, max_cap: 10}
+
+        arrivals:
+          orders: {dist: exponential, rate: 1.8, spawn: pack_order}
+
+        services:
+          # The 40 packing times measured at the bench, in seconds
+          packing:
+            dist: empirical
+            values: [1.5, 2.5, 2.4, 1.2, 1.3, 1.2, 1.8, 1.4, 2.0, 0.7,
+                     2.7, 1.4, 1.9, 1.4, 1.3, 1.8, 2.0, 1.4, 1.4, 1.9,
+                     1.1, 0.8, 1.7, 1.1, 0.7, 1.1, 1.2, 0.9, 0.8, 1.5,
+                     2.1, 1.3, 1.1, 1.7, 1.9, 1.3, 1.8, 2.2, 1.4, 1.1]
+
+        tasks:
+          pack_order:
+            service: packing
+            resource: packers
+            payload: {event_type: order_packed}
+
+        # Every 10 seconds, wait_mean is the mean wait so far: plot it against sim_ts
+        stats: {level: typical, interval: 10}
+
+        egress:
+          - type: Console
+
+        run:
+          until: 1 h
+        ```
 
     === "Builder"
 
@@ -288,7 +333,110 @@ Two designs run with different seeds differ by the design and by chance, and the
                 print(f"check {row['design']}: {row['value']:.3f} passed={row['passed']}")
         ```
 
-        It imports from `trusting_results.py`, which is in the full files of [Trusting Results](trusting-results.md#full-files).
+        ```python title="docs/snippets/tutorials/trusting_results.py"
+        """The Trusting Results tutorial: the busy hour, measured after a warm-up, builder.
+
+        Three packers pack orders that arrive at 1.8 a second on average, with the packing
+        times measured at the bench. Every record is printed to the terminal. At the end the
+        script prints the mean wait without and with the warm-up, the mean wait of 5 runs
+        after each of three candidate warm-ups, then the mean and half-width of two outputs
+        over 5, 10, 20 and 40 replications. To see only those lines, run:
+        python trusting_results.py 2>/dev/null
+        """
+
+        import logging
+
+        from desflow import ConsoleEgress, SimulationContext, replicate
+        from desflow.analysis import interval
+
+        logging.basicConfig(
+            level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
+        )
+
+        # The 40 packing times measured at the bench, in seconds
+        MEASURED = [
+            1.5, 2.5, 2.4, 1.2, 1.3, 1.2, 1.8, 1.4, 2.0, 0.7,
+            2.7, 1.4, 1.9, 1.4, 1.3, 1.8, 2.0, 1.4, 1.4, 1.9,
+            1.1, 0.8, 1.7, 1.1, 0.7, 1.1, 1.2, 0.9, 0.8, 1.5,
+            2.1, 1.3, 1.1, 1.7, 1.9, 1.3, 1.8, 2.2, 1.4, 1.1,
+        ]  # fmt: skip
+
+
+        def shop(warmup="2 min") -> SimulationContext:
+            """The busy hour; records and statistics start after `warmup`."""
+            app = (
+                # Records and statistics start after the first 2 minutes; None keeps everything
+                SimulationContext(sim_id="Shop", factor=0, random_seed=42, warmup=warmup)
+                .add_resource("packers", current_cap=3, max_cap=10)
+                .add_arrival("orders", dist="exponential", rate=1.8)
+                .add_service("packing", dist="empirical", values=MEASURED)
+                # Every 10 seconds, wait_mean is the mean wait so far: plot it against sim_ts
+                .with_stats("typical", interval=10)
+                .add_egress(ConsoleEgress())
+            )
+
+            @app.task(service_id="packing", resource_id="packers")
+            def pack_order(task_id: int):
+                return {"event_type": "order_packed"}
+
+            @app.arrival_loop("orders")
+            def order_generator(context: SimulationContext):
+                task_id = 0
+                while True:
+                    order = yield context.wait_for_arrival("orders")
+                    context.spawn(pack_order(task_id, entity=order))
+                    task_id += 1
+
+            return app
+
+
+        def mean_wait(warmup) -> float:
+            """Runs the busy hour and returns the mean wait it measured."""
+            app = shop(warmup)
+            app.run(until="1 h")
+            return app.env.stats.readings()["Shop.stats.tasks.pack_order.wait_mean"]
+
+
+        MEASURES = ["tasks.pack_order.wait_mean", "resources.packers.utilization_avg"]
+
+
+        def replications(n=40):
+            """Runs the busy hour n times, each after the warm-up, with seeds spawned from 42."""
+            return replicate(shop, n, seed=42, until="1 h", measures=MEASURES)
+
+
+        def warmups(n=5) -> dict:
+            """The mean wait of n runs after each candidate warm-up, with seeds spawned from 42."""
+            wait = ["tasks.pack_order.wait_mean"]
+            return {
+                warmup: replicate(shop, n, seed=42, until="1 h", warmup=warmup, measures=wait)
+                for warmup in ("1 min", "2 min", "4 min")
+            }
+
+
+        def precision(result) -> dict:
+            """Each output's mean and half-width over the first 5, 10, 20 and 40 replications."""
+            return {
+                (measure, n): interval(result.values[measure][:n])
+                for measure in MEASURES
+                for n in (5, 10, 20, 40)
+            }
+
+
+        if __name__ == "__main__":
+            print(f"without a warm-up: mean wait {mean_wait(None):.3f} s")
+            print(f"with a 2 min warm-up: mean wait {mean_wait('2 min'):.3f} s")
+            for warmup, result in warmups().items():
+                row = result.summary[0]
+                print(
+                    f"warm-up {warmup}: mean wait {row['mean']:.3f} ± {row['half_width']:.2f} s"
+                )
+            for (measure, n), result in precision(replications()).items():
+                share = result.half_width / result.mean
+                print(
+                    f"{measure}, {n} runs: {result.mean:.2f} ± {result.half_width:.2f} ({share:.1%})"
+                )
+        ```
 
     === "Low-level"
 
@@ -353,4 +501,153 @@ Two designs run with different seeds differ by the design and by chance, and the
                 print(f"check {row['design']}: {row['value']:.3f} passed={row['passed']}")
         ```
 
-        It imports from `trusting_results_low_level.py`, which is in the full files of [Trusting Results](trusting-results.md#full-files).
+        ```python title="docs/snippets/tutorials/trusting_results_low_level.py"
+        """The Trusting Results tutorial: the busy hour, measured after a warm-up, low-level.
+
+        Three packers pack orders that arrive at 1.8 a second on average, with the packing
+        times measured at the bench. Every record is printed to the terminal. At the end the
+        script prints the mean wait without and with the warm-up, the mean wait of 5 runs
+        after each of three candidate warm-ups, then the mean and half-width of two outputs
+        over 5, 10, 20 and 40 replications. To see only those lines, run:
+        python trusting_results_low_level.py 2>/dev/null
+        """
+
+        import logging
+
+        from desflow import (
+            CapacityConfig,
+            ConsoleEgress,
+            DistributionConfig,
+            DynamicRealtimeEnvironment,
+            DynamicResource,
+            LowLevelModel,
+            Sampler,
+            SimParameter,
+            replicate,
+        )
+        from desflow.analysis import interval
+
+        logging.basicConfig(
+            level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
+        )
+
+        # The 40 packing times measured at the bench, in seconds
+        MEASURED = [
+            1.5, 2.5, 2.4, 1.2, 1.3, 1.2, 1.8, 1.4, 2.0, 0.7,
+            2.7, 1.4, 1.9, 1.4, 1.3, 1.8, 2.0, 1.4, 1.4, 1.9,
+            1.1, 0.8, 1.7, 1.1, 0.7, 1.1, 1.2, 0.9, 0.8, 1.5,
+            2.1, 1.3, 1.1, 1.7, 1.9, 1.3, 1.8, 2.2, 1.4, 1.1,
+        ]  # fmt: skip
+
+        PARAMS = SimParameter(
+            sim_id="Shop",
+            arrival={"orders": DistributionConfig(dist="exponential", rate=1.8)},
+            service={"packing": DistributionConfig(dist="empirical", values=MEASURED)},
+            resources={"packers": CapacityConfig(current_cap=3, max_cap=10)},
+        )
+
+
+        def pack_order(env, sampler, packers, key, task_id):
+            """One order, which reports each step to the statistics."""
+            path_id = "Shop.service.packing"
+
+            def publish(value):
+                env.publish_event(key, value, task="pack_order", instance=task_id)
+
+            publish({"path_id": path_id, "status": "queued"})
+            env.stats.flow_started("orders")  # the order enters the shop
+            env.stats.task_queued("pack_order", task_id)
+            with packers.request() as request:
+                yield request
+                publish({"path_id": path_id, "status": "started"})
+                env.stats.task_started("pack_order", task_id)
+                yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
+                publish({"event_type": "order_packed"})
+            env.stats.task_finished("pack_order", task_id)
+            env.stats.flow_finished("orders")  # the order leaves the shop
+
+
+        def order_generator(env, sampler, packers):
+            arrival = env.registry.get_config("Shop.arrival.orders")
+            task_id = 0
+            while True:
+                yield env.timeout(sampler.sample(arrival))
+                env.process(pack_order(env, sampler, packers, f"orders-{task_id + 1}", task_id))
+                task_id += 1
+
+
+        # Records and statistics start after the first 2 minutes; None keeps everything
+        WARMUP = 120.0  # seconds, passed to setup_egress in run below
+
+
+        def run(warmup=WARMUP, until=3600, factor=0.0):
+            env = DynamicRealtimeEnvironment(factor=factor)
+            env.registry.register_sim_parameter(PARAMS)
+            # Every 10 seconds, wait_mean is the mean wait so far: plot it against sim_ts
+            env.setup_stats("Shop", "typical", interval=10)
+            # The warm-up is set with the sinks: no sink receives a record stamped before it
+            # ends, and the statistics start again from zero when it ends
+            env.setup_egress([ConsoleEgress()], warmup=warmup)
+            packers = DynamicResource(env, "Shop", "packers")
+            env.process(order_generator(env, Sampler(seed=42), packers))
+            try:
+                env.run(until=until)
+            finally:
+                env.teardown()
+            return env
+
+
+        def mean_wait(warmup) -> float:
+            """Runs the busy hour and returns the mean wait it measured."""
+            return run(warmup).stats.readings()["Shop.stats.tasks.pack_order.wait_mean"]
+
+
+        MEASURES = ["tasks.pack_order.wait_mean", "resources.packers.utilization_avg"]
+
+
+        def model(env, sampler):
+            """The busy hour in a given environment: replicate sets the statistics."""
+            env.registry.register_sim_parameter(PARAMS)
+            packers = DynamicResource(env, "Shop", "packers")
+            env.process(order_generator(env, sampler, packers))
+
+
+        def replications(n=40):
+            """Runs the busy hour n times, each after the warm-up, with seeds spawned from 42."""
+            shop = LowLevelModel(model, sim_id="Shop")
+            return replicate(shop, n, seed=42, until=3600, warmup=WARMUP, measures=MEASURES)
+
+
+        def warmups(n=5) -> dict:
+            """The mean wait of n runs after each candidate warm-up, with seeds spawned from 42."""
+            shop = LowLevelModel(model, sim_id="Shop")
+            wait = ["tasks.pack_order.wait_mean"]
+            return {
+                warmup: replicate(shop, n, seed=42, until=3600, warmup=warmup, measures=wait)
+                for warmup in (60, WARMUP, 240)
+            }
+
+
+        def precision(result) -> dict:
+            """Each output's mean and half-width over the first 5, 10, 20 and 40 replications."""
+            return {
+                (measure, n): interval(result.values[measure][:n])
+                for measure in MEASURES
+                for n in (5, 10, 20, 40)
+            }
+
+
+        if __name__ == "__main__":
+            print(f"without a warm-up: mean wait {mean_wait(None):.3f} s")
+            print(f"with a 2 min warm-up: mean wait {mean_wait(WARMUP):.3f} s")
+            for warmup, result in warmups().items():
+                row = result.summary[0]
+                print(
+                    f"warm-up {warmup:g} s: mean wait {row['mean']:.3f} ± {row['half_width']:.2f} s"
+                )
+            for (measure, n), result in precision(replications()).items():
+                share = result.half_width / result.mean
+                print(
+                    f"{measure}, {n} runs: {result.mean:.2f} ± {result.half_width:.2f} ({share:.1%})"
+                )
+        ```

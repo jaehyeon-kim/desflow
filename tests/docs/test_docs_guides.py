@@ -428,6 +428,6 @@ def test_check_against_theory_agrees_with_the_formulas(capsys, monkeypatch):
     unsupported = module.unsupported()
     assert (unsupported.utilization, unsupported.wait) == (0.75, None)
     assert unsupported.wait_reason == (
-        "no closed formula for c > 1 with non-exponential times; run --verify"
+        "no closed formula for c > 1 with non-exponential times; run --verify to measure it"
     )
     capsys.readouterr()

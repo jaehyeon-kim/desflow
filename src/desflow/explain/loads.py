@@ -6,7 +6,13 @@ from typing import Dict, List, Optional, Tuple
 
 from desflow.explain.capacity import capacity_rows
 from desflow.explain.formulas import status_of
-from desflow.explain.models import Graph, Node, ResourceResult, TaskResult
+from desflow.explain.models import (
+    VERIFY_HINT,
+    Graph,
+    Node,
+    ResourceResult,
+    TaskResult,
+)
 
 
 def resources(graph: Graph) -> List[Node]:
@@ -73,8 +79,8 @@ def load(node: Node, tasks: List[TaskResult], functions: List[str]) -> ResourceR
         result.service_rate = rate / work if work > 0 else None
     if functions and node.capacity is not None:
         result.reason = (
-            f"a process outside the task graph can use it ({', '.join(functions)}); "
-            "run --verify"
+            f"a process outside the task graph can use it ({', '.join(functions)})"
+            + VERIFY_HINT
         )
         return result
     if node.capacity is None or work == 0:

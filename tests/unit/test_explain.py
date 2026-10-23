@@ -114,7 +114,7 @@ def test_md3_wait_is_unsupported_with_its_reason():
     assert packers.utilization == pytest.approx(0.8)
     assert packers.wait is None
     assert packers.wait_reason == (
-        "no closed formula for c > 1 with non-exponential times; run --verify"
+        "no closed formula for c > 1 with non-exponential times; run --verify to measure it"
     )
 
 
@@ -187,7 +187,9 @@ def _check_feature(app, feature):
     packers = _by_name(explanation.resources, "packers")
     assert packers.utilization is None and packers.status is None
     assert packers.wait is None and packers.queue_length is None
-    assert feature in packers.reason and packers.reason.endswith("; run --verify")
+    assert feature in packers.reason and packers.reason.endswith(
+        "; run --verify to measure it"
+    )
     assert explanation.bottleneck is None
     assert feature in explanation.bottleneck_reason
 
@@ -210,7 +212,7 @@ def test_get_put_preemption_and_several_resources_name_their_features():
     reason = _by_name(app.analyze().resources, "packers").reason
     assert reason == (
         "task pack has no known rate: it has preemption, several resources, get, "
-        "put, which the formulas leave out; run --verify"
+        "put, which the formulas leave out; run --verify to measure it"
     )
 
 
@@ -250,7 +252,7 @@ def test_a_replayed_arrival_is_unknown():
     app.add_arrival_replay("orders", [{"time": 1}], spawn="pack")
     app.task(name="pack")(lambda task_id: {})
     explanation = app.analyze()
-    assert explanation.arrivals[0].reason == "replayed rows; run --verify"
+    assert explanation.arrivals[0].reason == "replayed rows; run --verify to measure it"
     assert explanation.tasks[0].rate is None
 
 
@@ -275,7 +277,7 @@ def test_a_hand_written_arrival_loop_and_a_process_are_opaque():
     assert ("arrival:orders", "opaque:orders.arrival_loop") in edges
     assert explanation.graph.features == []
     assert explanation.tasks[0].reason == (
-        "arrival_loop of orders is code that can start any task; run --verify"
+        "arrival_loop of orders is code that can start any task; run --verify to measure it"
     )
 
 
@@ -292,7 +294,7 @@ def test_a_process_makes_the_resources_unsupported():
     assert packers.utilization is None and packers.wait is None
     assert packers.reason == (
         "task pack has no known rate: the formulas leave out process drift, which "
-        "can change any work; run --verify"
+        "can change any work; run --verify to measure it"
     )
     assert explanation.hints == []
 
@@ -301,7 +303,7 @@ def test_a_next_function_makes_every_task_unknown():
     tasks = _flow(lambda task_id, payload: "ship")
     assert {t.rate for t in tasks.values()} == {None}
     assert tasks["pack"].reason == (
-        "next of pack is code that can start any task; run --verify"
+        "next of pack is code that can start any task; run --verify to measure it"
     )
 
 
@@ -564,6 +566,19 @@ def test_verify_does_not_compare_where_a_feature_applies(tmp_path):
     assert found[("orders", "throughput")].reason == (
         "task pack: it has abandonment (patience), which the formulas leave out"
     )
+
+
+def test_not_estimated_drops_the_advice_to_run_verify_while_verify_runs(tmp_path):
+    from desflow.explain.render import render_terminal
+
+    path = tmp_path / "shop.yaml"
+    path.write_text(MM1.replace("payload: {}", "payload: {}, patience: 2"))
+    context = SimulationContext.from_yaml(path)
+    line = "  task pack: it has abandonment (patience), which the formulas leave out"
+    alone = render_terminal(context.analyze(), width=200).splitlines()
+    assert line + "; run --verify to measure it" in alone
+    verified = render_terminal(context.analyze(verify=True, until=500), width=200)
+    assert line in verified.splitlines() and "run --verify" not in verified
 
 
 def test_verify_does_not_compare_after_an_unstable_resource(tmp_path):

@@ -117,9 +117,9 @@ def order_generator(env, sampler, shop, arrival, policy):
 
 # --8<-- [start:interrupt]
 def called_away(env, shop):
-    """The packer is called away at 30 minutes: every regular order in the shop,
+    """The packer is called away at 31 minutes: every regular order in the shop,
     waiting or being packed, is interrupted."""
-    yield env.timeout(1800)
+    yield env.timeout(1860)
     for process in list(shop["running"].get("pack_order", [])):
         process.interrupt("called away")
 
@@ -174,6 +174,7 @@ if __name__ == "__main__":
     for policy in ("resume", "restart", "abandon"):
         r = outcomes(policy)
         print(
-            f"{policy:<7}: {r['preempted']} preempted, {r['finished']} packed, "
+            f"{policy:<7}: {r['preempted']} preempted, {r['interrupted']} called away, "
+            f"{r['finished']} packed, "
             f"mean wait {r['wait_mean']:5.2f} s, mean packing {r['service_mean']:4.2f} s"
         )

@@ -189,7 +189,8 @@ class FitResult:
         lines = [
             f"{self.rows} rows: {len(self.values)} used, {self.missing} missing, "
             f"{self.invalid} invalid",
-            f"{'family':<17} {'status':<12} {'AIC':>10} {'KS':>7} {'p (approx.)':>11}"
+            f"{'family':<17} {'status':<12} {'AIC':>10} "
+            f"{'KS stat':>8} {'KS p (approx.)':>14}"
             "  parameters or reason",
         ]
         best = self.best
@@ -208,8 +209,8 @@ class FitResult:
                 detail += f" ({c.bounds})"
             lines.append(
                 f"{c.family + (' *' if c.family == best else ''):<17} {c.status:<12} "
-                f"{_number(c.aic):>10} {_number(c.ks_statistic):>7} "
-                f"{_number(c.ks_p_value):>11}  {detail}"
+                f"{_number(c.aic):>10} {_number(c.ks_statistic):>8} "
+                f"{_number(c.ks_p_value):>14}  {detail}"
             )
         lines.append(f"* best: {best}" if best else "No candidate is usable.")
         return "\n".join(lines)

@@ -146,11 +146,20 @@ def trial():
     return result.summary[0]
 ```
 
-Both versions run 10 times for one hour from an empty shop, so the two answers estimate the same thing. Each line of the output below gives the mean wait over the 10 runs and the half-width of its 95% interval. The two versions use different random numbers, so the values differ, but the check in the script asserts that they agree within their intervals. This shop has one packer and an order every 2 seconds on average, so its wait is not the wait of the tutorials' busy hour. [Common Mistakes](common-mistakes.md#taking-one-run-as-the-answer) explains why the busy hour's figures differ between pages.
+Four parts of the desflow version have no line in the SimPy one:
+
+- `context.wait_for_arrival("orders")` waits for the gap to the next order, drawn from the `orders` arrival's distribution, and returns the new order as an entity.
+- `entity=order` hands that order to the task, so every record of the task carries the order's key, such as `orders-1`. Without it the task starts an entity of its own.
+- The dictionary the task returns is the payload of its finished event, so `{"event_type": "order_packed"}` is published as a record.
+- `with_stats("typical", interval=3600)` switches on the built-in statistics, such as the mean wait that `replicate` reads, and publishes them every hour of simulated time.
+
+[Builder API](../user-guide/builder-api.md#write-the-tasks) describes each call, and [Statistics](../user-guide/statistics.md#choose-a-level) lists the levels.
+
+Both versions run 10 times for one hour from an empty shop, so the two answers estimate the same thing. Each line of the output below gives the mean wait over the 10 runs and the half-width of its 95% interval. The two versions use different random numbers, so the values differ, but the check in the script asserts that they agree within their intervals. This shop is not the busy hour of the tutorials: it has one packer and an order every 2 seconds on average, so its mean wait differs from theirs.
 
 ```text
 plain SimPy: mean wait 2.30 ± 0.20 s over 10 runs
 desflow:     mean wait 2.45 ± 0.27 s over 10 runs
 ```
 
-What you take with you is the SimPy you wrote. A model can still be a SimPy generator inside desflow, through the low-level API, and it keeps the SimPy constructs it uses. What you leave behind is the code around it: the parameters class, the result bookkeeping and the trial loop. What you gain is [records](../reference/records-and-telemetry.md), pacing, live parameters and the checks on [Output Analysis](output-analysis.md).
+What you take with you is the SimPy you wrote. A model can still be a SimPy generator inside desflow, through the [Low-level API](../user-guide/low-level-api.md), and it keeps the SimPy constructs it uses. What you leave behind is the code around it: the parameters class, the result bookkeeping and the trial loop. What you gain is [records](../reference/records-and-telemetry.md), pacing, live parameters and the checks on [Output Analysis](output-analysis.md).

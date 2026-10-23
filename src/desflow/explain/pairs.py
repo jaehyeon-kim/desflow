@@ -10,7 +10,7 @@ resource, which has no steady state, is not compared either.
 
 from typing import Dict, List, NamedTuple, Optional
 
-from desflow.explain.models import Explanation, Graph
+from desflow.explain.models import VERIFY_HINT, Explanation, Graph
 from desflow.explain.support import after
 
 _UNSTABLE = "unstable: it has no steady state to compare with"
@@ -121,7 +121,7 @@ def _pair(
     if value is None and reason is None:
         reason = "the analysis has no value for it"
     analytical = None if reason else value
-    plain = reason.removesuffix("; run --verify") if reason else None
+    plain = reason.removesuffix(VERIFY_HINT) if reason else None
     return Pair(node, measure, statistic, analytical, scale, plain)
 
 

@@ -1,6 +1,13 @@
 # First Simulation
 
-This tutorial models a shop that receives and packs customer orders: one packer, an order every 2 seconds on average, and 1.5 seconds of packing per order. It answers one question: **how long does an order wait with one packer?** The decision, which later pages make, is how many packers the shop needs. The measure is the wait of each order, from the moment it joins the queue to the moment packing starts. The boundary, the period and the part of the shop the model covers, is the first 20 seconds of one run, with the seed 42. The assumptions are that orders arrive at random and that every order takes exactly the same time to pack. The following pages extend the same model, one idea per page.
+This tutorial models a shop that receives and packs customer orders: one packer, an order every 2 seconds on average, and 1.5 seconds of packing per order. It answers one question: **how long does an order wait with one packer?**
+
+- **Decision:** how many packers the shop needs, which later pages decide.
+- **Measures:** the wait of each order, from the moment it joins the queue to the moment packing starts.
+- **Runs:** one run of the first 20 seconds, with the seed 42.
+- **Assumptions:** orders arrive at random, and every order takes exactly the same time to pack.
+
+The following pages extend the same model, one idea per page.
 
 Each step shows the code three ways, in tabs: a **YAML** blueprint, the **Builder** (`SimulationContext`) and the **Low-level** API (`DynamicRealtimeEnvironment` and SimPy processes). Choose the tab for your preferred API; all code tabs on the site switch to that API. The three build the same simulation and print the same records. [Ways to Write](../user-guide/ways-to-write.md) explains how they relate.
 
@@ -13,6 +20,21 @@ Look at the order of the parts: orders arrive, wait in the packer queue and take
 ## Install
 
 Install the core package, which includes the `desflow` command, as [Installation](../getting-started.md#install-the-package) shows.
+
+The **YAML** tab needs only the `desflow` command. The **Builder** and **Low-level** tabs run a Python file, so the Python that runs it must be able to import desflow. `uv tool install desflow` installs the command only. Run a file with any of these forms:
+
+```bash
+# With uv, outside a project
+uv run --with desflow python first_shop.py
+
+# In a uv project, after `uv add desflow`
+uv run python first_shop.py
+
+# After `pip install desflow`
+python first_shop.py
+```
+
+The pages that follow show the plain `python <file>.py` form. Run it with whichever form above you use.
 
 ---
 
@@ -212,6 +234,8 @@ Every event record carries the order's key, `orders-1` for the first order, so a
     if __name__ == "__main__":
         run()
     ```
+
+Save the files from [Full Files](#full-files) in one folder and run the commands there. `desflow examples` downloads separate examples, not the files of these tutorial pages.
 
 Start it from a terminal:
 

@@ -59,7 +59,7 @@ def test_more_packers_shorten_the_wait():
     assert waits[0] > waits[1] > waits[2]
 ```
 
-The test asserts the direction of the change, not the waits themselves. The waits are **2.055**, **0.111** and **0.016** seconds, from one 10-minute run each of this shop, not the busy hour of the tutorials. A test of the direction still passes when a change to the model moves them a little. [Common Mistakes](../des/common-mistakes.md#taking-one-run-as-the-answer) explains why the tutorials' figures for a wait differ between pages.
+The test asserts the direction of the change, not the waits themselves. The waits are **2.055**, **0.111** and **0.016** seconds, from one 10-minute run each of this shop, not the busy hour of the tutorials. A test of the direction still passes when a change to the model moves them a little.
 
 ---
 

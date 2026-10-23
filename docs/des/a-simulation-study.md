@@ -18,7 +18,7 @@ Look at the diagram for the order of the steps. Two steps are checks: [Check the
 
 Start by writing down the question and the measures that will answer it. A study with no well-defined objective cannot say when it is finished, and Law lists this first among the pitfalls. Without specific questions the right level of model detail cannot be set either. For the shop the question is: **how many packers keep the mean wait under 10 seconds in the busy hour?** The measures are the mean wait of an order and how busy the packers are. The question also fixes the period (the busy hour), the system (the packing area, not the whole warehouse) and who decides (the shop manager).
 
-[Queues and Capacity](../tutorials/queues-and-capacity.md) answers this question: 3 packers. [Trusting Results](../tutorials/trusting-results.md) measures the mean wait of an order with 3 packers: 2.32 ± 0.20 seconds, the mean of 40 [replications](output-analysis.md#replications) with the half-width of its [95% interval](output-analysis.md#interval-and-half-width). Those runs use the empirical packing times and a 2-minute [warm-up](output-analysis.md#one-run-starts-empty). [Common Mistakes](common-mistakes.md#taking-one-run-as-the-answer) explains why other pages give other figures for this wait.
+[Queues and Capacity](../tutorials/queues-and-capacity.md) answers this question: 3 packers. [Trusting Results](../tutorials/trusting-results.md) measures the mean wait of an order with 3 packers: 2.32 ± 0.20 seconds, the mean of 40 [replications](output-analysis.md#replications) with the half-width of its [95% interval](output-analysis.md#interval-and-half-width). Those runs use the empirical packing times and a 2-minute [warm-up](output-analysis.md#one-run-starts-empty), and [other pages run the hour in other ways](common-mistakes.md#busy-hour-figures).
 
 ---
 
@@ -28,7 +28,7 @@ Before writing code, collect what is known about the system and write the **conc
 
 - Orders arrive one at a time, at a rate that does not change during the hour.
 - A packer takes the next order from one queue, in order, and packs it.
-- Packing takes a constant 1.5 seconds. Pickers, stock and delivery are outside the model.
+- Packing takes 1.5 seconds on average. The first model uses a constant 1.5 seconds, and [Choosing Inputs](../tutorials/choosing-inputs.md) replaces it with the times measured at the bench, which the runs above use. Pickers, stock and delivery are outside the model.
 
 Each input is an estimate until it is measured. For the shop these are the arrival rate and the packing time. Take the data from the real system where it exists, choose a distribution for each input, and test how much the choice matters. [Choosing Inputs](../tutorials/choosing-inputs.md) compares the candidate distributions, and [Fit the Inputs](../tutorials/fit-the-inputs.md) fits them to measured times. A model with an input nobody has measured is still usable, as long as the study tests how far the answer depends on it, as [Parameter Sweeps](../tutorials/parameter-sweeps.md) does.
 
