@@ -72,7 +72,13 @@ A **fixed horizon** stops the clock at `until`, whatever is still going on. A **
         env.run(until=env.all_of([o for o in orders if o.is_alive]))
     ```
 
-    `env.all_of(...)` is SimPy's `AllOf`: it happens when every order process has ended.
+    `env.all_of(...)` is SimPy's `AllOf`: it happens when every order process has ended. [SimPy and desflow](../des/simpy-and-desflow.md#waiting-for-one-or-all) explains waiting for all events.
+
+    `source.interrupt()` raises an `Interrupt` inside the source process, which ends its loop. [Its interrupts section](../des/simpy-and-desflow.md#interrupts) explains interrupts.
+
+    [`o.is_alive`](https://simpy.readthedocs.io/en/4.1.2/api_reference/simpy.events.html#simpy.events.Process.is_alive) is true while a process has not ended.
+
+    `env.now` is the clock, which the script reads to report the end time. [Its clock section](../des/simpy-and-desflow.md#environment-and-the-event-list) explains it.
 
 The stop at `until` is an event that SimPy schedules with the `URGENT` priority, so it comes before the other events at that time. A low-level script that stops its own run at an event can do the same with `env.schedule(event, URGENT, delay)`, and the `fire` action's `urgent` and `after` keys write it in a blueprint, as [Signals and Waiting](../user-guide/tasks-and-processes/signals-and-waiting.md#actions-when-an-event-happens) shows.
 
@@ -95,7 +101,7 @@ drain  : ends at  3656.4 s, 2436 started, 2436 finished, 0 left, mean wait 71.51
 
 ## Why It Works
 
-A fixed horizon answers a question about a period, such as how many orders the shop packs in an hour; the orders still in the shop are its unfinished work, and `in_system` says how many there are. A drain answers a question about a batch of orders, such as how long the day's orders take to clear; it serves every admitted order, at the cost of running past the hour. Report the counts beside any mean, so a reader knows which orders it covers. [Statistics](../user-guide/statistics.md) describes each count.
+A fixed horizon answers a question about a period, such as how many orders the shop packs in an hour; the orders still in the shop are its unfinished work, and `in_system` says how many there are. A drain answers a question about a batch of orders, such as how long the day's orders take to clear; it serves every admitted order, at the cost of running past the hour. Report the counts beside any mean, so a reader knows which orders it covers. [Output Analysis](../des/output-analysis.md#terminating-or-steady-state) explains the two kinds of run, and [Statistics](../user-guide/statistics.md) describes each count.
 
 ---
 

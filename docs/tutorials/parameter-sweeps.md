@@ -58,7 +58,7 @@ How much does the answer depend on the arrival rate? With three packers, a great
 
 ## Why It Works
 
-Three packers that take 1.5 seconds an order on average pack 2 orders a second at most. At 1.9 orders a second they are busy 95% of the time, and close to that limit a small rise in demand makes the queue much longer, so the wait grows faster than the rate. Four packers stay below 72% busy at every rate in the sweep, far from their limit. Every design ran with the same seeds, so the differences between rows come from the rate, not from chance. The intervals widen with the rate, because a busier shop varies more from run to run.
+Three packers that take 1.5 seconds an order on average pack 2 orders a second at most. At 1.9 orders a second they are busy 95% of the time, and close to that limit a small rise in demand makes the queue much longer, so the wait grows faster than the rate, as [Queueing Basics](../des/queueing-basics.md#waits-near-full-use) explains. Four packers stay below 72% busy at every rate in the sweep, far from their limit. Every design ran with the same seeds, so the differences between rows come from the rate, not from chance. The intervals widen with the rate, because a busier shop varies more from run to run.
 
 ---
 
@@ -183,4 +183,4 @@ Three packers that take 1.5 seconds an order on average pack 2 orders a second a
 
         It imports from `trusting_results_low_level.py`, which is in the full files of [Trusting Results](trusting-results.md#full-files).
 
-This is the last page of the tutorial for now. [Experiments](../user-guide/experiments/index.md) describes every setting of an experiment, its files and its report, and the rest of the [User Guide](../user-guide/ways-to-write.md) describes each part of desflow in full.
+Next, [Checking a Model](checking-a-model.md) checks that the program does what the model says, and that the model is good enough to choose the number of packers. [Experiments](../user-guide/experiments/index.md) describes every setting of an experiment, its files and its report.

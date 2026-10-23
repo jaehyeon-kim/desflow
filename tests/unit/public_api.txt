@@ -1,0 +1,377 @@
+# Written by scripts/public_api.py. Do not edit by hand.
+desflow.BreakdownConfig = desflow.models.params.BreakdownConfig
+desflow.CapacityConfig = desflow.models.params.CapacityConfig
+desflow.CheckFailed = desflow.analysis.results.CheckFailed
+desflow.ConsoleEgress = desflow.connectors.egress.local.ConsoleEgress
+desflow.ContainerBase = desflow.resources.container.ContainerBase
+desflow.ContainerConfig = desflow.models.params.ContainerConfig
+desflow.DistributionConfig = desflow.models.params.DistributionConfig
+desflow.DynamicContainer = desflow.resources.container.DynamicContainer
+desflow.DynamicRealtimeEnvironment = desflow.core.environment.DynamicRealtimeEnvironment
+desflow.DynamicResource = desflow.resources.resource.DynamicResource
+desflow.DynamicStore = desflow.resources.store.DynamicStore
+desflow.Entity = desflow.models.flow.Entity
+desflow.EventPayload = desflow.models.schemas.EventPayload
+desflow.ExperimentResult = desflow.analysis.results.ExperimentResult
+desflow.ExperimentSpec = desflow.analysis.spec.ExperimentSpec
+desflow.FitResult = desflow.analysis.fit.FitResult
+desflow.IcebergStorageEgress = desflow.connectors.egress.iceberg.IcebergStorageEgress
+desflow.JsonlStorageEgress = desflow.connectors.egress.storage.JsonlStorageEgress
+desflow.KafkaAdminConnector = desflow.connectors.admin.kafka.KafkaAdminConnector
+desflow.KafkaEgress = desflow.connectors.egress.kafka.KafkaEgress
+desflow.KafkaIngress = desflow.connectors.ingress.kafka.KafkaIngress
+desflow.LabelPayload = desflow.models.schemas.LabelPayload
+desflow.LocalIngress = desflow.connectors.ingress.local.LocalIngress
+desflow.LowLevelModel = desflow.analysis.models.LowLevelModel
+desflow.ParquetStorageEgress = desflow.connectors.egress.storage.ParquetStorageEgress
+desflow.PostgresEgress = desflow.connectors.egress.postgres.PostgresEgress
+desflow.PostgresIngress = desflow.connectors.ingress.postgres.PostgresIngress
+desflow.RedisEgress = desflow.connectors.egress.redis.RedisEgress
+desflow.RedisIngress = desflow.connectors.ingress.redis.RedisIngress
+desflow.Replications = desflow.analysis.runner.Replications
+desflow.ResourceBase = desflow.resources.resource.ResourceBase
+desflow.Router = desflow.core.flow.Router
+desflow.Sampler = desflow.core.sampler.Sampler
+desflow.Signal = desflow.core.signals.Signal
+desflow.SignalFailed = desflow.core.signals.SignalFailed
+desflow.SimParameter = desflow.models.params.SimParameter
+desflow.SimulationContext = desflow.core.context.SimulationContext
+desflow.SimulationRegistry = desflow.core.registry.SimulationRegistry
+desflow.StoreBase = desflow.resources.store.StoreBase
+desflow.TaskFailed = desflow.core.task.TaskFailed
+desflow.TelemetryPayload = desflow.models.schemas.TelemetryPayload
+desflow.Transfer = desflow.core.flow.Transfer
+desflow.Upstream = desflow.models.flow.Upstream
+desflow.analysis.fit.Candidate(family: str, status: str, reason: str = '', parameters: dict[str, Any] = <factory>, log_likelihood: float | None = None, aic: float | None = None, ks_statistic: float | None = None, ks_p_value: float | None = None, bounds: str = '') -> None
+desflow.analysis.fit.Candidate.aic: NoneType
+desflow.analysis.fit.Candidate.bounds: str
+desflow.analysis.fit.Candidate.ks_p_value: NoneType
+desflow.analysis.fit.Candidate.ks_statistic: NoneType
+desflow.analysis.fit.Candidate.log_likelihood: NoneType
+desflow.analysis.fit.Candidate.reason: str
+desflow.analysis.fit.Candidate.usable: property
+desflow.analysis.fit.FitResult(candidates: list[desflow.analysis.fit.Candidate], values: list[float], unit: str = 's', rows: int = 0, missing: int = 0, invalid: int = 0, lower: float | None = None, upper: float | None = None) -> None
+desflow.analysis.fit.FitResult.best: property
+desflow.analysis.fit.FitResult.invalid: int
+desflow.analysis.fit.FitResult.lower: NoneType
+desflow.analysis.fit.FitResult.missing: int
+desflow.analysis.fit.FitResult.plot(path: str | pathlib.Path, kind: str | None = None) -> pathlib.Path
+desflow.analysis.fit.FitResult.rows: int
+desflow.analysis.fit.FitResult.settings(kind: str | None = None) -> dict[str, Any]
+desflow.analysis.fit.FitResult.table: property
+desflow.analysis.fit.FitResult.text() -> str
+desflow.analysis.fit.FitResult.unit: str
+desflow.analysis.fit.FitResult.upper: NoneType
+desflow.analysis.fit.FitResult.yaml(kind: str | None = None, source: str = '') -> str
+desflow.analysis.fit.fit_column(values: collections.abc.Sequence[Any], *, unit: str = 's', candidates: collections.abc.Sequence[str] | None = None, lower: float | None = None, upper: float | None = None, bins: int | None = None, min_count: int = 20, tolerance: float = 0.25, drop_invalid: bool = False) -> desflow.analysis.fit.FitResult
+desflow.analysis.fit.read_column(path: str | pathlib.Path, column: str) -> list[str]
+desflow.analysis.interval = desflow.analysis.intervals.interval
+desflow.analysis.intervals.Interval(n: int, mean: float, std: float, half_width: float, level: float) -> None
+desflow.analysis.intervals.Interval.high: property
+desflow.analysis.intervals.Interval.low: property
+desflow.analysis.intervals.interval(values: collections.abc.Sequence[float], level: float = 0.95) -> desflow.analysis.intervals.Interval
+desflow.analysis.intervals.t_quantile(p: float, df: float) -> float
+desflow.analysis.models.LowLevelModel(function: collections.abc.Callable[[desflow.core.environment.DynamicRealtimeEnvironment, desflow.core.sampler.Sampler], Any], sim_id: str) -> None
+desflow.analysis.results.CheckFailed(result: desflow.analysis.results.ExperimentResult)
+desflow.analysis.results.ExperimentResult(spec: desflow.analysis.spec.ExperimentSpec, output: pathlib.Path, designs: list[desflow.analysis.results.Design], results: list[dict[str, Any]], summary: list[dict[str, Any]], comparisons: list[dict[str, Any]], checks: list[dict[str, Any]], observed: list[dict[str, Any]], report: str) -> None
+desflow.analysis.results.ExperimentResult.failed: property
+desflow.analysis.runner.Replications(sim_id: str, seeds: list[int], measures: list[str], values: dict[str, list[float]], level: float = 0.95, streams: list[list[str]] = <factory>) -> None
+desflow.analysis.runner.Replications.level: float
+desflow.analysis.runner.Replications.summary: property
+desflow.analysis.runner.Replications.summary_text() -> str
+desflow.analysis.runner.Replications.table: property
+desflow.analysis.runner.Replications.telemetry() -> list[tuple]
+desflow.analysis.runner.replicate(model: str | pathlib.Path | collections.abc.Callable[[], desflow.core.context.SimulationContext] | desflow.analysis.models.LowLevelModel, n: int, *, seed: int | None, until: float | str | None = None, warmup: float | str | None = None, measures: collections.abc.Sequence[str] | None = None, level: float = 0.95, workers: int = 1, overrides: collections.abc.Mapping[str, Any] | None = None, stop: Any = None, drain: Any = None) -> desflow.analysis.runner.Replications
+desflow.analysis.runner.run_experiment(spec: str | pathlib.Path | collections.abc.Mapping[str, Any] | Any, *, raise_on_failure: bool = True, output: str | pathlib.Path | None = None) -> Any
+desflow.analysis.spec.ExperimentSpec(*, experiment: str, question: str | None = None, model: Any, assumptions: list[str] = <factory>, inputs: dict[str, str] = <factory>, until: Annotated[float, Gt(gt=0)], stop: Any = None, drain: Any = None, warmup: Annotated[float | None, Ge(ge=0)] = None, replications: Annotated[int, Ge(ge=2)], seed: int, level: Annotated[float, Gt(gt=0), Lt(lt=1)] = 0.95, pairing: Literal['common', 'independent'] = 'common', measures: Annotated[list[str], MinLen(min_length=1)], variants: dict[str, dict[str, Any]] = <factory>, sweep: dict[str, list[Any]] = <factory>, compare: list[desflow.analysis.spec.Compare] = <factory>, checks: list[desflow.analysis.spec.Check] = <factory>, observed: desflow.analysis.spec.Observed | None = None, limits: list[str] = <factory>, output: str | None = None, workers: Annotated[int, Ge(ge=1)] = 1) -> None
+desflow.analysis.spec.ExperimentSpec.model_config: dict
+desflow.analysis.spec.load_experiment(path: str | pathlib.Path) -> tuple[ExperimentSpec, SourceMap]
+desflow.blueprint.build.build(path: str | pathlib.Path) -> tuple[desflow.core.context.SimulationContext, desflow.blueprint.models.Run]
+desflow.blueprint.loader.BlueprintError(...)
+desflow.connectors.admin.kafka.KafkaAdminConnector(bootstrap_servers: str, max_tasks: int = 100, **kwargs: Any)
+desflow.connectors.admin.kafka.KafkaAdminConnector.collect_data(topics: list[str], auto_offset_reset: str = 'latest')
+desflow.connectors.admin.kafka.KafkaAdminConnector.create_topics(topics_config: list[dict[str, Any]])
+desflow.connectors.admin.kafka.KafkaAdminConnector.get_state() -> dict[str, Any]
+desflow.connectors.admin.kafka.KafkaAdminConnector.get_vitals() -> dict[str, Any]
+desflow.connectors.admin.kafka.KafkaAdminConnector.send_config(topic: str, path: str, value: Any)
+desflow.connectors.egress.base.BaseEgress()
+desflow.connectors.egress.base.BaseEgress.run(egress_queue: queue.Queue) -> None
+desflow.connectors.egress.iceberg.IcebergStorageEgress(catalog: Any, default_table: str | None = None, table_router: collections.abc.Callable[[dict], str | None] | None = None, schemas: dict[str, Any] | None = None, locations: dict[str, str] | None = None, upsert_keys: dict[str, list] | None = None)
+desflow.connectors.egress.iceberg.IcebergStorageEgress.run(egress_queue: queue.Queue) -> None
+desflow.connectors.egress.kafka.ConfluentAvroSerializer(registry_url: str, schema_str: str, **registry_kwargs: Any)
+desflow.connectors.egress.kafka.ConfluentAvroSerializer.serialize(topic: str, data: Any) -> bytes
+desflow.connectors.egress.kafka.GlueAvroSerializer(registry_name: str, schema_str: str, **boto3_kwargs: Any)
+desflow.connectors.egress.kafka.GlueAvroSerializer.serialize(topic: str, data: Any) -> bytes
+desflow.connectors.egress.kafka.JsonSerializer()
+desflow.connectors.egress.kafka.JsonSerializer.serialize(topic: str, data: Any) -> bytes
+desflow.connectors.egress.kafka.KafkaEgress(bootstrap_servers: str, telemetry_topic: str = 'sim-telemetry', event_topic: str = 'sim-events', topic_router: collections.abc.Callable[[dict], str] | None = None, topic_serializers: dict[str, desflow.connectors.egress.kafka.MessageSerializer] | None = None, default_serializer: desflow.connectors.egress.kafka.MessageSerializer | None = None, include_stream_type: bool = False, **kwargs: Any)
+desflow.connectors.egress.kafka.KafkaEgress.run(egress_queue: queue.Queue) -> None
+desflow.connectors.egress.kafka.MessageSerializer(*args, **kwargs)
+desflow.connectors.egress.kafka.MessageSerializer.serialize(topic: str, data: Any) -> bytes
+desflow.connectors.egress.local.ConsoleEgress()
+desflow.connectors.egress.local.ConsoleEgress.run(egress_queue: queue.Queue) -> None
+desflow.connectors.egress.postgres.PostgresEgress(connection_dsn: str, table_name: str | None = None, upsert_keys: list[str] | None = None, tables: dict[str, Any] | None = None, **kwargs: Any)
+desflow.connectors.egress.postgres.PostgresEgress.run(egress_queue: queue.Queue) -> None
+desflow.connectors.egress.redis.RedisEgress(url: str, stream_name: str = 'simulation_data', **kwargs: Any)
+desflow.connectors.egress.redis.RedisEgress.run(egress_queue: queue.Queue) -> None
+desflow.connectors.egress.storage.JsonlStorageEgress(default_path: str | None = None, filesystem: Any | None = None, path_router: collections.abc.Callable[[dict], str | None] | None = None)
+desflow.connectors.egress.storage.JsonlStorageEgress.run(egress_queue: queue.Queue) -> None
+desflow.connectors.egress.storage.ParquetStorageEgress(default_path: str | None = None, filesystem: Any | None = None, path_router: collections.abc.Callable[[dict], str | None] | None = None)
+desflow.connectors.egress.storage.ParquetStorageEgress.run(egress_queue: queue.Queue) -> None
+desflow.connectors.ingress.base.BaseIngress()
+desflow.connectors.ingress.base.BaseIngress.run(ingress_queue: queue.Queue) -> None
+desflow.connectors.ingress.base.parse_change(data: Any) -> tuple[str, Any]
+desflow.connectors.ingress.kafka.ConfluentAvroDeserializer(registry_url: str, **registry_kwargs: Any)
+desflow.connectors.ingress.kafka.ConfluentAvroDeserializer.deserialize(topic: str, payload: bytes) -> Any
+desflow.connectors.ingress.kafka.GlueAvroDeserializer(registry_name: str, **boto3_kwargs: Any)
+desflow.connectors.ingress.kafka.GlueAvroDeserializer.deserialize(topic: str, payload: bytes) -> Any
+desflow.connectors.ingress.kafka.JsonDeserializer()
+desflow.connectors.ingress.kafka.JsonDeserializer.deserialize(topic: str, payload: bytes) -> Any
+desflow.connectors.ingress.kafka.KafkaIngress(topic: str, bootstrap_servers: str, topic_deserializers: dict[str, desflow.connectors.ingress.kafka.MessageDeserializer] | None = None, default_deserializer: desflow.connectors.ingress.kafka.MessageDeserializer | None = None, **kwargs: Any)
+desflow.connectors.ingress.kafka.KafkaIngress.run(ingress_queue: queue.Queue) -> None
+desflow.connectors.ingress.kafka.MessageDeserializer(*args, **kwargs)
+desflow.connectors.ingress.kafka.MessageDeserializer.deserialize(topic: str, payload: bytes) -> Any
+desflow.connectors.ingress.local.LocalIngress(schedule: list[tuple[float, str, Any]])
+desflow.connectors.ingress.local.LocalIngress.run(ingress_queue: queue.Queue) -> None
+desflow.connectors.ingress.postgres.PostgresIngress(connection_dsn: str, table_name: str = 'simulation_params', poll_interval: float = 2.0, **kwargs: Any)
+desflow.connectors.ingress.postgres.PostgresIngress.run(ingress_queue: queue.Queue) -> None
+desflow.connectors.ingress.redis.RedisIngress(url: str, channel_name: str = 'params', poll_interval: float = 0.5, **kwargs: Any)
+desflow.connectors.ingress.redis.RedisIngress.run(update_queue: queue.Queue) -> None
+desflow.core.breakdowns.run_breakdowns(env: Any, resource: desflow.resources.resource.ResourceBase, sampler: desflow.core.sampler.Sampler, work: str = 'interrupt')
+desflow.core.context.SimulationContext(sim_id: str, factor: float = 1.0, random_seed: int | None = None, logical_start_time: datetime.datetime | None = None, go_live_at: datetime.datetime | None = None, warmup: float | str | None = None, initial_time: float | str = 0.0, lag_interval: float | str | None = None, timezone: str | None = None, strict: bool = False, environment: type[desflow.core.environment.DynamicRealtimeEnvironment] | None = None)
+desflow.core.context.SimulationContext.add_arrival(name: str, dist: str, *, rate: float | None = None, mean: float | None = None, std: float | None = None, low: float | None = None, value: float | None = None, high: float | None = None, mode: float | None = None, shape: float | None = None, scale: float | None = None, values: list[float] | None = None, weights: list[float] | None = None, edges: list[float] | None = None, counts: list[float] | None = None, attributes: collections.abc.Mapping[str, Any] | None = None, key: collections.abc.Callable[[int], str] | None = None) -> SimulationContext
+desflow.core.context.SimulationContext.add_arrival_replay(name: str, source: str | pathlib.Path | collections.abc.Iterable[collections.abc.Mapping[str, Any]], *, time: str = 'time', unit: str = 's', fields: str | list[str] = 'all', on_invalid: str = 'error', attributes: collections.abc.Mapping[str, Any] | None = None, key: collections.abc.Callable[[int], str] | None = None) -> SimulationContext
+desflow.core.context.SimulationContext.add_breakdown(resource: str, time_to_failure: collections.abc.Mapping[str, Any], repair: collections.abc.Mapping[str, Any], work: str = 'interrupt') -> SimulationContext
+desflow.core.context.SimulationContext.add_container(name: str, current_cap: float | None = None, max_cap: float | None = None, level: float = 0.0, type: type[desflow.resources.container.ContainerBase] | None = None) -> SimulationContext
+desflow.core.context.SimulationContext.add_egress(provider: Any, when: collections.abc.Callable[[dict], bool] | str | None = None, batch_size: int | None = None, flush_interval: float | None = None) -> SimulationContext
+desflow.core.context.SimulationContext.add_ingress(provider: Any) -> SimulationContext
+desflow.core.context.SimulationContext.add_process(func: collections.abc.Callable[], **kwargs: Any) -> SimulationContext
+desflow.core.context.SimulationContext.add_resource(name: str, current_cap: int | float | None = None, max_cap: int | float | None = None, queue: str = 'fifo', preempt: bool = False, queue_limit: int | None = None, type: type[desflow.resources.resource.ResourceBase] | None = None) -> SimulationContext
+desflow.core.context.SimulationContext.add_scenario(steps: list[collections.abc.Mapping[str, Any]]) -> SimulationContext
+desflow.core.context.SimulationContext.add_service(name: str, dist: str, *, rate: float | None = None, mean: float | None = None, std: float | None = None, low: float | None = None, value: float | None = None, high: float | None = None, mode: float | None = None, shape: float | None = None, scale: float | None = None, values: list[float] | None = None, weights: list[float] | None = None, edges: list[float] | None = None, counts: list[float] | None = None) -> SimulationContext
+desflow.core.context.SimulationContext.add_signal(name: str, once: bool = False, on: list[collections.abc.Mapping[str, Any]] | None = None) -> SimulationContext
+desflow.core.context.SimulationContext.add_step(at: float | str, path: str | None = None, value: Any = None, record: collections.abc.Mapping[str, Any] | None = None, interrupt: collections.abc.Mapping[str, Any] | None = None) -> SimulationContext
+desflow.core.context.SimulationContext.add_store(name: str, current_cap: float | None = None, max_cap: float | None = None, priority: bool = False, items: list[Any] | None = None, type: type[desflow.resources.store.StoreBase] | None = None) -> SimulationContext
+desflow.core.context.SimulationContext.add_variable(name: str, value: Any) -> SimulationContext
+desflow.core.context.SimulationContext.advance(until: float | str | simpy.events.Event) -> Any
+desflow.core.context.SimulationContext.arrival_loop(arrival_id: str) -> collections.abc.Callable[]
+desflow.core.context.SimulationContext.call(task: str, *args: Any, entity: desflow.models.flow.Entity | None = None, upstream: desflow.models.flow.Upstream | None = None, **kwargs: Any) -> simpy.events.Process
+desflow.core.context.SimulationContext.close() -> None
+desflow.core.context.SimulationContext.compile_parameters() -> desflow.models.params.SimParameter
+desflow.core.context.SimulationContext.env: property
+desflow.core.context.SimulationContext.finish() -> Any
+desflow.core.context.SimulationContext.from_yaml(path: str | pathlib.Path) -> SimulationContext
+desflow.core.context.SimulationContext.get_container(container_id: str) -> desflow.resources.container.DynamicContainer
+desflow.core.context.SimulationContext.get_resource(resource_id: str) -> desflow.resources.resource.ResourceBase
+desflow.core.context.SimulationContext.get_store(store_id: str) -> desflow.resources.store.DynamicStore
+desflow.core.context.SimulationContext.interrupt(task: str, where: str | desflow.core.expressions.Expression | None = None, cause: Any = None) -> int
+desflow.core.context.SimulationContext.next_instance(task: str) -> int
+desflow.core.context.SimulationContext.peek() -> float
+desflow.core.context.SimulationContext.publish(metric_name: str, value: Any) -> None
+desflow.core.context.SimulationContext.run(until: Any = None, stop: Any = None, drain: Any = None, on_unhandled_failure: str | None = None) -> Any
+desflow.core.context.SimulationContext.signal(name: str) -> desflow.core.signals.Signal
+desflow.core.context.SimulationContext.spawn(process: Any, delay: float | None = None) -> simpy.events.Process
+desflow.core.context.SimulationContext.start(until: Any = None, stop: Any = None, drain: Any = None, *, seed: int | None = None, overrides: collections.abc.Mapping[str, Any] | None = None, stats: str | None = None, egress: bool = True, ingress: bool = True, run_settings: bool = True, on_unhandled_failure: str | None = None) -> desflow.core.environment.DynamicRealtimeEnvironment
+desflow.core.context.SimulationContext.step() -> None
+desflow.core.context.SimulationContext.stop_arrivals() -> None
+desflow.core.context.SimulationContext.subscribe(event: Any) -> None
+desflow.core.context.SimulationContext.task(service_id: str | None = None, resource_id: str | list[str] | None = None, *, name: str | None = None, priority: float | str | collections.abc.Callable[[Any, dict[str, Any]], float] | None = None, get: desflow.core.flow.Transfer | collections.abc.Mapping[str, Any] | None = None, put: desflow.core.flow.Transfer | collections.abc.Mapping[str, Any] | None = None, next: None | str | collections.abc.Mapping[str, Any] | collections.abc.Callable[[desflow.models.flow.Upstream], str | None] = None, set: collections.abc.Mapping[str, Any] | None = None, patience: float | str | collections.abc.Callable[[Any, dict[str, Any]], float] | None = None, balk: str | None = None, wait: collections.abc.Mapping[str, Any] | None = None, signal: str | None = None, fail: str | collections.abc.Callable[[Any, Any], bool] | None = None, fail_reason: str | None = None, on_fail: str | None = None, keep: list[str] | None = None, preempt: bool = True, on_interrupt: str = 'resume', on_interrupt_next: str | None = None, interrupt: collections.abc.Mapping[str, Any] | None = None, spawn: collections.abc.Mapping[str, Any] | None = None, subscribe: collections.abc.Mapping[str, Any] | None = None, on: list[collections.abc.Mapping[str, Any]] | None = None) -> collections.abc.Callable[]
+desflow.core.context.SimulationContext.telemetry_loop(interval: float) -> collections.abc.Callable[]
+desflow.core.context.SimulationContext.wait_for_arrival(arrival_id: str) -> simpy.events.Event
+desflow.core.context.SimulationContext.with_batching(batch_size: int, flush_interval: float, max_queued_batches: int = 2000, drain_stall_seconds: float = 30.0) -> SimulationContext
+desflow.core.context.SimulationContext.with_stats(level: str = 'basic', interval: float = 10.0) -> SimulationContext
+desflow.core.environment.DynamicRealtimeEnvironment(initial_time=0, factor=1.0, strict=True, logical_start_time: datetime.datetime | None = None, go_live_at: datetime.datetime | None = None, timezone: str | None = None, on_unhandled_failure: str = 'stop')
+desflow.core.environment.DynamicRealtimeEnvironment.egress_queue: property
+desflow.core.environment.DynamicRealtimeEnvironment.internal_event() -> simpy.events.Event
+desflow.core.environment.DynamicRealtimeEnvironment.internal_timeout(delay: float, value: Any = None) -> simpy.events.Timeout
+desflow.core.environment.DynamicRealtimeEnvironment.notify_change() -> None
+desflow.core.environment.DynamicRealtimeEnvironment.notify_queue_change() -> None
+desflow.core.environment.DynamicRealtimeEnvironment.peek() -> float
+desflow.core.environment.DynamicRealtimeEnvironment.publish_event(event_key: str, value: Any, task: str | None = None, instance: Any = None)
+desflow.core.environment.DynamicRealtimeEnvironment.publish_label(label: dict[str, Any], path: str | None = None, old: Any = None, new: Any = None)
+desflow.core.environment.DynamicRealtimeEnvironment.publish_telemetry(path_id: str, value: Any)
+desflow.core.environment.DynamicRealtimeEnvironment.resume_pacing() -> None
+desflow.core.environment.DynamicRealtimeEnvironment.run(until: Any = None) -> Any
+desflow.core.environment.DynamicRealtimeEnvironment.setup_egress(providers: list[], batch_size: int = 500, flush_interval: float = 1.0, lag_monitor_interval: float | str | None = 'auto', max_queued_batches: int = 2000, drain_stall_seconds: float = 30.0, predicates: list[collections.abc.Callable[[dict[str, Any]], bool] | None] | None = None, batch_sizes: list[int | None] | None = None, flush_intervals: list[float | None] | None = None, labels: list[bool] | None = None, warmup: float | None = None)
+desflow.core.environment.DynamicRealtimeEnvironment.setup_ingress(providers: list[])
+desflow.core.environment.DynamicRealtimeEnvironment.setup_registry()
+desflow.core.environment.DynamicRealtimeEnvironment.setup_stats(sim_id: str, level: str = 'basic', interval: float = 10.0)
+desflow.core.environment.DynamicRealtimeEnvironment.start_internal(generator: Any) -> simpy.events.Process
+desflow.core.environment.DynamicRealtimeEnvironment.step() -> None
+desflow.core.environment.DynamicRealtimeEnvironment.teardown()
+desflow.core.environment.DynamicRealtimeEnvironment.teardown_egress()
+desflow.core.environment.DynamicRealtimeEnvironment.teardown_ingress()
+desflow.core.environment.DynamicRealtimeEnvironment.unwatch_changes(callback: collections.abc.Callable[[], None]) -> None
+desflow.core.environment.DynamicRealtimeEnvironment.watch_changes(callback: collections.abc.Callable[[], None], queues: bool = False) -> None
+desflow.core.expressions.Expression(text: str)
+desflow.core.expressions.Expression.evaluate(scope: desflow.core.expressions.Scope) -> Any
+desflow.core.expressions.Expression.reads_queues: property
+desflow.core.flow.Router(rules: None | str | collections.abc.Mapping[str, Any] | collections.abc.Callable[[desflow.models.flow.Upstream], str | None], rng: numpy.random.Generator | None = None)
+desflow.core.flow.Router.choose(upstream: desflow.models.flow.Upstream, env: Any = None, levels: collections.abc.Mapping[str, Any] | None = None, item: Any = None, scope: desflow.core.expressions.Scope | None = None) -> str | None
+desflow.core.flow.Router.conditions: property
+desflow.core.flow.Router.weighted: property
+desflow.core.flow.Transfer(container: str | None = None, store: str | None = None, amount: float | str | collections.abc.Callable[[Any, dict[str, Any]], float] = 1.0, priority: Any = 0.0, filter: str | collections.abc.Callable[[Any], bool] | None = None, wait: bool = True)
+desflow.core.flow.Transfer.amount_for(task_id: Any, upstream: desflow.models.flow.Upstream | None, scope: desflow.core.expressions.Scope) -> float
+desflow.core.flow.Transfer.expressions: property
+desflow.core.flow.Transfer.filter_for(scope: desflow.core.expressions.Scope) -> collections.abc.Callable[[Any], bool] | None
+desflow.core.flow.Transfer.of(spec: Transfer | collections.abc.Mapping[str, Any]) -> Transfer
+desflow.core.flow.Transfer.priority_for(task_id: Any, upstream: desflow.models.flow.Upstream | None, scope: desflow.core.expressions.Scope) -> Any
+desflow.core.flow.Transfer.target: property
+desflow.core.registry.SimulationRegistry(env: simpy.core.Environment)
+desflow.core.registry.SimulationRegistry.configs() -> dict[str, Any]
+desflow.core.registry.SimulationRegistry.get(path: str) -> desflow.core.registry.DynamicValue
+desflow.core.registry.SimulationRegistry.get_config(path: str) -> Any
+desflow.core.registry.SimulationRegistry.paths() -> list[str]
+desflow.core.registry.SimulationRegistry.register_container(sim_id: str, name: str, cap_config: desflow.models.params.CapacityConfig)
+desflow.core.registry.SimulationRegistry.register_resource(sim_id: str, name: str, cap_config: desflow.models.params.CapacityConfig)
+desflow.core.registry.SimulationRegistry.register_sim_parameter(param: desflow.models.params.SimParameter)
+desflow.core.registry.SimulationRegistry.register_store(sim_id: str, name: str, cap_config: desflow.models.params.CapacityConfig)
+desflow.core.registry.SimulationRegistry.set_exactly(path: str, value: Any) -> None
+desflow.core.registry.SimulationRegistry.update(path: str, new_value: Any)
+desflow.core.replay.read_trace(source: str | pathlib.Path | collections.abc.Iterable[collections.abc.Mapping[str, Any]], time: str = 'time', unit: str = 's', fields: str | collections.abc.Sequence[str] = 'all', on_invalid: str = 'error', start: datetime.datetime | None = None, initial_time: float = 0.0) -> list[desflow.core.replay.Row]
+desflow.core.sampler.Sampler(rng: numpy.random.Generator | None = None, *, seed: int | None = None)
+desflow.core.sampler.Sampler.generator(name: str) -> numpy.random.Generator | None
+desflow.core.sampler.Sampler.sample(config: desflow.models.params.DistributionConfig, min_delay: float = 1e-05) -> float
+desflow.core.sampler.Sampler.streams: property
+desflow.core.scenario.run_scenario(env: Any, steps: collections.abc.Iterable[collections.abc.Mapping[str, Any]], until: float | None = None, interrupt: collections.abc.Callable[..., Any] | None = None)
+desflow.core.signals.Signal(env: simpy.core.Environment, name: str = 'signal', once: bool = False)
+desflow.core.signals.Signal.attach(callbacks: list[collections.abc.Callable[[Any], None]]) -> None
+desflow.core.signals.Signal.fail(reason: Any, urgent: bool = False, after: float = 0.0) -> None
+desflow.core.signals.Signal.fire(value: Any = None, urgent: bool = False, after: float = 0.0) -> None
+desflow.core.signals.Signal.wait() -> simpy.events.Event
+desflow.core.signals.SignalFailed(signal: str, reason: Any)
+desflow.core.task.TaskFailed(task: str, reason: Any)
+desflow.fit_column = desflow.analysis.fit.fit_column
+desflow.models.flow.Entity(key: str, arrival: str, attributes: dict[str, Any] = <factory>, held: dict[str, Any] = <factory>, entered: bool = False, instances: dict[str, Any] | None = None, spawned_by: Entity | None = None, ends_pending: int = 0, ending: bool = False, last_ended: dict[str, Any] | None = None) -> None
+desflow.models.flow.Entity.ending: bool
+desflow.models.flow.Entity.ends_pending: int
+desflow.models.flow.Entity.entered: bool
+desflow.models.flow.Entity.instances: NoneType
+desflow.models.flow.Entity.last_ended: NoneType
+desflow.models.flow.Entity.left: property
+desflow.models.flow.Entity.spawned_by: NoneType
+desflow.models.flow.Upstream(task_id: Any, key: str, attributes: dict[str, Any], payload: Any = None) -> None
+desflow.models.flow.Upstream.fields: property
+desflow.models.flow.Upstream.payload: NoneType
+desflow.models.params.BreakdownConfig(time_to_failure: desflow.models.params.DistributionConfig, repair: desflow.models.params.DistributionConfig, work: str = 'interrupt') -> None
+desflow.models.params.BreakdownConfig.work: str
+desflow.models.params.CapacityConfig(current_cap: int | float | None = None, max_cap: int | float | None = None) -> None
+desflow.models.params.CapacityConfig.current_cap: NoneType
+desflow.models.params.CapacityConfig.max_cap: NoneType
+desflow.models.params.ContainerConfig(current_cap: int | float | None = None, max_cap: int | float | None = None, level: int | float = 0) -> None
+desflow.models.params.ContainerConfig.current_cap: NoneType
+desflow.models.params.ContainerConfig.level: int
+desflow.models.params.ContainerConfig.max_cap: NoneType
+desflow.models.params.DistributionConfig(dist: str, rate: float | None = None, mean: float | None = None, std: float | None = None, low: float | None = None, value: float | None = None, high: float | None = None, mode: float | None = None, shape: float | None = None, scale: float | None = None, values: list[float] | None = None, weights: list[float] | None = None, edges: list[float] | None = None, counts: list[float] | None = None) -> None
+desflow.models.params.DistributionConfig.counts: NoneType
+desflow.models.params.DistributionConfig.edges: NoneType
+desflow.models.params.DistributionConfig.high: NoneType
+desflow.models.params.DistributionConfig.low: NoneType
+desflow.models.params.DistributionConfig.mean: NoneType
+desflow.models.params.DistributionConfig.mode: NoneType
+desflow.models.params.DistributionConfig.rate: NoneType
+desflow.models.params.DistributionConfig.scale: NoneType
+desflow.models.params.DistributionConfig.shape: NoneType
+desflow.models.params.DistributionConfig.std: NoneType
+desflow.models.params.DistributionConfig.stream: NoneType
+desflow.models.params.DistributionConfig.value: NoneType
+desflow.models.params.DistributionConfig.values: NoneType
+desflow.models.params.DistributionConfig.weights: NoneType
+desflow.models.params.SimParameter(sim_id: str, arrival: dict[str, desflow.models.params.DistributionConfig] = <factory>, service: dict[str, desflow.models.params.DistributionConfig] = <factory>, resources: dict[str, desflow.models.params.CapacityConfig] = <factory>, containers: dict[str, desflow.models.params.CapacityConfig] = <factory>, stores: dict[str, desflow.models.params.CapacityConfig] = <factory>, breakdowns: dict[str, desflow.models.params.BreakdownConfig] = <factory>, variables: dict[str, Any] = <factory>) -> None
+desflow.models.schemas.BaseStreamPayload(*, stream_type: Literal['telemetry', 'event', 'label'], sim_ts: float, timestamp: str) -> None
+desflow.models.schemas.BaseStreamPayload.model_config: dict
+desflow.models.schemas.EventPayload(*, stream_type: Literal['event'] = 'event', sim_ts: float, timestamp: str, key: str, task: str | None = None, instance: Any | None = None, value: Any) -> None
+desflow.models.schemas.EventPayload.model_config: dict
+desflow.models.schemas.LabelPayload(*, stream_type: Literal['label'] = 'label', sim_ts: float, timestamp: str, path: str | None = None, old: Any = None, new: Any = None, label: dict[str, Any]) -> None
+desflow.models.schemas.LabelPayload.model_config: dict
+desflow.models.schemas.TelemetryPayload(*, stream_type: Literal['telemetry'] = 'telemetry', sim_ts: float, timestamp: str, path_id: str, value: Any) -> None
+desflow.models.schemas.TelemetryPayload.model_config: dict
+desflow.read_trace = desflow.core.replay.read_trace
+desflow.replicate = desflow.analysis.runner.replicate
+desflow.resources.container.ContainerBase(env: Environment, capacity: ContainerAmount = inf, init: ContainerAmount = 0)
+desflow.resources.container.ContainerBase.get: BoundClass
+desflow.resources.container.ContainerBase.put: BoundClass
+desflow.resources.container.DynamicContainer(env: simpy.core.Environment, sim_id: str, container_id: str, init: float | None = None, type: type[desflow.resources.container.ContainerBase] | None = None)
+desflow.resources.container.DynamicContainer.capacity: property
+desflow.resources.container.DynamicContainer.get(*args: Any, **kwargs: Any) -> simpy.resources.container.ContainerGet
+desflow.resources.container.DynamicContainer.getters_waiting: property
+desflow.resources.container.DynamicContainer.level: property
+desflow.resources.container.DynamicContainer.put(*args: Any, **kwargs: Any) -> simpy.events.Event
+desflow.resources.container.DynamicContainer.putters_waiting: property
+desflow.resources.resource.DynamicResource(env: Environment, sim_id: str, resource_id: str, queue: str = 'fifo', preempt: bool = False, queue_limit: Optional[int] = None)
+desflow.resources.resource.DynamicResource.GetQueue: class
+desflow.resources.resource.DynamicResource.PutQueue: class
+desflow.resources.resource.DynamicResource.capacity: property
+desflow.resources.resource.DynamicResource.count: property
+desflow.resources.resource.DynamicResource.downtime: property
+desflow.resources.resource.DynamicResource.fail(interrupt_work: bool = True) -> int
+desflow.resources.resource.DynamicResource.in_use: property
+desflow.resources.resource.DynamicResource.release: BoundClass
+desflow.resources.resource.DynamicResource.repair() -> None
+desflow.resources.resource.DynamicResource.request: BoundClass
+desflow.resources.resource.ResourceBase(env: Environment, sim_id: str, resource_id: str, queue: str = 'fifo', preempt: bool = False, queue_limit: Optional[int] = None)
+desflow.resources.resource.ResourceBase.GetQueue: class
+desflow.resources.resource.ResourceBase.PutQueue: class
+desflow.resources.resource.ResourceBase.capacity: property
+desflow.resources.resource.ResourceBase.count: property
+desflow.resources.resource.ResourceBase.downtime: property
+desflow.resources.resource.ResourceBase.fail(interrupt_work: bool = True) -> int
+desflow.resources.resource.ResourceBase.in_use: property
+desflow.resources.resource.ResourceBase.release: BoundClass
+desflow.resources.resource.ResourceBase.repair() -> None
+desflow.resources.resource.ResourceBase.request: BoundClass
+desflow.resources.store.DynamicStore(env: simpy.core.Environment, sim_id: str, store_id: str, priority: bool = False, items: collections.abc.Iterable[Any] | None = None, type: type[desflow.resources.store.StoreBase] | None = None)
+desflow.resources.store.DynamicStore.capacity: property
+desflow.resources.store.DynamicStore.get(*args: Any, **kwargs: Any) -> simpy.resources.store.StoreGet
+desflow.resources.store.DynamicStore.getters_waiting: property
+desflow.resources.store.DynamicStore.items: property
+desflow.resources.store.DynamicStore.level: property
+desflow.resources.store.DynamicStore.put(*args: Any, **kwargs: Any) -> simpy.events.Event
+desflow.resources.store.DynamicStore.putters_waiting: property
+desflow.resources.store.DynamicStore.wrap(item: Any, priority: float) -> simpy.resources.store.PriorityItem
+desflow.resources.store.StoreBase(env: Environment, capacity: Union[float, int] = inf)
+desflow.resources.store.StoreBase.get: BoundClass
+desflow.resources.store.StoreBase.put: BoundClass
+desflow.run_breakdowns = desflow.core.breakdowns.run_breakdowns
+desflow.run_experiment = desflow.analysis.runner.run_experiment
+desflow.run_scenario = desflow.core.scenario.run_scenario
+desflow.time_to_seconds = desflow.utils.time_to_seconds
+desflow.utils.time_to_seconds(time_str: str) -> float
+[cli]
+desflow :: exit codes 0
+desflow --version :: option, boolean, default False, optional
+desflow examples :: exit codes 0
+desflow examples get :: exit codes 0, 1, 2
+desflow examples get name :: argument, str, default None, required
+desflow examples get --api :: option, str, default None, optional
+desflow examples get --dest :: option, path, default PosixPath('.'), optional
+desflow examples get --ref :: option, str, default None, optional
+desflow examples get --force/--no-force :: option, boolean, default False, optional
+desflow experiment :: exit codes 0, 1, 2
+desflow experiment FILE :: argument, file, default None, required
+desflow experiment --output :: option, path, default None, optional
+desflow fit :: exit codes 0, 1, 2
+desflow fit FILE :: argument, file, default None, required
+desflow fit --column :: option, str, default None, required
+desflow fit --unit :: option, str, default 's', optional
+desflow fit --candidates :: option, str, default None, optional
+desflow fit --lower :: option, float, default None, optional
+desflow fit --upper :: option, float, default None, optional
+desflow fit --bins :: option, int range, default None, optional
+desflow fit --min-count :: option, int range, default 20, optional
+desflow fit --tolerance :: option, float, default 0.25, optional
+desflow fit --drop-invalid/--no-drop-invalid :: option, boolean, default False, optional
+desflow fit --out :: option, path, default None, optional
+desflow fit --plot :: option, path, default None, optional
+desflow report :: exit codes 0, 2
+desflow report FOLDER :: argument, directory, default None, required
+desflow run :: exit codes 0, 1, 2
+desflow run FILE :: argument, file, default None, required
+desflow run --until :: option, str, default None, optional
+desflow run --seed :: option, int, default None, optional
+desflow run --drain :: option, boolean, default False, optional
+desflow run --replications :: option, int range, default None, optional
+desflow run --level :: option, float, default 0.95, optional
+desflow run --measure :: option, str, default None, optional
+desflow run --workers :: option, int range, default 1, optional
+desflow schema :: exit codes 0

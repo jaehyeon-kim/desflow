@@ -1,0 +1,43 @@
+# The Live Changes tutorial: the same jam sent live, from a LocalIngress schedule.
+# Run it with: desflow run live_changes_live.yaml
+# The run is paced at 200 simulated seconds a wall-clock second, so 5 minutes take 1.5 s.
+simulation:
+  sim_id: Shop
+  factor: 0.005
+  random_seed: 42
+
+resources:
+  packers: {current_cap: 1, max_cap: 1}
+
+services:
+  packing: {dist: constant, value: 1.5 s}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.4, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+
+# --8<-- [start:live]
+# Half a wall-clock second after the start, set packing to 3 seconds
+ingress:
+  - type: Local
+    config:
+      schedule: [[0.5, Shop.service.packing.value, 3.0]]
+# --8<-- [end:live]
+
+egress:
+  # Flush every 60 simulated seconds: at this pace the default of 1 s flushes on a timer
+  # over and over, and desflow warns about it
+  - type: Jsonl
+    config: {default_path: events/orders.jsonl}
+    flush_interval: 60
+  - type: Jsonl
+    config: {default_path: labels/labels.jsonl}
+    when: labels
+
+run:
+  until: 5 min

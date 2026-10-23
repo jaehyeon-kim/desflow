@@ -1,0 +1,10 @@
+{
+  "yaml.schemas": {
+    "https://jaehyeon.me/desflow/latest/schema/blueprint.schema.json": "blueprints/*.yaml"
+  },
+  "yaml.customTags": [
+    "!python scalar:string",
+    "!include scalar:object",
+    "!include mapping:object"
+  ]
+}

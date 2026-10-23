@@ -128,7 +128,7 @@ size L:  679 filled,    0 cancelled
 
 ## Why It Works
 
-A filtered store is one shelf with a queue per kind of item. Medium orders arrive at 0.05 a second and medium shirts at 0.04, so medium orders are short of shirts for the whole day and only the patience limit keeps their queue from growing without end. Small and large shirts arrive a little faster than their orders, so those orders are filled within their patience, and the shirts left over, 248 by the end of the day, wait on the shelf, which has room for 1,000. [Stores and Containers](../user-guide/stores-and-containers.md#take-and-add) describes filters and cancelled gets.
+A filtered store is one shelf with a queue per kind of item. Medium orders arrive at 0.05 a second and medium shirts at 0.04, so medium orders are short of shirts for the whole day and only the patience limit keeps their queue from growing without end. Small and large shirts arrive a little faster than their orders, so those orders are filled within their patience, and the shirts left over, 248 by the end of the day, wait on the shelf, which has room for 1,000. [SimPy and desflow](../des/simpy-and-desflow.md#containers-and-stores) compares stores and containers with SimPy's. [Stores and Containers](../user-guide/stores-and-containers.md#take-and-add) describes filters and cancelled gets.
 
 ---
 

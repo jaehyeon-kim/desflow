@@ -61,7 +61,7 @@ CHARTS = ROOT / "docs" / "assets" / "charts"
 
 
 def test_every_chart_is_drawn_by_the_script_and_used_on_a_page():
-    """Charts are PNGs that scripts/charts.py draws from the tutorial snippets."""
+    """Charts are PNGs, and one Plotly HTML page, that scripts/charts.py draws."""
     import ast
 
     tree = ast.parse((ROOT / "scripts" / "charts.py").read_text(encoding="utf-8"))
@@ -72,10 +72,14 @@ def test_every_chart_is_drawn_by_the_script_and_used_on_a_page():
         and getattr(node.target, "id", "") == "CHARTS"
         for key in node.value.keys  # type: ignore[union-attr]
     }
-    images = {p.stem for p in CHARTS.glob("*.png")}
+    found = [*CHARTS.glob("*.png"), *CHARTS.glob("*.html")]
+    stems = [p.stem for p in found]
+    assert len(stems) == len(set(stems)), "A chart name has two files"
+    files = {p.stem: p.name for p in found}
+    images = set(files)
     assert names and images == names, (
         "Run scripts/charts.py, and delete charts it no longer draws"
     )
     pages = "\n".join(p.read_text() for p in (ROOT / "docs").rglob("*.md"))
-    unused = [name for name in sorted(images) if f"charts/{name}.png" not in pages]
+    unused = [name for name in sorted(images) if f"charts/{files[name]}" not in pages]
     assert not unused, f"No page uses these charts: {unused}"

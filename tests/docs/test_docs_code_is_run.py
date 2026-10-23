@@ -10,8 +10,9 @@ test that runs its files:
 - `docs/snippets/tutorials/`: test_docs_tutorials.py.
 - `docs/snippets/guides/`: test_docs_guides.py, which needs a test per file, so a new
   guide's script is checked against what its page says.
+- `docs/snippets/editor/`: test_docs_guides.py, test_editor_settings_hold_the_schema_and_the_three_tags.
 - `docs/snippets/yaml/` and `yaml_build/`: test_docs_snippets.py runs or builds each
-  blueprint.
+  blueprint that test_docs_tutorials.py and test_docs_guides.py do not run.
 
 `docs/snippets/hot_rolling/` is the one exception: its adapter imports modules of the
 hot rolling mill project, which is not in this repository, so it cannot run here.
@@ -49,6 +50,7 @@ def test_every_guide_script_has_a_test():
         script.name
         for script in sorted((SNIPPETS / "guides").glob("*.py"))
         if f'_load("{script.stem}")' not in tests
+        and f'_load_from(tmp_path, "{script.stem}")' not in tests
     ]
     assert untested == [], (
         "Add a test to tests/docs/test_docs_guides.py that runs and checks: "
@@ -58,7 +60,7 @@ def test_every_guide_script_has_a_test():
 
 def test_snippet_folders_are_all_run():
     """A new snippet folder needs a test that runs it, listed here."""
-    run = {"pages", "tutorials", "guides", "yaml", "yaml_build"}
+    run = {"pages", "tutorials", "guides", "yaml", "yaml_build", "editor"}
     not_runnable = {"hot_rolling"}  # imports another project's modules
     folders = {
         p.name for p in SNIPPETS.iterdir() if p.is_dir() and p.name != "__pycache__"

@@ -6,9 +6,13 @@
 [![Python Versions](https://img.shields.io/pypi/pyversions/desflow.svg)](https://pypi.org/project/desflow/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
+To check what desflow does against plain SimPy, see [SimPy Compatibility](https://jaehyeon.me/desflow/latest/reference/simpy-compatibility/).
+
+To see why it exists and how it is built, read [Why desflow](https://jaehyeon.me/desflow/latest/about/why-desflow/).
+
 **Realistic event streams from a simulation you can steer while it runs.**
 
-> **dynamic-des is now desflow.** The package was renamed in 0.20.0: install `desflow`, import `desflow` and run `desflow`. Code that imports `dynamic_des` and scripts that run `ddes` keep working with a warning until a later release, and the [Changelog](https://jaehyeon.me/desflow/latest/about/changelog/) says what to change.
+> **dynamic-des is now desflow.** The package was renamed: install `desflow`, import `desflow` and run `desflow`. Code that imports `dynamic_des` and scripts that run `ddes` keep working with a warning until a release before 1.0 removes them, and the [Changelog](https://jaehyeon.me/desflow/latest/about/changelog/) says what to change.
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/jaehyeon-kim/desflow/main/docs/assets/architecture.png" alt="desflow architecture" width="900" />
@@ -126,7 +130,7 @@ run:
 
 ## Roadmap
 
-desflow reached feature parity with SimPy in YAML, the builder and the low-level API in 0.23.0. Before 1.0, it adds a JSON Schema for blueprints, `desflow explain`, the rest of the shop tutorial, more storage backends and a record format that 1.0 keeps stable. A simulation server with tools for AI agents follows 1.0. The [roadmap page](https://jaehyeon.me/desflow/latest/about/roadmap/) shows each step in order, with what is in progress.
+desflow reached feature parity with SimPy in YAML, the builder and the low-level API. Before 1.0, it adds a JSON Schema for blueprints, `desflow explain`, the rest of the shop tutorial, more storage backends and a record format that 1.0 keeps stable. A simulation server with tools for AI agents follows 1.0. The [roadmap page](https://jaehyeon.me/desflow/latest/about/roadmap/) shows each step in order, with what is in progress.
 
 ## Learn More
 

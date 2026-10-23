@@ -132,7 +132,7 @@ Which supported distribution fits the 40 packing times? The `triangular` has the
 
 ## Why It Works
 
-The triangular's mean is (0.546 + 1.2 + 2.838) ÷ 3 = 1.53 seconds, 2% above the data's 1.50, while the gamma keeps the data's mean exactly, as shape × scale = 9.558 × 0.157 = 1.50. With the packers busy 90% of the time, 2% more packing is a large share of their spare time, so the wait grows far more than 2%. [Input Fitting](../user-guide/input-fitting.md) describes every option and outcome.
+The triangular's mean is (0.546 + 1.2 + 2.838) ÷ 3 = 1.53 seconds, 2% above the data's 1.50, while the gamma keeps the data's mean exactly, as shape × scale = 9.558 × 0.157 = 1.50. With the packers busy 90% of the time, 2% more packing is a large share of their spare time, so the wait grows far more than 2%. [Common Mistakes](../des/common-mistakes.md#choosing-a-normal-or-uniform-by-habit) lists the choice of a family by habit, and [Input Fitting](../user-guide/input-fitting.md) describes every option and outcome.
 
 ---
 

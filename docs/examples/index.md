@@ -31,3 +31,12 @@ Each example is written three ways: as a YAML blueprint, with the builder API an
 | [Fitted Inputs](../user-guide/input-fitting.md#example-fitted-inputs) | the packing time fitted from 40 measured times, then loaded into the shop | [`fitting.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/yaml/fitting.yaml) | [`fitting_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/builder/fitting_example.py) | [`fitting_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/fitting_example.py) |
 
 The shop examples from Stock onwards are shown on the page that teaches their feature, with the same steps. Each example page says how to download and run it, and which odctl profile from [Installation](../getting-started.md#services-for-the-examples) it needs.
+
+## Used in
+
+These public projects in [benchtop](https://github.com/jaehyeon-kim/benchtop) generate their data with desflow. Each line gives what desflow simulates there and the desflow requirement of the project's `requirements.txt`.
+
+- [`air-quality`](https://github.com/jaehyeon-kim/benchtop/tree/main/air-quality): hourly weather forecasts and PM2.5 readings, written to four Iceberg tables. It requires `desflow[iceberg]>=0.20.0`.
+- [`ecommerce-cdc`](https://github.com/jaehyeon-kim/benchtop/tree/main/ecommerce-cdc): an online shop, written to PostgreSQL. It requires `desflow[postgres,kafka]>=0.20.0`.
+- [`game-leaderboard`](https://github.com/jaehyeon-kim/benchtop/tree/main/game-leaderboard): a game played in real time, with each score sent to Kafka and parameter changes read from Kafka while it runs. It requires `desflow[kafka,confluent]>=0.20.0`.
+- [`live-dashboard`](https://github.com/jaehyeon-kim/benchtop/tree/main/live-dashboard): a shop in real time, with every row written to PostgreSQL. It requires `desflow[postgres]>=0.21.0`.

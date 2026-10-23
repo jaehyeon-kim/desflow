@@ -9,6 +9,7 @@ The common YAML keys and builder calls side by side, each linked to the page tha
 | Name the model and set the clock | `simulation: {sim_id, factor, random_seed}` | `SimulationContext(sim_id, factor=, random_seed=)` | [Time and Pacing](../user-guide/time-and-pacing/index.md) |
 | Leave the start of a run out of the statistics | `simulation.warmup` | `SimulationContext(warmup=)` | [Statistics](../user-guide/statistics.md) |
 | Start the clock at a time other than 0 | `simulation.initial_time` | `SimulationContext(initial_time=)` | [Run Length](../user-guide/time-and-pacing/run-length.md#initial-time) |
+| Print the JSON Schema of a blueprint | `desflow schema` | none | [Set Up Your Editor](../guides/set-up-your-editor.md) |
 | Write timestamps in a time zone | `simulation.timezone` | `SimulationContext(timezone=)` | [Records and Telemetry](records-and-telemetry.md) |
 
 ## Arrivals and Services

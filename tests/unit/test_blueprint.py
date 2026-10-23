@@ -1,5 +1,6 @@
 """YAML blueprints: validation, error lines and the builder calls they make."""
 
+import json
 import textwrap
 from datetime import datetime
 
@@ -307,6 +308,15 @@ def test_cli_prints_the_version():
     result = CliRunner().invoke(cli, ["--version"])
     assert result.exit_code == 0
     assert result.output.strip() == __version__
+
+
+def test_schema_command_prints_the_file():
+    from desflow.blueprint.schema import schema_text
+
+    result = CliRunner().invoke(cli, ["schema"])
+    assert result.exit_code == 0
+    assert result.output == schema_text()
+    assert json.loads(result.output)["$schema"].startswith("https://json-schema.org/")
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,19 @@
+<mxfile>
+  <diagram name="run-phases" id="run-phases">
+    <mxGraphModel grid="0" page="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="c2" value="One run: the warm-up is left out, the rest is measured" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=16;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="710" height="30" as="geometry"/></mxCell>
+        <mxCell id="c3" value="Warm-up (left out)" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;spacing=8;" vertex="1" parent="1"><mxGeometry x="0" y="70" width="210" height="90" as="geometry"/></mxCell>
+        <mxCell id="c4" value="Measured period" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;spacing=8;" vertex="1" parent="1"><mxGeometry x="260" y="70" width="250" height="90" as="geometry"/></mxCell>
+        <mxCell id="c5" value="End of run (until)" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;spacing=8;" vertex="1" parent="1"><mxGeometry x="560" y="70" width="150" height="90" as="geometry"/></mxCell>
+        <mxCell id="c6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;sketch=1;html=1;strokeWidth=3;endArrow=block;strokeColor=#6c8ebf;fontFamily=Comic Sans MS;fontSize=13;labelBackgroundColor=#ffffff;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="c3" target="c4"><mxGeometry relative="1" as="geometry"></mxGeometry></mxCell>
+        <mxCell id="c7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;sketch=1;html=1;strokeWidth=3;endArrow=block;strokeColor=#6c8ebf;fontFamily=Comic Sans MS;fontSize=13;labelBackgroundColor=#ffffff;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="c4" target="c5"><mxGeometry relative="1" as="geometry"></mxGeometry></mxCell>
+        <mxCell id="c8" value="the shop fills from empty; left out of the statistics" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=13;" vertex="1" parent="1"><mxGeometry x="0" y="175" width="210" height="60" as="geometry"/></mxCell>
+        <mxCell id="c9" value="the queue settles; the statistics cover this part" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=13;" vertex="1" parent="1"><mxGeometry x="260" y="175" width="250" height="60" as="geometry"/></mxCell>
+        <mxCell id="c10" value="A run of the busy hour starts empty, so its first minutes wait less than the hour as a whole" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=13;" vertex="1" parent="1"><mxGeometry x="0" y="250" width="710" height="40" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

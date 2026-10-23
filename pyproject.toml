@@ -1,6 +1,6 @@
 [project]
 name = "desflow"
-version = "0.23.0"
+version = "0.24.0"
 description = "Realistic event streams from a SimPy simulation you can steer while it runs, written to Kafka, Redis, PostgreSQL, Parquet, JSONL and Iceberg."
 readme = "README.md"
 authors = [
@@ -155,6 +155,9 @@ dev = [
     # Builds the generated Reference pages. 0.6.1 adds properdocs, as
     # mkdocs-redirects 1.2.3 does.
     "mkdocs-gen-files==0.6.0",
+    "jsonschema>=4.26.0",
+    # scripts/charts.py animates a run for the Animate a Run page.
+    "vidigi>=2.0.0",
 ]
 
 [tool.pytest.ini_options]

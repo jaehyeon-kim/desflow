@@ -1,10 +1,10 @@
 """Draw the charts the docs show, from runs of the tutorial snippets.
 
 Each name in `CHARTS` runs the code of a page, unpaced, and saves a PNG under
-docs/assets/charts/ with the same name. The charts are committed, so the docs build
-needs no matplotlib; run this after a change to a tutorial snippet or a distribution.
-tests/docs/test_docs_diagrams.py checks that every chart is made here and used on a
-page.
+docs/assets/charts/ with the same name; animate-a-run is a Plotly page, so an HTML
+file. The charts are committed, so the docs build needs no matplotlib; run this after
+a change to a tutorial snippet or a distribution. tests/docs/test_docs_diagrams.py
+checks that every chart is made here and used on a page.
 
 Usage: python scripts/charts.py [name ...]
 """
@@ -13,6 +13,7 @@ import contextlib
 import importlib.util
 import io
 import sys
+import tempfile
 from pathlib import Path
 from typing import Callable, Dict, List, Tuple
 
@@ -61,6 +62,20 @@ def _pages_module(name: str):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def _guides_module(name: str):
+    """Imports a How-To script by its file name; it may import its sibling scripts."""
+    folder = ROOT / "docs" / "snippets" / "guides"
+    sys.path.insert(0, str(folder))
+    try:
+        spec = importlib.util.spec_from_file_location(name, folder / f"{name}.py")
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+    finally:
+        sys.path.remove(str(folder))
 
 
 def _save(fig, name: str) -> None:
@@ -661,6 +676,26 @@ def fit_the_inputs() -> None:
     result.plot(CHARTS_DIR / "fit-the-inputs.png")
 
 
+def animate_a_run() -> None:
+    """Animate a Run: the shop's two minutes, animated with vidigi, as a Plotly page
+    that loads plotly.js from its CDN, so the file stays small."""
+    module = _guides_module("animate_a_run")
+    with tempfile.TemporaryDirectory() as folder:
+        figure = module.make(Path(folder))
+    CHARTS_DIR.mkdir(parents=True, exist_ok=True)
+    page = CHARTS_DIR / "animate-a-run.html"
+    figure.write_html(
+        page,
+        include_plotlyjs="cdn",
+        config={"responsive": True},  # fits the width of the page
+        div_id="animate-a-run",  # a fixed id, so a new run writes the same file
+    )
+    # End the file with a newline, as the pre-commit hooks require
+    page.write_text(
+        page.read_text(encoding="utf-8").rstrip("\n") + "\n", encoding="utf-8"
+    )
+
+
 CHARTS: Dict[str, Callable[[], None]] = {
     "distribution-shapes": distribution_shapes,
     "priorities-wait": priorities_wait,
@@ -678,13 +713,14 @@ CHARTS: Dict[str, Callable[[], None]] = {
     "queues-wait": queues_wait,
     "choosing-inputs": choosing_inputs,
     "fit-the-inputs": fit_the_inputs,
+    "animate-a-run": animate_a_run,
 }
 
 
 def main(names) -> None:
     for name in names or CHARTS:
         CHARTS[name]()
-        print(f"{name} -> docs/assets/charts/{name}.png")
+        print(f"{name} -> {next(CHARTS_DIR.glob(f'{name}.*')).relative_to(ROOT)}")
 
 
 if __name__ == "__main__":

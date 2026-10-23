@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import queue
 from pathlib import Path
 
@@ -7,6 +8,31 @@ import yaml
 
 from desflow.core.environment import DynamicRealtimeEnvironment
 from desflow.models.params import CapacityConfig, DistributionConfig, SimParameter
+
+
+@pytest.fixture(autouse=True)
+def restore_desflow_log_level():
+    """
+    Puts the levels of `desflow` and its child loggers back after each test.
+
+    Several doc snippets and examples quieten a logger with, for example,
+    `logging.getLogger("desflow").setLevel(logging.WARNING)` when imported. The docs
+    tests import them in the worker's process, and without this a later test that
+    reads INFO records with caplog finds none.
+    """
+
+    def levels():
+        return {
+            name: logger.level
+            for name, logger in logging.Logger.manager.loggerDict.items()
+            if (name == "desflow" or name.startswith("desflow."))
+            and isinstance(logger, logging.Logger)
+        }
+
+    before = levels()
+    yield
+    for name in levels():
+        logging.getLogger(name).setLevel(before.get(name, logging.NOTSET))
 
 
 @pytest.fixture

@@ -38,6 +38,8 @@ Priority so far decided only who goes next. **Preemption** also stops the work i
     ),
     ```
 
+    [`preempt=True`](../des/simpy-and-desflow.md#resources) gives the resource SimPy's preemption, and the process that holds a unit [receives an interrupt](../des/simpy-and-desflow.md#interrupts) when it is preempted. The code below calls [`release(request)`](https://simpy.readthedocs.io/en/4.1.2/api_reference/simpy.resources.html#simpy.resources.resource.Resource.release), reads `env.active_process`, the [process that is running now](https://simpy.readthedocs.io/en/4.1.2/api_reference/simpy.core.html#simpy.core.Environment.active_process), and calls `request.cancel()`, which [takes a request that has not been granted out of the queue](https://simpy.readthedocs.io/en/4.1.2/api_reference/simpy.resources.html#simpy.resources.base.Put.cancel).
+
 Equal priorities do not preempt, so one express order does not take the packer from another; SimPy's one exception, a user whose request with `preempt: false` was made at the same moment, does not arise here.
 
 ---
@@ -146,7 +148,7 @@ It publishes `preempted` (or `interrupted`) when it loses the packer, and `resum
         env.stats.flow_finished(arrival)
     ```
 
-    The process catches `simpy.Interrupt`, whose cause is SimPy's `Preempted` for a preemption, gives back its request, and asks again. That loop is what `on_interrupt` writes for you. SimPy delivers an interrupt as an `URGENT` event, so it comes before the other events at that time; `env.schedule(event, priority, delay)` schedules your own events the same way.
+    The process catches `simpy.Interrupt`, whose cause is SimPy's `Preempted` for a preemption, gives back its request, and asks again. That loop is what `on_interrupt` writes for you. SimPy delivers an interrupt as an `URGENT` event, so it comes before the other events at that time; [`env.schedule(event, priority, delay)`](https://simpy.readthedocs.io/en/4.1.2/api_reference/simpy.core.html#simpy.core.Environment.schedule) schedules your own events the same way.
 
 The statistics count each `preempted`, `interrupted` and `resumed`; a resumed order's wait is the sum of its waits, and its packing time is the time it was packed:
 
@@ -286,7 +288,7 @@ abandon: 313 preempted, 1294 packed, mean wait  3.60 s, mean packing 1.50 s
 
 ## Why It Works
 
-Under `restart` the packer spends part of its time on packing that is thrown away, so it does more work for the same orders: the mean time packed rises from 1.50 to 1.69 seconds, the load nears what one packer can do, and waits grow fast, as on [Queues and Capacity](queues-and-capacity.md). `resume` loses no work, so its waits are close to those of plain priority. `abandon` looks best only because the mean leaves out the orders it lost; count them beside it. [Priority and Preemption](../user-guide/resources/priority-and-preemption.md#preemption) describes preemption, and [Tasks and Processes](../user-guide/tasks-and-processes/index.md) the task's steps.
+Under `restart` the packer spends part of its time on packing that is thrown away, so it does more work for the same orders: the mean time packed rises from 1.50 to 1.69 seconds, the load nears what one packer can do, and waits grow fast, as [Queueing Basics](../des/queueing-basics.md#waits-near-full-use) explains. `resume` loses no work, so its waits are close to those of plain priority. `abandon` looks best only because the mean leaves out the orders it lost; count them beside it. [Priority and Preemption](../user-guide/resources/priority-and-preemption.md#preemption) describes preemption, and [Tasks and Processes](../user-guide/tasks-and-processes/index.md) the task's steps.
 
 ---
 

@@ -156,7 +156,7 @@ Why do runs differ, and how can you reproduce one? Runs differ because they star
 
 ## Why It Works
 
-One stream per input means that two versions of a model run with the same seed see the same arrivals and the same service times wherever they share them. A difference between their results then comes from the change, not from different random numbers. This is called **common random numbers**, and it is how two designs are compared fairly. [Arrivals and Services](../user-guide/arrivals-and-services.md) describes how each stream is made, and [Distributions](../reference/distributions.md) lists every family with its parameters.
+One stream per input means that two versions of a model run with the same seed see the same arrivals and the same service times wherever they share them. A difference between their results then comes from the change, not from different random numbers. This is called **common random numbers** ([Output Analysis](../des/output-analysis.md#comparing-designs) explains it), and it is how two designs are compared fairly. [Arrivals and Services](../user-guide/arrivals-and-services.md) describes how each stream is made, and [Distributions](../reference/distributions.md) lists every family with its parameters.
 
 ---
 

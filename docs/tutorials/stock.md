@@ -81,6 +81,8 @@ Packing an order takes one box. The task gets its packer first and then its box,
         yield shop["stock"].get(1)
     ```
 
+    The stock is a SimPy container: `get(1)` is an event that happens when the level covers the amount, and the process waits at the `yield` until then. [SimPy and desflow](../des/simpy-and-desflow.md#containers-and-stores) describes containers and stores.
+
 A delivery arrives every 100 seconds, and its task puts the boxes on the shelf. It waits while there is no room for all of them. It has no service and no resource, so it takes no time and publishes its payload once the boxes are on the shelf:
 
 === "YAML"
@@ -208,7 +210,7 @@ deliveries of 40: mean wait 341.89 s
 
 ## Why It Works
 
-Stock adds a second queue: orders wait at the shelf as well as at the packer. Because packing takes its packer before its box, the shelf's queue is never longer than the number of packers, and the rest of the orders wait in the packer queue behind it, so an empty shelf also stops the packer. Taking the box first would put the long queue at the shelf and keep the packer free, which suits a task whose resource is scarce. Either way, supply below demand means a queue that grows for as long as the run lasts. [Stores and Containers](../user-guide/stores-and-containers.md) describes both kinds of holding.
+Stock adds a second queue: orders wait at the shelf as well as at the packer. Because packing takes its packer before its box, the shelf's queue is never longer than the number of packers, and the rest of the orders wait in the packer queue behind it, so an empty shelf also stops the packer. Taking the box first would put the long queue at the shelf and keep the packer free, which suits a task whose resource is scarce. Either way, supply below demand means a queue that grows for as long as the run lasts, as [Queueing Basics](../des/queueing-basics.md#parts-of-a-queue) explains for a packer. [Stores and Containers](../user-guide/stores-and-containers.md) describes both kinds of holding.
 
 ---
 

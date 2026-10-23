@@ -73,6 +73,25 @@ app.run(until="1 week")  # 604,800 simulation seconds; a number is seconds too
 
 The run stops at `until` before any event due at exactly that time, as SimPy's `run(until=...)` does: an order due at the horizon never arrives, and a task due to finish there stays unfinished. Statistics published at teardown read the model at `until`.
 
+Events due at the same time run by priority, and then in the order they were scheduled (SimPy 4.1.2, `core.py`: `schedule` and `run`; `URGENT` and `NORMAL` in `events.py`). `run(until=...)` schedules its stop at urgent priority, so the stop comes before the ordinary events due at that time. How a scenario step or a change from an ingress connector ranks among them is in [Live Parameters](../live-parameters.md#script-an-experiment). Here two orders are packed at 5 seconds, and one is due at the horizon of 10 seconds:
+
+```python title="docs/snippets/pages/pacing.py:same-time"
+ties = DynamicRealtimeEnvironment(factor=0.0)
+packed = []
+
+
+def pack(name, seconds):
+    yield ties.timeout(seconds)
+    packed.append(name)
+
+
+ties.process(pack("first", 5))
+ties.process(pack("second", 5))  # due at the same time: runs after "first"
+ties.process(pack("at the horizon", 10))
+ties.run(until=10)
+print(packed)  # ['first', 'second']: nothing due at 10 runs
+```
+
 Without `until`, SimPy runs until no events remain, and a run with an arrival never runs out of events. Neither does any run with a sink or an ingress connector, even when its own work is done, because the environment's own processes repeat for as long as the run lasts. Give such a run an `until`, a `stop` or a drain, or stop it with Ctrl+C.
 
 ### Stop Early

@@ -1,0 +1,19 @@
+<mxfile>
+  <diagram name="verify-and-validate" id="verify-and-validate">
+    <mxGraphModel grid="0" page="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="c2" value="Verification and validation check different links" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=16;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="720" height="30" as="geometry"/></mxCell>
+        <mxCell id="c3" value="The real packing shop" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=2;spacing=8;" vertex="1" parent="1"><mxGeometry x="240" y="50" width="240" height="70" as="geometry"/></mxCell>
+        <mxCell id="c4" value="Model on paper" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;spacing=8;" vertex="1" parent="1"><mxGeometry x="0" y="250" width="240" height="90" as="geometry"/></mxCell>
+        <mxCell id="c5" value="Program (SimulationContext)" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;spacing=8;" vertex="1" parent="1"><mxGeometry x="480" y="250" width="240" height="90" as="geometry"/></mxCell>
+        <mxCell id="c6" value="describe" style="edgeStyle=orthogonalEdgeStyle;rounded=0;sketch=1;html=1;strokeWidth=2;endArrow=block;strokeColor=#666666;fontFamily=Comic Sans MS;fontSize=13;labelBackgroundColor=#ffffff;exitX=0;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="c3" target="c4"><mxGeometry relative="1" as="geometry"></mxGeometry></mxCell>
+        <mxCell id="c7" value="verification" style="edgeStyle=orthogonalEdgeStyle;rounded=0;sketch=1;html=1;strokeWidth=3;endArrow=block;strokeColor=#6c8ebf;fontFamily=Comic Sans MS;fontSize=13;labelBackgroundColor=#ffffff;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="c4" target="c5"><mxGeometry relative="1" as="geometry"></mxGeometry></mxCell>
+        <mxCell id="c8" value="validation" style="edgeStyle=orthogonalEdgeStyle;rounded=0;sketch=1;html=1;strokeWidth=2;endArrow=block;strokeColor=#666666;fontFamily=Comic Sans MS;fontSize=13;labelBackgroundColor=#ffffff;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="c5" target="c3"><mxGeometry relative="1" as="geometry"></mxGeometry></mxCell>
+        <mxCell id="c9" value="Verification: does the program do what the model on paper says?" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=13;" vertex="1" parent="1"><mxGeometry x="0" y="370" width="340" height="60" as="geometry"/></mxCell>
+        <mxCell id="c10" value="Validation: do the program&#x27;s results match the real shop?" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=13;" vertex="1" parent="1"><mxGeometry x="380" y="370" width="340" height="60" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

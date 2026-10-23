@@ -3,7 +3,6 @@ from __future__ import annotations
 import bisect
 import itertools
 import math
-import warnings
 from typing import Any, ClassVar, List, Optional, Tuple, Union
 
 from simpy import Environment, Event
@@ -148,17 +147,6 @@ class _RequestQueue(list):
                 del self[index]
                 return True
         return False
-
-    @property
-    def items(self) -> List[Tuple[Tuple[Any, ...], DynamicResourceRequest]]:
-        """The `(rank, request)` pairs, in service order; use the queue itself."""
-        warnings.warn(
-            "resource.queue.items is deprecated and will be removed in 0.24.0; "
-            "resource.queue is the list of waiting requests",
-            FutureWarning,
-            stacklevel=2,
-        )
-        return [(waiting._rank, waiting) for waiting in self]
 
 
 class ResourceBase(BaseDynamicResource):

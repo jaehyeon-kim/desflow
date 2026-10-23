@@ -23,11 +23,11 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-# Python and YAML blocks labelled with a file from examples/ or docs/snippets/. A
+# Python, YAML, CSV and JSON blocks labelled with a file from examples/ or docs/snippets/. A
 # block inside a content tab is indented, so the fence's indent is captured and the
 # closing fence must carry the same one. Options such as hl_lines follow the title.
 BLOCK = re.compile(
-    r'^( *)```(?:python|yaml) title="((?:examples|docs/snippets)/[^"]+)"[^\n]*\n(.*?)\n\1```$',
+    r'^( *)```(?:python|yaml|csv|json) title="((?:examples|docs/snippets)/[^"]+)"[^\n]*\n(.*?)\n\1```$',
     re.S | re.M,
 )
 # A named section of a file, between its start and end comment lines.

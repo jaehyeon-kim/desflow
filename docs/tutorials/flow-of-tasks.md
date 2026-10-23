@@ -233,7 +233,7 @@ How do orders move through pick, pack and ship? Most go straight through, and a 
 
 ## Why It Works
 
-In a flow, each task's arrival rate follows from the rates into it and the routing weights: this is **flow balance**. Every pack leads to a shipment with probability 0.95, so each order is packed 1 ÷ 0.95 = 1.05 times on average, and the packers see 5% more work than there are orders. A rework loop raises utilisation in the same way, which is why it belongs in the load you work out before running. [Task Flow](../user-guide/task-flow.md) describes routing in full.
+In a flow, each task's arrival rate follows from the rates into it and the routing weights: this is **flow balance**. Every pack leads to a shipment with probability 0.95, so each order is packed 1 ÷ 0.95 = 1.05 times on average, and the packers see 5% more work than there are orders. A rework loop raises utilisation in the same way, which is why it belongs in the load you work out before running. [Queueing Basics](../des/queueing-basics.md#waits-near-full-use) shows why waits grow quickly near full use. [Task Flow](../user-guide/task-flow.md) describes routing in full.
 
 ---
 

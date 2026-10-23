@@ -50,6 +50,7 @@ def pack_order(env, sampler, packers, key, task_id):
         env.publish_event(key, value, task="pack_order", instance=task_id)
 
     publish({"path_id": path_id, "status": "queued"})
+    env.stats.flow_started("orders")  # the order enters the shop
     env.stats.task_queued("pack_order", task_id)
     with packers.request() as request:
         yield request

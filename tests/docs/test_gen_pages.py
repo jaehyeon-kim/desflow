@@ -41,6 +41,22 @@ def test_every_statistic_has_a_meaning_and_each_level_adds_to_the_last():
         assert f"`{name}`" in page  # _meaning raises KeyError for a new statistic
 
 
+def test_yaml_keys_page_lists_every_key():
+    import json
+
+    from desflow.blueprint.schema import schema_text
+
+    schema = json.loads(schema_text())
+    page = gen_pages.yaml_keys_page()
+    for key in schema["properties"]:
+        assert f"\n## {key}\n" in page
+    for name, node in schema["$defs"].items():
+        for key in node.get("properties", {}):
+            assert f"| `{key}` |" in page, f"{name}.{key}"
+    # one line per paragraph, as the writing rules ask
+    assert "\n\n".join(gen_pages._paragraphs("a\nb\n\nc")) == "a b\n\nc"
+
+
 ROOT = _SCRIPT.parents[1]
 
 

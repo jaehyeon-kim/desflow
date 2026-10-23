@@ -11,6 +11,7 @@ import importlib.util
 import json
 import logging
 import queue
+import shutil
 import sys
 from pathlib import Path
 
@@ -46,14 +47,18 @@ def _captured(app, until):
 
 
 def _load(name):
-    sys.path.insert(0, str(GUIDES))
+    return _load_from(GUIDES, name)
+
+
+def _load_from(folder, name):
+    sys.path.insert(0, str(folder))
     try:
-        spec = importlib.util.spec_from_file_location(name, GUIDES / f"{name}.py")
+        spec = importlib.util.spec_from_file_location(name, folder / f"{name}.py")
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         return module
     finally:
-        sys.path.remove(str(GUIDES))
+        sys.path.remove(str(folder))
 
 
 def _events(caplog):
@@ -273,3 +278,117 @@ def test_fit_a_distribution_gaps(tmp_path, capsys):
     yaml_app.run()
     for run in (app, yaml_app):
         assert run.env.stats.readings()["Shop.stats.flows.orders.finished"] == 1302
+
+
+def test_test_a_model_tests_pass_and_the_saved_results_are_current(
+    tmp_path, monkeypatch
+):
+    """The three kinds of test pass; the waits fall from 2.055 s with one packer to
+    0.111 s with two and 0.016 s with three; and saving the results writes the file
+    the back test reads."""
+    module = _load("test_a_model")
+    module.test_more_packers_shorten_the_wait()
+    module.test_results_match_the_saved_run()
+    for packers, wait in ((1, 2.055375), (2, 0.110574), (3, 0.016206)):
+        assert module.results(packers=packers)["wait_mean"] == wait
+    assert module.results() == {"finished": 319, "wait_mean": 0.110574}
+    for settings in (
+        {"dist": "exponential", "rate": 0},
+        {"dist": "constant", "value": -1},
+    ):
+        module.test_a_distribution_that_cannot_happen_is_refused(settings)
+    monkeypatch.setattr(module, "SAVED", tmp_path / "saved.json")
+    module.save_results()
+    assert (tmp_path / "saved.json").read_text() == (
+        GUIDES / "test_a_model_saved.json"
+    ).read_text()
+
+
+def test_analyse_the_event_log_waits_and_throughput(tmp_path):
+    """Two minutes of one packer write 191 event rows, which become 318 log rows for
+    64 orders; 63 leave the shop, the mean wait is 1.250 s and 31.5 orders leave each
+    minute; every start is the later of the arrival and the last start plus 1.5 s."""
+    module = _load("analyse_the_event_log")
+    module.run(tmp_path)
+    events = module.read_events(tmp_path)
+    assert events.num_rows == 191
+    statuses = [row for row in events["status"].to_pylist()]
+    assert [statuses.count(s) for s in ("queued", "started", "finished")] == [
+        64,
+        64,
+        63,
+    ]
+    log = module.event_log(events)
+    assert log.column_names == ["entity_id", "event_type", "event", "time", "run"]
+    assert log.num_rows == 318 and set(log["run"].to_pylist()) == {1}
+    per_order = module.waits_and_times(log)
+    assert len(per_order) == 64 and len(module.times(log, "depart")) == 63
+    assert per_order["orders-1"] == {"wait": 0.0, "in_shop": 1.5}
+    assert max(row["wait"] for row in per_order.values()) == 3.66
+    assert round(module.mean_wait(per_order), 3) == 1.25
+    assert module.throughput_per_minute(log, module.RUN_SECONDS) == 31.5
+    arrived = module.times(log, "arrival")
+    started = module.times(log, "packing_start")
+    last = None
+    for order in sorted(started, key=started.get):
+        expected = arrived[order] if last is None else max(arrived[order], last + 1.5)
+        assert started[order] == pytest.approx(expected)
+        last = started[order]
+    # The log is sorted by time
+    times = log["time"].to_pylist()
+    assert times == sorted(times)
+
+
+def test_animate_a_run_frames_and_entities(tmp_path):
+    """The animation of the two-minute run has 61 frames, one for every 2 seconds
+    from 0 to 120, and draws the 64 orders of Analyse the Event Log."""
+    import vidigi  # noqa: F401  (a missing dev dependency fails the test)
+
+    module = _load("animate_a_run")
+    figure = module.make(tmp_path)
+    assert len(figure.frames) == 61
+    assert [frame.name for frame in figure.frames][:3] == ["0", "2", "4"]
+    assert figure.frames[-1].name == "120"
+    assert module.vidigi_log(tmp_path)["entity_id"].nunique() == 64
+
+
+def test_share_by_weight_grants_by_finish_tag_in_every_form(tmp_path, monkeypatch):
+    """Nine orders arrive at time 0: tier 2, six of tier 1, two of tier 2. Tier 1
+    weighs 3 and tier 2 weighs 1, and the first order takes the packer, so the
+    finish tags are worked out by hand here.
+
+    The first order of tier 2 is granted at once with tag 1, and the queue's clock
+    becomes 1. Tier 1 then gets 4/3, 5/3, 2, 7/3, 8/3 and 3 (1/3 more each time);
+    tier 2 gets 2 and 3 (1 more each time). The smallest tag goes first, and at the
+    tags 2 and 3 the order that arrived first goes first, which is tier 1. So the
+    tags are granted 4/3, 5/3, 2 (tier 1), 2 (tier 2), 7/3, 8/3, 3 (tier 1), 3 (tier 2),
+    and the tiers in grant order, including the first order, are 2, 1, 1, 1, 2, 1, 1, 1, 2.
+    First in, first out would give
+    2, 1, 1, 1, 1, 1, 1, 2, 2.
+    """
+    # A reader copies the page's files into one folder and runs the script there
+    for source in (
+        GUIDES / "share_by_weight.py",
+        *(ROOT / "docs" / "snippets" / "yaml").glob("share_by_weight*"),
+    ):
+        shutil.copy(source, tmp_path)
+    monkeypatch.chdir(tmp_path)
+    module = _load_from(tmp_path, "share_by_weight")
+    by_hand = [2, 1, 1, 1, 2, 1, 1, 1, 2]
+    fifo = [2, 1, 1, 1, 1, 1, 1, 2, 2]
+    assert module.TIERS == fifo  # the orders arrive in the first in, first out order
+    assert by_hand != fifo
+    for form in (module.yaml_form, module.builder_form, module.low_level_form):
+        assert form() == by_hand
+
+
+def test_editor_settings_hold_the_schema_and_the_three_tags():
+    """Set Up Your Editor shows one settings object: the schema for a folder of
+    blueprints and the three tags a blueprint uses."""
+    settings = json.loads((ROOT / "docs/snippets/editor/settings.json").read_text())
+    assert settings["yaml.customTags"] == [
+        "!python scalar:string",
+        "!include scalar:object",
+        "!include mapping:object",
+    ]
+    assert list(settings["yaml.schemas"].values()) == ["blueprints/*.yaml"]

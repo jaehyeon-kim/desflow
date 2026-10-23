@@ -41,6 +41,7 @@ _spec.loader.exec_module(gen_pages)
 GENERATED = {
     "reference/distributions": gen_pages.distributions_page,
     "reference/statistics": gen_pages.statistics_page,
+    "reference/yaml-keys": gen_pages.yaml_keys_page,
     "reference/simpy-compatibility": gen_pages.compatibility_page,
 }
 

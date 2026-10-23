@@ -10,14 +10,17 @@ build.
   random generator of one example, computed by the family's own functions.
 - Statistics: every name each level publishes, found by running the statistics on a
   model with one resource, store, container, task and flow.
+- YAML Keys: every key a blueprint takes, from the JSON Schema that ships with desflow
+  (`desflow schema`), which is also published as `schema/blueprint.schema.json`.
 - SimPy Compatibility: every operation in `tests/conformance/register.yaml`, with its
   form in each API, the conformance tests that compare it with SimPy, and its page.
 """
 
+import json
 import re
 import tomllib
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Set
 
 ROOT = Path(__file__).resolve().parents[1]
 REGISTER = ROOT / "tests" / "conformance" / "register.yaml"
@@ -91,12 +94,7 @@ def _number(value: float) -> str:
 
 def distributions_page() -> str:
     """The Distributions reference page, as Markdown."""
-    from desflow.core.distributions import (
-        DISTRIBUTIONS,
-        TIME_LIST_PARAMETERS,
-        TIME_PARAMETERS,
-    )
-    from desflow.models.params import DistributionConfig
+    from desflow.core.distributions import TIME_LIST_PARAMETERS, TIME_PARAMETERS
 
     lines: List[str] = [
         "# Distributions",
@@ -115,6 +113,21 @@ def distributions_page() -> str:
         'value=120)`, not `value="2 min"`; a task\'s `patience` takes a duration in '
         "the builder as well.",
         "",
+    ]
+    lines += distribution_sections()
+    return "\n".join(lines) + "\n"
+
+
+def distribution_sections() -> List[str]:
+    """The family table and one section per family, as lines of Markdown.
+
+    The Distributions page and the skill's `references/distributions.md` both use
+    these lines.
+    """
+    from desflow.core.distributions import DISTRIBUTIONS
+    from desflow.models.params import DistributionConfig
+
+    lines: List[str] = [
         "| Family | Parameters | Live paths |",
         "|---|---|---|",
     ]
@@ -155,7 +168,7 @@ def distributions_page() -> str:
             f"variance {_number(family.variance(config))}, and with no random "
             f"generator every draw is {_number(family.fixed(config))}.",
         ]
-    return "\n".join(lines) + "\n"
+    return lines
 
 
 def statistic_names() -> Dict[str, List[str]]:
@@ -457,6 +470,176 @@ def compatibility_page() -> str:
     return "\n".join(lines) + "\n"
 
 
+def _schema_text() -> str:
+    """The text of the blueprint JSON Schema that ships with the package."""
+    from desflow.blueprint.schema import schema_text
+
+    return schema_text()
+
+
+def _schema() -> Dict[str, Any]:
+    return json.loads(_schema_text())
+
+
+def _ref_name(node: Dict[str, Any]) -> Optional[str]:
+    ref = node.get("$ref")
+    return ref.rsplit("/", 1)[1] if isinstance(ref, str) else None
+
+
+def _models_in(node: Any, defs: Dict[str, Any]) -> List[str]:
+    """The names of the models a property refers to, in order."""
+    found: List[str] = []
+    if isinstance(node, dict):
+        name = _ref_name(node)
+        if name is not None and "properties" in defs[name]:
+            found.append(name)
+        for key in ("anyOf", "oneOf", "items", "additionalProperties"):
+            inner = node.get(key)
+            for item in inner if isinstance(inner, list) else [inner]:
+                found += [m for m in _models_in(item, defs) if m not in found]
+    return found
+
+
+def _type_text(node: Any, defs: Dict[str, Any], anchors: Dict[str, str]) -> str:
+    """What a property takes, in a few words. A model links to its section."""
+    if node is True or node == {}:
+        return "any value"
+    name = _ref_name(node)
+    if name is not None:
+        if name == "Placeholder":
+            return ""
+        target = defs[name]
+        if "properties" in target:
+            return f"[{name}](#{anchors.get(name, name.lower())})"
+        return str(target.get("title", name))
+    if "title" in node:
+        return str(node["title"])
+    if "enum" in node:
+        return " or ".join(f"`{value}`" for value in node["enum"])
+    if "anyOf" in node or "oneOf" in node:
+        parts: List[str] = []
+        for alt in node.get("anyOf") or node["oneOf"]:
+            if alt.get("type") == "null":
+                continue
+            text = _type_text(alt, defs, anchors)
+            if text and text not in parts:
+                parts.append(text)
+        return " or ".join(parts)
+    kind = node.get("type")
+    if kind == "array":
+        return f"list of {_type_text(node.get('items', {}), defs, anchors)}".rstrip()
+    if kind == "object":
+        extra = node.get("additionalProperties")
+        if extra in (None, True):
+            return "mapping"
+        return f"mapping of names to {_type_text(extra, defs, anchors)}"
+    if "title" in node:
+        return str(node["title"])
+    return {"string": "text"}.get(str(kind), str(kind))
+
+
+def _default_text(prop: Dict[str, Any], required: bool) -> str:
+    if required:
+        return "required"
+    if "default" not in prop:
+        return ""
+    value = prop["default"]
+    if value is None:
+        return "none"
+    return f"`{json.dumps(value)}`"
+
+
+def _paragraphs(text: str) -> List[str]:
+    """A docstring as Markdown paragraphs of one line each."""
+    return [" ".join(part.split()) for part in text.strip().split("\n\n") if part]
+
+
+def yaml_keys_body(level: int = 2) -> List[str]:
+    """One section per top-level key of a blueprint, as lines of Markdown.
+
+    A key whose entries are a model shows that model's keys in a table, and each model
+    nested in it follows as a section of its own, in the order it is first used.
+    `level` is the heading level of the top-level keys. The YAML Keys page and the
+    skill's `references/blueprint-keys.md` both use these lines.
+    """
+    schema = _schema()
+    defs = schema["$defs"]
+    top = schema["properties"]
+    hashes = "#" * level
+    sub = "#" * (level + 1)
+
+    # A model that is the entry of a top-level key is shown under that key
+    primary: Dict[str, str] = {}
+    for key, prop in top.items():
+        models = _models_in(prop, defs)
+        if models and models[0] not in primary.values():
+            primary[key] = models[0]
+    anchors = {model: key for key, model in primary.items()}
+    taken: Set[str] = set()
+
+    def table(model: str) -> List[str]:
+        required = set(defs[model].get("required", []))
+        rows = ["| Key | Type | Default |", "|---|---|---|"]
+        for name, prop in defs[model]["properties"].items():
+            rows.append(
+                f"| `{name}` | {_type_text(prop, defs, anchors)} | "
+                f"{_default_text(prop, name in required)} |"
+            )
+        return rows
+
+    def section(model: str, heading: Optional[str]) -> List[str]:
+        """The description and table of a model, then the models nested in it."""
+        taken.add(model)
+        lines: List[str] = []
+        if heading:
+            lines += [heading, ""]
+        for paragraph in _paragraphs(defs[model].get("description", "")):
+            lines += [paragraph, ""]
+        lines += table(model) + [""]
+        for prop in defs[model]["properties"].values():
+            for nested in _models_in(prop, defs):
+                if nested not in taken and nested not in primary.values():
+                    lines += section(nested, f"{sub} {nested}")
+        return lines
+
+    lines: List[str] = []
+    for key, prop in top.items():
+        required = key in schema.get("required", [])
+        lines += [f"{hashes} {key}", ""]
+        # A key that is one model needs no link to the table that follows
+        kind = "mapping" if _ref_name(prop) else _type_text(prop, defs, anchors)
+        lines.append(f"Type: {kind}. " + ("Required." if required else "Optional."))
+        lines.append("")
+        if key in primary:
+            lines += section(primary[key], None)
+        else:
+            for nested in _models_in(prop, defs):
+                if nested not in taken:
+                    lines += section(nested, f"{sub} {nested}")
+    return lines
+
+
+def yaml_keys_page() -> str:
+    """The YAML Keys reference page, as Markdown."""
+    lines = [
+        "# YAML Keys",
+        "",
+        "Every key a blueprint file takes, generated from the JSON Schema that ships "
+        "with desflow. [YAML Format](yaml-format.md) explains how a file is read. "
+        "[Set Up Your Editor](../guides/set-up-your-editor.md) shows how to have "
+        "your editor complete and check these keys as you type.",
+        "",
+        "Each section below is a top-level key. A table lists the keys that an entry "
+        "of it takes, and a section follows for each entry nested in it. Where a "
+        "value is a number, a whole number, `true` or `false`, or one of a fixed "
+        "set of names, a `${VAR}` or `${VAR:-default}` reference is also "
+        "accepted, and a duration such as `5 min` is accepted where the type says "
+        "Duration.",
+        "",
+    ]
+    return "\n".join(lines + yaml_keys_body(2)).rstrip("\n") + "\n"
+
+
 def write() -> None:
     """Writes the generated pages into the docs build."""
     import mkdocs_gen_files
@@ -464,11 +647,16 @@ def write() -> None:
     for path, page in (
         ("reference/distributions.md", distributions_page()),
         ("reference/statistics.md", statistics_page()),
+        ("reference/yaml-keys.md", yaml_keys_page()),
         ("reference/simpy-compatibility.md", compatibility_page()),
     ):
         with mkdocs_gen_files.open(path, "w") as file:
             file.write(page)
         mkdocs_gen_files.set_edit_path(path, "scripts/gen_pages.py")
+    # The schema file as the package holds it, so the URL a modeline names serves the
+    # same text as `desflow schema`
+    with mkdocs_gen_files.open("schema/blueprint.schema.json", "w") as file:
+        file.write(_schema_text())
 
 
 # mkdocs-gen-files runs this file with runpy, under this name
