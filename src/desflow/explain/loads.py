@@ -10,12 +10,26 @@ from desflow.explain.models import Graph, Node, ResourceResult, TaskResult
 
 
 def resources(graph: Graph) -> List[Node]:
-    """The resource nodes, in graph order."""
+    """The resource nodes, in graph order.
+
+    Args:
+        graph: The graph.
+
+    Returns:
+        List[Node]: The resource nodes.
+    """
     return [node for node in graph.nodes if node.kind == "resource"]
 
 
 def users(graph: Graph) -> Dict[str, List[str]]:
-    """The tasks that use each resource, by resource node id."""
+    """The tasks that use each resource.
+
+    Args:
+        graph: The graph.
+
+    Returns:
+        Dict[str, List[str]]: Task node ids, by resource node id.
+    """
     using: Dict[str, List[str]] = {node.id: [] for node in resources(graph)}
     for edge in graph.edges:
         if edge.kind == "uses":
@@ -24,7 +38,14 @@ def users(graph: Graph) -> Dict[str, List[str]]:
 
 
 def processes(graph: Graph) -> List[str]:
-    """The `add_process` functions, which can use any resource."""
+    """The `add_process` functions, which can use any resource.
+
+    Args:
+        graph: The graph.
+
+    Returns:
+        List[str]: Their labels.
+    """
     return [n.label for n in graph.nodes if n.id.startswith("opaque:process.")]
 
 
