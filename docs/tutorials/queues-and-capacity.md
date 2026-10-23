@@ -526,7 +526,7 @@ How many packers keep the mean wait under 10 seconds? **3 packers**, as the mean
 
 ![Mean wait in the busy hour for 1 to 4 packers on a log scale: 1127 seconds with 1, 426 with 2, 1.27 with 3 and 0.20 with 4; the 10-second line separates 2 from 3](../assets/charts/queues-wait.png)
 
-With 3 packers the mean wait is 1.27 seconds. With 2 packers it is over 400 seconds and still growing when the hour ends. The answer is the first number of packers that brings utilisation below 1, because the shop's packing time is constant and 0.9 is not yet close enough to 1 for the wait to pass 10 seconds.
+With 3 packers the mean wait is 1.27 seconds, from one run of the hour with constant packing and the seed 42. [Common Mistakes](../des/common-mistakes.md#taking-one-run-as-the-answer) explains why later pages give other figures for this wait. With 2 packers it is over 400 seconds and still growing when the hour ends. The answer is the first number of packers that brings utilisation below 1, because the shop's packing time is constant and 0.9 is not yet close enough to 1 for the wait to pass 10 seconds.
 
 ## Why It Works
 

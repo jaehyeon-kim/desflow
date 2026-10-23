@@ -91,7 +91,7 @@ assert many_packers["Shop.stats.tasks.pack_order.wait_max"] == 0
 
 ## Check the Statistics Against Each Other
 
-Some relations hold for every model that settles, so they test the statistics without any hand calculation. **Little's law** is the main one: the average number of orders in a system equals the arrival rate times the average time an order spends in it. The queue length, the arrival rate and the mean wait are measured separately, so if they disagree, one of them is wrong. [Queueing Basics](queueing-basics.md) runs this check on the shop's busy hour: a queue of 3.417 orders against 1.782 orders a second times a wait of 1.9175 seconds, which is 3.417. The code runs that busy hour and checks the figures:
+Some relations hold for every model that settles, so they test the statistics without any hand calculation. **Little's law** is the main one: the average number of orders in a system equals the arrival rate times the average time an order spends in it. The queue length, the arrival rate and the mean wait are measured separately, so if they disagree, one of them is wrong. [Queueing Basics](queueing-basics.md) runs this check on one run of 20,000 seconds (about 5.6 hours) at the busy hour's rates, with constant packing: a queue of 3.417 orders against 1.782 orders a second times a wait of 1.9175 seconds, which is 3.417. The run is longer than the one-hour runs of other pages, and [Common Mistakes](common-mistakes.md#taking-one-run-as-the-answer) explains why the figures differ. The code makes that run and checks the figures:
 
 ```python title="docs/snippets/pages/checking_and_validating.py:little"
 # Little's law on the busy hour of Queueing Basics: queue length = arrival rate x mean wait

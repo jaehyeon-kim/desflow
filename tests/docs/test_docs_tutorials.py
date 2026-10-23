@@ -288,6 +288,43 @@ def test_trusting_results_warmup(api, monkeypatch):
     assert round(_trusting_wait(api, "2 min", monkeypatch), 3) == 1.381
 
 
+# The mean wait of 5 runs after each candidate warm-up: (mean, half-width), seconds
+TRUSTING_WARMUPS = {60: (2.196, 0.47), 120: (2.207, 0.47), 240: (2.232, 0.47)}
+
+
+def _shortest_warmup(table):
+    """The shortest warm-up after which no longer one moves the mean by more than
+    that one's half-width."""
+    warmups = sorted(table)
+    for i, warmup in enumerate(warmups):
+        mean = table[warmup][0]
+        later = warmups[i + 1 :]
+        if all(abs(table[w][0] - mean) <= table[w][1] for w in later):
+            return warmup
+
+
+@pytest.mark.parametrize("api", APIS)
+def test_trusting_results_candidate_warmups(api, monkeypatch):
+    """Five runs after warm-ups of 1, 2 and 4 minutes; by the rule, 1 minute is enough."""
+    wait = "tasks.pack_order.wait_mean"
+    if api == "yaml":
+        # The page's command, with each warm-up through the blueprint's ${WARMUP}
+        got = {}
+        for seconds, text in ((60, "1 min"), (120, "2 min"), (240, "4 min")):
+            monkeypatch.setenv("WARMUP", text)
+            mean, half_width = _cli_waits("trusting_results.yaml", 5, wait)[wait]
+            got[seconds] = (mean, round(half_width, 2))
+    else:
+        module = _load("trusting_results" + ("" if api == "builder" else "_low_level"))
+        rows = [result.summary[0] for result in module.warmups().values()]
+        got = {
+            seconds: (round(row["mean"], 3), round(row["half_width"], 2))
+            for seconds, row in zip(TRUSTING_WARMUPS, rows)
+        }
+    assert got == TRUSTING_WARMUPS
+    assert _shortest_warmup(got) == 60
+
+
 # (mean, half-width, half-width as a share of the mean in percent) after n runs
 TRUSTING_PRECISION = {
     ("tasks.pack_order.wait_mean", 5): (2.21, 0.47, 21.2),
@@ -1280,7 +1317,13 @@ def test_complete_model_warmups(api, monkeypatch):
         got = {}
         for w, text in ((0, "0"), (120, "2 min"), (600, "10 min")):
             monkeypatch.setenv("WARMUP", text)
-            got[w] = _complete_warmup_cli()
+            waits = _cli_waits(
+                "complete_model.yaml",
+                40,
+                "tasks.pick_order.wait_mean",
+                "tasks.pack_order.wait_mean",
+            )
+            got[w] = {name.split(".")[1][:4]: value for name, value in waits.items()}
     else:
         module = _load("complete_model" + ("" if api == "builder" else "_low_level"))
         results = dict(zip(COMPLETE_WARMUPS, module.warmups().values()))
@@ -1297,32 +1340,24 @@ def test_complete_model_warmups(api, monkeypatch):
     assert got == COMPLETE_WARMUPS
 
 
-def _complete_warmup_cli():
-    """The mean waits `desflow run complete_model.yaml --replications 40` prints."""
+def _cli_waits(blueprint, replications, *measures):
+    """The mean waits `desflow run <blueprint> --replications <n> --measure ...`
+    prints, as (mean, half-width) by measure."""
     import re
 
     from typer.testing import CliRunner
 
     from desflow.cli import app
 
+    arguments = ["run", blueprint, "--replications", str(replications)]
+    for measure in measures:
+        arguments += ["--measure", measure]
     with pytest.MonkeyPatch.context() as patch:
         patch.chdir(BLUEPRINTS)
-        run = CliRunner().invoke(
-            app,
-            [
-                "run",
-                "complete_model.yaml",
-                "--replications",
-                "40",
-                "--measure",
-                "tasks.pick_order.wait_mean",
-                "--measure",
-                "tasks.pack_order.wait_mean",
-            ],
-        )
+        run = CliRunner().invoke(app, arguments)
     assert run.exit_code == 0, run.output
     rows = re.findall(
-        r"^tasks\.(\w{4})\w*\.wait_mean +40 +(\S+) +(\S+)$", run.stdout, re.M
+        rf"^(tasks\.\w+\.wait_mean) +{replications} +(\S+) +(\S+)$", run.stdout, re.M
     )
     return {name: (round(float(m), 3), round(float(h), 3)) for name, m, h in rows}
 

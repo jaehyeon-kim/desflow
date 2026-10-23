@@ -18,7 +18,7 @@ Look at the diagram for the order of the steps. Two steps are checks: [Check the
 
 Start by writing down the question and the measures that will answer it. A study with no well-defined objective cannot say when it is finished, and Law lists this first among the pitfalls. Without specific questions the right level of model detail cannot be set either. For the shop the question is: **how many packers keep the mean wait under 10 seconds in the busy hour?** The measures are the mean wait of an order and how busy the packers are. The question also fixes the period (the busy hour), the system (the packing area, not the whole warehouse) and who decides (the shop manager).
 
-[Queues and Capacity](../tutorials/queues-and-capacity.md) answers this question: with 3 packers the mean wait is 1.27 seconds.
+[Queues and Capacity](../tutorials/queues-and-capacity.md) answers this question: 3 packers. [Trusting Results](../tutorials/trusting-results.md) measures the mean wait of an order with 3 packers over 40 replications, with the empirical packing times and a 2-minute warm-up: 2.32 ± 0.20 seconds, as [Output Analysis](output-analysis.md#replications) explains. [Common Mistakes](common-mistakes.md#taking-one-run-as-the-answer) explains why other pages give other figures for this wait.
 
 ---
 
@@ -52,7 +52,7 @@ The shop's model is built in [First Simulation](../tutorials/first-simulation.md
 
 ## Run the Experiments
 
-An experiment is a set of runs designed to answer the question. Decide the run length, the warm-up and the number of replications, then run each design and compute an interval for each measure. [Output Analysis](output-analysis.md) explains these choices, [Trusting Results](../tutorials/trusting-results.md) makes them for the shop, and [Comparing Designs](../tutorials/comparing-designs.md) compares three packers with four: the fourth cuts the busy hour's mean wait by 2.21 ± 0.31 seconds.
+An experiment is a set of runs designed to answer the question. Decide the run length, the warm-up and the number of replications, then run each design and compute an interval for each measure. [Output Analysis](output-analysis.md) explains these choices, [Trusting Results](../tutorials/trusting-results.md) makes them for the shop, and [Comparing Designs](../tutorials/comparing-designs.md) compares three packers with four: over 20 replications of each with the same seeds, the fourth cuts the busy hour's mean wait by 2.21 ± 0.31 seconds.
 
 ---
 

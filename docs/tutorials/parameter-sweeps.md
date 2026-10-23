@@ -1,6 +1,6 @@
 # Parameter Sweeps
 
-[Comparing Designs](comparing-designs.md) found that a fourth packer cuts the busy hour's mean wait from 2.48 to 0.27 seconds, at 1.8 orders a second. That rate is an estimate, and demand moves from day to day. This page asks: **how much does the answer depend on the arrival rate?** It runs both designs at four rates around the estimate.
+[Comparing Designs](comparing-designs.md) found that a fourth packer cuts the busy hour's mean wait from 2.48 to 0.27 seconds over 20 replications of each, at 1.8 orders a second. That rate is an estimate, and demand moves from day to day. This page asks: **how much does the answer depend on the arrival rate?** It runs both designs at four rates around the estimate.
 
 ## What You Add
 
@@ -41,7 +41,7 @@ A sweep runs every variant at every value of its paths. Here that is two variant
 
 Changing one input while every other stays as it is shows how sensitive the answer is to that input. This is **one-factor sensitivity**. A sweep with two paths runs every combination of their values, so its size is the product of the list lengths.
 
-Run it with `desflow experiment parameter_sweeps_experiment.yaml`, or `python parameter_sweeps.py` and `python parameter_sweeps_low_level.py`. Each design's name is its variant followed by its swept value, such as `three Shop.arrival.orders.rate=1.9`, and `results.csv` and `summary.csv` have a column for the swept path. The mean wait of each design, with the 95% half-width:
+Run it with `desflow experiment parameter_sweeps_experiment.yaml`, or `python parameter_sweeps.py` and `python parameter_sweeps_low_level.py`. Each design's name is its variant followed by its swept value, such as `three Shop.arrival.orders.rate=1.9`, and `results.csv` and `summary.csv` have a column for the swept path. The mean wait of each design over its 20 replications, with the 95% half-width. The row for 1.8 orders a second is the experiment of Comparing Designs; [Common Mistakes](../des/common-mistakes.md#taking-one-run-as-the-answer) explains why the busy hour's figures differ between pages:
 
 | Orders a second | Three packers (s) | Four packers (s) |
 |---|---|---|
@@ -53,6 +53,10 @@ Run it with `desflow experiment parameter_sweeps_experiment.yaml`, or `python pa
 ---
 
 ## Result
+
+The mean wait of each design against the arrival rate, with its 95% interval:
+
+![The busy hour's mean wait over 20 runs at 1.6, 1.7, 1.8 and 1.9 orders a second: with three packers it rises from 0.97 to 1.47, 2.48 and 5.55 seconds, its interval widening with the rate; with four packers it stays between 0.17 and 0.35 seconds](../assets/charts/sweep-waits.png)
 
 How much does the answer depend on the arrival rate? With three packers, a great deal: 1.9 orders a second, about 6% above the estimate, more than doubles the mean wait to **5.55 seconds**, and 1.6 orders a second cuts it to 0.97. With four packers the mean wait stays under **0.35 seconds** at every rate. So the decision to add a packer holds whatever the demand within this range, while the three-packer wait cannot be predicted well without a better estimate of the rate.
 

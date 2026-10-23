@@ -46,7 +46,7 @@ Plot the two against `sim_ts` for the first 15 minutes:
 
 ![Over the first 15 minutes of the busy hour, the queue read every 10 seconds moves between 0 and 13 from the first minute on; the mean wait so far climbs from 0.46 seconds to about 1.5 seconds in the first two minutes, then wanders between 1.1 and 1.6 seconds; a dashed line marks the end of a 2-minute warm-up](../assets/charts/trusting-warmup.png)
 
-The queue reaches its usual range within the first minute. The mean wait so far climbs for about a minute and a half, because the first orders found free packers, then moves up and down with no trend. **2 minutes** covers the climb with a margin, so that is the warm-up.
+The queue reaches its usual range within the first minute. The mean wait so far climbs for about a minute and a half, because the first orders found free packers, then moves up and down with no trend. The plot shows one seed only, so it cannot settle the warm-up. It suggests three candidates: 1 minute, when the queue reaches its usual range; 2 minutes, which covers the climb of the mean wait; and 4 minutes, twice that, to see whether a longer warm-up still moves the mean. The next section sets 2 minutes, and [Compare Warm-ups](#compare-warm-ups), after the replications, checks the three candidates with five seeds.
 
 ---
 
@@ -91,7 +91,7 @@ with a 2 min warm-up: mean wait 1.381 s
 
 ## Run It With Other Seeds
 
-The run above used one seed, 42. Another seed draws other arrival gaps and packing times, and gives another mean wait. One run cannot show how far apart those answers are, because the waits of orders in one run follow each other and are not independent samples. **Replications** show it: the same run repeated with other seeds, each giving one independent value of every statistic.
+The run in [Leave Out the Start](#leave-out-the-start) used one seed, 42. Another seed draws other arrival gaps and packing times, and gives another mean wait. One run cannot show how far apart those answers are, because the waits of orders in one run follow each other and are not independent samples. **Replications** show it: the same run repeated with other seeds, each giving one independent value of every statistic.
 
 Run the busy hour 40 times. The 40 seeds are spawned from the seed 42, so the set repeats exactly, and each replication leaves out the same 2-minute warm-up:
 
@@ -144,21 +144,72 @@ The mean of the 40 values is the estimate. Its **confidence interval** says how 
 | 20 | 2.48 | 0.32 | 13.0% | 90.33 | 0.63 | 0.7% |
 | 40 | 2.32 | 0.20 | 8.4% | 90.03 | 0.45 | 0.5% |
 
-The 40 mean waits range from 1.45 to 4.39 seconds. The run with the seed 42 measured 1.38 seconds, lower than any of them.
+The 40 mean waits range from 1.45 to 4.39 seconds. The run with the seed 42 measured 1.38 seconds, lower than any of them. [Common Mistakes](../des/common-mistakes.md#taking-one-run-as-the-answer) explains why other pages give other figures for this wait.
 
 ---
 
 ## Choose the Precision
 
-How many replications are enough depends on the decision, not on a fixed number such as 30. Choose the precision each output needs. Here it is a half-width within 10% of the mean. Utilisation meets it with 5 replications. Of the counts in the table, the mean wait first meets it at 40, because waits vary far more from run to run than how busy the packers are. So each output has its own precision, and the replications must be enough for the least precise output the decision reads.
+How many replications are enough depends on the decision, not on a fixed number such as 30. Choose the precision each output needs. Here it is a half-width within 10% of the mean. Utilisation meets it with 5 replications. Of the replication counts in the table of [Run It With Other Seeds](#run-it-with-other-seeds), the mean wait first meets it at 40, because waits vary far more from run to run than how busy the packers are. So each output has its own precision, and the replications must be enough for the least precise output the decision reads.
 
 The half-width shrinks with √n, so 10 replications at 11.0% suggest about 10 × (11.0 ÷ 10)² ≈ 12 for 10%. That is a guide, not a promise: the half-width is itself an estimate, and 20 replications gave 13.0%. Add replications, then read the half-width again.
 
 ---
 
+## Compare Warm-ups
+
+One seed is one path through the hour. Run five replications after each candidate warm-up, with the same five seeds spawned from 42, and compare the mean waits. Five replications are enough here, although the mean wait needs 40 for 10% precision. The comparison asks only whether a longer warm-up moves the mean by more than its half-width, and each candidate runs the same five seeds:
+
+=== "YAML"
+
+    ```bash
+    WARMUP="1 min" desflow run trusting_results.yaml --replications 5 --measure tasks.pack_order.wait_mean
+    ```
+
+    `WARMUP="2 min"` and `WARMUP="4 min"` run the other two candidates.
+
+=== "Builder"
+
+    ```python title="docs/snippets/tutorials/trusting_results.py:warmups"
+    def warmups(n=5) -> dict:
+        """The mean wait of n runs after each candidate warm-up, with seeds spawned from 42."""
+        wait = ["tasks.pack_order.wait_mean"]
+        return {
+            warmup: replicate(shop, n, seed=42, until="1 h", warmup=warmup, measures=wait)
+            for warmup in ("1 min", "2 min", "4 min")
+        }
+    ```
+
+=== "Low-level"
+
+    ```python title="docs/snippets/tutorials/trusting_results_low_level.py:warmups"
+    def warmups(n=5) -> dict:
+        """The mean wait of n runs after each candidate warm-up, with seeds spawned from 42."""
+        shop = LowLevelModel(model, sim_id="Shop")
+        wait = ["tasks.pack_order.wait_mean"]
+        return {
+            warmup: replicate(shop, n, seed=42, until=3600, warmup=warmup, measures=wait)
+            for warmup in (60, WARMUP, 240)
+        }
+    ```
+
+    `model` is the function from [Run It With Other Seeds](#run-it-with-other-seeds) above.
+
+The mean wait over the five replications, in seconds, with its 95% half-width:
+
+| Warm-up | Mean wait (s) |
+|---|---|
+| 1 minute | 2.196 ± 0.47 |
+| 2 minutes | 2.207 ± 0.47 |
+| 4 minutes | 2.232 ± 0.47 |
+
+Keep the shortest warm-up after which a longer one no longer moves the mean by more than its half-width, as [Output Analysis](../des/output-analysis.md#one-run-starts-empty) sets out. After 1 minute, the longer warm-ups move the mean by 0.011 and 0.036 seconds, far less than the half-width of 0.47 seconds, so the comparison gives **1 minute**. The plot of the seed 42 still climbs until about a minute and a half, and Output Analysis advises choosing the warm-up conservatively. So the page keeps **2 minutes**: it passes the comparison, and it is the shortest candidate that also covers the climb in the plot.
+
+---
+
 ## Result
 
-Is one run enough? No. Its start does not distort it: read from the plot, the busy hour needs a **2-minute warm-up**, which moves the mean wait of one run only from 1.382 to 1.381 seconds: the shop fills within a minute or two, and one hour is long enough that those minutes hardly count. A shorter run, or a start further from the usual state, such as a shop that opens with a backlog of orders, needs the warm-up much more. But one run's answer depends on its seed. The run with the seed 42 measured 1.38 seconds, lower than every one of 40 replications. Over 40 replications the mean wait is **2.32 ± 0.20 seconds** with 95% confidence, within the chosen 10% precision, and the packers are busy **90.03 ± 0.45%** of the time.
+Is one run enough? No. Its start does not distort it: over five seeds, a warm-up of **1 minute** is enough by the comparison of three candidates, and the page keeps **2 minutes** to cover the climb in the plot. A 2-minute warm-up moves the mean wait of one run only from 1.382 to 1.381 seconds: the shop fills within a minute or two, and one hour is long enough that those minutes hardly count. A shorter run, or a start further from the usual state, such as a shop that opens with a backlog of orders, needs the warm-up much more. But one run's answer depends on its seed. The run with the seed 42 measured 1.38 seconds, lower than every one of 40 replications. Over 40 replications the mean wait is **2.32 ± 0.20 seconds** with 95% confidence, within the chosen 10% precision, and the packers are busy **90.03 ± 0.45%** of the time.
 
 ## Why It Works
 
@@ -223,8 +274,9 @@ Replications ([Output Analysis](../des/output-analysis.md#replications) explains
 
         Three packers, orders at 1.8 a second and the measured packing times. Every record is
         printed to the terminal. At the end the script prints the mean wait without and with
-        the warm-up, then the mean and half-width of two outputs over 5, 10, 20 and 40
-        replications: python trusting_results.py 2>/dev/null shows only those lines.
+        the warm-up, the mean wait of 5 runs after each of three candidate warm-ups, then the
+        mean and half-width of two outputs over 5, 10, 20 and 40 replications:
+        python trusting_results.py 2>/dev/null shows only those lines.
         """
 
         import logging
@@ -288,6 +340,15 @@ Replications ([Output Analysis](../des/output-analysis.md#replications) explains
             return replicate(shop, n, seed=42, until="1 h", measures=MEASURES)
 
 
+        def warmups(n=5) -> dict:
+            """The mean wait of n runs after each candidate warm-up, with seeds spawned from 42."""
+            wait = ["tasks.pack_order.wait_mean"]
+            return {
+                warmup: replicate(shop, n, seed=42, until="1 h", warmup=warmup, measures=wait)
+                for warmup in ("1 min", "2 min", "4 min")
+            }
+
+
         def precision(result) -> dict:
             """Each output's mean and half-width over the first 5, 10, 20 and 40 runs."""
             return {
@@ -300,6 +361,11 @@ Replications ([Output Analysis](../des/output-analysis.md#replications) explains
         if __name__ == "__main__":
             print(f"without a warm-up: mean wait {mean_wait(None):.3f} s")
             print(f"with a 2 min warm-up: mean wait {mean_wait('2 min'):.3f} s")
+            for warmup, result in warmups().items():
+                row = result.summary[0]
+                print(
+                    f"warm-up {warmup}: mean wait {row['mean']:.3f} ± {row['half_width']:.2f} s"
+                )
             for (measure, n), result in precision(replications()).items():
                 share = result.half_width / result.mean
                 print(
@@ -314,9 +380,9 @@ Replications ([Output Analysis](../des/output-analysis.md#replications) explains
 
         Three packers, orders at 1.8 a second and the measured packing times. Every record is
         printed to the terminal. At the end the script prints the mean wait without and with
-        the warm-up, then the mean and half-width of two outputs over 5, 10, 20 and 40
-        replications: python trusting_results_low_level.py 2>/dev/null shows only those
-        lines.
+        the warm-up, the mean wait of 5 runs after each of three candidate warm-ups, then the
+        mean and half-width of two outputs over 5, 10, 20 and 40 replications:
+        python trusting_results_low_level.py 2>/dev/null shows only those lines.
         """
 
         import logging
@@ -425,6 +491,16 @@ Replications ([Output Analysis](../des/output-analysis.md#replications) explains
             return replicate(shop, n, seed=42, until=3600, warmup=WARMUP, measures=MEASURES)
 
 
+        def warmups(n=5) -> dict:
+            """The mean wait of n runs after each candidate warm-up, with seeds spawned from 42."""
+            shop = LowLevelModel(model, sim_id="Shop")
+            wait = ["tasks.pack_order.wait_mean"]
+            return {
+                warmup: replicate(shop, n, seed=42, until=3600, warmup=warmup, measures=wait)
+                for warmup in (60, WARMUP, 240)
+            }
+
+
         def precision(result) -> dict:
             """Each output's mean and half-width over the first 5, 10, 20 and 40 runs."""
             return {
@@ -437,6 +513,11 @@ Replications ([Output Analysis](../des/output-analysis.md#replications) explains
         if __name__ == "__main__":
             print(f"without a warm-up: mean wait {mean_wait(None):.3f} s")
             print(f"with a 2 min warm-up: mean wait {mean_wait(WARMUP):.3f} s")
+            for warmup, result in warmups().items():
+                row = result.summary[0]
+                print(
+                    f"warm-up {warmup:g} s: mean wait {row['mean']:.3f} ± {row['half_width']:.2f} s"
+                )
             for (measure, n), result in precision(replications()).items():
                 share = result.half_width / result.mean
                 print(

@@ -58,7 +58,7 @@ def spread_of_runs():
     return min(runs), max(runs), mean(runs)
 ```
 
-The runs range from 1.52 seconds, 28% below the mean, to 2.75 seconds, 30% above it, and the mean is 2.11 seconds. This differs from the 2.25 seconds that [Trusting Results](../tutorials/trusting-results.md) reads after its first 10 replications, because that shop uses measured packing times and a 2-minute warm-up. A report that gave one run alone could be that far off. Run replications and report the mean with an interval. [Output Analysis](output-analysis.md) explains replications and how many to use.
+The runs range from 1.52 seconds, 28% below the mean, to 2.75 seconds, 30% above it, and the mean is 2.11 seconds. A report that gave one run alone could be that far off. The busy hour's mean wait has other values on other pages, because the pages run it in different ways: one run or several replications, constant or empirical packing times, with or without a warm-up, and for one hour or longer. Each page says which. These 10 runs use constant packing and no warm-up. [Trusting Results](../tutorials/trusting-results.md) reads 2.25 seconds after its first 10 replications, because its shop uses the empirical packing times and a 2-minute warm-up. Run replications and report the mean with an interval. [Output Analysis](output-analysis.md) explains replications and how many to use.
 
 ---
 
@@ -101,7 +101,7 @@ The interval now contains 14.25 seconds. Terminating questions do not need a war
 
 ## Comparing Designs With One Run Each
 
-Packing in 1.45 seconds instead of 1.5 is a real improvement, and 20 pairs of runs show how little one run of each can say about it.
+Packing in 1.45 seconds instead of 1.5 is a real improvement, and 20 runs of each design show how little one run of each can say about it.
 
 ```python title="docs/snippets/pages/common_mistakes.py:pairs"
 def one_run_each():
@@ -113,7 +113,7 @@ def one_run_each():
     return wrong, len(slow), mean(slow), mean(fast)
 ```
 
-The mean wait is 1.51 seconds for the faster design and 1.99 seconds for the slower one over the 20 runs each. But in 4 of the 20 pairs the single run of the slower design was at or below the single run of the faster one, so one run each would have said the change did not help. Compare designs with the same number of replications each and an interval on the difference, using common random numbers to reduce the noise. [Comparing Designs](../tutorials/comparing-designs.md) does this on the shop.
+Over the 20 runs each, with seeds spawned from 1 for the slower design and from 2 for the faster one, the mean wait is 1.99 seconds for the slower design and 1.51 seconds for the faster. These runs are not paired, so they are not the runs of the paired comparison in [Output Analysis](output-analysis.md#comparing-designs), which runs both designs with the seeds spawned from 42. But when the runs are matched in order, first with first, in 4 of the 20 matches the slower design's run was at or below the faster design's run, so one run each would have said the change did not help. Compare designs with the same number of replications each and an interval on the difference, using common random numbers to reduce the noise. [Comparing Designs](../tutorials/comparing-designs.md) does this on the shop.
 
 ---
 

@@ -44,7 +44,7 @@ Its mean is (low + mode + high) ÷ 3 = (1 + 1.25 + 2.25) ÷ 3 = 1.5 seconds. In 
 
 ## Measured Times
 
-When times can be measured, use them. An **empirical** distribution draws from a list of measured `values`, each equally likely (or with `weights`, one per value). These are 40 packing times timed at the bench, with a mean of 1.5 seconds:
+When times can be measured, use them. An **empirical** distribution draws from a list of measured `values`, each equally likely (or with `weights`, one per value). The 40 packing times below are illustrative: they stand for times taken at the bench, and their mean is 1.5 seconds:
 
 === "YAML"
 

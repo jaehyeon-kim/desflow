@@ -131,7 +131,7 @@ def throughput_per_minute(log: Table, seconds: float) -> float:
     return len(times(log, "depart")) / (seconds / 60)
 ```
 
-The first order waits **0.0** seconds and is in the shop **1.5**. The mean wait is **1.250** seconds and the longest is **3.66**. **63** orders leave in two minutes, a throughput of **31.5** orders a minute. The 64th is still being packed, so it has a wait and no time in the shop.
+The first order waits **0.0** seconds and is in the shop **1.5**. The mean wait is **1.250** seconds and the longest is **3.66**, in one 2-minute run of a shop with one packer, not the busy hour of the tutorials. **63** orders leave in two minutes, a throughput of **31.5** orders a minute. The 64th is still being packed, so it has a wait and no time in the shop. [Common Mistakes](../des/common-mistakes.md#taking-one-run-as-the-answer) explains why the tutorials' figures for a wait differ between pages.
 
 ---
 

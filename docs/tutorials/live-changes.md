@@ -210,6 +210,10 @@ Half a wall-clock second is 100 simulated seconds at this pace, and packing chan
 
 ## Result
 
+The wait of every order over the hour, by the time it was queued, with the jam and without it:
+
+![The wait of each order of one packer over the hour, by the time it was queued. Without the jam every wait stays under 10 seconds. With the jam, shaded from 20 to 30 minutes, the waits climb to about 147 seconds for orders queued near 27 minutes, then fall after the fix and meet the waits without the jam again at about 33 minutes](../assets/charts/jam-waits.png)
+
 How long does the jam keep orders waiting after the fix? The orders queued during the jam wait **80.85 seconds** on average, against **1.50** without it. The orders queued in the 10 minutes after the fix still wait **11.93 seconds** on average, against **1.04**. The last order that waits longer than in the baseline is queued at **1,987.8 seconds**, about 3 minutes after the fix, so the delay notice should stay up for about 3 minutes more. The two labels, at **1,200** and **1,800 seconds**, tell a reader what changed and when.
 
 The Builder and Low-level scripts print:

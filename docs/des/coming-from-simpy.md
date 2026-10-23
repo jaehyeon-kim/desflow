@@ -146,7 +146,7 @@ def trial():
     return result.summary[0]
 ```
 
-Both versions run 10 times for one hour from an empty shop, so the two answers estimate the same thing. They use different random numbers, so the values differ, but the check in the script asserts that they agree within their intervals.
+Both versions run 10 times for one hour from an empty shop, so the two answers estimate the same thing. They use different random numbers, so the values differ, but the check in the script asserts that they agree within their intervals. This shop has one packer and an order every 2 seconds on average, so its wait is not the wait of the tutorials' busy hour; [Common Mistakes](common-mistakes.md#taking-one-run-as-the-answer) explains why the busy hour's figures differ between pages.
 
 ```text
 plain SimPy: mean wait 2.30 ± 0.20 s over 10 runs

@@ -51,7 +51,7 @@ An experiment writes six files to its output folder:
 
 ### Read the Report
 
-`report.md` has these sections, and one with nothing to report says so: Question, Model, Assumptions, Inputs and Provenance (every distribution of the model with its parameters, and its provenance from `inputs` or "not stated"), Run Settings, Counts (the mean of each count the statistics publish, such as finished orders, for each design), Results (with the population each measure is taken over), Comparisons, Checks, Observed Comparison, Limits and Missing Inputs. Missing Inputs names what the experiment does not state, such as an input without a provenance, rather than filling it in. This is the middle of the example's report:
+`report.md` has these sections, and one with nothing to report says so: Question, Model, Assumptions, Inputs and Provenance (every distribution of the model with its parameters, and its provenance from `inputs` or "not stated"), Run Settings, Counts (the mean of each count the statistics publish, such as finished orders, for each design), Results (with the population each measure is taken over), Comparisons, Checks, Observed Comparison, Limits and Missing Inputs. Missing Inputs names what the experiment does not state, such as an input without a provenance, rather than filling it in. [Common Mistakes](../../des/common-mistakes.md#taking-one-run-as-the-answer) explains why the tutorials' figures for a wait differ between pages. The middle of the example's report follows. It is for the example's own shop, not the busy hour of the tutorials:
 
 <!-- records: experiment-report -->
 ```text

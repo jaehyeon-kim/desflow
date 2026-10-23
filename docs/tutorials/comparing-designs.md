@@ -109,7 +109,7 @@ The experiment runs 40 replications, 20 of each design, and writes what it found
 | three | 2.48 ± 0.32 | 90.33 ± 0.63 |
 | four | 0.27 ± 0.01 | 67.70 ± 0.46 |
 
-The three-packer design ran with the same first 20 seeds as Trusting Results, so its row is that page's 20-replication row. The comparison, the four-packer value minus the three-packer value, seed by seed:
+The three-packer design ran with the same first 20 seeds as Trusting Results, so its row is that page's 20-replication row, not its 40-replication 2.32 seconds; [Common Mistakes](../des/common-mistakes.md#taking-one-run-as-the-answer) explains why the busy hour's figures differ between pages. The comparison, the four-packer value minus the three-packer value, seed by seed:
 
 | Measure | Difference | Half-width | Random streams |
 |---|---|---|---|
@@ -172,7 +172,11 @@ The experiment states where the packing times came from but not the arrival rate
 
 ## Result
 
-Does a fourth packer cut the mean wait, and by how much? Yes: with the same seeds, a fourth packer cuts the busy hour's mean wait by **2.21 ± 0.31 seconds**, from 2.48 to 0.27 seconds, and the packers are busy **22.63 ± 0.17 points** less of the time. The whole interval of the difference is below zero, and the four-packer wait stays under the half-second bound.
+The mean wait of each design over its 20 replications, with its 95% interval:
+
+![Bars of the busy hour's mean wait over 20 runs of each design with the same seeds: 2.48 ± 0.32 seconds with three packers and 0.27 ± 0.01 seconds with four, which is under the dashed half-second bound](../assets/charts/comparing-waits.png)
+
+Does a fourth packer cut the mean wait, and by how much? Yes: with the same seeds, a fourth packer cuts the busy hour's mean wait by **2.21 ± 0.31 seconds**, from 2.48 to 0.27 seconds over 20 replications of each, and the packers are busy **22.63 ± 0.17 points** less of the time. The whole interval of the difference is below zero, and the four-packer wait stays under the half-second bound.
 
 ## Why It Works
 

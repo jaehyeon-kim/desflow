@@ -144,7 +144,7 @@ The summary also has the task's counts, such as `tasks.pack_order.finished`, wit
 
     The same keys, in the same mapping as the model.
 
-One packer takes 1.5 seconds an order on average, so it can finish at most 3,480 / 1.5 = 2,320 orders in the 3,480 seconds after the warm-up. The run finishes **2,318**, with the packer busy **100%** of the time and a mean wait of about **1,179** seconds. Ten packers would be busy 1.8 × 1.5 / 10 = 27% of the time; the run measures **27.08%**, and the mean wait rounds to **0.00** seconds. Turn each extreme into a check, so a later change that breaks it fails. A check tests the far end of the interval, so it passes only when the whole interval is within the bound:
+One packer takes 1.5 seconds an order on average, so it can finish at most 3,480 / 1.5 = 2,320 orders in the 3,480 seconds after the warm-up. Over the experiment's 20 replications, the one-packer design finishes **2,318** orders on average, with the packer busy **100%** of the time and a mean wait of about **1,179** seconds. Ten packers would be busy 1.8 × 1.5 / 10 = 27% of the time; the experiment measures **27.08%** on average, and the mean wait rounds to **0.00** seconds. Turn each extreme into a check, so a later change that breaks it fails. A check tests the far end of the interval, so it passes only when the whole interval is within the bound:
 
 === "YAML"
 
@@ -253,7 +253,7 @@ Not compared:
 --verify checks the implementation against the queueing analysis where it applies; it does not show that the model is close enough to the real system
 ```
 
-The utilisation of 0.9 and the throughput of 1.8 orders a second agree with the runs. The wait and the queue length have no analytical value, and the `Not estimated` line says why: three packers with measured packing times have no closed formula. For them the interval of the experiment is the check, as the next section shows. Agreement shows the program computes what the model on paper says; it says nothing about whether the model is close enough to the real shop. [Check Against Theory](../guides/check-against-theory.md) runs the same check on a shop the formulas describe in full.
+The utilisation of 0.9 and the throughput of 1.8 orders a second agree with the runs. The measured wait, 2.252 ± 0.2476 seconds, is the mean of the 10 runs after the blueprint's 2-minute warm-up, with the seeds of Trusting Results, so it is that page's 10-replication figure; [Common Mistakes](../des/common-mistakes.md#taking-one-run-as-the-answer) explains why the busy hour's figures differ between pages. The wait and the queue length have no analytical value, and the `Not estimated` line says why: three packers with measured packing times have no closed formula. For them the interval of the experiment is the check, as the next section shows. Agreement shows the program computes what the model on paper says; it says nothing about whether the model is close enough to the real shop. [Check Against Theory](../guides/check-against-theory.md) runs the same check on a shop the formulas describe in full.
 
 ---
 
@@ -387,6 +387,10 @@ Run the checks after every change to the model, in the same way as the tests of 
 ---
 
 ## Result
+
+Each value observed in the real shop beside the three-packer interval of the experiment:
+
+![Two panels for three packers. On the left, the model's mean wait of 2.48 seconds over 20 runs with its 95% interval from 2.16 to 2.80 seconds, and the observed 2.6 seconds inside it. On the right, the model's utilisation of 90.33% with its interval from 89.70 to 90.96%, and the observed 91% above it](../assets/charts/checking-observed.png)
 
 Does the program do what the model on paper says, and is the model good enough to decide the number of packers? The program does what the model on paper says. The fixed run matches the trace by hand: **4** orders finished, **5** still in the shop and a mean wait of **0.714** seconds. One packer finishes **2,318** orders against 2,320 by hand, and ten are busy **27.08%** of the time against 27%. Little's law holds for three packers, **4.488** against 4.478, and the measured utilisation agrees with the formula's 0.9. Four packers stay at **0.35 ± 0.02** seconds at a rate 6% higher, and all three checks pass. The observed values are illustrative; a real check uses the shop's own records. Against them the mean wait of 2.6 seconds lies inside the simulated **2.16 to 2.80**, but the utilisation of 91% lies outside **89.70 to 90.96**. The model is good enough for the decision only once the study has explained that disagreement.
 

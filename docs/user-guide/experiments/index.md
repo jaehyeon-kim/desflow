@@ -160,7 +160,7 @@ The same seeds pair two runs only where both draw from the same random streams. 
 
 ### Example: An Experiment
 
-The `experiment` example is the experiment above: one hour of the shop with two packers and with three, 20 replications of each with the same seeds, a comparison, a check, and the mean wait observed in the real shop. It needs no Docker service and ends on its own.
+The `experiment` example is the experiment above: one hour of the shop with two packers and with three, 20 replications of each with the same seeds, a comparison, a check, and the mean wait observed in the real shop. Its shop is not the busy hour of the tutorials: an order arrives every 2.5 seconds on average and packing takes 4 seconds on average, so its waits differ from theirs. The example needs no Docker service and ends on its own. [Common Mistakes](../../des/common-mistakes.md#taking-one-run-as-the-answer) explains why the tutorials' figures for a wait differ between pages.
 
 === "YAML"
 

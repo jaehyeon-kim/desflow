@@ -142,6 +142,10 @@ So a job that reads the folder while the run is going sees only the full batches
 
 ## Result
 
+The rows the file sink writes over the hour, counted by the time each order was packed:
+
+![The packed orders, counted by the time each was packed, rise steadily over the hour to 1,432. File 1 holds the 500 orders packed in the first 20.5 minutes, file 2 the 500 packed from 20.5 to 40.6 minutes, and file 3 the 432 packed from 40.6 minutes to the end of the hour](../assets/charts/streaming-rows.png)
+
 Which records reach the team's files? The terminal receives every record: **4,299** events (**1,434** orders queued, **1,433** started and **1,432** packed) and **30** telemetry records, five statistics every 10 minutes. The file sink receives only the **1,432** packed orders, one row each, in **3** files of **500**, **500** and **432** rows. The two files of 500 were handed over while the model ran; the file of 432 was handed over at teardown, after the model stopped, so the team's job should start when the run has returned. One order's records share its `key`: `orders-12` was queued at **26.97** seconds, started at **28.202** and packed at **29.702**.
 
 The Builder and Low-level scripts print:
