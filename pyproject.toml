@@ -1,6 +1,6 @@
 [project]
 name = "desflow"
-version = "0.24.0"
+version = "0.25.0"
 description = "Realistic event streams from a SimPy simulation you can steer while it runs, written to Kafka, Redis, PostgreSQL, Parquet, JSONL and Iceberg."
 readme = "README.md"
 authors = [

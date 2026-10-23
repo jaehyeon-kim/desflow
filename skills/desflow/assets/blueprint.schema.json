@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://jaehyeon.me/desflow/latest/schema/blueprint.schema.json",
   "title": "desflow blueprint",
-  "description": "The keys a desflow blueprint file takes, for desflow 0.24.0.",
+  "description": "The keys a desflow blueprint file takes, for desflow 0.25.0.",
   "type": "object",
   "additionalProperties": false,
   "required": [

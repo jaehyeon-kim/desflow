@@ -2,6 +2,25 @@
 
 Each release, newest first: what changed, then under Upgrading what to change in code, commands or installs that use the previous release.
 
+## Version 0.25.0
+
+- `desflow explain FILE` shows a model as a graph from its arrivals to its exits, without running it, with each resource's utilisation, status and waits where the queueing formulas apply, the bottleneck, and the capacity that brings utilisation to a target. Where a formula does not apply, it says why. `--json` prints the same result as JSON, which is experimental through 1.x. See [Explain the Load](../tutorials/queues-and-capacity.md#explain-the-load).
+- `desflow explain --verify` also runs the model unpaced, once or with `--replications N`, and compares its statistics with the formulas. `context.analyze()` gives the same result in Python. See [Check Against Theory](../guides/check-against-theory.md).
+- `desflow dist` lists the distribution families, shows one family's parameters, rules and syntax, and converts its parameters to a mean and standard deviation and back, such as `desflow dist gamma --mean 1.5 --std 0.4832`. See [Measured Times](../tutorials/choosing-inputs.md#measured-times).
+- `desflow run FILE --sample N` prints the first `N` events as JSON lines, unpaced, with no ingress and no real sinks, and `--stdout` prints every record of a normal run as JSON lines instead of sending it to the file's sinks. See [Running a Blueprint](../reference/yaml-format.md#running-a-blueprint).
+- `ConsoleEgress(format="json")`, and `type: Console` with `config: {format: json}` in YAML, write each record to stdout as one JSON line, while the log stays on stderr. See [Console](../user-guide/egress.md#console).
+- `load_context(folder, entry)`, exported from `desflow`, loads a YAML blueprint or a builder Python file from a local folder or from object storage, such as `s3://`. See [Loading a Model](../api.md#loading-a-model).
+- `add_arrival(..., spawn="task")` and `add_arrival_replay(..., spawn="task")` start the named task for each arrival, as `spawn` does in YAML, so a builder model needs no `@app.arrival_loop` for it. See [Start Them from Arrivals](../user-guide/builder-api.md#start-them-from-arrivals).
+- `Router.probabilities` gives the share of finished instances each next task receives, where the routing rules fix it. See [Task Flow](../api.md#task-flow).
+- The Reference section gains one [CLI](../reference/cli/index.md) page for each command, generated from the command's help.
+- The CLI code moves to `desflow.cli`. `desflow.blueprint.cli` re-exports `app` and `ddes` for dynamic-des 0.20.0's `ddes` command, until the release that removes `ddes`.
+- The docs gain the tutorial [Complete Model](../tutorials/complete-model.md), a whole study from observed data to a recommendation, and the How-To page [Check Against Theory](../guides/check-against-theory.md). Every page is rewritten for a first-time reader, each term of theory is explained in one section that other pages link to, the How-To pages are grouped into Modelling, Data and Kafka, and Tools and Workflow, and each page ends with links to the previous and next pages. Links to files in the repository open the files of the release.
+
+### Upgrading
+
+- `desflow run FILE.py` exits 2 with `Error: desflow run takes a YAML blueprint; run a Python file with python FILE`. In 0.24.0 it exited 1 with a YAML parse error. Run a builder file with `python FILE.py`.
+- `desflow fit` and `FitResult.text()` label the KS columns `KS stat` and `KS p (approx.)`, where 0.24.0 printed `KS` and `p (approx.)`, and the two columns are 8 and 14 characters wide, not 7 and 11. A script that reads the table by column position reads the new widths. Every other change is an addition.
+
 ## Version 0.24.0
 
 - A JSON Schema of a blueprint ships in the package and on the site. An editor with the Red Hat YAML extension completes keys and marks a misspelt key or a value of the wrong kind as you type. See [Set Up Your Editor](../guides/set-up-your-editor.md).
