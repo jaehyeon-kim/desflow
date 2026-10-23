@@ -275,8 +275,8 @@ nav:
       - SimPy Compatibility: reference/simpy-compatibility.md
       - Cheat Sheet: reference/cheat-sheet.md
   - About:
-      - Roadmap: about/roadmap.md
       - Why desflow: about/why-desflow.md
+      - Roadmap: about/roadmap.md
       - Changelog: about/changelog.md
 
 markdown_extensions:

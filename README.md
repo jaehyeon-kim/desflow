@@ -8,7 +8,7 @@
 
 To check what desflow does against plain SimPy, see [SimPy Compatibility](https://jaehyeon.me/desflow/latest/reference/simpy-compatibility/).
 
-To see why it exists and how it is built, read [Why desflow](https://jaehyeon.me/desflow/latest/about/why-desflow/).
+To see why it exists, read [Why desflow](https://jaehyeon.me/desflow/latest/about/why-desflow/).
 
 **Realistic event streams from a simulation you can steer while it runs.**
 
