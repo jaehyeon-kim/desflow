@@ -8,7 +8,7 @@
 
 **Realistic event streams from a simulation you can steer while it runs.**
 
-> **dynamic-des is now desflow.** The package was renamed in 0.20.0: install `desflow`, import `desflow` and run `desflow`. Code that imports `dynamic_des` and scripts that run `ddes` keep working with a warning until a later release, and the [Changelog](https://jaehyeon.me/desflow/latest/about/changelog/) says what to change.
+> **dynamic-des is now desflow.** The package was renamed in 0.20.0: install `desflow`, import `desflow` and run `desflow`. Code that imports `dynamic_des` and scripts that run `ddes` keep working with a warning until 0.30.0, and the [Changelog](https://jaehyeon.me/desflow/latest/about/changelog/) says what to change.
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/jaehyeon-kim/desflow/main/docs/assets/architecture.png" alt="desflow architecture" width="900" />
@@ -126,7 +126,7 @@ run:
 
 ## Roadmap
 
-desflow reached feature parity with SimPy in YAML, the builder and the low-level API in 0.23.0. Before 1.0, it adds a JSON Schema for blueprints, `desflow explain`, the rest of the shop tutorial, more storage backends and a record format that 1.0 keeps stable. A simulation server with tools for AI agents follows 1.0. The [roadmap page](https://jaehyeon.me/desflow/latest/about/roadmap/) shows each step in order, with what is in progress.
+desflow reached feature parity with SimPy in YAML, the builder and the low-level API in 0.23.0. Before 1.0, it adds a JSON Schema for blueprints in 0.24.0, `desflow explain` in 0.25.0, more storage backends and the schema registry in 0.26.0 and 0.27.0, hooks for the server in 0.28.0, a record format that 1.0 keeps stable in 0.29.0, and the removal of the old names in 0.30.0. A simulation server with tools for AI agents follows 1.0. The [roadmap page](https://jaehyeon.me/desflow/latest/about/roadmap/) shows each release in order.
 
 ## Learn More
 

@@ -1,131 +1,47 @@
 # Roadmap
 
-Releases come in the order shown, without dates: a release ships when it is ready. The timeline lists released work, marked with a tick, then the work planned for the coming releases, in order, marked with a clock. Each item links to its GitHub issue.
+Releases come in the order shown, without dates: a release ships when it is ready. Each item links to its GitHub issue.
 
-## Now and next
+## Before 1.0
 
 ::timeline::
-- title: Rename to desflow
-  content: 'Done in 0.20.0: the package, its import name and its command are all `desflow`. The old `dynamic-des` names still work, with a warning, until a later release.'
-  icon: ':material-check:'
-  key: done
-- title: Distributions and seeds
-  content: 'Done in 0.21.0: more distributions, including `empirical`, which draws from values measured in a real system. Each distribution draws from its own random stream, so adding an arrival leaves the other draws unchanged. desflow now needs Python 3.11 or later. [#42](https://github.com/jaehyeon-kim/desflow/issues/42)'
-  icon: ':material-check:'
-  key: done
-- title: Ingress messages
-  content: 'Done in 0.21.0: every ingress connector, Kafka, Redis and PostgreSQL, takes a parameter change as `path` and `value`, the names a scenario step already uses. [#51](https://github.com/jaehyeon-kim/desflow/issues/51)'
-  icon: ':material-check:'
-  key: done
-- title: Stores, containers and priority
-  content: 'Done in 0.21.0: tasks take items from stores and amounts from containers, and a resource serves its queue oldest first, newest first or by task priority. [#43](https://github.com/jaehyeon-kim/desflow/issues/43)'
-  icon: ':material-check:'
-  key: done
-- title: Flows
-  content: 'Done in 0.21.0: routing between tasks by a condition or by probability, entity state that an order keeps from task to task, and delays without a resource. [#44](https://github.com/jaehyeon-kim/desflow/issues/44)'
-  icon: ':material-check:'
-  key: done
-- title: Statistics and ground truth
-  content: 'Done in 0.21.0: wait and service times, throughput, utilisation and queue length as telemetry, with a warm-up period; and ground-truth records of what a scenario changed, so a detector or an agent can be scored against them. [#45](https://github.com/jaehyeon-kim/desflow/issues/45)'
-  icon: ':material-check:'
-  key: done
-- title: Native core parity
-  content: 'Done in 0.22.0: the operations on the SimPy Compatibility page, natively in YAML, the builder and the low-level API, each checked against SimPy: signals, interrupts, tasks needing several resources, filtered store gets, stopping and stepping a run, and customers who give up on a queue or never join it. [#64](https://github.com/jaehyeon-kim/desflow/issues/64)'
-  icon: ':material-check:'
-  key: done
-- title: Breakdowns, changing demand and replay
-  content: 'Done in 0.22.0: a resource that fails and is repaired, a schedule of times at which an arrival rate or a capacity changes, and arrivals read from a local CSV or Parquet file. [#65](https://github.com/jaehyeon-kim/desflow/issues/65)'
-  icon: ':material-check:'
-  key: done
-- title: Replications
-  content: 'Done in 0.22.0: run a model with many seeds and get each statistic with a confidence interval, so a result is never read from one run. [#59](https://github.com/jaehyeon-kim/desflow/issues/59)'
-  icon: ':material-check:'
-  key: done
-- title: Experiments
-  content: 'Done in 0.22.0: compare designs and sweep parameters over replications, fail an experiment when a result breaks a limit, fit a distribution to measured data, and write a Markdown report, all on one machine. [#66](https://github.com/jaehyeon-kim/desflow/issues/66)'
-  icon: ':material-check:'
-  key: done
-- title: Speed
-  content: 'Done in 0.22.0: faster runs that publish the same records. [#24](https://github.com/jaehyeon-kim/desflow/issues/24)'
-  icon: ':material-check:'
-  key: done
-- title: Record contract
-  content: 'Done in 0.22.0: every record field documented with its type and format, payload keys such as `__table__` reserved for desflow, a `timezone` setting for timestamps, and no `lag_seconds` from a run at full speed. The format is frozen before 1.0. [#51](https://github.com/jaehyeon-kim/desflow/issues/51)'
-  icon: ':material-check:'
-  key: done
-- title: SimPy parity
-  content: 'Done in 0.23.0: every SimPy 4.1.2 feature natively in YAML, the builder and the low-level API, each checked against SimPy, such as nested conditions, event callbacks, unlimited stores and custom resource types. The SimPy Compatibility page lists each one, and the three differences kept by design. [#71](https://github.com/jaehyeon-kim/desflow/issues/71)'
-  icon: ':material-check:'
-  key: done
-- title: Blueprint schema and AI skill
-  content: 'A JSON Schema for blueprints, shipped in the package, so editors complete keys and flag mistakes as you type, and a skill that teaches an AI assistant to write and check blueprints. [#41](https://github.com/jaehyeon-kim/desflow/issues/41)'
+- title: '0.24.0: Blueprint schema and AI skill'
+  content: 'A JSON Schema for blueprints, shipped in the package and on the docs site, so editors complete keys and flag mistakes as you type, with a YAML Keys reference page generated from it. A skill that teaches an AI assistant to write and check blueprints. A test that fails when a public name or signature of the library or the `desflow` command is removed or changed. `resource.queue.items`, which warns since 0.23.0, is removed: use `list(resource.queue)`. Learn: the concept pages, Checking a Model, Live Changes, Streaming Out and the How-To pages that do not need `explain`. [#41](https://github.com/jaehyeon-kim/desflow/issues/41), [#67](https://github.com/jaehyeon-kim/desflow/issues/67), [#60](https://github.com/jaehyeon-kim/desflow/issues/60)'
+  icon: ':material-play:'
+  key: now
+- title: '0.25.0: desflow explain'
+  content: '`desflow explain` shows a simulation as a graph, marks each resource OK, congested or unstable (its queue grows without limit), names the bottleneck and suggests changes. `desflow dist` converts between a distribution''s parameters and its mean and standard deviation. `desflow run --sample` prints a few records from a blueprint, and `--stdout` sends all records to the standard output as JSON lines in place of the real sinks. `load_context` loads a simulation folder from Python. Builder arrivals can name the task they start. The `desflow` command has a generated reference page. Learn: Complete Model, the `explain` section of Checking a Model and Check Against Theory. [#47](https://github.com/jaehyeon-kim/desflow/issues/47), [#60](https://github.com/jaehyeon-kim/desflow/issues/60)'
   icon: ':material-clock-outline:'
   key: planned
-- title: Downstream checks
-  content: 'With the blueprint schema: before a release, the tests of projects that use desflow, the benchtop data generators, run against the new version, and a test fails when a public class, function or argument is removed or changed. [#67](https://github.com/jaehyeon-kim/desflow/issues/67)'
+- title: '0.26.0: Storage, schema registry code and Python 3.15'
+  content: 'Parquet and JSONL on Google Cloud Storage and Azure Blob Storage, and Iceberg through SQL catalogs. The Confluent schema registry client moves into desflow, so the `confluent` extra no longer installs confluent-kafka. Python 3.15 is supported. `GlueAvroSerializer` serializes a record. [#32](https://github.com/jaehyeon-kim/desflow/issues/32), [#83](https://github.com/jaehyeon-kim/desflow/issues/83), [#40](https://github.com/jaehyeon-kim/desflow/issues/40), [#85](https://github.com/jaehyeon-kim/desflow/issues/85)'
   icon: ':material-clock-outline:'
   key: planned
-- title: desflow explain
-  content: 'Shows a simulation as a graph, marks each resource OK, congested or unstable (its queue grows without limit), names the bottleneck and suggests changes. `desflow run --sample` prints a few records from a blueprint. [#47](https://github.com/jaehyeon-kim/desflow/issues/47)'
+- title: '0.27.0: Schema registry formats'
+  content: 'JSON Schema and Protobuf serializers and deserializers for the Confluent and Glue schema registries, next to Avro. desflow writes the Glue wire format itself and no longer depends on `aws-glue-schema-registry`. [#82](https://github.com/jaehyeon-kim/desflow/issues/82)'
   icon: ':material-clock-outline:'
   key: planned
-- title: Learn section
-  content: 'The shop tutorial, which extends one shop model page by page and answers a question with a number on each page, has 20 pages since 0.22.0, which added replications, comparing designs, sweeps, fitting, patience, interruptions, end conditions and more. Left: concept pages on a simulation study, checking and validating, queueing and output analysis, and a final study of the whole shop. [#60](https://github.com/jaehyeon-kim/desflow/issues/60)'
+- title: '0.28.0: Library hooks for the server'
+  content: 'Parameter changes that report who made them and why: `change` returns a `ParamChange` or raises `ParamRejected`, an `on_change` list of callbacks receives each accepted change, and `registry_paths()` lists the paths a simulation will have without running it. The server after 1.0 then adds to the library without changing it. [#70](https://github.com/jaehyeon-kim/desflow/issues/70)'
+  icon: ':material-clock-outline:'
+  key: planned
+- title: '0.29.0: Reserved gen key and record contract freeze'
+  content: 'A blueprint refuses a mapping with a `gen` key in a payload, a scenario value, a `record` field, an action or timeout value, a task''s `set` or an arrival''s `attributes`, so the key can mark a generated value after 1.0. The Pydantic floor rises to 2.6.1. Every record field is checked, then the format is marked frozen: no 1.x release removes a field, renames it or changes its type. [#53](https://github.com/jaehyeon-kim/desflow/issues/53), [#51](https://github.com/jaehyeon-kim/desflow/issues/51)'
+  icon: ':material-clock-outline:'
+  key: planned
+- title: '0.30.0: Preparation for 1.0'
+  content: 'The names kept for compatibility are removed, with the removals listed in Upgrading to 1.0. The docs gain a Compatibility Policy page and a warning on the docs of older versions. This release changes no format, so 1.0.0 follows a release with no format change. [#84](https://github.com/jaehyeon-kim/desflow/issues/84), [#54](https://github.com/jaehyeon-kim/desflow/issues/54)'
+  icon: ':material-clock-outline:'
+  key: planned
+- title: '1.0.0: Stable'
+  content: 'The version, the Production/Stable classifier and the Changelog. From here the format, the command, the public API and the record format stay compatible across 1.x. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)'
   icon: ':material-clock-outline:'
   key: planned
 ::/timeline::
 
-## Later
-
-The work after the Learn section, on the way to 1.0, in the order it is planned.
-
-<div class="grid cards" markdown>
-
--   __Storage and Python 3.15__
-
-    ---
-
-    Parquet and JSONL on more cloud storage, more Iceberg catalogs, and Python 3.15 support.
-
-    [#32](https://github.com/jaehyeon-kim/desflow/issues/32), [#40](https://github.com/jaehyeon-kim/desflow/issues/40)
-
--   __Library hooks for the server__
-
-    ---
-
-    Changes the server will need, made before 1.0 so the server adds to the library without changing it: parameter changes that report who made them and why, and a way to load and inspect a simulation folder.
-
-    [#70](https://github.com/jaehyeon-kim/desflow/issues/70)
-
--   __Reserve the gen key__
-
-    ---
-
-    Before 1.0, a blueprint refuses a mapping with a `gen` key in a payload, a scenario value, a `record` field, a task's `set` or an arrival's `attributes`. After 1.0, `gen` marks a generated value, such as `{gen: uniform, ...}`, so no 1.0 blueprint can already use the key for something else.
-
-    [#53](https://github.com/jaehyeon-kim/desflow/issues/53)
-
--   __Record contract freeze__
-
-    ---
-
-    A final check of every record field, then the format is marked frozen: no 1.x release removes a field, renames it or changes its type.
-
-    [#51](https://github.com/jaehyeon-kim/desflow/issues/51)
-
--   __1.0__
-
-    ---
-
-    The generated YAML key reference, a command-line page, a compatibility policy and upgrade notes.
-
-    [#54](https://github.com/jaehyeon-kim/desflow/issues/54)
-
-</div>
-
 ## What 1.0 means
 
-From 1.0, the YAML blueprint format, the `desflow` command, the public Python API (`SimulationContext`, `DynamicRealtimeEnvironment` and the connectors) and the published record format stay compatible across every 1.x release. The package status moves from Beta to Production/Stable.
+From 1.0, the YAML blueprint format, the `desflow` command, the public Python API (`SimulationContext`, `DynamicRealtimeEnvironment` and the connectors) and the published record format stay compatible across every 1.x release. The package status moves from Beta to Production/Stable. The names kept for compatibility, `dynamic_des`, `ddes` and the old registry settings, are removed in 0.30.0, and Upgrading to 1.0 lists each.
 
 ## After 1.0
 
@@ -175,3 +91,33 @@ The server ships after 1.0, as 1.x releases installed with the `server` extra.
 
 - **Reference:** a page for each generator and connector, with examples and the records they produce, and a command-line cheat sheet.
 - **How-To:** generating data at scale, and testing pipelines with simulated data.
+
+## Released
+
+??? note "0.23.0: SimPy parity"
+
+    - **SimPy parity:** every SimPy 4.1.2 feature natively in YAML, the builder and the low-level API, each checked against SimPy, such as nested conditions, event callbacks, unlimited stores and custom resource types. The SimPy Compatibility page lists each one, and the three differences kept by design. [#71](https://github.com/jaehyeon-kim/desflow/issues/71)
+
+??? note "0.22.0: Native core, experiments and replications"
+
+    - **Native core parity:** the operations on the SimPy Compatibility page, natively in YAML, the builder and the low-level API, each checked against SimPy: signals, interrupts, tasks needing several resources, filtered store gets, stopping and stepping a run, and customers who give up on a queue or never join it. [#64](https://github.com/jaehyeon-kim/desflow/issues/64)
+    - **Breakdowns, changing demand and replay:** a resource that fails and is repaired, a schedule of times at which an arrival rate or a capacity changes, and arrivals read from a local CSV or Parquet file. [#65](https://github.com/jaehyeon-kim/desflow/issues/65)
+    - **Replications:** run a model with many seeds and get each statistic with a confidence interval, so a result is never read from one run. [#59](https://github.com/jaehyeon-kim/desflow/issues/59)
+    - **Experiments:** compare designs and sweep parameters over replications, fail an experiment when a result breaks a limit, fit a distribution to measured data, and write a Markdown report, all on one machine. [#66](https://github.com/jaehyeon-kim/desflow/issues/66)
+    - **Speed:** faster runs that publish the same records. [#24](https://github.com/jaehyeon-kim/desflow/issues/24)
+    - **Record contract:** every record field documented with its type and format, payload keys such as `__table__` reserved for desflow, a `timezone` setting for timestamps, and no `lag_seconds` from a run at full speed. [#51](https://github.com/jaehyeon-kim/desflow/issues/51)
+    - **Learn section:** the shop tutorial, which extends one shop model page by page and answers a question with a number on each page, has 20 pages, which added replications, comparing designs, sweeps, fitting, patience, interruptions, end conditions and more. [#60](https://github.com/jaehyeon-kim/desflow/issues/60)
+
+??? note "0.21.0: Distributions, flows and statistics"
+
+    - **Distributions and seeds:** more distributions, including `empirical`, which draws from values measured in a real system. Each distribution draws from its own random stream, so adding an arrival leaves the other draws unchanged. desflow needs Python 3.11 or later. [#42](https://github.com/jaehyeon-kim/desflow/issues/42)
+    - **Ingress messages:** every ingress connector, Kafka, Redis and PostgreSQL, takes a parameter change as `path` and `value`, the names a scenario step already uses. [#51](https://github.com/jaehyeon-kim/desflow/issues/51)
+    - **Stores, containers and priority:** tasks take items from stores and amounts from containers, and a resource serves its queue oldest first, newest first or by task priority. [#43](https://github.com/jaehyeon-kim/desflow/issues/43)
+    - **Flows:** routing between tasks by a condition or by probability, entity state that an order keeps from task to task, and delays without a resource. [#44](https://github.com/jaehyeon-kim/desflow/issues/44)
+    - **Statistics and ground truth:** wait and service times, throughput, utilisation and queue length as telemetry, with a warm-up period; and ground-truth records of what a scenario changed, so a detector or an agent can be scored against them. [#45](https://github.com/jaehyeon-kim/desflow/issues/45)
+
+??? note "0.20.0: Rename to desflow"
+
+    - **Rename to desflow:** the package, its import name and its command are all `desflow`. The old `dynamic-des` names still work, with a warning, until 0.30.0.
+
+The [Changelog](changelog.md) lists every release.
