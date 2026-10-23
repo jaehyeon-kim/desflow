@@ -1,0 +1,49 @@
+# The Live Changes tutorial: a label printer jam, written as a scenario.
+# Run it with: desflow run live_changes.yaml
+# The events are written to events/ and the ground-truth records to labels/.
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+resources:
+  packers: {current_cap: 1, max_cap: 1}
+
+services:
+  packing: {dist: constant, value: 1.5 s}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.4, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+
+# --8<-- [start:jam]
+# The jam: 3 seconds of packing from 20 to 30 minutes, each change recorded
+scenario:
+  - at: 20 min
+    path: Shop.service.packing.value
+    value: 3.0
+    record: {intervention: printer_jam}
+  - at: 30 min
+    path: Shop.service.packing.value
+    value: 1.5
+    record: {intervention: printer_fixed}
+# --8<-- [end:jam]
+
+# --8<-- [start:sinks]
+egress:
+  # The events, one flat row per event
+  - type: Jsonl
+    config: {default_path: events/orders.jsonl}
+  # The ground-truth records only
+  - type: Jsonl
+    config: {default_path: labels/labels.jsonl}
+    when: labels
+# --8<-- [end:sinks]
+
+run:
+  until: 1 h

@@ -30,6 +30,7 @@ NOT_BLUEPRINTS = {
     "examples/yaml/packing_fit.yaml",
     "docs/snippets/yaml/parameter_sweeps_experiment.yaml",
     "docs/snippets/yaml/comparing_designs_experiment.yaml",
+    "docs/snippets/yaml/checking_a_model_experiment.yaml",
     "docs/snippets/yaml/fitted/orders.yaml",
     "docs/snippets/yaml/fitted/packing.yaml",
 }

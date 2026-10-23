@@ -1,0 +1,33 @@
+# The Checking a Model tutorial: the shop with fixed inputs, to compare with a trace
+# worked by hand. Run it with: desflow run checking_a_model.yaml
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+# --8<-- [start:fixed]
+# Three packers, an order every second and 4 seconds to pack each
+resources:
+  packers: {current_cap: 3, max_cap: 10}
+
+arrivals:
+  orders: {dist: constant, value: 1, spawn: pack_order}
+
+services:
+  packing: {dist: constant, value: 4}
+# --8<-- [end:fixed]
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+
+# Every record is the trace; the statistics are published once, at the end
+stats: {level: typical, interval: 1 h}
+
+egress:
+  - type: Console
+
+run:
+  until: 10

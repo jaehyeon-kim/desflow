@@ -10,6 +10,7 @@ change to the code that changes the answer fails here until the page is updated.
 import ast
 import importlib.util
 import logging
+import runpy
 import sys
 from pathlib import Path
 
@@ -723,6 +724,254 @@ def test_parameter_sweeps_demand(api, tmp_path, monkeypatch):
         f"four {rate}=1.8": (0.27, 0.01),
         f"four {rate}=1.9": (0.35, 0.02),
     }
+
+
+def _checking_fixed(api):
+    if api == "yaml":
+        app = SimulationContext.from_yaml(BLUEPRINTS / "checking_a_model.yaml")
+        app.run()
+        readings = app.env.stats.readings()
+        return {k.removeprefix("Shop.stats."): v for k, v in readings.items()}
+    return _load(
+        "checking_a_model" + ("" if api == "builder" else "_low_level")
+    ).fixed_run()
+
+
+@pytest.mark.parametrize("api", APIS)
+def test_checking_a_model_fixed_trace(api):
+    """Ten seconds of fixed inputs give the counts and waits of the hand trace."""
+    readings = _checking_fixed(api)
+    assert readings["tasks.pack_order.finished"] == 4
+    assert readings["tasks.pack_order.in_progress"] == 5
+    assert readings["flows.orders.started"] == 9
+    assert round(readings["tasks.pack_order.wait_mean"], 3) == 0.714
+    assert readings["tasks.pack_order.wait_max"] == 2
+    assert readings["resources.packers.utilization_avg"] == 80
+    assert round(readings["resources.packers.queue_length_avg"], 3) == 0.8
+
+
+def test_checking_a_model_observed_copies():
+    """The YAML experiment and the scripts read the same observed values."""
+    name = "checking_a_model_observed.csv"
+    assert (BLUEPRINTS / name).read_text() == (TUTORIALS / name).read_text()
+
+
+@pytest.mark.parametrize("api", APIS)
+def test_checking_a_model_experiment(api, tmp_path, monkeypatch):
+    """The extremes against the hand estimates, Little's law for three packers
+    and for one, the three checks passing, and the observed values."""
+    result = _experiment("checking_a_model", api, tmp_path, monkeypatch)
+    means = {
+        (r["design"], r["statistic"]): (round(r["mean"], 2), round(r["half_width"], 2))
+        for r in result.summary
+    }
+    wait, use, queue, done = (
+        "tasks.pack_order.wait_mean",
+        "resources.packers.utilization_avg",
+        "resources.packers.queue_length_avg",
+        "tasks.pack_order.finished",
+    )
+    assert means["three", wait] == (2.48, 0.32)
+    assert means["three", use] == (90.33, 0.63)
+    assert means["three", queue][0] == 4.49
+    assert means["one", use] == (100.0, 0.0)
+    assert round(means["one", done][0]) == 2318
+    assert round(means["one", wait][0]) == 1179
+    assert means["ten", use][0] == 27.08
+    assert means["ten", wait][0] == 0.0
+    assert means["four-busier", wait] == (0.35, 0.02)
+    little = _load(
+        "checking_a_model" + ("_low_level" if api == "low-level" else "")
+    ).littles_law
+    q, rate, w = little(result, "three")
+    assert (round(q, 3), round(rate, 4), round(w, 3)) == (4.488, 1.8065, 2.479)
+    assert round(rate * w, 3) == 4.478
+    q, rate, w = little(result, "one")
+    assert (round(q, 1), round(rate, 4), round(w, 1)) == (2127.6, 1.8065, 1179.0)
+    assert round(rate * w, 1) == 2129.9
+    assert [c["passed"] for c in result.checks] == [True, True, True]
+    assert round(result.checks[2]["value"], 2) == 0.37
+    observed = {
+        r["measure"]: (r["value"], round(r["low"], 2), round(r["high"], 2), r["inside"])
+        for r in result.observed
+    }
+    assert observed == {
+        wait: (2.6, 2.16, 2.8, True),
+        use: (91.0, 89.7, 90.96, False),
+    }
+
+
+LIVE_OUTCOMES = {
+    True: {"jam": 80.85, "after": 11.93},
+    False: {"jam": 1.5, "after": 1.04},
+    "last_longer": 1987.818,
+    "labels": [
+        (1200.0, "printer_jam", 1.5, 3.0),
+        (1800.0, "printer_fixed", 3.0, 1.5),
+    ],
+}
+
+
+def _live_yaml(tmp_path, monkeypatch, helpers):
+    """Runs the blueprint, and again without its scenario block for the baseline."""
+    import yaml
+
+    blueprint = yaml.safe_load((BLUEPRINTS / "live_changes.yaml").read_text())
+    del blueprint["scenario"]
+    (tmp_path / "baseline").mkdir()
+    baseline = tmp_path / "baseline" / "live_changes.yaml"
+    baseline.write_text(yaml.safe_dump(blueprint))
+    (tmp_path / "jam").mkdir()
+    monkeypatch.chdir(tmp_path / "jam")
+    SimulationContext.from_yaml(BLUEPRINTS / "live_changes.yaml").run()
+    monkeypatch.chdir(tmp_path / "baseline")
+    SimulationContext.from_yaml(baseline).run()
+    by_run = {
+        jam: helpers.waits(tmp_path / name)
+        for jam, name in ((True, "jam"), (False, "baseline"))
+    }
+    result = {
+        jam: {
+            "jam": round(helpers.mean_wait(by_time, 1200, 1800), 2),
+            "after": round(helpers.mean_wait(by_time, 1800, 2400), 2),
+        }
+        for jam, by_time in by_run.items()
+    }
+    result["last_longer"] = max(
+        at for at, wait in by_run[True].items() if wait > by_run[False][at] + 0.001
+    )
+    labels = helpers.read_rows(tmp_path / "jam" / "labels")
+    result["labels"] = [
+        (row["sim_ts"], row["label"]["intervention"], row["old"], row["new"])
+        for row in sorted(labels, key=lambda row: row["sim_ts"])
+    ]
+    return result
+
+
+@pytest.mark.parametrize("api", APIS)
+def test_live_changes_jam(api, tmp_path, monkeypatch):
+    """Orders queued in the jam wait 80.85 s against 1.50; in the 10 minutes after the
+    fix 11.93 s against 1.04; the last longer wait is queued at 1,987.8 s; two labels
+    name the change at 1,200 and 1,800 s."""
+    helpers = _load("live_changes")
+    if api == "yaml":
+        got = _live_yaml(tmp_path, monkeypatch, helpers)
+    else:
+        module = _load("live_changes" + ("" if api == "builder" else "_low_level"))
+        got = module.outcomes(tmp_path)
+    got["last_longer"] = round(got["last_longer"], 3)
+    assert got == LIVE_OUTCOMES
+    label = helpers.read_rows(tmp_path / "jam" / "labels")[0]
+    assert list(label) == [
+        "stream_type",
+        "sim_ts",
+        "timestamp",
+        "path",
+        "old",
+        "new",
+        "label",
+    ]
+    assert label["path"] == "Shop.service.packing.value"
+
+
+@pytest.mark.parametrize("api", APIS)
+def test_live_changes_local_ingress(api, tmp_path, monkeypatch):
+    """LocalIngress sets packing to 3 s about 100 simulated seconds in, at a time that
+    depends on the machine, and publishes no label, so labels/ is never created."""
+    helpers = _load("live_changes")
+    monkeypatch.chdir(tmp_path)
+    if api == "yaml":
+        app = SimulationContext.from_yaml(BLUEPRINTS / "live_changes_live.yaml")
+        app.run()
+        env, out = app.env, tmp_path
+    elif api == "builder":
+        env, out = helpers.live(tmp_path).env, tmp_path
+    else:
+        env, out = _load("live_changes_low_level").live(tmp_path), tmp_path
+    assert env.registry.get_config("Shop.service.packing").value == 3.0
+    rows = helpers.read_rows(out / "events")
+    started = {r["instance"]: r["sim_ts"] for r in rows if r.get("status") == "started"}
+    packed = {r["instance"]: r["sim_ts"] for r in rows if r.get("event_type")}
+    slow = [started[i] for i in packed if abs(packed[i] - started[i] - 3.0) < 1e-6]
+    assert slow and 0 < min(slow) < 300
+    assert not (out / "labels").exists()
+
+
+@pytest.mark.parametrize("name", ["live_changes", "live_changes_low_level"])
+def test_live_changes_live_then_scenario(name, tmp_path, monkeypatch, capsys):
+    """python <script> live prints packing at 3.0 s, and a later scenario run in the
+    same module still starts from 1.5 s, so its answers do not change."""
+    module = _load(name)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "argv", [f"{name}.py", "live"])
+    runpy.run_path(str(TUTORIALS / f"{name}.py"), run_name="__main__")
+    assert capsys.readouterr().out == "packing after the live change: 3.0 s\n"
+    module.live(tmp_path / "live")
+    got = module.outcomes(tmp_path)
+    got["last_longer"] = round(got["last_longer"], 3)
+    assert got == LIVE_OUTCOMES
+
+
+def _streaming_run(api, tmp_path, monkeypatch):
+    if api == "yaml":
+        monkeypatch.chdir(tmp_path)
+        SimulationContext.from_yaml(BLUEPRINTS / "streaming_out.yaml").run()
+        files = _load("streaming_out").read_files(tmp_path / "packed")
+        return sorted(len(rows) for rows in files.values()), files
+    module = _load("streaming_out" + ("" if api == "builder" else "_low_level"))
+    result = module.outcomes(tmp_path)
+    files = module.read_files(tmp_path / "packed")
+    assert result["row"]["sim_ts"] == 29.702
+    return result["file_rows"], files
+
+
+@pytest.mark.parametrize("api", APIS)
+def test_streaming_out_records(api, tmp_path, monkeypatch, caplog):
+    """The console gets 4,299 events (1,434 queued, 1,433 started, 1,432 packed) and 30
+    telemetry records; the file sink gets the 1,432 packed orders in files of 500, 500
+    and 432 rows; orders-12 is queued at 26.97, started at 28.202, packed at 29.702."""
+    caplog.clear()
+    with caplog.at_level(logging.INFO, logger="desflow"):
+        file_rows, files = _streaming_run(api, tmp_path, monkeypatch)
+    events = _events(caplog)
+    statuses = [e["value"].get("status", e["value"].get("event_type")) for e in events]
+    assert len(events) == 4299
+    assert [statuses.count(s) for s in ("queued", "started", "order_packed")] == [
+        1434,
+        1433,
+        1432,
+    ]
+    telemetry = [
+        line
+        for r in caplog.records
+        for line in r.getMessage().split("\n")
+        if line.startswith("[TEL] ")
+    ]
+    assert len(telemetry) == 30
+    assert file_rows == [432, 500, 500]
+    rows = [row for file_rows in files.values() for row in file_rows]
+    assert {row["event_type"] for row in rows} == {"order_packed"}
+    row = next(row for row in rows if row["key"] == "orders-12")
+    assert list(row) == [
+        "stream_type",
+        "sim_ts",
+        "timestamp",
+        "key",
+        "task",
+        "instance",
+        "event_type",
+    ]
+    assert (row["sim_ts"], row["task"], row["instance"]) == (29.702, "pack_order", 11)
+    order = [
+        (e["sim_ts"], e["task"], e["instance"])
+        for e in events
+        if e["key"] == "orders-12"
+    ]
+    assert order == [
+        (26.97, "pack_order", 11),
+        (28.202, "pack_order", 11),
+        (29.702, "pack_order", 11),
+    ]
 
 
 FIT_WAITS = {

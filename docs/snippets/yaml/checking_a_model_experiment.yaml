@@ -1,0 +1,44 @@
+# The Checking a Model tutorial: extremes, sensitivity and the real shop, as checks.
+# Run it with: desflow experiment checking_a_model_experiment.yaml
+# It exits 1 when a check fails, after writing every file.
+experiment: checking-a-model
+question: Is the busy hour model adequate for choosing the number of packers?
+# --8<-- [start:model]
+# The busy hour of Trusting Results, with its 2-minute warm-up
+model: trusting_results.yaml
+until: 1 h
+replications: 20
+seed: 42
+measures:
+  - tasks.pack_order.wait_mean
+  - resources.packers.utilization_avg
+  - resources.packers.queue_length_avg
+# --8<-- [end:model]
+variants:
+  # --8<-- [start:extremes]
+  # One packer cannot keep up, and ten are mostly idle
+  three: {}
+  one: {Shop.resources.packers.current_cap: 1}
+  ten: {Shop.resources.packers.current_cap: 10}
+  # --8<-- [end:extremes]
+  # --8<-- [start:sensitivity]
+  # The design chosen in Comparing Designs, at a rate 6% above the estimate
+  four-busier: {Shop.resources.packers.current_cap: 4, Shop.arrival.orders.rate: 1.9}
+  # --8<-- [end:sensitivity]
+# --8<-- [start:extreme-checks]
+checks:
+  # One packer is busy all the time: the lower end of the interval is 99.9% or more
+  - {measure: resources.packers.utilization_avg, variant: one, min: 99.9}
+  # With ten packers almost no order waits
+  - {measure: tasks.pack_order.wait_mean, variant: ten, max: 0.01}
+  # --8<-- [end:extreme-checks]
+  # --8<-- [start:sensitivity-check]
+  # Four packers keep the mean wait under half a second at the higher rate
+  - {measure: tasks.pack_order.wait_mean, variant: four-busier, max: 0.5}
+  # --8<-- [end:sensitivity-check]
+# --8<-- [start:observed]
+# Illustrative values for the real shop, which has three packers;
+# a real check reads the shop's own records
+observed: {file: checking_a_model_observed.csv, variant: three}
+# --8<-- [end:observed]
+output: results/checking-a-model

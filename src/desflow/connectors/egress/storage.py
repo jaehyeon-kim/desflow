@@ -232,7 +232,7 @@ class JsonlStorageEgress(BaseEgress):
                     if batches_processed % 10 == 0:
                         q_size = egress_queue.qsize()
                         logger.info(
-                            f"Parquet Writer: Processed {batches_processed} batches. "
+                            f"JSONL Writer: Processed {batches_processed} batches. "
                             f"(~{q_size} batches waiting in queue)"
                         )
                 except queue.Empty:

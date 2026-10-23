@@ -427,6 +427,30 @@ def test_the_shut_down_message_counts_only_batches_written(tmp_path: Path, caplo
     assert "Successfully wrote 2 total chunks" in caplog.text
 
 
+def test_the_jsonl_heartbeat_names_the_jsonl_writer(tmp_path: Path, caplog):
+    """Every 10 batches the JSONL sink logs its progress under its own name."""
+    import asyncio
+    import queue
+
+    egress = JsonlStorageEgress(default_path=str(tmp_path / "events.jsonl"))
+    egress.filesystem = fs.LocalFileSystem()
+    q: queue.Queue = queue.Queue()
+    for i in range(10):
+        q.put([{"a": i}])
+
+    async def drain():
+        task = asyncio.create_task(egress.run(q))
+        while not q.empty() or getattr(egress, "active_tasks", 0):
+            await asyncio.sleep(0.05)
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+    with caplog.at_level("INFO"):
+        asyncio.run(drain())
+    assert "JSONL Writer: Processed 10 batches." in caplog.text
+    assert "Parquet Writer" not in caplog.text
+
+
 def test_an_integer_column_widens_to_float(tmp_path: Path):
     """A column written as integers takes a later batch's floats: the later files
     hold doubles, and the earlier integers read back as the same numbers."""

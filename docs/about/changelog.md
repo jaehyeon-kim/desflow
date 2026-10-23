@@ -9,10 +9,11 @@ Each release, newest first: what changed, then under Upgrading what to change in
 - [YAML Keys](../reference/yaml-keys.md) lists every key of a blueprint with its type and default, generated from the schema.
 - A skill for AI coding assistants, `skills/desflow/`, teaches them to write, check and run blueprints, and to run a study with a seed, a warm-up and replications. It installs by copying the folder or with `gh skill install`. See [Use an AI Assistant](../guides/use-an-ai-assistant.md).
 - `resource.queue.items`, which 0.23.0 deprecated, is removed. See Upgrading.
+- The JSONL file sink's progress line every 10 batches names it `JSONL Writer`. It said `Parquet Writer`.
 
 ### Upgrading
 
-- `resource.queue.items` is removed, as the 0.23.0 Upgrading section announced. `resource.queue` is the list of waiting requests in service order, and `[request for _rank, request in resource.queue.items]` becomes `list(resource.queue)`. Every other change is an addition.
+- `resource.queue.items` is removed, as the 0.23.0 Upgrading section announced. `resource.queue` is the list of waiting requests in service order, and `[request for _rank, request in resource.queue.items]` becomes `list(resource.queue)`. Every other change is an addition or a fix.
 
 ## Version 0.23.0
 

@@ -74,7 +74,7 @@ In desflow these are parameters of one simulation, named by a `sim_id`, here `Sh
 
 Packing is `constant`, so every order takes 1.5 seconds and only the arrivals are random. The gaps between orders are drawn from an `exponential` distribution with a rate of 0.5 orders per second. The seed makes those draws the same on every run, so your trace matches the one below; [Randomness and Seeds](randomness-and-seeds.md) explains it.
 
-The registry holds the model's live values, the settings a run can change, each under a path, such as `Shop.arrival.orders.rate` or `Shop.resources.packers.current_cap`. A scenario or a message from outside changes a value through its path while the run continues; [Live Parameters](../user-guide/live-parameters.md) explains how.
+The registry holds the model's live values, the settings a run can change, each under a path, such as `Shop.arrival.orders.rate` or `Shop.resources.packers.current_cap`. A scenario or a message from outside changes a value through its path while the run continues; [Live Changes](live-changes.md) does it on the shop, and [Live Parameters](../user-guide/live-parameters.md) explains how.
 
 ---
 
