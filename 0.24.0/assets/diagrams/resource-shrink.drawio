@@ -1,0 +1,99 @@
+<mxfile>
+  <diagram name="step 1" id="resource-shrink-1">
+    <mxGraphModel grid="0" page="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="title" value="Shrinking a resource from 5 units to 2 while 4 are busy" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=16;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="750" height="30" as="geometry"/></mxCell>
+        <mxCell id="c1" value="Step 1 of 5: capacity 5, with 4 units busy and 1 idle" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="0" y="40" width="750" height="30" as="geometry"/></mxCell>
+        <mxCell id="c2" value="busy units" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;align=left;" vertex="1" parent="1"><mxGeometry x="0" y="90" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="c3" value="task" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="160" y="90" width="135" height="40" as="geometry"/></mxCell>
+        <mxCell id="c4" value="task" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="305" y="90" width="135" height="40" as="geometry"/></mxCell>
+        <mxCell id="c5" value="task" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="450" y="90" width="135" height="40" as="geometry"/></mxCell>
+        <mxCell id="c6" value="task" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="595" y="90" width="135" height="40" as="geometry"/></mxCell>
+        <mxCell id="c7" value="free units" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;align=left;" vertex="1" parent="1"><mxGeometry x="0" y="150" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="c8" value="unit" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="160" y="150" width="135" height="40" as="geometry"/></mxCell>
+        <mxCell id="c9" value="owed" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;align=left;" vertex="1" parent="1"><mxGeometry x="0" y="210" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="c10" value="waiting" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;align=left;" vertex="1" parent="1"><mxGeometry x="0" y="270" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="c11" value="A new task would take the free unit at once." style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;" vertex="1" parent="1"><mxGeometry x="0" y="330" width="750" height="50" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="step 2" id="resource-shrink-2">
+    <mxGraphModel grid="0" page="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="title" value="Shrinking a resource from 5 units to 2 while 4 are busy" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=16;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="750" height="30" as="geometry"/></mxCell>
+        <mxCell id="c1" value="Step 2 of 5: current_cap set to 2, and a task arrives" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="0" y="40" width="750" height="30" as="geometry"/></mxCell>
+        <mxCell id="c2" value="busy units" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;align=left;" vertex="1" parent="1"><mxGeometry x="0" y="90" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="c3" value="task" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="160" y="90" width="135" height="40" as="geometry"/></mxCell>
+        <mxCell id="c4" value="task" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="305" y="90" width="135" height="40" as="geometry"/></mxCell>
+        <mxCell id="c5" value="task" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="450" y="90" width="135" height="40" as="geometry"/></mxCell>
+        <mxCell id="c6" value="task" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="595" y="90" width="135" height="40" as="geometry"/></mxCell>
+        <mxCell id="c7" value="free units" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;align=left;" vertex="1" parent="1"><mxGeometry x="0" y="150" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="c8" value="owed" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;align=left;" vertex="1" parent="1"><mxGeometry x="0" y="210" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="c9" value="owed" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;dashed=1;" vertex="1" parent="1"><mxGeometry x="160" y="210" width="135" height="40" as="geometry"/></mxCell>
+        <mxCell id="c10" value="owed" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;dashed=1;" vertex="1" parent="1"><mxGeometry x="305" y="210" width="135" height="40" as="geometry"/></mxCell>
+        <mxCell id="c11" value="waiting" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;align=left;" vertex="1" parent="1"><mxGeometry x="0" y="270" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="c12" value="task" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="160" y="270" width="135" height="40" as="geometry"/></mxCell>
+        <mxCell id="c13" value="The free unit is gone at once. 4 busy is 2 over the new capacity, so 2 units are owed, and the new task waits." style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;" vertex="1" parent="1"><mxGeometry x="0" y="330" width="750" height="50" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="step 3" id="resource-shrink-3">
+    <mxGraphModel grid="0" page="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="title" value="Shrinking a resource from 5 units to 2 while 4 are busy" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=16;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="750" height="30" as="geometry"/></mxCell>
+        <mxCell id="c1" value="Step 3 of 5: a task finishes" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="0" y="40" width="750" height="30" as="geometry"/></mxCell>
+        <mxCell id="c2" value="busy units" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;align=left;" vertex="1" parent="1"><mxGeometry x="0" y="90" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="c3" value="task" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="160" y="90" width="135" height="40" as="geometry"/></mxCell>
+        <mxCell id="c4" value="task" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="305" y="90" width="135" height="40" as="geometry"/></mxCell>
+        <mxCell id="c5" value="task" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="450" y="90" width="135" height="40" as="geometry"/></mxCell>
+        <mxCell id="c6" value="free units" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;align=left;" vertex="1" parent="1"><mxGeometry x="0" y="150" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="c7" value="owed" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;align=left;" vertex="1" parent="1"><mxGeometry x="0" y="210" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="c8" value="owed" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;dashed=1;" vertex="1" parent="1"><mxGeometry x="160" y="210" width="135" height="40" as="geometry"/></mxCell>
+        <mxCell id="c9" value="waiting" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;align=left;" vertex="1" parent="1"><mxGeometry x="0" y="270" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="c10" value="task" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="160" y="270" width="135" height="40" as="geometry"/></mxCell>
+        <mxCell id="c11" value="Its unit is not handed to the waiting task. 1 still owed." style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;" vertex="1" parent="1"><mxGeometry x="0" y="330" width="750" height="50" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="step 4" id="resource-shrink-4">
+    <mxGraphModel grid="0" page="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="title" value="Shrinking a resource from 5 units to 2 while 4 are busy" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=16;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="750" height="30" as="geometry"/></mxCell>
+        <mxCell id="c1" value="Step 4 of 5: another task finishes" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="0" y="40" width="750" height="30" as="geometry"/></mxCell>
+        <mxCell id="c2" value="busy units" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;align=left;" vertex="1" parent="1"><mxGeometry x="0" y="90" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="c3" value="task" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="160" y="90" width="135" height="40" as="geometry"/></mxCell>
+        <mxCell id="c4" value="task" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="305" y="90" width="135" height="40" as="geometry"/></mxCell>
+        <mxCell id="c5" value="free units" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;align=left;" vertex="1" parent="1"><mxGeometry x="0" y="150" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="c6" value="owed" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;align=left;" vertex="1" parent="1"><mxGeometry x="0" y="210" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="c7" value="waiting" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;align=left;" vertex="1" parent="1"><mxGeometry x="0" y="270" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="c8" value="task" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="160" y="270" width="135" height="40" as="geometry"/></mxCell>
+        <mxCell id="c9" value="Its unit is not handed on either. Nothing is owed, and 2 units are busy: the capacity." style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;" vertex="1" parent="1"><mxGeometry x="0" y="330" width="750" height="50" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram name="step 5" id="resource-shrink-5">
+    <mxGraphModel grid="0" page="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="title" value="Shrinking a resource from 5 units to 2 while 4 are busy" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=16;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="750" height="30" as="geometry"/></mxCell>
+        <mxCell id="c1" value="Step 5 of 5: a third task finishes" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="0" y="40" width="750" height="30" as="geometry"/></mxCell>
+        <mxCell id="c2" value="busy units" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;align=left;" vertex="1" parent="1"><mxGeometry x="0" y="90" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="c3" value="task" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="160" y="90" width="135" height="40" as="geometry"/></mxCell>
+        <mxCell id="c4" value="task" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="305" y="90" width="135" height="40" as="geometry"/></mxCell>
+        <mxCell id="c5" value="free units" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;align=left;" vertex="1" parent="1"><mxGeometry x="0" y="150" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="c6" value="owed" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;align=left;" vertex="1" parent="1"><mxGeometry x="0" y="210" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="c7" value="waiting" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;align=left;" vertex="1" parent="1"><mxGeometry x="0" y="270" width="120" height="40" as="geometry"/></mxCell>
+        <mxCell id="c8" value="Its unit goes to the waiting task, which starts: 2 busy, at capacity." style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;" vertex="1" parent="1"><mxGeometry x="0" y="330" width="750" height="50" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
