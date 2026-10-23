@@ -19,7 +19,7 @@ The **load** is the top half of that: 1.8 orders a second × 1.5 seconds = 2.7 p
 - With utilisation below 1 a model is **stable**: the queue rises and falls, but stays bounded.
 - At 1 or above it is not: the queue grows for as long as the run lasts, and every order waits longer than the one before.
 
-So the shop needs at least 3 packers (2.7 ÷ 3 = 0.9). Each resource in a model has its own utilisation, and the one closest to 1 is the **bottleneck**: it decides how long everything waits.
+So the shop needs at least 3 packers (2.7 ÷ 3 = 0.9). [Queueing Basics](../des/queueing-basics.md) explains utilisation, and why the queue grows without limit at 1 or above. Each resource in a model has its own utilisation, and the one closest to 1 is the **bottleneck**: it decides how long everything waits.
 
 Here is the busy hour. The arrival rate is 1.8, and `until` is one hour of simulation time:
 
@@ -182,12 +182,7 @@ packers 4: mean wait     0.20 s
 
 With 2 packers, utilisation is 1.35. The queue grows all hour, so the mean wait says only how long the run was: run two hours and it roughly doubles. With 3 packers, utilisation is 0.9 and the wait settles. With 4 it is 0.675, and almost nobody waits.
 
-A stable model can still wait a long time. Waits grow sharply as utilisation approaches 1, and more variable times make it worse. These are measured mean waits in the queue for one packer with a mean service of 1.5 seconds, each over 200,000 simulated seconds:
-
-![Measured mean wait in the queue for one packer with mean service 1.5 s: at utilisation 0.5, 1.5 s with exponential service and 0.8 s with constant service; at 0.75, 4.4 and 2.3 s; at 0.9, 13.0 and 7.0 s; at 0.95, 31.3 and 14.8 s](../assets/diagrams/wait-vs-utilization.png)
-
-- **With exponential service times**, the mean wait for one unit is `utilisation ÷ (1 − utilisation) × mean service time`. At 0.75 that is 3 × 1.5 = 4.5 seconds. Going from 0.9 to 0.95 more than doubles it.
-- **With constant service times**, as in this shop, the wait is half of that, because no unusually long job holds up the queue. Spread in the service time, or in the gaps between arrivals, always lengthens waits; [Choosing Inputs](choosing-inputs.md) measures it.
+A stable model can still wait a long time. Waits grow sharply as utilisation approaches 1, and more variable times make it worse. For one packer with exponential service times the mean wait is `utilisation ÷ (1 − utilisation) × mean service time`, and with constant service times, as in this shop, it is half of that. [Queueing Basics](../des/queueing-basics.md) shows these formulas with their waits at utilisation 0.5 to 0.95, and checks them against runs of the shop. [Choosing Inputs](choosing-inputs.md) measures how much the spread of an input matters.
 
 ---
 
@@ -201,7 +196,7 @@ With 3 packers the mean wait is 1.27 seconds. With 2 packers it is over 400 seco
 
 ## Why It Works
 
-Three packers serving one queue is the M/M/c model of queueing theory when both the gaps and the service times are exponential, and M/D/c when the service time is constant, as here. For both, the wait, measured in service times, depends on utilisation alone once c is fixed, and grows without limit as utilisation reaches 1, which is what the table shows. To bring a resource below 1, change any term of the utilisation: add units (`current_cap`), work faster (a shorter service time) or take fewer arrivals (a lower `rate`). Each is a live parameter, so a running model can be relieved, or overloaded on purpose, as [Live Parameters](../user-guide/live-parameters.md) shows. [Statistics](../user-guide/statistics.md) describes how the mean wait is measured.
+[Queueing Basics](../des/queueing-basics.md) explains why the wait grows without limit as utilisation reaches 1, which is what the table shows, and gives the formula for several packers sharing one queue. To bring a resource below 1, change any term of the utilisation: add units (`current_cap`), work faster (a shorter service time) or take fewer arrivals (a lower `rate`). Each is a live parameter, so a running model can be relieved, or overloaded on purpose, as [Live Parameters](../user-guide/live-parameters.md) shows. [Statistics](../user-guide/statistics.md) describes how the mean wait is measured.
 
 ---
 

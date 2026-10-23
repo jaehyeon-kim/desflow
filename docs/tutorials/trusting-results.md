@@ -162,9 +162,9 @@ Is one run enough? No. Its start does not distort it: read from the plot, the bu
 
 ## Why It Works
 
-Initialisation bias fades as the model forgets how it started: here the queue that the first orders found empty is full again within a minute. The warmed-up numbers still pass the check from Measuring a Run. 6,024 orders were packed in the 3,480 seconds after the warm-up, 1.73 a second, and 1.73 × 1.381 seconds = 2.39, which is the `queue_length_avg` of 2.40 that the same statistics report. [Statistics](../user-guide/statistics.md) describes how the reset works.
+Initialisation bias ([Output Analysis](../des/output-analysis.md#one-run-starts-empty) explains it) fades as the model forgets how it started: here the queue that the first orders found empty is full again within a minute. The warmed-up numbers still pass the check from Measuring a Run. 6,024 orders were packed in the 3,480 seconds after the warm-up, 1.73 a second, and 1.73 × 1.381 seconds = 2.39, which is the `queue_length_avg` of 2.40 that the same statistics report. [Statistics](../user-guide/statistics.md) describes how the reset works.
 
-Replications are independent of each other because each has its own seed, so the spread of their values measures how much the answer depends on chance. With few replications the spread itself is uncertain, and the t quantile widens the interval to allow for it: 2.776 for 5 replications, 2.023 for 40.
+Replications ([Output Analysis](../des/output-analysis.md#replications) explains them) are independent of each other because each has its own seed, so the spread of their values measures how much the answer depends on chance. With few replications the spread itself is uncertain, and the t quantile widens the interval to allow for it: 2.776 for 5 replications, 2.023 for 40.
 
 ---
 

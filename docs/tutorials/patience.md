@@ -128,7 +128,7 @@ patience none: 2242 packed, 0 reneged, 194 balked, mean wait 72.16 s
 
 ## Why It Works
 
-Orders arrive at 0.7 a second and bring 1.05 seconds of packing each second, more than one packer can do, so without patience the queue grows and every order waits longer than the one before. Patience removes the orders that have waited longest, which keeps the queue short for the rest: the shop packs 69 fewer orders, and every order it packs waits less. The mean wait of packed orders is then no longer the whole story, because it leaves out the orders that left; report the reneged and balked counts beside it. [Statistics](../user-guide/statistics.md) describes what each count measures.
+Orders arrive at 0.7 a second and bring 1.05 seconds of packing each second, more than one packer can do, so without patience the queue grows and every order waits longer than the one before. Patience removes the orders that have waited longest, which keeps the queue short for the rest: the shop packs 69 fewer orders, and every order it packs waits less. The mean wait of packed orders is then no longer the whole story, because it leaves out the orders that left; report the reneged and balked counts beside it. [Queueing Basics](../des/queueing-basics.md#parts-of-a-queue) explains why a queue grows without limit above utilisation 1. [Statistics](../user-guide/statistics.md) describes what each count measures.
 
 ---
 

@@ -286,7 +286,7 @@ abandon: 313 preempted, 1294 packed, mean wait  3.60 s, mean packing 1.50 s
 
 ## Why It Works
 
-Under `restart` the packer spends part of its time on packing that is thrown away, so it does more work for the same orders: the mean time packed rises from 1.50 to 1.69 seconds, the load nears what one packer can do, and waits grow fast, as on [Queues and Capacity](queues-and-capacity.md). `resume` loses no work, so its waits are close to those of plain priority. `abandon` looks best only because the mean leaves out the orders it lost; count them beside it. [Priority and Preemption](../user-guide/resources/priority-and-preemption.md#preemption) describes preemption, and [Tasks and Processes](../user-guide/tasks-and-processes/index.md) the task's steps.
+Under `restart` the packer spends part of its time on packing that is thrown away, so it does more work for the same orders: the mean time packed rises from 1.50 to 1.69 seconds, the load nears what one packer can do, and waits grow fast, as [Queueing Basics](../des/queueing-basics.md#waits-near-full-use) explains. `resume` loses no work, so its waits are close to those of plain priority. `abandon` looks best only because the mean leaves out the orders it lost; count them beside it. [Priority and Preemption](../user-guide/resources/priority-and-preemption.md#preemption) describes preemption, and [Tasks and Processes](../user-guide/tasks-and-processes/index.md) the task's steps.
 
 ---
 

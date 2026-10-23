@@ -139,7 +139,7 @@ keeps the picker: wait to pick   8.77 s, to pack  1.09 s, picker busy 82.7%
 
 ## Why It Works
 
-The bench is the bottleneck: it is busy 80% of the time. When the picker waits at the bench, its own time is spent on the bench's queue, so the picker becomes a second bottleneck and the next order waits for it. Releasing a resource as soon as it is no longer needed keeps the waits where the work is. [Several Resources](../user-guide/resources/several-resources.md#several-resources) describes several resources, handoffs and the order rule.
+The bench is the bottleneck: it is busy 80% of the time. When the picker waits at the bench, its own time is spent on the bench's queue, so the picker becomes a second bottleneck and the next order waits for it. Releasing a resource as soon as it is no longer needed keeps the waits where the work is. [Queueing Basics](../des/queueing-basics.md#parts-of-a-queue) explains utilisation. [Several Resources](../user-guide/resources/several-resources.md#several-resources) describes several resources, handoffs and the order rule.
 
 ---
 

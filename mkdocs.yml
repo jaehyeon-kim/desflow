@@ -164,7 +164,14 @@ nav:
   - Installation: getting-started.md
   - Learn:
       - What Is DES?: des/how-it-works.md
+      - A Simulation Study: des/a-simulation-study.md
+      - Checking and Validating: des/checking-and-validating.md
+      - Queueing Basics: des/queueing-basics.md
+      - Output Analysis: des/output-analysis.md
       - SimPy and desflow: des/simpy-and-desflow.md
+      - Coming from SimPy: des/coming-from-simpy.md
+      - Common Mistakes: des/common-mistakes.md
+      - Readiness and Reporting: des/readiness-and-reporting.md
       # The shop tutorial in the order of a study: build a first model, choose its
       # inputs, add the shop's logic, then analyse the results.
       - "Tutorial: the Shop":

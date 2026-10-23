@@ -119,7 +119,7 @@ modelled: 1905 packed, mean wait  2.57 s, longest  14.34 s
 
 ## Why It Works
 
-A mean rate says how many orders come in an hour, not when they come. Exponential gaps spread the orders evenly over the hour, with small random clusters; the recorded morning has bursts that push the load above one packer for minutes at a time, a finite overload like the rush of [Changing Demand](changing-demand.md). Replaying the recorded rows keeps the bursts, so it shows waits the fitted model cannot. Use a replay to check a model against the data it was fitted to: when the two disagree, the arrivals are not exponential at one rate, and the model needs a schedule, as on [Time-varying Arrivals](../guides/time-varying-arrivals.md), or the replay itself.
+A mean rate says how many orders come in an hour, not when they come. Exponential gaps spread the orders evenly over the hour, with small random clusters; the recorded morning has bursts that push the load above one packer for minutes at a time, a finite overload like the rush of [Changing Demand](changing-demand.md). Replaying the recorded rows keeps the bursts, so it shows waits the fitted model cannot. Use a replay to check a model against the data it was fitted to, as [Checking and Validating](../des/checking-and-validating.md#compare-with-the-real-shop) describes: when the two disagree, the arrivals are not exponential at one rate, and the model needs a schedule, as on [Time-varying Arrivals](../guides/time-varying-arrivals.md), or the replay itself.
 
 ---
 

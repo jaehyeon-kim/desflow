@@ -176,7 +176,7 @@ Does a fourth packer cut the mean wait, and by how much? Yes: with the same seed
 
 ## Why It Works
 
-Two designs run with different seeds differ by the design and by chance, and the chance part can hide a small effect. Run with the same seeds, each pair of runs meets the same arrivals and the same packing times, so the chance part mostly cancels in their difference, and the interval on the differences is narrower than either design's own interval. The interval is a Student t interval on the 20 differences, as in Trusting Results, because each difference comes from a seed of its own.
+Two designs run with different seeds differ by the design and by chance, and the chance part can hide a small effect. Run with the same seeds, each pair of runs meets the same arrivals and the same packing times, so the chance part partly cancels in their difference, and the interval on the differences is narrower than the interval an unpaired comparison of the same runs gives. The interval is a Student t interval on the 20 differences, as in [Output Analysis](../des/output-analysis.md#comparing-designs), because each difference comes from a seed of its own.
 
 ---
 

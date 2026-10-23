@@ -93,6 +93,28 @@ for e in (live, twice_as_fast, unpaced, env, zoned):
     e.teardown()
 
 
+# --8<-- [start:same-time]
+ties = DynamicRealtimeEnvironment(factor=0.0)
+packed = []
+
+
+def pack(name, seconds):
+    yield ties.timeout(seconds)
+    packed.append(name)
+
+
+ties.process(pack("first", 5))
+ties.process(pack("second", 5))  # due at the same time: runs after "first"
+ties.process(pack("at the horizon", 10))
+ties.run(until=10)
+print(packed)  # ['first', 'second']: nothing due at 10 runs
+# --8<-- [end:same-time]
+
+assert packed == ["first", "second"]
+assert ties.now == 10
+ties.teardown()
+
+
 # --8<-- [start:step]
 def every_ten(context):
     while True:

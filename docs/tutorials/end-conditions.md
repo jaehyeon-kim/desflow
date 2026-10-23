@@ -95,7 +95,7 @@ drain  : ends at  3656.4 s, 2436 started, 2436 finished, 0 left, mean wait 71.51
 
 ## Why It Works
 
-A fixed horizon answers a question about a period, such as how many orders the shop packs in an hour; the orders still in the shop are its unfinished work, and `in_system` says how many there are. A drain answers a question about a batch of orders, such as how long the day's orders take to clear; it serves every admitted order, at the cost of running past the hour. Report the counts beside any mean, so a reader knows which orders it covers. [Statistics](../user-guide/statistics.md) describes each count.
+A fixed horizon answers a question about a period, such as how many orders the shop packs in an hour; the orders still in the shop are its unfinished work, and `in_system` says how many there are. A drain answers a question about a batch of orders, such as how long the day's orders take to clear; it serves every admitted order, at the cost of running past the hour. Report the counts beside any mean, so a reader knows which orders it covers. [Output Analysis](../des/output-analysis.md#terminating-or-steady-state) explains the two kinds of run, and [Statistics](../user-guide/statistics.md) describes each count.
 
 ---
 

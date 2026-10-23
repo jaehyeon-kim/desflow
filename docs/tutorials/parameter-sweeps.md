@@ -58,7 +58,7 @@ How much does the answer depend on the arrival rate? With three packers, a great
 
 ## Why It Works
 
-Three packers that take 1.5 seconds an order on average pack 2 orders a second at most. At 1.9 orders a second they are busy 95% of the time, and close to that limit a small rise in demand makes the queue much longer, so the wait grows faster than the rate. Four packers stay below 72% busy at every rate in the sweep, far from their limit. Every design ran with the same seeds, so the differences between rows come from the rate, not from chance. The intervals widen with the rate, because a busier shop varies more from run to run.
+Three packers that take 1.5 seconds an order on average pack 2 orders a second at most. At 1.9 orders a second they are busy 95% of the time, and close to that limit a small rise in demand makes the queue much longer, so the wait grows faster than the rate, as [Queueing Basics](../des/queueing-basics.md#waits-near-full-use) explains. Four packers stay below 72% busy at every rate in the sweep, far from their limit. Every design ran with the same seeds, so the differences between rows come from the rate, not from chance. The intervals widen with the rate, because a busier shop varies more from run to run.
 
 ---
 
