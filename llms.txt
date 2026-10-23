@@ -13,7 +13,14 @@
 ## Learn
 
 - [What Is DES?](https://jaehyeon.me/desflow/latest/des/how-it-works/index.md)
+- [A Simulation Study](https://jaehyeon.me/desflow/latest/des/a-simulation-study/index.md)
+- [Checking and Validating](https://jaehyeon.me/desflow/latest/des/checking-and-validating/index.md)
+- [Queueing Basics](https://jaehyeon.me/desflow/latest/des/queueing-basics/index.md)
+- [Output Analysis](https://jaehyeon.me/desflow/latest/des/output-analysis/index.md)
 - [SimPy and desflow](https://jaehyeon.me/desflow/latest/des/simpy-and-desflow/index.md)
+- [Coming from SimPy](https://jaehyeon.me/desflow/latest/des/coming-from-simpy/index.md)
+- [Common Mistakes](https://jaehyeon.me/desflow/latest/des/common-mistakes/index.md)
+- [Readiness and Reporting](https://jaehyeon.me/desflow/latest/des/readiness-and-reporting/index.md)
 - [First Simulation](https://jaehyeon.me/desflow/latest/tutorials/first-simulation/index.md)
 - [Queues and Capacity](https://jaehyeon.me/desflow/latest/tutorials/queues-and-capacity/index.md)
 - [Randomness and Seeds](https://jaehyeon.me/desflow/latest/tutorials/randomness-and-seeds/index.md)
@@ -34,6 +41,9 @@
 - [Trusting Results](https://jaehyeon.me/desflow/latest/tutorials/trusting-results/index.md)
 - [Comparing Designs](https://jaehyeon.me/desflow/latest/tutorials/comparing-designs/index.md)
 - [Parameter Sweeps](https://jaehyeon.me/desflow/latest/tutorials/parameter-sweeps/index.md)
+- [Checking a Model](https://jaehyeon.me/desflow/latest/tutorials/checking-a-model/index.md)
+- [Live Changes](https://jaehyeon.me/desflow/latest/tutorials/live-changes/index.md)
+- [Streaming Out](https://jaehyeon.me/desflow/latest/tutorials/streaming-out/index.md)
 
 ## User Guide
 
@@ -68,7 +78,13 @@
 ## How-To
 
 - [Python in a Blueprint](https://jaehyeon.me/desflow/latest/guides/yaml-advanced/index.md)
+- [Set Up Your Editor](https://jaehyeon.me/desflow/latest/guides/set-up-your-editor/index.md)
+- [Use an AI Assistant](https://jaehyeon.me/desflow/latest/guides/use-an-ai-assistant/index.md)
 - [Fit a Distribution](https://jaehyeon.me/desflow/latest/guides/fit-a-distribution/index.md)
+- [Test a Model](https://jaehyeon.me/desflow/latest/guides/test-a-model/index.md)
+- [Analyse the Event Log](https://jaehyeon.me/desflow/latest/guides/analyse-the-event-log/index.md)
+- [Animate a Run](https://jaehyeon.me/desflow/latest/guides/animate-a-run/index.md)
+- [Share by Weight](https://jaehyeon.me/desflow/latest/guides/share-by-weight/index.md)
 - [Complex Routing (Kafka)](https://jaehyeon.me/desflow/latest/guides/complex-routing/index.md)
 - [Avro and Pydantic](https://jaehyeon.me/desflow/latest/guides/avro-and-pydantic/index.md)
 - [Secure Kafka](https://jaehyeon.me/desflow/latest/guides/kafka-security/index.md)
@@ -96,6 +112,7 @@
 
 - [API Reference](https://jaehyeon.me/desflow/latest/api/index.md)
 - [YAML Format](https://jaehyeon.me/desflow/latest/reference/yaml-format/index.md)
+- [YAML Keys](https://jaehyeon.me/desflow/latest/reference/yaml-keys/index.md)
 - [Records and Telemetry](https://jaehyeon.me/desflow/latest/reference/records-and-telemetry/index.md)
 - [Distributions](https://jaehyeon.me/desflow/latest/reference/distributions/index.md)
 - [Statistics](https://jaehyeon.me/desflow/latest/reference/statistics/index.md)
@@ -105,5 +122,6 @@
 ## About
 
 - [Roadmap](https://jaehyeon.me/desflow/latest/about/roadmap/index.md)
+- [Why desflow](https://jaehyeon.me/desflow/latest/about/why-desflow/index.md)
 - [Changelog](https://jaehyeon.me/desflow/latest/about/changelog/index.md)
 
