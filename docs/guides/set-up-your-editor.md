@@ -41,7 +41,7 @@ desflow schema > blueprint.schema.json
 
 Then use `# yaml-language-server: $schema=./blueprint.schema.json` as the line, or `"./blueprint.schema.json"` as the key in `yaml.schemas`. In the line the path is relative to the blueprint's folder. In `yaml.schemas` it is relative to the workspace folder, in a single-folder workspace.
 
-The address above always serves the latest release, so it can offer keys that an older install does not have. To pin a release, use its versioned address, such as `https://jaehyeon.me/desflow/0.24.0/schema/blueprint.schema.json`.
+The address above always serves the latest release, so it can offer keys that an older install does not have. To pin a release, use its versioned address, `https://jaehyeon.me/desflow/<version>/schema/blueprint.schema.json`, with `<version>` the release you installed, which `desflow --version` prints.
 
 ---
 

@@ -1468,5 +1468,3 @@ Each step answers a different doubt about the result: the fits about the inputs,
                     )
             print(f"recommended: {recommended(experiment())}")
         ```
-
-Next, [Live Changes](live-changes.md) changes a parameter while the shop runs.

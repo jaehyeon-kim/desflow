@@ -183,4 +183,4 @@ Three packers that take 1.5 seconds an order on average pack 2 orders a second a
 
         It imports from `trusting_results_low_level.py`, which is in the full files of [Trusting Results](trusting-results.md#full-files).
 
-Next, [Checking a Model](checking-a-model.md) checks that the program does what the model says, and that the model is good enough to choose the number of packers. [Experiments](../user-guide/experiments/index.md) describes every setting of an experiment, its files and its report.
+[Experiments](../user-guide/experiments/index.md) describes every setting of an experiment, its files and its report.

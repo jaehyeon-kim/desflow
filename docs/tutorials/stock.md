@@ -472,5 +472,3 @@ Stock adds a second queue: orders wait at the shelf as well as at the packer. Be
             for delivery in (60, 40):
                 print(f"deliveries of {delivery}: mean wait {mean_wait(delivery):6.2f} s")
         ```
-
-Next, [Priorities](priorities.md) asks whether express orders can jump the queue.

@@ -616,5 +616,3 @@ Under `restart` the packer spends part of its time on packing that is thrown awa
                     f"mean wait {r['wait_mean']:5.2f} s, mean packing {r['service_mean']:4.2f} s"
                 )
         ```
-
-Next, [Competing Resources](competing-resources.md) asks what happens while an order holds one resource and waits for another.

@@ -95,7 +95,7 @@ app.add_egress(
 
 ### PostgreSQL
 
-`PostgresEgress` inserts records into a table in batches. Only records whose value is a mapping are written, and the labels on a labels sink. A label is written as `sim_ts`, `timestamp`, `path`, `old`, `new` and `label`. The record's `sim_ts`, `timestamp`, `key` (as `event_id`) and `path_id` are added to the value and replace fields of the same name. Its `task` and `instance` are added too, but a value field of the same name keeps its own value. Keys with no matching column are dropped. A `__table__` key in the value sends the record only to the sink whose `table_name` matches.
+`PostgresEgress` inserts records into a table in batches. Only records whose value is a mapping are written, and the labels on a labels sink. A label is written as `sim_ts`, `timestamp`, `path`, `old`, `new` and `label`. The record's `sim_ts`, `timestamp`, `key` (as `event_id`) and `path_id` are added to the value and replace fields of the same name. Its `task` and `instance` are added too, but a value field of the same name keeps its own value. Keys with no matching column are dropped. A `__table__` key in the value sends the record only to the sink whose `table_name` matches. The connection string names `odctl`, the database that the odctl `postgres` profile creates, with the user `user` and the password `password`.
 
 ```python title="docs/snippets/pages/connectors.py:postgres-egress"
 dsn = "postgresql://user:password@localhost:5432/odctl"

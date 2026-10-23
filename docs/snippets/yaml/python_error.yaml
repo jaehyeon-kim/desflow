@@ -1,0 +1,14 @@
+# Python in a Blueprint: a reference to a name that shop_logic.py does not define.
+# desflow run python_error.yaml stops while loading, with the file and the line.
+simulation: {sim_id: Shop, factor: 0}
+resources:
+  packers: {current_cap: 1}
+services:
+  packing: {dist: constant, value: 1.5 s}
+arrivals:
+  orders: {dist: exponential, rate: 0.5, spawn: pack_order}
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload: !python shop_logic.missing

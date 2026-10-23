@@ -8,7 +8,7 @@ The steps follow Law, "How to Conduct a Successful Simulation Study" (Winter Sim
 
 ## Steps in Order
 
-Look at the diagram for the order of the steps. Steps 3 and 5 check the work of steps 2 and 4. When the check in step 3 or step 5 fails, Law's figure sends you back to steps 1 and 2, because the problem or the conceptual model may need to change.
+Look at the diagram for the order of the steps. Two steps are checks: [Check the Assumptions](#check-the-assumptions) checks the conceptual model, and [Build and Check the Model](#build-and-check-the-model) checks the programmed model. When either check fails, Law's figure sends you back to [Ask One Question](#ask-one-question) and [Conceptual Model and Data](#conceptual-model-and-data), because the problem or the conceptual model may need to change.
 
 ![The seven steps of a simulation study: formulate the problem, collect data and build the conceptual model, is the conceptual model valid, program the model, is the programmed model valid, run experiments, report, with the failed checks of steps 3 and 5 returning to steps 1 and 2](../assets/diagrams/study-steps.png)
 

@@ -71,7 +71,7 @@ Choosing where an entity goes next is called **routing**. In desflow a task, whi
     env.process(task(env, sampler, shop, following, entity, instance, counters))
     ```
 
-    In SimPy terms, a process that starts another process with `env.process(...)` is how one step leads to the next. [SimPy and desflow](../des/simpy-and-desflow.md) describes processes.
+    In SimPy terms, a process that starts another process with `env.process(...)` is how one step leads to the next. [SimPy and desflow](../des/simpy-and-desflow.md#processes-and-waiting-for-a-process) describes processes.
 
 The rule reads `level.stock`, the level of the container `stock`, at the moment picking finishes; [Stores and Containers](../user-guide/stores-and-containers.md) describes containers. Each name in a condition says where its value comes from: `level.` for a store or container, `attr.` for the entity's attributes, `payload.` for the finished task's payload, and `registry["..."]` for a live parameter. [Task Flow](../user-guide/task-flow.md) lists everything a condition can use.
 
@@ -601,5 +601,3 @@ In a flow, each task's arrival rate follows from the rates into it and the routi
         if __name__ == "__main__":
             run()
         ```
-
-Next, [Process Interaction](process-interaction.md) asks when a waiting order resumes.

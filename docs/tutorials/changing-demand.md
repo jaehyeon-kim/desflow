@@ -341,5 +341,3 @@ During the rush one packer would need 0.9 × 1.5 = 1.35 seconds of packing every
                     f"mean wait {r['wait_mean']:5.2f} s, longest {r['wait_max']:6.2f} s"
                 )
         ```
-
-Next, [Local Replay](local-replay.md) asks what the shop does with the orders of a real morning.

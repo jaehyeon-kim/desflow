@@ -76,7 +76,7 @@ A scenario step with a `record` mapping also publishes a label, as [Live Paramet
     env.process(run_scenario(env, JAM, until=until))
     ```
 
-    It waits on SimPy's clock with timeout events, as [SimPy and desflow](../des/simpy-and-desflow.md) describes.
+    It waits on SimPy's clock with timeout events, as [SimPy and desflow](../des/simpy-and-desflow.md#environment-and-the-event-list) describes.
 
 The steps follow the simulation clock, so the jam lands at exactly 20 and 30 minutes on every run, as in Changing Demand. The path `Shop.service.packing.value` is the `value` of a `constant` distribution; [Live Parameters](../user-guide/live-parameters.md#find-the-path) shows how to list every path of a model.
 
@@ -681,5 +681,3 @@ During the jam the packer finishes one order every 3 seconds, 0.33 a second, whi
                     )
                 print(f"the last order that waits longer is queued at {r['last_longer']:.1f} s")
         ```
-
-Next, [Streaming Out](streaming-out.md) sends the shop's records to the terminal and to files, and shows which records reach each.

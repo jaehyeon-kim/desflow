@@ -1,6 +1,6 @@
 # Generate Related Records
 
-Related records are rows that belong together across tables. Here every customer order has 1 to 5 line items with random products, prices and quantities, and a total computed from them, written to two PostgreSQL tables, `orders` and `order_items`. Each tab shows the example written one way, and the three publish the same records. In YAML a mapping payload is a constant, so the order generator is a process in `postgres_orders_logic.py`, referenced with `!python`; [Python in a Blueprint](../guides/yaml-advanced.md) explains how references work.
+Related records are rows that belong together across tables. Here every customer order has 1 to 5 line items with random products, prices and quantities, and a total computed from them, written to two PostgreSQL tables, `orders` and `order_items`. Each tab shows the example written one way, and the three publish the same records. In YAML a mapping payload is a constant, so the order generator is a process in `postgres_orders_logic.py`, referenced with `!python`; [Python in a Blueprint](../guides/yaml-advanced.md) explains how references work. The connection string names `odctl`, the database that the odctl `postgres` profile creates, with the user `user` and the password `password`.
 
 === "YAML"
 

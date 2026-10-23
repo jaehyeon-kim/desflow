@@ -239,6 +239,17 @@ def test_wait_for_one_or_all_first_ties_and_failure():
     ]
 
 
+def test_wait_for_one_or_all_example_packs_and_refunds():
+    """The page's example: each restock waits for all of its delivery (10 s) and its
+    stock count (20 s), so it comes 20 s after each delivery starts, at 80 s to 560 s;
+    27 orders are packed after a restock and 35 are refunded at the limit."""
+    assert _load("wait_for_one_or_all_example").outcome() == {
+        "pack": 27,
+        "refund": 35,
+        "restocked_at": [80.0 + 60 * n for n in range(9)],
+    }
+
+
 def test_performance_tuning_counts_the_records():
     """An hour of the shop publishes 108,688 records at factor 0: no lag readings,
     which would add 3,600, and a rate above 0."""

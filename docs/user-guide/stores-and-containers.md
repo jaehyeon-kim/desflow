@@ -403,7 +403,7 @@ A container has three registry paths, `<sim_id>.containers.<name>.current_cap`, 
 | `getters_waiting` | tasks waiting to get an item | tasks waiting to take an amount |
 | `putters_waiting` | tasks waiting to put an item | tasks waiting to add an amount |
 
-`basic` adds `level_avg`, the level averaged over time; [Statistics](statistics.md) describes it. These are the readings of the blueprint above at 30 and 40 seconds, before and after the stock count below:
+`basic` adds `level_avg`, the level averaged over time; [Statistics](statistics.md) describes it. These are the readings of [`stores_containers.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/docs/snippets/yaml/stores_containers.yaml), the blueprint whose parts this section shows, at 30 and 40 seconds, before and after the stock count below:
 
 <!-- records: holder-readings -->
 ```text
@@ -848,7 +848,7 @@ A store keeps a list of items, up to its capacity. A `put` adds an item at the e
 - **A store or container with no limit** can be given a number as `current_cap` during a run, and `.inf` or the text `"inf"` sets no limit again. Lowering destroys nothing, as above.
 - **`current_cap` is the capacity, not a level.** A model that used a container's `current_cap` as a level, such as the wear of a roll, moves it to `level`.
 
-The stock count in the blueprint above, in each way of writing:
+The stock count in [`stores_containers.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/docs/snippets/yaml/stores_containers.yaml), in each way of writing:
 
 === "YAML"
 

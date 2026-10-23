@@ -1,10 +1,10 @@
 # Measuring a Run
 
-Most of the last three pages read one number, the mean wait. A run knows much more: how busy the packers were, how long the queue was, how many orders were packed, and how long the slowest one waited. This page asks: **what does a run tell me?**
+Most of the pages so far read one number, the mean wait. A run knows much more: how busy the packers were, how long the queue was, how many orders were packed, and how long the slowest one waited. This page asks: **what does a run tell me?**
 
 ## What You Add
 
-`stats: typical`, the built-in statistics at the level that includes waits. The model simulates the busy hour with 3 packers and the measured packing times that [Choosing Inputs](choosing-inputs.md) chose.
+`stats: typical`, the built-in statistics at the level that includes waits. The model simulates the busy hour with 3 packers from [Queues and Capacity](queues-and-capacity.md), and draws each packing time from 40 times measured at the bench, each equally likely.
 
 ---
 
@@ -96,7 +96,7 @@ Every name has the same form, `<sim_id>.stats.<kind>.<name>.<statistic>`, such a
 [TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.flows.orders.in_system', 'value': 11}
 ```
 
-`tasks.pack_order.finished` counts the orders the task finished, and `flows.orders.finished` counts the orders that left the shop, named by the arrival that started them; with one task the two are equal. `flows.orders.started` counts the orders that entered, 6,261, and `flows.orders.in_system` the 11 still in the shop when the hour ended, which `tasks.pack_order.in_progress` also counts: the mean wait describes the orders that started packing, and [End Conditions](end-conditions.md) shows what a run leaves out when it ends. The mean wait is 1.38 seconds, not the 1.35 seconds of the empirical candidate in Choosing Inputs, although both use the same 40 measured packing times. The service is now called `packing`, so it draws from its own stream, `service.packing`, and the times come in another order; [Randomness and Seeds](randomness-and-seeds.md) explains why.
+`tasks.pack_order.finished` counts the orders the task finished, and `flows.orders.finished` counts the orders that left the shop, named by the arrival that started them; with one task the two are equal. `flows.orders.started` counts the orders that entered, 6,261, and `flows.orders.in_system` the 11 still in the shop when the hour ended, which `tasks.pack_order.in_progress` also counts: the mean wait describes the orders that started packing, and [End Conditions](end-conditions.md) shows what a run leaves out when it ends. The mean wait is 1.38 seconds.
 
 ---
 
@@ -331,5 +331,3 @@ The numbers check each other. [Little's Law](../des/queueing-basics.md#littles-l
             for name, value in env.stats.readings().items():
                 print(f"{name} = {value}")
         ```
-
-Next, [Trusting Results](trusting-results.md) asks whether one run is enough.

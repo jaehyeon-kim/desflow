@@ -355,5 +355,3 @@ Priority does not make the packer faster, so it cannot remove waiting; it only d
                 for task, wait in mean_waits(queue).items():
                     print(f"{queue:<8} {task:<12} mean wait {wait:5.2f} s")
         ```
-
-Next, [A Flow of Tasks](flow-of-tasks.md) asks how orders move through picking, packing and shipping.

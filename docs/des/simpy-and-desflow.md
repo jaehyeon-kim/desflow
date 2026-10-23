@@ -1,6 +1,6 @@
 # SimPy and desflow
 
-desflow is built on [SimPy](https://simpy.readthedocs.io/), a Python library for discrete-event simulation. SimPy provides the event list, the clock, processes and resources, and desflow keeps all of them. This page teaches the SimPy constructs one at a time, each on the packing shop in plain SimPy with no desflow in it, and then lists the four things desflow changes. A low-level desflow model is ordinary SimPy code with these additions.
+desflow is built on [SimPy](https://simpy.readthedocs.io/), a Python library for discrete-event simulation. SimPy provides the event list, the clock, processes and resources, and desflow keeps all of them. This page teaches the SimPy constructs one at a time, each on the packing shop in plain SimPy with no desflow in it, and then lists the six things desflow changes. A low-level desflow model is ordinary SimPy code with these additions.
 
 The code is plain SimPy 4.1.2, the version desflow is tested against. We confirmed each statement about a construct against SimPy's source in that version (`core.py`, `events.py`, `rt.py` and the `resources` package). Every function below runs as a script in the docs tests, and its output is the one shown.
 
@@ -76,7 +76,7 @@ courier 2 at 1.5: order 1
 triggered, processed, ok: (True, True, True)
 ```
 
-In desflow, a **signal** is an event that tasks wait for and fire, such as a restock. `Signal` is its low-level form, `add_signal` its builder form and `signals:` its YAML form. A failed event that nothing handles stops a SimPy run, and the low-level API keeps that. The builder and YAML publish a `failed` record and go on only by default (`on_unhandled_failure: continue`); the setting `stop` keeps SimPy's behaviour. [Failures](../user-guide/tasks-and-processes/failures.md) explains both.
+In desflow, a **signal** is an event that tasks wait for and fire, such as a restock. `Signal` is its low-level form, `add_signal` its builder form and `signals:` its YAML form. A failed event that nothing handles stops a SimPy run, and the low-level API keeps that. By default the builder and YAML publish a `failed` record and go on (`on_unhandled_failure: continue`). With `on_unhandled_failure: stop` they stop the run, as SimPy does. [Failures](../user-guide/tasks-and-processes/failures.md) explains both.
 
 ---
 
@@ -391,7 +391,7 @@ SimPy's `factor` is fixed when the environment is made. desflow's environment ch
 
 ## What desflow Changes
 
-desflow keeps SimPy's event list, clock, processes and resources, and changes four things: the clock can switch pacing, every parameter can change while the run goes on, random times are named distributions, and everything that happens is published as records.
+desflow keeps SimPy's event list, clock, processes and resources, and changes six things, one in each row of the table: the clock can switch pacing, the builder writes the common processes for you, random times are named distributions, resources follow a capacity that can change, every parameter can change while the run goes on, and everything that happens is published as records.
 
 | Part | In SimPy | In desflow |
 |---|---|---|

@@ -443,5 +443,3 @@ Replications ([Output Analysis](../des/output-analysis.md#replications) explains
                     f"{measure}, {n} runs: {result.mean:.2f} ± {result.half_width:.2f} ({share:.1%})"
                 )
         ```
-
-Next, [End Conditions](end-conditions.md) asks which orders a run's results describe when it ends.

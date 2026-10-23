@@ -2,7 +2,7 @@
 
 `KafkaEgress` writes every record as JSON by default. That suits lifecycle events and telemetry, but a consumer that needs a compact, schema-checked format, such as a machine learning service reading predictions, can read Avro instead.
 
-Each topic can have its own serializer, so JSON and Avro topics share one producer, and a Pydantic model can be published as it is.
+Each topic can have its own serializer, so JSON and Avro topics share one producer, and a Pydantic model can be published as it is. It builds on [Egress](../user-guide/egress.md#kafka), which explains `KafkaEgress`, and on [Complex Routing](complex-routing.md), which explains a topic router.
 
 The code below publishes to Kafka, so start a broker first with `odctl up kafka-lite`. See [Installation](../getting-started.md) for the one-time odctl install. Stop it with `odctl down kafka-lite --volumes`.
 
@@ -189,7 +189,7 @@ Run it with `python avro_and_pydantic.py` while `kafka-lite` is up. The serializ
 
 ---
 
-## Full Script
+## Example
 
 ??? example "Full script"
 

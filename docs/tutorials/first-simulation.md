@@ -464,5 +464,3 @@ A discrete-event simulation keeps a list of future events, ordered by time. It t
         if __name__ == "__main__":
             run()
         ```
-
-Next, [Queues and Capacity](queues-and-capacity.md) asks how many packers keep the wait short.

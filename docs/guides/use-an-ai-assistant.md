@@ -9,7 +9,7 @@ The skill is a folder, `skills/desflow/`, in the Agent Skills format that Claude
 ## Steps
 
 1. Install desflow, so the assistant can run `desflow run`, `desflow examples` and `desflow schema`.
-2. Copy `skills/desflow/` from the repository at the tag of the release you installed, such as `v0.24.0`, into the skills folder of the assistant. For Claude Code, `~/.claude/skills/desflow/` is for every project and `.claude/skills/desflow/` in a project is for that project.
+2. Copy `skills/desflow/` from the repository at the tag of the release you installed, `v` followed by what `desflow --version` prints, into the skills folder of the assistant. For Claude Code, `~/.claude/skills/desflow/` is for every project and `.claude/skills/desflow/` in a project is for that project.
 3. Ask the assistant for a model, such as "write a desflow blueprint for a shop with two packers and a lunch rush, and run it". It reads the skill when the request mentions desflow or a blueprint.
 
 With the GitHub CLI, one command does the copy. `gh skill install` is a preview command of the GitHub CLI, so it needs `gh` 2.90.0 or later:
@@ -18,7 +18,7 @@ With the GitHub CLI, one command does the copy. `gh skill install` is a preview 
 gh skill install jaehyeon-kim/desflow desflow --agent claude-code --scope user
 ```
 
-`--scope user` installs for every project and `--scope project`, the default, for the current one. Another assistant takes its own `--agent` value, listed in `gh skill install --help`. Without `--agent`, `gh` asks which assistant to install for, and when it cannot ask it installs for GitHub Copilot, which at project scope uses `.agents/skills`, a folder several other assistants also read. `gh` installs the latest release, and `desflow@v0.24.0` after the skill name pins one.
+`--scope user` installs for every project and `--scope project`, the default, for the current one. Another assistant takes its own `--agent` value, listed in `gh skill install --help`. Without `--agent`, `gh` asks which assistant to install for, and when it cannot ask it installs for GitHub Copilot, which at project scope uses `.agents/skills`, a folder several other assistants also read. `gh` installs the latest release. `desflow@v<version>` in place of `desflow` pins one, with `<version>` the release you installed.
 
 ---
 

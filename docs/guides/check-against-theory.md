@@ -196,7 +196,14 @@ One value is given but not compared. With one packer and gaps that are not expon
 
 ## Example
 
-Run the script from `docs/snippets/guides/` in a clone of the repository with `python check_against_theory.py`. It reads the blueprint from `docs/snippets/yaml/`:
+The script reads its blueprint from `docs/snippets/yaml/` in the repository, so run it in a clone:
+
+```bash
+# The script is in docs/snippets/guides/, and its blueprint in docs/snippets/yaml/
+git clone https://github.com/jaehyeon-kim/desflow.git
+cd desflow/docs/snippets/guides
+python check_against_theory.py
+```
 
 ??? example "Full files"
 

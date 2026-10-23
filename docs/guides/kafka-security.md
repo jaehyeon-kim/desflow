@@ -1,8 +1,8 @@
-# Connecting to Secure Kafka Clusters
+# Secure Kafka
 
-The Kafka connectors pass any keyword argument they do not use themselves to the Kafka client underneath, so SASL, mTLS, OAuth and AWS IAM work without code of your own. `KafkaIngress` and `KafkaEgress` use `aiokafka`. `KafkaAdminConnector` uses `kafka-python` for `create_topics` and `aiokafka` for `send_config` and `collect_data`, so its arguments must suit the library each method uses.
+The Kafka connectors pass any keyword argument they do not use themselves to the Kafka client underneath, so SASL, mTLS, OAuth and AWS IAM work without code of your own. `KafkaIngress` and `KafkaEgress` use `aiokafka`. `KafkaAdminConnector` uses `kafka-python` for `create_topics` and `aiokafka` for `send_config` and `collect_data`, so its arguments must suit the library each method uses. It builds on [Egress](../user-guide/egress.md#kafka) and [Ingress](../user-guide/ingress.md#kafka), which explain the Kafka connectors without security.
 
-Every example here connects to a managed or secured cluster. No odctl profile runs a secured broker, so the full script at the end needs a cluster of your own that uses SASL PLAIN, such as Confluent Cloud. To try the connectors locally without security, start a broker with `odctl up kafka-lite` and see [Installation](../getting-started.md).
+Every example here connects to a managed or secured cluster. No odctl profile runs a secured broker, so the example at the end needs a cluster of your own that uses SASL PLAIN, such as Confluent Cloud. To try the connectors locally without security, start a broker with `odctl up kafka-lite` and see [Installation](../getting-started.md).
 
 ---
 
@@ -133,7 +133,7 @@ Put your broker address and credentials in `egress`, then run `python kafka_secu
 
 ---
 
-## Full Script
+## Example
 
 ??? example "Full script"
 
@@ -143,7 +143,7 @@ Put your broker address and credentials in `egress`, then run `python kafka_secu
     """The secured Kafka connections of the Secure Kafka page, and a shop that uses one.
 
     The simulation publishes to a cluster that uses SASL PLAIN, such as Confluent Cloud: put your
-    broker address and credentials in the `sasl` section, then run `python
+    broker address and credentials in the `egress` variable, then run `python
     kafka_security.py`. The mTLS and MSK examples read certificate files or call AWS, so
     they sit in functions this file defines and does not call.
     """

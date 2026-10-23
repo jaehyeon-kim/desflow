@@ -34,7 +34,7 @@ So far a process has waited for time, a resource or an item. Processes can also 
     "courier_left": Signal(env, "courier_left"),
     ```
 
-    `Signal` holds one pending SimPy `Event`. `wait()` returns it, and `fire(value)` succeeds it and puts a fresh one in its place, so a process that starts waiting after a firing waits for the next one. [SimPy and desflow](../des/simpy-and-desflow.md) describes events.
+    `Signal` holds one pending SimPy `Event`. `wait()` returns it, and `fire(value)` succeeds it and puts a fresh one in its place, so a process that starts waiting after a firing waits for the next one. [SimPy and desflow](../des/simpy-and-desflow.md#events-and-callbacks) describes events.
 
 The courier arrives every 10 minutes, and its task fires the signal with its payload:
 
@@ -512,5 +512,3 @@ Orders are packed at random moments, so the time from packing to the next courie
                     f"{result['by_post']} by post, mean wait {result['wait_mean']:6.1f} s"
                 )
         ```
-
-Next, [Patience](patience.md) asks which orders leave a queue after waiting too long, and which refuse to join.

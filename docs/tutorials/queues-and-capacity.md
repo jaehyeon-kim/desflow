@@ -264,7 +264,7 @@ A stable model can still wait a long time, because the wait grows much faster th
 
 ![The M/M/1 mean wait against utilisation for a mean service of 1.5 seconds: 6.0 seconds at 0.8 and 28.5 seconds at 0.95, rising steeply towards 1](../assets/charts/queues-mm1.png)
 
-Variable times make the wait longer still. Bursts of arrivals, or packing times that vary a lot, fill the queue while the average load is moderate, and the queue takes a long time to empty again. Kingman's formula puts a number on this for one server: it multiplies the M/M/1 wait by (ca² + cs²) ÷ 2, where ca and cs are the coefficients of variation of the gaps and of the service times, the standard deviation divided by the mean. An exponential time has a coefficient of 1 and a constant time 0, so the shop's constant packing halves the wait. `desflow explain` uses Kingman's formula for a resource with one unit, and [Choosing Inputs](choosing-inputs.md) measures the wait with exponential, normal and lognormal packing times.
+Variable times make the wait longer still. Bursts of arrivals, or packing times that vary a lot, fill the queue while the average load is moderate, and the queue takes a long time to empty again. Kingman's formula puts a number on this for one server: it multiplies the M/M/1 wait by (ca² + cs²) ÷ 2, where ca and cs are the coefficients of variation of the gaps and of the service times, the standard deviation divided by the mean. An exponential time has a coefficient of 1 and a constant time 0, so the shop's constant packing halves the wait. `desflow explain` uses Kingman's formula for a resource with one unit, and [Choosing Inputs](choosing-inputs.md) measures the wait with constant, triangular, empirical and exponential packing times.
 
 Little's Law checks a run's output. In a model that settles, the mean number of orders waiting is the arrival rate times the mean wait, Lq = λ × Wq, and the number in the shop is L = λ × (Wq + mean service time). `desflow explain` prints L beside Wq, and [Queueing Basics](../des/queueing-basics.md#littles-law) checks the law against runs of the shop.
 
@@ -860,5 +860,3 @@ The formulas describe a queue that has settled. A run starts with no orders in t
             for packers in range(1, 5):
                 print(f"packers {packers}: mean wait {mean_wait(packers):8.2f} s")
         ```
-
-Next, [Randomness and Seeds](randomness-and-seeds.md) asks why each run differs, and how to repeat one.

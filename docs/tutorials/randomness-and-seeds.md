@@ -364,5 +364,3 @@ One stream per input means that two versions of a model run with the same seed s
         if __name__ == "__main__":
             run()
         ```
-
-Next, [Choosing Inputs](choosing-inputs.md) asks which distribution fits packing times.

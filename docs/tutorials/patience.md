@@ -42,7 +42,7 @@ An entity that leaves a queue after waiting too long **reneges**. In SimPy it wa
         return
     ```
 
-    `request | env.timeout(patience)` is SimPy's `AnyOf`: it happens when either event does. `request.triggered` is true once the unit is granted. Leaving the `with` block takes a waiting request out of the queue at once, so the packer is never granted to an order that has gone. [SimPy and desflow](../des/simpy-and-desflow.md) describes events and conditions.
+    `request | env.timeout(patience)` is SimPy's `AnyOf`: it happens when either event does. `request.triggered` is true once the unit is granted. Leaving the `with` block takes a waiting request out of the queue at once, so the packer is never granted to an order that has gone. [SimPy and desflow](../des/simpy-and-desflow.md#waiting-for-one-or-all) describes events and conditions.
 
 A reneged order publishes `reneged` in place of `started` and its finished event, and adds nothing to the wait statistics, because it was never served.
 
@@ -367,4 +367,4 @@ Orders arrive at 0.7 a second and bring 1.05 seconds of packing each second, mor
                 )
         ```
 
-[Reneging and Balking](../guides/reneging-and-balking.md) shows the same two decisions in a shop example, with ties and how to check that every order is accounted for. Next, [Interruptions](interruptions.md) asks what remains of an order's packing when an express order takes its packer.
+[Reneging and Balking](../guides/reneging-and-balking.md) shows the same two decisions in a shop example, with ties and how to check that every order is accounted for.

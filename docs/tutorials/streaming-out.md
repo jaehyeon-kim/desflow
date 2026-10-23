@@ -134,7 +134,7 @@ The model and the sinks finish at different times. The model stops at `until`. A
         env.teardown()  # the sinks receive the rest and finish writing
     ```
 
-    `env.run` runs SimPy's event loop and stops at `until`; `env.teardown()` is desflow's step that hands over the rest and waits for the sinks, as [SimPy and desflow](../des/simpy-and-desflow.md) describes.
+    `env.run` runs SimPy's event loop and stops at `until`, as [SimPy and desflow](../des/simpy-and-desflow.md#environment-and-the-event-list) describes. `env.teardown()` is desflow's step that hands over the rest and waits for the sinks.
 
 So a job that reads the folder while the run is going sees only the full batches. The terminal can show the same thing: on a fast machine the model can be done before the console sink prints its first line, and then every line appears after the log says `Tearing down egress connectors`. Teardown waits for the sinks to finish writing, and gives up only when they have made no progress for `drain_stall_seconds`, as [Egress](../user-guide/egress.md#how-it-works) describes. Records not written by then are lost, with a warning.
 
@@ -429,4 +429,4 @@ A record goes from `publish_event` to each sink's test, then into that sink's bu
             print(f"orders-12: {row}")
         ```
 
-This is the last page of the tutorial for now. [Experiments](../user-guide/experiments/index.md) describes every setting of an experiment, its files and its report, and the rest of the [User Guide](../user-guide/ways-to-write.md) describes each part of desflow in full. The [Kafka Digital Twin](../examples/kafka.md) example takes live changes from Kafka and sends its records to Kafka.
+[Experiments](../user-guide/experiments/index.md) describes every setting of an experiment, its files and its report, and the rest of the [User Guide](../user-guide/ways-to-write.md) describes each part of desflow in full. The [Kafka Digital Twin](../examples/kafka.md) example takes live changes from Kafka and sends its records to Kafka.

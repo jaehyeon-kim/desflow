@@ -136,6 +136,8 @@ A filtered store is one shelf with a queue per kind of item. Medium orders arriv
 
 ??? example "Full files"
 
+    The Builder and Low-level files count the outcomes with `_Outcomes`, a sink of their own: its `run` takes each batch of records from the sink's queue and counts the filled and cancelled orders by size, as [Egress](../user-guide/egress.md#how-it-works) describes for every sink.
+
     === "YAML"
 
         ```yaml title="docs/snippets/yaml/filtered_inventory.yaml"
@@ -454,5 +456,3 @@ A filtered store is one shelf with a queue per kind of item. Medium orders arriv
                     f"{counts[(size, 'cancelled')]:4} cancelled"
                 )
         ```
-
-Next, [Changing Demand](changing-demand.md) asks what a rush of orders does to waits.

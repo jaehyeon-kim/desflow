@@ -4,7 +4,7 @@
 
 ## What You Add
 
-`desflow fit`, or `fit_column` in Python, on the 40 packing times, and the fitted settings in the busy hour of [Trusting Results](trusting-results.md) in place of the times themselves. Fitting needs the `fit` extra: `pip install "desflow[fit]"`.
+`desflow fit`, or `fit_column` in Python, on the 40 packing times, and the fitted settings in the busy hour of [Choosing Inputs](choosing-inputs.md) in place of the times themselves. Fitting needs the `fit` extra: `pip install "desflow[fit]"`.
 
 ---
 
@@ -116,7 +116,7 @@ The fitted settings go where the 40 times were:
 
 ## Does the Choice Matter?
 
-Run the busy hour 40 times with each, as in Trusting Results. In YAML, `desflow run fit_the_inputs.yaml --replications 40 --measure tasks.pack_order.wait_mean` runs the best fit; `--candidates gamma` on `desflow fit` writes the gamma fit instead. The mean wait, with the 95% half-width:
+Run the busy hour 40 times with each distribution, each time with a different seed. These runs are **replications**: the mean wait differs from run to run, and the 95% half-width below says how far the mean of the 40 runs can be from the true mean wait. Each run also leaves out its first 2 minutes, a **warm-up**, because the shop starts empty and its first orders wait less than later ones. [Trusting Results](trusting-results.md) shows how to choose both numbers. In YAML, `desflow run fit_the_inputs.yaml --replications 40 --measure tasks.pack_order.wait_mean` runs the best fit; `--candidates gamma` on `desflow fit` writes the gamma fit instead. The mean wait of each, with its half-width:
 
 | Packing time | Mean (s) | Mean wait (s) |
 |---|---|---|
@@ -182,15 +182,15 @@ The triangular's mean is (0.546 + 1.2 + 2.838) ÷ 3 = 1.53 seconds, 2% above the
         """The Fit the Inputs tutorial: which distribution fits the 40 packing times? builder.
 
         Fits the 40 packing times measured at the bench to every family, prints the table
-        of candidates, then runs the busy hour of Trusting Results 40 times with the best
-        fit, with the gamma fit and with the 40 times themselves, and prints the mean wait
-        of each.
+        of candidates, then runs the busy hour 40 times, each after a 2-minute warm-up, with
+        the best fit, with the gamma fit and with the 40 times themselves, and prints the
+        mean wait of each.
         """
 
         import logging
 
         from desflow import SimulationContext, fit_column, replicate
-        from trusting_results import MEASURED
+        from measuring_a_run import MEASURED
 
         # The imported model logs at INFO; replications log only their warnings
         logging.getLogger("desflow").setLevel(logging.WARNING)
@@ -256,7 +256,7 @@ The triangular's mean is (0.546 + 1.2 + 2.838) ÷ 3 = 1.53 seconds, 2% above the
                 print(f"{name}: mean wait {row['mean']:.2f} ± {row['half_width']:.2f} s")
         ```
 
-        It imports from `trusting_results.py`, which is in the full files of [Trusting Results](trusting-results.md#full-files).
+        It imports from `measuring_a_run.py`, which is in the full files of [Measuring a Run](measuring-a-run.md#full-files).
 
     === "Low-level"
 
@@ -264,9 +264,9 @@ The triangular's mean is (0.546 + 1.2 + 2.838) ÷ 3 = 1.53 seconds, 2% above the
         """The Fit the Inputs tutorial: which distribution fits the 40 packing times? low-level.
 
         Fits the 40 packing times measured at the bench to every family, prints the table
-        of candidates, then runs the busy hour of Trusting Results 40 times with the best
-        fit, with the gamma fit and with the 40 times themselves, and prints the mean wait
-        of each.
+        of candidates, then runs the busy hour 40 times, each after a 2-minute warm-up, with
+        the best fit, with the gamma fit and with the 40 times themselves, and prints the
+        mean wait of each.
         """
 
         import logging
@@ -280,10 +280,13 @@ The triangular's mean is (0.546 + 1.2 + 2.838) ÷ 3 = 1.53 seconds, 2% above the
             fit_column,
             replicate,
         )
-        from trusting_results_low_level import MEASURED, WARMUP, order_generator
+        from measuring_a_run_low_level import MEASURED, order_generator
 
         # The imported model logs at INFO; replications log only their warnings
         logging.getLogger("desflow").setLevel(logging.WARNING)
+
+        # Records and statistics start after the first 2 minutes of each run
+        WARMUP = 120.0  # seconds
 
 
         def fitted():
@@ -337,6 +340,4 @@ The triangular's mean is (0.546 + 1.2 + 2.838) ÷ 3 = 1.53 seconds, 2% above the
                 print(f"{name}: mean wait {row['mean']:.2f} ± {row['half_width']:.2f} s")
         ```
 
-        It imports from `trusting_results_low_level.py`, which is in the full files of [Trusting Results](trusting-results.md#full-files).
-
-Next, [Stock](stock.md) asks what happens when the shop runs out of boxes.
+        It imports from `measuring_a_run_low_level.py`, which is in the full files of [Measuring a Run](measuring-a-run.md#full-files).

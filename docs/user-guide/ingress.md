@@ -113,7 +113,7 @@ docker exec -it valkey valkey-cli --user user --pass password PUBLISH simulation
 
 ### PostgreSQL
 
-`PostgresIngress` polls a table, `simulation_params` by default, every `poll_interval` seconds, 2 by default. It creates the table when it is missing, with the columns `id`, `path`, `value`, `is_applied` and `created_at`. At the start it applies the latest applied value of each path, so a restarted run resumes from the last settings; then it applies every row whose `is_applied` is false and marks it true, so the table keeps the history of every change. `value` is read as JSON, and as plain text when it is not JSON.
+`PostgresIngress` polls a table, `simulation_params` by default, every `poll_interval` seconds, 2 by default. It creates the table when it is missing, with the columns `id`, `path`, `value`, `is_applied` and `created_at`. At the start it applies the latest applied value of each path, so a restarted run resumes from the last settings; then it applies every row whose `is_applied` is false and marks it true, so the table keeps the history of every change. `value` is read as JSON, and as plain text when it is not JSON. The connection string names `odctl`, the database that the odctl `postgres` profile creates, with the user `user` and the password `password`.
 
 ```python title="docs/snippets/pages/connectors.py:postgres-ingress"
 # Applies new rows (path, value) of simulation_params, checking every 2 seconds

@@ -334,5 +334,3 @@ A fixed horizon answers a question about a period, such as how many orders the s
                     f"mean wait {r['wait_mean']:5.2f} s"
                 )
         ```
-
-Next, [Fit the Inputs](fit-the-inputs.md) asks which distribution fits the 40 packing times.

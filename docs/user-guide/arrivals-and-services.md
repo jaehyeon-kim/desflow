@@ -119,7 +119,7 @@ A run without a seed draws one and logs it, so it can be repeated: `desflow run`
 No random_seed was given, so this run uses 3166812249. Pass random_seed=3166812249 to repeat it.
 ```
 
-A low-level `Sampler()` with no seed draws nothing at random, as How It Works explains. [Randomness and Seeds](../tutorials/randomness-and-seeds.md) shows seeds in use.
+A low-level `Sampler()` with no seed draws nothing at random, as [How It Works](#how-it-works) explains. [Randomness and Seeds](../tutorials/randomness-and-seeds.md) shows seeds in use.
 
 ### Replay
 

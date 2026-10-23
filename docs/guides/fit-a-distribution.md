@@ -121,7 +121,14 @@ On the command line, `--candidates empirical --bins 10`. An empirical distributi
 
 ## Example
 
-The whole script fits the gaps and runs the shop for an hour with the fitted arrivals; one packer packs 1,302 orders. Run it from `docs/snippets/guides/` with `python fit_a_distribution.py`:
+The whole script fits the gaps and runs the shop for an hour with the fitted arrivals; one packer packs 1,302 orders. It reads `order_log.csv` from its own folder, so run it in a clone of the repository:
+
+```bash
+# The script and the order log are in docs/snippets/guides/ of the repository
+git clone https://github.com/jaehyeon-kim/desflow.git
+cd desflow/docs/snippets/guides
+python fit_a_distribution.py
+```
 
 ```python title="docs/snippets/guides/fit_a_distribution.py"
 """Fit a Distribution: the gaps between orders in an order log, fitted and loaded.

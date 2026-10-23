@@ -36,6 +36,9 @@ theme:
     # A section whose first page is index.md opens that page when its title is
     # chosen, so each User Guide topic folder has one page that lists its pages.
     - navigation.indexes
+    # Each page ends with links to the previous and next pages of the sidebar, so the
+    # sidebar is the only page order and a tutorial needs no line naming its next page.
+    - navigation.footer
 
 plugins:
   - search
@@ -237,25 +240,30 @@ nav:
       - Ingress: user-guide/ingress.md
       - Egress: user-guide/egress.md
   - How-To:
-      - Python in a Blueprint: guides/yaml-advanced.md
-      - Set Up Your Editor: guides/set-up-your-editor.md
-      - Use an AI Assistant: guides/use-an-ai-assistant.md
-      - Fit a Distribution: guides/fit-a-distribution.md
-      - Check Against Theory: guides/check-against-theory.md
-      - Test a Model: guides/test-a-model.md
-      - Analyse the Event Log: guides/analyse-the-event-log.md
-      - Animate a Run: guides/animate-a-run.md
-      - Share by Weight: guides/share-by-weight.md
-      - Complex Routing (Kafka): guides/complex-routing.md
-      - Avro and Pydantic: guides/avro-and-pydantic.md
-      - Secure Kafka: guides/kafka-security.md
-      - Multi-Resource Handoffs: guides/multi-resource-handoffs.md
-      - Breakdowns: guides/breakdowns.md
-      - Dynamic Topology: guides/dynamic-topology.md
-      - Reneging and Balking: guides/reneging-and-balking.md
-      - Wait for One or All: guides/wait-for-one-or-all.md
-      - Time-varying Arrivals: guides/time-varying-arrivals.md
-      - Performance Tuning: guides/performance-tuning.md
+      # Three groups: tasks in a model, tasks with the records and Kafka, and the
+      # tools around a model.
+      - Modelling:
+          - Share by Weight: guides/share-by-weight.md
+          - Multi-Resource Handoffs: guides/multi-resource-handoffs.md
+          - Breakdowns: guides/breakdowns.md
+          - Reneging and Balking: guides/reneging-and-balking.md
+          - Wait for One or All: guides/wait-for-one-or-all.md
+          - Time-varying Arrivals: guides/time-varying-arrivals.md
+          - Dynamic Topology: guides/dynamic-topology.md
+      - Data and Kafka:
+          - Complex Routing: guides/complex-routing.md
+          - Avro and Pydantic: guides/avro-and-pydantic.md
+          - Secure Kafka: guides/kafka-security.md
+          - Analyse the Event Log: guides/analyse-the-event-log.md
+          - Animate a Run: guides/animate-a-run.md
+          - Performance Tuning: guides/performance-tuning.md
+      - Tools and Workflow:
+          - Python in a Blueprint: guides/yaml-advanced.md
+          - Set Up Your Editor: guides/set-up-your-editor.md
+          - Use an AI Assistant: guides/use-an-ai-assistant.md
+          - Test a Model: guides/test-a-model.md
+          - Fit a Distribution: guides/fit-a-distribution.md
+          - Check Against Theory: guides/check-against-theory.md
   - Examples:
       - Overview: examples/index.md
       - Local Simulation: examples/local.md

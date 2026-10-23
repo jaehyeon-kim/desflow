@@ -412,5 +412,3 @@ The bench is the bottleneck: it is busy 80% of the time. When the picker waits a
                     f"{r['pack_wait']:5.2f} s, picker busy {r['picker_busy']:4.1f}%"
                 )
         ```
-
-Next, [Filtered Inventory](filtered-inventory.md) asks which waiting order can use the item that arrives.

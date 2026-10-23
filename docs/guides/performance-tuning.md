@@ -98,6 +98,6 @@ A draw through `Sampler.sample` costs about 360 nanoseconds, against 200 for num
 
 **PyPy.** desflow does not install on PyPy, because orjson, which it depends on, does not support PyPy. With the other dependencies installed by hand, the run "as shipped" took 0.851 seconds on PyPy 3.11.15, 1.6 times slower than CPython 3.12. Drawing samples, which goes through numpy, took 23 percent of a short profile (96 samples), against 9 percent on CPython.
 
-**Real sinks.** With the same workload, the total was 1.134 seconds with a counting sink, 1.262 with Parquet on the local disk, and 3.558 with Kafka (the odctl `kafka-lite` profile on the same machine, JSON values): a sink that sends over the network can take longer than the model.
+**Real sinks.** With the same workload, the total was 1.138 seconds with a counting sink, 1.262 with Parquet on the local disk, and 3.558 with Kafka (the odctl `kafka-lite` profile on the same machine, JSON values): a sink that sends over the network can take longer than the model.
 
 Run `uv run --all-extras python benchmarks/throughput.py configs` to measure your machine, and `micro`, `profile` or `sinks` for the other parts.

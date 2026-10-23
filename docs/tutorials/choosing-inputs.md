@@ -175,7 +175,7 @@ Which distribution fits packing times? **The empirical distribution**, because i
 
 ![On the left, the four packing distributions: exponential spread from 0 to over 6 seconds, empirical and triangular between 0.5 and 2.75 seconds, constant a line at 1.5; on the right, the mean waits: constant 1.27, triangular 1.28, empirical 1.35 and exponential 2.37 seconds](../assets/charts/choosing-inputs.png)
 
-With the empirical distribution the mean wait is **1.35 seconds**. The constant mean gives 1.27 seconds, 6% too short, and the exponential guess gives 2.37 seconds, 75% too long. The expert's triangle is close to the constant, because its range is narrower than the measured one.
+With the empirical distribution the mean wait is **1.35 seconds**. It is not the 1.38 seconds of [Measuring a Run](measuring-a-run.md), although both use the same 40 measured times. The service here is called `empirical` and there `packing`, so each draws from its own stream, `service.empirical` or `service.packing`. The times therefore come in another order, as [Randomness and Seeds](randomness-and-seeds.md) explains. The constant mean gives 1.27 seconds, 6% too short, and the exponential guess gives 2.37 seconds, 75% too long. The expert's triangle is close to the constant, because its range is narrower than the measured one.
 
 ## Why It Works
 
@@ -378,5 +378,3 @@ In the busy hour the mean wait is roughly proportional to the square of the spre
             for packing in CANDIDATES:
                 print(f"{packing:<12} mean wait {mean_wait(packing):5.2f} s")
         ```
-
-Next, [Measuring a Run](measuring-a-run.md) asks what else a run can tell you.

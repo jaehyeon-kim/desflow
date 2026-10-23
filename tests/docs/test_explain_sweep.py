@@ -21,13 +21,15 @@ UNTIL = 100_000
 
 
 def _blueprints():
-    """Every model file: experiment and fit specs have no `simulation` key."""
+    """Every model file: experiment and fit specs have no `simulation` key, and a
+    `*_error.yaml` blueprint fails to load on purpose, to show the error."""
     files = sorted((ROOT / "examples" / "yaml").rglob("*.yaml"))
     files += sorted((ROOT / "docs" / "snippets" / "yaml").glob("*.yaml"))
     return [
         f
         for f in files
         if any(line.startswith("simulation:") for line in f.read_text().splitlines())
+        and not f.name.endswith("_error.yaml")
     ]
 
 

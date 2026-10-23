@@ -20,7 +20,7 @@ Each row becomes one arrival at its time, and the fields named in `fields` becom
 
 === "YAML"
 
-    ```yaml title="docs/snippets/tutorials/local_replay.yaml:replay"
+    ```yaml title="docs/snippets/yaml/local_replay.yaml:replay"
     arrivals:
       orders:
         # Each row is one order, at its recorded time, carrying its order_id and items
@@ -129,7 +129,7 @@ A mean rate says how many orders come in an hour, not when they come. Exponentia
 
     === "YAML"
 
-        ```yaml title="docs/snippets/tutorials/local_replay.yaml"
+        ```yaml title="docs/snippets/yaml/local_replay.yaml"
         # The Local Replay tutorial: a recorded morning of orders, at their recorded times.
         # Run it with: desflow run local_replay.yaml
         simulation:
@@ -391,5 +391,3 @@ A mean rate says how many orders come in an hour, not when they come. Exponentia
                     f"mean wait {r['wait_mean']:5.2f} s, longest {r['wait_max']:6.2f} s"
                 )
         ```
-
-Next, [Comparing Designs](comparing-designs.md) asks whether a fourth packer cuts the mean wait, and by how much.

@@ -5,14 +5,10 @@ Releases come in the order shown, without dates: a release ships when it is read
 ## Before 1.0
 
 ::timeline::
-- title: '0.24.0: Blueprint schema and AI skill'
-  content: 'A JSON Schema for blueprints, shipped in the package and on the docs site, so editors complete keys and flag mistakes as you type, with a YAML Keys reference page generated from it. A skill that teaches an AI assistant to write and check blueprints. A test that fails when a public name or signature of the library or the `desflow` command is removed or changed. `resource.queue.items`, which warns since 0.23.0, is removed: use `list(resource.queue)`. Learn: the concept pages, Checking a Model, Live Changes, Streaming Out and the How-To pages that do not need `explain`. [#41](https://github.com/jaehyeon-kim/desflow/issues/41), [#67](https://github.com/jaehyeon-kim/desflow/issues/67), [#60](https://github.com/jaehyeon-kim/desflow/issues/60)'
-  icon: ':material-play:'
-  key: now
 - title: '0.25.0: desflow explain'
   content: '`desflow explain` shows a simulation as a graph, marks each resource OK, congested or unstable (its queue grows without limit), names the bottleneck and suggests changes. `desflow dist` converts between a distribution''s parameters and its mean and standard deviation. `desflow run --sample` prints a few records from a blueprint, and `--stdout` sends all records to the standard output as JSON lines in place of the real sinks. `load_context` loads a simulation folder from Python. Builder arrivals can name the task they start. The `desflow` command has a generated reference page. Learn: Complete Model, the `explain` section of Checking a Model and Check Against Theory. [#47](https://github.com/jaehyeon-kim/desflow/issues/47), [#60](https://github.com/jaehyeon-kim/desflow/issues/60)'
-  icon: ':material-clock-outline:'
-  key: planned
+  icon: ':material-play:'
+  key: now
 - title: '0.26.0: Storage, schema registry code and Python 3.15'
   content: 'Parquet and JSONL on Google Cloud Storage and Azure Blob Storage, and Iceberg through SQL catalogs. The Confluent schema registry client moves into desflow, so the `confluent` extra no longer installs confluent-kafka. Python 3.15 is supported. `GlueAvroSerializer` serializes a record. [#32](https://github.com/jaehyeon-kim/desflow/issues/32), [#83](https://github.com/jaehyeon-kim/desflow/issues/83), [#40](https://github.com/jaehyeon-kim/desflow/issues/40), [#85](https://github.com/jaehyeon-kim/desflow/issues/85)'
   icon: ':material-clock-outline:'
@@ -93,6 +89,13 @@ The server ships after 1.0, as 1.x releases installed with the `server` extra.
 - **How-To:** generating data at scale, and testing pipelines with simulated data.
 
 ## Released
+
+??? note "0.24.0: Blueprint schema and AI skill"
+
+    - **Blueprint schema and AI skill:** a JSON Schema for blueprints, shipped in the package and on the docs site, so editors complete keys and flag mistakes as you type, with a YAML Keys reference page generated from it. A skill that teaches an AI assistant to write and check blueprints. [#41](https://github.com/jaehyeon-kim/desflow/issues/41)
+    - **Public API test:** a test that fails when a public name or signature of the library or the `desflow` command is removed or changed. [#67](https://github.com/jaehyeon-kim/desflow/issues/67)
+    - **Removal:** `resource.queue.items`, which warns since 0.23.0, is removed: use `list(resource.queue)`.
+    - **Learn section:** the concept pages, Checking a Model, Live Changes, Streaming Out and the How-To pages that do not need `explain`. [#60](https://github.com/jaehyeon-kim/desflow/issues/60)
 
 ??? note "0.23.0: SimPy parity"
 

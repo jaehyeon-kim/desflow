@@ -1,6 +1,6 @@
-# Python in a Blueprint: `!python`
+# Python in a Blueprint
 
-A blueprint holds configuration as plain YAML, and the [YAML Blueprints](../user-guide/blueprints.md) page covers that. When a simulation needs logic that YAML cannot express, the file can reference a Python object with `!python module.attribute` in place of a value. This guide covers when to use it, how a reference is found, what each field receives and the security note, and ends with the OML hot rolling twin as a worked case.
+A blueprint holds configuration as plain YAML. When a simulation needs logic that YAML cannot express, the file can reference a Python object with `!python module.attribute` in place of a value. It builds on [YAML Blueprints](../user-guide/blueprints.md), which describes the blueprint file. This guide covers when to use it, how a reference is found, what each field receives and the setup step, then works through the OML hot rolling twin, and ends with the errors a reference can give and the security note.
 
 The [advanced Postgres example](../examples/advanced-postgres-orders.md) is a complete blueprint with one Python process. Every file on this page is in the repository under [`docs/snippets/`](https://github.com/jaehyeon-kim/desflow/tree/main/docs/snippets).
 
@@ -397,10 +397,11 @@ def create_topics():
 
 ## Errors
 
-A reference that cannot be resolved stops the load with its line:
+A reference that cannot be resolved stops the load with its line. [`python_error.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/docs/snippets/yaml/python_error.yaml) names `shop_logic.missing` as the payload of its task, and `desflow run python_error.yaml` prints:
 
+<!-- records: python-error -->
 ```text
-Error: err.yaml:6: !python shop_logic.missing: 'shop_logic' has no attribute 'missing'
+Error: python_error.yaml:14: !python shop_logic.missing: 'shop_logic' has no attribute 'missing'
 ```
 
 A module that exists but fails on one of its own imports is reported with that error, rather than as a missing module.

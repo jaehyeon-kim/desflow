@@ -4,7 +4,7 @@ A day of a shop's orders, generated at `factor=0.0` and appended to an Apache Ic
 
 `ParquetStorageEgress` writes files and leaves registering them as a table to you. `IcebergStorageEgress` appends into an Iceberg table instead, so one run ends with a table another engine can query.
 
-Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, a manifest list and a new `metadata.json`, so query planning slows down as snapshots accumulate. That is why this example gives the provider a large `batch_size` of its own: a day of events lands in four snapshots.
+Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, a manifest list and a new `metadata.json`, so query planning slows down as snapshots accumulate. That is why this example gives the provider a large `batch_size` of its own. At `factor=0.0` the buffer is flushed each time it holds 200,000 records and once more at the end of the run, and each flush adds one snapshot to the table.
 
 === "YAML"
 

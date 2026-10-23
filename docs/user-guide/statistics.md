@@ -65,7 +65,7 @@ They are published every `interval` of simulation time, 10 seconds when it is no
 
 ### Read the Names
 
-Every statistic is published as telemetry named `<sim_id>.stats.<kind>.<name>.<statistic>`, where the kind is `resources`, `stores`, `containers`, `tasks` or `flows`. A flow is named by the arrival that started its entities: `Shop.stats.flows.orders.finished` counts the orders that left the model. [Reference, Statistics](../reference/statistics.md) lists every name with what it measures. These are the statistics the blueprint above publishes at the end of its two minutes:
+Every statistic is published as telemetry named `<sim_id>.stats.<kind>.<name>.<statistic>`, where the kind is `resources`, `stores`, `containers`, `tasks` or `flows`. A flow is named by the arrival that started its entities: `Shop.stats.flows.orders.finished` counts the orders that left the model. [Reference, Statistics](../reference/statistics.md) lists every name with what it measures. These are the statistics that [`statistics.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/docs/snippets/yaml/statistics.yaml), the blueprint whose `levels` part is shown above, publishes at the end of its two minutes:
 
 <!-- records: statistics-final -->
 ```text

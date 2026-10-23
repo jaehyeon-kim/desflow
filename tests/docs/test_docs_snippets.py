@@ -16,6 +16,9 @@ YAML = ROOT / "docs" / "snippets" / "yaml"
 # Experiment files sit beside the blueprints they name; they are experiments, not
 # models, and the tutorial tests run them
 EXPERIMENTS = sorted(YAML.glob("*_experiment.yaml"))
+# A blueprint that shows a load error fails on purpose; test_docs_record_blocks.py
+# checks the error its page shows
+ERRORS = sorted(YAML.glob("*_error.yaml"))
 # test_docs_tutorials.py and test_docs_guides.py run these in full and check the
 # answer their page gives, so a short run here would check nothing more
 RUN_BY_OTHER_TESTS = {
@@ -34,6 +37,7 @@ RUN_BY_OTHER_TESTS = {
     "interruptions.yaml",
     "live_changes.yaml",
     "live_changes_live.yaml",
+    "local_replay.yaml",
     "measuring_a_run.yaml",
     "patience.yaml",
     "priorities.yaml",
@@ -46,7 +50,7 @@ RUN_BY_OTHER_TESTS = {
 }
 SNIPPETS = sorted(
     p
-    for p in set(YAML.glob("*.yaml")) - set(EXPERIMENTS)
+    for p in set(YAML.glob("*.yaml")) - set(EXPERIMENTS) - set(ERRORS)
     if p.name not in RUN_BY_OTHER_TESTS
 )
 

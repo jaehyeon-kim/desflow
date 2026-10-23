@@ -133,7 +133,7 @@ An arrival gives each new entity its starting `attributes`, and a task's `set` c
     set: {backordered: 1}
     ```
 
-    A task's `attributes` list adds the named attributes to a mapping payload, as `ship_order` does in the full blueprint.
+    A task's `attributes` list adds the named attributes to a mapping payload, as `ship_order` does in the full blueprint, [`task_flow.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/docs/snippets/yaml/task_flow.yaml).
 
 === "Builder"
 
@@ -173,7 +173,7 @@ Each arrival starts a new entity, keyed by the arrival's name and a counter from
 
     The process that creates each `Entity` gives it its key.
 
-These are the finished events of `gifts-5` in the blueprint above: checked while the shelf was empty, backordered, checked again, wrapped, packed and shipped, all under one key:
+These are the finished events of `gifts-5` in [`task_flow.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/docs/snippets/yaml/task_flow.yaml), the blueprint whose parts this section shows: checked while the shelf was empty, backordered, checked again, wrapped, packed and shipped, all under one key:
 
 <!-- records: gift-flow -->
 ```text

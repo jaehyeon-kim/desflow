@@ -350,5 +350,3 @@ Two designs run with different seeds differ by the design and by chance, and the
         ```
 
         It imports from `trusting_results_low_level.py`, which is in the full files of [Trusting Results](trusting-results.md#full-files).
-
-Next, [Parameter Sweeps](parameter-sweeps.md) asks how much these answers depend on the arrival rate.

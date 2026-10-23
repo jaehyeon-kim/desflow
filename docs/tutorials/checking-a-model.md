@@ -54,7 +54,7 @@ Replace every random input with a constant, and the run has one answer that can 
     )
     ```
 
-    The full file reuses `order_generator` and `pack_order` from Trusting Results: SimPy's `env.timeout(...)` makes each gap, and `packers.request()` waits for a free packer, as [SimPy and desflow](../des/simpy-and-desflow.md) describes.
+    The full file reuses `order_generator` and `pack_order` from Trusting Results: SimPy's `env.timeout(...)` makes each gap, and `packers.request()` waits for a free packer, as [SimPy and desflow](../des/simpy-and-desflow.md#resources) describes.
 
 Worked by hand, orders arrive at 1, 2, ... 9 seconds. The first three start at once. Each later order starts when a packer frees, 4 seconds after that packer started. The run stops at 10 seconds, before the events at that time:
 
@@ -775,5 +775,3 @@ The trace, the extremes, Little's law and the queueing formulas test the program
         ```
 
         It imports from `trusting_results_low_level.py`, which is in the full files of [Trusting Results](trusting-results.md#full-files).
-
-Next, [Live Changes](live-changes.md) changes a parameter while the shop runs.

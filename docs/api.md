@@ -233,7 +233,7 @@ The classes a task's flow is built from, and the signals and failures tasks shar
         - resume_pacing
         - teardown
 
-## Registry & Parameters
+## Registry and Parameters
 
 <!-- prettier-ignore -->
 ::: desflow.core.registry.SimulationRegistry
@@ -383,7 +383,7 @@ SimPy processes and readers the builder and YAML use, which low-level code start
       heading_level: 3
       show_root_heading: true
 
-## Admin & Infrastructure
+## Admin and Infrastructure
 
 <!-- prettier-ignore -->
 ::: desflow.connectors.admin.kafka.KafkaAdminConnector

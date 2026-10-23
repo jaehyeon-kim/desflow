@@ -645,8 +645,22 @@ def hybrid_events() -> List[str]:
     return packed + breaks
 
 
+def python_error() -> List[str]:
+    """Python in a Blueprint: what `desflow run` prints for a reference that does not
+    resolve, run from the blueprint's folder."""
+    from typer.testing import CliRunner
+
+    from desflow.cli import app
+
+    with _cwd(DOCS / "snippets" / "yaml"):
+        result = CliRunner().invoke(app, ["run", "python_error.yaml"])
+    assert result.exit_code == 1, result.output
+    return result.output.rstrip("\n").split("\n")
+
+
 BLOCKS: Dict[str, Callable[[], List[str]]] = {
     "hybrid-events": hybrid_events,
+    "python-error": python_error,
     "local-records": local_records,
     "record-examples": record_examples,
     "builder-first": builder_first,

@@ -53,7 +53,7 @@ The settings are the same on `DynamicRealtimeEnvironment`, on `SimulationContext
 
 ## Stability and Limits
 
-- **A run with a sink or ingress needs `until`**, or Ctrl+C, as Run Length explains.
+- **A run with a sink or ingress needs `until`**, or Ctrl+C, as [Run Length](run-length.md#run-length_1) explains.
 - **At `factor: 0`** no timed flush runs, so records leave a buffer when it reaches `batch_size` and at teardown, as [Egress](../egress.md) explains. `LocalIngress` follows the wall clock, so its changes can land after an unpaced run has ended; a scenario follows the simulation clock. No `system.simulation.lag_seconds` is published unless `lag_interval` is set, and it reports 0 while the run is ahead of the wall clock.
 - **`warmup` drops, `go_live_at` routes.** Records before a warm-up are gone; records before `go_live_at` go to the sinks that take history.
 - **A model slower than the wall clock** falls behind at `factor: 1.0` and does not catch up by skipping events; `lag_seconds` shows by how much.

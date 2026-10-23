@@ -708,7 +708,7 @@ def test_local_replay_recorded_and_modelled(api, caplog):
         if api == "yaml":
             if not replay:
                 continue  # the blueprint replays the recorded orders only
-            app = SimulationContext.from_yaml(TUTORIALS / "local_replay.yaml")
+            app = SimulationContext.from_yaml(BLUEPRINTS / "local_replay.yaml")
             app.run()
             r = app.env.stats.readings()
             n = "Shop.stats.tasks.pack_order.{}".format
@@ -815,9 +815,11 @@ def test_checking_a_model_fixed_trace(api):
     assert round(readings["resources.packers.queue_length_avg"], 3) == 0.8
 
 
-def test_checking_a_model_observed_copies():
-    """The YAML experiment and the scripts read the same observed values."""
-    name = "checking_a_model_observed.csv"
+@pytest.mark.parametrize(
+    "name", ["checking_a_model_observed.csv", "local_replay_orders.csv"]
+)
+def test_data_file_copies(name):
+    """The YAML blueprints and the scripts read the same data files."""
     assert (BLUEPRINTS / name).read_text() == (TUTORIALS / name).read_text()
 
 

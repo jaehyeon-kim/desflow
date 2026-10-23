@@ -9,8 +9,7 @@ The common YAML keys and builder calls side by side, each linked to the page tha
 | Name the model and set the clock | `simulation: {sim_id, factor, random_seed}` | `SimulationContext(sim_id, factor=, random_seed=)` | [Time and Pacing](../user-guide/time-and-pacing/index.md) |
 | Leave the start of a run out of the statistics | `simulation.warmup` | `SimulationContext(warmup=)` | [Statistics](../user-guide/statistics.md) |
 | Start the clock at a time other than 0 | `simulation.initial_time` | `SimulationContext(initial_time=)` | [Run Length](../user-guide/time-and-pacing/run-length.md#initial-time) |
-| Print the JSON Schema of a blueprint | `desflow schema` | none | [Set Up Your Editor](../guides/set-up-your-editor.md) |
-| Write timestamps in a time zone | `simulation.timezone` | `SimulationContext(timezone=)` | [Records and Telemetry](records-and-telemetry.md) |
+| Write timestamps in a time zone | `simulation.timezone` | `SimulationContext(timezone=)` | [Clocks and Pacing](../user-guide/time-and-pacing/clocks-and-pacing.md#time-zone) |
 
 ## Arrivals and Services
 
@@ -76,6 +75,13 @@ The common YAML keys and builder calls side by side, each linked to the page tha
 | Send records to a sink | `egress: [{type: Kafka, config: {...}}]` | `app.add_egress(KafkaEgress(...))` | [Egress](../user-guide/egress.md) |
 | Send history and live records to different sinks | `egress[].when: history` or `live` | `add_egress(..., when="history")` | [Parquet History, Kafka Live](../examples/backfill-live.md) |
 
+## Check
+
+| To | YAML | Builder | Read |
+|---|---|---|---|
+| Find a distribution's parameters from a mean and std | `desflow dist gamma --mean 1.5 --std 0.5` | the same command | [Choosing Inputs](../tutorials/choosing-inputs.md#measured-times) |
+| Show the graph, utilisation and waits before a run, and check them with runs | `desflow explain FILE --verify` | `app.analyze()`; `verify=True` for a context loaded from a file | [Queues and Capacity](../tutorials/queues-and-capacity.md#explain-the-load) |
+
 ## Run
 
 | To | YAML | Builder | Read |
@@ -90,7 +96,6 @@ The common YAML keys and builder calls side by side, each linked to the page tha
 | Stop the run on a failure nobody handles | `run: {on_unhandled_failure: stop}` | `app.run(on_unhandled_failure="stop")` | [Failures](../user-guide/tasks-and-processes/failures.md#failures) |
 | Print the first events of a blueprint as JSON lines | `desflow run FILE --sample 5` | not in the builder | [YAML Format](yaml-format.md#running-a-blueprint) |
 | Print every record of a run in place of its sinks | `desflow run FILE --stdout` | not in the builder | [YAML Format](yaml-format.md#running-a-blueprint) |
-| Find a distribution's parameters from a mean and std | `desflow dist gamma --mean 1.5 --std 0.5` | the same command | [Choosing Inputs](../tutorials/choosing-inputs.md#measured-times) |
-| Show the graph, utilisation and waits before a run, and check them with runs | `desflow explain FILE --verify` | `app.analyze()`; `verify=True` for a context loaded from a file | [Queues and Capacity](../tutorials/queues-and-capacity.md#explain-the-load) |
+| Print the JSON Schema of a blueprint | `desflow schema` | none | [Set Up Your Editor](../guides/set-up-your-editor.md) |
 | Repeat a run with other seeds | `desflow run FILE --replications 20` | `replicate(model, 20, seed=, until=)` | [Replications](../user-guide/replications.md) |
 | Compare designs | `desflow experiment FILE` | `run_experiment(spec)` | [Experiments](../user-guide/experiments/index.md) |
