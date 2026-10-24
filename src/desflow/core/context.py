@@ -2049,14 +2049,16 @@ class SimulationContext:
                 comparison.
 
         Raises:
-            ValueError: If `target` is out of range, or `verify` is asked of a
-                context built in code, which cannot be built again, or with no
-                end time.
+            ValueError: If the model names a task or another part that is not
+                added, as `run()` does; if `target` is out of range; or if
+                `verify` is asked of a context built in code, which cannot be
+                built again, or with no end time.
         """
         from desflow.explain.analysis import analyze
         from desflow.explain.verify import verify as run_verify
         from desflow.explain.graph import build_graph
 
+        self._check_tasks()
         explanation = analyze(build_graph(self), target)
         if not verify:
             return explanation

@@ -30,6 +30,14 @@ A blueprint can also call Python with `!python module.attribute`, so a model rar
 
 `desflow schema` prints the same JSON Schema as `assets/blueprint.schema.json`, for the installed version.
 
+## Check a model before a long run
+
+1. See the first records with `desflow run <file> --sample 10`. It prints the first 10 events as JSON lines, unpaced, with no ingress and no real sinks, so a model that writes to Kafka or a database needs no service.
+2. Check the model against queueing theory with `desflow explain <file>`. It takes a blueprint or a builder Python file with a module-level `SimulationContext`, and shows the model as a graph with each resource's utilisation, status, waits and tuning hints where the queueing formulas apply, and why where they do not. A resource at utilisation 1 or above is `UNSTABLE`: its queue grows for as long as the run lasts.
+3. Add `--verify` to also run the model unpaced and compare its statistics with the analysis, within 10 percent for one run, or with each measure's 95% interval with `--replications N`.
+
+To give a service a measured mean and standard deviation, `desflow dist <family> --mean <mean> --std <std>` converts them to the family's parameters, such as `desflow dist gamma --mean 1.5 --std 0.4832`, and prints them in YAML and Python. `desflow dist` alone lists the families.
+
 ## Sections of a blueprint
 
 | Section | What it holds |

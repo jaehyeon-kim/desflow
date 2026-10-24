@@ -92,7 +92,7 @@ packers by units
 Bottleneck: packers
 Hints for utilisation 0.85:
   packers with 1 unit: utilisation 0.75, at most 0.85
-  packers with 1 unit: utilisation 0.85 at 0.85 requests a second
+  packers with 1 unit: utilisation 0.85 at a request every 1.18 seconds (51 a minute, 0.85 a second)
 Verify: 10 runs to 20000 s, seed 42
 +---------------------------------------------------------------------+
 | node       | measure      | analysis | measured |        ± | result |

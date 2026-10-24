@@ -6,7 +6,7 @@ Real-time SimPy simulations whose parameters change while they run, writing even
 
 | Path | Contents |
 |---|---|
-| `src/desflow/config.py` | settings shared by more than one module: queue orders, statistics levels, the `labels` sink value |
+| `src/desflow/config.py` | settings shared by more than one module: queue orders, statistics levels, the `labels` sink value, `MIN_DELAY` (the shortest time a draw gives) |
 | `src/desflow/core/` | `environment.py` (`DynamicRealtimeEnvironment`, egress buffering, record building), `context.py` (the `SimulationContext` builder), `registry.py` (live parameters), `distributions.py` (every distribution family, `DISTRIBUTIONS`), `sampler.py` (one random stream per distribution), `expressions.py` (conditions and amounts), `flow.py` (`Router`, `Transfer`), `statistics.py` (built-in statistics) |
 | `src/desflow/models/` | `params.py` (`SimParameter`, `DistributionConfig`, `CapacityConfig`, `ContainerConfig`), `flow.py` (`Entity`, `Upstream`), `schemas.py` (`EventPayload`, `TelemetryPayload`, `LabelPayload`: the published record schema) |
 | `src/desflow/resources/` | `DynamicResource`, `DynamicContainer`, `DynamicStore`, with capacities driven by the registry |

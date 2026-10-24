@@ -72,7 +72,8 @@ class Preview:
 
     Attributes:
         sample: Print this many events, unpaced and with no ingress, then stop.
-            None, for `--stdout`, prints every record of the run as it is paced.
+            None, for `--stdout`, prints every record of the run as it is paced,
+            except the `system.simulation.lag_seconds` readings.
     """
 
     sample: Optional[int] = None

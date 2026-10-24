@@ -454,7 +454,7 @@ A store keeps a list of items, up to its capacity. A `put` adds an item at the e
 
 - **Capacity** follows `current_cap`, clamped to between 0 and `max_cap`. A higher capacity wakes waiting putters. A capacity below what is held destroys nothing: puts wait until enough has been taken.
 - **A container's level** is set by an update to its `level` path, as a stock count or a restock from outside would. The new level is clamped to between 0 and `current_cap`, with a warning, and it wakes both queues: a higher level serves waiting getters, and a lower one can make room for putters.
-- **A store or container with no limit** can be given a number as `current_cap` during a run, and `.inf` or the text `"inf"` sets no limit again. Lowering destroys nothing, as above.
+- **A store or container with no limit** can be given a number as `current_cap` during a run, and `.inf` or the text `"inf"` sets no limit again. Lowering it destroys nothing, as the Capacity item above says.
 - **`current_cap` is the capacity, not a level.** A model that used a container's `current_cap` as a level, such as the wear of a roll, moves it to `level`.
 
 The stock count in [`stores_containers.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/docs/snippets/yaml/stores_containers.yaml), in each way of writing:

@@ -95,7 +95,7 @@ This page shows the common YAML keys and builder calls side by side, each linked
 | Run on your own environment class | `simulation: {environment: !python mod.Env}` | `SimulationContext(environment=Env)` | [Blueprints](../user-guide/blueprints.md) |
 | Stop the run on a failure nobody handles | `run: {on_unhandled_failure: stop}` | `app.run(on_unhandled_failure="stop")` | [Failures](../user-guide/tasks-and-processes/failures.md#failures) |
 | Print the first events of a blueprint as JSON lines | `desflow run FILE --sample 5` | not in the builder | [YAML Format](yaml-format.md#running-a-blueprint) |
-| Print every record of a run in place of its sinks | `desflow run FILE --stdout` | not in the builder | [YAML Format](yaml-format.md#running-a-blueprint) |
+| Print every record of a run except the `system.simulation.lag_seconds` readings, in place of its sinks | `desflow run FILE --stdout` | not in the builder | [YAML Format](yaml-format.md#running-a-blueprint) |
 | Print the JSON Schema of a blueprint | `desflow schema` | none | [Set Up Your Editor](../guides/set-up-your-editor.md) |
 | Repeat a run with other seeds | `desflow run FILE --replications 20` | `replicate(model, 20, seed=, until=)` | [Replications](../user-guide/replications.md) |
 | Compare designs | `desflow experiment FILE` | `run_experiment(spec)` | [Experiments](../user-guide/experiments/index.md) |

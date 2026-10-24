@@ -148,7 +148,7 @@ Not estimated:
   wait at packers: unstable: the queue grows for as long as the run lasts
 Hints for utilisation 0.85:
   packers with 4 units: utilisation 0.675, at most 0.85
-  packers with 1 unit: utilisation 0.85 at 0.5667 requests a second
+  packers with 1 unit: utilisation 0.85 at a request every 1.76 seconds (34 a minute, 0.5667 a second)
 ```
 
 The tree shows each order starting `pack_order`, which uses `packers`, and the flow ending after it. The status is `CONGESTED` from utilisation 0.85 and `UNSTABLE` from 1. The resources table gives λ 1.8 orders a second, μ 0.667 orders a second, c 1 and utilisation ρ 2.7, so the status is `UNSTABLE`. The wait (`Wq`) and the number in the shop (`L`) are left blank. The reason is printed below the tables: the queue grows for as long as the run lasts. The table by units covers 1 to 10 packers, up to `max_cap`. Three packers are stable but congested at utilisation 0.9, and the first hint names 4 as the fewest packers at or below 0.85. The second hint keeps the current units and gives the rate of requests into the resource that reaches the target utilisation. With one packer, an arrival rate of 0.5667 orders a second, an order every 1.76 seconds (34 a minute), gives utilisation 0.85. In a network, that rate includes the requests that come back for rework, not only new arrivals.
@@ -470,7 +470,7 @@ The end of its output, the hints:
 ```text
 Hints for utilisation 1.2:
   packers with 2 units: utilisation 1.35, at least 1.2, for deliberate overload
-  packers with 1 unit: utilisation 1.2 at 0.8 requests a second
+  packers with 1 unit: utilisation 1.2 at a request every 1.25 seconds (48 a minute, 0.8 a second)
 ```
 
 With 2 packers the shop runs at utilisation 1.35, above the target of 1.2. With 1 packer, an arrival rate of 0.8 orders a second, an order every 1.25 seconds (48 a minute), gives exactly 1.2.

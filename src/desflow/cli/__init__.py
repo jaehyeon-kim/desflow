@@ -21,7 +21,7 @@ from desflow.cli import (
 )
 
 app = typer.Typer(
-    help="Run desflow simulations defined in YAML blueprint files, and download the examples.",
+    help="Run, explain and analyse desflow simulations, fit their inputs, and download the examples.",
     no_args_is_help=True,
     add_completion=False,
 )
@@ -49,7 +49,7 @@ def _main(
         ),
     ] = False,
 ) -> None:
-    """Run desflow simulations defined in YAML blueprint files, and download the examples."""
+    """Run, explain and analyse desflow simulations, fit their inputs, and download the examples."""
 
 
 for _module in (run, experiment, report, fit, schema, examples, dist, explain):

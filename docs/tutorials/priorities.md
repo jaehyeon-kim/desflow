@@ -102,7 +102,7 @@ Both kinds of order use the same packer, so they share one queue. The built-in s
 
 ## Starvation
 
-Priority has a price. A regular order is served only when no express order is waiting, so every express order that arrives while it waits pushes it back. The price grows quickly as the shop gets busier. Run the hour once with the seed 42 at each of three total arrival rates, with a quarter of the orders express each time. In YAML, the variables `ORDERS_RATE` and `EXPRESS_RATE` set the two rates, 0.45 and 0.15 a second when they are not set. This command runs 30 orders a minute in all (0.5 a second):
+Priority has a price. A regular order is served only when no express order is waiting, so every express order that arrives while it waits pushes it back. The price grows quickly as the shop gets busier. Run the hour once with the seed 42 at each of three total arrival rates, with a quarter of the orders express each time. In YAML, the variables `ORDERS_RATE` and `EXPRESS_RATE` set the two rates. When they are not set, a regular order arrives every 2.22 seconds (27 a minute, `0.45`) and an express order every 6.67 seconds (9 a minute, `0.15`). This command runs 30 orders a minute in all (0.5 a second):
 
 ```bash
 ORDERS_RATE=0.375 EXPRESS_RATE=0.125 desflow run priorities.yaml 2>&1 | grep wait_mean

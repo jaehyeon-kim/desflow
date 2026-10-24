@@ -123,8 +123,9 @@ def _run(
         bool,
         typer.Option(
             "--stdout",
-            help="Print every record as a JSON line instead of writing to the "
-            "file's sinks.",
+            help="Print every record except the system.simulation.lag_seconds "
+            "readings as a JSON line, instead of writing to the file's sinks. The "
+            "lag readings describe the wall clock, not the model.",
         ),
     ] = False,
 ) -> None:

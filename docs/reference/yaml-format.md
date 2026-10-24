@@ -236,7 +236,7 @@ The arguments of `with_batching`, which are the defaults for every sink: `batch_
 | Command | Behaviour |
 |---|---|
 | `desflow run FILE --sample N` | Prints the first `N` events, then stops. `N` is 1 or more. The run is unpaced: `factor` is set to 0 and `go_live_at` is cleared. `logical_start_time` and `random_seed` are kept, so timestamps and values look as they would in the real run. Ingress entries and `run.before` are skipped. Telemetry records print between the events but are not counted, and `system.simulation.lag_seconds` is not printed. |
-| `desflow run FILE --stdout` | Prints every record of a normal run. `factor`, `go_live_at`, `logical_start_time` and ingress are kept; `run.before` is skipped. |
+| `desflow run FILE --stdout` | Prints every record of a normal run except the `system.simulation.lag_seconds` readings, which describe the wall clock, not the model. `factor`, `go_live_at`, `logical_start_time` and ingress are kept; `run.before` is skipped. |
 
 Both replace every egress entry with one `Console` of `format: json`, and a second one for labels when the file has a `when: labels` entry. A JSON console writes each record as one JSON line on stdout. The run's log stays on stderr, so `desflow run FILE --sample 10 | jq .value` reads only the records. `run.before` is skipped because its functions prepare the real sinks, such as creating topics, and a warning on stderr says so when the file has any. The structure, keys and names of the whole file are still validated. A preview builds none of the connectors it replaces or skips, so it checks only their `type`. Their `config` is checked only by a run that builds them, such as `desflow run FILE` without these options.
 

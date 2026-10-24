@@ -87,8 +87,7 @@ def _explain(
         ),
     ] = 0.85,
 ) -> None:
-    """Show the model in SOURCE as a graph, with its utilisation, status, waits and
-    tuning hints where the queueing formulas apply, and why where they do not."""
+    """Show the model in SOURCE as a graph, with its utilisation, status, waits and tuning hints where the queueing formulas apply, and why where they do not."""
     from desflow.blueprint.loader import BlueprintError
     from desflow.explain.render import render_terminal, to_json
     from desflow.loading import load_context

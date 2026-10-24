@@ -47,7 +47,7 @@ In the busy hour of the shop, with the empirical packing times and a 2-minute wa
 
 ## Interval and Half-width
 
-A **95% interval**, in full a 95% confidence interval, is the mean of the n replications plus or minus a **half-width** of t × s ÷ √n. Here s is the standard deviation of the n values, and s ÷ √n is the **standard error**, an estimate of how far the mean itself varies from one set of replications to the next. t is the **Student t quantile** for n − 1 degrees of freedom, one less than the number of replications. t is slightly above 2 for 20 or more replications, and larger for fewer, because s is then a rougher estimate. Over many studies, about 95% of the intervals built this way contain the true mean. In the busy hour above, 2.32 ± 0.20 seconds has a half-width of 0.20 seconds, so the interval runs from 2.12 to 2.52 seconds.
+A **95% interval**, in full a 95% confidence interval, is the mean of the n replications plus or minus a **half-width** of t × s ÷ √n. Here s is the standard deviation of the n values, and s ÷ √n is the **standard error**, an estimate of how far the mean itself varies from one set of replications to the next. t is the **Student t quantile** for n − 1 degrees of freedom, one less than the number of replications. t is about 2.1 for 20 replications and 2.0 for 40, and larger for fewer, because s is then a rougher estimate. Over many studies, about 95% of the intervals built this way contain the true mean. In the busy hour above, 2.32 ± 0.20 seconds has a half-width of 0.20 seconds, so the interval runs from 2.12 to 2.52 seconds.
 
 ---
 

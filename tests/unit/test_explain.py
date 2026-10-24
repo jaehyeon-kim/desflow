@@ -15,6 +15,7 @@ from typer.testing import CliRunner
 from desflow import SimulationContext
 from desflow.cli import app as cli
 from desflow.core.distributions import clamped_normal_moments
+from desflow.explain.capacity import _requests
 from desflow.explain.models import Explanation
 
 SCHEMA = Path(__file__).resolve().parents[2] / "src/desflow/explain/explain.schema.json"
@@ -484,11 +485,20 @@ def test_hints_for_a_target_below_and_above_1():
         ("servers", 4),
         ("rate", pytest.approx(0.85)),
     ]
+    assert below.hints[1].text == (
+        "packers with 1 unit: utilisation 0.85 at a request every 1.18 seconds "
+        "(51 a minute, 0.85 a second)"
+    )
     above = _shop({"dist": "exponential", "rate": 2.7}, packers=1).analyze(target=1.2)
     assert [(h.kind, h.value) for h in above.hints] == [
         ("servers", 2),
         ("rate", pytest.approx(1.2)),
     ]
+    assert above.hints[1].text.endswith("utilisation 1.2 at 1.2 requests a second")
+    assert _requests(1.0) == "1 request a second"
+    assert (
+        _requests(0.996) == "a request every 1 second (59.76 a minute, 0.996 a second)"
+    )
     with pytest.raises(ValueError, match="target"):
         _shop().analyze(target=0)
 
@@ -640,6 +650,41 @@ def test_the_command_loads_a_builder_file(tmp_path):
     result = CliRunner().invoke(cli, ["explain", str(tmp_path / "shop.py"), "--json"])
     assert result.exit_code == 0, result.output
     assert json.loads(result.stdout)["resources"][0]["utilization"] == 0.8
+
+
+@pytest.mark.parametrize(
+    "spawn, task, message",
+    [
+        ("pak", "", "arrival 'orders' spawns task 'pak', which is not added"),
+        (
+            "pack",
+            ', next="shipp"',
+            "task 'pack' routes to 'shipp', which is not a task",
+        ),
+    ],
+)
+def test_a_builder_file_naming_no_task_fails_as_run_does(
+    tmp_path, spawn, task, message
+):
+    from desflow.loading import load_context
+
+    (tmp_path / "shop.py").write_text(
+        textwrap.dedent(f"""\
+        from desflow import SimulationContext
+
+        app = SimulationContext(sim_id="Shop", factor=0)
+        app.add_arrival("orders", dist="exponential", rate=0.8, spawn="{spawn}")
+        app.add_service("packing", dist="exponential", rate=1)
+        app.add_resource("packers")
+        app.task("packing", "packers", name="pack"{task})(lambda task_id: {{}})
+        """),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match=message):
+        load_context(str(tmp_path), "shop.py").analyze()
+    result = CliRunner().invoke(cli, ["explain", str(tmp_path / "shop.py")])
+    assert result.exit_code == 1
+    assert f"Error: {message}" in result.stderr
 
 
 @pytest.mark.parametrize(
