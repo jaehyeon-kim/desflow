@@ -47,6 +47,7 @@ RUN_BY_OTHER_TESTS = {
     "stock.yaml",
     "streaming_out.yaml",
     "trusting_results.yaml",
+    "write_a_connector.yaml",
 }
 SNIPPETS = sorted(
     p

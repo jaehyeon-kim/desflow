@@ -1,0 +1,113 @@
+# Contributing to desflow
+
+This file is for people who change desflow itself: the library, its tests and its documentation. To use desflow, start with the [documentation](https://jaehyeon.me/desflow/). For a change larger than a fix, open an issue first, so the design is agreed before the code is written. The [roadmap](https://jaehyeon.me/desflow/latest/about/roadmap/) shows what is planned. [How desflow Works](https://jaehyeon.me/desflow/latest/user-guide/how-desflow-works/) shows how the parts fit together.
+
+## Set Up
+
+desflow uses [uv](https://docs.astral.sh/uv/). Clone the repository and install the package with every extra and the development tools:
+
+```bash
+git clone https://github.com/jaehyeon-kim/desflow.git
+cd desflow
+uv sync --all-extras
+```
+
+A plain `uv sync` removes the extras, and the connector tests then fail to import, so pass `--all-extras` to every `uv sync` and `uv run`.
+
+The integration tests and the examples that need a service get it from [odctl](https://github.com/jaehyeon-kim/odctl), which manages Docker Compose stacks. odctl is in the development group (`odctl>=1.0,<2`), so `uv sync` installs it. It needs Docker. The profiles in use are `kafka-lite`, `postgres`, `valkey`, `storage` and `catalog`.
+
+## Code Map
+
+| Path | Contents |
+|---|---|
+| `src/desflow/config.py` | settings shared by more than one module: queue orders, statistics levels, the `labels` sink value, `MIN_DELAY` (the shortest time a draw gives) |
+| `src/desflow/core/` | `environment.py` (`DynamicRealtimeEnvironment`, egress buffering, record building), `context.py` (the `SimulationContext` builder), `registry.py` (live parameters), `distributions.py` (every distribution family, `DISTRIBUTIONS`), `sampler.py` (one random stream per distribution), `expressions.py` (conditions and amounts), `flow.py` (`Router`, `Transfer`), `statistics.py` (built-in statistics), `task.py` (`TaskSpec`, `TaskRun`: the life of one task instance), `signals.py` (`Signal`), `scenario.py` (`run_scenario`), `breakdowns.py` (`run_breakdowns`), `replay.py` (arrivals from a recorded file), `internal.py` (marks the events desflow creates for its own work) |
+| `src/desflow/models/` | `params.py` (`SimParameter`, `DistributionConfig`, `CapacityConfig`, `ContainerConfig`), `flow.py` (`Entity`, `Upstream`), `schemas.py` (`EventPayload`, `TelemetryPayload`, `LabelPayload`: the published record schema) |
+| `src/desflow/resources/` | `DynamicResource`, `DynamicContainer`, `DynamicStore`, with capacities driven by the registry |
+| `src/desflow/connectors/` | `ingress/` (parameter changes in), `egress/` (records out), `admin/` |
+| `src/desflow/blueprint/` | YAML blueprints: `models.py` (Pydantic models), `loader.py` (`!python`, `!include`), `build.py`, `schema.py` (reads `blueprint.schema.json`, the committed blueprint JSON Schema that `scripts/gen_schema.py` writes), `cli.py` (re-exports `ddes`), `examples.py` (what `desflow examples` lists and downloads; a new example file must be added there, or `test_cli_examples.py` fails) |
+| `src/desflow/utils.py` | `time_to_seconds` (a time such as `10 min` in seconds) and `suggestion` (the "did you mean" text of an error) |
+| `src/desflow/loading.py` | `load_context`: loads a blueprint or a builder Python file, the one path `desflow run` and `desflow explain` use |
+| `src/desflow/cli/` | the `desflow` command: `__init__.py` (the Typer app and `ddes`), then one module per command (`run.py`, `experiment.py`, `report.py`, `fit.py`, `schema.py`, `examples.py`, `dist.py`, `explain.py`), which parses the arguments and imports its package only when the command runs |
+| `src/desflow/analysis/` | replications and experiments, which run models of all three APIs unpaced: `models.py` (the one adapter for a blueprint path, a builder factory or a `LowLevelModel`), `runner.py` (`replicate`, `run_experiment`), `intervals.py` (the Student t quantile, without scipy), `spec.py` (the experiment file), `results.py` (designs, comparisons, checks, the artifact files), `report.py` (`report.md`, built from the artifacts), `fit.py` (`fit_column`, which needs the `fit` extra and imports scipy lazily) |
+| `src/desflow/explain/` | what `desflow explain` and `context.analyze()` compute: `models.py` (the `Explanation` shape; `explain.schema.json` beside it is its committed schema, written by `scripts/gen_schema.py`), `graph.py` (`build_graph`), `edges.py` and `features.py` (what it reads from the builder's private state, each module listing the attributes it reads at its top), `arrivals.py` (arrival rates and a distribution's mean and variance), `rates.py` (task rates by flow balance), `poisson.py` (which inputs are Poisson), `formulas.py` (Kingman, Erlang C, the status thresholds), `waits.py` (which formula applies to a resource), `capacity.py` (capacity rows and hints), `loads.py` (each resource's load and the bottleneck), `holders.py` (stores and containers), `support.py` (the one pass that decides which values the formulas cover), `analysis.py` (`analyze`, which combines them), `verify.py` (`--verify`), `pairs.py` (what verify compares, or why not), `compare.py` (whether a measured value differs), `render.py` and `tables.py` (Rich text and JSON) |
+| `src/dynamic_des/` | the import name before the rename to desflow in 0.20.0: warns with a `FutureWarning` and aliases every `dynamic_des.<module>` to `desflow.<module>`; `ddes` in `cli/__init__.py`, which `blueprint/cli.py` re-exports with `app` for dynamic-des 0.20.0's console script, is the old command, which warns and runs `desflow`. Both are removed in a later release, named in the Changelog (`docs/about/changelog.md`) |
+| `compat/dynamic-des/` | the last `dynamic-des` release: depends on `desflow` with the same extras and declares the `ddes` command, and its sdist copies `src/dynamic_des/__init__.py` and `py.typed` at build time, so a pip upgrade from 0.19.0 keeps both; published by hand with `publish-dynamic-des.yml` |
+| `examples/` | `low-level/` (low-level API), `builder/` (builder), `yaml/` (blueprints) |
+| `docs/` | MkDocs Material site, versioned with mike, deployed from `main`: `des/` and `tutorials/` (the Learn section), `user-guide/` (Ways to Write, YAML Blueprints, Builder API, Low-level API, Command Line, then the parts), `guides/` (the How-To section), `examples/`, `reference/`, `about/` |
+| `tests/unit/`, `tests/docs/`, `tests/integration/` | the library's own tests; tests of the docs, snippets, examples and scripts; integration tests against containers started with odctl |
+| `tests/conformance/` | each operation checked against plain SimPy, the version in `uv.lock`, in the low-level, builder and YAML APIs (`harness.py`, blueprints in `blueprints/`); `register.yaml` lists every operation with its forms, checks and docs page, and `scripts/gen_pages.py` turns it into the SimPy Compatibility page. A new `test_*` function there must be listed in `register.yaml` |
+| `tests/regression/` | the regression scenarios: `cases.py` (`SCENARIO_CASES`, the run length and statistics of each), and `scenarios/yaml/`, `builder/` and `low-level/`, five models in the three forms that use only features of the last release; `expected.yaml` lists each difference against that release with its changelog line. Run by `scripts/regression.py` in the `regression` job of `.github/workflows/pipeline.yml`, not by pytest |
+| `scripts/` | `gen_pages.py` (the generated Reference pages, run by every docs build: Distributions, Statistic Names, SimPy Compatibility, and one CLI page per command; a module for each page in `reference_pages/`), `record_blocks.py` (the record blocks on pages; their generators in `blocks/`, a module for each group of pages), `charts.py` (the charts), `diagrams.py` (the diagram images, and the vhs tapes under `docs/assets/tapes/`), `gen_schema.py` (the blueprint and explain JSON Schemas in the package), `gen_skill.py` (the `skills/desflow/` folder, from `scripts/skill/SKILL.template.md` and the code), `public_api.py` (the snapshot `tests/unit/public_api.txt` that `tests/unit/test_public_api.py` compares with), `release_notes.py`, `regression.py` (captures every example, blueprint and regression scenario run to a file, and compares two captures against `tests/regression/expected.yaml`; the `regression` job runs it on every pull request and every push to `main` against the newest `v*` tag, with that release from PyPI) |
+| `hooks/` | MkDocs hooks: `llmstxt_sections.py` (the llms.txt sections, from the nav), `release_links.py` (rewrites links to `main` to the tag `v<version>`, tested by `tests/docs/test_docs_release_links.py`) |
+| `skills/desflow/` | the Agent Skill for AI assistants, generated by `scripts/gen_skill.py`; `tests/docs/test_skill.py` fails when it is out of date |
+| `benchmarks/` | `throughput.py` (see issue #24) |
+
+## Tests
+
+```bash
+uv run --all-extras pytest tests/unit tests/conformance -q -n auto  # unit and SimPy conformance tests, as CI runs them
+uv run --all-extras pytest tests/docs -q -n auto  # docs, snippet, example and script tests, run in the docs-build CI job in 8 groups
+DOCS_STORE_DURATIONS=1 uv run --all-extras pytest tests/docs -q -n auto  # record the test times that balance the groups, in tests/docs/durations.json
+uv run --all-extras pytest tests/integration -ra  # needs Docker; starts odctl profiles on demand
+uvx pre-commit run --all-files                    # ruff, ruff format, mypy, whitespace, YAML
+DISABLE_MKDOCS_2_WARNING=true uv run --all-extras mkdocs build --strict
+uv run --all-extras mkdocs serve -a 127.0.0.1:8001             # docs at http://127.0.0.1:8001/desflow/
+```
+
+`-n auto` runs the tests in one worker process per CPU (pytest-xdist). The integration tests share odctl containers, so they run in one process.
+
+Each layer checks one thing:
+
+- `tests/unit` checks each module of the library.
+- `tests/conformance` checks that each SimPy operation gives the same result in desflow as in plain SimPy, in all three APIs.
+- `tests/docs` checks that every code block on a page is a copy of a file, that every file runs and does what its page says, and that every feature has an example, a reference entry and a place in the skill.
+- `tests/integration` checks each connector against a real service.
+- The `regression` CI job runs every example and scenario with this branch and with the last release, and fails on a difference that `tests/regression/expected.yaml` does not list.
+
+Run the unit suite in full once before each commit. While fixing, run only the failed tests (`pytest --lf`) and the tests of the files you changed. `tests/docs` is slow. While working, run the docs tests for the pages, snippets and examples you changed (`pytest tests/docs -k <name>`), plus `test_docs_record_blocks.py` and `test_example_twins.py` when a change alters behaviour. Run the strict build when `docs/`, `mkdocs.yml`, a docstring or an input of `scripts/gen_pages.py` changed: `tests/conformance/register.yaml`, `uv.lock`, the distribution list or the statistic names. CI runs everything on every pull request and every push to `main`.
+
+## Rules
+
+- **Three APIs.** A feature works in the low-level API, the builder and YAML wherever it can.
+- **Examples.** A feature's example is a shop model in each of `examples/yaml/`, `examples/builder/` and `examples/low-level/`, and the three give the same records (`tests/docs/test_example_twins.py`). It is registered in `src/desflow/blueprint/examples.py`, so `desflow examples get <name>` downloads it, and listed on `docs/examples/index.md`. The page that teaches it shows a short excerpt and its Quick Start (`tests/docs/test_docs_quick_starts.py`), not the full files in three tabs. An example that needs a service names its odctl profile in `examples.py`. An existing example changes only when a behaviour change requires it.
+- **Docs with every feature.** A feature pull request carries its docs pages, examples and nav entries, and a feature without docs does not merge. `tests/docs/feature_lists.py` reads every command and option, every name in `desflow.__all__`, every blueprint key with the model that declares it (`tests/docs/blueprint_keys.py`), every connector, extra and distribution family from the code. The tests in `tests/docs/test_feature_coverage*.py` fail on one without a tested example, a reference entry and a place in the skill, or, for a command, connector or extra, a README line. A new command or option also gets a line on `docs/user-guide/command-line.md`, which `tests/docs/test_docs_command_line.py` runs.
+- **Generated files follow the code.** Rewrite the record blocks on the pages only when `tests/docs/test_docs_record_blocks.py` fails, and only the blocks it names: `uv run --all-extras python scripts/record_blocks.py`. A rename or a docstring change needs no run. Run `scripts/charts.py` when a tutorial snippet or a distribution changes, and `scripts/diagrams.py <name>` after editing a `.drawio` file. Run `scripts/gen_schema.py` after a change to the blueprint models or the `Explanation` shape, `scripts/gen_skill.py` after a change to the skill template, the blueprint keys, the distributions or the connectors, and `scripts/public_api.py` after a change to the public API. Each runs with `uv run --all-extras python`. Every docs build runs `scripts/gen_pages.py`.
+- **Record contract.** `publish_event`, `publish_telemetry` and `publish_label` build plain dicts with the same keys and order as `EventPayload`, `TelemetryPayload` and `LabelPayload`. Changing a field, its type or the `timestamp` format breaks downstream consumers and needs an upgrade note in the Changelog.
+- **Extras.** Each connector's dependencies are in an extra (`kafka`, `confluent`, `glue`, `redis`, `postgres`, `parquet`, `iceberg`), fitting's in `fit` (scipy and matplotlib), and `all` installs every one of them. The `extras-isolation` CI job installs each extra alone, so import optional packages lazily.
+- **Python modules.** Shared settings go in `config.py`, models in `models.py`, and names used only inside a module start with `_`.
+
+## Add a Connector
+
+[Write a Connector](https://jaehyeon.me/desflow/latest/guides/write-a-connector/) shows a connector outside the package. A connector inside the package takes these steps:
+
+1. Write the class in `src/desflow/connectors/egress/` or `ingress/`, on `BaseEgress` or `BaseIngress`, with one `async run(queue)`.
+2. Add its short name to `EGRESS_TYPES` or `INGRESS_TYPES` in `src/desflow/blueprint/build.py`, with its module, its class and the extra that installs what it imports.
+3. Put its dependencies in an extra in `pyproject.toml`, add the extra to `all`, and add a leg for it to the `extras-isolation` job in `.github/workflows/pipeline.yml`. Export the class from `src/desflow/__init__.py` inside a `try` block, as the other optional connectors are, then run `scripts/public_api.py`.
+4. Add an integration test in `tests/integration/` that runs it against an odctl profile.
+5. Document it: a section on the Ingress or Egress page with a labelled `type: <Name>` YAML block, an entry on YAML Format (`docs/reference/yaml-format.md`), the extra on Installation (`docs/getting-started.md`) and in the README's extras table, and a README line naming the connector. Then run `scripts/gen_skill.py`.
+
+## Add a Distribution
+
+Every distribution family is one `Distribution` in `DISTRIBUTIONS`, in `src/desflow/core/distributions.py`. It declares the parameters, their rules and check, the draw, the mean and variance, the value with no random generator, and, where it has one, the formula from a mean and a standard deviation. The sampler, the registry, the builder, the YAML models and `desflow dist` all read that table, so nothing else needs registering. Add unit tests for the draw and the check, a labelled docs block that draws from it, then run `scripts/gen_skill.py` and `scripts/charts.py`. The Distributions reference page is generated from the table.
+
+## Write the Docs
+
+- **Code blocks are copies of files.** A Python or YAML block labelled `title="examples/..."` or `title="docs/snippets/..."` must match that file exactly (`tests/docs/test_docs_match_examples.py`). A block that shows one part of a file is labelled `path:section`, and the file marks that part with `# --8<-- [start:section]` and `# --8<-- [end:section]` lines. Every YAML block is labelled with a file. Change the file, then copy it into the page again. Pages use copies, not includes, so the Markdown reads correctly on GitHub.
+- **Code runs.** Every Python block is a copy of a file that a test runs. `tests/docs/test_docs_code_is_run.py` fails on a block with no file label, on a script in `docs/snippets/guides/` without a test in `tests/docs/test_docs_guides.py`, and on a snippet folder that no test runs. A new How-To page puts its script in `docs/snippets/guides/` and adds a test to `tests/docs/test_docs_guides.py` that checks what the page says the script does.
+- **Page shape.** A User Guide page on one part of desflow ends with How It Works, then Stability and Limits. A page has at most 10 `##` headings and 15 headings in all (`tests/docs/test_docs_page_size.py`). Each diagram is a `.drawio` file in `docs/assets/diagrams/` with the image `scripts/diagrams.py` exports from it, and each image is used on a page (`tests/docs/test_docs_diagrams.py`).
+- **Writing.** Plain English for readers whose first language is not English. Headings are in title case and do not start with "The". No em or en dashes. Each Markdown paragraph is one line, never hard-wrapped.
+- **Names.** Commercial data generators, such as ShadowTraffic or Mockaroo, may be named as inspiration in a sentence. Nothing is copied from their docs or examples, and their names never appear in a package, command, module or page title.
+
+## Pull Requests
+
+Work on a branch from `main` and open a pull request against `main`. Before you push, run `uvx pre-commit run --all-files`, the unit suite, and the docs tests for what you changed. The pipeline then runs every test job on the pull request. A pull request merges when they all pass. Describe each change to behaviour in the pull request, so that the release can add it to the Changelog (`docs/about/changelog.md`).
+
+## Releases
+
+The maintainer releases. These steps are written down so that each release is the same:
+
+1. Read SimPy's changelog (`CHANGES.rst` in its sdist) for every release since the version in `uv.lock` at the last desflow release. For each behaviour change, add a conformance check that compares desflow with the new SimPy, and move `uv.lock` to it. The tests must pass at both ends of the `simpy` requirement.
+2. Bump `version` in `pyproject.toml` and add the release to `docs/about/changelog.md`, with an Upgrading line for any rename or behaviour change. A commit that changes a record on purpose adds an entry to `tests/regression/expected.yaml` with the version that ships it, or the `regression` job fails. When the commit reaches `main`, the pipeline deploys the docs as that version, aliased `latest`, and copies its `404.html` to the site root.
+3. Once the `main` pipeline for that commit is green, tag `vX.Y.Z` on it and publish a GitHub release whose text is that version's Changelog section: `python scripts/release_notes.py X.Y.Z > /tmp/notes.md`, then `gh release create vX.Y.Z --title vX.Y.Z --notes-file /tmp/notes.md`. `publish.yml` runs on the published release and uploads to PyPI through the `pypi` environment. The `regression` job installs the newest `v*` tag from PyPI, so a tag pushed before the upload has finished fails that job until the upload is done. Re-run it then.
+4. Python 3.15 is not in the CI matrix yet: confluent-kafka has no 3.15 wheel (issue #40).

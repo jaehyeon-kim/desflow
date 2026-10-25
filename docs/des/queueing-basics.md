@@ -28,7 +28,12 @@ The last place is the number of servers, and `c` stands for any number of them. 
 
 ## Utilisation
 
-The measure that decides everything is **utilisation**, the share of time a server is busy: the arrival rate times the mean service time, divided by the number of servers. Formulas and the `desflow explain` tables write it ρ (rho). They write λ (lambda) for the arrival rate, μ (mu) for the service rate of one server (one over the mean service time), and c for the number of servers. Utilisation is then ρ = λ ÷ (c × μ). In the busy hour, 1.8 orders a second, 1.5 seconds of packing and three packers give 1.8 × 1.5 ÷ 3 = 0.9.
+The measure that decides everything is **utilisation**, the share of time a server is busy. In the busy hour, 1.8 orders a second, 1.5 seconds of packing and three packers give 1.8 × 1.5 ÷ 3 = 0.9: each packer is busy 90% of the time. In general, utilisation is the arrival rate times the mean service time, divided by the number of servers. Formulas and the `desflow explain` tables write it as ρ = λ ÷ (c × μ), where:
+
+- ρ (rho) is the utilisation.
+- λ (lambda) is the arrival rate.
+- μ (mu) is the service rate of one server, one over the mean service time.
+- c is the number of servers.
 
 With utilisation below 1, a queue is stable and its length settles. At 1 or above, when the gaps or the service times vary, the queue grows without limit. Above 1 it grows in every case, even when the gaps and service times are constant. [Queues and Capacity](../tutorials/queues-and-capacity.md) works this out for the shop.
 
@@ -187,7 +192,13 @@ three packers at utilisation 0.8: mean wait 1.62 s
 
 ## Variation Lengthens Waits
 
-Real gaps and service times are rarely exponential. **Kingman's formula** gives an approximate mean wait for one server with any distributions. It measures the spread of each input by its **coefficient of variation**, the standard deviation divided by the mean, called variation for short. The variation is 1 for an exponential distribution and 0 for a constant one. The mean wait is then utilisation ÷ (1 − utilisation) × (arrival variation² + service variation²) ÷ 2 × the mean service time. With exponential gaps (variation 1) and constant service (variation 0) it gives half the M/M/1 wait, which is the M/D/1 result above.
+Real gaps and service times are rarely exponential. **Kingman's formula** gives an approximate mean wait for one server with any distributions. It measures the spread of each input by its **coefficient of variation**, the standard deviation divided by the mean, called variation for short. The variation is 1 for an exponential distribution and 0 for a constant one. The mean wait is the product of three parts:
+
+- utilisation ÷ (1 − utilisation), which grows quickly as utilisation nears 1;
+- (arrival variation² + service variation²) ÷ 2, the effect of the spread;
+- the mean service time.
+
+With exponential gaps (variation 1) and constant service (variation 0), the middle part is 0.5, so the formula gives half the M/M/1 wait, which is the M/D/1 result above.
 
 The `kingman_wait` function above computes it. Variation in the gaps counts as much as variation in the service times. When both variations are 0, the formula gives no wait. A model whose inputs are replaced by their averages therefore shows no queue at all while utilisation is below 1. [Choosing Inputs](../tutorials/choosing-inputs.md) measures how much the spread of an input matters. [Common Mistakes](common-mistakes.md) lists replacing inputs by their averages among the errors that distort a result.
 
@@ -195,7 +206,9 @@ The `kingman_wait` function above computes it. Variation in the gaps counts as m
 
 ## Flow Balance and the Bottleneck
 
-In a network of tasks, work reaches a task in two ways: as new work sent to it, and as work routed to it from the tasks before it. A task before it sends on its own rate times the share of its finished work routed to it. The rate into the task is the sum of the two. This is **flow balance**. Take the shop of [Queues and Capacity](../tutorials/queues-and-capacity.md#networks-and-bottlenecks) with a checker: orders arrive at 1.6 a second, every packed order is checked, and a tenth of the checked orders go back to packing. The rate into packing is then 1.6 + 0.1 × the rate into packing. Solving for it gives 1.6 ÷ (1 − 0.1) = 1.6 ÷ 0.9 = 1.778 orders a second. Every packed order goes to the checker, so the checker receives the same 1.778.
+In a network of tasks, work reaches a task in two ways: as new work sent to it, and as work routed to it from the tasks before it. A task before it sends on its own rate times the share of its finished work routed to it. The rate into the task is the sum of the two. This is **flow balance**.
+
+Take the shop of [Queues and Capacity](../tutorials/queues-and-capacity.md#networks-and-bottlenecks) with a checker: orders arrive at 1.6 a second, every packed order is checked, and a tenth of the checked orders go back to packing. The rate into packing is then 1.6 + 0.1 × the rate into packing. Solving for it gives 1.6 ÷ (1 − 0.1) = 1.6 ÷ 0.9 = 1.778 orders a second. Every packed order goes to the checker, so the checker receives the same 1.778.
 
 Each resource's utilisation follows from its rate. Four packers that take 1.5 seconds an order have a utilisation of 1.778 × 1.5 ÷ 4 = 0.667. One checker that takes 0.4 seconds an order on average has 1.778 × 0.4 = 0.711. The resource with the highest utilisation is the **bottleneck**, here the checker. It is the first to reach full use when demand grows, and adding units anywhere else does not raise the most the shop can handle. The script works out the figures, and `desflow explain` finds the same from the shop's blueprint, `queues_network.yaml`:
 

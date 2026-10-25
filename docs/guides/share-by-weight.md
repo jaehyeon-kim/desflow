@@ -17,7 +17,13 @@ WEIGHTS = {1: 3, 2: 1}
 
 ## Order the Waiting Line
 
-A resource keeps its waiting requests in its `PutQueue`. `ResourceBase` creates the queue with no arguments, and a request joins it with `append`. Write a queue that gives each request a finish tag and keeps the requests sorted by it. A request's finish tag is the later of the queue's clock and its class's last tag, plus 1 divided by the class's weight. A class of weight 3 therefore gets tags a third as far apart as a class of weight 1. The queue serves the smallest tag first, so the class of weight 3 is served three times as often. Requests with equal tags leave in the order they arrived, which the counter `arrived` keeps. When a request is granted, the queue takes its tag as the clock:
+A resource keeps its waiting requests in its `PutQueue`. `ResourceBase` creates the queue with no arguments, and a request joins it with `append`. Write a queue that gives each request a **finish tag**, a number that sets its turn, and keeps the requests sorted by it. The queue follows three rules:
+
+1. A request's finish tag is the later of the queue's clock and its class's last tag, plus 1 divided by the class's weight.
+2. The queue serves the smallest tag first. Requests with equal tags leave in the order they arrived, which the counter `arrived` keeps.
+3. When a request is granted, the queue takes its tag as the clock.
+
+A class of weight 3 therefore gets tags a third as far apart as a class of weight 1, so it is served three times as often:
 
 ```python title="docs/snippets/yaml/share_by_weight_logic.py:queue"
 class FinishTagQueue(list):
@@ -175,6 +181,10 @@ A task sets the class with its `priority`, and the loader refuses a task priorit
 ---
 
 ## Check the Order
+
+Look at the tags the queue gives the orders, on a line from 1 to 3:
+
+![Finish tags on a line: the first order, tier 2, gets tag 1 and is granted at once; tier 1, of weight 3, then gets tags 4/3, 5/3, 2, 7/3, 8/3 and 3; tier 2, of weight 1, gets 2 and 3; smallest tag first, tier 1 first on a tie, grants 1, 1, 1, 2, 1, 1, 1, 2](../assets/diagrams/finish-tags.png)
 
 The first order is tier 2. It takes the packer at once, with tag 1, and the clock becomes 1. The six orders of tier 1 then get tags 4/3, 5/3, 2, 7/3, 8/3 and 3, and the two of tier 2 get 2 and 3. The smallest tag goes first, and where two tags are equal, tier 1 arrived first. So after the first order the packer grants **1, 1, 1, 2, 1, 1, 1, 2**: three of tier 1 for each of tier 2. First in, first out would grant 1, 1, 1, 1, 1, 1, 2, 2. All three forms grant the order worked out here.
 

@@ -113,7 +113,14 @@ docker exec -it valkey valkey-cli --user user --pass password PUBLISH simulation
 
 ### PostgreSQL
 
-`PostgresIngress` polls a table, `simulation_params` by default, every `poll_interval` seconds, 2 by default. It creates the table when it is missing, with the columns `id`, `path`, `value`, `is_applied` and `created_at`. At the start, it applies the latest applied value of each path, so a restarted run resumes from the last settings. Then it applies every row whose `is_applied` is false and marks it true, so the table keeps the history of every change. `value` is read as JSON, and as plain text when it is not JSON. The connection string names `odctl`, the database that the odctl `postgres` profile creates, with the user `user` and the password `password`.
+`PostgresIngress` polls a table, `simulation_params` by default, every `poll_interval` seconds, 2 by default. It creates the table when it is missing, with the columns `id`, `path`, `value`, `is_applied` and `created_at`. It applies the rows in two steps:
+
+1. At the start, it applies the latest applied value of each path, so a restarted run resumes from the last settings.
+2. At each poll, it applies every row whose `is_applied` is false and marks it true, so the table keeps the history of every change.
+
+`value` is read as JSON, and as plain text when it is not JSON.
+
+The connection string names `odctl`, the database that the odctl `postgres` profile creates, with the user `user` and the password `password`.
 
 ```python title="docs/snippets/pages/connectors.py:postgres-ingress"
 # Applies new rows (path, value) of simulation_params, checking every 2 seconds
@@ -157,6 +164,8 @@ The connectors run on the ingress thread, apart from the simulation. Each reads 
 ![A JSON message on the Kafka topic sim-config is decoded by KafkaIngress on the ingress thread, which puts the path and value on the ingress queue; on the SimPy thread, the ingress monitor applies what is queued every 0.1 simulation seconds with registry.update](../assets/diagrams/ingress-message.png)
 
 At `factor: 1.0`, 0.1 simulation seconds take 0.1 real seconds, so a change lands within 0.1 seconds of arriving. The simulation time it lands at depends on when it arrives, so two runs with the same seed and the same messages can differ. A change that must land at an exact simulation time needs a scenario step.
+
+A connector is a class with one method, `async run(queue)`, so a source desflow does not have takes one class to write: [Write a Connector](../guides/write-a-connector.md) shows how.
 
 ---
 

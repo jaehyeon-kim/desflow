@@ -87,6 +87,19 @@ tasks:
     wait: {put: {store: shelf}}
     # --8<-- [end:put]
     payload: {event_type: filed}
+    next: ship
+  ship:
+    # --8<-- [start:nested]
+    # Go on once the invoice is printed and either two boxes are taken or 5 seconds pass
+    wait:
+      all:
+        invoice: {timeout: 4 s}
+        either:
+          any:
+            boxes: {get: {container: boxes, amount: 2}}
+            limit: {timeout: 5 s}
+    # --8<-- [end:nested]
+    payload: {event_type: shipped}
 
 egress:
   - type: Console

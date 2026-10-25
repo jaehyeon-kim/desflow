@@ -146,7 +146,17 @@ desflow run filtered_inventory.yaml 2>&1 | grep "flows.orders_"
 
 ## Why It Works
 
-A filtered store works like one shelf with a separate queue for each kind of item. A medium order arrives every 20 seconds on average (3 a minute, `rate: 0.05`), and a medium shirt every 25 seconds (2.4 a minute, `rate: 0.04`). Medium orders therefore outnumber medium shirts all day, and their queue would grow without end if customers did not cancel after 10 minutes. Small shirts arrive every 33 seconds on average (1.8 a minute, `rate: 0.03`), and so do large shirts. Small orders arrive every 40 seconds on average (1.5 a minute, `rate: 0.025`), and so do large orders. There are more small and large shirts than orders of those sizes, so every small and large order is filled before its customer cancels. The shirts left over, 248 at the end of the run, wait on the shelf, which has room for 1,000. [SimPy and desflow](../des/simpy-and-desflow.md#containers-and-stores) compares stores and containers with SimPy's. [Stores and Containers](../user-guide/stores-and-containers.md#take-and-add) describes filters and cancelled gets.
+A filtered store works like one shelf with a separate queue for each kind of item. Orders and shirts of each size arrive at their own rates, on average:
+
+| Size | An order arrives | A shirt arrives |
+|---|---|---|
+| Small | every 40 seconds (1.5 a minute, `rate: 0.025`) | every 33 seconds (1.8 a minute, `rate: 0.03`) |
+| Medium | every 20 seconds (3 a minute, `rate: 0.05`) | every 25 seconds (2.4 a minute, `rate: 0.04`) |
+| Large | every 40 seconds (1.5 a minute, `rate: 0.025`) | every 33 seconds (1.8 a minute, `rate: 0.03`) |
+
+Medium orders outnumber medium shirts all day, so their queue would grow without end if customers did not cancel after 10 minutes. There are more small and large shirts than orders of those sizes, so every small and large order is filled before its customer cancels. The shirts left over, 248 at the end of the run, wait on the shelf, which has room for 1,000.
+
+[SimPy and desflow](../des/simpy-and-desflow.md#containers-and-stores) compares stores and containers with SimPy's. [Stores and Containers](../user-guide/stores-and-containers.md#take-and-add) describes filters and cancelled gets.
 
 ---
 

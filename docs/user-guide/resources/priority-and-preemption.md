@@ -8,7 +8,15 @@ This page covers three features of a [resource](index.md). Task priority ranks t
 
 ### Task Priority
 
-Under `queue: priority`, each task gives its requests a priority. The priority can be a number, the same for every run of the task. It can be an expression, read when the task joins the queue, such as `attr.tier` for the entity's attribute `tier`. In the builder, it can also be a function of the task id and the entity's attributes. The attributes exist before the request queues, but the task's own payload does not, so a priority cannot read that payload. An expression can read the previous task's payload as `payload.<field>`. A lower `priority` value is served first, and a task with no `priority` ranks 0, as a SimPy `PriorityRequest` does. Equal priorities are served first in, first out, as in SimPy's `PriorityResource`. SimPy ranks a request by `(priority, time, not preempt)`, so among requests with equal priorities and times, a request that may preempt goes before one with `preempt: false`. The tests check it, ties included, in all three APIs ([SimPy Compatibility](../../reference/simpy-compatibility.md)).
+Under `queue: priority`, waiting requests are served by priority, not in the order they arrived. A lower `priority` value is served first, and a task with no `priority` ranks 0, as a SimPy `PriorityRequest` does. Requests with equal priorities are served first in, first out, as in SimPy's `PriorityResource`. A task's priority can be:
+
+- a number, the same for every run of the task;
+- an expression, read when the task joins the queue, such as `attr.tier` for the entity's attribute `tier`, or `payload.<field>` for the previous task's payload;
+- in the builder, a function of the task id and the entity's attributes.
+
+A priority cannot read the task's own payload, because the payload does not exist yet when the request joins the queue.
+
+SimPy ranks a request by `(priority, time, not preempt)`. So among requests with equal priorities made at the same time, a request that may preempt goes before one with `preempt: false`. The tests check it, ties included, in all three APIs ([SimPy Compatibility](../../reference/simpy-compatibility.md)).
 
 === "YAML"
 
@@ -53,7 +61,15 @@ A `priority` on a task whose resource does not have `queue: priority` is refused
 
 ### Preemption
 
-On a resource with `preempt: true`, which needs `queue: priority`, a request that finds every unit busy takes a unit from a task with a higher `priority` value, as SimPy's `PreemptiveResource` does. SimPy's rule chooses the task that loses the unit. It sorts the users by `(priority, request time, may not preempt)` and picks the one that sorts last, but only when that user sorts after the new request. A user with an equal priority made its request earlier, so it sorts before the new request, and equal priorities do not preempt. The one exception is a user whose request was made at the same moment as the new one, with `preempt: false`: it sorts after a request that may preempt. The task that loses the unit publishes `preempted` with the resource's name, the key of the entity that took the unit (`preempted_by`) and the time the task was granted the unit (`usage_since`). It then follows its `on_interrupt`, as it would for an interrupt ([Interruptions](../../tutorials/interruptions.md)). A task with `preempt: false` never takes a unit this way. The `interruptions` example lets express orders preempt regular ones:
+On a resource with `preempt: true`, which needs `queue: priority`, a request does not always wait for a unit to come free. When every unit is busy, it takes a unit from a task with a higher `priority` value, as SimPy's `PreemptiveResource` does. That task is **preempted**: it loses the unit before its service ends. The task with the highest `priority` value loses it, and only when that value is higher than the new request's. Among tasks with equal values, the one that asked last loses it. A task with the same priority as the new request keeps its unit. A task with `preempt: false` never takes a unit this way. Look at an express request that arrives while both packers serve regular orders:
+
+![express-1, priority 1, takes the unit of orders-2, the regular order of priority 2 that asked last; orders-1, which asked first, keeps its unit; orders-2 publishes preempted and follows its on_interrupt: resume, restart or abandon](../../assets/diagrams/preemption.png)
+
+??? note "SimPy's exact rule"
+
+    SimPy sorts the tasks holding a unit by `(priority, request time, may not preempt)`. The task that sorts last loses its unit, but only when it also sorts after the new request. A task with the same priority asked earlier than the new request, so it sorts before it and keeps its unit. The one exception is a task with the same priority that asked at the same moment, with `preempt: false`: it sorts after a request that may preempt, and loses its unit.
+
+The preempted task publishes `preempted` with the resource's name, the key of the entity that took the unit (`preempted_by`) and the time the task was granted the unit (`usage_since`). It then follows its `on_interrupt`, as it would for an interrupt ([Interruptions](../../tutorials/interruptions.md)). The `interruptions` example lets express orders preempt regular ones:
 
 === "YAML"
 

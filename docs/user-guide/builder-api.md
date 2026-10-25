@@ -155,7 +155,7 @@ if __name__ == "__main__":
 
 ## How It Works
 
-`run()` takes the steps a [low-level script](low-level-api.md) writes by hand, in the same order, and adds these:
+`run()` takes the steps a [low-level script](low-level-api.md) writes by hand, in the same order, which [What `run()` Does](tasks-and-processes/index.md#what-run-does) lists. It adds these:
 
 - **A seed for every run.** It makes `Sampler(seed=random_seed)`, and draws and logs a seed when there is none.
 - **Resources, stores and containers.** One for each `add_resource`, `add_store` and `add_container`, which `context.get_resource`, `get_store` and `get_container` return. `add_resource` takes a `type`, a subclass of `ResourceBase` to build the resource from ([Custom Resource Types](resources/custom-resource-types.md#custom-resource-types)). `add_store` and `add_container` take a `type` too, a subclass of `StoreBase` or `ContainerBase` ([Custom Store and Container Types](stores-and-containers.md#custom-store-and-container-types)). A store or container with no `current_cap` and no `max_cap` has no limit.

@@ -72,7 +72,13 @@ Here a packing station of two units fails about once a minute on average (`rate:
 
     An interrupted order catches `simpy.Interrupt`, whose cause is `"breakdown"`, gives back its request and asks again, as the full file shows.
 
-The failure clock runs on calendar time: the next failure is drawn at the start and after each repair, whether the station is busy or idle. While the station is down its capacity is 0, so no order starts. All its units fail together. Its `current_cap` keeps the planned value. A scenario step or an ingress message that changes it during the repair sets the capacity the station returns to. It does not end the repair. The station publishes an event keyed by its name at each failure, `{"status": "down", "reason": "failure"}`, and at each repair, `{"status": "repaired", "reason": "failure"}`. The two distributions are registry paths, `Shop.breakdown.station.time_to_failure` and `.repair`, so a live change can make failures more or less frequent.
+The failure clock runs on calendar time: the next failure is drawn at the start and after each repair, whether the station is busy or idle. A failure works as follows:
+
+- All the station's units fail together. Its capacity is 0 until the repair ends, so no order starts.
+- Its `current_cap` keeps the planned value. A scenario step or an ingress message that changes it during the repair sets the capacity the station returns to. It does not end the repair.
+- The station publishes an event keyed by its name at each failure, `{"status": "down", "reason": "failure"}`, and at each repair, `{"status": "repaired", "reason": "failure"}`.
+
+The two distributions are registry paths, `Shop.breakdown.station.time_to_failure` and `.repair`, so a live change can make failures more or less frequent.
 
 A breakdown that lets work finish and then holds the resource for a fixed time each day is a capacity schedule. [Vary Arrivals by Time](time-varying-arrivals.md) writes it as scenario steps.
 

@@ -34,7 +34,17 @@ class G:
     runs = 10
 ```
 
-In desflow these numbers are arguments of the parts they describe: `add_arrival("orders", dist="exponential", rate=0.5)` for an order every 2 seconds on average, `add_service("packing", dist="constant", value=1.5)` and `add_resource("packers", current_cap=1, max_cap=10)`. Each is stored in a registry under a path such as `Shop.resources.packers.current_cap`, and the model reads the registry whenever it needs the value. A value can therefore change while the run goes on, from a scenario or a connector, which a value in `G` cannot. Each change is checked before it is applied. A number of your own, such as a conveyor speed, goes in `add_variable` in the builder and `variables` in YAML. The run length and the number of runs are arguments of `run` and `replicate`, because they belong to the run and not to the system. [Live Parameters](../user-guide/live-parameters.md) lists the paths.
+In desflow these numbers are arguments of the parts they describe:
+
+| In `G` | In the builder |
+|---|---|
+| `arrival_mean = 2.0` | `add_arrival("orders", dist="exponential", rate=0.5)`, an order every 2 seconds on average |
+| `pack_time = 1.5` | `add_service("packing", dist="constant", value=1.5)` |
+| `packers = 1` | `add_resource("packers", current_cap=1, max_cap=10)` |
+| `run_length` and `runs` | arguments of `run` and `replicate`, because they belong to the run and not to the system |
+| a number of your own, such as a conveyor speed | `add_variable`, or `variables` in YAML |
+
+Each value is stored in a registry under a path such as `Shop.resources.packers.current_cap`, and the model reads the registry whenever it needs the value. So a value can change while the run goes on, from a scenario or a connector, which a value in `G` cannot. Each change is checked before it is applied. [Live Parameters](../user-guide/live-parameters.md) lists the paths.
 
 ---
 

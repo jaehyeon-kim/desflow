@@ -431,3 +431,36 @@ def test_check_against_theory_agrees_with_the_formulas(capsys, monkeypatch):
         "no closed formula for c > 1 with non-exponential times; run --verify to measure it"
     )
     capsys.readouterr()
+
+
+def test_write_a_connector_applies_the_change_and_writes_the_events(
+    tmp_path, monkeypatch
+):
+    """Nineteen orders arrive, one a second from 1 s, and each takes 1.5 s, so the
+    18 that arrive by 18 s are packed by 20 s. The file's change gives the packers 2
+    units; the ingress applies it within the first moments of the run, so from then
+    on each order starts when it arrives. The three forms write the same events."""
+    # A reader copies the page's files into one folder and runs the script there
+    for source in (
+        GUIDES / "write_a_connector.py",
+        ROOT / "docs" / "snippets" / "yaml" / "write_a_connector.yaml",
+        ROOT / "docs" / "snippets" / "yaml" / "write_a_connector_logic.py",
+    ):
+        shutil.copy(source, tmp_path)
+    monkeypatch.chdir(tmp_path)
+    module = _load_from(tmp_path, "write_a_connector")
+    written = []
+    for form in (module.yaml_form, module.builder_form, module.low_level_form):
+        capacity, rows = form()
+        written.append(rows)
+        assert capacity == 2
+        statuses = [row["status"] for row in rows if row["status"]]
+        assert statuses.count("queued") == statuses.count("started") == 19
+        packed = [row for row in rows if row["event_type"] == "order_packed"]
+        assert len(packed) == 18
+        last = [row for row in rows if row["key"] == "orders-19"]
+        assert [(row["sim_ts"], row["status"]) for row in last] == [
+            ("19.0", "queued"),
+            ("19.0", "started"),
+        ]
+    assert written[0] == written[1] == written[2]

@@ -131,7 +131,10 @@ Two orders that each hold one resource and wait for the other wait for ever: a *
 
 ## Result
 
-What does holding the picker while waiting for the bench cost? Each figure here is a mean from one run of the hour with the seed 42. When the picker puts the order down and goes back, orders wait **0.32 seconds** for the picker and **5.89 seconds** for the bench, **6.21 seconds** in all. When the picker stays with the order, the wait moves to the picker: orders wait **8.77 seconds** for it and only **1.09 seconds** for the bench, **9.85 seconds** in all. The picker is then busy **82.7%** of the time instead of **39.8%**, most of it standing by the bench:
+What does holding the picker while waiting for the bench cost? Each figure here is a mean from one run of the hour with the seed 42.
+
+- When the picker puts the order down and goes back, orders wait **0.32 seconds** for the picker and **5.89 seconds** for the bench, **6.21 seconds** in all.
+- When the picker stays with the order, the wait moves to the picker. Orders wait **8.77 seconds** for it and only **1.09 seconds** for the bench, **9.85 seconds** in all. The picker is then busy **82.7%** of the time instead of **39.8%**, most of it standing by the bench:
 
 ![Mean wait of an order: freeing the picker, 0.32 s for the picker and 5.89 s for the bench, 6.21 s in all; keeping the picker, 8.77 s and 1.09 s, 9.85 s in all](../assets/charts/handoff-waits.png)
 
@@ -144,7 +147,9 @@ keeps the picker: wait to pick   8.77 s, to pack  1.09 s, picker busy 82.7%
 
 ## Why It Works
 
-Each order brings 2 seconds of packing on average and arrives every 2.5 seconds on average, so the bench is busy 2 ÷ 2.5 = 80% of the time and the picker 1 ÷ 2.5 = 40%. The bench is the busier of the two, the [bottleneck](../des/queueing-basics.md#flow-balance-and-the-bottleneck). When the picker waits at the bench, it spends its own time in the bench's queue. So the picker is busy longer than its work needs, and the next order waits for it. Releasing a resource as soon as it is no longer needed keeps the waits where the work is. [Queueing Basics](../des/queueing-basics.md#utilisation) explains utilisation. [Several Resources](../user-guide/resources/several-resources.md#several-resources) describes several resources, handoffs and the order rule.
+Each order brings 2 seconds of packing on average and arrives every 2.5 seconds on average, so the bench is busy 2 ÷ 2.5 = 80% of the time and the picker 1 ÷ 2.5 = 40%. The bench is the busier of the two, the [bottleneck](../des/queueing-basics.md#flow-balance-and-the-bottleneck). When the picker waits at the bench, it spends its own time in the bench's queue. So the picker is busy longer than its work needs, and the next order waits for it. Releasing a resource as soon as it is no longer needed keeps the waits where the work is.
+
+[Queueing Basics](../des/queueing-basics.md#utilisation) explains utilisation. [Several Resources](../user-guide/resources/several-resources.md#several-resources) describes several resources, handoffs and the order rule.
 
 ---
 

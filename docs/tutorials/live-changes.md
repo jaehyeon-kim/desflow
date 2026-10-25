@@ -214,7 +214,9 @@ A scenario is planned in advance. A change from outside arrives while the run go
 
     `env.setup_ingress(ingress)` starts it, and a SimPy process checks the ingress queue every 0.1 simulated seconds.
 
-Half a wall-clock second is 100 simulated seconds at this pace, and packing changes to 3 seconds about then. The exact time depends on how fast the machine runs, so it differs from run to run. The change publishes no label: an ingress update changes the registry and nothing else, so no `labels/` folder is created. `live_changes_live.yaml` writes to `live/`, so its files stay apart from those of `live_changes.yaml`. To keep the ground truth of a live change, the sender must record it itself. Send it live with `desflow run live_changes_live.yaml`, `python live_changes.py live` or `python live_changes_low_level.py live`. The two scripts print `packing after the live change: 3.0 s`. [Ingress](../user-guide/ingress.md) describes the connectors that read Kafka, Redis and PostgreSQL in the same way.
+Half a wall-clock second is 100 simulated seconds at this pace, and packing changes to 3 seconds about then. The exact time depends on how fast the machine runs, so it differs from run to run. The change publishes no label: an ingress update changes the registry and nothing else, so no `labels/` folder is created. To keep the ground truth of a live change, the sender must record it itself.
+
+`live_changes_live.yaml` writes to `live/`, so its files stay apart from those of `live_changes.yaml`. Send it live with `desflow run live_changes_live.yaml`, `python live_changes.py live` or `python live_changes_low_level.py live`. The two scripts print `packing after the live change: 3.0 s`. [Ingress](../user-guide/ingress.md) describes the connectors that read Kafka, Redis and PostgreSQL in the same way.
 
 ---
 

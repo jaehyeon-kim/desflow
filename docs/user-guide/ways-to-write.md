@@ -39,8 +39,4 @@ Because each layer ends in the one below, the layers mix: a blueprint can refere
 
 ## How It Works
 
-Whichever way a simulation is written, one run goes the same way from there:
-
-![The three ways to write a simulation build one DynamicRealtimeEnvironment. Its registry holds every live parameter; ingress connectors on background threads update it from Kafka, Redis, PostgreSQL or a local schedule, and the resources follow it. Telemetry and events go to egress connectors on their own thread, which write them to Kafka, Redis, PostgreSQL, Parquet or JSONL files, Iceberg or the console](../assets/diagrams/architecture.png)
-
-The environment holds the registry of live parameters, and the resources, stores and containers follow it. Ingress connectors change registry values from outside while the run goes on. Tasks and other processes publish events and telemetry, and egress connectors write them to their sinks on a thread of their own. The registry paths, the records, the batching and the connectors are therefore the same in all three ways, and the User Guide describes each once: [Live Parameters](live-parameters.md), [Ingress](ingress.md), [Egress](egress.md) and [Records and Telemetry](../reference/records-and-telemetry.md).
+Whichever way a model is written, it builds the same environment, and one run goes the same way from there. [How desflow Works](how-desflow-works.md) shows that run and each part it passes through.

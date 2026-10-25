@@ -4,7 +4,7 @@
       <root>
         <mxCell id="0"/>
         <mxCell id="1" parent="0"/>
-        <mxCell id="c2" value="The parts of a queueing model, in Kendall&#x27;s notation" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=16;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="750" height="30" as="geometry"/></mxCell>
+        <mxCell id="c2" value="Parts of a queueing model, in Kendall&#x27;s notation" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=16;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="750" height="30" as="geometry"/></mxCell>
         <mxCell id="c3" value="orders" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;spacing=8;" vertex="1" parent="1"><mxGeometry x="0" y="117" width="120" height="60" as="geometry"/></mxCell>
         <mxCell id="c4" value="queue" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;spacing=8;" vertex="1" parent="1"><mxGeometry x="180" y="117" width="110" height="60" as="geometry"/></mxCell>
         <mxCell id="c5" value="c packers" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=none;strokeColor=#6c8ebf;strokeWidth=2;dashed=1;verticalAlign=top;align=center;spacingTop=8;" vertex="1" parent="1"><mxGeometry x="340" y="30" width="230" height="200" as="geometry"/></mxCell>

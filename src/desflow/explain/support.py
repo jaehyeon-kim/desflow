@@ -1,8 +1,8 @@
 """Which tasks the queueing formulas cover: one pass over the graph's flow.
 
 The formulas hold in a plain Jackson network: every task holds at most one resource,
-each queue is first come, first served, and nothing blocks, removes, delays or
-reorders work. Anything else marks the node where it happens and every task after
+each queue serves in arrival order (`fifo` or `lifo`, which give the same mean
+wait), and nothing blocks, removes, delays or reorders work by priority. Anything else marks the node where it happens and every task after
 it in the flow. A marked task's rate is unknown, so each resource it uses has no
 supported utilisation, status or wait, and cannot be named the bottleneck. These
 mark:

@@ -102,7 +102,9 @@ Some relations hold for every model that settles, so they test the statistics wi
 
 For a simple case there may be a formula. One packer with exponential gaps and service times at [utilisation](queueing-basics.md#utilisation) 0.75 has a mean wait of 4.5 seconds when the service time averages 1.5 seconds. A run of the model, repeated with several seeds, must produce an interval that contains it. [Queueing Basics](queueing-basics.md) gives the formulas for one and several servers, and shows runs of the shop within their intervals. A formula tests the part of the model it covers. It cannot test priorities, breakdowns or changing demand, which is why those are the parts to check by hand and by comparison with the real shop.
 
-`desflow explain` applies these formulas to a model without running it: it gives each resource's utilisation, and the mean wait where a formula applies. `desflow explain --verify` then runs the model and compares what the run measures with those values. This is verification. It checks that the program agrees with the queueing formulas, and that the model's rates, units and service times are consistent with each other. It is not validation: it does not show that the model is close enough to the real shop. Where the formulas do not hold, it gives no value, makes no comparison and says why. [Check Against Theory](../guides/check-against-theory.md#when-the-formulas-do-not-apply) states the rule. The same page shows the commands and how to read a difference.
+`desflow explain` applies these formulas to a model without running it: it gives each resource's utilisation, and the mean wait where a formula applies. `desflow explain --verify` then runs the model and compares what the run measures with those values. Where the formulas do not hold, it gives no value, makes no comparison and says why. [Check Against Theory](../guides/check-against-theory.md#when-the-formulas-do-not-apply) states the rule, and shows the commands and how to read a difference.
+
+This is verification, not validation. It checks that the program agrees with the queueing formulas, and that the model's rates, units and service times are consistent with each other. It does not show that the model is close enough to the real shop.
 
 ---
 
@@ -110,7 +112,15 @@ For a simple case there may be a formula. One packer with exponential gaps and s
 
 Validation needs evidence from the real system. Law suggests comparing the model's results with the existing system's, where there is one, along with a walk-through of the assumptions by the people who know the system, and sensitivity analysis. For the shop, give the model the inputs of a real day and compare its mean wait, queue length and utilisation with what happened. They need to agree closely enough for the decision, not exactly.
 
-The [lecture notes](https://courses.ie.bilkent.edu.tr/ie324/wp-content/uploads/sites/4/2016/09/Validation.pdf) on Banks et al. describe calibration as iterative: compare the model with the real system, adjust it, compare again. They also give three steps: build a model with high face validity, validate the model's assumptions, and compare input-output behaviour with the real system's data. The assumptions and the inputs are then checked, and not only the outputs. [Choosing Inputs](../tutorials/choosing-inputs.md) and [Fitting the Inputs](../tutorials/fit-the-inputs.md) cover the inputs, and [Local Replay](../tutorials/local-replay.md) runs a model on the arrivals of a real trace. When the real system does not exist yet, as for a proposed design, there is nothing to compare with. Then validity rests on the assumptions and on sensitivity analysis.
+The [lecture notes](https://courses.ie.bilkent.edu.tr/ie324/wp-content/uploads/sites/4/2016/09/Validation.pdf) on Banks et al. describe calibration as iterative: compare the model with the real system, adjust it, compare again. They also give three steps:
+
+1. Build a model with high face validity: one that looks right to the people who know the system.
+2. Validate the model's assumptions.
+3. Compare input-output behaviour with the real system's data.
+
+So the assumptions and the inputs are checked, not only the outputs. [Choosing Inputs](../tutorials/choosing-inputs.md) and [Fitting the Inputs](../tutorials/fit-the-inputs.md) cover the inputs, and [Local Replay](../tutorials/local-replay.md) runs a model on the arrivals of a real trace.
+
+When the real system does not exist yet, as for a proposed design, there is nothing to compare with. Then validity rests on the assumptions and on sensitivity analysis.
 
 ---
 

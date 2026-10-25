@@ -9,7 +9,9 @@ Run the busy shop twice, and the orders arrive at different times and take diffe
 
 ## What You Add
 
-This page adds a seed, then a second arrival: returned parcels. The model simulates the busy hour from [Queues and Capacity](queues-and-capacity.md), using its answer of 3 packers. Packing times now vary: 1.5 seconds on average with a standard deviation of 0.5 seconds, drawn from a `normal` distribution. This page uses the normal only to get times that vary. [Choosing Inputs](choosing-inputs.md) chooses packing times from data. [Common Mistakes](../des/common-mistakes.md#choosing-a-normal-or-uniform-by-habit) explains why a normal is a poor model of a time. This one draws a value below 0 about once in 740 draws, and desflow raises such a draw to its minimum delay, as [Distributions](../reference/distributions.md) says.
+This page adds a seed, then a second arrival: returned parcels. The model simulates the busy hour from [Queues and Capacity](queues-and-capacity.md), using its answer of 3 packers. Packing times now vary: 1.5 seconds on average with a standard deviation of 0.5 seconds, drawn from a `normal` distribution.
+
+This page uses the normal only to get times that vary. [Choosing Inputs](choosing-inputs.md) chooses packing times from data. [Common Mistakes](../des/common-mistakes.md#choosing-a-normal-or-uniform-by-habit) explains why a normal is a poor model of a time. This one draws a value below 0 about once in 740 draws, and desflow raises such a draw to its minimum delay, as [Distributions](../reference/distributions.md) says.
 
 ---
 

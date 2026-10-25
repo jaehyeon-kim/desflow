@@ -148,7 +148,20 @@ A wait for signals, tasks and times never holds a resource. Waiting for all of s
 
 ## Nest Any and All
 
-A branch of an `any` or an `all` may itself be an `any` or an `all`, so a wait nests to any depth. For example, `wait: {all: {look: {task: inspect}, either: {any: {stock: {signal: restocked}, limit: {timeout: 30 s}}}}}` is done when the inspection ends and either a restock or a time limit arrives. Each branch name in the tree is unique. `wait.<name>` reads any node, whether a group or a leaf. For example, `wait.either.done` is true once the inner `any` is done, and `wait.either.value` maps its done leaves to their values. The low-level form is `yield (stock | limit) & inspect`.
+A branch of an `any` or an `all` may itself be an `any` or an `all`, so a wait nests to any depth. This wait is done when the invoice is printed and either two boxes are taken or 5 seconds pass:
+
+```yaml title="docs/snippets/yaml/wait_groups.yaml:nested"
+# Go on once the invoice is printed and either two boxes are taken or 5 seconds pass
+wait:
+  all:
+    invoice: {timeout: 4 s}
+    either:
+      any:
+        boxes: {get: {container: boxes, amount: 2}}
+        limit: {timeout: 5 s}
+```
+
+Each branch name in the tree is unique. `wait.<name>` reads any node, whether a group or a leaf. For example, `wait.either.done` is true once the inner `any` is done, and `wait.either.value` maps its done leaves to their values. The low-level form is `yield (boxes | limit) & invoice`.
 
 ## At Least Some of Them
 
@@ -176,7 +189,15 @@ wait:
 
 ## Wait for a Unit, an Item or Room
 
-A branch may also be a resource `request`, a store or container `get`, or a `put`. A task can then wait for the first of a unit, an item, a signal or a time. A `request` branch that wins holds its unit through the task's service and gives it back when the task ends, as a listed `resource` does. Its `wait.<branch>.value` is the request. A `get` branch takes an item, and `wait.<branch>.value` is that item. A `put` branch adds the payload of the task before it, or `None` for the first task of a flow. An `any` ends when its first branch is granted, and every request, get or put granted at that same instant is kept as won too. A branch that loses is cancelled, so it takes or holds nothing. For example, `wait: {any: {unit: {request: packers}, limit: {timeout: 30 s}}}` waits for a packer or a time limit, and gives the packer back if the limit comes first. A single branch is named after its resource for a `request`, and `get` or `put` otherwise. An interrupt with `on_interrupt: restart` during the wait starts the branches again, so an item a get already took is used by neither the old nor the new branch, as SimPy cannot put a taken item back.
+A branch may also be a resource `request`, a store or container `get`, or a `put`. A task can then wait for the first of a unit, an item, a signal or a time. A branch of each kind does this when it wins:
+
+- A `request` holds its unit through the task's service and gives it back when the task ends, as a listed `resource` does. Its `wait.<branch>.value` is the request.
+- A `get` takes an item, and `wait.<branch>.value` is that item.
+- A `put` adds the payload of the task before it, or `None` for the first task of a flow.
+
+A single branch is named after its resource for a `request`, and `get` or `put` otherwise. An `any` ends when its first branch is granted, and every request, get or put granted at that same instant is kept as won too. A branch that loses is cancelled, so it takes or holds nothing. An interrupt with `on_interrupt: restart` during the wait starts the branches again. An item a get already took is then used by neither the old nor the new branch, because SimPy cannot put a taken item back.
+
+This wait is for a packer or a time limit, and gives up the packer request if the limit comes first:
 
 ```yaml title="docs/snippets/yaml/wait_groups.yaml:request"
 # A packer, or give up after 30 seconds; a packer won is held through packing
@@ -201,7 +222,13 @@ wait:
 wait: {put: {store: shelf}}
 ```
 
-Requests in a wait count in the [order of acquisition](../user-guide/resources/several-resources.md#several-resources): they come before the task's `resource` list. The requests under an `all`, or under an `at_least` of 2 or more, are made together. The first one granted is held while the others are waited for. No other task can therefore acquire two of them one after the other, in either order. A single `request` branch of an `any` ends the `any` when it is granted. It holds nothing while the `any` waits, so such branches set no order. A group branch of an `any`, such as an `all` of two requests, is different. It can hold a unit before the `any` is won, so its requests are made together with those of the other branches. A task that keeps a resource for a next task that requests it in its wait is refused when the model is built, because the request would wait behind the unit kept for it.
+Requests in a wait count in the [order of acquisition](../user-guide/resources/several-resources.md#several-resources): they come before the task's `resource` list. How a wait makes its requests depends on the group:
+
+- Under an `all`, or an `at_least` of 2 or more, the requests are made together. The first one granted is held while the others are waited for, so no other task can acquire two of them one after the other, in either order.
+- A single `request` branch of an `any` holds nothing while the `any` waits, and ends the `any` when it is granted. So such branches set no order.
+- A group branch of an `any`, such as an `all` of two requests, can hold a unit before the `any` is won. So its requests are made together with those of the other branches.
+
+A task that keeps a resource for a next task that requests it in its wait is refused when the model is built, because the request would wait behind the unit kept for it.
 
 ## An Empty Wait
 
