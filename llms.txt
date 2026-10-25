@@ -12,6 +12,7 @@
 
 ## Learn
 
+- [Learn](https://jaehyeon.me/desflow/latest/learn/index.md)
 - [What Is DES?](https://jaehyeon.me/desflow/latest/des/how-it-works/index.md)
 - [Queueing Basics](https://jaehyeon.me/desflow/latest/des/queueing-basics/index.md)
 - [A Simulation Study](https://jaehyeon.me/desflow/latest/des/a-simulation-study/index.md)
@@ -49,6 +50,7 @@
 ## User Guide
 
 - [User Guide](https://jaehyeon.me/desflow/latest/user-guide/index.md)
+- [How desflow Works](https://jaehyeon.me/desflow/latest/user-guide/how-desflow-works/index.md)
 - [Ways to Write](https://jaehyeon.me/desflow/latest/user-guide/ways-to-write/index.md)
 - [YAML Blueprints](https://jaehyeon.me/desflow/latest/user-guide/blueprints/index.md)
 - [Builder API](https://jaehyeon.me/desflow/latest/user-guide/builder-api/index.md)
@@ -91,6 +93,7 @@
 - [Route Records to Topics](https://jaehyeon.me/desflow/latest/guides/complex-routing/index.md)
 - [Use Avro and Pydantic](https://jaehyeon.me/desflow/latest/guides/avro-and-pydantic/index.md)
 - [Connect to Secure Kafka](https://jaehyeon.me/desflow/latest/guides/kafka-security/index.md)
+- [Write a Connector](https://jaehyeon.me/desflow/latest/guides/write-a-connector/index.md)
 - [Fit a Distribution](https://jaehyeon.me/desflow/latest/guides/fit-a-distribution/index.md)
 - [Check Against Theory](https://jaehyeon.me/desflow/latest/guides/check-against-theory/index.md)
 - [Test a Model](https://jaehyeon.me/desflow/latest/guides/test-a-model/index.md)
@@ -101,7 +104,7 @@
 - [Use an AI Assistant](https://jaehyeon.me/desflow/latest/guides/use-an-ai-assistant/index.md)
 - [Tune Performance](https://jaehyeon.me/desflow/latest/guides/performance-tuning/index.md)
 
-## Example Projects
+## Runnable Examples
 
 - [Overview](https://jaehyeon.me/desflow/latest/examples/index.md)
 - [Local Simulation](https://jaehyeon.me/desflow/latest/examples/local/index.md)
@@ -112,6 +115,10 @@
 - [Redis](https://jaehyeon.me/desflow/latest/examples/redis/index.md)
 - [Parquet History, Kafka Live](https://jaehyeon.me/desflow/latest/examples/backfill-live/index.md)
 - [Related Records](https://jaehyeon.me/desflow/latest/examples/advanced-postgres-orders/index.md)
+
+## Projects Using desflow
+
+- [Projects Using desflow](https://jaehyeon.me/desflow/latest/projects/index.md)
 
 ## Reference
 
