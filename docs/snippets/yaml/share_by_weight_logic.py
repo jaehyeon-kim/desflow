@@ -1,5 +1,5 @@
 """Python for share_by_weight.yaml: a packer that shares its time between classes by
-weight, as the Share by Weight guide builds it."""
+weight, as the Share Work by Weight guide builds it."""
 
 import bisect
 import itertools

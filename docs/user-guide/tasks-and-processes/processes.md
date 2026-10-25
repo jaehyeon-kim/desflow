@@ -1,6 +1,6 @@
 # Processes
 
-A process runs alongside the [tasks](index.md); this page shows how to write one, and an example in which processes and tasks interact.
+A process runs alongside the [tasks](index.md). This page shows how to write one, and an example in which processes and tasks interact.
 
 ---
 
@@ -81,7 +81,10 @@ The `process-interaction` example combines a child flow, a failure that `on_fail
         desflow examples get process-interaction --api yaml
         cd process-interaction/yaml
 
-        # 3. Run it
+        # 3. Find the bottleneck, with no run
+        desflow explain process_interaction.yaml
+
+        # 4. Run it
         desflow run process_interaction.yaml
         ```
 
@@ -95,7 +98,10 @@ The `process-interaction` example combines a child flow, a failure that `on_fail
         desflow examples get process-interaction --api yaml
         cd process-interaction/yaml
 
-        # 3. Run it
+        # 3. Find the bottleneck, with no run
+        desflow explain process_interaction.yaml
+
+        # 4. Run it
         desflow run process_interaction.yaml
         ```
 

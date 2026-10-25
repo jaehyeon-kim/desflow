@@ -6,7 +6,7 @@ An egress connector, or sink, writes the records a run publishes: to the console
 
 ## What It Is
 
-A run publishes three kinds of record: **events**, such as a task's `queued`, `started` and finished; **telemetry**, single values such as the statistics; and **labels**, the ground-truth records of what a scenario changed. Every sink receives every event and every telemetry record, unless its `when` says otherwise, and labels go only to sinks that ask for them. [Records and Telemetry](../reference/records-and-telemetry.md) shows each record's shape and what each sink writes.
+A run publishes three kinds of record: **events**, such as a task's `queued`, `started` and finished; **telemetry**, single values such as the statistics; and **labels**, the ground-truth records of what a scenario changed. Every sink receives every event and every telemetry record, unless its `when` says otherwise. Labels go only to sinks that ask for them. [Records and Telemetry](../reference/records-and-telemetry.md) shows each record's shape and what each sink writes.
 
 ![Parameter changes from outside reach the registry through LocalIngress, KafkaIngress, RedisIngress or PostgresIngress; records from tasks and processes leave through ConsoleEgress, KafkaEgress, ParquetStorageEgress, JsonlStorageEgress, RedisEgress, PostgresEgress or IcebergStorageEgress](../assets/diagrams/connectors-overview.png)
 
@@ -18,7 +18,7 @@ Each sink is attached with `add_egress` in the builder, passed to `env.setup_egr
 
 ### Console
 
-`ConsoleEgress` has two formats. The default, `log`, logs each record at INFO level, one line per record: `[EVT]` for an event, `[TEL]` for telemetry and `[LBL]` for a label. It logs a whole batch with one call, so the logging format's prefix, such as the time and level, starts only the first line of each batch. The lines after it start with `[EVT]`, `[TEL]` or `[LBL]`. One call per record cost far more: in the measurements on [Performance Tuning](../guides/performance-tuning.md), a run that logged each record with its own call took about 50 percent longer in total than one that logs each batch with one call.
+`ConsoleEgress` has two formats. The default, `log`, logs each record at INFO level, one line per record: `[EVT]` for an event, `[TEL]` for telemetry and `[LBL]` for a label. It logs a whole batch with one call. `desflow run` prints these records as they are, one line each, while its other log lines start with the time, level and logger name. In a script, the logging format the script sets, such as the time and level, starts only the first line of each batch, and the lines after it start with `[EVT]`, `[TEL]` or `[LBL]`. One call per record cost far more: in the measurements on [Tune Performance](../guides/performance-tuning.md), a run that logged each record with its own call took about 50 percent longer in total than one that logs each batch with one call.
 
 ```python title="docs/snippets/pages/connectors.py:console-egress"
 app.add_egress(ConsoleEgress())
@@ -31,14 +31,24 @@ With `format="json"`, `ConsoleEgress` writes each record to stdout as one JSON l
 app.add_egress(ConsoleEgress(format="json"))
 ```
 
+A consumer can check each line against the record schema: `EventPayload`, `TelemetryPayload` and `LabelPayload` are the Pydantic models of the three stream types, as [Records and Telemetry](../reference/records-and-telemetry.md) describes:
+
+```python title="docs/snippets/pages/record_schemas.py:validate"
+# The model of each stream type; a record with a missing or mistyped field raises
+SCHEMAS = {"event": EventPayload, "telemetry": TelemetryPayload, "label": LabelPayload}
+for line in printed.getvalue().splitlines():
+    record = json.loads(line)
+    SCHEMAS[record["stream_type"]].model_validate(record)
+```
+
 ### Kafka
 
-`KafkaEgress` sends events to `event_topic` and telemetry to `telemetry_topic`, keyed by the record's `key` or `path_id`. Kafka sends all records with one key to one partition, so all events of one entity stay in order. `KafkaEgress` creates both topics when the run starts, if they do not exist. With a `topic_router`, it creates none. [Complex Routing](../guides/complex-routing.md) sends records to other topics.
+`KafkaEgress` sends events to `event_topic` and telemetry to `telemetry_topic`, keyed by the record's `key` or `path_id`. Kafka sends all records with one key to one partition, so all events of one entity stay in order. `KafkaEgress` creates both topics when the run starts, if they do not exist. With a `topic_router`, it creates none. [Route Records to Topics](../guides/complex-routing.md) sends records to other topics.
 
 ```python title="docs/snippets/pages/connectors.py:kafka-egress"
 app.add_egress(
     KafkaEgress(
-        bootstrap_servers="localhost:9092",
+        bootstrap_servers="127.0.0.1:9092",
         event_topic="sim-events",
         telemetry_topic="sim-telemetry",
     )
@@ -51,7 +61,7 @@ app.add_egress(
 
 **File names.** `default_path`, and any path a `path_router` returns, is a file name prefix, not a folder. Each batch is written as a file of its own, `<stem>_<8 hex digits><extension>`, in the path's folder, so `output/events.parquet` gives files such as `output/events_1a2b3c4d.parquet`. Give the extension in the path: `output/events` gives files with none. The folder is created on the first write.
 
-**Columns of a finished event.** A task's `queued` and `started` events carry `path_id` and `status`, but its finished event's value is the task's payload only, so in a finished event's row `path_id` and `status` are null unless the payload has them. The [Parquet example](../examples/parquet.md) adds them to its payload for that reason.
+**Columns of a finished event.** A task's `queued` and `started` events carry `path_id` and `status`. Its finished event's value is the task's payload only. So in a finished event's row, `path_id` and `status` are null unless the payload has them. The [Parquet example](../examples/parquet.md) adds them to its payload for that reason.
 
 ```python title="docs/snippets/pages/connectors.py:storage-egress"
 # Parquet files on the local disk, output/events_<8 hex digits>.parquet
@@ -89,7 +99,7 @@ A second run adds its files beside the first run's, so reading the folder then c
 ```python title="docs/snippets/pages/connectors.py:redis-egress"
 # XADD to the events stream, unless a record's value names another in __stream__
 app.add_egress(
-    RedisEgress("redis://user:password@localhost:6379/0", stream_name="events")
+    RedisEgress("redis://user:password@127.0.0.1:6379/0", stream_name="events")
 )
 ```
 
@@ -98,7 +108,7 @@ app.add_egress(
 `PostgresEgress` inserts records into a table in batches. Only records whose value is a mapping are written, together with the labels on a labels sink. A label is written as `sim_ts`, `timestamp`, `path`, `old`, `new` and `label`. The record's `sim_ts`, `timestamp`, `key` (as `event_id`) and `path_id` are added to the value and replace fields of the same name. Its `task` and `instance` are added too, but a value field of the same name keeps its own value. Keys with no matching column are dropped. A `__table__` key in the value sends the record only to the sink whose `table_name` matches. The connection string names `odctl`, the database that the odctl `postgres` profile creates, with the user `user` and the password `password`.
 
 ```python title="docs/snippets/pages/connectors.py:postgres-egress"
-dsn = "postgresql://user:password@localhost:5432/odctl"
+dsn = "postgresql://user:password@127.0.0.1:5432/odctl"
 app.add_egress(PostgresEgress(dsn, table_name="orders"))
 ```
 
@@ -115,10 +125,10 @@ app.add_egress(PostgresEgress(dsn, table_name="orders", upsert_keys=["order_id"]
 ```python title="docs/snippets/pages/connectors.py:iceberg-egress"
 catalog = RestCatalog(
     "odctl",
-    uri="http://localhost:8181",
+    uri="http://127.0.0.1:8181",
     warehouse="s3://warehouse/",
     **{
-        "s3.endpoint": "http://localhost:8333",
+        "s3.endpoint": "http://127.0.0.1:8333",
         "s3.access-key-id": "user",
         "s3.secret-access-key": "password",
         "s3.region": "us-east-1",
@@ -152,7 +162,7 @@ In a blueprint, `config` holds the constructor's arguments. Settings that Python
 egress:
   - type: Kafka
     config:
-      bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}
+      bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-127.0.0.1:9092}
       event_topic: sim-events
       telemetry_topic: sim-telemetry
     batch_size: 50
@@ -173,12 +183,12 @@ egress:
       path_router: !python routing_logic.daily_path
   - type: Postgres
     config:
-      connection_dsn: postgresql://user:password@localhost:5432/odctl
+      connection_dsn: postgresql://user:password@127.0.0.1:5432/odctl
       table_name: orders
       upsert_keys: [order_id]
   - type: Redis
     config:
-      url: redis://user:password@localhost:6379/0
+      url: redis://user:password@127.0.0.1:6379/0
       stream_name: events
 ```
 

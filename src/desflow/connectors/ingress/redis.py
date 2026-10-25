@@ -41,7 +41,7 @@ class RedisIngress(BaseIngress):
         Initializes the RedisIngress with connection and channel settings.
 
         Args:
-            url: Redis connection URL (e.g., redis://localhost:6379/0).
+            url: Redis connection URL (e.g., redis://127.0.0.1:6379/0).
             channel_name: Redis Pub/Sub channel to subscribe to.
             poll_interval: Sleep interval when no messages are found.
             **kwargs: Additional configuration dictionary passed to `redis.from_url`.

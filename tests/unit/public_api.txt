@@ -371,6 +371,7 @@ desflow examples get --api :: option, str, default None, optional
 desflow examples get --dest :: option, path, default PosixPath('.'), optional
 desflow examples get --ref :: option, str, default None, optional
 desflow examples get --force/--no-force :: option, boolean, default False, optional
+desflow examples list :: exit codes 0
 desflow experiment :: exit codes 0, 1, 2
 desflow experiment FILE :: argument, file, default None, required
 desflow experiment --output :: option, path, default None, optional

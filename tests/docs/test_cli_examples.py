@@ -78,6 +78,30 @@ def test_get_writes_each_version_in_its_folder(tmp_path):
     assert "odctl up postgres" in result.output
 
 
+@pytest.mark.parametrize(
+    "dest,folder,shown",
+    [
+        (None, "", "experiment/builder"),
+        ("shop", "shop/", "shop/experiment/builder"),
+        # A folder with a space is quoted, so the pasted command still works
+        ("my shop", "my shop/", "'my shop/experiment/builder'"),
+    ],
+)
+def test_the_run_hint_names_the_folder_the_files_went_to(
+    tmp_path, monkeypatch, dest, folder, shown
+):
+    monkeypatch.chdir(tmp_path)
+    extra = ["--dest", dest] if dest else []
+    with mock.patch.object(examples, "_fetch", side_effect=_local_fetch):
+        result = runner.invoke(
+            app, ["examples", "get", "experiment", "--api", "builder", *extra]
+        )
+    assert result.exit_code == 0, result.output
+    hint = f"cd {shown} && python experiment_example.py"
+    assert f"Run the builder version: {hint}" in result.output
+    assert (tmp_path / f"{folder}experiment/builder/experiment_example.py").is_file()
+
+
 def test_get_one_version_and_shared_files(tmp_path):
     with mock.patch.object(examples, "_fetch", side_effect=_local_fetch):
         result = runner.invoke(
@@ -114,6 +138,27 @@ def test_a_missing_file_writes_nothing(tmp_path):
     # main has nothing more to offer, so a failure there does not suggest it
     assert on_main.exit_code == 1 and "--ref main" not in on_main.output
     assert not any(tmp_path.rglob("*.py"))
+
+
+def test_a_tag_that_is_not_published_is_named(tmp_path):
+    """A 404 at a tag that has no files at all says the tag is not published yet;
+    one at a tag that exists says the example came after that release."""
+
+    def tag_exists(url):
+        if url.endswith("/pyproject.toml"):
+            return b"[project]\n"
+        raise urllib.error.HTTPError(url, 404, "Not Found", None, None)
+
+    error = urllib.error.HTTPError("u", 404, "Not Found", None, None)
+    get = ["examples", "get", "local", "--dest", str(tmp_path), "--ref", "v9.9.9"]
+    with mock.patch.object(examples, "_fetch", side_effect=error):
+        unpublished = runner.invoke(app, get)
+    with mock.patch.object(examples, "_fetch", side_effect=tag_exists):
+        added_later = runner.invoke(app, get)
+    assert "The tag v9.9.9 of this version is not published yet" in unpublished.output
+    assert "added after this release" not in unpublished.output
+    assert "An example added after this release is not at v9.9.9" in added_later.output
+    assert "--ref main" in unpublished.output and "--ref main" in added_later.output
 
 
 def test_unknown_example_is_refused():

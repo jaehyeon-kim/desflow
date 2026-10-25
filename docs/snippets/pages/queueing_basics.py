@@ -247,6 +247,10 @@ if __name__ == "__main__":
     by_name = {r.name: r for r in explanation.resources}
     assert abs(flow_rate - 1.778) < 0.0005
     assert abs(packers - 0.667) < 0.0005 and abs(checker - 0.711) < 0.0005
-    assert math.isclose(by_name["packers"].utilization, packers)
-    assert math.isclose(by_name["checkers"].utilization, checker)
+    packers_u, checkers_u = (
+        by_name["packers"].utilization,
+        by_name["checkers"].utilization,
+    )
+    assert packers_u is not None and math.isclose(packers_u, packers)
+    assert checkers_u is not None and math.isclose(checkers_u, checker)
     assert explanation.bottleneck == "checkers"

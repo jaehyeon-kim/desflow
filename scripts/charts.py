@@ -700,7 +700,7 @@ def distribution_shapes() -> None:
 
 
 def fit_the_inputs() -> None:
-    """Fit the Inputs: the 40 packing times against values drawn from the best fit,
+    """Fitting the Inputs: the 40 packing times against values drawn from the best fit,
     as `desflow fit --plot` draws them."""
     module = _module("fit_the_inputs")
     with contextlib.redirect_stdout(io.StringIO()):
@@ -966,6 +966,11 @@ CHARTS: Dict[str, Callable[[], None]] = {
 
 
 def main(names) -> None:
+    """Draws the named charts, or every chart when none is named.
+
+    Args:
+        names: The chart names, keys of `CHARTS`.
+    """
     for name in names or CHARTS:
         CHARTS[name]()
         print(f"{name} -> {next(CHARTS_DIR.glob(f'{name}.*')).relative_to(ROOT)}")

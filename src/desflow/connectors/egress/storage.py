@@ -306,7 +306,7 @@ class ParquetStorageEgress(BaseEgress):
             return "simulation_data/events.parquet"
 
         # Connect directly to SeaweedFS or AWS S3
-        s3 = fs.S3FileSystem(endpoint_override="localhost:8333", scheme="http")
+        s3 = fs.S3FileSystem(endpoint_override="127.0.0.1:8333", scheme="http")
 
         egress = ParquetStorageEgress(
             filesystem=s3,

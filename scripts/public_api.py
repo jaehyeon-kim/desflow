@@ -70,7 +70,17 @@ def names() -> List[str]:
 
 
 def resolve(path: str) -> Any:
-    """The object a dotted path names: the longest importable module, then attributes."""
+    """The object a dotted path names: the longest importable module, then attributes.
+
+    Args:
+        path: A dotted path, such as `desflow.core.context.SimulationContext`.
+
+    Returns:
+        Any: The object.
+
+    Raises:
+        ImportError: When no prefix of the path is an importable module.
+    """
     parts = path.split(".")
     for cut in range(len(parts), 0, -1):
         try:
@@ -161,7 +171,15 @@ def _parameter(param: inspect.Parameter) -> str:
 
 
 def signature(obj: Any, drop_first: bool = False) -> str:
-    """`(params) -> return`, with `/` and `*` markers placed as `inspect` places them."""
+    """`(params) -> return`, with `/` and `*` markers placed as `inspect` places them.
+
+    Args:
+        obj: A callable or a class.
+        drop_first: Leave out the first parameter, such as `self`.
+
+    Returns:
+        str: The signature, or `(...)` when `inspect` cannot read one.
+    """
     try:
         sig = inspect.signature(obj)
     except (TypeError, ValueError):
@@ -225,7 +243,14 @@ def _members(cls: type, path: str) -> Iterator[str]:
 
 
 def object_lines(paths: List[str]) -> List[str]:
-    """One line per object and per public member, sorted."""
+    """One line per object and per public member, sorted.
+
+    Args:
+        paths: The dotted paths of the public objects.
+
+    Returns:
+        List[str]: The lines of the snapshot that describe the objects.
+    """
     lines = set()
     for path in paths:
         obj = resolve(path)
@@ -329,12 +354,24 @@ def cli_lines() -> List[str]:
 
 
 def snapshot() -> str:
+    """The whole snapshot: the objects, then the commands.
+
+    Returns:
+        str: The snapshot file's text.
+    """
     lines = [HEADER, *object_lines(names()), CLI_HEADER, *cli_lines()]
     return "\n".join(lines) + "\n"
 
 
 def key(line: str) -> str:
-    """What a line describes: the text before ` :: ` for a command, else the path."""
+    """What a line describes: the text before ` :: ` for a command, else the path.
+
+    Args:
+        line: One line of the snapshot.
+
+    Returns:
+        str: The command or the dotted path the line describes.
+    """
     if " :: " in line:
         return line.split(" :: ")[0]
     match = _PATH.match(line)
@@ -342,6 +379,7 @@ def key(line: str) -> str:
 
 
 def main() -> None:
+    """Writes the snapshot file."""
     SNAPSHOT.write_text(snapshot(), encoding="utf-8")
     print(f"Wrote {SNAPSHOT.relative_to(ROOT)}", file=sys.stderr)
 

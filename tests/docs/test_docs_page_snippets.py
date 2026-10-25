@@ -27,3 +27,13 @@ def test_page_snippet_runs(script, monkeypatch, tmp_path):
     monkeypatch.chdir(tmp_path)  # files a snippet writes stay out of the repository
     with mock.patch("pyiceberg.catalog.rest.RestCatalog"):
         runpy.run_path(str(script), run_name="__main__")
+
+
+def test_failures_print_what_the_page_says(capsys):
+    """The Failures page quotes what its two runs print."""
+    runpy.run_path(str(ROOT / "docs/snippets/pages/failures.py"), run_name="__main__")
+    printed = capsys.readouterr().out.splitlines()
+    assert printed == [
+        "pack failed: after the cut-off",
+        "closing failed: the till did not balance",
+    ]

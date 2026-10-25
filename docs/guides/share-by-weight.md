@@ -1,4 +1,4 @@
-# Share by Weight
+# Share Work by Weight
 
 Share one resource between classes of work by weight, so that a class of weight 3 is served three times for each time a class of weight 1 is served while both wait. It builds on [Custom Resource Types](../user-guide/resources/custom-resource-types.md), which shows how to subclass `ResourceBase`, and on [Priority and Preemption](../user-guide/resources/priority-and-preemption.md). A priority queue serves the lowest priority value first, so a class with a higher value waits for as long as a class with a lower value has work. A weight gives each class its share instead.
 
@@ -17,7 +17,7 @@ WEIGHTS = {1: 3, 2: 1}
 
 ## Order the Waiting Line
 
-A resource keeps its waiting requests in its `PutQueue`, which `ResourceBase` creates with no arguments and which a request joins with `append`. Write a queue that gives each request a finish tag and keeps the requests sorted by it. A request's finish tag is the later of the queue's clock and its class's last tag, plus 1 divided by the class's weight. A class of weight 3 therefore gets tags a third as far apart as a class of weight 1. The queue serves the smallest tag first, so the class of weight 3 is served three times as often. Requests with equal tags leave in the order they arrived, which the counter `arrived` keeps. When a request is granted, the queue takes its tag as the clock:
+A resource keeps its waiting requests in its `PutQueue`. `ResourceBase` creates the queue with no arguments, and a request joins it with `append`. Write a queue that gives each request a finish tag and keeps the requests sorted by it. A request's finish tag is the later of the queue's clock and its class's last tag, plus 1 divided by the class's weight. A class of weight 3 therefore gets tags a third as far apart as a class of weight 1. The queue serves the smallest tag first, so the class of weight 3 is served three times as often. Requests with equal tags leave in the order they arrived, which the counter `arrived` keeps. When a request is granted, the queue takes its tag as the clock:
 
 ```python title="docs/snippets/yaml/share_by_weight_logic.py:queue"
 class FinishTagQueue(list):
@@ -188,7 +188,7 @@ The example has the Python file with the queue and the resource, the YAML bluepr
 
 ```python title="docs/snippets/yaml/share_by_weight_logic.py"
 """Python for share_by_weight.yaml: a packer that shares its time between classes by
-weight, as the Share by Weight guide builds it."""
+weight, as the Share Work by Weight guide builds it."""
 
 import bisect
 import itertools
@@ -246,7 +246,7 @@ class WeightedPackers(ResourceBase):
 ```
 
 ```yaml title="docs/snippets/yaml/share_by_weight.yaml"
-# The Share by Weight guide: one packer shared between two tiers of orders by weight.
+# The Share Work by Weight guide: one packer shared between two tiers of orders by weight.
 # Run it with: desflow run share_by_weight.yaml
 simulation:
   sim_id: Shop
@@ -285,7 +285,7 @@ run:
 ```
 
 ```python title="docs/snippets/guides/share_by_weight.py"
-"""Share by Weight: one packer shared between two tiers of orders, 3 to 1.
+"""Share Work by Weight: one packer shared between two tiers of orders, 3 to 1.
 
 Nine orders arrive at time 0: the first is tier 2, then six of tier 1, then two more
 of tier 2. The first takes the packer and the rest wait. The packer grants the

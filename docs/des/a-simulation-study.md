@@ -2,7 +2,7 @@
 
 Building a model is one step of a simulation study, and often not the largest. This page walks through the whole study, from the question to the report, with the packing shop as the example. Each step says what to produce and names the page that explains it.
 
-The steps follow Law, "How to Conduct a Successful Simulation Study" (Winter Simulation Conference, 2003), which gives a seven-step approach, and which we read in full. The wording and the shop example are our own. Law notes that programming the model is only 25 to 50 percent of the work of a sound study, despite the common view of simulation as a programming exercise.
+The steps follow Law, "How to Conduct a Successful Simulation Study" (Winter Simulation Conference, 2003), which gives a seven-step approach. We read the paper in full. The wording and the shop example are our own. Law notes that programming the model is only 25 to 50 percent of the work of a sound study, despite the common view of simulation as a programming exercise.
 
 ---
 
@@ -30,18 +30,18 @@ Before writing code, collect what is known about the system and write the **conc
 - A packer takes the next order from one queue, in order, and packs it.
 - Packing takes 1.5 seconds on average. The first model uses a constant 1.5 seconds, and [Choosing Inputs](../tutorials/choosing-inputs.md) replaces it with the times measured at the bench, which the runs above use. Pickers, stock and delivery are outside the model.
 
-Each input is an estimate until it is measured. For the shop these are the arrival rate and the packing time. Take the data from the real system where it exists, choose a distribution for each input, and test how much the choice matters. [Choosing Inputs](../tutorials/choosing-inputs.md) compares the candidate distributions, and [Fit the Inputs](../tutorials/fit-the-inputs.md) fits them to measured times. A model with an input nobody has measured is still usable, as long as the study tests how far the answer depends on it, as [Parameter Sweeps](../tutorials/parameter-sweeps.md) does.
+Each input is an estimate until it is measured. For the shop these are the arrival rate and the packing time. Take the data from the real system where it exists, choose a distribution for each input, and test how much the choice matters. [Choosing Inputs](../tutorials/choosing-inputs.md) compares the candidate distributions, and [Fitting the Inputs](../tutorials/fit-the-inputs.md) fits them to measured times. A model with an input nobody has measured is still usable, as long as the study tests how far the answer depends on it, as [Parameter Sweeps](../tutorials/parameter-sweeps.md) does.
 
 The question decides how much detail goes in. Law warns against building one model element for each element of the real system: more detail costs run time, can miss the deadline and can hide the factors that matter. Add detail only when it can change the decision. [Building Blocks](../user-guide/building-blocks.md) lists the parts a model can have.
 
 ### AIC and the KS Test
 
-Fitting a distribution to measured times gives a candidate from each family, such as a gamma or a lognormal, and two scores say how well each candidate matches the data. For the shop's 40 packing times, [Fit the Inputs](../tutorials/fit-the-inputs.md#fit-the-packing-times) gives the triangular an AIC of 56.68 and the gamma 56.79.
+Fitting a distribution to measured times gives a candidate from each family, such as a gamma or a lognormal, and two scores say how well each candidate matches the data. For the shop's 40 packing times, [Fitting the Inputs](../tutorials/fit-the-inputs.md#fit-the-packing-times) gives the triangular an AIC of 56.68 and the gamma 56.79.
 
 - **AIC**, Akaike's information criterion, scores how likely the data is under the fitted family, with a penalty for each parameter the fit chose: 2k − 2 × the log-likelihood, where k is the number of parameters. Lower is better. Only the difference between two families' AIC on the same data means anything, and by a common guideline a difference below 2 does not tell two fits apart.
-- **KS**, the Kolmogorov-Smirnov statistic, is the largest gap between the share of the data below a value and the share the family puts below it. Its **p-value** is the chance of a gap at least that large if the data came from the family; a small p-value, such as below 0.05, is a reason to reject the family. When the family was fitted to the same data, the p-value is approximate and tends to be too high.
+- **KS**, the Kolmogorov-Smirnov statistic, is the largest gap between the share of the data below a value and the share the family puts below it. Its **p-value** is the chance of a gap at least that large if the data came from the family. A small p-value, such as below 0.05, is a reason to reject the family. When the family was fitted to the same data, the p-value is approximate and tends to be too high.
 
-A good score does not settle the choice. Run the model with each close candidate and check whether the answer changes, as Fit the Inputs does. The sources are the Wikipedia articles on the [Akaike information criterion](https://en.wikipedia.org/wiki/Akaike_information_criterion) and the [Kolmogorov-Smirnov test](https://en.wikipedia.org/wiki/Kolmogorov%E2%80%93Smirnov_test).
+A good score does not settle the choice. Run the model with each close candidate and check whether the answer changes, as Fitting the Inputs does. The sources are the Wikipedia articles on the [Akaike information criterion](https://en.wikipedia.org/wiki/Akaike_information_criterion) and the [Kolmogorov-Smirnov test](https://en.wikipedia.org/wiki/Kolmogorov%E2%80%93Smirnov_test).
 
 ---
 

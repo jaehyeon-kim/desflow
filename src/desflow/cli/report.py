@@ -6,13 +6,21 @@ from typing import Annotated
 import typer
 
 
+# The examples --help prints after the options, as odctl's help does
+_EPILOG = """
+[bold underline]Examples:[/bold underline]\n
+  [dim]# Build the report again from an experiment's results[/dim]\n
+  $ [bold cyan]desflow report results[/bold cyan]
+"""
+
+
 def register(app: typer.Typer) -> None:
     """Adds the `report` command to the app.
 
     Args:
         app: The `desflow` Typer app.
     """
-    app.command("report")(_report)
+    app.command("report", rich_help_panel="Studies", epilog=_EPILOG)(_report)
 
 
 def _report(

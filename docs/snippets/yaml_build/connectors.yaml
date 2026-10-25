@@ -13,14 +13,14 @@ ingress:
   - type: Kafka
     config:
       topic: sim-config
-      bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}
+      bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-127.0.0.1:9092}
 # --8<-- [end:ingress]
 
 # --8<-- [start:egress]
 egress:
   - type: Kafka
     config:
-      bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}
+      bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-127.0.0.1:9092}
       event_topic: sim-events
       telemetry_topic: sim-telemetry
     batch_size: 50
@@ -41,12 +41,12 @@ egress:
       path_router: !python routing_logic.daily_path
   - type: Postgres
     config:
-      connection_dsn: postgresql://user:password@localhost:5432/odctl
+      connection_dsn: postgresql://user:password@127.0.0.1:5432/odctl
       table_name: orders
       upsert_keys: [order_id]
   - type: Redis
     config:
-      url: redis://user:password@localhost:6379/0
+      url: redis://user:password@127.0.0.1:6379/0
       stream_name: events
 # --8<-- [end:egress]
 

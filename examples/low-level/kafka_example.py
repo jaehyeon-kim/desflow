@@ -31,7 +31,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("kafka_example")
 
-BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "127.0.0.1:9092")
 
 
 # ==========================================
@@ -133,7 +133,7 @@ def run():
     # )
     # Then pass: topic_serializers={"sim-events": avro_serializer}
     # Generate AVRO_SCHEMA from AvroBaseModel rather than a plain Pydantic model;
-    # see the Avro and Pydantic guide. TaskEvent above has no .avro_schema().
+    # see Use Avro and Pydantic. TaskEvent above has no .avro_schema().
     egress = KafkaEgress(
         telemetry_topic="sim-telemetry",
         event_topic="sim-events",

@@ -1,5 +1,6 @@
 """`desflow explain`: the graph of a model and the queueing estimates that apply."""
 
+import logging
 from pathlib import Path
 from typing import Annotated, Optional
 
@@ -8,13 +9,27 @@ import typer
 from desflow.cli.run import _parse_until
 
 
+# The examples --help prints after the options, as odctl's help does
+_EPILOG = """
+[bold underline]Examples:[/bold underline]\n
+  [dim]# Show the graph, the utilisation and the bottleneck[/dim]\n
+  $ [bold cyan]desflow explain shop.yaml[/bold cyan]\n\n
+  [dim]# Size each resource for a utilisation of 0.7[/dim]\n
+  $ [bold cyan]desflow explain shop.yaml --target 0.7[/bold cyan]\n\n
+  [dim]# Compare the formulas with 10 replications of the model[/dim]\n
+  $ [bold cyan]desflow explain shop.yaml --verify --replications 10[/bold cyan]\n\n
+  [dim]# Print the result as JSON[/dim]\n
+  $ [bold cyan]desflow explain shop.yaml --json[/bold cyan]
+"""
+
+
 def register(app: typer.Typer) -> None:
     """Adds the `explain` command to the app.
 
     Args:
         app: The `desflow` Typer app.
     """
-    app.command("explain")(_explain)
+    app.command("explain", rich_help_panel="Run and Check", epilog=_EPILOG)(_explain)
 
 
 def _refuse(message: str) -> None:
@@ -105,6 +120,13 @@ def _explain(
         if not path.is_file():
             _refuse(f"no file {source}")
         folder, entry = str(path.parent), path.name
+    # A warning while loading, such as a capacity clamped to max_cap, is shown on
+    # stderr; the explanation stays alone on stdout
+    logging.basicConfig(
+        level=logging.WARNING,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
     try:
         context = load_context(folder, entry)
     except BlueprintError as exc:

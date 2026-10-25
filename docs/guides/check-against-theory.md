@@ -42,7 +42,7 @@ run:
 
 The highlighted lines are the [warm-up](../des/output-analysis.md#one-run-starts-empty), which leaves out the first 2,000 seconds while the queue fills from empty, and the three numbers the formulas read: the arrival rate, the service rate and the number of packers. `RATE` and `PACKERS` set the second case below.
 
-Work out the mean wait by hand first. For one packer it is ρ ÷ (1 − ρ) × the mean service time, where ρ is the utilisation. For several packers it is [Erlang C](../des/queueing-basics.md#several-packers), the chance that every packer is busy, divided by (c ÷ the mean service time − the arrival rate):
+Work out the mean wait by hand first. For one packer it is ρ ÷ (1 − ρ) × the mean service time, where ρ is the utilisation. For several packers it is the [Erlang C](../des/queueing-basics.md#several-packers) chance that every packer is busy, divided by (c ÷ the mean service time − the arrival rate):
 
 ```python title="docs/snippets/guides/check_against_theory.py:by-hand"
 load = rate * service  # packers' worth of work arriving each second
@@ -148,6 +148,14 @@ orders throughput: analysis 0.750, runs 0.751 ± 0.005, agrees
 
 A context built in a script's own code refuses `verify=True`, because the runs need a new copy of the model, which only a file can give.
 
+`--json` prints the same result as JSON, for a script or a CI job outside Python. Each comparison has `node`, `measure`, `analytical`, `measured`, `half_width` and `differs`. With `jq -e`, this command prints `true` and exits 0 when no pair differs, and exits 1 when one does:
+
+```bash
+desflow explain check_against_theory.yaml --verify --replications 10 --json | jq -e '[.verification.comparisons[] | select(.differs)] | length == 0'
+```
+
+The JSON shape is experimental through 1.x, as the [Changelog](../about/changelog.md) says.
+
 ---
 
 ## Read a Difference
@@ -177,16 +185,17 @@ utilisation 0.75, status OK
 wait: no closed formula for c > 1 with non-exponential times; run --verify to measure it
 ```
 
-The utilisation is still known here, because it needs only the rates. The same rule applies to every model: the formulas hold in a plain network of queues, where each task holds at most one resource, each queue serves first come, first served, and nothing blocks, removes, delays or reorders work. Anything else puts the part of the model where it happens, and everything after it in the flow, outside what the formulas cover:
+The utilisation is still known here, because it needs only the rates. The same rule applies to every model. The formulas hold in a plain network of queues: each task holds at most one resource, each queue serves first come, first served, and nothing blocks, removes, delays or reorders work. Anything else takes the formulas out of use, from the part of the model where it happens to the end of the flow:
 
-- a task's `patience`, `balk`, `fail`, `keep`, `wait`, `get`, `put`, `signal`, `subscribe`, `interrupt` or `on` actions, preemption, or several resources held at once: that task and every task after it;
+- a task's `patience`, `balk`, `fail`, `keep`, `get`, `put`, `signal`, `subscribe`, `interrupt` or `on` actions, preemption, or several resources held at once: that task and every task after it;
+- a `wait` other than a single `request`, such as a wait with two or more requests, or a request that a timeout of the same wait can end: that task and every task after it;
 - a resource's `queue_limit`, custom type or breakdowns: the tasks that use it and every task after them;
 - an unstable resource: every task after its tasks, though the resource itself keeps its utilisation and status;
 - a priority queue whose tasks have different priorities: its wait, and every task after its tasks;
 - a scenario step that changes a parameter, live ingress, or an `add_process` function: every arrival and every task;
 - a replayed arrival, a hand-written arrival loop or a `next` function: every rate they could change.
 
-A task outside what the formulas cover has no rate, so each resource it uses has no utilisation, status or wait, and it is not ranked as the [bottleneck](../des/queueing-basics.md#flow-balance-and-the-bottleneck). When no resource has a utilisation, `explain` says that no bottleneck can be named, and why. Each unknown value is printed under `Not estimated`, with the first reason found.
+A task outside what the formulas cover has no rate, so each resource it uses has no utilisation, status or wait. Such a resource is not ranked as the [bottleneck](../des/queueing-basics.md#flow-balance-and-the-bottleneck). When no resource has a utilisation, `explain` says that no bottleneck can be named, and why. Each unknown value is printed under `Not estimated`, with the first reason found.
 
 One value is given but not compared. With one packer and gaps that are not exponential, such as constant or uniform gaps, [Kingman's formula](../des/queueing-basics.md#variation-lengthens-waits) gives the wait only approximately, so `explain` shows it as an estimate. `--verify` marks that wait and the queue length `not compared`, because a correct model can differ from an approximation.
 

@@ -1,4 +1,4 @@
-"""The secured Kafka connections of the Secure Kafka page, and a shop that uses one.
+"""The secured Kafka connections of the Connect to Secure Kafka page, and a shop that uses one.
 
 The simulation publishes to a cluster that uses SASL PLAIN, such as Confluent Cloud: put your
 broker address and credentials in the `egress` variable, then run `python

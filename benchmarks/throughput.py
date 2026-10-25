@@ -22,7 +22,7 @@ Usage::
     uv run --all-extras python benchmarks/throughput.py all      # configs, micro, profile
 
 ``sinks`` writes Parquet to a temporary folder, and to Kafka at ``KAFKA`` (default
-``localhost:9092``) when it answers, such as the odctl ``kafka-lite`` profile.
+``127.0.0.1:9092``) when it answers, such as the odctl ``kafka-lite`` profile.
 Run it with another interpreter to compare them, such as
 ``uv run --all-extras --python 3.13 python benchmarks/throughput.py configs``; the
 header of every table names the interpreter.
@@ -510,7 +510,7 @@ def cmd_sinks() -> None:
         ("counting sink", CountingEgress),
         ("Parquet, local disk", parquet),
     ]
-    bootstrap = os.environ.get("KAFKA", "localhost:9092")
+    bootstrap = os.environ.get("KAFKA", "127.0.0.1:9092")
     if _kafka_answers(bootstrap):
         from desflow.connectors.egress.kafka import KafkaEgress
 

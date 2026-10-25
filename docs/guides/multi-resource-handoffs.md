@@ -1,4 +1,4 @@
-# Multi-Resource Handoffs
+# Hand Off to a Resource
 
 A handoff passes an order from one resource to the next without letting go of the first too early. Here a picker carries each order to a packing bench. The picker stays with the order until the bench is free. For a moment the order holds both resources, and then it releases the picker. It builds on [Competing Resources](../tutorials/competing-resources.md), which measures what holding two resources costs, and on [Several Resources](../user-guide/resources/several-resources.md#several-resources).
 

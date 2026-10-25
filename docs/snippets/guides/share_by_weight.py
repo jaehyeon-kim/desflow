@@ -1,4 +1,4 @@
-"""Share by Weight: one packer shared between two tiers of orders, 3 to 1.
+"""Share Work by Weight: one packer shared between two tiers of orders, 3 to 1.
 
 Nine orders arrive at time 0: the first is tier 2, then six of tier 1, then two more
 of tier 2. The first takes the packer and the rest wait. The packer grants the

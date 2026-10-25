@@ -1,6 +1,6 @@
 # Kafka digital twin in YAML.
 #
-# The YAML version of examples/builder/kafka_example.py, a shop packing
+# The YAML version of kafka_example.py, which --api builder downloads: a shop packing
 # orders. KafkaIngress reads parameter updates from sim-config, and KafkaEgress
 # publishes lifecycle events to sim-events and packer metrics to sim-telemetry.
 # KafkaEgress creates its two topics when the run starts.
@@ -18,14 +18,14 @@ ingress:
   - type: Kafka
     config:
       topic: sim-config
-      bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}
+      bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-127.0.0.1:9092}
 
 egress:
   - type: Kafka
     config:
       event_topic: sim-events
       telemetry_topic: sim-telemetry
-      bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}
+      bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-127.0.0.1:9092}
 
 resources:
   packers: {current_cap: 1, max_cap: 10}

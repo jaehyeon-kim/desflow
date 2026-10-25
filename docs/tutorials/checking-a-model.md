@@ -67,7 +67,7 @@ Replace every random input with a constant, and the run has one answer that can 
     )
     ```
 
-    The full file reuses `order_generator` and `pack_order` from Trusting Results: SimPy's `env.timeout(...)` makes each gap, and `packers.request()` waits for a free packer, as [SimPy and desflow](../des/simpy-and-desflow.md#resources) describes.
+    The full file reuses `order_generator` and `pack_order` from Trusting Results. In them, SimPy's `env.timeout(...)` makes each gap, and `packers.request()` waits for a free packer, as [SimPy and desflow](../des/simpy-and-desflow.md#resources) describes.
 
 Worked by hand, orders arrive at 1, 2, ... 9 seconds. The first three start at once. Each later order starts when a packer becomes free, 4 seconds after that packer started its last order. The run stops at 10 seconds, before the events at that time:
 
@@ -79,7 +79,7 @@ Worked by hand, orders arrive at 1, 2, ... 9 seconds. The first three start at o
 | 7 | 7 | 9 | 2 | after 10 |
 | 8, 9 | 8, 9 | not by 10 | | |
 
-By the table, **4** orders finish and **5** are still in the shop. Seven orders started packing, and all 9 that arrived count in `flows.orders.started`. The waits of the seven add up to 5 seconds, so the mean wait is 5 / 7 = **0.714** seconds, and the longest is **2** seconds. The three packers can work 3 × 10 = 30 seconds in all, and they are busy for 24 of them, **80%**. Orders 8 and 9 are still waiting at 10 seconds, after 2 seconds and 1 second, so the time orders spend in the queue adds up to 5 + 3 = 8 seconds. Over 10 seconds that gives an average queue of 8 ÷ 10 = **0.8** orders. The run reports the same six numbers. A difference here means a mistake in the program or in the trace worked by hand, and the mistake must be found before any experiment.
+By the table, **4** orders finish and **5** are still in the shop. Seven orders started packing, and all 9 that arrived count in `flows.orders.started`. The waits of the seven add up to 5 seconds, so the mean wait is 5 / 7 = **0.714** seconds, and the longest is **2** seconds. The three packers can work 3 × 10 = 30 seconds in all, and they are busy for 24 of them, **80%**. Orders 8 and 9 are still waiting at 10 seconds, after 2 seconds and 1 second, which adds 3 seconds. So the time orders spend in the queue adds up to 5 + 3 = 8 seconds. Over 10 seconds that gives an average queue of 8 ÷ 10 = **0.8** orders. The run reports the same six numbers. A difference here means a mistake in the program or in the trace worked by hand, and the mistake must be found before any experiment.
 
 ---
 
@@ -240,7 +240,7 @@ Over the 20 replications with three packers, the queue averages **4.488** orders
 
 === "Low-level"
 
-    A low-level model declares no link between its arrivals, tasks and resources, so `explain` cannot analyse it. Its Little's law check above is the theory check that applies.
+    `desflow explain` does not support low-level models. It reads which arrival starts which task and which resource each task uses, and a low-level model does not declare those links: its SimPy code makes them as it runs.
 
 The end of its output:
 

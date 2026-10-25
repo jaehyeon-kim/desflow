@@ -10,7 +10,7 @@ Think of a packing shop. Orders arrive about every 2 seconds, and a packer takes
 
 You could answer by watching the shop with a notebook. You would not write something down every second, because most seconds nothing changes. You would write only the moments when something happens: an order arrives, a packer starts on it, the order is packed. Each of those moments is an **event**, and the notebook is enough to tell you who waited and for how long.
 
-Look at the diagram for what the notebook holds: the shop is orders, a queue and packers, and the notebook lists only the moments when something changes.
+The diagram shows the shop and the notebook. The shop is orders, a queue and packers. The notebook lists only the moments when something changes.
 
 ![The packing shop: orders arrive, wait in a queue, are packed by the packers and leave; the notebook lists order 1 arriving and starting at 0.0 s, packed at 1.5 s, and order 2 arriving and starting at 2.6 s, packed at 4.1 s](../assets/diagrams/packing-shop.png)
 
@@ -24,7 +24,9 @@ Running a model is one step of a study. The question comes first, and the checki
 
 ## Events and the Event List
 
-This section is the same idea in the terms the rest of the docs use. The terms follow chapter 3, General Principles, of Banks, Carson, Nelson and Nicol, *Discrete-Event System Simulation*, which we read through [lecture notes on that chapter](https://eg.bucknell.edu/~xmeng/Course/CS6337/Note/master/node15.html), and Ingalls, "Introduction to Simulation" (Winter Simulation Conference, 2001), which we read through [its published text](https://www.informs-sim.org/wsc01papers/002.PDF). The explanations are our own. A discrete-event simulation models a system as a series of **events**: an order arrives, a packer starts on it, the packer finishes. Each event happens at an instant, and between two events nothing changes. The simulation therefore only needs to visit the instants when events happen. It keeps a list of the events to come, in time order. It takes the earliest, moves its clock straight to that instant, and carries the event out. Carrying out an event usually schedules more: when a packer starts on an order, the simulation schedules the end of packing 1.5 seconds later.
+This section is the same idea in the terms the rest of the docs use. The terms follow two sources. One is chapter 3, General Principles, of Banks, Carson, Nelson and Nicol, *Discrete-Event System Simulation*, read through [lecture notes on that chapter](https://eg.bucknell.edu/~xmeng/Course/CS6337/Note/master/node15.html). The other is Ingalls, "Introduction to Simulation" (Winter Simulation Conference, 2001), read through [its published text](https://www.informs-sim.org/wsc01papers/002.PDF). The explanations are our own.
+
+A discrete-event simulation models a system as a series of **events**: an order arrives, a packer starts on it, the packer finishes. Each event happens at an instant, and between two events nothing changes. The simulation therefore only needs to visit the instants when events happen. It keeps a list of the events to come, in time order. It takes the earliest, moves its clock straight to that instant, and carries the event out. Carrying out an event usually schedules more: when a packer starts on an order, the simulation schedules the end of packing 1.5 seconds later.
 
 ![The simulation clock jumps from event to event: order 1 arrives and starts at 0.0 s and finishes at 1.5 s, order 2 arrives and starts at 2.6 s and finishes at 4.1 s. Just after 0.0 s the event list holds order 1 finishing at 1.5 s and order 2 arriving at 2.6 s, so the clock jumps to 1.5 s](../assets/diagrams/event-clock.png)
 
@@ -40,7 +42,7 @@ Two events can fall at the same instant. They run by priority and then in the or
 
 ## Entities, Resources and Queues
 
-The things that flow through a model are **entities**: orders, visitors, support calls. An entity arrives, needs something that is limited, such as a packer or a packing bench, holds it while it is served, and leaves. That limited thing is a **resource**. When every unit of a resource is busy, the next entity waits in its **queue**. Arrivals, service times, resources and queues are what a model is built from; [Building Blocks](../user-guide/building-blocks.md) covers each one.
+The things that flow through a model are **entities**: orders, visitors, support calls. An entity arrives, needs something that is limited, such as a packer or a packing bench, holds it while it is served, and leaves. That limited thing is a **resource**. When every unit of a resource is busy, the next entity waits in its **queue**. Arrivals, service times, resources and queues are what a model is built from. [Building Blocks](../user-guide/building-blocks.md) covers each one.
 
 An entity can carry **attributes**: facts about it that stay with it as it moves, such as an order's priority or the area its items come from. A rule can read them to decide which task comes next or which order a packer takes first. [Task Flow](../user-guide/task-flow.md#attributes) shows how, and [A Flow of Tasks](../tutorials/flow-of-tasks.md) sets them as an order moves from step to step.
 

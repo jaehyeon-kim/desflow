@@ -20,13 +20,16 @@ One run writes ten minutes of backdated history to Parquet. It then publishes to
         desflow examples get backfill-live --api yaml
         cd backfill-live/yaml
 
-        # 3. Start its service
+        # 3. Find the bottleneck, with no run
+        desflow explain backfill_live.yaml
+
+        # 4. Start its service
         odctl up kafka-lite
 
-        # 4. Run it
+        # 5. Run it
         desflow run backfill_live.yaml
 
-        # 5. Stop its service when finished
+        # 6. Stop its service when finished
         odctl down kafka-lite --volumes
         ```
 
@@ -40,13 +43,16 @@ One run writes ten minutes of backdated history to Parquet. It then publishes to
         desflow examples get backfill-live --api yaml
         cd backfill-live/yaml
 
-        # 3. Start its service
+        # 3. Find the bottleneck, with no run
+        desflow explain backfill_live.yaml
+
+        # 4. Start its service
         odctl up kafka-lite
 
-        # 4. Run it
+        # 5. Run it
         desflow run backfill_live.yaml
 
-        # 5. Stop its service when finished
+        # 6. Stop its service when finished
         odctl down kafka-lite --volumes
         ```
 
@@ -63,7 +69,7 @@ One run writes ten minutes of backdated history to Parquet. It then publishes to
     ```yaml title="examples/yaml/backfill_live.yaml"
     # Backfill then go live in one run, in YAML.
     #
-    # The YAML version of examples/builder/backfill_live_example.py. Until
+    # The YAML version of backfill_live_example.py, which --api builder downloads. Until
     # go_live_at the clock is detached from the wall clock, so ten minutes of backdated
     # shop orders are written to Parquet as fast as the machine allows. From go_live_at
     # the run is paced at one simulated second per real second, and the same events go
@@ -91,7 +97,7 @@ One run writes ten minutes of backdated history to Parquet. It then publishes to
         config:
           event_topic: sim-events
           telemetry_topic: sim-telemetry
-          bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}
+          bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-127.0.0.1:9092}
         # Records stamped at or after go_live_at.
         when: live
 
@@ -211,7 +217,7 @@ One run writes ten minutes of backdated history to Parquet. It then publishes to
 
     logger = logging.getLogger(__name__)
 
-    BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+    BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "127.0.0.1:9092")
     EVENT_TOPIC = "sim-events"
     TELEMETRY_TOPIC = "sim-telemetry"
 
@@ -435,7 +441,7 @@ One run writes ten minutes of backdated history to Parquet. It then publishes to
     )
     logger = logging.getLogger(__name__)
 
-    BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+    BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "127.0.0.1:9092")
     EVENT_TOPIC = "sim-events"
     TELEMETRY_TOPIC = "sim-telemetry"
 
@@ -618,7 +624,7 @@ Three separate settings make up the feature, and each answers a different questi
 | `go_live_at` | At which logical instant does pacing stop being `factor` and become real time? |
 | `when` on `add_egress` | Which sink receives each record? |
 
-They are independent. `go_live_at` changes pacing only; it never routes a record. `when` routes records only; it never changes pacing. Used together, they produce a tiered dataset. The two instants have to agree: pass the same instant to `go_live_at` and to the predicates. Otherwise the records switch sinks at a different instant from the one where the pacing switches.
+They are independent. `go_live_at` changes pacing only. It never routes a record. `when` routes records only. It never changes pacing. Used together, they produce a tiered dataset. The two instants have to agree: pass the same instant to `go_live_at` and to the predicates. Otherwise the records switch sinks at a different instant from the one where the pacing switches.
 
 ![From logical_start_time to go_live_at the run writes the backdated history to Parquet without waiting; from go_live_at to the end it streams records to Kafka in real time](../assets/diagrams/backfill-timeline.png)
 
@@ -641,7 +647,7 @@ LOGICAL_START_TIME = GO_LIVE_AT - HISTORY
 # predicates that split the two sinks read it as a time and compare instants.
 ```
 
-**`flush_interval` has no effect before `go_live_at`, so only `batch_size` decides when the history is flushed.** The interval flush is a simulation process, and it is only started if `factor` is non-zero when the egress is set up. This run starts at `factor=0.0`, so before go-live, records leave the buffer only when it fills to `batch_size`. `batch_size` therefore sets the number of Parquet files. The interval flush starts at go-live, so the live tail also flushes every `flush_interval`. `flush_interval` therefore decides how often Kafka receives records. Give each sink its own `batch_size` and `flush_interval` to separate those two jobs:
+**Before `go_live_at`, only `batch_size` decides when the history is flushed.** `flush_interval` has no effect yet. The interval flush is a simulation process. It starts only if `factor` is non-zero when the egress is set up. This run starts at `factor=0.0`, so before go-live, records leave the buffer only when it fills to `batch_size`. `batch_size` therefore sets the number of Parquet files. The interval flush starts at go-live, so the live tail also flushes every `flush_interval`. `flush_interval` therefore decides how often Kafka receives records. Give each sink its own `batch_size` and `flush_interval` to separate those two jobs:
 
 ```python title="docs/snippets/pages/backfill_live.py:per-sink"
 app.add_egress(parquet, when=is_history, batch_size=200_000)
@@ -652,7 +658,7 @@ app.add_egress(kafka, when=is_live, batch_size=500, flush_interval=1.0)
 
 ## What the Run Logs
 
-During the live tail the run can look as if it has stopped responding. History finishes within the first second of the run. After the `Logical clock reached go-live` line, the run logs at most the Kafka producer's connection line until it shuts down, because from `go_live_at` the run waits on the wall clock, as any live run does. That line confirms the switch.
+During the live tail the run can look as if it has stopped responding. History finishes within the first second of the run. After the `Logical clock reached go-live` line, the run logs at most one more line, the Kafka producer's connection line, until it shuts down. From `go_live_at` the run waits on the wall clock, as any live run does. That line confirms the switch.
 
 ---
 

@@ -61,7 +61,7 @@ def postgres_container(odctl_profile):
 
     # odctl names the default database `odctl`, with the user/password pair
     # reported by `odctl explain postgres`.
-    dsn = "postgresql://user:password@localhost:5432/odctl"
+    dsn = "postgresql://user:password@127.0.0.1:5432/odctl"
     import asyncpg
 
     # Wait for Postgres to be ready
@@ -87,7 +87,8 @@ def kafka_container(odctl_profile):
     """Starts the odctl `kafka-lite` profile and yields its bootstrap servers."""
     odctl_profile("kafka-lite")
 
-    bootstrap_servers = "localhost:9092"
+    # 127.0.0.1, not localhost, for the reason schema_registry gives
+    bootstrap_servers = "127.0.0.1:9092"
 
     # odctl waits for the broker health check before returning, so the listener
     # is already accepting connections here.
@@ -128,7 +129,7 @@ def redis_container(odctl_profile):
 
     # odctl disables the unauthenticated default Valkey user, so the URL has to
     # carry the `user` / `password` pair.
-    yield "redis://user:password@localhost:6379/0"
+    yield "redis://user:password@127.0.0.1:6379/0"
 
 
 @pytest.fixture(scope="session")
@@ -144,7 +145,7 @@ def iceberg_catalog(odctl_profile):
     """
     odctl_profile("catalog")
 
-    uri = "http://localhost:8181"
+    uri = "http://127.0.0.1:8181"
     for _ in range(60):
         try:
             with urllib.request.urlopen(f"{uri}/v1/config", timeout=2) as response:
@@ -162,7 +163,7 @@ def iceberg_catalog(odctl_profile):
         **{
             "uri": uri,
             "warehouse": "s3://warehouse/",
-            "s3.endpoint": "http://localhost:8333",
+            "s3.endpoint": "http://127.0.0.1:8333",
             "s3.access-key-id": "user",
             "s3.secret-access-key": "password",
             "s3.region": "us-east-1",

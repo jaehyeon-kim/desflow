@@ -156,7 +156,7 @@ An arrival gives each new entity its starting `attributes`, and a task's `set` c
 
 === "Low-level"
 
-    An `Entity(key, arrival, attributes)` carries them; the process updates `entity.attributes` itself after a task, as the low-level tab of [A Flow of Tasks](../tutorials/flow-of-tasks.md) shows.
+    An `Entity(key, arrival, attributes)` carries them. The process updates `entity.attributes` itself after a task, as the low-level tab of [A Flow of Tasks](../tutorials/flow-of-tasks.md) shows.
 
 ### Entity Key
 
@@ -254,7 +254,7 @@ A blueprint is checked when it loads, and each error names its YAML line. Every 
 
 **Weights.** The weights are turned into cumulative shares once. Each choice draws one uniform number from the routing task's stream and picks the task whose share it falls in.
 
-**Starting the Next Task.** When a task finishes, it applies `set`, builds the `Upstream` and asks its rules for the next task. It starts that task as a new SimPy process, with the same entity and the next instance id from the task's counter. An arrival that spawns the task uses the same counter, so no two runs of a task share an id. In SimPy terms, one process starting the next is the whole mechanism; [SimPy and desflow](../des/simpy-and-desflow.md) describes processes.
+**Starting the Next Task.** When a task finishes, it applies `set`, builds the `Upstream` and asks its rules for the next task. It starts that task as a new SimPy process, with the same entity and the next instance id from the task's counter. An arrival that spawns the task uses the same counter, so no two runs of a task share an id. In SimPy terms, one process starting the next is the whole mechanism. [SimPy and desflow](../des/simpy-and-desflow.md) describes processes.
 
 ---
 
@@ -263,8 +263,8 @@ A blueprint is checked when it loads, and each error names its YAML line. Every 
 - **Flow balance.** The rate into each task follows from the rates into the tasks before it and the routing shares. With weights of 9 to ship and 1 back to packing, one packing in ten sends the order back to be packed again. Every order is packed once, one in ten a second time, one in a hundred a third time, and so on. An order is therefore packed 1 + 0.1 + 0.01 + ... = 1 ÷ 0.9 = 1.11 times on average, so the packers see 11% more work than there are orders.
 - **Rework raises utilisation.** Work the load out with the rework included, as [Queues and Capacity](../tutorials/queues-and-capacity.md) does, or a rework loop can push a resource past full use. [Queueing Basics](../des/queueing-basics.md#utilisation) explains utilisation.
 - **Refused expressions.** `**`, function calls, indexing other than `registry["..."]`, list and dictionary literals, and bare names other than `t` are refused.
-- **One entity, one flow.** A task leads to at most one next task; splitting one order into several, or joining several into one, comes after 1.0.
-- **`decide` is kept free.** The task key `decide` is kept for decisions sent from outside for one entity, planned after 1.0; today it is refused like any unknown key.
+- **One entity, one flow.** A task leads to at most one next task. Splitting one order into several, or joining several into one, comes after 1.0.
+- **`decide` is kept free.** The task key `decide` is kept for decisions sent from outside for one entity, planned after 1.0. Today it is refused like any unknown key.
 
 ---
 
@@ -288,7 +288,10 @@ In the `flow` example, orders are picked, gift orders are wrapped, one parcel in
         desflow examples get flow --api yaml
         cd flow/yaml
 
-        # 3. Run it
+        # 3. Find the bottleneck, with no run
+        desflow explain flow.yaml
+
+        # 4. Run it
         desflow run flow.yaml
         ```
 
@@ -302,7 +305,10 @@ In the `flow` example, orders are picked, gift orders are wrapped, one parcel in
         desflow examples get flow --api yaml
         cd flow/yaml
 
-        # 3. Run it
+        # 3. Find the bottleneck, with no run
+        desflow explain flow.yaml
+
+        # 4. Run it
         desflow run flow.yaml
         ```
 

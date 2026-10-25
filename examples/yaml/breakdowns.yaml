@@ -1,6 +1,6 @@
 # Breakdowns: a packing station that fails and is repaired, in YAML.
 #
-# The YAML version of examples/builder/breakdowns_example.py. The packing station breaks
+# The YAML version of breakdowns_example.py, which --api builder downloads. The packing station breaks
 # down about once a minute and takes 5 to 15 seconds to repair. A breakdown stops
 # the orders being packed: each gives the station back, queues again, and packs
 # what it had left once the station is repaired.

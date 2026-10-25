@@ -27,7 +27,7 @@ _UNITS = {"ms": 0.001, "s": 1.0, "min": 60.0, "h": 3600.0}
 _POSITIVE_ONLY = ("gamma", "weibull", "lognormal")
 _FIT_EXTRA = (
     "fitting needs the fit extra, which installs scipy and matplotlib: "
-    "pip install 'desflow[fit]'"
+    "pip install 'desflow[fit]', or uv tool install 'desflow[fit]' for the command"
 )
 
 

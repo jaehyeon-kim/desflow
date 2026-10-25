@@ -46,7 +46,7 @@ A sweep runs every variant at every value of its paths. Here that is two variant
 
 Changing one input while every other input stays the same is called **one-factor sensitivity** analysis. It shows how much the answer depends on that input. A sweep with two paths runs every combination of their values, so its size is the product of the list lengths.
 
-Save the files from [Full Files](#full-files) in one folder and run the commands there: `desflow experiment parameter_sweeps_experiment.yaml`, or `python parameter_sweeps.py` and `python parameter_sweeps_low_level.py`. Each design's name is its variant followed by its swept value, such as `three Shop.arrival.orders.rate=1.9`, and `results.csv` and `summary.csv` have a column for the swept path. The table gives the mean wait of each design over its 20 replications, with the 95% [half-width](../des/output-analysis.md#interval-and-half-width). The row for 1.8 orders a second is [the experiment of Comparing Designs](../des/common-mistakes.md#busy-hour-figures):
+Save the files from [Full Files](#full-files) in one folder and run the commands there: `desflow experiment parameter_sweeps_experiment.yaml`, or `python parameter_sweeps.py` and `python parameter_sweeps_low_level.py`. Each design's name is its variant followed by its swept value, such as `three Shop.arrival.orders.rate=1.9`. `results.csv` and `summary.csv` have a column for the swept path. The table gives the mean wait of each design over its 20 replications, with the 95% [half-width](../des/output-analysis.md#interval-and-half-width). The row for 1.8 orders a second is [the experiment of Comparing Designs](../des/common-mistakes.md#busy-hour-figures):
 
 | Orders a second | Three packers (s) | Four packers (s) |
 |---|---|---|

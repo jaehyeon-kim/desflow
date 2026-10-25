@@ -1,6 +1,6 @@
 # Patience: orders that leave the queue, and orders that refuse to join, in YAML.
 #
-# The YAML version of examples/builder/patience_example.py. More orders arrive than one
+# The YAML version of patience_example.py, which --api builder downloads. More orders arrive than one
 # packer can pack. An online order waits at most 20 seconds for the packer, and a
 # walk-in order at most 10, each from its own `patience` attribute. An order that
 # waits longer leaves the queue and publishes reneged. From 100 seconds the courier
@@ -25,11 +25,11 @@ services:
   # An expert's estimate: at least 1 second, usually 2, at most 4.
   packing: {dist: triangular, low: 1 s, mode: 2 s, high: 4 s}
 
+# --8<-- [start:pack]
 arrivals:
   orders: {dist: exponential, rate: 0.5, spawn: pack, attributes: {patience: 20}}
   walk_ins: {dist: exponential, rate: 0.1, spawn: pack, attributes: {patience: 10}}
 
-# --8<-- [start:pack]
 tasks:
   pack:
     service: packing

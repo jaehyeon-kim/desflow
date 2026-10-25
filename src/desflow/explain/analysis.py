@@ -79,6 +79,10 @@ def analyze(graph: Graph, target: float = 0.85) -> Explanation:
             continue
         fill_wait(graph, node, resource, users[node.id], by_id, poisson, arrivals)
     bottleneck, why = loads.bottleneck(resources)
+    found = []
+    if not functions:
+        for node, resource in zip(loads.resources(graph), resources):
+            found += hints(resource, target, node.max_capacity)
     return Explanation(
         sim_id=graph.sim_id,
         target=target,
@@ -89,7 +93,7 @@ def analyze(graph: Graph, target: float = 0.85) -> Explanation:
         holders=holder_results(graph, by_id),
         bottleneck=bottleneck,
         bottleneck_reason=why,
-        hints=[] if functions else [h for r in resources for h in hints(r, target)],
+        hints=found,
     )
 
 

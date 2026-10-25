@@ -1,4 +1,4 @@
-# Secure Kafka
+# Connect to Secure Kafka
 
 The Kafka connectors pass any keyword argument they do not use themselves to the Kafka client underneath, so SASL, mTLS, OAuth and AWS IAM work without code of your own. `KafkaIngress` and `KafkaEgress` use `aiokafka`. `KafkaAdminConnector` uses `kafka-python` for `create_topics` and `aiokafka` for `send_config` and `collect_data`, so its arguments must suit the library each method uses. It builds on [Egress](../user-guide/egress.md#kafka) and [Ingress](../user-guide/ingress.md#kafka), which explain the Kafka connectors without security.
 
@@ -140,7 +140,7 @@ Put your broker address and credentials in `egress`, then run `python kafka_secu
     The complete file is below. It needs a Kafka cluster that uses SASL PLAIN:
 
     ```python title="docs/snippets/guides/kafka_security.py"
-    """The secured Kafka connections of the Secure Kafka page, and a shop that uses one.
+    """The secured Kafka connections of the Connect to Secure Kafka page, and a shop that uses one.
 
     The simulation publishes to a cluster that uses SASL PLAIN, such as Confluent Cloud: put your
     broker address and credentials in the `egress` variable, then run `python

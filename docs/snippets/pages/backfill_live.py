@@ -25,7 +25,7 @@ def is_live(record: dict) -> bool:
 
 
 parquet = ParquetStorageEgress(path_router=lambda data: "data/backfill/events.parquet")
-kafka = KafkaEgress(bootstrap_servers="localhost:9092")
+kafka = KafkaEgress(bootstrap_servers="127.0.0.1:9092")
 app = SimulationContext(sim_id="Shop", factor=0.0)
 
 # --8<-- [start:per-sink]

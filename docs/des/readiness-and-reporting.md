@@ -1,6 +1,6 @@
 # Readiness and Reporting
 
-A model is ready when someone who was not part of the study can see what it answers, how far to trust the answer, and how to repeat it. This page lists what that takes. It points to three published checklists written for simulation studies, and shows which parts desflow does for you and which parts only you can write. We read the three and link them. The chapters of the open book [HSMA: the little book of DES](https://des.hsma.co.uk/) are under the CC BY-NC-SA licence, so none of their text is copied here, and the lists below are our own summaries.
+A model is ready when someone who was not part of the study can see what it answers, how far to trust the answer, and how to repeat it. This page lists what that takes. It points to three published checklists written for simulation studies, and shows which parts desflow does for you and which parts only you can write. We read the three and link them. The chapters of the open book [HSMA: the little book of DES](https://des.hsma.co.uk/) are under the CC BY-NC-SA licence, so none of their text is copied here. The lists below are our own summaries.
 
 ---
 

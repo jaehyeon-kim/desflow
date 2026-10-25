@@ -24,6 +24,18 @@ app = typer.Typer(
     help="Run, explain and analyse desflow simulations, fit their inputs, and download the examples.",
     no_args_is_help=True,
     add_completion=False,
+    epilog="""
+[bold underline]Examples:[/bold underline]\n
+  [dim]# Run a blueprint, sending its records to its sinks[/dim]\n
+  $ [bold cyan]desflow run shop.yaml[/bold cyan]\n\n
+  [dim]# Print the first five events, with no services[/dim]\n
+  $ [bold cyan]desflow run shop.yaml --sample 5[/bold cyan]\n\n
+  [dim]# Find the bottleneck before running[/dim]\n
+  $ [bold cyan]desflow explain shop.yaml[/bold cyan]\n\n
+  [dim]# List the examples, then download one[/dim]\n
+  $ [bold cyan]desflow examples list[/bold cyan]\n
+  $ [bold cyan]desflow examples get local[/bold cyan]
+""",
 )
 
 logger = logging.getLogger("desflow.cli")
@@ -52,7 +64,7 @@ def _main(
     """Run, explain and analyse desflow simulations, fit their inputs, and download the examples."""
 
 
-for _module in (run, experiment, report, fit, schema, examples, dist, explain):
+for _module in (run, explain, experiment, report, fit, dist, schema, examples):
     _module.register(app)
 
 

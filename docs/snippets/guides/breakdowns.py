@@ -1,4 +1,4 @@
-"""The Breakdowns guide: a station's down periods, and a check of its counts.
+"""The Model Breakdowns guide: a station's down periods, and a check of its counts.
 
 python breakdowns.py prints the down periods and the counts of the breakdowns
 example, run from the desflow repository root.

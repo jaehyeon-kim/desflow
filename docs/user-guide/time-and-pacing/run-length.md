@@ -60,11 +60,13 @@ The warm-up drops early records. `go_live_at` drops nothing, and only decides wh
     morning = DynamicRealtimeEnvironment(factor=0.0, initial_time=8 * 3600)
     ```
 
-`until` is a clock reading too, so a run with `initial_time: 8 h` and `until: 16 h` lasts 8 hours. A scenario step's `at` and the `warmup` are lengths of time from the start of the run instead, so with `initial_time: 8 h` a step at `30 min` applies at 8.5 hours, and a warm-up of `10 min` ends at 8 hours 10 minutes. The state the run starts with is declared beside it: a resource's `current_cap`, a container's `level`, a store's `items` and an arrival's `attributes` hold from the initial time, before the first arrival. The tests check each against plain SimPy ([SimPy Compatibility](../../reference/simpy-compatibility.md)).
+`until` is a clock reading too, so a run with `initial_time: 8 h` and `until: 16 h` lasts 8 hours. A scenario step's `at` and the `warmup` are different: they are lengths of time from the start of the run. With `initial_time: 8 h`, a step at `30 min` applies at 8.5 hours, and a warm-up of `10 min` ends at 8 hours 10 minutes. The state the run starts with is declared beside it: a resource's `current_cap`, a container's `level`, a store's `items` and an arrival's `attributes` hold from the initial time, before the first arrival. The tests check each against plain SimPy ([SimPy Compatibility](../../reference/simpy-compatibility.md)).
 
 ### Run Length
 
 `until` is in simulation seconds. `run()` and a blueprint's `run.until` also take a duration such as `"10 min"`, `"8 hours"` or `"1 week"`. A month counts as 30 days and a year as 365.
+
+`desflow run FILE --until TIME` overrides `run.until` for one run, without editing the file: `desflow run shop.yaml --until "10 min"` runs `shop.yaml` for 10 simulation minutes, whatever its `run.until` says.
 
 ```python title="docs/snippets/pages/pacing.py:run-length"
 app.add_resource("packers", current_cap=1, max_cap=1)
@@ -92,13 +94,13 @@ ties.run(until=10)
 print(packed)  # ['first', 'second']: nothing due at 10 runs
 ```
 
-Without `until`, SimPy runs until no events remain, and a run with an arrival never runs out of events. Neither does any run with a sink or an ingress connector, even when its own work is done, because the environment's own processes repeat for as long as the run lasts. Give such a run an `until`, a `stop` or a drain, or stop it with Ctrl+C.
+Without `until`, SimPy runs until no events remain, and a run with an arrival never runs out of events. Neither does any run with a sink or an ingress connector, even when its own work is done. The environment's own processes repeat for as long as the run lasts. Give such a run an `until`, a `stop` or a drain, or stop it with Ctrl+C.
 
 ### Stop Early
 
 `stop` ends the run before `until` when something happens. `{signal: name}` ends it at the next firing of a signal. `{condition: ...}` ends it at the first moment a condition holds, checked after every change of a level, a capacity, a registry value or a signal, and after every finished task. The builder's `run(stop=...)` also takes a signal's name, or a function of the context, called once the run is built, that returns any SimPy event, such as `lambda context: context.env.timeout(30)`. The run ends at whichever comes first, `stop` or `until`, and no other event at that moment runs after it. When both fall at the same moment, `until` ends the run, as SimPy's own `until` would. In the low-level API it is SimPy's `env.run(until=event)`.
 
-`run()` and `finish()` return what SimPy's `env.run(until=event)` returns: the value of the event that ended the run. A `stop` on a signal gives the signal's value, such as the finished payload of the task that fired it. A `stop` on a condition gives `True`, and a function's event gives its own value. A run that `until` or a drain ends returns `None`, and so does one where `until` and the stop fall at the same moment. If the signal fails, the run closes, the sinks receive their records, and then `run()` raises the `SignalFailed` the signal failed with, as SimPy raises the exception of a failed event. `desflow run` reports it and exits with an error.
+`run()` and `finish()` return what SimPy's `env.run(until=event)` returns: the value of the event that ended the run. A `stop` on a signal gives the signal's value, such as the finished payload of the task that fired it. A `stop` on a condition gives `True`, and a function's event gives its own value. A run that `until` or a drain ends returns `None`, and so does one where `until` and the stop fall at the same moment. If the signal fails, the run still closes, and the sinks receive their records. Then `run()` raises the `SignalFailed` the signal failed with, as SimPy raises the exception of a failed event. `desflow run` reports it and exits with an error.
 
 ### Drain
 
@@ -163,7 +165,7 @@ With statistics at `basic` or above, `flows.<arrival>.started`, `finished` and `
 `finish()` runs a started run on to the end that `run()` would reach (`until`, the `stop` or the end of the drain), then closes it. `run()` is `start()` followed by `finish()`. After `advance()` or `step()`, `finish()` closes the run as follows:
 
 - When the clock has reached `until` or passed it, and there is no `stop` or `drain`, `finish()` closes the run at once, as a run that ended at `until` does.
-- When `step()` brought the clock to exactly `until`, the records hold one run's records (which end with the final statistics), plus those of the events at `until` that `step()` processed, as in SimPy. A statistics reading due at `until` is not published again, and the close adds only the values that changed after it.
+- When `step()` brought the clock to exactly `until`, the records hold the run's records, which end with the final statistics. They also hold the records of the events at `until` that `step()` processed, as in SimPy. A statistics reading due at `until` is not published again, and the close adds only the values that changed after it.
 - After steps past `until`, the run closes where the steps stopped, with the final statistics at that time.
 
 `close()` ends the run where it is. A context from `from_yaml` steps the same way:
@@ -204,7 +206,7 @@ segmented.finish()  # on to start()'s until, 60, and closes
 
 It prints `paused at 40.0`. A run in segments gives the same records as one `run()`, the telemetry and statistics included, because nothing is flushed at a segment boundary. The same holds for a script that calls `env.run(until=...)` again on a low-level environment, as in SimPy. A few rules:
 
-- `until` is a reading of the simulation clock after `now`, in seconds or as a duration such as `"10 min"`, or an event, as the third rule in this list describes. A time that is not after `now` raises `ValueError`, as SimPy does. `advance()` before `start()` or after `close()` raises `RuntimeError`.
+- `until` is a reading of the simulation clock after `now`, in seconds or as a duration such as `"10 min"`. It can also be an event, as the third rule in this list describes. A time that is not after `now` raises `ValueError`, as SimPy does. `advance()` before `start()` or after `close()` raises `RuntimeError`.
 - The run stops at the earlier of `until` and its own end: `start()`'s `until`, the `stop` or the end of a drain. A later `advance()` raises `RuntimeError`, so call `finish()` or `close()`. `finish()` returns the end's value: `None` for `until` or a drain, and the stop's value for a stop. For a failed stop, it raises the stop's exception again.
 - `until` may be an event, such as `context.signal("gate").wait()`: the run stops where the event fires and returns its value, and the next `advance()` goes on, as SimPy's `env.run(until=event)` does.
 - The event that ends a segment stays in the queue: `peek()` gives the segment's time and `step()` processes it.

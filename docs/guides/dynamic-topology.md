@@ -1,4 +1,4 @@
-# Dynamic Topology
+# Add Resources Mid-run
 
 Sometimes the layout itself changes during a run: a dock opens a new bay, or a shop adds a gift wrapping station. Here a supervisor process adds gift wrappers at 12 seconds, and from then on new jobs go to the wrappers as well as the packers.
 

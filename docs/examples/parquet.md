@@ -22,7 +22,10 @@ desflow is built for real-time digital twins, but the same model can also run fa
         desflow examples get parquet --api yaml
         cd parquet/yaml
 
-        # 3. Run it
+        # 3. Find the bottleneck, with no run
+        desflow explain parquet.yaml
+
+        # 4. Run it
         desflow run parquet.yaml
         ```
 
@@ -36,7 +39,10 @@ desflow is built for real-time digital twins, but the same model can also run fa
         desflow examples get parquet --api yaml
         cd parquet/yaml
 
-        # 3. Run it
+        # 3. Find the bottleneck, with no run
+        desflow explain parquet.yaml
+
+        # 4. Run it
         desflow run parquet.yaml
         ```
 
@@ -48,7 +54,7 @@ desflow is built for real-time digital twins, but the same model can also run fa
 
     ```bash
     odctl up storage
-    export PARQUET_FILESYSTEM=s3 DEST_PATH=odctl-dev/history S3_ENDPOINT=http://localhost:8333 \
+    export PARQUET_FILESYSTEM=s3 DEST_PATH=odctl-dev/history S3_ENDPOINT=http://127.0.0.1:8333 \
       S3_ACCESS_KEY=user S3_SECRET_KEY=password
     ```
 
@@ -63,7 +69,7 @@ desflow is built for real-time digital twins, but the same model can also run fa
     ```yaml title="examples/yaml/parquet.yaml"
     # Historical data generation in YAML.
     #
-    # The YAML version of examples/builder/parquet_example.py. With factor 0 the
+    # The YAML version of parquet_example.py, which --api builder downloads. With factor 0 the
     # clock is detached from the wall clock, so a week of shop orders is written to
     # Parquet as fast as the machine allows. Without a router, each event is written as
     # one flat row and telemetry is left out. Each batch is a file of its own,
@@ -71,7 +77,7 @@ desflow is built for real-time digital twins, but the same model can also run fa
     #
     # Writes to ./data by default. To write to the odctl storage profile instead (odctl
     # up storage), set PARQUET_FILESYSTEM=s3, DEST_PATH=odctl-dev/history,
-    # S3_ENDPOINT=http://localhost:8333, S3_ACCESS_KEY=user and S3_SECRET_KEY=password.
+    # S3_ENDPOINT=http://127.0.0.1:8333, S3_ACCESS_KEY=user and S3_SECRET_KEY=password.
     # Run it from its folder with: desflow run parquet.yaml
 
     simulation:
@@ -155,7 +161,7 @@ desflow is built for real-time digital twins, but the same model can also run fa
 
     ```bash
     odctl up storage
-    export PARQUET_FILESYSTEM=s3 DEST_PATH=odctl-dev/history S3_ENDPOINT=http://localhost:8333 \
+    export PARQUET_FILESYSTEM=s3 DEST_PATH=odctl-dev/history S3_ENDPOINT=http://127.0.0.1:8333 \
       S3_ACCESS_KEY=user S3_SECRET_KEY=password
     ```
 
@@ -352,7 +358,7 @@ desflow is built for real-time digital twins, but the same model can also run fa
 
     ```bash
     odctl up storage
-    export PARQUET_FILESYSTEM=s3 DEST_PATH=odctl-dev/history S3_ENDPOINT=http://localhost:8333 \
+    export PARQUET_FILESYSTEM=s3 DEST_PATH=odctl-dev/history S3_ENDPOINT=http://127.0.0.1:8333 \
       S3_ACCESS_KEY=user S3_SECRET_KEY=password
     ```
 

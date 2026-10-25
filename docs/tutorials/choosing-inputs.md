@@ -107,7 +107,22 @@ YAML: {dist: gamma, shape: 9.63671, scale: 0.155655}
 Python: dist="gamma", shape=9.63671, scale=0.155655
 ```
 
-The last two lines are the service in a blueprint and in the builder. The variability label is desflow's own scale for the standard deviation divided by the mean: `none` at 0, `low` below 0.75, `moderate` from 0.75 to 1.33, and `high` above 1.33. It is `low` here, because the standard deviation is about a third of the mean (0.322). An `exponential` has a standard deviation equal to its mean, a ratio of 1, so it is `moderate`. The fourth line is the value a `Sampler` with no seed gives for every draw. A run always has a seed, draws at random and never uses that value; a test can use it to get the same times on every run, as [Arrivals and Services](../user-guide/arrivals-and-services.md#how-it-works) explains.
+The last two lines are the service in a blueprint and in the builder. The variability label is desflow's own scale for the standard deviation divided by the mean: `none` at 0, `low` below 0.75, `moderate` from 0.75 to 1.33, and `high` above 1.33. It is `low` here, because the standard deviation is about a third of the mean (0.322). The fourth line is the value a `Sampler` with no seed gives for every draw. A run always has a seed, so it draws at random and never uses that value. A test can use the value to get the same times on every run, as [Arrivals and Services](../user-guide/arrivals-and-services.md#how-it-works) explains.
+
+An `exponential` has a standard deviation equal to its mean, a ratio of 1, so it is `moderate`. The arrivals of the busy hour show it. `--rate` gives the family's own parameter, here 1.8 orders a second:
+
+```bash
+desflow dist exponential --rate 1.8
+```
+
+<!-- records: choosing-rate -->
+```text
+parameters: rate 1.8
+mean 0.555556, std 0.555556
+variability: moderate (std / mean 1)
+```
+
+The gap between two orders is 0.56 seconds on average, and its standard deviation is the same 0.56 seconds.
 
 ---
 
@@ -184,7 +199,7 @@ With the empirical distribution the mean wait is **1.35 seconds**, from [one run
 
 ## Why It Works
 
-In the busy hour the mean wait grows with the spread of the gaps between orders and with the spread of the packing times. [Kingman's formula](../des/queueing-basics.md#variation-lengthens-waits) puts it in numbers: the wait is roughly proportional to the square of one spread plus the square of the other, each spread measured relative to its mean. The gaps are the same in all four runs, so only the packing spread differs: none for `constant`, a little for `triangular`, more for the measured times, and as much as the mean itself for `exponential`. Replacing a distribution by its mean, as `constant` does, is one of the [Common Mistakes](../des/common-mistakes.md#replacing-a-distribution-by-its-mean). [Arrivals and Services](../user-guide/arrivals-and-services.md) lists each distribution with its parameters and rules. [Fit the Inputs](fit-the-inputs.md) fits every family to the 40 times with `desflow fit`. [Input Fitting](../user-guide/input-fitting.md) describes its options and outcomes, and [Fit a Distribution](../guides/fit-a-distribution.md) fits a column of your own. [Distributions](../reference/distributions.md) gives the mean and variance of each family.
+In the busy hour the mean wait grows with the spread of the gaps between orders and with the spread of the packing times. [Kingman's formula](../des/queueing-basics.md#variation-lengthens-waits) puts it in numbers: the wait is roughly proportional to the square of one spread plus the square of the other, each spread measured relative to its mean. The gaps are the same in all four runs, so only the packing spread differs: none for `constant`, a little for `triangular`, more for the measured times, and as much as the mean itself for `exponential`. Replacing a distribution by its mean, as `constant` does, is one of the [Common Mistakes](../des/common-mistakes.md#replacing-a-distribution-by-its-mean). [Arrivals and Services](../user-guide/arrivals-and-services.md) lists each distribution with its parameters and rules. [Fitting the Inputs](fit-the-inputs.md) fits every family to the 40 times with `desflow fit`. [Input Fitting](../user-guide/input-fitting.md) describes its options and outcomes, and [Fit a Distribution](../guides/fit-a-distribution.md) fits a column of your own. [Distributions](../reference/distributions.md) gives the mean and variance of each family.
 
 ---
 

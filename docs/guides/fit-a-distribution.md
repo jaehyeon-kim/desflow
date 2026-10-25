@@ -1,6 +1,6 @@
 # Fit a Distribution
 
-Fit a column of your own measured times, such as the gaps between orders in an order log, and load the result into a model. It builds on [Fit the Inputs](../tutorials/fit-the-inputs.md), which fits the shop's packing times and checks what the choice changes, and on [Input Fitting](../user-guide/input-fitting.md), which describes every option and outcome. Fitting needs the `fit` extra: `pip install "desflow[fit]"`.
+Fit a column of your own measured times, such as the gaps between orders in an order log, and load the result into a model. It builds on [Fitting the Inputs](../tutorials/fit-the-inputs.md), which fits the shop's packing times and checks what the choice changes, and on [Input Fitting](../user-guide/input-fitting.md), which describes every option and outcome. Fitting needs the `fit` extra: `pip install "desflow[fit]"`.
 
 ---
 
@@ -60,7 +60,7 @@ empirical         fitted                                           values: 299 n
 - **Rejected** families were fitted, but their mean or standard deviation is more than 25% from the data's, or a parameter is out of range. Here `uniform` and `triangular` reach far beyond most gaps.
 - **Fitted** families have an [AIC](../des/a-simulation-study.md#aic-and-the-ks-test), where lower is better, and a Kolmogorov-Smirnov p-value, which is approximate. The `exponential` has the lowest AIC and a p-value of 0.84. Its rate, `rate: 0.36388`, is one over the mean gap of 2.75 seconds: an order every 2.75 seconds on average. `normal` fits too, but it can draw below 0.
 
-Two families within an AIC of 2 of each other fit about equally well. Run the model with each and see whether the answer changes, as [Fit the Inputs](../tutorials/fit-the-inputs.md#does-the-choice-matter) does. Read `--plot fit.png`, or `result.plot("fit.png")`, as well as the table.
+When two families' AIC are too close to tell them apart, as [AIC and the KS Test](../des/a-simulation-study.md#aic-and-the-ks-test) explains, run the model with each and see whether the answer changes, as [Fitting the Inputs](../tutorials/fit-the-inputs.md#does-the-choice-matter) does. Read `--plot fit.png`, or `result.plot("fit.png")`, as well as the table.
 
 ---
 

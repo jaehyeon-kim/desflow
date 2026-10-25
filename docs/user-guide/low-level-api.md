@@ -2,7 +2,7 @@
 
 This page writes a simulation with SimPy and the environment directly: a packing team with a stock of boxes and a store of packed orders, every step written by hand. It builds on [SimPy and desflow](../des/simpy-and-desflow.md), which describes the SimPy constructs, and on [Builder API](builder-api.md), which writes the same kind of model for you.
 
-Use the low-level API when you need what the builder does not do: resources created while the run goes on, as in [Dynamic Topology](../guides/dynamic-topology.md), or events and interactions of your own shape. A builder or blueprint model can also start a low-level process with `add_process`, as [Tasks and Processes](tasks-and-processes/index.md#processes-and-the-low-level-api) shows.
+Use the low-level API when you need what the builder does not do: resources created while the run goes on, as in [Add Resources Mid-run](../guides/dynamic-topology.md), or events and interactions of your own shape. A builder or blueprint model can also start a low-level process with `add_process`, as [Tasks and Processes](tasks-and-processes/index.md#processes-and-the-low-level-api) shows.
 
 A low-level script takes these steps, in this order:
 
@@ -117,7 +117,7 @@ def arrivals(env):
         task_id += 1
 ```
 
-A reading of your own is a process that publishes at an interval; `publish_telemetry` uses the name exactly as given:
+A reading of your own is a process that publishes at an interval. `publish_telemetry` uses the name exactly as given:
 
 ```python title="docs/snippets/pages/low_level.py:telemetry"
 def telemetry(env):
@@ -160,11 +160,11 @@ finally:
     env.teardown()  # flushes the buffers and stops the threads
 ```
 
-`ConsoleEgress` writes each record as a log line at INFO level, so logging is switched on first. `env.run` is SimPy's, so `until` is a number of simulation seconds; `time_to_seconds` converts a duration such as `"10 min"`. `teardown` in `finally` publishes the last statistics, flushes the last records and stops both threads, even when the run stops with Ctrl+C or an error.
+`ConsoleEgress` writes each record as a log line at INFO level, so logging is switched on first. `env.run` is SimPy's, so `until` is a number of simulation seconds. `time_to_seconds` converts a duration such as `"10 min"`. `teardown` in `finally` publishes the last statistics, flushes the last records and stops both threads, even when the run stops with Ctrl+C or an error.
 
 A script can run the model in segments by calling `env.run(until=...)` again, as in SimPy. `env.schedule(event, priority, delay)` is SimPy's own: `simpy.events.URGENT` puts an event before the `NORMAL` ones at its time. [Run Length](time-and-pacing/run-length.md#run-in-segments) covers segments, `strict`, `sync()` and `env.resume_pacing()`.
 
-An environment subclass is plain Python: `class Traced(DynamicRealtimeEnvironment)`, whose `__init__` takes `**kwargs` and passes them on, and whose `step` or `schedule` calls `super()`. `step` runs once per event inside `run()`, desflow's own included.
+An environment subclass is plain Python: `class Traced(DynamicRealtimeEnvironment)`, whose `__init__` takes `**kwargs` and passes them on, and whose `step` or `schedule` calls `super()`. Inside `run()`, `step` runs once per event, desflow's own events included.
 
 ---
 
@@ -182,7 +182,7 @@ Nothing is checked before the run as a whole. Each call checks only what it read
 - **A record without egress is dropped.** Until `setup_egress` runs, `publish_event` and `publish_telemetry` do nothing, without an error.
 - **A `Sampler()` with no seed draws nothing at random,** as [Arrivals and Services](arrivals-and-services.md#how-it-works) explains, so give it a seed.
 - **A paced run is strict by default.** [Strict Pacing](time-and-pacing/clocks-and-pacing.md#strict-pacing) gives what it does and its default in each API.
-- **An unhandled failure stops the run under `stop`.** `DynamicRealtimeEnvironment(on_unhandled_failure=...)` is `stop` by default, as a plain SimPy environment is: a one-shot `Signal` failure that nobody waits for raises `SignalFailed`, so the run stops. Pass `"continue"` to defuse such a failure and let the run go on. A re-arming signal's failure is always defused, and an exception raised in a process stops the run under both. The keyword must be `stop` or `continue`.
+- **An unhandled failure stops the run under `stop`.** `DynamicRealtimeEnvironment(on_unhandled_failure=...)` is `stop` by default, as a plain SimPy environment is. Under `stop`, a one-shot `Signal` failure that nobody waits for raises `SignalFailed`, and the run stops. Pass `"continue"` to defuse such a failure and let the run go on. A re-arming signal's failure is always defused. An exception raised in a process stops the run under both settings. The keyword must be `stop` or `continue`.
 
 Beyond those, a process can do anything SimPy can model.
 

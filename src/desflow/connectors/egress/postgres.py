@@ -134,7 +134,7 @@ class PostgresEgress(BaseEgress):
 
         ```python
         egress = PostgresEgress(
-            "postgresql://user:password@localhost:5432/db",
+            "postgresql://user:password@127.0.0.1:5432/db",
             table_name="orders",
             upsert_keys=["order_id"],
         )
@@ -144,7 +144,7 @@ class PostgresEgress(BaseEgress):
 
         ```python
         egress = PostgresEgress(
-            "postgresql://user:password@localhost:5432/db",
+            "postgresql://user:password@127.0.0.1:5432/db",
             tables={
                 "orders": {
                     "columns": {"order_id": "INT", "status": "TEXT"},

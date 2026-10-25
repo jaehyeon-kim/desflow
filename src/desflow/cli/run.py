@@ -13,13 +13,51 @@ from desflow.utils import time_to_seconds
 logger = logging.getLogger("desflow.cli")
 
 
+# The examples --help prints after the options, as odctl's help does
+_EPILOG = """
+[bold underline]Examples:[/bold underline]\n
+  [dim]# Run a blueprint, sending its records to its sinks[/dim]\n
+  $ [bold cyan]desflow run shop.yaml[/bold cyan]\n\n
+  [dim]# Print the first five events, with no services[/dim]\n
+  $ [bold cyan]desflow run shop.yaml --sample 5[/bold cyan]\n\n
+  [dim]# Print every record as a JSON line instead of sending it[/dim]\n
+  $ [bold cyan]desflow run shop.yaml --stdout[/bold cyan]\n\n
+  [dim]# Run 20 replications and print the mean and interval of each statistic[/dim]\n
+  $ [bold cyan]desflow run shop.yaml --replications 20 --seed 7[/bold cyan]
+"""
+
+
 def register(app: typer.Typer) -> None:
     """Adds the `run` command to the app.
 
     Args:
         app: The `desflow` Typer app.
     """
-    app.command("run")(_run)
+    app.command("run", rich_help_panel="Run and Check", epilog=_EPILOG)(_run)
+
+
+_RECORDS = "desflow.connectors.egress.local"
+
+
+class _RecordFormatter(logging.Formatter):
+    """Prints a Console sink's records as they are, and every other line with the format.
+
+    The sink logs a batch of records in one call, so the format's time, level and name
+    would start only the first record of each batch.
+    """
+
+    def format(self, record: logging.LogRecord) -> str:
+        """The record's message alone for the Console sink, else the formatted line.
+
+        Args:
+            record: The log record.
+
+        Returns:
+            str: The line to print.
+        """
+        if record.name == _RECORDS:
+            return record.getMessage()
+        return super().format(record)
 
 
 def _run_options(until: Optional[str], drain: bool) -> str:
@@ -150,11 +188,21 @@ def _run(
         )
         raise typer.Exit(code=2)
 
+    root = logging.getLogger()
+    before = list(root.handlers)
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         datefmt="%H:%M:%S",
     )
+    # Only the handler basicConfig added, so a handler set up by the caller is kept
+    for handler in root.handlers:
+        if handler not in before:
+            handler.setFormatter(
+                _RecordFormatter(
+                    "%(asctime)s [%(levelname)s] %(name)s: %(message)s", "%H:%M:%S"
+                )
+            )
     if replications is not None:
         # Each replication would log its build and teardown; the sinks still log
         logging.getLogger("desflow.core").setLevel(logging.WARNING)

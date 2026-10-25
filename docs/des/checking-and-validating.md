@@ -2,7 +2,7 @@
 
 A model that runs is not a model that is right. This page explains how to check a model in two ways that need different evidence: **verification** asks whether the program does what the model on paper says, and **validation** asks whether that model is a good enough picture of the real system for the question. Both are done on the way through a [simulation study](a-simulation-study.md), and neither is finished by one test.
 
-The two terms, and the trace, the reasonableness checks, review by someone else, calibration and the three-step approach, follow Banks, Carson, Nelson and Nicol, *Discrete-Event System Simulation*, chapter 10, and Law, "How to Conduct a Successful Simulation Study" (Winter Simulation Conference, 2003). We read the chapter through [lecture notes on it](https://courses.ie.bilkent.edu.tr/ie324/wp-content/uploads/sites/4/2016/09/Validation.pdf), and [the paper](https://www.informs-sim.org/wsc03papers/009.pdf) itself. The checks with [Little's law](queueing-basics.md#littles-law), with a formula and with fixed gaps, the extreme-condition tests, the explanations and the shop examples are our own.
+The two terms follow Banks, Carson, Nelson and Nicol, *Discrete-Event System Simulation*, chapter 10, and Law, "How to Conduct a Successful Simulation Study" (Winter Simulation Conference, 2003). So do the trace, the reasonableness checks, review by someone else, calibration and the three-step approach. We read the chapter through [lecture notes on it](https://courses.ie.bilkent.edu.tr/ie324/wp-content/uploads/sites/4/2016/09/Validation.pdf), and [the paper](https://www.informs-sim.org/wsc03papers/009.pdf) itself. The checks with [Little's law](queueing-basics.md#littles-law), with a formula and with fixed gaps, the extreme-condition tests, the explanations and the shop examples are our own.
 
 ---
 
@@ -18,7 +18,7 @@ A model can pass one and fail the other. A program can follow the model on paper
 
 ## Read the Trace
 
-The cheapest check is to read what a run did. A **trace** is the record of each event in time order. Run a few orders and follow one by hand: it should arrive, wait while the packer is busy, start when the packer is free and finish after the service time. The records of a desflow run are a trace, and [First Simulation](../tutorials/first-simulation.md) reads the first of them. The [lecture notes](https://courses.ie.bilkent.edu.tr/ie324/wp-content/uploads/sites/4/2016/09/Validation.pdf) on Banks et al. list a trace, examining the output for reasonableness under a variety of input settings, and having someone else check the model among the ways to find errors in a program.
+The cheapest check is to read what a run did. A **trace** is the record of each event in time order. Run a few orders and follow one by hand: it should arrive, wait while the packer is busy, start when the packer is free and finish after the service time. The records of a desflow run are a trace, and [First Simulation](../tutorials/first-simulation.md) reads the first of them. The [lecture notes](https://courses.ie.bilkent.edu.tr/ie324/wp-content/uploads/sites/4/2016/09/Validation.pdf) on Banks et al. list three ways to find errors in a program: a trace, a look at whether the output is reasonable under a variety of input settings, and a check of the model by someone else.
 
 ---
 
@@ -94,7 +94,7 @@ assert many_packers["Shop.stats.tasks.pack_order.wait_max"] == 0
 
 Some relations hold for every model that settles, so they test the statistics without any hand calculation. [Little's law](queueing-basics.md#littles-law) is the main one. It ties the queue length to the arrival rate and the mean wait. A run measures the three separately, so if they disagree, one of them is wrong. Queueing Basics states the law and checks it on a run of the shop.
 
-[Measuring a Run](../tutorials/measuring-a-run.md) shows the same idea on a shorter run, and the counts in [Statistics](../user-guide/statistics.md) must also add up: when no order balks or reneges, the orders started over the whole run are those finished plus those still in the shop.
+[Measuring a Run](../tutorials/measuring-a-run.md) shows the same idea on a shorter run. The counts in [Statistics](../user-guide/statistics.md) must also add up. When no order balks or reneges, the orders started over the whole run are those finished plus those still in the shop.
 
 ---
 
@@ -102,7 +102,7 @@ Some relations hold for every model that settles, so they test the statistics wi
 
 For a simple case there may be a formula. One packer with exponential gaps and service times at [utilisation](queueing-basics.md#utilisation) 0.75 has a mean wait of 4.5 seconds when the service time averages 1.5 seconds. A run of the model, repeated with several seeds, must produce an interval that contains it. [Queueing Basics](queueing-basics.md) gives the formulas for one and several servers, and shows runs of the shop within their intervals. A formula tests the part of the model it covers. It cannot test priorities, breakdowns or changing demand, which is why those are the parts to check by hand and by comparison with the real shop.
 
-`desflow explain` applies these formulas to a model without running it: it gives each resource's utilisation, and the mean wait where a formula applies. `desflow explain --verify` then runs the model and compares what the run measures with those values. This is verification. It checks that the program agrees with the queueing formulas, and that the model's rates, units and service times are consistent with each other. It is not validation: it does not show that the model is close enough to the real shop. Where the formulas do not hold, it gives no value and does not compare, with the reason; [Check Against Theory](../guides/check-against-theory.md#when-the-formulas-do-not-apply) states the rule. The same page shows the commands and how to read a difference.
+`desflow explain` applies these formulas to a model without running it: it gives each resource's utilisation, and the mean wait where a formula applies. `desflow explain --verify` then runs the model and compares what the run measures with those values. This is verification. It checks that the program agrees with the queueing formulas, and that the model's rates, units and service times are consistent with each other. It is not validation: it does not show that the model is close enough to the real shop. Where the formulas do not hold, it gives no value, makes no comparison and says why. [Check Against Theory](../guides/check-against-theory.md#when-the-formulas-do-not-apply) states the rule. The same page shows the commands and how to read a difference.
 
 ---
 
@@ -110,7 +110,7 @@ For a simple case there may be a formula. One packer with exponential gaps and s
 
 Validation needs evidence from the real system. Law suggests comparing the model's results with the existing system's, where there is one, along with a walk-through of the assumptions by the people who know the system, and sensitivity analysis. For the shop, give the model the inputs of a real day and compare its mean wait, queue length and utilisation with what happened. They need to agree closely enough for the decision, not exactly.
 
-The [lecture notes](https://courses.ie.bilkent.edu.tr/ie324/wp-content/uploads/sites/4/2016/09/Validation.pdf) on Banks et al. describe calibration as iterative: compare the model with the real system, adjust it, compare again. They also give three steps: build a model with high face validity, validate the model's assumptions, and compare input-output behaviour with the real system's data. The assumptions and the inputs are then checked, and not only the outputs. [Choosing Inputs](../tutorials/choosing-inputs.md) and [Fit the Inputs](../tutorials/fit-the-inputs.md) cover the inputs, and [Local Replay](../tutorials/local-replay.md) runs a model on the arrivals of a real trace. When the real system does not exist yet, as for a proposed design, there is nothing to compare with. Then validity rests on the assumptions and on sensitivity analysis.
+The [lecture notes](https://courses.ie.bilkent.edu.tr/ie324/wp-content/uploads/sites/4/2016/09/Validation.pdf) on Banks et al. describe calibration as iterative: compare the model with the real system, adjust it, compare again. They also give three steps: build a model with high face validity, validate the model's assumptions, and compare input-output behaviour with the real system's data. The assumptions and the inputs are then checked, and not only the outputs. [Choosing Inputs](../tutorials/choosing-inputs.md) and [Fitting the Inputs](../tutorials/fit-the-inputs.md) cover the inputs, and [Local Replay](../tutorials/local-replay.md) runs a model on the arrivals of a real trace. When the real system does not exist yet, as for a proposed design, there is nothing to compare with. Then validity rests on the assumptions and on sensitivity analysis.
 
 ---
 

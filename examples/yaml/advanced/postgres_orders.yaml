@@ -19,13 +19,13 @@ simulation:
 ingress:
   - type: Postgres
     config:
-      connection_dsn: postgresql://user:password@localhost:5432/odctl
+      connection_dsn: postgresql://user:password@127.0.0.1:5432/odctl
       table_name: simulation_params
 
 egress:
   - type: Postgres
     config:
-      connection_dsn: postgresql://user:password@localhost:5432/odctl
+      connection_dsn: postgresql://user:password@127.0.0.1:5432/odctl
       tables:
         orders:
           columns:
@@ -37,7 +37,7 @@ egress:
           primary_key: order_id
   - type: Postgres
     config:
-      connection_dsn: postgresql://user:password@localhost:5432/odctl
+      connection_dsn: postgresql://user:password@127.0.0.1:5432/odctl
       tables:
         order_items:
           columns:

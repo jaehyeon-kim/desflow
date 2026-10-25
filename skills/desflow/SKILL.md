@@ -23,7 +23,7 @@ A blueprint can also call Python with `!python module.attribute`, so a model rar
 
 ## Write a blueprint
 
-1. Download the nearest example with `desflow examples` (a list) and `desflow examples get <name> --api yaml`. The example files match the installed version.
+1. Download the nearest example with `desflow examples list` and `desflow examples get <name> --api yaml`. The example files match the installed version.
 2. Edit the file. Only `simulation` is required. [references/blueprint-keys.md](references/blueprint-keys.md) lists every key, and [assets/blueprint.schema.json](assets/blueprint.schema.json) is the JSON Schema of a blueprint for editors and checkers.
 3. Run it with `desflow run <file>`. Add `--until 10min` to stop earlier and `--seed 7` to repeat a run. An invalid file prints every error with its file and line and exits with code 1.
 4. Read each error where it points. An unknown key names the key it is closest to.
@@ -81,8 +81,11 @@ One run is one sample. To report a result, run a study.
 2. Set `simulation.warmup` to the time the model needs to reach its usual state. The statistics start again from zero at that time, so the start of the run is left out of them.
 3. Run replications with `desflow run <file> --replications 20`. Each replication has its own seed, spawned from the seed.
 4. Report the mean of each statistic with its confidence interval. The default level is 95%, and `--level` changes it.
+5. To compare designs, such as two packers against three, write an experiment file and run `desflow experiment <file>`. It runs every design with the same seeds, compares them, checks bounds, and writes its files and `report.md`. It exits 1 when a check fails. `desflow report <folder>` builds the report again from the files.
 
-Read [Replications](https://jaehyeon.me/desflow/latest/user-guide/replications/), [Randomness and Seeds](https://jaehyeon.me/desflow/latest/tutorials/randomness-and-seeds/) and [Trusting Results](https://jaehyeon.me/desflow/latest/tutorials/trusting-results/) before choosing the warm-up and the number of replications.
+To give a service measured times, `desflow fit <file.csv> --column <name> --lower 0 --out <fit.yaml>` fits every family and writes the best as YAML for `!include`. It needs the `fit` extra.
+
+[Command Line](https://jaehyeon.me/desflow/latest/user-guide/command-line/) uses every command on one shop. Read [Replications](https://jaehyeon.me/desflow/latest/user-guide/replications/), [Experiments](https://jaehyeon.me/desflow/latest/user-guide/experiments/), [Randomness and Seeds](https://jaehyeon.me/desflow/latest/tutorials/randomness-and-seeds/) and [Trusting Results](https://jaehyeon.me/desflow/latest/tutorials/trusting-results/) before choosing the warm-up and the number of replications.
 
 ## References
 
@@ -90,6 +93,8 @@ Read [Replications](https://jaehyeon.me/desflow/latest/user-guide/replications/)
 - [references/distributions.md](references/distributions.md): every distribution family, with its parameters and rules.
 - [references/connectors.md](references/connectors.md): every ingress and egress short name, its class and the extra it needs.
 - [references/apis.md](references/apis.md): one shop model in YAML, the builder API and the low-level API.
+- [references/cli.md](references/cli.md): the help of every `desflow` command, with every option.
+- [references/api.md](references/api.md): every name `desflow` exports, with what it is.
 - [assets/blueprint.schema.json](assets/blueprint.schema.json): the blueprint JSON Schema.
 
 The documentation is at https://jaehyeon.me/desflow/latest/. Its pages are also available as plain text at https://jaehyeon.me/desflow/latest/llms.txt and https://jaehyeon.me/desflow/latest/llms-full.txt.

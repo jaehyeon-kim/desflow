@@ -1,4 +1,4 @@
-# Python in a Blueprint: a reference to a name that shop_logic.py does not define.
+# Call Python from YAML: a reference to a name that shop_logic.py does not define.
 # desflow run python_error.yaml stops while loading, with the file and the line.
 simulation: {sim_id: Shop, factor: 0}
 resources:

@@ -27,7 +27,7 @@ ordered_at,order_id,items
 
 ## Replay the Rows
 
-Each row becomes one arrival at its time, and the fields named in `fields` become the order's attributes. `unit` says what the time column holds: `ms`, `s`, `min` or `h` from the start of the run, or `timestamp`, a date and time read from the run's `logical_start_time`, here 09:00 on the recorded day:
+Each row becomes one arrival at its time, and the fields named in `fields` become the order's attributes. `unit` says what the time column holds. It is `ms`, `s`, `min` or `h` from the start of the run, or `timestamp`, a date and time. A timestamp is placed on the run's clock from its `logical_start_time`, here 09:00 on the recorded day:
 
 === "YAML"
 
@@ -123,7 +123,7 @@ modelled: 1905 packed, mean wait  2.57 s, longest  14.34 s
 
 ## Why It Works
 
-A mean rate says how many orders come in an hour, not when they come. Exponential gaps spread the orders evenly over the hour, with small random clusters. The recorded morning has bursts that push the load above what one packer can pack for minutes at a time: a finite overload, like the rush of [Changing Demand](changing-demand.md). Replaying the recorded rows keeps the bursts, so it shows waits the fitted model cannot. Use a replay to check a model against the data it was fitted to, as [Checking and Validating](../des/checking-and-validating.md#compare-with-the-real-shop) describes. When the two disagree, the arrivals are not exponential at one rate, and the model needs a schedule, as on [Time-varying Arrivals](../guides/time-varying-arrivals.md), or the replay itself.
+A mean rate says how many orders come in an hour, not when they come. Exponential gaps spread the orders evenly over the hour, with small random clusters. The recorded morning has bursts that push the load above what one packer can pack for minutes at a time: a finite overload, like the rush of [Changing Demand](changing-demand.md). Replaying the recorded rows keeps the bursts, so it shows waits the fitted model cannot. Use a replay to check a model against the data it was fitted to, as [Checking and Validating](../des/checking-and-validating.md#compare-with-the-real-shop) describes. When the two disagree, the arrivals are not exponential at one rate, and the model needs a schedule, as on [Vary Arrivals by Time](../guides/time-varying-arrivals.md), or the replay itself.
 
 ---
 

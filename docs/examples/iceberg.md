@@ -24,13 +24,16 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
         desflow examples get iceberg --api yaml
         cd iceberg/yaml
 
-        # 3. Start its service
+        # 3. Find the bottleneck, with no run
+        desflow explain iceberg.yaml
+
+        # 4. Start its service
         odctl up catalog
 
-        # 4. Run it
+        # 5. Run it
         desflow run iceberg.yaml
 
-        # 5. Stop its service when finished
+        # 6. Stop its service when finished
         odctl down catalog --volumes
         ```
 
@@ -44,13 +47,16 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
         desflow examples get iceberg --api yaml
         cd iceberg/yaml
 
-        # 3. Start its service
+        # 3. Find the bottleneck, with no run
+        desflow explain iceberg.yaml
+
+        # 4. Start its service
         odctl up catalog
 
-        # 4. Run it
+        # 5. Run it
         desflow run iceberg.yaml
 
-        # 5. Stop its service when finished
+        # 6. Stop its service when finished
         odctl down catalog --volumes
         ```
 
@@ -71,7 +77,7 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
     ```yaml title="examples/yaml/iceberg.yaml"
     # Lakehouse data generation in YAML.
     #
-    # The YAML version of examples/builder/iceberg_example.py. A day of shop
+    # The YAML version of iceberg_example.py, which --api builder downloads. A day of shop
     # orders is generated at factor 0, and each flush of the buffer becomes one Iceberg
     # commit. Without a router, each event is written to default_table as one flat row
     # and telemetry is left out. The catalog is contacted on the first write.
@@ -94,9 +100,9 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
           catalog:
             name: odctl
             type: rest
-            uri: ${ICEBERG_URI:-http://localhost:8181}
+            uri: ${ICEBERG_URI:-http://127.0.0.1:8181}
             warehouse: ${ICEBERG_WAREHOUSE:-s3://warehouse/}
-            s3.endpoint: ${S3_ENDPOINT:-http://localhost:8333}
+            s3.endpoint: ${S3_ENDPOINT:-http://127.0.0.1:8333}
             s3.access-key-id: ${S3_ACCESS_KEY:-user}
             s3.secret-access-key: ${S3_SECRET_KEY:-password}
             s3.region: ${S3_REGION:-us-east-1}
@@ -185,7 +191,7 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
 
     **Full Source Code**
 
-    This script simulates the shop over a 1-day period. It routes lifecycle events into one Iceberg table. It pins the schema, so the event time is stored as a timestamp; without the schema, the column would be inferred as a string.
+    This script simulates the shop over a 1-day period. It routes lifecycle events into one Iceberg table. It pins the schema, so the event time is stored as a timestamp. Without the schema, the column would be inferred as a string.
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
@@ -279,9 +285,9 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
         return RestCatalog(
             "odctl",
             **{
-                "uri": os.getenv("ICEBERG_URI", "http://localhost:8181"),
+                "uri": os.getenv("ICEBERG_URI", "http://127.0.0.1:8181"),
                 "warehouse": os.getenv("ICEBERG_WAREHOUSE", "s3://warehouse/"),
-                "s3.endpoint": os.getenv("S3_ENDPOINT", "http://localhost:8333"),
+                "s3.endpoint": os.getenv("S3_ENDPOINT", "http://127.0.0.1:8333"),
                 "s3.access-key-id": os.getenv("S3_ACCESS_KEY", "user"),
                 "s3.secret-access-key": os.getenv("S3_SECRET_KEY", "password"),
                 "s3.region": os.getenv("S3_REGION", "us-east-1"),
@@ -421,7 +427,7 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
 
     **Full Source Code**
 
-    This script simulates the shop over a 1-day period. It routes lifecycle events into one Iceberg table. It pins the schema, so the event time is stored as a timestamp; without the schema, the column would be inferred as a string.
+    This script simulates the shop over a 1-day period. It routes lifecycle events into one Iceberg table. It pins the schema, so the event time is stored as a timestamp. Without the schema, the column would be inferred as a string.
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
@@ -485,9 +491,9 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
         return RestCatalog(
             "odctl",
             **{
-                "uri": os.getenv("ICEBERG_URI", "http://localhost:8181"),
+                "uri": os.getenv("ICEBERG_URI", "http://127.0.0.1:8181"),
                 "warehouse": os.getenv("ICEBERG_WAREHOUSE", "s3://warehouse/"),
-                "s3.endpoint": os.getenv("S3_ENDPOINT", "http://localhost:8333"),
+                "s3.endpoint": os.getenv("S3_ENDPOINT", "http://127.0.0.1:8333"),
                 "s3.access-key-id": os.getenv("S3_ACCESS_KEY", "user"),
                 "s3.secret-access-key": os.getenv("S3_SECRET_KEY", "password"),
                 "s3.region": os.getenv("S3_REGION", "us-east-1"),

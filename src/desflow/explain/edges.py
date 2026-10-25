@@ -25,6 +25,24 @@ def node_id(kind: str, name: str) -> str:
     return f"{kind}:{name}"
 
 
+def used_resources(spec: "TaskSpec") -> List[str]:
+    """The resources a task holds: its own, then those its wait requests.
+
+    A unit a `request` branch of the wait wins is held through the service, as a
+    unit of the task's own resource is, so it counts toward the resource's load.
+
+    Args:
+        spec: The task.
+
+    Returns:
+        List[str]: The resource names, each once, in that order.
+    """
+    names = list(spec.resources)
+    if spec.wait is not None:
+        names += [r for r in spec.wait.requests() if r not in names]
+    return names
+
+
 def task_edges(spec: "TaskSpec", nodes: List[Node], edges: List[Edge]) -> bool:
     """Adds a task's resource, get, put, spawn and next edges.
 
@@ -37,7 +55,7 @@ def task_edges(spec: "TaskSpec", nodes: List[Node], edges: List[Edge]) -> bool:
         bool: True when a route ends the flow, which needs the exit node.
     """
     task = node_id("task", spec.name)
-    for resource in spec.resources:
+    for resource in used_resources(spec):
         edges.append(
             Edge(source=task, target=node_id("resource", resource), kind="uses")
         )

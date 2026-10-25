@@ -36,11 +36,11 @@ app.add_ingress(
 
 ### Kafka
 
-`KafkaIngress` consumes a topic and reads each message as a JSON object with `path` and `value`, or through a deserializer of your own, such as Avro, as [Avro and Pydantic](../guides/avro-and-pydantic.md) shows.
+`KafkaIngress` consumes a topic and reads each message as a JSON object with `path` and `value`, or through a deserializer of your own, such as Avro, as [Use Avro and Pydantic](../guides/avro-and-pydantic.md) shows.
 
 ```python title="docs/snippets/pages/connectors.py:kafka-ingress"
 # Reads {"path": ..., "value": ...} messages from the sim-config topic
-app.add_ingress(KafkaIngress(topic="sim-config", bootstrap_servers="localhost:9092"))
+app.add_ingress(KafkaIngress(topic="sim-config", bootstrap_servers="127.0.0.1:9092"))
 ```
 
 `KafkaAdminConnector.send_config(topic, path, value)` sends one such message. The [Kafka example](../examples/kafka.md) listens on `sim-config`, and this sets its number of packers:
@@ -59,7 +59,7 @@ from desflow import KafkaAdminConnector
 
 
 def set_packer_capacity(value: int) -> None:
-    admin = KafkaAdminConnector(bootstrap_servers="localhost:9092")
+    admin = KafkaAdminConnector(bootstrap_servers="127.0.0.1:9092")
     asyncio.run(
         admin.send_config("sim-config", "Shop.resources.packers.current_cap", value)
     )
@@ -72,7 +72,7 @@ async def send_with_kafka(rate: float) -> None:
     """A JSON object with path and value, to the topic KafkaIngress reads."""
     from aiokafka import AIOKafkaProducer
 
-    producer = AIOKafkaProducer(bootstrap_servers="localhost:9092")
+    producer = AIOKafkaProducer(bootstrap_servers="127.0.0.1:9092")
     await producer.start()
     try:
         message = {"path": "Shop.arrival.orders.rate", "value": rate}
@@ -89,7 +89,7 @@ async def send_with_kafka(rate: float) -> None:
 # Reads {"path": ..., "value": ...} messages from a Pub/Sub channel
 app.add_ingress(
     RedisIngress(
-        "redis://user:password@localhost:6379/0", channel_name="simulation_params"
+        "redis://user:password@127.0.0.1:6379/0", channel_name="simulation_params"
     )
 )
 ```
@@ -99,7 +99,7 @@ async def send_with_redis(rate: float) -> None:
     """The same JSON object, published to the channel RedisIngress subscribes to."""
     import redis.asyncio as redis
 
-    client = redis.from_url("redis://user:password@localhost:6379/0")
+    client = redis.from_url("redis://user:password@127.0.0.1:6379/0")
     message = {"path": "Shop.arrival.orders.rate", "value": rate}
     await client.publish("simulation_params", json.dumps(message))
     await client.aclose()
@@ -119,7 +119,7 @@ docker exec -it valkey valkey-cli --user user --pass password PUBLISH simulation
 # Applies new rows (path, value) of simulation_params, checking every 2 seconds
 app.add_ingress(
     PostgresIngress(
-        "postgresql://user:password@localhost:5432/odctl",
+        "postgresql://user:password@127.0.0.1:5432/odctl",
         table_name="simulation_params",
         poll_interval=2.0,
     )
@@ -131,7 +131,7 @@ async def send_with_postgres(rate: float) -> None:
     """A row in the table PostgresIngress polls; value is JSON text."""
     import asyncpg
 
-    conn = await asyncpg.connect("postgresql://user:password@localhost:5432/odctl")
+    conn = await asyncpg.connect("postgresql://user:password@127.0.0.1:5432/odctl")
     try:
         await conn.execute(
             "INSERT INTO simulation_params (path, value) VALUES ($1, $2)",

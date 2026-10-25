@@ -58,13 +58,25 @@ def _requests(rate: float) -> str:
     )
 
 
-def hints(resource: ResourceResult, target: float) -> List[Hint]:
+def _above(units: int, max_cap: Optional[int]) -> str:
+    """The note a hint needs when its units are above `max_cap`."""
+    if max_cap is None or units <= max_cap:
+        return ""
+    return f" (raise max_cap from {max_cap} to {units} as well)"
+
+
+def hints(
+    resource: ResourceResult, target: float, max_cap: Optional[int] = None
+) -> List[Hint]:
     """The units that bring the resource to `target`, and the rate into it that does
-    at its current units: at most the target below 1, at least it from 1.
+    at its current units: at most the target below 1, at least it from 1. A number
+    of units above `max_cap` says that `max_cap` must be raised too, because a
+    `current_cap` above it is clamped to it.
 
     Args:
         resource: The resource's result.
         target: The utilisation to aim for.
+        max_cap: The resource's `max_cap`; None for no limit.
 
     Returns:
         List[Hint]: Empty when the rate into the resource is unknown.
@@ -80,7 +92,8 @@ def hints(resource: ResourceResult, target: float) -> List[Hint]:
                 resource=name,
                 kind="servers",
                 value=units,
-                text=f"{name} with {_units(units)}: utilisation {work / units:.3g}, at most {target:g}",
+                text=f"{name} with {_units(units)}: utilisation {work / units:.3g}, at most {target:g}"
+                + _above(units, max_cap),
             )
         )
     else:
@@ -91,7 +104,8 @@ def hints(resource: ResourceResult, target: float) -> List[Hint]:
                     resource=name,
                     kind="servers",
                     value=units,
-                    text=f"{name} with {_units(units)}: utilisation {work / units:.3g}, at least {target:g}, for deliberate overload",
+                    text=f"{name} with {_units(units)}: utilisation {work / units:.3g}, at least {target:g}, for deliberate overload"
+                    + _above(units, max_cap),
                 )
             )
     if resource.servers >= 1:

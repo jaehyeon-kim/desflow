@@ -9,7 +9,7 @@ Each earlier page added one idea to the shop and answered one question. This pag
 
 ## What You Add
 
-This page adds no new feature: the study uses the built-in commands of the earlier pages, in the order of a study. `desflow fit` from [Fit the Inputs](fit-the-inputs.md) fits the inputs to the records. `desflow explain --verify` from [Checking a Model](checking-a-model.md) checks the program against the queueing formulas. An experiment, as in [Comparing Designs](comparing-designs.md), compares the model with values observed in the shop, measures each design with the same seeds and checks the decision rule. `desflow report` writes the report. The model puts picking before packing, as in [A Flow of Tasks](flow-of-tasks.md), and adds a shelf of boxes that each order takes one from, as in [Stock](stock.md).
+This page adds no new feature: the study uses the built-in commands of the earlier pages, in the order of a study. `desflow fit` from [Fitting the Inputs](fit-the-inputs.md) fits the inputs to the records. `desflow explain --verify` from [Checking a Model](checking-a-model.md) checks the program against the queueing formulas. An experiment, as in [Comparing Designs](comparing-designs.md), compares the model with values observed in the shop, measures each design with the same seeds and checks the decision rule. `desflow report` writes the report. The model puts picking before packing, as in [A Flow of Tasks](flow-of-tasks.md), and adds a shelf of boxes, from which each order takes one, as in [Stock](stock.md).
 
 Fitting needs the `fit` extra, which adds scipy and matplotlib:
 
@@ -155,7 +155,7 @@ The gaps fit an exponential distribution at about 1.5 orders a second, which is 
     .add_service("packing", **FITS["packing"])
     ```
 
-    `FITS` holds `result.settings()` of each fit, with the same six significant digits as the fitted files that the blueprint reads, so the builder draws the same values as the blueprint.
+    `FITS` holds `result.settings()` of each fit. It keeps the same six significant digits as the fitted files that the blueprint reads, so the builder draws the same values as the blueprint.
 
 === "Low-level"
 
@@ -355,37 +355,7 @@ A model is checked twice before it answers anything: against the model on paper,
 
 === "Low-level"
 
-    A low-level model declares no link between its arrivals, tasks and resources, so `explain` cannot analyse it. Work the formulas by hand instead:
-
-    ```python title="docs/snippets/tutorials/complete_model_low_level.py:by-hand"
-    rate = FITS["orders"]["rate"]  # orders a second
-    picking, packing = FITS["picking"], FITS["packing"]
-    pick_mean = picking["shape"] * picking["scale"]  # a gamma's mean
-    pick_use = rate * pick_mean  # one picker
-    # One server with Poisson arrivals, where Kingman's formula is exact; a gamma's
-    # squared coefficient of variation is 1 / shape
-    pick_wait = pick_use / (1 - pick_use) * (1 + 1 / picking["shape"]) / 2 * pick_mean
-    pack_use = rate * packing["shape"] * packing["scale"] / 3  # three packers
-    ```
-
-    and compare them with 10 replications:
-
-    ```python title="docs/snippets/tutorials/complete_model_low_level.py:check"
-    formulas = by_hand()
-    runs = replicate(
-        SHOP, 10, seed=42, until=3600, warmup=WARMUP, measures=list(formulas)
-    )
-    for row in runs.summary:
-        low, high = row["mean"] - row["half_width"], row["mean"] + row["half_width"]
-        agrees = low <= formulas[row["measure"]] <= high
-        print(
-            f"{row['measure']}: formula {formulas[row['measure']]:.4f}, "
-            f"runs {row['mean']:.4f} ± {row['half_width']:.4f}, "
-            f"{'agrees' if agrees else 'differs'}"
-        )
-    ```
-
-    The formulas give the picker a utilisation of 66.92% and a mean wait of 0.561 seconds, and the packers a utilisation of 88.01%. Over the 10 replications, the means are 67.26 ± 0.67%, 0.569 ± 0.035 seconds and 88.16 ± 0.99%, so each value from the formulas lies inside its interval.
+    `desflow explain` does not support low-level models. It reads which arrival starts which task and which resource each task uses, and a low-level model does not declare those links: its SimPy code makes them as it runs.
 
 The resources, what is not estimated, and the comparison:
 
@@ -1373,41 +1343,6 @@ Each step answers a different doubt about the result. The fits test the inputs, 
         DESIGNS = ["current", "second-picker", "fourth-packer"]
 
 
-        def by_hand() -> dict:
-            """The picker's utilisation and mean wait from the formulas, and the packers'
-            utilisation; no formula gives the wait of three packers with gamma times."""
-            rate = FITS["orders"]["rate"]  # orders a second
-            picking, packing = FITS["picking"], FITS["packing"]
-            pick_mean = picking["shape"] * picking["scale"]  # a gamma's mean
-            pick_use = rate * pick_mean  # one picker
-            # One server with Poisson arrivals, where Kingman's formula is exact; a gamma's
-            # squared coefficient of variation is 1 / shape
-            pick_wait = pick_use / (1 - pick_use) * (1 + 1 / picking["shape"]) / 2 * pick_mean
-            pack_use = rate * packing["shape"] * packing["scale"] / 3  # three packers
-            return {
-                "resources.pickers.utilization_avg": pick_use * 100,
-                "tasks.pick_order.wait_mean": pick_wait,
-                "resources.packers.utilization_avg": pack_use * 100,
-            }
-
-
-        def check():
-            """10 replications of the busy hour beside the formulas worked by hand."""
-            formulas = by_hand()
-            runs = replicate(
-                SHOP, 10, seed=42, until=3600, warmup=WARMUP, measures=list(formulas)
-            )
-            for row in runs.summary:
-                low, high = row["mean"] - row["half_width"], row["mean"] + row["half_width"]
-                agrees = low <= formulas[row["measure"]] <= high
-                print(
-                    f"{row['measure']}: formula {formulas[row['measure']]:.4f}, "
-                    f"runs {row['mean']:.4f} ± {row['half_width']:.4f}, "
-                    f"{'agrees' if agrees else 'differs'}"
-                )
-            return runs
-
-
         def warmups() -> dict:
             """The mean waits of 40 replications of today's shop, after three candidate warm-ups."""
             return {
@@ -1509,7 +1444,6 @@ Each step answers a different doubt about the result. The fits test the inputs, 
 
 
         if __name__ == "__main__":
-            check()
             for warmup, result in warmups().items():
                 for row in result.summary:
                     print(

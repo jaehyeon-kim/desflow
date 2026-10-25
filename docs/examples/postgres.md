@@ -71,7 +71,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
     ```yaml title="examples/yaml/postgres.yaml"
     # Relational output in YAML.
     #
-    # The YAML version of examples/builder/postgres_example.py: a simulation that
+    # The YAML version of postgres_example.py, which --api builder downloads: a simulation that
     # writes order records to one table. Each order spawns place_order, a task with no
     # service or resource, which publishes its payload at once. PostgresEgress creates
     # the orders table at start and writes one row per order. PostgresIngress creates
@@ -88,13 +88,13 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
     ingress:
       - type: Postgres
         config:
-          connection_dsn: postgresql://user:password@localhost:5432/odctl
+          connection_dsn: postgresql://user:password@127.0.0.1:5432/odctl
           table_name: simulation_params
 
     egress:
       - type: Postgres
         config:
-          connection_dsn: postgresql://user:password@localhost:5432/odctl
+          connection_dsn: postgresql://user:password@127.0.0.1:5432/odctl
           tables:
             orders:
               columns:
@@ -236,7 +236,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
     logger = logging.getLogger(__name__)
 
     # Connection string matching the odctl `postgres` profile
-    DSN = "postgresql://user:password@localhost:5432/odctl"
+    DSN = "postgresql://user:password@127.0.0.1:5432/odctl"
 
     # The table PostgresEgress creates when it does not exist. timestamp comes from the
     # record, and the egress converts its ISO string for the TIMESTAMP column.
@@ -415,7 +415,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
     logger = logging.getLogger("postgres_example")
 
     # Connection string matching the odctl `postgres` profile
-    DSN = "postgresql://user:password@localhost:5432/odctl"
+    DSN = "postgresql://user:password@127.0.0.1:5432/odctl"
 
     # The table PostgresEgress creates when it does not exist. timestamp comes from the
     # record, and the egress converts its ISO string for the TIMESTAMP column.

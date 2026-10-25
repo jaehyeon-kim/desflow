@@ -41,7 +41,7 @@ class TaskEvent(BaseModel):
     status: str
 
 
-BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "127.0.0.1:9092")
 
 # ==========================================
 # 2. Infrastructure Builder

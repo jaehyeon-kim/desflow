@@ -3,6 +3,7 @@ queueing formulas, `--verify`, the JSON and its schema, and the command's exits.
 
 import asyncio
 import json
+import logging
 import math
 import queue
 import textwrap
@@ -193,6 +194,101 @@ def _check_feature(app, feature):
     )
     assert explanation.bottleneck is None
     assert feature in explanation.bottleneck_reason
+
+
+def _requesting_shop(wait):
+    """The shop of `_shop`, with the packer won by a `request` in the task's wait
+    instead of by `resource_id`."""
+    app = SimulationContext(sim_id="Shop", factor=0)
+    app.add_arrival("orders", dist="exponential", rate=0.8, spawn="pack")
+    app.add_service("packing", dist="exponential", rate=1.0)
+    app.add_resource("packers")
+    app.task("packing", name="pack", wait=wait)(lambda task_id: {})
+    return app
+
+
+def test_a_unit_requested_in_a_wait_counts_as_the_resource_the_task_uses():
+    held = _by_name(
+        _requesting_shop({"request": "packers"}).analyze().resources, "packers"
+    )
+    plain = _by_name(_shop().analyze().resources, "packers")
+    assert held.utilization == pytest.approx(plain.utilization) == pytest.approx(0.8)
+    assert held.wait == pytest.approx(plain.wait)
+
+
+def test_a_request_a_timeout_can_end_is_a_feature():
+    wait = {"any": {"unit": {"request": "packers"}, "limit": {"timeout": 30}}}
+    _check_feature(_requesting_shop(wait), "wait group with a timeout")
+
+
+@pytest.mark.parametrize(
+    "wait",
+    [
+        {"all": {"a": {"request": "packers"}, "b": {"request": "packers"}}},
+        {"any": {"a": {"request": "packers"}, "b": {"request": "packers"}}},
+        {
+            "at_least": 2,
+            "of": {"a": {"request": "packers"}, "b": {"request": "packers"}},
+        },
+    ],
+    ids=["all", "any", "at_least"],
+)
+def test_a_wait_with_two_requests_of_one_resource_is_a_feature(wait):
+    # An all holds both units, and an any keeps every request granted at once
+    _check_feature(_requesting_shop(wait), "wait group with several requests")
+
+
+def test_an_any_of_two_resources_does_not_hold_several_resources():
+    app = _requesting_shop(
+        {"any": {"a": {"request": "packers"}, "b": {"request": "benches"}}}
+    )
+    app.add_resource("benches")
+    reason = _by_name(app.analyze().resources, "packers").reason
+    assert "wait group with several requests" in reason
+    assert "several resources" not in reason
+
+
+def test_a_current_cap_above_max_cap_is_analysed_as_the_run_uses_it(caplog):
+    """The builder clamps current_cap to max_cap with a warning, so analyze() sees
+    the one unit the run uses, not two."""
+    app = SimulationContext(sim_id="Shop", factor=0)
+    app.add_arrival("orders", dist="exponential", rate=0.8, spawn="pack")
+    app.add_service("packing", dist="exponential", rate=1.5)
+    with caplog.at_level(logging.WARNING, logger="desflow.core.context"):
+        app.add_resource("packers", current_cap=2, max_cap=1)
+    app.task("packing", "packers", name="pack")(lambda task_id: {})
+    packers = _by_name(app.analyze().resources, "packers")
+    assert packers.servers == 1
+    assert packers.utilization == pytest.approx(0.8 / 1.5)
+    assert "current_cap 2 of resource 'packers'" in caplog.text
+
+
+def test_a_hint_above_max_cap_says_to_raise_max_cap():
+    app = SimulationContext(sim_id="Shop", factor=0)
+    app.add_arrival("orders", dist="exponential", rate=0.8, spawn="pack")
+    app.add_service("packing", dist="exponential", rate=1.0)
+    app.add_resource("packers", current_cap=1, max_cap=1)
+    app.task("packing", "packers", name="pack")(lambda task_id: {})
+    texts = [h.text for h in app.analyze(target=0.5).hints if h.kind == "servers"]
+    assert texts == [
+        "packers with 2 units: utilisation 0.4, at most 0.5 "
+        "(raise max_cap from 1 to 2 as well)"
+    ]
+
+
+def test_a_blueprint_current_cap_above_max_cap_is_clamped(tmp_path, caplog):
+    blueprint = tmp_path / "shop.yaml"
+    blueprint.write_text(
+        "simulation: {sim_id: Shop, factor: 0}\n"
+        "resources:\n  packers: {current_cap: 2, max_cap: 1}\n"
+        "services:\n  packing: {dist: exponential, rate: 1.5}\n"
+        "arrivals:\n  orders: {dist: exponential, rate: 0.8, spawn: pack}\n"
+        "tasks:\n  pack: {resource: packers, service: packing, payload: {}}\n"
+    )
+    with caplog.at_level(logging.WARNING, logger="desflow.core.context"):
+        app = SimulationContext.from_yaml(blueprint)
+    assert _by_name(app.analyze().resources, "packers").servers == 1
+    assert "outside [0, max_cap 1]" in caplog.text
 
 
 def test_get_put_preemption_and_several_resources_name_their_features():

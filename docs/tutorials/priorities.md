@@ -9,7 +9,7 @@ A quarter of the shop's orders are now express: the customer paid for speed. Wit
 
 ## What You Add
 
-This page adds an `express` arrival whose task has `priority: 0`, while regular orders keep `priority: 1`, and a packer that serves its queue by priority. The shop is the one from [First Simulation](first-simulation.md), with one packer and 1.5 seconds of packing. A regular order arrives every 2.22 seconds on average (27 a minute, `rate: 0.45`), and an express order every 6.67 seconds (9 a minute, `rate: 0.15`).
+This page adds an `express` arrival, whose task has `priority: 0`, while regular orders keep `priority: 1`. It also makes the packer serve its queue by priority. The shop is the one from [First Simulation](first-simulation.md), with one packer and 1.5 seconds of packing. A regular order arrives every 2.22 seconds on average (27 a minute, `rate: 0.45`), and an express order every 6.67 seconds (9 a minute, `rate: 0.15`).
 
 ---
 
@@ -47,7 +47,7 @@ SimPy has a `PriorityResource` for the priority discipline, and a `PriorityStore
 
 ## Give Express Orders Priority
 
-Each task gives its requests a priority. Express orders get 0, so they are served before any regular order that is waiting; regular orders get 1:
+Each task gives its requests a priority. Express orders get 0, so they are served before any regular order that is waiting. Regular orders get 1:
 
 === "YAML"
 
@@ -65,7 +65,7 @@ Each task gives its requests a priority. Express orders get 0, so they are serve
         payload: {event_type: express_packed}
     ```
 
-    Here each task has a fixed number. A priority can also be an expression that reads the entity's attributes, such as `priority: attr.priority`, so each order gets its own; [Task Flow](../user-guide/task-flow.md#attributes) describes attributes. A `priority` on a task whose resource does not have `queue: priority` is refused when the file loads. So to run the shop under `fifo`, remove `queue: priority` and both `priority` lines.
+    Here each task has a fixed number. A priority can also be an expression that reads the entity's attributes, such as `priority: attr.priority`, so each order gets its own. [Task Flow](../user-guide/task-flow.md#attributes) describes attributes. A `priority` on a task whose resource does not have `queue: priority` is refused when the file loads. So to run the shop under `fifo`, remove `queue: priority` and both `priority` lines.
 
 === "Builder"
 
@@ -80,7 +80,7 @@ Each task gives its requests a priority. Express orders get 0, so they are serve
         return {"event_type": "express_packed"}
     ```
 
-    `rank` gives each task its priority under `priority`, and no priority under `fifo`, because a priority on a resource with another queue order is refused when the run starts. A task's priority can also be an expression, such as `priority="attr.tier"`, or a function of the task id and the entity's attributes, such as `priority=lambda task_id, attributes: attributes["tier"]`, so each order gets its own. The priority can come from the attributes because they exist before the order joins the queue; the payload does not exist yet.
+    `rank` gives each task its priority under `priority`, and no priority under `fifo`, because a priority on a resource with another queue order is refused when the run starts. A task's priority can also be an expression, such as `priority="attr.tier"`, or a function of the task id and the entity's attributes, such as `priority=lambda task_id, attributes: attributes["tier"]`, so each order gets its own. The priority can come from the attributes because they exist before the order joins the queue. The payload does not exist yet.
 
 === "Low-level"
 
@@ -109,6 +109,26 @@ ORDERS_RATE=0.375 EXPRESS_RATE=0.125 desflow run priorities.yaml 2>&1 | grep wai
 ```
 
 `ORDERS_RATE=0.4125 EXPRESS_RATE=0.1375` runs 33 a minute (0.55). The mean wait of a regular order is 2.50 seconds at 30 orders a minute, 3.98 seconds at 33 a minute and 6.94 seconds at 36 a minute (0.6). Express orders wait less than a second on average at all three rates. If express orders alone kept the packer busy, regular orders would never be served at all: they would **starve**.
+
+`desflow explain` shows how busy the packer is at the default 36 orders a minute, without a run:
+
+```bash
+desflow explain priorities.yaml
+```
+
+<!-- records: priorities-explain -->
+```text
+Resources
++--------------------------------------------------------+
+| resource |   λ |      μ | c |   ρ | Wq | L | status    |
+|----------+-----+--------+---+-----+----+---+-----------|
+| packers  | 0.6 | 0.6667 | 1 | 0.9 |  - | - | CONGESTED |
++--------------------------------------------------------+
+Not estimated:
+  wait at packers: a priority queue serves its tasks in a different order from first come, first served; run --verify to measure it
+```
+
+At utilisation 0.9 the packer is `CONGESTED`: orders often wait in a long queue, so the order in which it is served matters. `explain` gives no wait here, because its formulas assume first come, first served. The runs above measure the waits instead. In Python, `context.analyze()` gives the same analysis for a builder model. A low-level model has no `explain`, because its SimPy code makes the links between arrivals, tasks and resources as it runs, so there are none to read.
 
 ---
 

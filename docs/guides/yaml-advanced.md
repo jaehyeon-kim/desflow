@@ -1,4 +1,4 @@
-# Python in a Blueprint
+# Call Python from YAML
 
 A blueprint holds configuration as plain YAML. When a simulation needs logic that YAML cannot express, the file can reference a Python object with `!python module.attribute` in place of a value. It builds on [YAML Blueprints](../user-guide/blueprints.md), which describes the blueprint file. This guide covers when to use it, how a reference is found, what each field receives, and the setup step. It then works through the OML hot rolling digital twin, a steel mill model, and ends with the errors a reference can give and a note on security.
 
@@ -91,9 +91,9 @@ run:
 
 ```python title="docs/snippets/yaml/shop_logic.py"
 """Python for the blueprints beside it: a payload, a process with arguments, a
-predicate, a custom reading and a resource type."""
+predicate, a custom reading, a resource type and a container type."""
 
-from desflow import ResourceBase
+from desflow import ContainerBase, ResourceBase
 
 
 def choose_delivery(task_id: int, context):
@@ -143,6 +143,20 @@ class LoggedPackers(ResourceBase):
             self.waits.append(self.env.now - request.time)
 
 
+class CountedBin(ContainerBase):
+    """A container that counts the puts it grants."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.restocks = 0
+
+    def _do_put(self, event):
+        granted = super()._do_put(event)
+        if event.triggered:
+            self.restocks += 1
+        return granted
+
+
 ```
 
 What each reference receives:
@@ -160,7 +174,7 @@ The run shows the delivery that the payload picked and the events of the breaks 
 [EVT] {'sim_ts': 55.0, 'timestamp': '...', 'key': 'packers-break', 'task': None, 'instance': None, 'value': {'status': 'up'}}
 ```
 
-A process is written either as a bare reference, `- !python module.func`, which is called as `func(context)`, or as a mapping with `function` and `kwargs`, which is called as `func(context, **kwargs)`. `kwargs` is what lets a blueprint start a process whose signature is not `(context)`. When the signature differs more, write a small adapter: a generator function that takes the context, picks out what the process needs, and hands over with `yield from`.
+A process is written in one of two ways. A bare reference, `- !python module.func`, is called as `func(context)`. A mapping with `function` and `kwargs` is called as `func(context, **kwargs)`. `kwargs` is what lets a blueprint start a process whose signature is not `(context)`. When the signature differs more, write a small adapter: a generator function that takes the context, picks out what the process needs, and hands over with `yield from`.
 
 ```python title="docs/snippets/hot_rolling/hot_rolling_adapter.py:arrivals"
 def arrivals(context, product):
@@ -413,4 +427,4 @@ A module that exists but fails on one of its own imports is reported with that e
 
 **Loading a blueprint runs the imports it names.** `!python` imports modules, and importing a module runs its top-level code. A blueprint is therefore as trusted as a Python script: load only files you would run as code, in a local or trusted CI workflow.
 
-Every other node is constructed by `yaml.SafeLoader`, and the tag is registered on a subclass of it, so `yaml.safe_load` elsewhere in the process is unaffected. Only `!python` and `!include` are added to YAML. Every other tag, such as `!!python/object`, is rejected as `yaml.safe_load` rejects it.
+Every other node is constructed by `yaml.SafeLoader`. The tag is registered on a subclass of it, so `yaml.safe_load` elsewhere in the process is unaffected. Only `!python` and `!include` are added to YAML. Every other tag, such as `!!python/object`, is rejected as `yaml.safe_load` rejects it.

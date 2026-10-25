@@ -80,7 +80,7 @@ A blueprint accepts a duration with a unit wherever it takes a time, such as `un
 
 ## Explain the Load
 
-`desflow explain` does this arithmetic from the model itself, without running it. It reads three numbers for each resource and works out the fourth:
+`desflow explain` does this arithmetic from a YAML or builder model, without running it. It reads three numbers for each resource and works out the fourth:
 
 - **λ** (lambda), the arrival rate: `rate: 1.8` of `arrivals.orders`;
 - **μ** (mu), the service rate, one over the mean service time: `value: 1.5 s` of `services.packing` gives 1 ÷ 1.5 = 0.667 orders a second for each packer, one order every 1.5 seconds (40 a minute);
@@ -95,9 +95,7 @@ Save the files from [Full Files](#full-files) in one folder and run the commands
     desflow explain queues_and_capacity.yaml
     ```
 
-    The file is `queues_and_capacity.yaml` from [Full Files](#full-files). Its packers come from the variable `PACKERS`, as [Run It With More Packers](#run-it-with-more-packers) shows, and with `PACKERS` not set the shop has one packer. The recording shows the command in a terminal:
-
-    ![desflow explain on the busy hour: the graph of orders, pack_order and packers, the resources table with utilisation 2.7, the table of 1 to 10 packers and the hints](../assets/charts/explain.gif)
+    The file is `queues_and_capacity.yaml` from [Full Files](#full-files). Its number of packers comes from the variable `PACKERS`, which [Run It With More Packers](#run-it-with-more-packers) sets. With `PACKERS` not set, the shop has one packer.
 
 === "Builder"
 
@@ -111,9 +109,9 @@ Save the files from [Full Files](#full-files) in one folder and run the commands
 
 === "Low-level"
 
-    The low-level API builds the processes itself and declares no link between an arrival, a task and a resource, so `explain` has nothing to read. A low-level process that a builder model starts with `add_process` shows in the graph as one node, whose steps `explain` cannot see.
+    `desflow explain` does not support low-level models. It reads which arrival starts which task and which resource each task uses, and a low-level model does not declare those links: its SimPy code makes them as it runs.
 
-It prints the graph from each arrival, the resources, the utilisation at each number of units the resource allows, and hints:
+For a YAML or builder model, it prints the graph from each arrival, the resources, the utilisation at each number of units the resource allows, and hints:
 
 <!-- records: queues-explain -->
 ```text
@@ -151,7 +149,7 @@ Hints for utilisation 0.85:
   packers with 1 unit: utilisation 0.85 at a request every 1.76 seconds (34 a minute, 0.5667 a second)
 ```
 
-The tree shows each order starting `pack_order`, which uses `packers`, and the flow ending after it. The status is `CONGESTED` from utilisation 0.85 and `UNSTABLE` from 1. The resources table gives λ 1.8 orders a second, μ 0.667 orders a second, c 1 and utilisation ρ 2.7, so the status is `UNSTABLE`. The wait (`Wq`) and the number in the shop (`L`) are left blank. The reason is printed below the tables: the queue grows for as long as the run lasts. The table by units covers 1 to 10 packers, up to `max_cap`. Three packers are stable but congested at utilisation 0.9, and the first hint names 4 as the fewest packers at or below 0.85. The second hint keeps the current units and gives the rate of requests into the resource that reaches the target utilisation. With one packer, an arrival rate of 0.5667 orders a second, an order every 1.76 seconds (34 a minute), gives utilisation 0.85. In a network, that rate includes the requests that come back for rework, not only new arrivals.
+The tree shows each order starting `pack_order`, which uses `packers`, and the flow ending after it. The status is `CONGESTED` from utilisation 0.85 and `UNSTABLE` from 1. The resources table gives λ 1.8 orders a second, μ 0.667 orders a second, c 1 and utilisation ρ 2.7, so the status is `UNSTABLE`. The wait (`Wq`) and the number in the shop (`L`) are left blank. The reason is printed below the tables: the queue grows for as long as the run lasts. The table by units covers 1 to 10 packers, up to `max_cap`. Three packers are stable but congested at utilisation 0.9, and the first hint names 4 as the fewest packers at or below 0.85. The second hint keeps the current number of units. It gives the rate of requests into the resource at which utilisation reaches the target. With one packer, an arrival rate of 0.5667 orders a second, an order every 1.76 seconds (34 a minute), gives utilisation 0.85. In a network, that rate includes the requests that come back for rework, not only new arrivals.
 
 ---
 
@@ -391,9 +389,9 @@ In a network, each task's rate comes from the tasks before it. This version of t
             env.process(step(env, sampler, shop, following, entity, counters))
     ```
 
-    `explain` reads YAML and builder models only, because a low-level model declares no link between its tasks and resources.
+    `desflow explain` does not support low-level models. It reads which arrival starts which task and which resource each task uses, and a low-level model does not declare those links: its SimPy code makes them as it runs.
 
-Every packed order is checked, and packing receives the new orders, 1.6 a second, and the tenth of the checked orders that come back. Call the rate into packing x: then x = 1.6 + 0.1 × x, which gives x = 1.6 ÷ 0.9 = 1.778 orders a second. `desflow explain queues_network.yaml` solves this [flow balance](../des/queueing-basics.md#flow-balance-and-the-bottleneck) for every task. This is its output without the hints at the end:
+Every packed order is checked. Packing receives the new orders, 1.6 a second, and also the tenth of the checked orders that come back. Call the rate into packing x: then x = 1.6 + 0.1 × x, which gives x = 1.6 ÷ 0.9 = 1.778 orders a second. `desflow explain queues_network.yaml` solves this [flow balance](../des/queueing-basics.md#flow-balance-and-the-bottleneck) for every task. This is its output without the hints at the end:
 
 <!-- records: queues-network -->
 ```text
@@ -443,7 +441,7 @@ Not estimated:
   wait at checkers: its input is not one arrival or a Poisson flow, which Kingman's formula needs; run --verify to measure it
 ```
 
-The four packers are at utilisation 0.667 and the checker at 0.711, the higher of the two, so the checker is the bottleneck. In the table by units, 3 packers would be at utilisation 0.889, above the checker: with 3 the packers are the bottleneck, and the fourth packer moves it downstream to the checker. Relieving a bottleneck makes the next busiest resource the new one. `desflow explain` estimates neither wait here, and says why: four packers with constant packing have no closed formula, and the checker's input is the packers' output, which is neither one arrival nor a [Poisson](../des/queueing-basics.md#kendalls-notation) flow. `--verify`, in [Check Against Theory](../guides/check-against-theory.md), measures both.
+The four packers are at utilisation 0.667 and the checker at 0.711, the higher of the two, so the checker is the bottleneck. In the table by units, 3 packers would be at utilisation 0.889, above the checker. So with 3 packers the packers are the bottleneck, and a fourth packer moves the bottleneck to the checker. Relieving a bottleneck makes the next busiest resource the new one. `desflow explain` estimates neither wait here, and says why: four packers with constant packing have no closed formula, and the checker's input is the packers' output, which is neither one arrival nor a [Poisson](../des/queueing-basics.md#kendalls-notation) flow. `--verify`, in [Check Against Theory](../guides/check-against-theory.md), measures both.
 
 ---
 

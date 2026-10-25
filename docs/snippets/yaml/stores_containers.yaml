@@ -16,6 +16,10 @@ containers:
   # An amount: room for 100 boxes, 20 when the run starts
   stock: {current_cap: 100, max_cap: 100, level: 20}
 # --8<-- [end:container]
+  # --8<-- [start:container-type]
+  # A container of your own class, from shop_logic.py beside the blueprint
+  labels: {current_cap: 10, max_cap: 10, level: 10, type: !python shop_logic.CountedBin}
+  # --8<-- [end:container-type]
 
 # --8<-- [start:store]
 stores:

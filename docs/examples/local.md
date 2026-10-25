@@ -55,7 +55,7 @@ In the output, look for each order's `queued`, `started` and finished events, an
     ```yaml title="examples/yaml/local.yaml"
     # Local simulation in YAML, with no Python and no containers.
     #
-    # The YAML version of examples/builder/local_example.py. This simulation models a shop
+    # The YAML version of local_example.py, which --api builder downloads. This simulation models a shop
     # packing orders. ConsoleEgress prints events and telemetry to the terminal.
     # A scenario adds packers at 10 seconds and removes one at 20 seconds.
     # The run ends on its own after 30 simulation seconds.

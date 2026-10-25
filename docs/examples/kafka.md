@@ -64,7 +64,7 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
 
     The dashboard in the Quick Start works with this run unchanged, because it reads the same topics and the same four packer readings.
 
-    The blueprint reads the broker address with `${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}`, so the environment variable `KAFKA_BOOTSTRAP_SERVERS` overrides it.
+    The blueprint reads the broker address with `${KAFKA_BOOTSTRAP_SERVERS:-127.0.0.1:9092}`, so the environment variable `KAFKA_BOOTSTRAP_SERVERS` overrides it.
 
     **Full Source Code**
 
@@ -75,7 +75,7 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
     ```yaml title="examples/yaml/kafka.yaml"
     # Kafka digital twin in YAML.
     #
-    # The YAML version of examples/builder/kafka_example.py, a shop packing
+    # The YAML version of kafka_example.py, which --api builder downloads: a shop packing
     # orders. KafkaIngress reads parameter updates from sim-config, and KafkaEgress
     # publishes lifecycle events to sim-events and packer metrics to sim-telemetry.
     # KafkaEgress creates its two topics when the run starts.
@@ -93,14 +93,14 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
       - type: Kafka
         config:
           topic: sim-config
-          bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}
+          bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-127.0.0.1:9092}
 
     egress:
       - type: Kafka
         config:
           event_topic: sim-events
           telemetry_topic: sim-telemetry
-          bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}
+          bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-127.0.0.1:9092}
 
     resources:
       packers: {current_cap: 1, max_cap: 10}
@@ -227,7 +227,7 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
         status: str
 
 
-    BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+    BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "127.0.0.1:9092")
 
     # ==========================================
     # 2. Infrastructure Builder
@@ -403,7 +403,7 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
     )
     logger = logging.getLogger("kafka_example")
 
-    BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+    BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "127.0.0.1:9092")
 
 
     # ==========================================
@@ -505,7 +505,7 @@ With `KafkaIngress` and `KafkaEgress` in place of the local connectors, the simu
         # )
         # Then pass: topic_serializers={"sim-events": avro_serializer}
         # Generate AVRO_SCHEMA from AvroBaseModel rather than a plain Pydantic model;
-        # see the Avro and Pydantic guide. TaskEvent above has no .avro_schema().
+        # see Use Avro and Pydantic. TaskEvent above has no .avro_schema().
         egress = KafkaEgress(
             telemetry_topic="sim-telemetry",
             event_topic="sim-events",

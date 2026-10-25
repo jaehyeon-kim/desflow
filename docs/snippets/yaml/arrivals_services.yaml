@@ -19,6 +19,10 @@ arrivals:
   # under arrivals: an order every 2 seconds on average
   orders: {dist: exponential, rate: 0.5, spawn: pack}
   # --8<-- [end:exponential]
+  # --8<-- [start:weighted-arrival]
+  # under arrivals: a gap of 1 second three times in four, and 5 seconds otherwise
+  batches: {dist: empirical, values: [1 s, 5 s], weights: [3, 1], spawn: pack}
+  # --8<-- [end:weighted-arrival]
 
 services:
   # 3 s on average, give or take 0.5 s
@@ -27,6 +31,14 @@ services:
   # under services: every time-valued parameter takes a duration
   support_call: {dist: lognormal, mean: 5 min, std: 3 min}
   # --8<-- [end:durations]
+  # --8<-- [start:families]
+  # under services: a hard minimum, a time to failure, a histogram of data, and
+  # weighted values
+  labelling: {dist: truncated_normal, mean: 1 s, std: 1 s, low: 0.2 s}
+  station_failure: {dist: weibull, shape: 1.5, scale: 10 min}
+  measured_packing: {dist: empirical, edges: [1 s, 2 s, 3 s, 4 s], counts: [5, 3, 2]}
+  scanning: {dist: empirical, values: [0.5 s, 2 s], weights: [4, 1]}
+  # --8<-- [end:families]
 
 tasks:
   pack: {service: packing, resource: packers, payload: {event_type: order_packed}}

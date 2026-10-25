@@ -9,7 +9,7 @@ The shop now picks each order from the shelves before packing it. One picker fet
 
 ## What You Add
 
-This page adds a second resource, the `bench`, and a handoff: the picking task keeps the picker for the packing task, which gives it back once the order is on the bench.
+This page adds a second resource, the `bench`, and a handoff. The picking task keeps the picker for the packing task, which gives the picker back once the order is on the bench.
 
 ---
 
@@ -144,7 +144,7 @@ keeps the picker: wait to pick   8.77 s, to pack  1.09 s, picker busy 82.7%
 
 ## Why It Works
 
-Each order brings 2 seconds of packing on average and arrives every 2.5 seconds on average, so the bench is busy 2 ÷ 2.5 = 80% of the time and the picker 1 ÷ 2.5 = 40%. The bench is the busier of the two, the [bottleneck](../des/queueing-basics.md#flow-balance-and-the-bottleneck). When the picker waits at the bench, its own time is spent on the bench's queue, so the picker is busy longer than its work needs and the next order waits for it. Releasing a resource as soon as it is no longer needed keeps the waits where the work is. [Queueing Basics](../des/queueing-basics.md#utilisation) explains utilisation. [Several Resources](../user-guide/resources/several-resources.md#several-resources) describes several resources, handoffs and the order rule.
+Each order brings 2 seconds of packing on average and arrives every 2.5 seconds on average, so the bench is busy 2 ÷ 2.5 = 80% of the time and the picker 1 ÷ 2.5 = 40%. The bench is the busier of the two, the [bottleneck](../des/queueing-basics.md#flow-balance-and-the-bottleneck). When the picker waits at the bench, it spends its own time in the bench's queue. So the picker is busy longer than its work needs, and the next order waits for it. Releasing a resource as soon as it is no longer needed keeps the waits where the work is. [Queueing Basics](../des/queueing-basics.md#utilisation) explains utilisation. [Several Resources](../user-guide/resources/several-resources.md#several-resources) describes several resources, handoffs and the order rule.
 
 ---
 

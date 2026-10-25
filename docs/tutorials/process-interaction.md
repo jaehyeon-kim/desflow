@@ -39,7 +39,7 @@ So far a process has waited for time, a resource or an item. Processes can also 
     "courier_left": Signal(env, "courier_left"),
     ```
 
-    `Signal` holds one pending SimPy `Event`. `wait()` returns it, and `fire(value)` succeeds it and puts a fresh one in its place, so a process that starts waiting after a firing waits for the next one. [SimPy and desflow](../des/simpy-and-desflow.md#events-and-callbacks) describes events.
+    `Signal` holds one pending SimPy `Event`. `wait()` returns it. `fire(value)` succeeds it and puts a fresh one in its place. So a process that starts waiting after a firing waits for the next firing. [SimPy and desflow](../des/simpy-and-desflow.md#events-and-callbacks) describes events.
 
 The courier arrives every 10 minutes, and its task fires the signal with its payload. Save the files from [Full Files](#full-files) in one folder and run the commands there:
 
@@ -180,7 +180,7 @@ The task publishes `queued` when it starts waiting and `started` when the wait e
 
 ## Result
 
-When does a waiting order resume? It resumes when the courier leaves, if the courier leaves within the order's limit, and at the limit otherwise. Each figure here comes from one run of the 8-hour day with the seed 42. With a limit of 5 minutes, **6,952** orders go by courier and **7,020** by post. With a limit of 8 minutes, **11,005** go by courier and **2,872** by post, and the mean wait for dispatch rises from **225.3** to **288.2** seconds. How long must an order be allowed to wait? Of the two limits, **8 minutes** is the one at which most orders go by courier, 79% of them; at 5 minutes fewer than half do:
+When does a waiting order resume? It resumes when the courier leaves, if the courier leaves within the order's limit, and at the limit otherwise. Each figure here comes from one run of the 8-hour day with the seed 42. With a limit of 5 minutes, **6,952** orders go by courier and **7,020** by post. With a limit of 8 minutes, **11,005** go by courier and **2,872** by post, and the mean wait for dispatch rises from **225.3** to **288.2** seconds. How long must an order be allowed to wait? Of the two limits, **8 minutes** is the one at which most orders go by courier, 79% of them. At 5 minutes, fewer than half do:
 
 ![With a limit of 5 minutes, 6952 orders by courier and 7020 by post; with 8 minutes, 11005 by courier and 2872 by post](../assets/charts/courier-shares.png)
 

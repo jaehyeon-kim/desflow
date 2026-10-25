@@ -2,7 +2,7 @@
 
 This page writes a whole simulation as one Python file with the builder, `SimulationContext`: a shop that packs orders with boxes from stock, prints a label, and leaves the parcel for a courier. It builds on [Ways to Write](ways-to-write.md), which places the builder between a blueprint and the low-level API, and on [Tasks and Processes](tasks-and-processes/index.md), which describes what a task does.
 
-The builder works in two phases. You describe the simulation with its methods and decorators, and nothing runs; `run()` then builds the environment and the connectors and starts the clock:
+The builder works in two phases. You describe the simulation with its methods and decorators, and nothing runs. `run()` then builds the environment and the connectors and starts the clock:
 
 ![You call add_resource, add_service, add_arrival, @app.task, add_process, add_ingress and add_egress; run() then creates the DynamicRealtimeEnvironment, starts the ingress and egress threads, and starts the processes and runs the clock](../assets/diagrams/builder-then-run.png)
 
@@ -86,7 +86,7 @@ app.add_arrival("couriers", dist="constant", value=10, spawn="collect")  # every
 
 ### Measure the Run
 
-`with_stats` switches on the built-in statistics, published as telemetry; [Statistics](statistics.md) lists the levels.
+`with_stats` switches on the built-in statistics, published as telemetry. [Statistics](statistics.md) lists the levels.
 
 ```python title="docs/snippets/pages/builder.py:stats"
 app.with_stats("typical", interval=30)  # readings, counts, waits, every 30 s
@@ -137,7 +137,7 @@ if __name__ == "__main__":
     app.run(until="2 min")
 ```
 
-`ConsoleEgress` writes each batch of records in one INFO log call, one line per record, so the script switches logging on before it runs. Only the first line of a batch carries the logging format's prefix, such as the time and the level; the other lines are bare. The first events of the run:
+`ConsoleEgress` writes each batch of records in one INFO log call, one line per record, so the script switches logging on before it runs. Only the first line of a batch carries the logging format's prefix, such as the time and the level. The other lines are bare. The first events of the run:
 
 <!-- records: builder-first -->
 ```text
@@ -161,7 +161,7 @@ if __name__ == "__main__":
 - **Resources, stores and containers.** One for each `add_resource`, `add_store` and `add_container`, which `context.get_resource`, `get_store` and `get_container` return. `add_resource` takes a `type`, a subclass of `ResourceBase` to build the resource from ([Custom Resource Types](resources/custom-resource-types.md#custom-resource-types)). `add_store` and `add_container` take a `type` too, a subclass of `StoreBase` or `ContainerBase` ([Custom Store and Container Types](stores-and-containers.md#custom-store-and-container-types)). A store or container with no `current_cap` and no `max_cap` has no limit.
 - **Tasks.** `@app.task` publishes `queued`, `started` and the finished event with the entity key, task and instance, reports each step to the statistics, takes and adds stock, and routes to the next task with a `Router`.
 - **Entities.** `context.wait_for_arrival` returns an `Entity` with its key and attributes.
-- **Names with the `sim_id`.** `context.publish(name, value)` puts the `sim_id` in front of the name; the low-level `env.publish_telemetry` uses it as given.
+- **Names with the `sim_id`.** `context.publish(name, value)` puts the `sim_id` in front of the name. The low-level `env.publish_telemetry` uses the name as given.
 
 ---
 
@@ -194,8 +194,8 @@ A mistake stops the script before the clock starts. A method raises `ValueError`
 
 The builder's limits are those of its tasks and its resources:
 
-- **Resources are fixed when the run starts.** `run()` creates every resource, store and container before the clock starts, and has no call to add one later; [Dynamic Topology](../guides/dynamic-topology.md) adds one with the low-level API.
-- **`advance()` needs a started run.** It raises `RuntimeError` before `start()`, after `close()` and after the run's own end, and `ValueError` for a time that is not after `now`; [Run in Segments](time-and-pacing/run-length.md#run-in-segments) shows it.
+- **Resources are fixed when the run starts.** `run()` creates every resource, store and container before the clock starts, and has no call to add one later. [Add Resources Mid-run](../guides/dynamic-topology.md) adds one with the low-level API.
+- **`advance()` needs a started run.** It raises `RuntimeError` before `start()`, after `close()` and after the run's own end, and `ValueError` for a time that is not after `now`. [Run in Segments](time-and-pacing/run-length.md#run-in-segments) shows it.
 - **`strict` defaults to False here.** [Strict Pacing](time-and-pacing/clocks-and-pacing.md#strict-pacing) gives what it does and its default in each API.
 - **`environment=` takes a subclass of `DynamicRealtimeEnvironment`.** The context builds it in `start()` with the same arguments it would give its own environment, so its `__init__` takes `**kwargs` and passes them on.
 - **A subscribe refuses a processed event.** `context.subscribe(event)` raises `RuntimeError` when the event has already happened, or when it is called outside a process.

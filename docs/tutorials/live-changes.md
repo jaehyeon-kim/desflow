@@ -9,7 +9,7 @@ The shop of [Changing Demand](changing-demand.md) has one packer, which takes 1.
 
 ## What You Add
 
-This page adds a **planned intervention**: two scenario steps that change the packing time and publish a **label**, a ground-truth record of each change. The events go to one file sink and the labels to another, and a second run without the jam gives the baseline. A last step sends the same change live from `LocalIngress`, with no broker.
+This page adds a **planned intervention**: two scenario steps that change the packing time and publish a **label**, a ground-truth record of each change. The events go to one file sink and the labels to another. A second run without the jam gives the baseline. A last step sends the same change live from `LocalIngress`, with no broker.
 
 ---
 
@@ -133,8 +133,13 @@ The labels go only to a sink with `when: labels`, for the reasons [Live Paramete
 
     `labels` takes one entry per sink, in the order of the list.
 
-Save the files from [Full Files](#full-files) in one folder and run the commands there: `desflow run live_changes.yaml`, `python live_changes.py` or `python live_changes_low_level.py`. Each sink writes one file per batch, such as `labels/labels_1a2b3c4d.jsonl`. A second run in the same folder adds new files beside the old ones, so start each run in an empty folder. The run writes these two labels:
+Save the files from [Full Files](#full-files) in one folder and run the commands there: `desflow run live_changes.yaml`, `python live_changes.py` or `python live_changes_low_level.py`. Each sink writes one file per batch, such as `labels/labels_1a2b3c4d.jsonl`. A second run in the same folder adds new files beside the old ones, so start each run in an empty folder. The run writes these two labels. `--stdout` prints the run's records as JSON lines instead of writing the files, so `grep` shows the labels without a file to open. In the builder and the low-level API, `ConsoleEgress(format="json")` as the sink prints the same lines:
 
+```bash
+desflow run live_changes.yaml --stdout | grep '"label"'
+```
+
+<!-- records: live-labels -->
 ```text
 {"stream_type":"label","sim_ts":1200.0,"timestamp":"...","path":"Shop.service.packing.value","old":1.5,"new":3.0,"label":{"intervention":"printer_jam"}}
 {"stream_type":"label","sim_ts":1800.0,"timestamp":"...","path":"Shop.service.packing.value","old":3.0,"new":1.5,"label":{"intervention":"printer_fixed"}}

@@ -1,4 +1,4 @@
-# Performance Tuning
+# Tune Performance
 
 Make a run that generates data go as fast as the machine allows, and measure how many records a second it publishes. It builds on [Time and Pacing](../user-guide/time-and-pacing/index.md), which explains `factor`, and on [Egress](../user-guide/egress.md), which explains batches.
 
@@ -76,7 +76,7 @@ At `factor: 0` no `system.simulation.lag_seconds` is published, so the count hol
 | `ConsoleEgress`, to `/dev/null` | 0.648 | 1.251 | 157,771 |
 | 0.21.0's `ConsoleEgress`, one log call per record | 0.672 | 1.902 | 157,771 |
 
-- **0.22.0 against 0.21.0:** the run takes 0.531 seconds against 0.604, 1.14 times faster, from the three changes: SimPy's own step at `factor: 0`, a timestamp formatted once per second of the clock (300 against 580 nanoseconds a record), and no lag readings at `factor: 0`.
+- **0.22.0 against 0.21.0:** the run takes 0.531 seconds against 0.604, which is 1.14 times faster. The gain comes from three changes: SimPy's own step at `factor: 0`, a timestamp formatted once per second of the clock (300 against 580 nanoseconds a record), and no lag readings at `factor: 0`.
 - **Console:** in the total, which covers the run and the teardown, logging a batch with one call takes 0.11 seconds more than a counting sink. One call per record took 0.76 seconds more. A terminal is slower than `/dev/null`, so a run that prints to one costs more than this.
 - **Teardown:** about 0.6 seconds of every total is the teardown. Once the queues are empty, it waits half a second for a file sink to close its last file, so a short run spends most of its time there.
 

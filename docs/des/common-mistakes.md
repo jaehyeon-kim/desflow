@@ -1,6 +1,6 @@
 # Common Mistakes
 
-Most wrong simulation results come from a short list of mistakes, and most of them are made before the first run. This page lists eight, in the order they happen in a study. Each one says what the mistake is, shows what it does to the packing shop, and gives the fix. The list follows the pitfalls in Law's paper "Twenty-Three Critical Pitfalls in Simulation Modeling and How to Avoid Them" (Winter Simulation Conference, 2024), which we read, and the examples are our own runs. The checks in the code blocks are in one file, and each prints the number the text quotes.
+Most wrong simulation results come from a short list of mistakes, and most of them are made before the first run. This page lists eight, in the order they happen in a study. Each one says what the mistake is, shows what it does to the packing shop, and gives the fix. The list follows the pitfalls in Law's paper "Twenty-Three Critical Pitfalls in Simulation Modeling and How to Avoid Them" (Winter Simulation Conference, 2024), which we read. The examples are our own runs. The checks in the code blocks are in one file, and each prints the number the text quotes.
 
 ---
 
@@ -43,7 +43,7 @@ def negative_share(mean_time=1.5, sd=1.0, draws=100_000):
     return sum(rng.gauss(mean_time, sd) < 0 for _ in range(draws)) / draws
 ```
 
-About 6.7% of 100,000 draws are below zero. The model would have to clip them, which changes the mean, or fail. A uniform distribution has the opposite problem: it gives every value between its ends the same weight, which real times seldom have. Fit a distribution to the data, and let a goodness-of-fit check and a plot say which family it is. [Input Fitting](../user-guide/input-fitting.md) does this, and [Fit the Inputs](../tutorials/fit-the-inputs.md) works an example. With no data, a triangular distribution of the least, most likely and greatest values is a usual stand-in. Law's pitfall 18 warns against using one when data could be collected, because the greatest value is hard to choose and the long right tail of real times matters. Collect the data if you can.
+About 6.7% of 100,000 draws are below zero. The model would have to clip them, which changes the mean, or fail. A uniform distribution has the opposite problem: it gives every value between its ends the same weight, which real times seldom have. Fit a distribution to the data, and let a goodness-of-fit check and a plot say which family it is. [Input Fitting](../user-guide/input-fitting.md) does this, and [Fitting the Inputs](../tutorials/fit-the-inputs.md) works an example. With no data, a triangular distribution of the least, most likely and greatest values is a usual stand-in. Law's pitfall 18 warns against using one when data could be collected, because the greatest value is hard to choose and the long right tail of real times matters. Collect the data if you can.
 
 ---
 
@@ -77,11 +77,11 @@ The pages of this site run the busy hour with 3 packers in different ways, so th
 | 2.20 to 2.23 | [Trusting Results](../tutorials/trusting-results.md#compare-warm-ups) | 5 replications, measured times, warm-ups of 1, 2 and 4 minutes |
 | 2.25 ± 0.25 | [Trusting Results](../tutorials/trusting-results.md), [Checking a Model](../tutorials/checking-a-model.md) | 10 replications, measured times, 2-minute warm-up |
 | 2.48 ± 0.32 | [Trusting Results](../tutorials/trusting-results.md), [Comparing Designs](../tutorials/comparing-designs.md), [Parameter Sweeps](../tutorials/parameter-sweeps.md), [Checking a Model](../tutorials/checking-a-model.md), [Checking and Validating](checking-and-validating.md) | 20 replications, measured times, 2-minute warm-up |
-| 2.32 ± 0.20 | [Trusting Results](../tutorials/trusting-results.md), [Fit the Inputs](../tutorials/fit-the-inputs.md), [Comparing Designs](../tutorials/comparing-designs.md), [Output Analysis](output-analysis.md), [A Simulation Study](a-simulation-study.md) | 40 replications, measured times, 2-minute warm-up |
-| 2.33 ± 0.19 | [Fit the Inputs](../tutorials/fit-the-inputs.md) | 40 replications, the gamma fitted to the measured times, 2-minute warm-up |
-| 2.93 ± 0.25 | [Fit the Inputs](../tutorials/fit-the-inputs.md) | 40 replications, the triangular fitted to the measured times, 2-minute warm-up |
+| 2.32 ± 0.20 | [Trusting Results](../tutorials/trusting-results.md), [Fitting the Inputs](../tutorials/fit-the-inputs.md), [Comparing Designs](../tutorials/comparing-designs.md), [Output Analysis](output-analysis.md), [A Simulation Study](a-simulation-study.md) | 40 replications, measured times, 2-minute warm-up |
+| 2.33 ± 0.19 | [Fitting the Inputs](../tutorials/fit-the-inputs.md) | 40 replications, the gamma fitted to the measured times, 2-minute warm-up |
+| 2.93 ± 0.25 | [Fitting the Inputs](../tutorials/fit-the-inputs.md) | 40 replications, the triangular fitted to the measured times, 2-minute warm-up |
 
-The 1.35 and 1.38 seconds come from the same measured times. Each distribution draws from a random number stream named after its registry path, `service.empirical` or `service.packing`, so the two services draw the times in another order ([Randomness and Seeds](../tutorials/randomness-and-seeds.md#add-returns) explains the streams).
+The 1.35 and 1.38 seconds come from the same measured times. The two services draw the times in a different order, because each distribution draws from a random number stream named after its registry path, `service.empirical` or `service.packing` ([Randomness and Seeds](../tutorials/randomness-and-seeds.md#add-returns) explains the streams).
 
 ---
 

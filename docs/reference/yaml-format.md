@@ -148,11 +148,11 @@ An `amount` is a number or an expression, 1 when left out. A task with a `servic
 
 ## processes
 
-A list of `!python` generator functions, each written as `{function: ..., kwargs: {...}}` or as the bare reference. Each is started as `function(context, **kwargs)`. [Python in a Blueprint](../guides/yaml-advanced.md) shows them.
+A list of `!python` generator functions, each written as `{function: ..., kwargs: {...}}` or as the bare reference. Each is started as `function(context, **kwargs)`. [Call Python from YAML](../guides/yaml-advanced.md) shows them.
 
 ## telemetry
 
-A list of custom readings, each `{interval, function}`. Every `interval` simulation seconds, `function(context)` is called and publishes with `context.publish`; `interval` is greater than 0. The built-in readings of resources, stores and containers come from `stats` instead.
+A list of custom readings, each `{interval, function}`. Every `interval` simulation seconds, `function(context)` is called and publishes with `context.publish`. `interval` must be greater than 0. The built-in readings of resources, stores and containers come from `stats` instead.
 
 ```yaml title="docs/snippets/yaml/telemetry.yaml:telemetry"
 telemetry:
@@ -178,7 +178,7 @@ A list of steps, applied in time order on the simulation clock:
 | `record` | a mapping, published as a ground-truth label to the `when: labels` sinks |
 | `interrupt` | `{task, where, cause}`: interrupts every running instance of `task` whose `where` holds |
 
-A step needs a `path` and `value`, a `record`, an `interrupt`, or more than one. A step applies before every other event at its time. Steps at the same time apply in the order written. A step at or after `until` never applies. [Live Parameters](../user-guide/live-parameters.md) shows scenarios and labels, and [Time-varying Arrivals](../guides/time-varying-arrivals.md#boundaries) the boundaries.
+A step needs a `path` and `value`, a `record`, an `interrupt`, or more than one. A step applies before every other event at its time. Steps at the same time apply in the order written. A step at or after `until` never applies. [Live Parameters](../user-guide/live-parameters.md) shows scenarios and labels, and [Vary Arrivals by Time](../guides/time-varying-arrivals.md#boundaries) the boundaries.
 
 ## ingress and egress
 
@@ -198,7 +198,7 @@ Lists of connectors, each with a `type` and a `config` of the constructor's keyw
 | egress | `Postgres` | `PostgresEgress` | `postgres` |
 | egress | `Redis` | `RedisEgress` | `redis` |
 
-An egress entry also takes `when`, `batch_size` and `flush_interval`. `when` is `history` or `live`, both needing `simulation.go_live_at`, or `labels`, or a `!python` function of one record. `batch_size` and `flush_interval` are both greater than 0. `Console` takes `format`: `log` (the default) writes each record as a log line, and `json` writes it as one JSON line on stdout. [Ingress](../user-guide/ingress.md) and [Egress](../user-guide/egress.md) describe them.
+An egress entry also takes `when`, `batch_size` and `flush_interval`. `when` is `history`, `live`, `labels` or a `!python` function of one record. `history` and `live` need `simulation.go_live_at`. `batch_size` and `flush_interval` are both greater than 0. `Console` takes `format`: `log` (the default) writes each record as a log line, and `json` writes it as one JSON line on stdout. [Ingress](../user-guide/ingress.md) and [Egress](../user-guide/egress.md) describe them.
 
 Settings that the Python API takes as objects are plain values:
 
@@ -238,7 +238,7 @@ The arguments of `with_batching`, which are the defaults for every sink: `batch_
 | `desflow run FILE --sample N` | Prints the first `N` events, then stops. `N` is 1 or more. The run is unpaced: `factor` is set to 0 and `go_live_at` is cleared. `logical_start_time` and `random_seed` are kept, so timestamps and values look as they would in the real run. Ingress entries and `run.before` are skipped. Telemetry records print between the events but are not counted, and `system.simulation.lag_seconds` is not printed. |
 | `desflow run FILE --stdout` | Prints every record of a normal run except the `system.simulation.lag_seconds` readings, which describe the wall clock, not the model. `factor`, `go_live_at`, `logical_start_time` and ingress are kept; `run.before` is skipped. |
 
-Both replace every egress entry with one `Console` of `format: json`, and a second one for labels when the file has a `when: labels` entry. A JSON console writes each record as one JSON line on stdout. The run's log stays on stderr, so `desflow run FILE --sample 10 | jq .value` reads only the records. `run.before` is skipped because its functions prepare the real sinks, such as creating topics, and a warning on stderr says so when the file has any. The structure, keys and names of the whole file are still validated. A preview builds none of the connectors it replaces or skips, so it checks only their `type`. Their `config` is checked only by a run that builds them, such as `desflow run FILE` without these options.
+Both replace every egress entry with one `Console` of `format: json`, and a second one for labels when the file has a `when: labels` entry. A JSON console writes each record as one JSON line on stdout. The run's log stays on stderr, so `desflow run FILE --sample 10 | jq .value` reads only the records. `run.before` is skipped because its functions prepare the real sinks, such as creating topics. A warning on stderr says so when the file has any. The structure, keys and names of the whole file are still validated. A preview builds none of the connectors it replaces or skips, so it checks only their `type`. Their `config` is checked only by a run that builds them, such as `desflow run FILE` without these options.
 
 | Combination | Result |
 |---|---|
@@ -262,4 +262,4 @@ Both replace every egress entry with one `Console` of `format: json`, and a seco
 
 ## Security
 
-A blueprint with no `!python` references is read entirely by `yaml.SafeLoader`, and loading it imports only the connector modules its `type` entries name. An `!include` reads another YAML file the same way and imports nothing itself. A file that references Python, directly or in a file it includes, runs the imports it names. Such a file needs the same trust as a Python script: run blueprints only from people whose scripts you would run. [Python in a Blueprint](../guides/yaml-advanced.md#security) explains.
+A blueprint with no `!python` references is read entirely by `yaml.SafeLoader`, and loading it imports only the connector modules its `type` entries name. An `!include` reads another YAML file the same way and imports nothing itself. A file that references Python, directly or in a file it includes, runs the imports it names. Such a file needs the same trust as a Python script: run blueprints only from people whose scripts you would run. [Call Python from YAML](../guides/yaml-advanced.md#security) explains.

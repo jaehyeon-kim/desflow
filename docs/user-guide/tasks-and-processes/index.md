@@ -1,6 +1,6 @@
 # Tasks and Processes: `SimulationContext`
 
-A **task** is what one entity does: an order being packed, a return being logged. A **process** is anything else that runs over time: packers going on a break every hour, a speed that drifts, a shift plan. This page shows how to write a task, what `run()` does with tasks, and what a task does step by step; [Processes](processes.md) shows how to write a process.
+A **task** is what one entity does: an order being packed, a return being logged. A **process** is anything else that runs over time: packers going on a break every hour, a speed that drifts, a shift plan. This page shows how to write a task, what `run()` does with tasks, and what a task does step by step. [Processes](processes.md) shows how to write a process.
 
 ---
 
@@ -89,7 +89,7 @@ A task with a service and a resource asks for a unit of the resource, holds it f
 
     This is ordinary SimPy: `packers.request()` waits for a unit, `env.timeout` waits the service time, and leaving the `with` block releases the unit. The `env.publish_event` call at each step produces the records.
 
-A task can also take from or add to a store or container (`get`, `put`), rank its requests (`priority`), and name the task that follows it (`next`); [Stores and Containers](../stores-and-containers.md), [Resources](../resources/index.md) and [Task Flow](../task-flow.md) describe each.
+A task can also take from or add to a store or container (`get`, `put`), rank its requests (`priority`), and name the task that follows it (`next`). [Stores and Containers](../stores-and-containers.md), [Resources](../resources/index.md) and [Task Flow](../task-flow.md) describe each.
 
 ### A Timed Step
 
@@ -152,7 +152,7 @@ An arrival starts one task per arrival. The loop draws a gap from the arrival's 
 
     `spawn=` starts the named task for each arrival's entity, whose key is the arrival name and a counter: `orders-1`, `orders-2`. The record's `instance` comes from the task's one counter, which `next` and other arrivals share, so no two runs of the task share an id. A `spawn` that names a task never added is refused when `run()` checks the model.
 
-    `@app.arrival_loop` runs a generator of your own. The loop below starts one `return_logged` for each return, which is what `spawn="return_logged"` does in one argument, as the YAML tab writes it. A loop is needed only when it does more than start one task, such as choosing the task from the entity's attributes. `context.wait_for_arrival` returns the new `Entity`; pass it to the task with `entity=`. A task called without one starts an entity of its own, keyed by the task's name and a counter, such as `return_logged-1`. The `task_id` becomes the record's `instance`; take it from `context.next_instance`, the task's one counter.
+    `@app.arrival_loop` runs a generator of your own. The loop below starts one `return_logged` for each return, which is what `spawn="return_logged"` does in one argument, as the YAML tab writes it. A loop is needed only when it does more than start one task, such as choosing the task from the entity's attributes. `context.wait_for_arrival` returns the new `Entity`. Pass it to the task with `entity=`. A task called without one starts an entity of its own, keyed by the task's name and a counter, such as `return_logged-1`. The `task_id` becomes the record's `instance`. Take it from `context.next_instance`, the task's one counter.
 
     ```python title="docs/snippets/pages/tasks.py:builder-arrival-loop"
     # A return every 10 s on average (rate 0.1)
@@ -232,13 +232,13 @@ Until `run()` is called nothing exists but the description, and the runtime help
 7. It publishes the payload as the finished event, or `failed`, and releases the resource.
 8. It fires its `signal` (or fails it) and sends its `interrupt` action to the tasks it names. It applies `set` to the entity's attributes. Then it starts the next task that its `next` chooses, or its `on_fail` task, as a new instance for the same entity.
 
-A YAML task and its `spawn` make the same task and arrival loop that the builder code above makes. The code that runs these steps is `TaskRun` in `desflow/core/task.py`. In SimPy terms each task run is one process started with `env.process`, and each arrival loop is another; [SimPy and desflow](../../des/simpy-and-desflow.md) describes processes.
+A YAML task and its `spawn` make the same task and arrival loop that the builder code above makes. The code that runs these steps is `TaskRun` in `desflow/core/task.py`. In SimPy terms each task run is one process started with `env.process`, and each arrival loop is another. [SimPy and desflow](../../des/simpy-and-desflow.md) describes processes.
 
 ### Processes and the Low-level API
 
 `add_process(func, **kwargs)` starts `func(context, **kwargs)` when the run starts, and a YAML `processes` entry does the same with a `!python` function. Inside it, `context.env` is the `DynamicRealtimeEnvironment`, so a process can do anything a low-level script does: `context.env.timeout`, `context.env.registry.update`, `context.env.publish_event`. A process is how low-level code joins a builder or YAML model.
 
-`context.env.active_process` is the running SimPy process. Its `name` is the task's name, because a task's process is named after the task, and its `target` is the event it waits on now, None once it has ended. A condition reads the same three values as `process.name`, `process.instance` (the task's instance id, the `instance` field of its records) and `process.target`, a string such as `timeout`, `signal.<name>`, `task.<name>`, `condition`, `resource.<name>`, `get.<name>`, `put.<name>` or `service`. In a task's own expressions they name that task; in an `interrupt` or `running` `where` they name each instance tested.
+`context.env.active_process` is the running SimPy process. Its `name` is the task's name, because a task's process is named after the task. Its `target` is the event it waits on now, or None once it has ended. A condition reads the same three values as `process.name`, `process.instance` (the task's instance id, the `instance` field of its records) and `process.target`, a string such as `timeout`, `signal.<name>`, `task.<name>`, `condition`, `resource.<name>`, `get.<name>`, `put.<name>` or `service`. In a task's own expressions they name that task. In an `interrupt` or `running` `where`, they name each instance tested.
 
 ---
 
@@ -248,4 +248,4 @@ A YAML task and its `spawn` make the same task and arrival loop that the builder
 - **An interrupt gives back everything.** An interrupted task cancels its waits and releases every unit it holds before it follows its `on_interrupt`, so a resumed task queues again behind the requests already waiting: [Interruptions](../../tutorials/interruptions.md).
 - **A finished event is exactly the payload.** It has no `status` or `path_id` unless the payload includes them.
 - **A condition branch checks after every change.** In a model with many waits on conditions and many changes, the work grows in proportion to both.
-- **Runtime helpers need a running simulation.** They raise `RuntimeError` before `run()`, as [Builder API](../builder-api.md) lists; call them inside a loop, task or process.
+- **Runtime helpers need a running simulation.** They raise `RuntimeError` before `run()`, as [Builder API](../builder-api.md) lists. Call them inside a loop, task or process.

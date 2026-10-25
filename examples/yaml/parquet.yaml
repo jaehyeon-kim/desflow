@@ -1,6 +1,6 @@
 # Historical data generation in YAML.
 #
-# The YAML version of examples/builder/parquet_example.py. With factor 0 the
+# The YAML version of parquet_example.py, which --api builder downloads. With factor 0 the
 # clock is detached from the wall clock, so a week of shop orders is written to
 # Parquet as fast as the machine allows. Without a router, each event is written as
 # one flat row and telemetry is left out. Each batch is a file of its own,
@@ -8,7 +8,7 @@
 #
 # Writes to ./data by default. To write to the odctl storage profile instead (odctl
 # up storage), set PARQUET_FILESYSTEM=s3, DEST_PATH=odctl-dev/history,
-# S3_ENDPOINT=http://localhost:8333, S3_ACCESS_KEY=user and S3_SECRET_KEY=password.
+# S3_ENDPOINT=http://127.0.0.1:8333, S3_ACCESS_KEY=user and S3_SECRET_KEY=password.
 # Run it from its folder with: desflow run parquet.yaml
 
 simulation:

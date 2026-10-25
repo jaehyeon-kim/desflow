@@ -1,10 +1,10 @@
-# Avro and Pydantic
+# Use Avro and Pydantic
 
 `KafkaEgress` writes every record as JSON by default. That suits lifecycle events and telemetry, but a consumer that needs a compact, schema-checked format, such as a machine learning service reading predictions, can read Avro instead.
 
-Each topic can have its own serializer, so JSON and Avro topics share one producer. A Pydantic model can be published as it is. It builds on [Egress](../user-guide/egress.md#kafka), which explains `KafkaEgress`, and on [Complex Routing](complex-routing.md), which explains a topic router.
+Each topic can have its own serializer, so JSON and Avro topics share one producer. A Pydantic model can be published as it is. It builds on [Egress](../user-guide/egress.md#kafka), which explains `KafkaEgress`, and on [Route Records to Topics](complex-routing.md), which explains a topic router.
 
-The code below publishes to Kafka, so start a broker first with `odctl up kafka-lite`. See [Installation](../getting-started.md) for the one-time odctl install. Stop it with `odctl down kafka-lite --volumes`.
+The code below publishes to Kafka, so start a broker first with `odctl up kafka-lite`. See [Installation](../getting-started.md) for the one-time odctl install. Stop it with `odctl down kafka-lite --volumes`. Each serializer needs its extra: `pip install "desflow[confluent]"` for the Confluent Schema Registry, or `pip install "desflow[glue]"` for the AWS Glue Schema Registry. Both include `kafka`.
 
 ---
 
@@ -80,7 +80,7 @@ def ml_topic_router(data: dict) -> str:
 
 
 egress = KafkaEgress(
-    bootstrap_servers="localhost:9092",
+    bootstrap_servers="127.0.0.1:9092",
     topic_router=ml_topic_router,
     # Only ml-predictions is Avro; sim-telemetry and sim-events use JSON.
     topic_serializers={"ml-predictions": prediction_serializer},
@@ -135,7 +135,7 @@ generated_serializer = ConfluentAvroSerializer(
 )
 
 egress = KafkaEgress(
-    bootstrap_servers="localhost:9092",
+    bootstrap_servers="127.0.0.1:9092",
     topic_router=ml_topic_router,
     topic_serializers={"ml-predictions": generated_serializer},
 )
@@ -179,7 +179,7 @@ if __name__ == "__main__":
         level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
     )
     # With a router, KafkaEgress creates no topics, so create them first
-    admin = KafkaAdminConnector(bootstrap_servers="localhost:9092")
+    admin = KafkaAdminConnector(bootstrap_servers="127.0.0.1:9092")
     topics = ["sim-events", "sim-telemetry", "ml-predictions"]
     admin.create_topics([{"name": topic} for topic in topics])
     app.run(until="1 min")
@@ -196,7 +196,7 @@ Run it with `python avro_and_pydantic.py` while `kafka-lite` is up. The serializ
     The complete file is below. It needs the `kafka-lite` profile, which runs a Kafka broker and a schema registry:
 
     ```python title="docs/snippets/guides/avro_and_pydantic.py"
-    """The Pydantic models, topic router and Avro serializers of the Avro and Pydantic page.
+    """The Pydantic models, topic router and Avro serializers of the Use Avro and Pydantic page.
 
     The shop at the end publishes predictions as Avro and every other record as JSON. It
     needs a Kafka broker and a schema registry: start both with `odctl up kafka-lite`, then
@@ -262,7 +262,7 @@ Run it with `python avro_and_pydantic.py` while `kafka-lite` is up. The serializ
 
 
     egress = KafkaEgress(
-        bootstrap_servers="localhost:9092",
+        bootstrap_servers="127.0.0.1:9092",
         topic_router=ml_topic_router,
         # Only ml-predictions is Avro; sim-telemetry and sim-events use JSON.
         topic_serializers={"ml-predictions": prediction_serializer},
@@ -307,7 +307,7 @@ Run it with `python avro_and_pydantic.py` while `kafka-lite` is up. The serializ
     )
 
     egress = KafkaEgress(
-        bootstrap_servers="localhost:9092",
+        bootstrap_servers="127.0.0.1:9092",
         topic_router=ml_topic_router,
         topic_serializers={"ml-predictions": generated_serializer},
     )
@@ -344,7 +344,7 @@ Run it with `python avro_and_pydantic.py` while `kafka-lite` is up. The serializ
             level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
         )
         # With a router, KafkaEgress creates no topics, so create them first
-        admin = KafkaAdminConnector(bootstrap_servers="localhost:9092")
+        admin = KafkaAdminConnector(bootstrap_servers="127.0.0.1:9092")
         topics = ["sim-events", "sim-telemetry", "ml-predictions"]
         admin.create_topics([{"name": topic} for topic in topics])
         app.run(until="1 min")

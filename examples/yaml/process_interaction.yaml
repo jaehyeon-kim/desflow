@@ -1,6 +1,6 @@
 # Process interaction: a signal, a wait with a time limit, a child flow and a failure, in YAML.
 #
-# The YAML version of examples/builder/process_interaction_example.py. A packed order is
+# The YAML version of process_interaction_example.py, which --api builder downloads. A packed order is
 # inspected by a child flow it waits for; a gift fails inspection, and on_fail sends
 # it to be wrapped, which ends the child flow. The order then waits for the courier,
 # who leaves every 50 seconds and fires the signal courier_left, taking every order

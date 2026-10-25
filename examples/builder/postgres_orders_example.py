@@ -18,7 +18,7 @@ logging.basicConfig(
     level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
 )
 
-DSN = "postgresql://user:password@localhost:5432/odctl"
+DSN = "postgresql://user:password@127.0.0.1:5432/odctl"
 
 ORDERS = {
     "columns": {

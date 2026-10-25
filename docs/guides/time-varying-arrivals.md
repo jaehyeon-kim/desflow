@@ -1,4 +1,4 @@
-# Time-varying Arrivals
+# Vary Arrivals by Time
 
 Change the arrival rate and the staffing at set times, such as a rush at lunch or a second packer for an afternoon, and know exactly which events a change reaches. It builds on [Changing Demand](../tutorials/changing-demand.md), which asks what a rush does to waits, and on [Live Parameters](../user-guide/live-parameters.md), which explains registry paths.
 
@@ -61,7 +61,7 @@ The steps change the registry, so everything that reads the path follows: the ne
 
 A step that applies at the same time as another event has to come first or second, and a run that ends at a step's time has to apply it or not. Both are settled the way SimPy settles its own end time:
 
-- **A step at time t applies before every other event at t.** It is scheduled as an urgent event, as SimPy's `run(until=t)` is, so an arrival at t draws its next gap from the new value.
+- **A step at time t applies before every other event at t.** It is scheduled as an urgent event, as SimPy's `run(until=t)` is. So an arrival at t draws its next gap from the new value.
 - **Steps at the same time apply in the order written.**
 - **A step at or after `until` never applies,** as an event due at exactly `until` does not run.
 
@@ -88,7 +88,7 @@ def arrivals(until: float) -> tuple:
     return times, app.env.registry.get("Shop.arrival.orders.value").value
 ```
 
-`arrivals(50)` returns arrivals at 10, 20, **30, 35**, 40 and 45 seconds, and the gap in force at the end is 5 seconds: the order that arrived at 30 drew its gap after the step. `arrivals(30)` returns arrivals at 10 and 20 seconds, and the gap in force at the end is 10 seconds: the step at 30 is at `until`, so it never applies, and neither does the arrival due at 30.
+`arrivals(50)` returns arrivals at 10, 20, **30, 35**, 40 and 45 seconds, and the gap in force at the end is 5 seconds: the order that arrived at 30 drew its gap after the step. `arrivals(30)` returns arrivals at 10 and 20 seconds, and the gap in force at the end is 10 seconds. The step at 30 is at `until`, so it never applies. The arrival due at 30 never happens either.
 
 ---
 

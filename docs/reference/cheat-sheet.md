@@ -32,7 +32,7 @@ This page shows the common YAML keys and builder calls side by side, each linked
 | Build a resource from your own class | `type: !python shop_logic.MyPackers` | `add_resource(..., type=MyPackers)` | [Custom Resource Types](../user-guide/resources/custom-resource-types.md#custom-resource-types) |
 | Serve by priority | `queue: priority` and a task's `priority` | `add_resource(..., queue="priority")` and `@app.task(priority=)` | [Priorities](../tutorials/priorities.md) |
 | Let urgent work take a busy unit | `preempt: true` | `add_resource(..., preempt=True)` | [Interruptions](../tutorials/interruptions.md) |
-| Make a resource fail and be repaired | `resources.<name>.breakdown` | `app.add_breakdown(resource, time_to_failure=, repair=)` | [Breakdowns](../guides/breakdowns.md) |
+| Make a resource fail and be repaired | `resources.<name>.breakdown` | `app.add_breakdown(resource, time_to_failure=, repair=)` | [Model Breakdowns](../guides/breakdowns.md) |
 | Hold an amount, such as boxes | `containers: {stock: {current_cap, max_cap, level, type}}` | `app.add_container("stock", current_cap, max_cap, level=, type=)` | [Stores and Containers](../user-guide/stores-and-containers.md) |
 | Hold items, such as parcels | `stores: {parcels: {current_cap, max_cap, items, type}}` | `app.add_store("parcels", current_cap, max_cap, items=, type=)` | [Stores and Containers](../user-guide/stores-and-containers.md) |
 
@@ -79,8 +79,8 @@ This page shows the common YAML keys and builder calls side by side, each linked
 
 | To | YAML | Builder | Read |
 |---|---|---|---|
-| Find a distribution's parameters from a mean and std | `desflow dist gamma --mean 1.5 --std 0.5` | the same command | [Choosing Inputs](../tutorials/choosing-inputs.md#measured-times) |
-| Show the graph, utilisation and waits before a run, and check them with runs | `desflow explain FILE --verify` | `app.analyze()`; `verify=True` for a context loaded from a file | [Queues and Capacity](../tutorials/queues-and-capacity.md#explain-the-load) |
+| Find a distribution's parameters from a mean and std | `desflow dist gamma --mean 1.5 --std 0.5` | the same command | [Command Line](../user-guide/command-line.md#convert-parameters) |
+| Show the graph, utilisation and waits before a run, and check them with runs | `desflow explain FILE --verify` | `app.analyze()`; `verify=True` for a context loaded from a file | [Command Line](../user-guide/command-line.md#check-it-before-a-long-run) |
 
 ## Run
 

@@ -1,6 +1,6 @@
 # Related Records
 
-Related records are rows that belong together across tables. Here every customer order has 1 to 5 line items with random products, prices and quantities, and a total computed from them. The orders and their items are written to two PostgreSQL tables, `orders` and `order_items`. Each tab shows the example written one way. In YAML a mapping payload is a constant and cannot hold random values, so the order generator is a Python process in `postgres_orders_logic.py`, referenced with `!python`. [Python in a Blueprint](../guides/yaml-advanced.md) explains how references work. The connection string names `odctl`, the database that the odctl `postgres` profile creates, with the user `user` and the password `password`.
+Related records are rows that belong together across tables. Here every customer order has 1 to 5 line items with random products, prices and quantities, and a total computed from them. The orders and their items are written to two PostgreSQL tables, `orders` and `order_items`. Each tab shows the example written one way. In YAML a mapping payload is a constant and cannot hold random values, so the order generator is a Python process in `postgres_orders_logic.py`, referenced with `!python`. [Call Python from YAML](../guides/yaml-advanced.md) explains how references work. The connection string names `odctl`, the database that the odctl `postgres` profile creates, with the user `user` and the password `password`.
 
 Look for each order's line items in `order_items`, with the same `order_id` as the order's row in `orders`, and for a `total_amount` that is the sum of its items.
 
@@ -88,13 +88,13 @@ docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params
     ingress:
       - type: Postgres
         config:
-          connection_dsn: postgresql://user:password@localhost:5432/odctl
+          connection_dsn: postgresql://user:password@127.0.0.1:5432/odctl
           table_name: simulation_params
 
     egress:
       - type: Postgres
         config:
-          connection_dsn: postgresql://user:password@localhost:5432/odctl
+          connection_dsn: postgresql://user:password@127.0.0.1:5432/odctl
           tables:
             orders:
               columns:
@@ -106,7 +106,7 @@ docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params
               primary_key: order_id
       - type: Postgres
         config:
-          connection_dsn: postgresql://user:password@localhost:5432/odctl
+          connection_dsn: postgresql://user:password@127.0.0.1:5432/odctl
           tables:
             order_items:
               columns:
@@ -247,7 +247,7 @@ docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params
         level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
     )
 
-    DSN = "postgresql://user:password@localhost:5432/odctl"
+    DSN = "postgresql://user:password@127.0.0.1:5432/odctl"
 
     ORDERS = {
         "columns": {
@@ -408,7 +408,7 @@ docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params
         level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
     )
 
-    DSN = "postgresql://user:password@localhost:5432/odctl"
+    DSN = "postgresql://user:password@127.0.0.1:5432/odctl"
 
     PARAMS = SimParameter(
         sim_id="Shop",
@@ -513,4 +513,4 @@ The three tabs write the same records, which [a test](https://github.com/jaehyeo
 {"stream_type":"event","sim_ts":1.276,"timestamp":"...","key":"orders-1","task":null,"instance":null,"value":{"order_id":1,"customer_id":86,"total_amount":82.68,"status":"pending"}}
 ```
 
-This command leaves out the `__table__` key that picks each record's table, because only a PostgreSQL sink uses it, and logs a warning that says so. The order's `total_amount` is its item's `quantity` times its `unit_price`.
+This command leaves out the `__table__` key that picks each record's table, because only a PostgreSQL sink uses it. It logs a warning that says so. The order's `total_amount` is its item's `quantity` times its `unit_price`.

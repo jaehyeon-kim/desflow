@@ -47,9 +47,9 @@ Under `queue: priority`, each task gives its requests a priority. The priority c
 
 === "Low-level"
 
-    A low-level process passes the priority to the request: `packers.request(priority=entity.attributes["tier"])`, as the queue-order example above does; a request with no priority has priority 0. A resource whose queue is `fifo` or `lifo` ignores it.
+    A low-level process passes the priority to the request: `packers.request(priority=entity.attributes["tier"])`, as the queue-order example above does. A request with no priority has priority 0. A resource whose queue is `fifo` or `lifo` ignores it.
 
-A `priority` on a task whose resource does not have `queue: priority` is refused: when the blueprint loads, or when `run()` starts. [Priorities](../../tutorials/priorities.md) shows what priority does to waits.
+A `priority` on a task whose resource does not have `queue: priority` is refused when the blueprint loads, or when `run()` starts. [Priorities](../../tutorials/priorities.md) shows what priority does to waits.
 
 ### Preemption
 
@@ -157,6 +157,18 @@ On a resource with `preempt: true`, which needs `queue: priority`, a request tha
 
     `DynamicResource(env, "Shop", "packers", queue="priority", preempt=True)` builds the resource, and `request(priority, preempt=True)` asks for a unit. The process that loses its unit receives `simpy.Interrupt` with a SimPy `Preempted` cause, whose `resource`, `by` (the process that took the unit) and `usage_since` say what happened.
 
+A gift order with `preempt: false` is served before any regular order that waits. But it waits for the packer to be free, rather than take it from a regular order being packed:
+
+```yaml title="docs/snippets/yaml/preemption.yaml:no-preempt"
+pack_gift:
+  service: packing
+  resource: packers
+  # Served before any regular order that waits, but waits for the packer to be free
+  priority: 0
+  preempt: false
+  payload: {event_type: gift_packed}
+```
+
 ### Breakdowns
 
 A `breakdown` makes a resource fail at random and be repaired. `time_to_failure` is the time from the start, or from a repair, to the next failure. It counts all simulation time, busy or idle. `repair` is how long a repair takes. While the resource is down its effective capacity is 0 and no request is granted:
@@ -209,7 +221,7 @@ A `breakdown` makes a resource fail at random and be repaired. `time_to_failure`
 
     Start `run_breakdowns(env, station, sampler, work="interrupt")` as a SimPy process beside the arrivals. `station.fail()` and `station.repair()` put a resource down and back by hand.
 
-`work` says what happens to the tasks being served. Under `interrupt`, the default, each task is interrupted with the cause `breakdown` and follows its `on_interrupt`. Under `finish`, the tasks finish their work. Each failure and repair publishes an event keyed by the resource's name, with `status` `down` or `repaired` and `reason: failure`. [Breakdowns](../../guides/breakdowns.md) checks the downtime of the example, and [Interruptions](../../tutorials/interruptions.md) explains `on_interrupt`.
+`work` says what happens to the tasks being served. Under `interrupt`, the default, each task is interrupted with the cause `breakdown` and follows its `on_interrupt`. Under `finish`, the tasks finish their work. Each failure and repair publishes an event keyed by the resource's name, with `status` `down` or `repaired` and `reason: failure`. [Model Breakdowns](../../guides/breakdowns.md) checks the downtime of the example, and [Interruptions](../../tutorials/interruptions.md) explains `on_interrupt`.
 
 ---
 

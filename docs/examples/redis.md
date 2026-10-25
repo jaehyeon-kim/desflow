@@ -71,7 +71,7 @@ Look for one entry in the `order_events` stream for each order. After you publis
     ```yaml title="examples/yaml/redis.yaml"
     # Redis Streams output with live parameter updates, in YAML.
     #
-    # The YAML version of examples/builder/redis_example.py: a simulation that records
+    # The YAML version of redis_example.py, which --api builder downloads: a simulation that records
     # each order as it is placed. Each order spawns record_order, a task with no service
     # or resource, which publishes its payload at once. RedisEgress writes it to the
     # order_events stream that the __stream__ key names, while RedisIngress subscribes to
@@ -90,13 +90,13 @@ Look for one entry in the `order_events` stream for each order. After you publis
         config:
           # The odctl valkey profile disables the unauthenticated default user, so the
           # URL carries credentials.
-          url: redis://user:password@localhost:6379/0
+          url: redis://user:password@127.0.0.1:6379/0
           channel_name: simulation_params
 
     egress:
       - type: Redis
         config:
-          url: redis://user:password@localhost:6379/0
+          url: redis://user:password@127.0.0.1:6379/0
           stream_name: events
 
     arrivals:
@@ -117,7 +117,7 @@ Look for one entry in the `order_events` stream for each order. After you publis
 
     **Streaming to Redis**
 
-    `RedisEgress` writes each record to a Redis Stream with `XADD`. Its default stream is the one named in the constructor, `events` in this example, and a `__stream__` key in a record picks another.
+    `RedisEgress` writes each record to a Redis Stream with `XADD`. Its default stream is the one named in the constructor, `events` in this example. A `__stream__` key in a record picks another.
 
     ```python title="examples/builder/redis_example.py:app"
     app = (
@@ -230,8 +230,8 @@ Look for one entry in the `order_events` stream for each order. After you publis
     logger = logging.getLogger(__name__)
 
     # The odctl `valkey` profile disables the unauthenticated default user, so the
-    # URL carries credentials. A plain Redis without auth takes redis://localhost:6379/0.
-    REDIS_URL = "redis://user:password@localhost:6379/0"
+    # URL carries credentials. A plain Redis without auth takes redis://127.0.0.1:6379/0.
+    REDIS_URL = "redis://user:password@127.0.0.1:6379/0"
 
     app = (
         SimulationContext(sim_id="Shop", factor=1.0, random_seed=42)
@@ -367,8 +367,8 @@ Look for one entry in the `order_events` stream for each order. After you publis
     logger = logging.getLogger("redis_example")
 
     # The odctl `valkey` profile disables the unauthenticated default user, so the
-    # URL carries credentials. A plain Redis without auth takes redis://localhost:6379/0.
-    REDIS_URL = "redis://user:password@localhost:6379/0"
+    # URL carries credentials. A plain Redis without auth takes redis://127.0.0.1:6379/0.
+    REDIS_URL = "redis://user:password@127.0.0.1:6379/0"
 
     PARAMS = SimParameter(
         sim_id="Shop",
@@ -435,4 +435,4 @@ The three tabs write the same records, which [a test](https://github.com/jaehyeo
 {"stream_type":"event","sim_ts":0.934,"timestamp":"...","key":"orders-3","task":"record_order","instance":2,"value":{"channel":"web","status":"placed","order_id":2}}
 ```
 
-This command leaves out the `__stream__` key that names the stream, because only a Redis sink uses it, and logs a warning that says so. `RedisEgress` also removes the key before it writes, so the stored records have the same fields.
+This command leaves out the `__stream__` key that names the stream, because only a Redis sink uses it. It logs a warning that says so. `RedisEgress` also removes the key before it writes, so the stored records have the same fields.

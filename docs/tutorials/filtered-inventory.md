@@ -39,7 +39,7 @@ A store holds items, and each item is a value of its own. Here each shirt is a m
     stores={"shelf": CapacityConfig(current_cap=1000, max_cap=1000)},
     ```
 
-The shirts and the orders arrive from six arrivals, one per size, each with a `size` attribute. The YAML is below; the builder and low-level versions add the same six arrivals, and their full files are at the end of the page:
+The shirts and the orders arrive from six arrivals, one per size, each with a `size` attribute. The YAML is below. The builder and low-level versions add the same six arrivals, and their full files are at the end of the page:
 
 ```yaml title="docs/snippets/yaml/filtered_inventory.yaml:arrivals"
 # A shirt every 10 seconds on average: 3 in 10 small, 4 medium, 3 large
@@ -56,7 +56,7 @@ orders_l: {dist: exponential, rate: 0.025, spawn: take_shirt, attributes: {size:
 
 ## Take the Right Item
 
-A plain `get` takes the oldest item, whatever it is. A `get` with a `filter` takes the oldest item the filter accepts and waits while none does. In SimPy this is a `FilterStore`, whose `get` takes a function of the item. In desflow the filter is a condition. In it, `item.<field>` reads a field of the shirt on offer, and the condition can read every other name a condition reads, such as `attr.size` for the size the order is for:
+A plain `get` takes the oldest item, whatever it is. A `get` with a `filter` takes the oldest item the filter accepts and waits while none does. In SimPy this is a `FilterStore`, whose `get` takes a function of the item. In desflow the filter is a condition. In it, `item.<field>` reads a field of the shirt on offer. The condition can also read every name that other conditions read, such as `attr.size` for the size the order is for:
 
 === "YAML"
 
@@ -142,7 +142,7 @@ stats: {level: basic, interval: 8 h}
 desflow run filtered_inventory.yaml 2>&1 | grep "flows.orders_"
 ```
 
-`flows.orders_m.finished` is the number of filled medium orders, 1,110. A cancelled order leaves its flow without finishing it, so the cancelled orders are `started` minus `finished` minus `in_system`, the orders still waiting at the end: 1,454 − 1,110 − 29 = 315. The task's own statistics, such as `tasks.take_shirt.reneged`, count every size together.
+`flows.orders_m.finished` is the number of filled medium orders, 1,110. A cancelled order leaves its flow without finishing it. So the cancelled orders are `started` minus `finished` minus `in_system`, which counts the orders still waiting at the end: 1,454 − 1,110 − 29 = 315. The task's own statistics, such as `tasks.take_shirt.reneged`, count every size together.
 
 ## Why It Works
 

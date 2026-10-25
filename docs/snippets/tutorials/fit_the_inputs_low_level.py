@@ -1,4 +1,4 @@
-"""The Fit the Inputs tutorial: which distribution fits the 40 packing times? low-level.
+"""The Fitting the Inputs tutorial: which distribution fits the 40 packing times? low-level.
 
 Fits every family to the 40 packing times measured at the bench and prints the table
 of candidates. Then it runs the busy hour 40 times with each of three packing

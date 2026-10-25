@@ -198,45 +198,6 @@ WAITS = ["tasks.pick_order.wait_mean", "tasks.pack_order.wait_mean"]
 DESIGNS = ["current", "second-picker", "fourth-packer"]
 
 
-def by_hand() -> dict:
-    """The picker's utilisation and mean wait from the formulas, and the packers'
-    utilisation; no formula gives the wait of three packers with gamma times."""
-    # --8<-- [start:by-hand]
-    rate = FITS["orders"]["rate"]  # orders a second
-    picking, packing = FITS["picking"], FITS["packing"]
-    pick_mean = picking["shape"] * picking["scale"]  # a gamma's mean
-    pick_use = rate * pick_mean  # one picker
-    # One server with Poisson arrivals, where Kingman's formula is exact; a gamma's
-    # squared coefficient of variation is 1 / shape
-    pick_wait = pick_use / (1 - pick_use) * (1 + 1 / picking["shape"]) / 2 * pick_mean
-    pack_use = rate * packing["shape"] * packing["scale"] / 3  # three packers
-    # --8<-- [end:by-hand]
-    return {
-        "resources.pickers.utilization_avg": pick_use * 100,
-        "tasks.pick_order.wait_mean": pick_wait,
-        "resources.packers.utilization_avg": pack_use * 100,
-    }
-
-
-def check():
-    """10 replications of the busy hour beside the formulas worked by hand."""
-    # --8<-- [start:check]
-    formulas = by_hand()
-    runs = replicate(
-        SHOP, 10, seed=42, until=3600, warmup=WARMUP, measures=list(formulas)
-    )
-    for row in runs.summary:
-        low, high = row["mean"] - row["half_width"], row["mean"] + row["half_width"]
-        agrees = low <= formulas[row["measure"]] <= high
-        print(
-            f"{row['measure']}: formula {formulas[row['measure']]:.4f}, "
-            f"runs {row['mean']:.4f} ± {row['half_width']:.4f}, "
-            f"{'agrees' if agrees else 'differs'}"
-        )
-    # --8<-- [end:check]
-    return runs
-
-
 def warmups() -> dict:
     """The mean waits of 40 replications of today's shop, after three candidate warm-ups."""
     # --8<-- [start:warmups]
@@ -342,7 +303,6 @@ def recommended(result) -> list:
 
 
 if __name__ == "__main__":
-    check()
     for warmup, result in warmups().items():
         for row in result.summary:
             print(

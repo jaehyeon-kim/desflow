@@ -58,6 +58,16 @@ def test_skill_names_every_section_distribution_and_connector():
         assert f"| `{name}` |" in connectors
 
 
+def test_skill_names_every_avro_serializer():
+    """The skill's Avro table is hand-kept, so a new serializer class fails here."""
+    import desflow.connectors.egress.kafka as kafka
+
+    text = (SKILL / "references" / "connectors.md").read_text(encoding="utf-8")
+    for name in dir(kafka):
+        if name.endswith("AvroSerializer"):
+            assert f"`desflow.connectors.egress.kafka.{name}`" in text, name
+
+
 def test_skill_frontmatter():
     text = (SKILL / "SKILL.md").read_text(encoding="utf-8")
     meta = _frontmatter(text)

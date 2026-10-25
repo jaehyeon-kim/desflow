@@ -169,14 +169,14 @@ nav:
   - Installation: getting-started.md
   - Learn:
       - What Is DES?: des/how-it-works.md
+      - Queueing Basics: des/queueing-basics.md
       - A Simulation Study: des/a-simulation-study.md
       - Checking and Validating: des/checking-and-validating.md
-      - Queueing Basics: des/queueing-basics.md
       - Output Analysis: des/output-analysis.md
+      - Readiness and Reporting: des/readiness-and-reporting.md
+      - Common Mistakes: des/common-mistakes.md
       - SimPy and desflow: des/simpy-and-desflow.md
       - Coming from SimPy: des/coming-from-simpy.md
-      - Common Mistakes: des/common-mistakes.md
-      - Readiness and Reporting: des/readiness-and-reporting.md
       # The shop tutorial in the order of a study: build a first model, choose its
       # inputs, add the shop's logic, then analyse the results.
       - "Tutorial: the Shop":
@@ -188,7 +188,7 @@ nav:
               - End Conditions: tutorials/end-conditions.md
           - Inputs:
               - Choosing Inputs: tutorials/choosing-inputs.md
-              - Fit the Inputs: tutorials/fit-the-inputs.md
+              - Fitting the Inputs: tutorials/fit-the-inputs.md
               - Changing Demand: tutorials/changing-demand.md
               - Local Replay: tutorials/local-replay.md
           - Shop Logic:
@@ -200,7 +200,7 @@ nav:
               - Interruptions: tutorials/interruptions.md
               - Competing Resources: tutorials/competing-resources.md
               - Filtered Inventory: tutorials/filtered-inventory.md
-          - Results:
+          - Studies:
               - Trusting Results: tutorials/trusting-results.md
               - Comparing Designs: tutorials/comparing-designs.md
               - Parameter Sweeps: tutorials/parameter-sweeps.md
@@ -210,63 +210,69 @@ nav:
               - Live Changes: tutorials/live-changes.md
               - Streaming Out: tutorials/streaming-out.md
   - User Guide:
-      - Ways to Write: user-guide/ways-to-write.md
-      - YAML Blueprints: user-guide/blueprints.md
-      - Builder API: user-guide/builder-api.md
-      - Low-level API: user-guide/low-level-api.md
-      - Building Blocks: user-guide/building-blocks.md
-      - Arrivals and Services: user-guide/arrivals-and-services.md
-      - Tasks and Processes:
-          - user-guide/tasks-and-processes/index.md
-          - Processes: user-guide/tasks-and-processes/processes.md
-          - Signals and Waiting: user-guide/tasks-and-processes/signals-and-waiting.md
-          - Failures: user-guide/tasks-and-processes/failures.md
-      - Resources:
-          - user-guide/resources/index.md
-          - Priority and Preemption: user-guide/resources/priority-and-preemption.md
-          - Several Resources: user-guide/resources/several-resources.md
-          - Custom Resource Types: user-guide/resources/custom-resource-types.md
-      - Stores and Containers: user-guide/stores-and-containers.md
-      - Task Flow: user-guide/task-flow.md
-      - Statistics: user-guide/statistics.md
-      - Replications: user-guide/replications.md
-      - Experiments:
-          - user-guide/experiments/index.md
-          - Experiment Results: user-guide/experiments/experiment-results.md
-      - Input Fitting: user-guide/input-fitting.md
-      - Live Parameters: user-guide/live-parameters.md
-      - Time and Pacing:
-          - user-guide/time-and-pacing/index.md
-          - Clocks and Pacing: user-guide/time-and-pacing/clocks-and-pacing.md
-          - Run Length: user-guide/time-and-pacing/run-length.md
-      - Ingress: user-guide/ingress.md
-      - Egress: user-guide/egress.md
+      - user-guide/index.md
+      - Writing a Model:
+          - Ways to Write: user-guide/ways-to-write.md
+          - YAML Blueprints: user-guide/blueprints.md
+          - Builder API: user-guide/builder-api.md
+          - Low-level API: user-guide/low-level-api.md
+      - Model Parts:
+          - user-guide/building-blocks.md
+          - Arrivals and Services: user-guide/arrivals-and-services.md
+          - Input Fitting: user-guide/input-fitting.md
+          - Tasks and Processes:
+              - user-guide/tasks-and-processes/index.md
+              - Processes: user-guide/tasks-and-processes/processes.md
+              - Signals and Waiting: user-guide/tasks-and-processes/signals-and-waiting.md
+              - Failures: user-guide/tasks-and-processes/failures.md
+          - Resources:
+              - user-guide/resources/index.md
+              - Priority and Preemption: user-guide/resources/priority-and-preemption.md
+              - Several Resources: user-guide/resources/several-resources.md
+              - Custom Resource Types: user-guide/resources/custom-resource-types.md
+          - Stores and Containers: user-guide/stores-and-containers.md
+          - Task Flow: user-guide/task-flow.md
+          - Time and Pacing:
+              - user-guide/time-and-pacing/index.md
+              - Clocks and Pacing: user-guide/time-and-pacing/clocks-and-pacing.md
+              - Run Length: user-guide/time-and-pacing/run-length.md
+      - Results:
+          - Built-in Statistics: user-guide/statistics.md
+          - Replications: user-guide/replications.md
+          - Experiments:
+              - user-guide/experiments/index.md
+              - Experiment Results: user-guide/experiments/experiment-results.md
+      - Live Runs and Connectors:
+          - Live Parameters: user-guide/live-parameters.md
+          - Ingress: user-guide/ingress.md
+          - Egress: user-guide/egress.md
+      - Command Line: user-guide/command-line.md
   - How-To:
-      # Three groups: tasks in a model, tasks with the records and Kafka, and the
-      # tools around a model.
+      - guides/index.md
       - Modelling:
-          - Share by Weight: guides/share-by-weight.md
-          - Multi-Resource Handoffs: guides/multi-resource-handoffs.md
-          - Breakdowns: guides/breakdowns.md
-          - Reneging and Balking: guides/reneging-and-balking.md
+          - Vary Arrivals by Time: guides/time-varying-arrivals.md
+          - Add Reneging and Balking: guides/reneging-and-balking.md
           - Wait for One or All: guides/wait-for-one-or-all.md
-          - Time-varying Arrivals: guides/time-varying-arrivals.md
-          - Dynamic Topology: guides/dynamic-topology.md
-      - Data and Kafka:
-          - Complex Routing: guides/complex-routing.md
-          - Avro and Pydantic: guides/avro-and-pydantic.md
-          - Secure Kafka: guides/kafka-security.md
-          - Analyse the Event Log: guides/analyse-the-event-log.md
-          - Animate a Run: guides/animate-a-run.md
-          - Performance Tuning: guides/performance-tuning.md
-      - Tools and Workflow:
-          - Python in a Blueprint: guides/yaml-advanced.md
-          - Set Up Your Editor: guides/set-up-your-editor.md
-          - Use an AI Assistant: guides/use-an-ai-assistant.md
-          - Test a Model: guides/test-a-model.md
+          - Hand Off to a Resource: guides/multi-resource-handoffs.md
+          - Share Work by Weight: guides/share-by-weight.md
+          - Model Breakdowns: guides/breakdowns.md
+          - Add Resources Mid-run: guides/dynamic-topology.md
+      - Records and Kafka:
+          - Route Records to Topics: guides/complex-routing.md
+          - Use Avro and Pydantic: guides/avro-and-pydantic.md
+          - Connect to Secure Kafka: guides/kafka-security.md
+      - Analysis:
           - Fit a Distribution: guides/fit-a-distribution.md
           - Check Against Theory: guides/check-against-theory.md
-  - Examples:
+          - Test a Model: guides/test-a-model.md
+          - Analyse the Event Log: guides/analyse-the-event-log.md
+          - Animate a Run: guides/animate-a-run.md
+      - Tools:
+          - Call Python from YAML: guides/yaml-advanced.md
+          - Set Up Your Editor: guides/set-up-your-editor.md
+          - Use an AI Assistant: guides/use-an-ai-assistant.md
+          - Tune Performance: guides/performance-tuning.md
+  - Example Projects:
       - Overview: examples/index.md
       - Local Simulation: examples/local.md
       - Kafka Digital Twin: examples/kafka.md
@@ -278,26 +284,25 @@ nav:
       - Parquet History, Kafka Live: examples/backfill-live.md
       - Related Records: examples/advanced-postgres-orders.md
   - Reference:
-      - API Reference: api.md
+      - Cheat Sheet: reference/cheat-sheet.md
       - YAML Format: reference/yaml-format.md
       - YAML Keys: reference/yaml-keys.md
-      - Records and Telemetry: reference/records-and-telemetry.md
-      - Distributions: reference/distributions.md
-      - Statistics: reference/statistics.md
-      - SimPy Compatibility: reference/simpy-compatibility.md
-      - Cheat Sheet: reference/cheat-sheet.md
-      # Generated from the Typer app by scripts/gen_pages.py, one page per command
+      - API Reference: api.md
       - CLI:
           - reference/cli/index.md
           - desflow run: reference/cli/run.md
+          - desflow explain: reference/cli/explain.md
           - desflow experiment: reference/cli/experiment.md
           - desflow report: reference/cli/report.md
           - desflow fit: reference/cli/fit.md
-          - desflow schema: reference/cli/schema.md
           - desflow dist: reference/cli/dist.md
-          - desflow explain: reference/cli/explain.md
+          - desflow schema: reference/cli/schema.md
           - desflow examples: reference/cli/examples.md
           - desflow examples get: reference/cli/examples-get.md
+      - Distributions: reference/distributions.md
+      - Statistic Names: reference/statistics.md
+      - Records and Telemetry: reference/records-and-telemetry.md
+      - SimPy Compatibility: reference/simpy-compatibility.md
   - About:
       - Why desflow: about/why-desflow.md
       - Roadmap: about/roadmap.md

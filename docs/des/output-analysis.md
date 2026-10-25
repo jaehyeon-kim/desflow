@@ -2,7 +2,7 @@
 
 A simulation run gives numbers, and a number from one run is a sample, not the answer. Output analysis is the work of turning runs into an answer with a stated precision. This page explains the ideas, and the tutorials and User Guide pages named below apply them to the packing shop and show the commands.
 
-It follows the treatment of output analysis for a single model in Banks, Carson, Nelson and Nicol, *Discrete-Event System Simulation*, chapter 11, and the output-analysis pitfalls in Law, "Twenty-Three Critical Pitfalls in Simulation Modeling and How to Avoid Them" (Winter Simulation Conference, 2024). We read the chapter through [lecture notes on it](https://courses.grainger.illinois.edu/ece541/fa2016/OutputAnalysis.pdf) and the paper through [its published text](https://informs-sim.org/wsc24papers/inv198.pdf). The explanations are our own.
+It follows two sources: chapter 11 of Banks, Carson, Nelson and Nicol, *Discrete-Event System Simulation*, on output analysis for a single model, and the output-analysis pitfalls in Law, "Twenty-Three Critical Pitfalls in Simulation Modeling and How to Avoid Them" (Winter Simulation Conference, 2024). We read the chapter through [lecture notes on it](https://courses.grainger.illinois.edu/ece541/fa2016/OutputAnalysis.pdf) and the paper through [its published text](https://informs-sim.org/wsc24papers/inv198.pdf). The explanations are our own.
 
 ---
 
@@ -41,7 +41,7 @@ The waits of orders in one run follow each other: after a busy period, many orde
 
 ![Four runs, each with its own stream, combine into one mean wait with a 95% interval](../assets/diagrams/replication-interval.png)
 
-In the busy hour of the shop, with the empirical packing times and a 2-minute warm-up, 40 replications give a mean wait of 2.32 ± 0.20 seconds: the mean of the 40 values, with the half-width of its 95% interval. The [one run with the seed 42](common-mistakes.md#busy-hour-figures) measured 1.38 seconds, lower than any of the 40. One run would have given a confident and wrong answer. [Trusting Results](../tutorials/trusting-results.md) shows these runs, [Replications](../user-guide/replications.md) describes the commands and the seeds. The seeds are spawned from one seed, so the set repeats exactly. [Randomness and Seeds](../tutorials/randomness-and-seeds.md) explains the streams.
+In the busy hour of the shop, with the empirical packing times and a 2-minute warm-up, 40 replications give a mean wait of 2.32 ± 0.20 seconds: the mean of the 40 values, with the half-width of its 95% interval. The [one run with the seed 42](common-mistakes.md#busy-hour-figures) measured 1.38 seconds, lower than any of the 40. One run would have given a confident and wrong answer. [Trusting Results](../tutorials/trusting-results.md) shows these runs, and [Replications](../user-guide/replications.md) describes the commands and the seeds. The seeds are spawned from one seed, so the set repeats exactly. [Randomness and Seeds](../tutorials/randomness-and-seeds.md) explains the streams.
 
 ---
 
@@ -63,7 +63,7 @@ A longer run is the other way to gain precision, and it has limits of its own. I
 
 A mean is over some orders, and the page that reports it should say which. At a fixed horizon, some orders have started and not finished, and the mean wait covers those that started. With a drain, every order admitted finishes, at the cost of running past the hour. In [End Conditions](../tutorials/end-conditions.md) the fixed horizon ends at 3,600 seconds with 2,436 orders started, 2,398 finished and 38 in the shop, and the drain ends at 3,656.4 seconds with all 2,436 finished.
 
-The warm-up adds a third group, orders that were in the shop when the warm-up ended. An order that started before the warm-up ended and finished after it is counted as finished and in the wait and service times, with its whole wait, but not as started. [Statistics](../user-guide/statistics.md) has the table of which orders each count covers. Report the counts beside the means.
+The warm-up adds a third group, orders that were in the shop when the warm-up ended. Take an order that started before the warm-up ended and finished after it. It counts as finished, and its whole wait counts in the wait and service times. It does not count as started. [Statistics](../user-guide/statistics.md) has the table of which orders each count covers. Report the counts beside the means.
 
 ---
 

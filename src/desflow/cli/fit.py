@@ -6,13 +6,23 @@ from typing import Annotated, Optional
 import typer
 
 
+# The examples --help prints after the options, as odctl's help does
+_EPILOG = """
+[bold underline]Examples:[/bold underline]\n
+  [dim]# Fit measured packing times, in seconds[/dim]\n
+  $ [bold cyan]desflow fit times.csv --column packing_seconds[/bold cyan]\n\n
+  [dim]# Write the best fit's settings for a blueprint to load[/dim]\n
+  $ [bold cyan]desflow fit times.csv --column packing_seconds --lower 0 --out packing.yaml[/bold cyan]
+"""
+
+
 def register(app: typer.Typer) -> None:
     """Adds the `fit` command to the app.
 
     Args:
         app: The `desflow` Typer app.
     """
-    app.command("fit")(_fit)
+    app.command("fit", rich_help_panel="Inputs", epilog=_EPILOG)(_fit)
 
 
 def _fit(

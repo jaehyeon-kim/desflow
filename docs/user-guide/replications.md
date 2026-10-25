@@ -72,7 +72,7 @@ Give the model, the number of replications, the seed they are spawned from and t
 
 ### Choose the Measures
 
-A measure is a statistic's published name without the sim id and `stats`, such as `tasks.pack.wait_mean` for `Shop.stats.tasks.pack.wait_mean`; [Reference, Statistics](../reference/statistics.md) lists them. Each replication keeps the statistics level its measures need, whatever level the model sets: `basic` for counts and time averages, `typical` for means and maxima of waits and services, and `all` for percentiles. A higher level the model sets stays.
+A measure is a statistic's published name without the sim id and `stats`, such as `tasks.pack.wait_mean` for `Shop.stats.tasks.pack.wait_mean`. [Reference, Statistics](../reference/statistics.md) lists them. Each replication keeps the statistics level its measures need, whatever level the model sets: `basic` for counts and time averages, `typical` for means and maxima of waits and services, and `all` for percentiles. A higher level the model sets stays.
 
 A name that no replication publishes is refused, with the names the model does publish. A count that is published only once it is above 0, such as `reneged`, is 0 in a replication without one. A mean with no observation in a replication, such as the wait of a task that never started, is refused with the replication's number rather than left out.
 
@@ -99,7 +99,7 @@ tasks.pack.wait_mean                  3          4.16                2.22
 resources.packers.utilization_avg     3         78.51               4.363
 ```
 
-Three replications give a wide interval; [Trusting Results](../tutorials/trusting-results.md#choose-the-precision) shows how to choose enough.
+Three replications give a wide interval. [Trusting Results](../tutorials/trusting-results.md#choose-the-precision) shows how to choose enough.
 
 ### Repeat One Replication
 
@@ -137,7 +137,7 @@ When the model has sinks, a blueprint's `egress` or a builder's `add_egress`, th
 
 **Intervals.** The half-width is t × s ÷ √n. Here s is the sample standard deviation of the n values, and t is the Student t quantile at (1 + level) ÷ 2 with n − 1 degrees of freedom. desflow computes the quantile itself, by bisection on the t distribution's cumulative probability, so replications need nothing beyond a base install. The tests check it against a published table.
 
-**Workers.** With `workers` above 1, replications run in a pool of that many processes. Each process imports the model, so it must be a blueprint path or a function defined at the top of a module; a lambda, or a function defined inside another function, is refused with that reason. The values are the same as with one worker.
+**Workers.** With `workers` above 1, replications run in a pool of that many processes. Each process imports the model. The model must therefore be a blueprint path or a function defined at the top of a module. A lambda, or a function defined inside another function, is refused with that reason. The values are the same as with one worker.
 
 **Sinks.** When the model has sinks, it is built once more after the last replication, with its sinks, without its ingress, and with the clock at the end time. This build is not run. Its own statistics are switched off, so the sinks receive only the result. A model without sinks is not built again.
 
@@ -147,7 +147,7 @@ When the model has sinks, a blueprint's `egress` or a builder's `add_egress`, th
 
 - **No event records.** Replications send no event records: the orders of twenty replications, each with its own seed, would mix in one sink and could not be told apart. Repeat one replication with its seed to get its records.
 - **Independent seeds only.** Every replication of one call has its own seed. Comparing two designs with the same seeds, and checking that their random streams line up, is an experiment's job ([Experiments](experiments/index.md)).
-- **Same model each time.** A builder factory must return a new context on every call; a context that has run keeps its entity counters and is not a new replication.
+- **Same model each time.** A builder factory must return a new context on every call. A context that has run keeps its entity counters and is not a new replication.
 - **Built-in statistics only.** A replication summarises the built-in statistics at its end. Readings of your own, published with `context.publish`, are not summarised.
 - **Steady state and terminating runs.** The warm-up applies to each replication. A run with a natural start and end, such as a shop day, keeps its empty start and needs no warm-up. [Output Analysis](../des/output-analysis.md#terminating-or-steady-state) explains the two kinds of run.
 
@@ -173,7 +173,10 @@ The `replications` example runs one hour of the shop 20 times, with seeds spawne
         desflow examples get replications --api yaml
         cd replications/yaml
 
-        # 3. Run it
+        # 3. Find the bottleneck, with no run
+        desflow explain replications.yaml
+
+        # 4. Run it
         desflow run replications.yaml --replications 20
         ```
 
@@ -187,7 +190,10 @@ The `replications` example runs one hour of the shop 20 times, with seeds spawne
         desflow examples get replications --api yaml
         cd replications/yaml
 
-        # 3. Run it
+        # 3. Find the bottleneck, with no run
+        desflow explain replications.yaml
+
+        # 4. Run it
         desflow run replications.yaml --replications 20
         ```
 

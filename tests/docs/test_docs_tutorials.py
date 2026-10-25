@@ -1290,29 +1290,6 @@ def test_complete_model_explain_is_the_same_in_yaml_and_builder(monkeypatch):
     assert "Bottleneck: packers" in yaml_run.stdout
 
 
-def test_complete_model_low_level_check_by_hand(capsys):
-    """The picker's utilisation and wait, and the packers' utilisation, worked by
-    hand, each inside the interval of 10 runs."""
-    pytest.importorskip("scipy")
-    module = _load("complete_model_low_level")
-    formulas = {k: round(v, 4) for k, v in module.by_hand().items()}
-    assert formulas == {
-        "resources.pickers.utilization_avg": 66.924,
-        "tasks.pick_order.wait_mean": 0.5611,
-        "resources.packers.utilization_avg": 88.0099,
-    }
-    runs = {
-        r["measure"]: (round(r["mean"], 4), round(r["half_width"], 4))
-        for r in module.check().summary
-    }
-    assert runs == {
-        "resources.pickers.utilization_avg": (67.2645, 0.6723),
-        "tasks.pick_order.wait_mean": (0.5691, 0.0348),
-        "resources.packers.utilization_avg": (88.1647, 0.9924),
-    }
-    assert capsys.readouterr().out.count("agrees") == 3
-
-
 COMPLETE_WARMUPS = {
     0: {"pick": (0.562, 0.014), "pack": (1.903, 0.163)},
     120: {"pick": (0.562, 0.015), "pack": (1.916, 0.165)},

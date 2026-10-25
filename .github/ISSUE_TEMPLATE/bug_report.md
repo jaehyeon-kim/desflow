@@ -14,7 +14,7 @@ A clear and concise description of what the bug is.
 
 Steps to reproduce the behavior:
 
-1. What connectors were you using? (e.g., Kafka Ingress, Local Egress)
+1. What connectors were you using? (for example, Kafka ingress, Console egress)
 2. Run this Python script / CLI command '...'
 3. See error
 
@@ -33,10 +33,10 @@ If applicable, paste the full Python traceback or terminal output here:
 
 **Environment (please complete the following information):**
 
-- OS: [e.g. Ubuntu 22.04, macOS Sonoma, Windows 11]
-- Python Version: [e.g. 3.12]
-- `desflow` Version: [e.g. 0.1.0]
-- Extra dependencies installed: [e.g. `[kafka,redis]`, `[all]`, or none]
+- OS: [for example, Ubuntu 22.04, macOS Sonoma, Windows 11]
+- Python Version: [for example, 3.12]
+- `desflow` Version: [what `desflow --version` prints]
+- Extra dependencies installed: [for example, `[kafka,redis]`, `[all]`, or none]
 
 ## **Additional context**
 

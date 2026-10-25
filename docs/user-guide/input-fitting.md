@@ -6,7 +6,7 @@ A model's distributions should come from data where data exists. Input fitting t
 
 ## What It Is
 
-`desflow fit` and `fit_column` fit the families of [Arrivals and Services](arrivals-and-services.md) to service durations or to the gaps between arrivals, by maximum likelihood with scipy. Maximum likelihood chooses the parameters under which the measured values are most probable. Each family's fit becomes one row of a table, with its parameters in seconds and its diagnostics, and the best is marked. [Fit the Inputs](../tutorials/fit-the-inputs.md) fits the shop's 40 packing times and shows why the best by the numbers still needs checking against the model's answer. [Fit a Distribution](../guides/fit-a-distribution.md) fits the gaps of an order log.
+`desflow fit` and `fit_column` fit the families of [Arrivals and Services](arrivals-and-services.md) to service durations or to the gaps between arrivals, by maximum likelihood with scipy. Maximum likelihood chooses the parameters under which the measured values are most probable. Each family's fit becomes one row of a table, with its parameters in seconds and its diagnostics, and the best is marked. [Fitting the Inputs](../tutorials/fit-the-inputs.md) fits the shop's 40 packing times and shows why the best by the numbers still needs checking against the model's answer. [Fit a Distribution](../guides/fit-a-distribution.md) fits the gaps of an order log.
 
 Fitting needs the `fit` extra, which installs scipy and matplotlib: `pip install "desflow[fit]"`. A base install runs without the extra: desflow imports scipy and matplotlib only when a fit runs.
 
@@ -70,7 +70,7 @@ A value is invalid when it is not a number, is not finite, or lies outside `--lo
 
 `fit_column` returns a `FitResult`:
 
-- **`table`:** one row per candidate, with `family`, `status`, `reason`, `parameters`, `log_likelihood`, `aic`, `ks_statistic`, `ks_p_value`, `bounds` and `best`. `aic` is Akaike's information criterion, which scores how well a family fits, with a penalty for each parameter. A lower AIC is better.
+- **`table`:** one row per candidate, with `family`, `status`, `reason`, `parameters`, `log_likelihood`, `aic`, `ks_statistic`, `ks_p_value`, `bounds` and `best`. `aic` is the [AIC](../des/a-simulation-study.md#aic-and-the-ks-test), where lower is better.
 - **`best`:** the best candidate's family.
 - **`settings(kind=None)`:** the settings of the best, or of the family `kind`, for `add_service(name, **settings)`. A family that is not usable is refused, and the error names those that are.
 - **`text()`:** the table as the command prints it.
@@ -83,7 +83,7 @@ The settings have six significant digits, the same numbers the YAML file holds, 
 
 The best is the fitted family with the lowest [AIC](../des/a-simulation-study.md#aic-and-the-ks-test) among those that cannot draw outside `--lower` and `--upper`. When every value is the same, it is `constant`. When no family within the bounds fitted, it is `empirical`, which never draws outside the data's range. Only when there is no empirical candidate is a fitted family that can draw outside the bounds chosen. A family that is rejected, did not fit or was skipped is never chosen.
 
-An AIC difference below about 2 does not tell two families apart. Check what the choice changes in the model's answer, as [Fit the Inputs](../tutorials/fit-the-inputs.md#does-the-choice-matter) does.
+When two families' AIC are too close to tell them apart, as [AIC and the KS Test](../des/a-simulation-study.md#aic-and-the-ks-test) explains, check what the choice changes in the model's answer, as [Fitting the Inputs](../tutorials/fit-the-inputs.md#does-the-choice-matter) does.
 
 ### Outcomes
 
@@ -153,7 +153,7 @@ Each fit runs on its own, so one that fails is a row, not a crash.
 
 **Checks.** Every fitted result is checked before it can be chosen. Each parameter must be finite and within the family's rules, the same rules a blueprint's distribution is checked against. The family's mean and standard deviation, from desflow's own formulas, must be within `--tolerance` of the data's. A result that fails is `rejected` with the reason. Some bad fits still pass these checks. Fitted to a gamma, the three values 1.0, 1.0000001 and 1.0000002 give a shape of 1.4 × 10¹⁴ and a scale of 7.1 × 10⁻¹⁵, with the right mean and spread. `--min-count` guards against such fits: no family is fitted to fewer values than `--min-count`.
 
-**Diagnostics.** For each fitted family, the table gives the log-likelihood of the data and the AIC. AIC is computed as 2k − 2 × log-likelihood, where k counts the fitted parameters (a fixed location does not count). The table also gives the [Kolmogorov-Smirnov statistic](../des/a-simulation-study.md#aic-and-the-ks-test) and p-value from `scipy.stats.kstest`. The p-value assumes the parameters were known in advance. They were estimated from the same data, so the p-value is approximate and tends to be too high. `empirical` has no AIC.
+**Diagnostics.** For each fitted family, the table gives the log-likelihood of the data and the AIC. The k in the AIC counts only the fitted parameters: a fixed location does not count. The table also gives the [Kolmogorov-Smirnov statistic](../des/a-simulation-study.md#aic-and-the-ks-test) and p-value from `scipy.stats.kstest`. The p-value assumes the parameters were known in advance. They were estimated from the same data, so the p-value is approximate and tends to be too high. `empirical` has no AIC.
 
 **Plot.** The generated values are drawn through desflow's `Sampler`, seeded, with the same smallest delay a run applies, so the plot shows what a run draws and repeats exactly.
 

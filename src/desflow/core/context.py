@@ -71,6 +71,26 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _within_max(
+    kind: str,
+    name: str,
+    current_cap: Optional[Union[int, float]],
+    max_cap: Optional[Union[int, float]],
+) -> Optional[Union[int, float]]:
+    """A `current_cap` clamped to `[0, max_cap]`, with a warning when it changes, as
+    the registry clamps a live update; the run and `analyze()` then use the same
+    capacity."""
+    if current_cap is None or max_cap is None:
+        return current_cap
+    clamped = type(current_cap)(min(max(current_cap, 0), max_cap))
+    if clamped != current_cap:
+        logger.warning(
+            f"current_cap {current_cap} of {kind} '{name}' is outside "
+            f"[0, max_cap {max_cap}]. Using {clamped}."
+        )
+    return clamped
+
+
 class SimulationContext:
     """
     Builder and Orchestrator for Event-Driven Digital Twins.
@@ -582,7 +602,8 @@ class SimulationContext:
             )
         self._resource_preempt[name] = preempt
         self._resources_config[name] = CapacityConfig(
-            current_cap=current_cap, max_cap=max_cap
+            current_cap=_within_max("resource", name, current_cap, max_cap),
+            max_cap=max_cap,
         )
         self._resource_queues[name] = queue
         self._resource_queue_limits[name] = queue_limit
@@ -631,7 +652,9 @@ class SimulationContext:
         check_container_type(type)
         self._container_types[name] = type
         self._containers_config[name] = ContainerConfig(
-            current_cap=current_cap, max_cap=max_cap, level=level
+            current_cap=_within_max("container", name, current_cap, max_cap),
+            max_cap=max_cap,
+            level=level,
         )
         return self
 
@@ -702,7 +725,8 @@ class SimulationContext:
             )
         self._store_items[name] = start
         self._stores_config[name] = CapacityConfig(
-            current_cap=current_cap, max_cap=max_cap
+            current_cap=_within_max("store", name, current_cap, max_cap),
+            max_cap=max_cap,
         )
         self._store_priority[name] = priority
         self._store_types[name] = type

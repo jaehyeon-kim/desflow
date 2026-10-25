@@ -1,4 +1,4 @@
-"""The Pydantic models, topic router and Avro serializers of the Avro and Pydantic page.
+"""The Pydantic models, topic router and Avro serializers of the Use Avro and Pydantic page.
 
 The shop at the end publishes predictions as Avro and every other record as JSON. It
 needs a Kafka broker and a schema registry: start both with `odctl up kafka-lite`, then
@@ -69,7 +69,7 @@ def ml_topic_router(data: dict) -> str:
 
 
 egress = KafkaEgress(
-    bootstrap_servers="localhost:9092",
+    bootstrap_servers="127.0.0.1:9092",
     topic_router=ml_topic_router,
     # Only ml-predictions is Avro; sim-telemetry and sim-events use JSON.
     topic_serializers={"ml-predictions": prediction_serializer},
@@ -118,7 +118,7 @@ generated_serializer = ConfluentAvroSerializer(
 )
 
 egress = KafkaEgress(
-    bootstrap_servers="localhost:9092",
+    bootstrap_servers="127.0.0.1:9092",
     topic_router=ml_topic_router,
     topic_serializers={"ml-predictions": generated_serializer},
 )
@@ -157,7 +157,7 @@ if __name__ == "__main__":
         level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
     )
     # With a router, KafkaEgress creates no topics, so create them first
-    admin = KafkaAdminConnector(bootstrap_servers="localhost:9092")
+    admin = KafkaAdminConnector(bootstrap_servers="127.0.0.1:9092")
     topics = ["sim-events", "sim-telemetry", "ml-predictions"]
     admin.create_topics([{"name": topic} for topic in topics])
     app.run(until="1 min")

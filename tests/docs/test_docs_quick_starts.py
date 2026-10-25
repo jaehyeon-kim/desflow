@@ -2,7 +2,7 @@
 
 `quick_start` builds the Quick Start of one example in one way of writing it, from
 `desflow.blueprint.examples.EXAMPLES`: the files `desflow examples get` downloads, the
-odctl profile, the extras and how the run ends. Every example page, and Getting
+odctl profile, the extras, the blueprint `desflow explain` reads, and how the run ends. Every example page, and Getting
 Started, must show exactly that text in each tab, so the steps, their names and their
 numbers are the same everywhere.
 """
@@ -96,6 +96,13 @@ def quick_start(example: Example, api: str, tabs: bool = True) -> str:
                 f"cd {folder}",
             ]
         ]
+        if example.explain and api == "yaml":
+            rest.append(
+                [
+                    "Find the bottleneck, with no run",
+                    f"desflow explain {example.explain}",
+                ]
+            )
         if example.profile:
             rest.append(["Start its service", f"odctl up {example.profile}"])
         rest.append([run_title, _run(example, api, uv)])

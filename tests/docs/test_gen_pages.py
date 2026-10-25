@@ -9,6 +9,7 @@ left off, or published without a meaning or a page.
 
 import ast
 import importlib.util
+import re
 from pathlib import Path
 
 from desflow.config import STATS_LEVELS
@@ -54,7 +55,7 @@ def test_yaml_keys_page_lists_every_key():
         for key in node.get("properties", {}):
             assert f"| `{key}` |" in page, f"{name}.{key}"
     # one line per paragraph, as the writing rules ask
-    assert "\n\n".join(gen_pages._paragraphs("a\nb\n\nc")) == "a b\n\nc"
+    assert "\n\n".join(gen_pages.paragraphs("a\nb\n\nc")) == "a b\n\nc"
 
 
 def test_every_command_has_a_cli_page_and_every_page_names_a_command():
@@ -83,6 +84,10 @@ def test_every_command_has_a_cli_page_and_every_page_names_a_command():
     index = pages["reference/cli/index.md"]
     for command in commands - {"desflow"}:
         assert f"[`{command}`]" in index
+    # Every CLI page links the section of the Command Line page that uses it
+    # The strict build checks each anchor, so only the link is checked here
+    for path, page in pages.items():
+        assert re.search(r"user-guide/command-line\.md(?:#[a-z-]+)?\)", page), path
 
 
 ROOT = _SCRIPT.parents[1]

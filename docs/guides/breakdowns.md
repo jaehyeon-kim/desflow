@@ -1,4 +1,4 @@
-# Breakdowns
+# Model Breakdowns
 
 Make a resource fail at random and be repaired, decide what happens to the work it was doing, and check how long it was down. It builds on [Interruptions](../tutorials/interruptions.md), which explains `on_interrupt`, and on [Priority and Preemption](../user-guide/resources/priority-and-preemption.md#breakdowns), which describes the down state.
 
@@ -7,7 +7,7 @@ Make a resource fail at random and be repaired, decide what happens to the work 
 ## Steps
 
 1. Give the resource a `breakdown` with two distributions: `time_to_failure`, the time from the start or from a repair to the next failure, and `repair`, how long a repair takes.
-2. Choose `work`: `interrupt`, the default, stops the tasks being served when the resource fails; `finish` lets them finish and stops only new work.
+2. Choose `work`: `interrupt`, the default, stops the tasks being served when the resource fails. `finish` lets them finish and stops only new work.
 3. With `interrupt`, give the task an `on_interrupt`: `resume` packs what was left after the repair, `restart` packs again from the start, and `abandon` ends the order.
 
 Here a packing station of two units fails about once a minute on average (`rate: 0.0167`) and takes 5 to 15 seconds to repair:
@@ -72,9 +72,9 @@ Here a packing station of two units fails about once a minute on average (`rate:
 
     An interrupted order catches `simpy.Interrupt`, whose cause is `"breakdown"`, gives back its request and asks again, as the full file shows.
 
-The failure clock runs on calendar time: the next failure is drawn at the start and after each repair, whether the station is busy or idle. While the station is down its capacity is 0, so no order starts. All its units fail together. Its `current_cap` keeps the planned value: a scenario step or an ingress message that changes it during the repair sets the capacity the station returns to, and does not end the repair. The station publishes an event keyed by its name at each failure, `{"status": "down", "reason": "failure"}`, and at each repair, `{"status": "repaired", "reason": "failure"}`. The two distributions are registry paths, `Shop.breakdown.station.time_to_failure` and `.repair`, so a live change can make failures more or less frequent.
+The failure clock runs on calendar time: the next failure is drawn at the start and after each repair, whether the station is busy or idle. While the station is down its capacity is 0, so no order starts. All its units fail together. Its `current_cap` keeps the planned value. A scenario step or an ingress message that changes it during the repair sets the capacity the station returns to. It does not end the repair. The station publishes an event keyed by its name at each failure, `{"status": "down", "reason": "failure"}`, and at each repair, `{"status": "repaired", "reason": "failure"}`. The two distributions are registry paths, `Shop.breakdown.station.time_to_failure` and `.repair`, so a live change can make failures more or less frequent.
 
-A breakdown that lets work finish and then holds the resource for a fixed time each day is a capacity schedule. [Time-varying Arrivals](time-varying-arrivals.md) writes it as scenario steps.
+A breakdown that lets work finish and then holds the resource for a fixed time each day is a capacity schedule. [Vary Arrivals by Time](time-varying-arrivals.md) writes it as scenario steps.
 
 ---
 

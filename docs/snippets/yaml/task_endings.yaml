@@ -1,0 +1,93 @@
+# How a run and its tasks end: an environment of your own, a failure nobody handles,
+# an interrupted order that goes to another task, a signal fired first at its time,
+# and the actions a task runs when it ends. The User Guide pages that describe each
+# show its part.
+# Run it with: desflow run task_endings.yaml
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+  # --8<-- [start:environment]
+  # Run on a subclass of DynamicRealtimeEnvironment, from endings_logic.py beside the file
+  environment: !python endings_logic.CountingEnvironment
+  # --8<-- [end:environment]
+
+resources:
+  packers: {current_cap: 1, max_cap: 1, queue: priority, preempt: true}
+
+services:
+  checking: {dist: constant, value: 1 s}
+  packing: {dist: constant, value: 4 s}
+
+arrivals:
+  orders: {dist: constant, value: 3 s, spawn: check}
+  rush: {dist: constant, value: 10 s, spawn: rush_pack}
+  closer: {dist: constant, value: 50 s, spawn: close}
+
+signals:
+  # --8<-- [start:urgent]
+  closing:
+    once: true
+    on:
+      # Tell the couriers before anything else that happens at closing time
+      - fire: {signal: last_call, urgent: true}
+  last_call: {once: true}
+  # --8<-- [end:urgent]
+  reminder: {once: true}
+
+tasks:
+  check:
+    service: checking
+    # An order checked after 30 seconds fails, and no on_fail handles it
+    fail: t > 30
+    fail_reason: after the cut-off
+    payload: {event_type: checked}
+    next: pack
+  pack:
+    service: packing
+    resource: packers
+    priority: 1
+    # --8<-- [start:interrupt-next]
+    # An order that loses its packer to a rush order is packed by hand instead
+    on_interrupt: abandon
+    on_interrupt_next: pack_by_hand
+    # --8<-- [end:interrupt-next]
+    payload: {event_type: packed}
+  pack_by_hand:
+    service: packing
+    payload: {event_type: packed_by_hand}
+  rush_pack:
+    service: packing
+    resource: packers
+    priority: 0
+    payload: {event_type: rush_packed}
+  close:
+    signal: closing
+    # --8<-- [start:task-actions]
+    # When the shop closes: stop each order still being checked, and start a sweep
+    # 2 seconds later
+    interrupt: {task: check, where: "process.target == 'service'", cause: closing}
+    spawn: {task: sweep, after: 2 s}
+    # --8<-- [end:task-actions]
+    # --8<-- [start:on-actions]
+    # However the task ends: stop the packing by hand, make the orders come every
+    # 6 seconds, and remind the couriers 5 seconds later
+    on:
+      - interrupt: {task: pack_by_hand, cause: closing}
+      - {path: Shop.arrival.orders.value, value: 6}
+      - fire: {signal: reminder, value: last parcels, after: 5 s}
+    # --8<-- [end:on-actions]
+    payload: {event_type: closed}
+  sweep:
+    payload: {event_type: swept}
+
+egress:
+  - type: Console
+
+run:
+  until: 1 min
+  # --8<-- [start:unhandled]
+  # continue, the default: a failure nobody handles is defused and the run goes on;
+  # stop raises it to the caller of run()
+  on_unhandled_failure: continue
+  # --8<-- [end:unhandled]

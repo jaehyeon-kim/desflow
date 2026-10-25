@@ -38,14 +38,40 @@ The rules for each family's parameters:
 
 - `exponential`: `rate` above 0, in events per second: 0.5 is one every 2 seconds on average, 2.0 is two a second. It is the one parameter that is not a time, so it takes no duration.
 - `normal`: `mean`, and `std` 0 or more (0 when left out). A `std` of 0 gives the mean every time. A draw can be negative, and every time is raised to at least 0.00001 seconds. In a wide normal, these raised draws raise the mean, so use `truncated_normal` instead.
-- `truncated_normal`: `mean`, `std` 0 or more, and `low`, 0 when left out; with `std` 0, `mean` must be at least `low`. A draw below `low` is thrown away and drawn again, so no draws pile up at the limit. The mean is therefore the truncated distribution's own: 1.29 seconds for `mean: 1, std: 1, low: 0`. The higher `low` is above the mean, the fewer plain draws are kept. So when `low` is more than half a standard deviation above the mean, `truncated_normal` draws from an exponential proposal instead (Robert, 1995), which stays exact and fast for any `low`.
-- `lognormal`: `mean` above 0 and `std` 0 or more (0 when left out). Both describe the times you get, not the underlying normal; desflow converts them.
+- `truncated_normal`: `mean`, `std` 0 or more, and `low`, 0 when left out. With `std` 0, `mean` must be at least `low`. A draw below `low` is thrown away and drawn again, so no draws pile up at the limit. The mean is therefore the truncated distribution's own: 1.29 seconds for `mean: 1, std: 1, low: 0`. The higher `low` is above the mean, the fewer plain draws are kept. So when `low` is more than half a standard deviation above the mean, `truncated_normal` draws from an exponential proposal instead (Robert, 1995), which stays exact and fast for any `low`.
+- `lognormal`: `mean` above 0 and `std` 0 or more (0 when left out). Both describe the times you get, not the underlying normal. desflow converts them.
 - `constant`: `value` 0 or more. It uses no random number at all.
 - `uniform`: `low` and `high`, with `low < high`. The mean is halfway between them.
 - `triangular`: `low`, `mode` and `high`, all required, with `low <= mode <= high` and `low < high`. The mean is (low + mode + high) ÷ 3.
 - `gamma`: `shape` and `scale`, both above 0. The mean is shape × scale and the variance shape × scale². From a mean and a standard deviation: shape = (mean ÷ std)² and scale = std² ÷ mean, so a mean of 1.5 seconds with a std of 0.5 is shape 9 and scale 0.1667.
 - `weibull`: `shape` and `scale`, both above 0. The mean is scale × gamma(1 + 1 ÷ shape), where gamma is the gamma function.
 - `empirical`: either `values`, each equally likely unless the optional `weights` give one weight per value; or a histogram of `edges` and `counts`, with one count per bin. A histogram draw picks a bin in proportion to its count, then any time inside the bin, all equally likely. Weights and counts are 0 or more and add up to more than 0, and edges increase. The lists are taken when the model is loaded, so an `empirical` distribution has no registry path and does not change while the run goes on.
+
+`desflow dist` lists the families, and `desflow dist <family>` prints one family's parameters and rules. With `--mean` and `--std` it converts them to the family's parameters, so the gamma above needs no arithmetic:
+
+```bash
+desflow dist gamma --mean 1.5 --std 0.5
+```
+
+<!-- records: arrivals-dist -->
+```text
+parameters: shape 9, scale 0.166667
+YAML: {dist: gamma, shape: 9, scale: 0.166667}
+Python: dist="gamma", shape=9, scale=0.166667
+```
+
+The last two lines are the service in a blueprint and in the builder. [Command Line](command-line.md#convert-parameters) shows the other conversions.
+
+Three of these families in a blueprint: a labelling time of at least 0.2 seconds, a station that fails more often as it wears, a histogram of measured packing times with three bins, and a scanning time of 0.5 seconds four times in five and 2 seconds otherwise:
+
+```yaml title="docs/snippets/yaml/arrivals_services.yaml:families"
+# under services: a hard minimum, a time to failure, a histogram of data, and
+# weighted values
+labelling: {dist: truncated_normal, mean: 1 s, std: 1 s, low: 0.2 s}
+station_failure: {dist: weibull, shape: 1.5, scale: 10 min}
+measured_packing: {dist: empirical, edges: [1 s, 2 s, 3 s, 4 s], counts: [5, 3, 2]}
+scanning: {dist: empirical, values: [0.5 s, 2 s], weights: [4, 1]}
+```
 
 An arrival or a service takes the same form for every family: `dist`, and the parameters in that family's row of the table. An exponential arrival, in the three ways to write it:
 
@@ -68,6 +94,13 @@ An arrival or a service takes the same form for every family: `dist`, and the pa
     ```python title="docs/snippets/pages/arrivals_services.py:low-level-exponential"
     gap = DistributionConfig(dist="exponential", rate=0.5)  # an order every 2 s on average
     ```
+
+An arrival draws its gap from data in the same way. Here a batch arrives 1 second after the last one three times in four, and 5 seconds after it otherwise:
+
+```yaml title="docs/snippets/yaml/arrivals_services.yaml:weighted-arrival"
+# under arrivals: a gap of 1 second three times in four, and 5 seconds otherwise
+batches: {dist: empirical, values: [1 s, 5 s], weights: [3, 1], spawn: pack}
+```
 
 ### Durations
 
@@ -164,7 +197,7 @@ An arrival can take its times from recorded rows instead of a distribution. Each
 
     `read_trace` reads and checks the rows, and returns each with its simulation `time`, row `number` and `fields`.
 
-`unit` is `ms`, `s`, `min` or `h` from the start of the run, or `timestamp` for a date and time read from `logical_start_time`. The rows must be in time order. Rows at equal times arrive at that time, in the order of the file. A row before the start stops the run, and rows at or after `until` never arrive. After the last row, the arrival stops and logs one INFO line. A row without a valid time stops the run, unless `on_invalid` is `skip`, which leaves it out with a warning. A Parquet file needs the `parquet` extra. A replayed arrival has no registry path. [Local Replay](../tutorials/local-replay.md) compares a recorded morning with a model of it.
+`unit` is `ms`, `s`, `min` or `h` from the start of the run, or `timestamp` for a date and time, placed on the run's clock from `logical_start_time`. The rows must be in time order. Rows at equal times arrive at that time, in the order of the file. A row before the start stops the run, and rows at or after `until` never arrive. After the last row, the arrival stops and logs one INFO line. A row without a valid time stops the run, unless `on_invalid` is `skip`, which leaves it out with a warning. A Parquet file needs the `parquet` extra. A replayed arrival has no registry path. [Local Replay](../tutorials/local-replay.md) compares a recorded morning with a model of it.
 
 ---
 
@@ -202,7 +235,7 @@ assert fixed.sample(packing) == 3.0 and fixed.sample(gap) == 2.0
 assert fixed.sample(checking) == 1.5  # shape × scale
 ```
 
-**SimPy and desflow.** SimPy has no distributions: a SimPy model draws its own times, usually with `random.expovariate(0.5)` for a gap of 2 seconds on average, and writes `yield env.timeout(...)` with the result. Nothing checks the parameters, a negative draw makes `timeout` raise, and the parameters are ordinary variables. desflow names each distribution and its parameters once, checks them, keeps them in the registry, and gives each a stream of its own; [SimPy and desflow](../des/simpy-and-desflow.md) compares the two.
+**SimPy and desflow.** SimPy has no distributions: a SimPy model draws its own times, usually with `random.expovariate(0.5)` for a gap of 2 seconds on average, and writes `yield env.timeout(...)` with the result. Nothing checks the parameters, a negative draw makes `timeout` raise, and the parameters are ordinary variables. desflow names each distribution and its parameters once, checks them, keeps them in the registry, and gives each a stream of its own. [SimPy and desflow](../des/simpy-and-desflow.md) compares the two.
 
 ---
 
@@ -227,7 +260,7 @@ assert registry.get(packing_path).value == 0.5  # the old value stays
 Invalid value for 'Shop.service.packing.std': normal std must be 0 or more, got -1.0. Update ignored.
 ```
 
-- The family is fixed when the model is built. There is no path that turns a `normal` into an `exponential`, and an update to a parameter the family does not have, such as `.rate` on a normal, is refused as an unknown path, with a warning.
+- The family is fixed when the model is built. There is no path that turns a `normal` into an `exponential`. An update to a parameter the family does not have, such as `.rate` on a normal, is refused as an unknown path, with a warning.
 - An `empirical` distribution has no paths: its lists are taken at load.
 
 ---

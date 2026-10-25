@@ -35,14 +35,29 @@ def release_tag() -> str:
 
 
 def to_release(html: str, tag: str) -> str:
-    """`html` with every link to a file on `main` pointed at `tag`."""
+    """`html` with every link to a file on `main` pointed at `tag`.
+
+    Args:
+        html: A page's HTML.
+        tag: The release tag, such as `v0.25.0`.
+
+    Returns:
+        str: The HTML with the links changed.
+    """
     for prefix in _PREFIXES:
         html = html.replace(prefix + "main/", f"{prefix}{tag}/")
     return html
 
 
 def on_config(config):
-    # Read on every build, so `mkdocs serve` follows a version bump
+    """Reads the release tag on every build, so `mkdocs serve` follows a version bump.
+
+    Args:
+        config: The MkDocs config.
+
+    Returns:
+        The config, unchanged.
+    """
     global _tag
     _tag = release_tag()
     return config
@@ -50,4 +65,15 @@ def on_config(config):
 
 @event_priority(50)
 def on_page_content(html, page, config, files):
+    """Points the page's links to files on `main` at the release tag.
+
+    Args:
+        html: The page's HTML.
+        page: The page.
+        config: The MkDocs config.
+        files: The site's files.
+
+    Returns:
+        str: The HTML with the links changed.
+    """
     return to_release(html, _tag)

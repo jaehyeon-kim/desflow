@@ -1,6 +1,6 @@
 # Competing resources: tasks that hold several resources, and a handoff, in YAML.
 #
-# The YAML version of examples/builder/competing_resources_example.py. A picker collects an
+# The YAML version of competing_resources_example.py, which --api builder downloads. A picker collects an
 # order and carries it to a packing bench; the order keeps the picker until it is
 # on the bench, then the picker is free for the next order. A gift needs the picker
 # and the bench together for its wrapping, acquired in that order, the same order

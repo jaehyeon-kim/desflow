@@ -22,7 +22,7 @@ class RedisEgress(BaseEgress):
     by reading the `__stream__` key from the data payloads.
 
     Attributes:
-        url (str): The connection URL for the Redis server (e.g., redis://localhost:6379/0).
+        url (str): The connection URL for the Redis server (e.g., redis://127.0.0.1:6379/0).
         stream_name (str): The default target Redis Stream name.
         client (redis.Redis | None): The underlying redis-py asynchronous client instance.
         **kwargs: Additional configuration dictionary passed to `redis.from_url`.
@@ -33,7 +33,7 @@ class RedisEgress(BaseEgress):
         Initializes the RedisEgress with topic and connection settings.
 
         Args:
-            url: Redis connection URL (e.g., redis://localhost:6379/0).
+            url: Redis connection URL (e.g., redis://127.0.0.1:6379/0).
             stream_name: Target Redis Stream name.
             **kwargs: Additional arguments for `redis.from_url`.
         """

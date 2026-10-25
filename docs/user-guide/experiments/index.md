@@ -25,7 +25,7 @@ An experiment names its model, how long and how often to run it, what to measure
 ```yaml title="examples/yaml/experiment.yaml"
 # An experiment in YAML: does a third packer keep the mean wait under 2 seconds?
 #
-# The YAML version of examples/builder/experiment_example.py. The model is
+# The YAML version of experiment_example.py, which --api builder downloads. The model is
 # experiment_shop.yaml. The experiment runs one hour of it 20 times with two packers
 # and 20 times with three, with the same seeds, after a 3-minute warm-up. It
 # compares the two designs seed by seed, checks the three-packer design against a
@@ -136,7 +136,7 @@ A key the experiment does not know is refused with its line, as in a blueprint. 
 
 === "Low-level"
 
-    The same call, with `LowLevelModel(model, sim_id="Shop")` as the model, where `model` builds the shop, given an environment and a sampler, as the [example](#example-an-experiment) shows.
+    The same call takes `LowLevelModel(model, sim_id="Shop")` as the model. Here `model` is a function that builds the shop from an environment and a sampler, as the [example](#example-an-experiment) shows.
 
 The result holds every row the files hold:
 
@@ -151,7 +151,7 @@ print(result.output / "report.md")
 
 ### Variants and Sweeps
 
-Each variant sets registry paths before the clock starts, as a live update would. A path the model does not have, or a value the registry refuses or clamps, such as a capacity above `max_cap`, stops the experiment before anything runs, with the line of the variant. Paths are set in the order the variant lists them, so a variant that lowers `max_cap` below the model's `current_cap` sets `current_cap` first. A sweep runs every variant at every combination of its paths' values, so one variant and one swept path with three values give three designs: a one-factor sensitivity experiment. A path is set by a variant or by the sweep, not both. A design's name is its variant followed by its swept values, such as `three Shop.arrival.orders.rate=0.5` (an order every 2 seconds on average).
+Each variant sets registry paths before the clock starts, as a live update would. The experiment stops before anything runs when a variant sets a path the model does not have, or a value the registry refuses or clamps, such as a capacity above `max_cap`. The error names the variant's line. Paths are set in the order the variant lists them, so a variant that lowers `max_cap` below the model's `current_cap` sets `current_cap` first. A sweep runs every variant at every combination of its paths' values, so one variant and one swept path with three values give three designs: a one-factor sensitivity experiment. A path is set by a variant or by the sweep, not both. A design's name is its variant followed by its swept values, such as `three Shop.arrival.orders.rate=0.5` (an order every 2 seconds on average).
 
 ### Pairing and Random Streams
 
@@ -177,7 +177,7 @@ The same seeds pair two runs only where both draw from the same random streams. 
 - **No event records.** An experiment writes its files and sends nothing to the model's sinks. Run one design with one seed to see its records.
 - **End of a run.** A run ends at `until`, unless `stop` ends it earlier or `drain` runs it on until the model is empty. A blueprint's own `run.stop` and `run.drain` apply when the experiment does not set them. Entities still in the model at the end are not finished, so a count of finished entities leaves them out. The Counts section of the report ([Read the Report](experiment-results.md#read-the-report)) shows what each design started, finished and left.
 - **Observed values are outputs.** The observed comparison is a check of the model's output against the real system's for the question asked. It does not fit inputs, and one value inside an interval does not make a model valid for every question.
-- **One machine.** `workers` runs replications in parallel processes on one machine; there is no distributed or server executor.
+- **One machine.** `workers` runs replications in parallel processes on one machine. There is no distributed or server executor.
 
 ---
 
@@ -201,7 +201,10 @@ The `experiment` example is the experiment above. It runs one hour of the shop w
         desflow examples get experiment --api yaml
         cd experiment/yaml
 
-        # 3. Run it
+        # 3. Find the bottleneck, with no run
+        desflow explain experiment_shop.yaml
+
+        # 4. Run it
         desflow experiment experiment.yaml
         ```
 
@@ -215,7 +218,10 @@ The `experiment` example is the experiment above. It runs one hour of the shop w
         desflow examples get experiment --api yaml
         cd experiment/yaml
 
-        # 3. Run it
+        # 3. Find the bottleneck, with no run
+        desflow explain experiment_shop.yaml
+
+        # 4. Run it
         desflow experiment experiment.yaml
         ```
 
@@ -224,7 +230,7 @@ The `experiment` example is the experiment above. It runs one hour of the shop w
     ```yaml title="examples/yaml/experiment_shop.yaml"
     # The model of the experiment in experiment.yaml: one hour of the shop.
     #
-    # The YAML version of the shop function in examples/builder/experiment_example.py. Two packers,
+    # The YAML version of the shop function in experiment_example.py, which --api builder downloads. Two packers,
     # orders every 2.5 seconds on average and a packing time of 4 seconds on average.
     # It has no sinks and no statistics level: the experiment runs it without sinks and
     # keeps the statistics its measures need.

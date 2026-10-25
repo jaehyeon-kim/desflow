@@ -9,7 +9,7 @@ Until now an order was one task: it was packed and left. A real order is picked 
 
 ## What You Add
 
-This page adds three tasks in a row: `pick_order`, `pack_order` and `ship_order`. It also adds a `backorder` delay for an order picked while the shelf of boxes from [Stock](stock.md) is empty, and an `express` attribute that each order carries. The shop has two pickers and two packers. A regular order arrives every 2.5 seconds on average (24 a minute, `rate: 0.4`), and an express order every 10 seconds (6 a minute, `rate: 0.1`). A delivery of 53 boxes comes every 100 seconds, a little more than the orders take. Picking time is `uniform` from 1 to 3 seconds only to keep the example short: [Common Mistakes](../des/common-mistakes.md#choosing-a-normal-or-uniform-by-habit) explains why a real study fits a distribution to measured times instead, as [Choosing Inputs](choosing-inputs.md) does.
+This page adds three tasks in a row: `pick_order`, `pack_order` and `ship_order`. It also adds a `backorder` delay for an order picked while the shelf of boxes from [Stock](stock.md) is empty, and an `express` attribute that each order carries. The shop has two pickers and two packers. A regular order arrives every 2.5 seconds on average (24 a minute, `rate: 0.4`), and an express order every 10 seconds (6 a minute, `rate: 0.1`). A delivery of 53 boxes comes every 100 seconds, a little more than the orders take. Picking time is `uniform` from 1 to 3 seconds only to keep the example short. [Common Mistakes](../des/common-mistakes.md#choosing-a-normal-or-uniform-by-habit) explains why a real study fits a distribution to measured times instead, as [Choosing Inputs](choosing-inputs.md) does.
 
 Look at the flow first:
 
@@ -19,7 +19,7 @@ Look at the flow first:
 
 ## Chain the Tasks
 
-Choosing where an entity goes next is called **routing**. In desflow a task names what follows it with `next`; [Tasks and Processes](../user-guide/tasks-and-processes/index.md) describes tasks. `next` takes one of three forms:
+Choosing where an entity goes next is called **routing**. In desflow a task names what follows it with `next`. [Tasks and Processes](../user-guide/tasks-and-processes/index.md) describes tasks. `next` takes one of three forms:
 
 - a task name, which always leads there;
 - a list of `when` rules, each a condition and a task: the first rule that holds wins, and `default` catches the rest;
@@ -43,7 +43,7 @@ A task with no `next` ends the order's flow. Save the files from [Full Files](#f
 
 === "Builder"
 
-    Here the arrival loop passes the context to each task after its id, and a task started by `next` receives the same arguments as the task before it, so every task function in the flow declares `context`.
+    Here the arrival loop passes the context to each task after its id. A task started by `next` receives the same arguments as the task before it. So every task function in the flow declares `context`.
 
     ```python title="docs/snippets/tutorials/flow_of_tasks.py:chain"
     # The first rule that holds wins; default catches the rest
@@ -206,7 +206,7 @@ An order is an **entity** with **attributes**: values it carries from task to ta
 
     `Entity(key, arrival, attributes)` is the order, created by the arrival process; the full file below shows it.
 
-Attributes are not published. A condition reads them as `attr.express`, and a payload includes them only when it names them: `ship_order` names `express` and `backordered`, so its finished event carries both. This is `orders-172`, which was picked while the shelf was empty, backordered, picked again and packed twice:
+Attributes are not published. A condition reads them as `attr.express`, and a payload includes them only when it names them. `ship_order` names `express` and `backordered`, so its finished event carries both. This is `orders-172`, which was picked while the shelf was empty, backordered, picked again and packed twice:
 
 <!-- records: one-order-flow -->
 ```text

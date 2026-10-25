@@ -21,6 +21,16 @@ A task can wait for something before it queues for its resource: its `wait`. A w
 | `{put: {store: name}}` or `{put: {container: name, amount: 2}}` | room to add the payload of the task before it, or an amount | none |
 | `{running: {task: name, where: ...}}` | every running instance of a task, on the waiter's entity and on the entities it spawned, to end, as SimPy's `yield process` does; `where` narrows them, read in each instance's scope; when none match, the wait is done at once | the one instance's finished payload, or a mapping from instance id to payload for several, in start order |
 
+A `running` branch waits for tasks already running. Here an order waits for the delivery it started, unless the delivery has already left with the van:
+
+```yaml title="docs/snippets/yaml/wait_groups.yaml:running"
+# Wait for the delivery this order started, unless it has left with the van
+wait:
+  running:
+    task: deliver
+    where: process.target != 'service'
+```
+
 A single branch is named after its signal, task or resource, or `timeout`, `condition`, `get` or `put`. After the wait, `wait.<branch>.done` says whether the branch happened before the wait ended, `.ok` says whether it succeeded, and `.value` (or `.value.<field>`) is its value. `next`, `fail` and amounts read these values, and a builder function that declares `wait` receives them as a mapping. A task fires a signal with `signal: name` when it finishes, with its payload as the value. Any condition reads the signal as `signal.<name>.count`, `.ok` and `.value`. The `process-interaction` example waits for a child flow, then for the first of a courier's signal and a time limit:
 
 === "YAML"
@@ -189,9 +199,9 @@ A single branch is named after its signal, task or resource, or `timeout`, `cond
         yield shop.env.timeout(0)
     ```
 
-    The low-level API is plain SimPy here: a child is `env.process(...)`, its value is what it returns, and `env.any_of` and `env.all_of` wait for the first or for every event. `Signal(env, name)` is the named event the builder and YAML use; `env.watch_changes(check)` calls `check` after every change a condition can read. `env.watch_changes(check, queues=True)` also calls it after a change in the number of puts or gets waiting at a store or container.
+    The low-level API is plain SimPy here: a child is `env.process(...)`, its value is what it returns, and `env.any_of` and `env.all_of` wait for the first or for every event. `Signal(env, name)` is the named event the builder and YAML use. `env.watch_changes(check)` calls `check` after every change a condition can read. `env.watch_changes(check, queues=True)` also calls it after a change in the number of puts or gets waiting at a store or container.
 
-The task publishes `queued` when its wait starts, so the wait counts in its wait statistics. Its `patience` covers the wait as well as its resource and its `get`. When an `any` wait ends, its losing signal, timeout and condition branches are dropped, and its losing child flows keep running, as SimPy leaves processes running; [Wait for One or All](../../guides/wait-for-one-or-all.md) shows ties and failures. A wait for signals, tasks and times holds no resource. Waiting for all of several such things reserves nothing: the task asks for its resource only after the wait.
+The task publishes `queued` when its wait starts, so the wait counts in its wait statistics. Its `patience` covers the wait as well as its resource and its `get`. When an `any` wait ends, its losing signal, timeout and condition branches are dropped. Its losing child flows keep running, as SimPy leaves processes running. [Wait for One or All](../../guides/wait-for-one-or-all.md) shows ties and failures. A wait for signals, tasks and times holds no resource. Waiting for all of several such things reserves nothing: the task asks for its resource only after the wait.
 
 ### One-Shot Signals
 
@@ -201,7 +211,16 @@ A signal written as a mapping with `once: true` (builder `add_signal(name, once=
 
 A task's `spawn` starts another task as a **new entity**, keyed `<task>-n`, and goes on at once, as SimPy's `env.process` starts a process without yielding it. A courier that leaves once an order is packed is a spawn: `spawn: {task: courier}` on the pack task, or `@app.task(spawn={"task": "courier"})`. A process spawns a generator with `context.spawn(generator)`. The spawned entity enters and leaves the model as any entity does, so a drain waits for it. It counts as a flow of its own, under the spawned task's name. Its records carry its own key, and the spawning entity's key is read as `attr.parent`. A spawned task cannot share its name with an arrival, because their flow statistics and entity numbers would merge.
 
-`spawn: {task: courier, after: 3 s}` starts the new entity 3 seconds after the task finishes, as SimPy's `start_delayed` does; `context.spawn(generator, delay=3)` does the same for a process. A drain that ends during the delay ends the run before the spawned entity starts, as it does for an arrival not yet due. An `after` of 0 or less is refused.
+`spawn: {task: courier, after: 3 s}` starts the new entity 3 seconds after the task finishes, as SimPy's `start_delayed` does. `context.spawn(generator, delay=3)` does the same for a process. A drain that ends during the delay ends the run before the spawned entity starts, as it does for an arrival not yet due. An `after` of 0 or less is refused.
+
+A task's `interrupt` runs when the task finishes, as a `spawn` does. Here the task that closes the shop interrupts each order still being checked, and starts a sweep 2 seconds later:
+
+```yaml title="docs/snippets/yaml/task_endings.yaml:task-actions"
+# When the shop closes: stop each order still being checked, and start a sweep
+# 2 seconds later
+interrupt: {task: check, where: "process.target == 'service'", cause: closing}
+spawn: {task: sweep, after: 2 s}
+```
 
 ### Be Told When a Flow Ends
 
@@ -211,12 +230,34 @@ A task's `subscribe` asks to be interrupted when something happens, rather than 
 
 An `on:` list runs actions when a signal fires or a task ends, before any waiter, as a SimPy callback runs when its event fires. The list belongs to a task or to a signal. On a task, it runs however the task ends: finish, balk, renege, abandon or failure. Each entry is one of:
 
-- `fire: {signal: name}` fires a signal. `value` fires it with a literal value. `from: name` instead copies the latest outcome of a signal, or the finished payload (or failure reason) of the task with that name that last ended on the entity, as SimPy's `trigger` copies another event's outcome. With nothing to copy yet it fires nothing and logs a warning. `value` and `from` together are refused. On a one-shot signal, `urgent: true` makes the waiters resume before the other events at their time, as SimPy's `URGENT` priority orders them. `after: 5 s` fires it 5 seconds from now, as `env.schedule(event, priority, delay)` does. The signal counts as fired at once, so a second `fire` is refused. A drain does not count the entity that fired it as waiting for the later firing. On a signal that re-arms, `urgent` and `after` are refused at build, with `once: true` named as the fix.
+- `fire: {signal: name}` fires a signal. `value` fires it with a literal value. `from: name` copies an outcome instead. For a signal, it copies the signal's latest outcome. For a task, it copies the finished payload, or the failure reason, of the last instance of that task to end on the entity. SimPy's `trigger` copies another event's outcome in the same way. With nothing to copy yet it fires nothing and logs a warning. `value` and `from` together are refused. On a one-shot signal, `urgent: true` makes the waiters resume before the other events at their time, as SimPy's `URGENT` priority orders them. `after: 5 s` fires it 5 seconds from now, as `env.schedule(event, priority, delay)` does. The signal counts as fired at once, so a second `fire` is refused. A drain does not count the entity that fired it as waiting for the later firing. On a signal that re-arms, `urgent` and `after` are refused at build, with `once: true` named as the fix.
 - `spawn: {task, after}` starts a new entity, as the `spawn` key does.
 - `interrupt: {task, where, cause}` interrupts running instances, as a task's `interrupt` does.
 - `path` with `value` sets a registry value, as a scenario step does.
 
 A drain waits for a task's `on:` actions and for the `on:` actions of signals its tasks fire, so a final task that fires a signal with `on:` actions leaves only after they have run.
+
+The same closing task with an `on:` list: it stops the packing by hand, makes the orders come every 6 seconds, and fires a one-shot `reminder` with a value 5 seconds later:
+
+```yaml title="docs/snippets/yaml/task_endings.yaml:on-actions"
+# However the task ends: stop the packing by hand, make the orders come every
+# 6 seconds, and remind the couriers 5 seconds later
+on:
+  - interrupt: {task: pack_by_hand, cause: closing}
+  - {path: Shop.arrival.orders.value, value: 6}
+  - fire: {signal: reminder, value: last parcels, after: 5 s}
+```
+
+A one-shot `closing` signal with an `on:` action that fires `last_call` before the other events at closing time:
+
+```yaml title="docs/snippets/yaml/task_endings.yaml:urgent"
+closing:
+  once: true
+  on:
+    # Tell the couriers before anything else that happens at closing time
+    - fire: {signal: last_call, urgent: true}
+last_call: {once: true}
+```
 
 ---
 

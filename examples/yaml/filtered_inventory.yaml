@@ -1,6 +1,6 @@
 # Filtered inventory: couriers take only parcels for their own area, in YAML.
 #
-# The YAML version of examples/builder/filtered_inventory_example.py. Packed orders go on
+# The YAML version of filtered_inventory_example.py, which --api builder downloads. Packed orders go on
 # one shelf as parcels, each with the area it is going to. A courier for the north
 # or the south takes the oldest parcel for its own area, with a filter, and leaves
 # without one if none comes within 20 seconds.

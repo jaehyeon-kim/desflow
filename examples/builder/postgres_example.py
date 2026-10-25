@@ -15,7 +15,7 @@ from desflow import PostgresEgress, PostgresIngress, SimulationContext
 logger = logging.getLogger(__name__)
 
 # Connection string matching the odctl `postgres` profile
-DSN = "postgresql://user:password@localhost:5432/odctl"
+DSN = "postgresql://user:password@127.0.0.1:5432/odctl"
 
 # The table PostgresEgress creates when it does not exist. timestamp comes from the
 # record, and the egress converts its ISO string for the TIMESTAMP column.

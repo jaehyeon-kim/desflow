@@ -9,7 +9,7 @@ A quarter of the shop's orders are express, as in [Priorities](priorities.md), b
 
 ## What You Add
 
-This page adds a packer that can be **preempted**, as [Preemption](#preemption) explains, and an `on_interrupt` policy on regular orders: `resume`, `restart` or `abandon`. It also calls the packer away once, which interrupts the regular orders in the shop. A breakdown interrupts work in the same way, and the [Breakdowns](../guides/breakdowns.md) guide adds one. The shop is the one from Priorities: one packer and 1.5 seconds of packing. A regular order arrives every 2.22 seconds on average (`rate: 0.45`), and an express order every 6.67 seconds (`rate: 0.15`).
+This page adds a packer that can be **preempted**, as [Preemption](#preemption) explains, and an `on_interrupt` policy on regular orders: `resume`, `restart` or `abandon`. It also calls the packer away once, which interrupts the regular orders in the shop. A breakdown interrupts work in the same way, and the [Model Breakdowns](../guides/breakdowns.md) guide adds one. The shop is the one from Priorities: one packer and 1.5 seconds of packing. A regular order arrives every 2.22 seconds on average (`rate: 0.45`), and an express order every 6.67 seconds (`rate: 0.15`).
 
 ---
 
@@ -60,6 +60,14 @@ A preempted or interrupted task first gives back everything it holds and stops w
 - `resume`, the default: it queues again and, once it has the packer back, packs for the time it had left;
 - `restart`: it queues again and packs for a new time, drawn from the same seeded stream, as if the work were spoiled;
 - `abandon`: it ends, and its flow with it, unless `on_interrupt_next` names a task to go to.
+
+An order that is abandoned when it loses its packer, and goes to be packed by hand:
+
+```yaml title="docs/snippets/yaml/task_endings.yaml:interrupt-next"
+# An order that loses its packer to a rush order is packed by hand instead
+on_interrupt: abandon
+on_interrupt_next: pack_by_hand
+```
 
 The task publishes `preempted` (or `interrupted`) when it loses the packer, and `resumed` when it has it again. A `preempted` record names the express order that took the packer (`preempted_by`, its entity key) and the time the regular order had held it (`usage_since`):
 
@@ -157,7 +165,7 @@ The task publishes `preempted` (or `interrupted`) when it loses the packer, and 
         env.stats.flow_finished(arrival)
     ```
 
-    The process catches `simpy.Interrupt`, whose cause is SimPy's `Preempted` for a preemption, gives back its request, and requests the packer again. `on_interrupt` writes that loop for you. SimPy delivers an interrupt as an `URGENT` event, which [End Conditions](end-conditions.md#close-the-doors-then-finish) explains.
+    The process catches `simpy.Interrupt`. For a preemption, its cause is SimPy's `Preempted`. The process gives back its request and requests the packer again. `on_interrupt` writes that loop for you. SimPy delivers an interrupt as an `URGENT` event, which [End Conditions](end-conditions.md#close-the-doors-then-finish) explains.
 
 The statistics count each `preempted`, `interrupted` and `resumed`. A resumed order's wait is the sum of its waits, and its packing time is the total time it was packed:
 
@@ -230,7 +238,7 @@ Preemption is one source of interrupts, and a model can send others. An `interru
 
 ## Result
 
-What remains of a regular order's packing when an express order takes its packer? Each figure here comes from one run of the hour with the seed 42. With `resume`, the time it had left remains: after **344** preemptions, regular orders wait **8.12 seconds** on average. With `restart`, nothing remains: each preempted order packs again from the start, preemptions rise to **393**, and the mean wait triples to **25.33 seconds**. With `abandon`, the order is lost: **314** orders are lost, 312 to preemption and 2 to the call at 31 minutes, and the **1,293** packed orders wait only **3.60 seconds** on average, because every interrupted order leaves the queue. The call at 31 minutes reaches every regular order in the shop at that moment: 3 under `resume`, 23 under `restart`, whose longer queue holds more orders, and 2 under `abandon`:
+What remains of a regular order's packing when an express order takes its packer? Each figure here comes from one run of the hour with the seed 42. With `resume`, the time it had left remains: after **344** preemptions, regular orders wait **8.12 seconds** on average. With `restart`, nothing remains: each preempted order packs again from the start, preemptions rise to **393**, and the mean wait triples to **25.33 seconds**. With `abandon`, the order is lost. **314** orders are lost, 312 to preemption and 2 to the call at 31 minutes. The **1,293** packed orders wait only **3.60 seconds** on average, because every interrupted order leaves the queue. The call at 31 minutes reaches every regular order in the shop at that moment: 3 under `resume`, 23 under `restart`, whose longer queue holds more orders, and 2 under `abandon`:
 
 ![Mean wait of regular orders: resume 8.12 s with 1607 packed; restart 25.33 s with 1606 packed; abandon 3.60 s with 1293 packed](../assets/charts/interruption-policies.png)
 
@@ -244,7 +252,7 @@ abandon: 312 preempted, 2 called away, 1293 packed, mean wait  3.60 s, mean pack
 
 ## Why It Works
 
-Under `restart` the packer spends part of its time on packing that is thrown away, so it does more work for the same orders. The mean time packed rises from 1.50 to 1.69 seconds, and the load nears what one packer can do. Waits then grow fast, as [Queueing Basics](../des/queueing-basics.md#waits-near-full-use) explains. `resume` loses no work, so its waits are close to those of plain priority. `abandon` looks best only because the mean leaves out the orders it lost, so report their count beside it. [Priority and Preemption](../user-guide/resources/priority-and-preemption.md#preemption) describes preemption, and [Tasks and Processes](../user-guide/tasks-and-processes/index.md) the task's steps.
+Under `restart` the packer spends part of its time on packing that is thrown away, so it does more work for the same orders. The mean time packed rises from 1.50 to 1.69 seconds, and the load nears what one packer can do. Waits then grow fast, as [Queueing Basics](../des/queueing-basics.md#waits-near-full-use) explains. `resume` loses no work, so its waits are close to those of plain priority. `abandon` looks best only because the mean leaves out the orders it lost. So report their count beside it. [Priority and Preemption](../user-guide/resources/priority-and-preemption.md#preemption) describes preemption, and [Tasks and Processes](../user-guide/tasks-and-processes/index.md) the task's steps.
 
 ---
 

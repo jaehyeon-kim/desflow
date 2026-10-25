@@ -97,6 +97,14 @@ The file sink receives only the last of the three, the `order_packed` event. Wit
 {"stream_type":"event","sim_ts":29.702,"timestamp":"...","key":"orders-12","task":"pack_order","instance":11,"event_type":"order_packed"}
 ```
 
+To find one order's records among the 4,329 of the hour, print the records as JSON lines with `--stdout` and keep the lines with its key. `--stdout` sends the records to the terminal in place of the sinks, so this run writes no files:
+
+```bash
+desflow run streaming_out.yaml --stdout | grep '"key":"orders-12"'
+```
+
+It prints the three events of `orders-12` above, each as the whole record. In the builder and the low-level API, `ConsoleEgress(format="json")` as the sink prints the same lines.
+
 A reader that joins the files with another source uses `key`, and one that follows a task through its states uses `task` and `instance`. [Records and Telemetry](../reference/records-and-telemetry.md#record-shape) lists every field, and [What Each Sink Writes](../reference/records-and-telemetry.md#what-each-sink-writes) shows how each sink lays them out.
 
 ---
@@ -162,7 +170,7 @@ orders-12: {'stream_type': 'event', 'sim_ts': 29.702, 'key': 'orders-12', 'task'
 
 ## Why It Works
 
-A record goes from `publish_event` to each sink's `when` test, then into that sink's buffer, then to a queue that a separate thread writes from. The model only fills buffers, so it can finish while the threads are still writing. Teardown is the step that waits for them. Writing records on background threads is one of the things desflow adds to SimPy, as [What desflow Changes](../des/simpy-and-desflow.md#what-desflow-changes) sets out. [Egress, Batching and Delivery](../user-guide/egress.md#how-it-works) shows each stage of that path.
+A record goes from `publish_event` to each sink's `when` test, then into that sink's buffer, then to a queue that a separate thread writes from. The model only fills buffers, so it can finish while the threads are still writing. Teardown is the step that waits for them. Writing records on background threads is one of the things desflow adds to SimPy, as [What desflow Changes](../des/coming-from-simpy.md#what-desflow-changes) sets out. [Egress, Batching and Delivery](../user-guide/egress.md#how-it-works) shows each stage of that path.
 
 ---
 

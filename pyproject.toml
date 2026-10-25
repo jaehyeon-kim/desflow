@@ -154,13 +154,15 @@ dev = [
     "matplotlib>=3.11.2",
     # Builds the generated Reference pages. 0.6.1 adds properdocs, as
     # mkdocs-redirects 1.2.3 does.
-    "mkdocs-gen-files==0.6.0",
+    "mkdocs-gen-files==0.6.1",
     "jsonschema>=4.26.0",
     # scripts/charts.py animates a run for the Animate a Run page.
     "vidigi>=2.0.0",
 ]
 
 [tool.pytest.ini_options]
+# docs/snippets holds a reader's test_a_model.py, which a run of the suite must not collect
+testpaths = ["tests"]
 markers = [
     "integration: marks tests that require Docker infrastructure (deselect with '-m \"not integration\"')",
 ]

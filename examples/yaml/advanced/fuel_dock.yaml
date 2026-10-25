@@ -1,6 +1,6 @@
 # Fuel dock: a lane of your own type, a tank that fills up and a put that is not waited for, in YAML.
 #
-# The YAML version of examples/builder/fuel_dock_example.py. Fuel trucks drive into a lane at
+# The YAML version of fuel_dock_example.py, which --api builder downloads. Fuel trucks drive into a lane at
 # the dock, which holds two. The lane is a store of your own type (fuel_dock_types.Lane)
 # that gives back the newest truck first. A crew unloads one truck every 7 seconds. A
 # tank truck starts its pump into the tank and drives off without waiting; the tank holds

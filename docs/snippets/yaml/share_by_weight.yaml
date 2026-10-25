@@ -1,4 +1,4 @@
-# The Share by Weight guide: one packer shared between two tiers of orders by weight.
+# The Share Work by Weight guide: one packer shared between two tiers of orders by weight.
 # Run it with: desflow run share_by_weight.yaml
 simulation:
   sim_id: Shop

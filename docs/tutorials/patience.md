@@ -51,7 +51,21 @@ An entity that leaves a queue after waiting too long **reneges**. In SimPy it wa
 
 A reneged order publishes `reneged` in place of `started` and its finished event, and adds nothing to the wait statistics, because it was never served.
 
-A grant and a patience can fall at the same instant: the packer finishes the previous order at exactly the moment the next order's 30 seconds run out. desflow then does what plain SimPy does: the outcome depends on which of the two events was scheduled first. The [Reneging and Balking](../guides/reneging-and-balking.md) guide shows both cases.
+`--stdout` prints the run's records as JSON lines, one record per line, instead of sending them to the blueprint's sinks. So `grep` can pick out one kind of record. These are the first two orders that leave:
+
+```bash
+desflow run patience.yaml --stdout | grep '"reneged"' | head -2
+```
+
+<!-- records: patience-reneged -->
+```text
+{"stream_type":"event","sim_ts":215.107,"timestamp":"...","key":"orders-143","task":"pack_order","instance":142,"value":{"path_id":"Shop.service.packing","status":"reneged"}}
+{"stream_type":"event","sim_ts":215.363,"timestamp":"...","key":"orders-144","task":"pack_order","instance":143,"value":{"path_id":"Shop.service.packing","status":"reneged"}}
+```
+
+Both orders were queued 30 seconds earlier, at 185.1 and 185.4 seconds, and left when their patience ran out. In the builder and the low-level API, `ConsoleEgress(format="json")` as the sink prints the same lines.
+
+A grant and a patience can fall at the same instant: the packer finishes the previous order at exactly the moment the next order's 30 seconds run out. desflow then does what plain SimPy does: the outcome depends on which of the two events was scheduled first. The [Add Reneging and Balking](../guides/reneging-and-balking.md) guide shows both cases.
 
 ---
 
@@ -133,7 +147,7 @@ patience none: 2242 packed, 0 reneged, 194 balked, mean wait 72.16 s
 
 ## Why It Works
 
-Orders arrive at 42 a minute and bring 0.7 × 1.5 = 1.05 seconds of packing each second, more than one packer can do. So without patience the queue grows, and every order waits longer than the one before. Patience removes the orders that have waited longest, so the queue stays short for the rest: the shop packs 69 fewer orders, and every order it packs waits less. The mean wait of packed orders then leaves out the orders that left, so report the reneged and balked counts beside it. [Queueing Basics](../des/queueing-basics.md#utilisation) explains why a queue grows without limit above utilisation 1. [Statistics](../user-guide/statistics.md) describes what each count measures.
+Orders arrive at 42 a minute and bring 0.7 × 1.5 = 1.05 seconds of packing each second, more than one packer can do. So without patience the queue grows, and every order waits longer than the one before. Patience removes the orders that have waited longest, so the queue stays short for the rest. The shop packs 69 fewer orders, and every order it packs waits less. The mean wait of packed orders leaves out the orders that left. So report the reneged and balked counts beside it. [Queueing Basics](../des/queueing-basics.md#utilisation) explains why a queue grows without limit above utilisation 1. [Statistics](../user-guide/statistics.md) describes what each count measures.
 
 ---
 
@@ -374,4 +388,4 @@ Orders arrive at 42 a minute and bring 0.7 × 1.5 = 1.05 seconds of packing each
                 )
         ```
 
-[Reneging and Balking](../guides/reneging-and-balking.md) shows the same two decisions in a shop example, with ties and how to check that every order is accounted for.
+[Add Reneging and Balking](../guides/reneging-and-balking.md) shows the same two decisions in a shop example, with ties and how to check that every order is accounted for.

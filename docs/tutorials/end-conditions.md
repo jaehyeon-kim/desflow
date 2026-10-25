@@ -47,7 +47,7 @@ The model switches on `typical`, which also keeps the mean wait:
 
     A low-level process reports its entities with `env.stats.flow_started(arrival)` and `env.stats.flow_finished(arrival)`, as the full file below does.
 
-Every order that started is finished or still in the shop: `started` is `finished` plus `in_system`, so the counts say how many orders a mean wait leaves out.
+Every order that started is either finished or still in the shop, so `started` is `finished` plus `in_system`. These counts say how many orders a mean wait leaves out.
 
 ---
 
@@ -103,6 +103,26 @@ A drain can also take a limit, `drain: {limit: 10 min}`, so a model that never e
 Does a fixed horizon answer the same question as a drain? Not for every order. Each figure here comes from a run with the seed 42: one that stops at the hour, and one that drains after it. The fixed horizon ends at **3,600** seconds with **2,436** orders started, **2,398** finished and **38** still in the shop, one being packed and 37 waiting. The drain ends **56.4** seconds later, at **3,656.4**, with all **2,436** finished:
 
 ![Fixed horizon: 2398 orders finished and 38 left; drain: 2436 finished and 0 left](../assets/charts/end-counts.png)
+
+`desflow explain` shows why so many orders are left, without a run:
+
+```bash
+desflow explain end_conditions.yaml
+```
+
+<!-- records: end-explain -->
+```text
+Resources
++--------------------------------------------------------+
+| resource |   λ |      μ | c |    ρ | Wq | L | status   |
+|----------+-----+--------+---+------+----+---+----------|
+| packers  | 0.7 | 0.6667 | 1 | 1.05 |  - | - | UNSTABLE |
++--------------------------------------------------------+
+Not estimated:
+  wait at packers: unstable: the queue grows for as long as the run lasts
+```
+
+The packer gets 1.05 seconds of work every second, more than it can do, so the queue grows for as long as orders arrive. The longer the horizon, the more orders it leaves in the shop. A drain packs them all. In Python, `context.analyze()` gives the same analysis for a builder model. A low-level model has no `explain`, because its SimPy code makes the links between arrivals, tasks and resources as it runs, so there are none to read.
 
 The mean wait barely moves: **71.70** seconds with the fixed horizon against **71.51** with the drain. An order's wait is measured when its packing starts, and only 37 of the 2,436 orders start packing after the hour. The Builder and Low-level scripts print both runs:
 

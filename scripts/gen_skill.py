@@ -68,7 +68,9 @@ def version() -> str:
 
 def sections() -> str:
     """The table of blueprint sections, one row for each top-level key."""
-    keys = list(json.loads(gen_pages._schema_text())["properties"])
+    from desflow.blueprint.schema import schema_text
+
+    keys = list(json.loads(schema_text())["properties"])
     assert set(keys) == set(SECTIONS), (
         f"SECTIONS in scripts/gen_skill.py differs from the schema: missing "
         f"{sorted(set(keys) - set(SECTIONS))}, unknown {sorted(set(SECTIONS) - set(keys))}"
@@ -121,7 +123,12 @@ def distributions() -> str:
 
 
 def connectors() -> str:
-    """`references/connectors.md`: each short name, its class and its extra."""
+    """`references/connectors.md`: each short name, its class and its extra.
+
+    The Avro serializer table is written here by hand, because the registry and the
+    extra of each class are not in the code; `test_skill.py` checks that it names
+    every `*AvroSerializer` class of `desflow.connectors.egress.kafka`.
+    """
     from desflow.blueprint.build import EGRESS_TYPES, INGRESS_TYPES
 
     lines = [
@@ -144,6 +151,55 @@ def connectors() -> str:
             lines.append(
                 f"| `{name}` | `{module}.{cls}` | {f'`{extra}`' if extra else 'none'} |"
             )
+    lines += [
+        "",
+        "## Avro Serializers",
+        "",
+        "A `KafkaEgress` serializer of a topic, given in Python. Each needs its own extra.",
+        "",
+        "| Class | Schema registry | Extra |",
+        "|---|---|---|",
+        "| `desflow.connectors.egress.kafka.ConfluentAvroSerializer` | Confluent "
+        "Schema Registry | `confluent` |",
+        "| `desflow.connectors.egress.kafka.GlueAvroSerializer` | AWS Glue Schema "
+        "Registry | `glue` |",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def cli() -> str:
+    """`references/cli.md`: the help of every command, as the CLI pages show it."""
+    from typer.main import get_command
+
+    from desflow.cli import app
+
+    lines = [
+        "# Commands",
+        "",
+        "The help of every `desflow` command, generated from the command's code.",
+    ]
+    for path, text in gen_pages.commands(get_command(app), "desflow"):
+        lines += ["", f"## `{path}`", "", "```text", text.rstrip("\n"), "```"]
+    return "\n".join(lines) + "\n"
+
+
+def api() -> str:
+    """`references/api.md`: every name `desflow` exports, with its summary."""
+    import desflow
+
+    lines = [
+        "# Python API",
+        "",
+        "Every name `from desflow import ...` gives, with the first line of its "
+        "docstring. https://jaehyeon.me/desflow/latest/api/ has each one in full.",
+        "",
+        "| Name | What it is |",
+        "|---|---|",
+    ]
+    for name in sorted(desflow.__all__):
+        doc = (getattr(desflow, name).__doc__ or "").strip().split("\n\n")[0]
+        summary = " ".join(doc.split()).replace("|", "\\|")
+        lines.append(f"| `{name}` | {summary} |")
     return "\n".join(lines) + "\n"
 
 
@@ -180,13 +236,17 @@ def apis() -> str:
 
 def files() -> Dict[str, str]:
     """Every file of the skill, by its path under `skills/desflow/`."""
+    from desflow.blueprint.schema import schema_text
+
     return {
         "SKILL.md": template(),
         "references/blueprint-keys.md": blueprint_keys(),
         "references/distributions.md": distributions(),
         "references/connectors.md": connectors(),
         "references/apis.md": apis(),
-        "assets/blueprint.schema.json": gen_pages._schema_text(),
+        "references/cli.md": cli(),
+        "references/api.md": api(),
+        "assets/blueprint.schema.json": schema_text(),
     }
 
 

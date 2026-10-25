@@ -195,8 +195,15 @@ def model_classes() -> Dict[str, Type[BaseModel]]:
 
 
 def validators(model: Type[BaseModel]) -> Iterator[Tuple[str, str, Any]]:
-    """The `before` and `wrap` field validators a model has, as the class that defines
-    each, its function name and the validator's info."""
+    """The `before` and `wrap` field validators a model has.
+
+    Args:
+        model: The Pydantic model.
+
+    Yields:
+        Tuple[str, str, Any]: The class that defines each validator, its function name and
+        the validator's info.
+    """
     for name, decorator in model.__pydantic_decorators__.field_validators.items():
         if decorator.info.mode in ("before", "wrap"):
             owner = decorator.func.__qualname__.split(".")[0]

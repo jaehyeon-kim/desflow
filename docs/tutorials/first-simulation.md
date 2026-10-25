@@ -21,20 +21,54 @@ Look at the order of the parts: orders arrive, wait in the packer queue and take
 
 Install the core package, which includes the `desflow` command, as [Installation](../getting-started.md#install-the-package) shows.
 
-The **YAML** tab needs only the `desflow` command. The **Builder** and **Low-level** tabs run a Python file, so the Python that runs it must be able to import desflow. `uv tool install desflow` installs the command only. Run a file with any of these forms:
+=== "YAML"
 
-```bash
-# With uv, outside a project
-uv run --with desflow python first_shop.py
+    A blueprint needs only the `desflow` command. Install it with one of these forms, then run the file:
 
-# In a uv project, after `uv add desflow`
-uv run python first_shop.py
+    ```bash
+    # With uv, the command alone
+    uv tool install desflow
 
-# After `pip install desflow`
-python first_shop.py
-```
+    # Or with pip
+    pip install desflow
 
-The pages that follow show the plain `python <file>.py` form. Run it with whichever form above you use.
+    # Run the blueprint
+    desflow run first_shop.yaml
+    ```
+
+=== "Builder"
+
+    A builder model is a Python file, so the Python that runs it must be able to import desflow. `uv tool install desflow` installs the command only. Run the file with one of these forms:
+
+    ```bash
+    # With uv, outside a project
+    uv run --with desflow python first_shop.py
+
+    # In a uv project, after `uv add desflow`
+    uv run python first_shop.py
+
+    # After `pip install desflow`
+    python first_shop.py
+    ```
+
+    The pages that follow show the plain `python <file>.py` form. Run it with whichever form above you use.
+
+=== "Low-level"
+
+    A low-level model is a Python file, so the Python that runs it must be able to import desflow. `uv tool install desflow` installs the command only. Run the file with one of these forms:
+
+    ```bash
+    # With uv, outside a project
+    uv run --with desflow python first_shop_low_level.py
+
+    # In a uv project, after `uv add desflow`
+    uv run python first_shop_low_level.py
+
+    # After `pip install desflow`
+    python first_shop_low_level.py
+    ```
+
+    The pages that follow show the plain `python <file>.py` form. Run it with whichever form above you use.
 
 ---
 
@@ -42,7 +76,7 @@ The pages that follow show the plain `python <file>.py` form. Run it with whiche
 
 In discrete-event simulation (DES), an **entity** is a thing that moves through the model, here an order. A **resource** is what an entity needs and may have to wait for, here the packer. A **service** time is how long an entity holds the resource, and an **arrival** process sets when entities appear.
 
-In desflow these are parameters of one simulation, named by a `sim_id`, here `Shop`: a resource called `packers` with one unit, a service called `packing`, and an arrival stream called `orders`.
+In desflow, these are parameters of one simulation. Its name, the `sim_id`, is `Shop` here. The shop has a resource called `packers` with one unit, a service called `packing`, and an arrival stream called `orders`.
 
 === "YAML"
 
@@ -289,7 +323,9 @@ desflow run first_shop.yaml --sample 5
 {"stream_type":"event","sim_ts":4.02,"timestamp":"...","key":"orders-4","task":"pack_order","instance":3,"value":{"path_id":"Shop.service.packing","status":"queued"}}
 ```
 
-They are the first five events above, written as the record itself with its `stream_type`. The run's log stays on stderr, so a pipe such as `| jq .key` reads only the records. [YAML Format](../reference/yaml-format.md#running-a-blueprint) lists the other ways to run a blueprint.
+They are the first five events above, each printed as the whole record, with its `stream_type`. The run's log stays on stderr, so a pipe such as `| jq .key` reads only the records. [YAML Format](../reference/yaml-format.md#running-a-blueprint) lists the other ways to run a blueprint.
+
+`desflow` on its own lists every command, grouped by what it does, with examples. `desflow run --help` lists the options of `run`, also with examples. [Command Line](../user-guide/command-line.md) uses every command on one shop.
 
 ---
 

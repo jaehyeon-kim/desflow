@@ -81,7 +81,7 @@ A schedule is a list of steps. Each step names a registry path, a value and the 
     env.process(run_scenario(env, schedule(rush_packers), until=3600))
     ```
 
-The steps follow the simulation clock, so the schedule repeats exactly on every run and at any `factor`. A step applies before every other event at its time: the order that arrives at 20 minutes draws its next gap from the rush rate. [Time-varying Arrivals](../guides/time-varying-arrivals.md#boundaries) sets out these boundaries.
+The steps follow the simulation clock, so the schedule repeats exactly on every run and at any `factor`. A step applies before every other event at its time: the order that arrives at 20 minutes draws its next gap from the rush rate. [Vary Arrivals by Time](../guides/time-varying-arrivals.md#boundaries) sets out these boundaries.
 
 ---
 

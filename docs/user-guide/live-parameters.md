@@ -124,9 +124,9 @@ run:
   until: 3 min
 ```
 
-The builder and the low-level API take the same steps, as a list of mappings; [Time-varying Arrivals](../guides/time-varying-arrivals.md#steps) shows one schedule in each API.
+The builder and the low-level API take the same steps, as a list of mappings. [Vary Arrivals by Time](../guides/time-varying-arrivals.md#steps) shows one schedule in each API.
 
-A scenario is not a connector. It is a SimPy process that waits on the simulation clock, so each step lands at exactly its `at`, on every run and at any `factor`, including 0. A step applies before every other event at its time, so an arrival gap drawn at that moment uses the new value. Steps at the same time apply in the order written, and a step at or after `until` never applies. [Time-varying Arrivals](../guides/time-varying-arrivals.md#boundaries) shows each case. Every path of a blueprint's scenario is checked against the model's registry when the file loads, so a misspelt path stops the load with its line. The builder checks its paths when the run starts. `LocalIngress` waits on the wall clock instead, and an unknown path is only logged when it is due. A scenario and an ingress connector can run together, so a scripted baseline can run while an operator steers over Kafka. When both change the same path, the later write wins.
+A scenario is not a connector. It is a SimPy process that waits on the simulation clock, so each step lands at exactly its `at`, on every run and at any `factor`, including 0. A step applies before every other event at its time, so an arrival gap drawn at that moment uses the new value. Steps at the same time apply in the order written, and a step at or after `until` never applies. [Vary Arrivals by Time](../guides/time-varying-arrivals.md#boundaries) shows each case. Every path of a blueprint's scenario is checked against the model's registry when the file loads, so a misspelt path stops the load with its line. The builder checks its paths when the run starts. `LocalIngress` waits on the wall clock instead, and an unknown path is only logged when it is due. A scenario and an ingress connector can run together, so a scripted baseline can run while an operator steers over Kafka. When both change the same path, the later write wins.
 
 ### Record What a Change Was For
 
@@ -199,7 +199,7 @@ What follows a change:
 
 - **Distributions.** The next draw uses the new value. The arrival already being waited for keeps its gap, and a task that has drawn its service time keeps it.
 - **Resources, stores and containers.** The capacity follows at once, and a container's level follows its path, as [Resources](resources/index.md#under-live-changes) and [Stores and Containers](stores-and-containers.md#under-live-changes) describe.
-- **Variables.** The new value is stored; a process reads it with `env.registry.get(path).value`.
+- **Variables.** The new value is stored, and a process reads it with `env.registry.get(path).value`.
 
 A change is easiest to see in the telemetry. With `stats: minimal`, the scenario above shows the second packer land:
 
@@ -210,7 +210,7 @@ A change is easiest to see in the telemetry. With `stats: minimal`, the scenario
 [TEL] {'sim_ts': 40.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.capacity', 'value': 2}
 ```
 
-The reading at 30 seconds still shows 1: the resource applies a change within the same simulation instant, but after the step that made it, and the reading was taken first. The builder publishes the same readings with `with_stats`:
+The reading at 30 seconds still shows 1. The resource applies a change within the same simulation instant, but after the step that made it. The reading was taken before that. The builder publishes the same readings with `with_stats`:
 
 ```python title="docs/snippets/pages/live_parameters.py:telemetry"
 # The packers' capacity, in use, queue and utilization every 2 seconds
@@ -221,7 +221,7 @@ app.with_stats("minimal", interval=2.0)
 
 ## Stability and Limits
 
-- **An unknown path is a warning, not an error,** for an ingress message or a process; only a scenario is checked when it loads.
-- **A family is fixed.** There is no path that turns a `normal` into an `exponential`; that is a new model.
+- **An unknown path is a warning, not an error,** for an ingress message or a process. Only a scenario is checked when it loads.
+- **A family is fixed.** There is no path that turns a `normal` into an `exponential`. That is a new model.
 - **Several changes, one signal.** A process waiting on a path wakes once for several changes made before it runs, and reads the latest value.
 - **Ingress lands on the wall clock.** A message's change lands at whatever simulation time the run has reached when it arrives. A change that must happen at an exact simulation time needs a scenario step.

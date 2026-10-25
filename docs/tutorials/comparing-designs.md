@@ -173,6 +173,13 @@ output: results/four-packers
 
 The experiment states where the packing times came from but not the arrival rate, so the report's Missing Inputs section says: "The provenance of `Shop.arrival.orders` is not stated." It names the gap rather than filling it in. [Experiments](../user-guide/experiments/index.md) lists every file and section.
 
+`output` in the experiment file names the results folder. `--output` names another folder for one run, so a second run keeps the results of the first. `desflow report` builds `report.md` again from the other files in a results folder, with no new run, such as after editing `experiment.json` by hand. `output=` in `run_experiment` names the folder in Python:
+
+```bash
+desflow experiment comparing_designs_experiment.yaml --output results/four-packers-again
+desflow report results/four-packers-again
+```
+
 ---
 
 ## Result
@@ -185,7 +192,7 @@ Does a fourth packer cut the mean wait, and by how much? Yes. Over 20 replicatio
 
 ## Why It Works
 
-Two designs run with different seeds differ by the design and by chance, and the chance part can hide a small effect. When both designs run with the same seeds, each pair of runs has the same arrivals and the same packing times. The chance part then partly cancels in their difference, so the interval on the differences is narrower than the interval an unpaired comparison of the same runs gives. Each difference comes from a seed of its own, so the 20 differences are independent of each other. The interval is therefore a [Student t interval](../des/output-analysis.md#interval-and-half-width) on the 20 differences, as in [Output Analysis](../des/output-analysis.md#comparing-designs).
+Two designs run with different seeds differ by the design and by chance, and the chance part can hide a small effect. When both designs run with the same seeds, each pair of runs has the same arrivals and the same packing times. The chance part then partly cancels in their difference. So the interval on the differences is narrower than an unpaired comparison of the same runs would give. Each difference comes from a seed of its own, so the 20 differences are independent of each other. The interval is therefore a [Student t interval](../des/output-analysis.md#interval-and-half-width) on the 20 differences, as in [Output Analysis](../des/output-analysis.md#comparing-designs).
 
 ---
 

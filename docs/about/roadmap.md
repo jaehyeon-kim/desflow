@@ -22,7 +22,7 @@ Releases come in the order shown, without dates: a release ships when it is read
   icon: ':material-clock-outline:'
   key: planned
 - title: '0.29.0: Reserved gen key and record contract freeze'
-  content: 'A blueprint refuses a mapping with a `gen` key in a payload, a scenario value, a `record` field, an action or timeout value, a task''s `set` or an arrival''s `attributes`, so the key can mark a generated value after 1.0. The Pydantic floor rises to 2.6.1. Every record field is checked, then the format is marked frozen: no 1.x release removes a field, renames it or changes its type. [#53](https://github.com/jaehyeon-kim/desflow/issues/53), [#51](https://github.com/jaehyeon-kim/desflow/issues/51)'
+  content: 'After 1.0, a `gen` key marks a generated value. To keep the key free, a blueprint refuses a mapping with a `gen` key in any of these places: a payload, a scenario value, a `record` field, an action or timeout value, a task''s `set` or an arrival''s `attributes`. The Pydantic floor rises to 2.6.1. Every record field is checked, then the format is marked frozen: no 1.x release removes a field, renames it or changes its type. [#53](https://github.com/jaehyeon-kim/desflow/issues/53), [#51](https://github.com/jaehyeon-kim/desflow/issues/51)'
   icon: ':material-clock-outline:'
   key: planned
 - title: '0.30.0: Preparation for 1.0'
@@ -63,19 +63,22 @@ The server ships after 1.0, as 1.x releases installed with the `server` extra.
 - **Browser UI:** the same from a browser, including each simulation's graph from `desflow explain`. ([#49](https://github.com/jaehyeon-kim/desflow/issues/49))
 - **Schedules:** run simulations on cron schedules. ([#50](https://github.com/jaehyeon-kim/desflow/issues/50))
 - **Server image and odctl profile:** a published image and an [odctl](https://github.com/jaehyeon-kim/odctl) profile run the server locally with nothing installed on the host. ([#52](https://github.com/jaehyeon-kim/desflow/issues/52))
-- **Visualisation:** animation of a running or recorded simulation, and a map view.
+- **Visualisation:** a graph image from `desflow explain`, animation of a running or recorded simulation, and a map view.
 - **Distributed runs:** workers on several machines.
 
 ### Writing simulations
 
 - **Generated values in blueprints:** random values, IDs and timestamps in YAML, then entities, relations between records, states and ramps.
 - **Preview loop:** run a blueprint again each time the file changes, and check a file without running it.
+- **Tests in blueprints:** results a model must keep at a fixed seed, checked by `desflow test`, which can also write the values from a run for you to review.
+- **Variables from the command line:** `--var NAME=VALUE` fills `${NAME}` in a blueprint, as an environment variable does today.
 - **Example gallery and visual builder.**
 - **Conversion:** turn a YAML blueprint into builder code, and builder code into YAML with no Python, with an error that names each part that cannot be converted and how to rewrite it.
 
 ### Connectors
 
 - **More sinks:** a webhook sink, a generic SQL sink and more.
+- **Error sink:** records a sink could not write go to another sink instead of being lost, and a run can fail when too many do.
 - **Delivery faults:** records delivered late, twice, damaged or not at all, to test how a pipeline handles them.
 - **Lineage:** each run reported to OpenLineage and OpenMetadata.
 

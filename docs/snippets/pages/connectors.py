@@ -34,14 +34,14 @@ app.add_ingress(
 
 # --8<-- [start:kafka-ingress]
 # Reads {"path": ..., "value": ...} messages from the sim-config topic
-app.add_ingress(KafkaIngress(topic="sim-config", bootstrap_servers="localhost:9092"))
+app.add_ingress(KafkaIngress(topic="sim-config", bootstrap_servers="127.0.0.1:9092"))
 # --8<-- [end:kafka-ingress]
 
 # --8<-- [start:redis-ingress]
 # Reads {"path": ..., "value": ...} messages from a Pub/Sub channel
 app.add_ingress(
     RedisIngress(
-        "redis://user:password@localhost:6379/0", channel_name="simulation_params"
+        "redis://user:password@127.0.0.1:6379/0", channel_name="simulation_params"
     )
 )
 # --8<-- [end:redis-ingress]
@@ -50,7 +50,7 @@ app.add_ingress(
 # Applies new rows (path, value) of simulation_params, checking every 2 seconds
 app.add_ingress(
     PostgresIngress(
-        "postgresql://user:password@localhost:5432/odctl",
+        "postgresql://user:password@127.0.0.1:5432/odctl",
         table_name="simulation_params",
         poll_interval=2.0,
     )
@@ -69,7 +69,7 @@ app.add_egress(ConsoleEgress(format="json"))
 # --8<-- [start:kafka-egress]
 app.add_egress(
     KafkaEgress(
-        bootstrap_servers="localhost:9092",
+        bootstrap_servers="127.0.0.1:9092",
         event_topic="sim-events",
         telemetry_topic="sim-telemetry",
     )
@@ -95,12 +95,12 @@ app.add_egress(
 # --8<-- [start:redis-egress]
 # XADD to the events stream, unless a record's value names another in __stream__
 app.add_egress(
-    RedisEgress("redis://user:password@localhost:6379/0", stream_name="events")
+    RedisEgress("redis://user:password@127.0.0.1:6379/0", stream_name="events")
 )
 # --8<-- [end:redis-egress]
 
 # --8<-- [start:postgres-egress]
-dsn = "postgresql://user:password@localhost:5432/odctl"
+dsn = "postgresql://user:password@127.0.0.1:5432/odctl"
 app.add_egress(PostgresEgress(dsn, table_name="orders"))
 # --8<-- [end:postgres-egress]
 
@@ -111,10 +111,10 @@ app.add_egress(PostgresEgress(dsn, table_name="orders", upsert_keys=["order_id"]
 # --8<-- [start:iceberg-egress]
 catalog = RestCatalog(
     "odctl",
-    uri="http://localhost:8181",
+    uri="http://127.0.0.1:8181",
     warehouse="s3://warehouse/",
     **{
-        "s3.endpoint": "http://localhost:8333",
+        "s3.endpoint": "http://127.0.0.1:8333",
         "s3.access-key-id": "user",
         "s3.secret-access-key": "password",
         "s3.region": "us-east-1",

@@ -1,4 +1,4 @@
-# Reneging and Balking
+# Add Reneging and Balking
 
 Give a task a time limit on its wait, a condition that stops it joining at all, or both, and account for every entity afterwards. It builds on [Patience](../tutorials/patience.md), which explains both ideas, and on [Resources](../user-guide/resources/index.md#how-it-works), which explains how a request is granted.
 
@@ -6,11 +6,15 @@ Give a task a time limit on its wait, a condition that stops it joining at all, 
 
 ## Leave After a Wait and Refuse to Join
 
-A task's `patience` is how long it may wait before it leaves the queue and publishes `reneged`. The waiting covers its `wait`, then its resource and then its `get`. Patience counts waiting time only and pauses while the task is served. A task that is preempted and queues again therefore goes on with the time it has left. A get that gives up is cancelled, so it takes nothing later. A task's `balk` is a condition checked before it joins the queue. When the condition holds, the task publishes `balked` and never requests the resource. Here each order brings its own patience as an attribute, and no order joins after the courier's last collection at 100 seconds:
+A task's `patience` is how long it may wait before it leaves the queue and publishes `reneged`. The waiting covers its `wait`, then its resource and then its `get`. Patience counts waiting time only and pauses while the task is served. A task that is preempted and queues again therefore goes on with the time it has left. A get that gives up is cancelled, so it takes nothing later. A task's `balk` is a condition checked before it joins the queue. When the condition holds, the task publishes `balked` and never requests the resource. Here each order brings its own patience as an attribute, which its arrival sets with `attributes:`, and no order joins after the courier's last collection at 100 seconds:
 
 === "YAML"
 
     ```yaml title="examples/yaml/patience.yaml:pack"
+    arrivals:
+      orders: {dist: exponential, rate: 0.5, spawn: pack, attributes: {patience: 20}}
+      walk_ins: {dist: exponential, rate: 0.1, spawn: pack, attributes: {patience: 10}}
+
     tasks:
       pack:
         service: packing

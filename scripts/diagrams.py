@@ -8,13 +8,15 @@ Each `<name>.drawio` becomes one image beside it:
   frame with headless Chrome and joins the frames with ffmpeg into a GIF that loops.
 - `<name>.gif` as well when the file has more than one page: each page is one step of a
   sequence, held for `STEP_SECONDS`.
-- `<name>.png` otherwise.
+- `<name>.png` otherwise, and beside a GIF as its still: the GIF's last frame, for a
+  reader or a format that does not play a GIF.
 
 Files whose name starts with an underscore, such as `_legend.drawio`, hold the shared
 shapes and are not exported.
 
 Each tape in `TAPES`, under docs/assets/tapes/, records a terminal session with vhs
-to the GIF it names, from the repository root, when it is named on the command line.
+to the GIF it names, from the repository root, when it is named on the command line,
+and writes the GIF's still beside it.
 Run it with `uv run`, so the session finds the `desflow` command of this checkout.
 
 The images are committed, so the docs build needs none of the tools this script uses:
@@ -118,6 +120,26 @@ def _gif(frames_pattern, fps, out):
     )
 
 
+def _still(gif):
+    """Writes the last frame of a GIF beside it as a PNG of the same name."""
+    still = gif.with_suffix(".png")
+    # -update 1 writes every frame to the one file, so the last frame is what is left
+    _run(
+        [
+            "ffmpeg",
+            "-loglevel",
+            "error",
+            "-y",
+            "-i",
+            str(gif),
+            "-update",
+            "1",
+            str(still),
+        ]
+    )
+    return still
+
+
 def _flow_frames(source, page, work, prefix):
     """Write FLOW_FRAMES PNGs of one page, the dashes moved one step each time.
 
@@ -178,6 +200,7 @@ def _export_one(source):
         for i, frame in enumerate(frames):
             shutil.copy(frame, work / f"frame-{i:05d}.png")
         _gif(str(work / "frame-%05d.png"), fps, out)
+    _still(out)
     return out
 
 
@@ -188,10 +211,18 @@ def _record(name):
     subprocess.run(
         ["vhs", "-o", str(TAPES[name]), str(tape)], check=True, cwd=ASSETS.parents[1]
     )
+    _require("ffmpeg")
+    _still(TAPES[name])
     return TAPES[name]
 
 
 def main(names):
+    """Exports the named diagrams and records the named tapes, or every diagram when none
+    is named.
+
+    Args:
+        names: Diagram names (draw.io files without `.drawio`) and tape names.
+    """
     tapes = [n for n in names if n in TAPES]
     for name in tapes:
         print(f"{name}.tape -> {_record(name).name}")

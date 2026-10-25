@@ -51,7 +51,7 @@ Plot the two against `sim_ts` for the first 15 minutes:
 
 ![Over the first 15 minutes of the busy hour, the queue read every 10 seconds moves between 0 and 13 from the first minute on. The mean wait so far climbs from 0.46 seconds to about 1.5 seconds in the first two minutes, then moves up and down between 1.1 and 1.6 seconds. A dashed line marks the end of a 2-minute warm-up](../assets/charts/trusting-warmup.png)
 
-The queue reaches its usual range within the first minute. The mean wait so far climbs for about a minute and a half, because the first orders found free packers. After that it moves up and down with no trend. The plot shows one seed only, and another seed could climb for longer, so the plot cannot settle the [warm-up](../des/output-analysis.md#one-run-starts-empty) on its own. It suggests three candidates:
+The queue reaches its usual range within the first minute. The mean wait so far climbs for about a minute and a half, because the first orders found free packers. After that it moves up and down with no trend. The plot shows one seed only, and another seed could climb for longer. So the plot alone cannot settle the [warm-up](../des/output-analysis.md#one-run-starts-empty). It suggests three candidates:
 
 - 1 minute, when the queue reaches its usual range;
 - 2 minutes, which covers the climb of the mean wait;
@@ -90,7 +90,7 @@ A `warmup` time leaves the start out of everything the run reports:
 
 A run has one warm-up, in simulation time. Every sink leaves out the records and telemetry stamped before the warm-up ends. The built-in statistics start again from zero when it ends, so they describe only the rest of the run. An order that queued before the warm-up ended and started after it counts with its whole wait. The warm-up differs from `go_live_at`, which sends early records to one sink and later ones to another, and drops nothing. [Time and Pacing](../user-guide/time-and-pacing/index.md) compares the two.
 
-Run the hour without and with the warm-up. `WARMUP=0 desflow run trusting_results.yaml` runs the YAML version without it; the Builder and Low-level scripts print both:
+Run the hour without and with the warm-up. `WARMUP=0 desflow run trusting_results.yaml` runs the YAML version without it. The Builder and Low-level scripts print both:
 
 <!-- records: trusting-table -->
 ```text
@@ -165,6 +165,20 @@ How many replications are enough depends on the decision, not on a fixed number 
 
 The half-width shrinks in proportion to 1 ÷ √n, so a half-width k times smaller needs about k² times as many replications. 10 replications gave 11.0%, so 10% needs about 10 × (11.0 ÷ 10)² ≈ 12. That figure is a guide, not a promise: the half-width is itself an estimate, and 20 replications gave 13.0%. Add replications, then read the half-width again.
 
+The precision also depends on the confidence level, which is 95% unless you choose another. `--level 0.9` gives 90% intervals from the same 40 runs (`level=0.9` in `replicate`, for a builder or a low-level model):
+
+```bash
+desflow run trusting_results.yaml --replications 40 --measure tasks.pack_order.wait_mean --level 0.9
+```
+
+<!-- records: trusting-level -->
+```text
+measure                        n          mean    half-width (90%)
+tasks.pack_order.wait_mean    40         2.319              0.1625
+```
+
+The half-width falls from 0.20 to 0.16 seconds, 7.0% of the mean, with no extra run. A 90% interval misses the true mean more often, 1 study in 10 instead of 1 in 20, so choose the level with the precision, before the runs.
+
 ---
 
 ## Compare Warm-ups
@@ -214,7 +228,7 @@ The mean wait over the five replications, in seconds, with its 95% half-width:
 | 2 minutes | 2.207 ± 0.47 |
 | 4 minutes | 2.232 ± 0.47 |
 
-[Output Analysis](../des/output-analysis.md#one-run-starts-empty) keeps the shortest candidate that passes this comparison and covers the climb in the plot. After 1 minute, the longer warm-ups move the mean by 0.011 and 0.036 seconds, far less than the half-width of 0.47 seconds, so every candidate passes, and the plot climbs until about a minute and a half, so the warm-up is **2 minutes**.
+[Output Analysis](../des/output-analysis.md#one-run-starts-empty) keeps the shortest candidate that passes this comparison and covers the climb in the plot. After 1 minute, the longer warm-ups move the mean by 0.011 and 0.036 seconds. Both are far less than the half-width of 0.47 seconds, so every candidate passes. The plot climbs until about a minute and a half, so the warm-up is **2 minutes**.
 
 ---
 
@@ -226,7 +240,7 @@ Is one run enough? No. Its empty start is not the problem. The warm-up is **2 mi
 
 Initialisation bias ([Output Analysis](../des/output-analysis.md#one-run-starts-empty) explains it) fades once the state of the shop no longer depends on how the run started. Here the queue, empty for the first orders, reaches its usual range within a minute. The warmed-up numbers still pass the [Little's law](../des/queueing-basics.md#littles-law) check from Measuring a Run. In the 3,480 seconds after the warm-up, 6,024 orders were packed, 1.73 a second. 1.73 orders a second × 1.381 seconds of mean wait = 2.39 orders waiting on average, which matches the `queue_length_avg` of 2.40 that the same statistics report. [Statistics](../user-guide/statistics.md) describes how the reset works.
 
-Replications ([Output Analysis](../des/output-analysis.md#replications) explains them) are independent of each other because each has its own seed, so the spread of their values measures how much the answer depends on chance. With few replications the spread itself is uncertain. The [Student t quantile](../des/output-analysis.md#interval-and-half-width) allows for it: the half-width is the standard error times 2.776 for 5 replications, and times 2.023 for 40.
+Replications ([Output Analysis](../des/output-analysis.md#replications) explains them) are independent of each other, because each has its own seed. So the spread of their values measures how much the answer depends on chance. With few replications the spread itself is uncertain. The [Student t quantile](../des/output-analysis.md#interval-and-half-width) allows for it: the half-width is the standard error times 2.776 for 5 replications, and times 2.023 for 40.
 
 ---
 

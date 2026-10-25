@@ -1,6 +1,6 @@
-# Examples
+# Example Projects
 
-Each example is written three ways: as a YAML blueprint, with the builder API and with the low-level API. Its page shows the versions in tabs.
+Each example is a complete model that you can download with `desflow examples get` and run, as [Get an Example](../user-guide/command-line.md#get-an-example) shows. Each is written three ways: as a YAML blueprint, with the builder API and with the low-level API. Its page shows the versions in tabs.
 
 | Example | What it shows | YAML | Builder | Low-level |
 | --- | --- | --- | --- | --- |
@@ -30,7 +30,16 @@ Each example is written three ways: as a YAML blueprint, with the builder API an
 | [An Experiment](../user-guide/experiments/index.md#example-an-experiment) | two designs of the shop compared with paired replications, a check, observed waits and a report | [`experiment.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/yaml/experiment.yaml) | [`experiment_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/builder/experiment_example.py) | [`experiment_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/experiment_example.py) |
 | [Fitted Inputs](../user-guide/input-fitting.md#example-fitted-inputs) | the packing time fitted from 40 measured times, then loaded into the shop | [`fitting.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/yaml/fitting.yaml) | [`fitting_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/builder/fitting_example.py) | [`fitting_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/fitting_example.py) |
 
-The shop examples from Stock onwards are shown on the page that teaches their feature, with the same steps. Each example page says how to download and run it, and which odctl profile from [Installation](../getting-started.md#services-for-the-examples) it needs.
+The shop examples from Stock onwards are shown on the page that teaches their feature, with the same steps. Each example page says how to download and run it, and which odctl profile from [Installation](../getting-started.md#services-for-the-examples) it needs. `desflow examples get` prints the extra an example needs, and `pip install "desflow[all]"` installs every extra, so each example runs once its profile is up.
+
+`desflow examples list` prints the same list in the terminal, with the odctl profile each example needs. `desflow examples get NAME` downloads the files of the release you installed into `NAME/yaml/`, `NAME/builder/` and `NAME/low-level/`. `--api` keeps one version, `--dest` downloads into another folder, `--ref` names another tag or branch, such as `main`, and `--force` replaces files that are already there:
+
+```bash
+desflow examples list
+desflow examples get local --api yaml --dest work
+```
+
+The second command writes `work/local/yaml/local.yaml`.
 
 ## Used in
 

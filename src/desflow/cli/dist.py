@@ -9,13 +9,25 @@ import typer
 _OPTIONS = ("rate", "mean", "std", "low", "value", "high", "mode", "shape", "scale")
 
 
+# The examples --help prints after the options, as odctl's help does
+_EPILOG = """
+[bold underline]Examples:[/bold underline]\n
+  [dim]# List the distribution families[/dim]\n
+  $ [bold cyan]desflow dist[/bold cyan]\n\n
+  [dim]# Show the parameters and rules of one family[/dim]\n
+  $ [bold cyan]desflow dist gamma[/bold cyan]\n\n
+  [dim]# Convert a mean and standard deviation to gamma parameters[/dim]\n
+  $ [bold cyan]desflow dist gamma --mean 1.5 --std 0.4832[/bold cyan]
+"""
+
+
 def register(app: typer.Typer) -> None:
     """Adds the `dist` command to the app.
 
     Args:
         app: The `desflow` Typer app.
     """
-    app.command("dist")(_dist)
+    app.command("dist", rich_help_panel="Inputs", epilog=_EPILOG)(_dist)
 
 
 def _option(help: str) -> Any:
