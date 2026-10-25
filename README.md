@@ -8,6 +8,8 @@
 
 Most test data generators write random rows. desflow writes the events of a working process: orders queue for packers, waits grow at busy times, and a backlog builds when orders arrive faster than the packers can pack them. The data comes from a [SimPy](https://simpy.readthedocs.io/) discrete-event simulation, so each change in it has a cause in the model, as in a real system.
 
+To see why it exists, read [Why desflow](https://jaehyeon.me/desflow/latest/about/why-desflow/). To check what desflow does against plain SimPy, see [SimPy Compatibility](https://jaehyeon.me/desflow/latest/reference/simpy-compatibility/).
+
 You can change an arrival rate or a capacity while the simulation runs, from **Kafka**, **Redis**, **PostgreSQL**, a local schedule or a timed scenario, and the pipeline downstream sees the effect. One run can write a week of history at full speed, then keep streaming in real time.
 
 Events and telemetry go to **Kafka**, **Redis**, **PostgreSQL**, **Parquet** or **JSONL** files (on local disk or S3-compatible storage), or **Apache Iceberg** tables. A model is a YAML file, a Python builder, or SimPy code.
@@ -19,8 +21,6 @@ The three ways to write a model build one real-time run. Ingress connectors chan
 <div align="center">
   <img src="https://raw.githubusercontent.com/jaehyeon-kim/desflow/main/docs/assets/diagrams/architecture.png" alt="desflow architecture" width="900" />
 </div>
-
-To see why it exists, read [Why desflow](https://jaehyeon.me/desflow/latest/about/why-desflow/). To check what desflow does against plain SimPy, see [SimPy Compatibility](https://jaehyeon.me/desflow/latest/reference/simpy-compatibility/).
 
 The control dashboard of the [Kafka Digital Twin](https://jaehyeon.me/desflow/latest/examples/kafka/) example changes simulation parameters during a run, and the telemetry shows the effect without a restart. The example's Quick Start runs the dashboard beside the simulation:
 
