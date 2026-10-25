@@ -8,6 +8,8 @@ neither covers: the help with no arguments, Ctrl+C, the lower bounds of
 
 import logging
 
+import click
+
 from typer.testing import CliRunner
 
 from desflow import SimulationContext
@@ -29,9 +31,10 @@ def test_help_lists_every_command():
     bare = CliRunner().invoke(app, [])
     # Click exits 2 for a group called with no arguments and no_args_is_help
     assert bare.exit_code == 2
+    # Rich colours the help under GitHub Actions or FORCE_COLOR
     for result in (shown, bare):
         for name in names:
-            assert f" {name} " in result.output, name
+            assert f" {name} " in click.unstyle(result.output), name
 
 
 def test_ctrl_c_logs_and_exits_0(tmp_path, monkeypatch, caplog):
