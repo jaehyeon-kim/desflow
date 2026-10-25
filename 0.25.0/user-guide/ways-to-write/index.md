@@ -37,6 +37,4 @@ ______________________________________________________________________
 
 ## How It Works
 
-Whichever way a simulation is written, one run goes the same way from there:
-
-The environment holds the registry of live parameters, and the resources, stores and containers follow it. Ingress connectors change registry values from outside while the run goes on. Tasks and other processes publish events and telemetry, and egress connectors write them to their sinks on a thread of their own. The registry paths, the records, the batching and the connectors are therefore the same in all three ways, and the User Guide describes each once: [Live Parameters](https://jaehyeon.me/desflow/latest/user-guide/live-parameters/index.md), [Ingress](https://jaehyeon.me/desflow/latest/user-guide/ingress/index.md), [Egress](https://jaehyeon.me/desflow/latest/user-guide/egress/index.md) and [Records and Telemetry](https://jaehyeon.me/desflow/latest/reference/records-and-telemetry/index.md).
+Whichever way a model is written, it builds the same environment, and one run goes the same way from there. [How desflow Works](https://jaehyeon.me/desflow/latest/user-guide/how-desflow-works/index.md) shows that run and each part it passes through.

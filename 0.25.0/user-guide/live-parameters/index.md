@@ -122,7 +122,14 @@ run:
 
 The builder and the low-level API take the same steps, as a list of mappings. [Vary Arrivals by Time](https://jaehyeon.me/desflow/latest/guides/time-varying-arrivals/#steps) shows one schedule in each API.
 
-A scenario is not a connector. It is a SimPy process that waits on the simulation clock, so each step lands at exactly its `at`, on every run and at any `factor`, including 0. A step applies before every other event at its time, so an arrival gap drawn at that moment uses the new value. Steps at the same time apply in the order written, and a step at or after `until` never applies. [Vary Arrivals by Time](https://jaehyeon.me/desflow/latest/guides/time-varying-arrivals/#boundaries) shows each case. Every path of a blueprint's scenario is checked against the model's registry when the file loads, so a misspelt path stops the load with its line. The builder checks its paths when the run starts. `LocalIngress` waits on the wall clock instead, and an unknown path is only logged when it is due. A scenario and an ingress connector can run together, so a scripted baseline can run while an operator steers over Kafka. When both change the same path, the later write wins.
+A scenario is not a connector. It is a SimPy process that waits on the simulation clock, so each step lands at exactly its `at`, on every run and at any `factor`, including 0. Its steps follow these rules, and [Vary Arrivals by Time](https://jaehyeon.me/desflow/latest/guides/time-varying-arrivals/#boundaries) shows each case:
+
+- A step applies before every other event at its time, so an arrival gap drawn at that moment uses the new value.
+- Steps at the same time apply in the order written.
+- A step at or after `until` never applies.
+- Every path of a blueprint's scenario is checked against the model's registry when the file loads, so a misspelt path stops the load with its line. The builder checks its paths when the run starts.
+
+`LocalIngress` waits on the wall clock instead, and an unknown path is only logged when it is due. A scenario and an ingress connector can run together, so a scripted baseline can run while an operator changes values over Kafka. When both change the same path, the later write wins.
 
 ### Record What a Change Was For
 

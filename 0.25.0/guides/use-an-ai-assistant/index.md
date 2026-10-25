@@ -2,7 +2,14 @@
 
 Let an AI coding assistant write, check and run desflow blueprints with the rules of the library in front of it, instead of guessing them. It builds on [YAML Blueprints](https://jaehyeon.me/desflow/latest/user-guide/blueprints/index.md) and on [Set Up Your Editor](https://jaehyeon.me/desflow/latest/guides/set-up-your-editor/index.md), whose schema the assistant also uses.
 
-The skill is a folder, `skills/desflow/`, in the Agent Skills format that Claude Code and other assistants read. Its `SKILL.md` tells the assistant how to pick a way to write the model, how to write and run a blueprint, how to check a model before a long run, and the rules assistants get wrong. It also tells it how to run a study with a seed, a [warm-up](https://jaehyeon.me/desflow/latest/des/output-analysis/#one-run-starts-empty) and [replications](https://jaehyeon.me/desflow/latest/des/output-analysis/#replications), compare designs and fit measured times. It links to files for every key, every distribution, every connector, every command, every name the package exports, the `local` example in all three APIs, and the blueprint JSON Schema. The folder is generated from the code, so it lists what the release has.
+The skill is a folder, `skills/desflow/`, in the Agent Skills format that Claude Code and other assistants read. Its `SKILL.md` gives the assistant the rules assistants get wrong, and tells it how to:
+
+- pick a way to write the model;
+- write and run a blueprint;
+- check a model before a long run;
+- run a study with a seed, a [warm-up](https://jaehyeon.me/desflow/latest/des/output-analysis/#one-run-starts-empty) and [replications](https://jaehyeon.me/desflow/latest/des/output-analysis/#replications), compare designs and fit measured times.
+
+It links to files for every key, every distribution, every connector, every command, every name the package exports, the `local` example in all three APIs, and the blueprint JSON Schema. The folder is generated from the code, so it lists what the release has.
 
 ______________________________________________________________________
 

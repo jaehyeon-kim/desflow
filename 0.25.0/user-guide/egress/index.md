@@ -16,7 +16,13 @@ Each sink is attached with `add_egress` in the builder, passed to `env.setup_egr
 
 ### Console
 
-`ConsoleEgress` has two formats. The default, `log`, logs each record at INFO level, one line per record: `[EVT]` for an event, `[TEL]` for telemetry and `[LBL]` for a label. It logs a whole batch with one call. `desflow run` prints these records as they are, one line each, while its other log lines start with the time, level and logger name. In a script, the logging format the script sets, such as the time and level, starts only the first line of each batch, and the lines after it start with `[EVT]`, `[TEL]` or `[LBL]`. One call per record cost far more: in the measurements on [Tune Performance](https://jaehyeon.me/desflow/latest/guides/performance-tuning/index.md), a run that logged each record with its own call took about 50 percent longer in total than one that logs each batch with one call.
+`ConsoleEgress` has two formats. The default, `log`, logs each batch at INFO level with one call, one line per record:
+
+- Each line starts with `[EVT]` for an event, `[TEL]` for telemetry or `[LBL]` for a label.
+- `desflow run` prints these lines as they are. Its other log lines start with the time, level and logger name.
+- In a script, the logging format the script sets, such as the time and level, starts only the first line of each batch.
+
+One call per batch is much faster than one call per record. In the measurements on [Tune Performance](https://jaehyeon.me/desflow/latest/guides/performance-tuning/index.md), a run that logged each record with its own call took about 50 percent longer in total.
 
 ```python
 app.add_egress(ConsoleEgress())
@@ -55,7 +61,15 @@ app.add_egress(
 
 ### Parquet and JSON Lines
 
-`ParquetStorageEgress` and `JsonlStorageEgress` write each batch as a file of its own, on a local disk or S3-compatible storage, through PyArrow. Without a `path_router`, each event is one flat row in `default_path`, with its `value` mapping unpacked into columns, and telemetry is left out. A Parquet file has a column for every key of any row in its batch. A key that first appears in a later batch adds a column to the later files, and a reader that unifies the files' schemas reads it as null in the earlier rows. An integer column that a later batch gives a float becomes a double in the later files. A mapping value becomes a struct column, and its keys are fixed by the first batch that has it. A nested key that first appears later is dropped. A batch that cannot be written is logged at ERROR, and the sink goes on with the next one.
+`ParquetStorageEgress` and `JsonlStorageEgress` write each batch as a file of its own, on a local disk or S3-compatible storage, through PyArrow. Without a `path_router`, each event is one flat row in `default_path`, with its `value` mapping unpacked into columns, and telemetry is left out.
+
+A Parquet file has a column for every key of any row in its batch, and a mapping value becomes a struct column. A later batch can change the columns:
+
+- A key that first appears in a later batch adds a column to the later files. A reader that combines the columns of all the files reads it as null in the earlier rows.
+- An integer column that a later batch gives a float becomes a double in the later files.
+- A nested key that first appears later is dropped, because the first batch with a mapping value fixes the keys of its struct column.
+
+A batch that cannot be written is logged at ERROR, and the sink goes on with the next one.
 
 **File names.** `default_path`, and any path a `path_router` returns, is a file name prefix, not a folder. Each batch is written as a file of its own, `<stem>_<8 hex digits><extension>`, in the path's folder, so `output/events.parquet` gives files such as `output/events_1a2b3c4d.parquet`. Give the extension in the path: `output/events` gives files with none. The folder is created on the first write.
 
@@ -103,7 +117,14 @@ app.add_egress(
 
 ### PostgreSQL
 
-`PostgresEgress` inserts records into a table in batches. Only records whose value is a mapping are written, together with the labels on a labels sink. A label is written as `sim_ts`, `timestamp`, `path`, `old`, `new` and `label`. The record's `sim_ts`, `timestamp`, `key` (as `event_id`) and `path_id` are added to the value and replace fields of the same name. Its `task` and `instance` are added too, but a value field of the same name keeps its own value. Keys with no matching column are dropped. A `__table__` key in the value sends the record only to the sink whose `table_name` matches. The connection string names `odctl`, the database that the odctl `postgres` profile creates, with the user `user` and the password `password`.
+`PostgresEgress` inserts records into a table in batches. It writes only the records whose value is a mapping, and the labels on a labels sink, each label as `sim_ts`, `timestamp`, `path`, `old`, `new` and `label`. A record's row is its value, changed in four ways:
+
+- The record's `sim_ts`, `timestamp`, `key` (as `event_id`) and `path_id` are added, and replace fields of the same name.
+- Its `task` and `instance` are added too, but a value field of the same name keeps its own value.
+- Keys with no matching column are dropped.
+- A `__table__` key sends the record only to the sink whose `table_name` matches.
+
+The connection string names `odctl`, the database that the odctl `postgres` profile creates, with the user `user` and the password `password`.
 
 ```python
 dsn = "postgresql://user:password@127.0.0.1:5432/odctl"
@@ -118,7 +139,15 @@ app.add_egress(PostgresEgress(dsn, table_name="orders", upsert_keys=["order_id"]
 
 ### Iceberg
 
-`IcebergStorageEgress` appends records to an Apache Iceberg table through a REST catalog. One flush is one commit, so this sink needs a large `batch_size` of its own: every commit writes new metadata, and many small commits slow down queries. A table the sink creates has a column for every key of its first batch that has a value in some row. Iceberg has no null type, so a key that is null in every row waits for a batch that gives it a value. An example is `task` in a low-level event published without one. A key that first appears in a later batch is added to the table as an optional column, unless the table is named in `schemas`, which keeps the columns it gives. A batch the table refuses is logged at ERROR.
+`IcebergStorageEgress` appends records to an Apache Iceberg table through a REST catalog. One flush is one commit, so this sink needs a large `batch_size` of its own: every commit writes new metadata, and many small commits slow down queries.
+
+A table the sink creates takes its columns from the records:
+
+- The first batch gives a column for every key that has a value in some row.
+- A key that is null in every row waits for a batch that gives it a value, because Iceberg has no null type. An example is `task` in a low-level event published without one.
+- A key that first appears in a later batch is added as an optional column, unless the table is named in `schemas`, which keeps the columns it gives.
+
+A batch the table refuses is logged at ERROR.
 
 ```python
 catalog = RestCatalog(
@@ -322,6 +351,8 @@ A published record goes through the same steps for each sink:
 1. Each sink tests it once. A labels sink takes only labels, and only a labels sink takes a label. No sink takes a record stamped before the [warm-up](https://jaehyeon.me/desflow/latest/des/output-analysis/#one-run-starts-empty). Then the sink applies its `when`.
 1. The record goes into that sink's buffer. When the buffer reaches `batch_size`, or the sink's timer fires, the buffer is handed to the sink's queue as one batch.
 1. The egress thread takes batches from each queue and writes them with the sink's connector.
+
+A connector is a class with one method, `async run(queue)`, so a sink desflow does not have takes one class to write: [Write a Connector](https://jaehyeon.me/desflow/latest/guides/write-a-connector/index.md) shows how.
 
 Each sink has its own buffer and its own queue, so a slow sink does not hold up a fast one, and memory is the sum of the buffers. A queue holds at most `max_queued_batches` batches. When it is full, the simulation waits for room, so a sink that cannot keep up slows the run instead of building a backlog. When a queue stays full for `drain_stall_seconds`, the sink has stopped consuming, and the run raises `RuntimeError` rather than losing records.
 

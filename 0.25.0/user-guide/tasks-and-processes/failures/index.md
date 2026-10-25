@@ -6,9 +6,26 @@ ______________________________________________________________________
 
 ## How to Use It
 
-A task fails in three cases: its `fail` condition holds after its service, the wait it needs fails, or its function raises. That function is a builder task's function or a YAML task's `!python` payload function. `fail` reads the task's own payload as `payload.<field>`, as `next` does. A failed task publishes `failed` instead of its finished payload, with a `reason`: the condition's text, or its `fail_reason`. It fails its `signal`, so every waiter of the signal fails too. Then it goes to its `on_fail` task. Without `on_fail` the entity's flow ends, and a child flow fails the task waiting for it, with the same reason. At the `basic` statistics level and above, each failure is counted as `tasks.<task>.failed`, and each flow that ends in one as `flows.<arrival>.failed`. The `inspect` task of the example in [Signals and Waiting](https://jaehyeon.me/desflow/latest/user-guide/tasks-and-processes/signals-and-waiting/#wait-signals-and-child-flows) fails a gift and sends it to be wrapped.
+A task fails in three cases:
 
-What a failure nobody handles does is set by `run.on_unhandled_failure`. The default is `continue` in YAML and the builder, and `stop` in the low-level API. Under `continue`, a failure of a task, child flow or one-shot signal that nobody handles is defused, and the run goes on. A data generator should not stop on one failed order. Under `stop`, such a failure stops the run, as plain SimPy does. A root task that fails with no `on_fail` raises, and so does a one-shot signal failed with nobody waiting. The exception reaches the caller of `run()`. The builder and YAML switch to `stop` with `run(on_unhandled_failure="stop")` or `run: {on_unhandled_failure: stop}`, and the low-level API switches to `continue` with `DynamicRealtimeEnvironment(on_unhandled_failure="continue")`. In the low-level API an exception raised in a process always reaches the process that yields it, and one nobody handles stops the run, as in SimPy.
+- Its `fail` condition holds after its service. `fail` reads the task's own payload as `payload.<field>`, as `next` does.
+- The wait it needs fails.
+- Its function raises an exception. The function is a builder task's function or a YAML task's `!python` payload function.
+
+A failed task then does three things, in order:
+
+1. It publishes `failed` instead of its finished payload, with a `reason`: the condition's text, or its `fail_reason`.
+1. It fails its `signal`, so every task waiting for the signal fails too.
+1. It goes to its `on_fail` task. Without `on_fail`, the entity's flow ends, and a child flow fails the task waiting for it, with the same reason.
+
+At the `basic` statistics level and above, each failure is counted as `tasks.<task>.failed`, and each flow that ends in one as `flows.<arrival>.failed`. The `inspect` task of the example in [Signals and Waiting](https://jaehyeon.me/desflow/latest/user-guide/tasks-and-processes/signals-and-waiting/#wait-signals-and-child-flows) fails a gift and sends it to be wrapped.
+
+`run.on_unhandled_failure` sets what happens to a failure of a task, child flow or one-shot signal that nobody handles. It has two values:
+
+- `continue`, the default in YAML and the builder: the failure is marked as handled (SimPy calls this defused), and the run goes on. A data generator should not stop on one failed order.
+- `stop`, the default in the low-level API: the failure stops the run, as plain SimPy does. A root task that fails with no `on_fail` raises an exception, and so does a one-shot signal failed with nobody waiting. The exception reaches the caller of `run()`.
+
+The builder and YAML switch to `stop` with `run(on_unhandled_failure="stop")` or `run: {on_unhandled_failure: stop}`, and the low-level API switches to `continue` with `DynamicRealtimeEnvironment(on_unhandled_failure="continue")`. In the low-level API, an exception raised in a process always reaches the process that yields it, and one nobody handles stops the run, as in SimPy.
 
 In a blueprint, under `run`:
 

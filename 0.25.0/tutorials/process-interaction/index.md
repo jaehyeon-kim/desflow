@@ -167,7 +167,9 @@ limit 8 min: 11005 by courier, 2872 by post, mean wait  288.2 s
 
 ## Why It Works
 
-Orders are packed at random moments, so the time from packing to the next courier is spread evenly over the 10 minutes between couriers. A limit of 5 minutes catches the courier for half the orders, and a limit of 8 minutes for 8 in 10. The runs show these shares: 49.8% and 79.3% of the orders go by courier. Every waiting order resumes at the same firing, so the courier takes them all at once. [SimPy and desflow](https://jaehyeon.me/desflow/latest/des/simpy-and-desflow/#waiting-for-one-or-all) shows the plain SimPy forms. [Signals and Waiting](https://jaehyeon.me/desflow/latest/user-guide/tasks-and-processes/signals-and-waiting/#wait-signals-and-child-flows) describes every kind of wait, and [Wait for One or All](https://jaehyeon.me/desflow/latest/guides/wait-for-one-or-all/index.md) shows ties and failures.
+Orders are packed at random moments, so the time from packing to the next courier is spread evenly over the 10 minutes between couriers. A limit of 5 minutes catches the courier for half the orders, and a limit of 8 minutes for 8 in 10. The runs show these shares: 49.8% and 79.3% of the orders go by courier. Every waiting order resumes at the same firing, so the courier takes them all at once.
+
+[SimPy and desflow](https://jaehyeon.me/desflow/latest/des/simpy-and-desflow/#waiting-for-one-or-all) shows the plain SimPy forms. [Signals and Waiting](https://jaehyeon.me/desflow/latest/user-guide/tasks-and-processes/signals-and-waiting/#wait-signals-and-child-flows) describes every kind of wait, and [Wait for One or All](https://jaehyeon.me/desflow/latest/guides/wait-for-one-or-all/index.md) shows ties and failures.
 
 ______________________________________________________________________
 

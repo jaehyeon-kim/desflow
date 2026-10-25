@@ -31,7 +31,15 @@ wait:
     where: process.target != 'service'
 ```
 
-A single branch is named after its signal, task or resource, or `timeout`, `condition`, `get` or `put`. After the wait, `wait.<branch>.done` says whether the branch happened before the wait ended, `.ok` says whether it succeeded, and `.value` (or `.value.<field>`) is its value. `next`, `fail` and amounts read these values, and a builder function that declares `wait` receives them as a mapping. A task fires a signal with `signal: name` when it finishes, with its payload as the value. Any condition reads the signal as `signal.<name>.count`, `.ok` and `.value`. The `process-interaction` example waits for a child flow, then for the first of a courier's signal and a time limit:
+A single branch is named after its signal, task or resource, or `timeout`, `condition`, `get` or `put`. After the wait, each branch has three values:
+
+- `wait.<branch>.done` says whether the branch happened before the wait ended.
+- `wait.<branch>.ok` says whether it succeeded.
+- `wait.<branch>.value` (or `.value.<field>`) is its value.
+
+`next`, `fail` and amounts read these values, and a builder function that declares `wait` receives them as a mapping.
+
+A task fires a signal with `signal: name` when it finishes, with its payload as the value. Any condition reads the signal as `signal.<name>.count`, `.ok` and `.value`. The `process-interaction` example waits for a child flow, then for the first of a courier's signal and a time limit:
 
 ```yaml
 check:
@@ -203,7 +211,13 @@ A signal written as a mapping with `once: true` (builder `add_signal(name, once=
 
 ### Start a Flow Without Waiting
 
-A task's `spawn` starts another task as a **new entity**, keyed `<task>-n`, and goes on at once, as SimPy's `env.process` starts a process without yielding it. A courier that leaves once an order is packed is a spawn: `spawn: {task: courier}` on the pack task, or `@app.task(spawn={"task": "courier"})`. A process spawns a generator with `context.spawn(generator)`. The spawned entity enters and leaves the model as any entity does, so a drain waits for it. It counts as a flow of its own, under the spawned task's name. Its records carry its own key, and the spawning entity's key is read as `attr.parent`. A spawned task cannot share its name with an arrival, because their flow statistics and entity numbers would merge.
+A task's `spawn` starts another task as a **new entity**, keyed `<task>-n`, and goes on at once, as SimPy's `env.process` starts a process without yielding it. A courier that leaves once an order is packed is a spawn: `spawn: {task: courier}` on the pack task, or `@app.task(spawn={"task": "courier"})`. A process spawns a generator with `context.spawn(generator)`. The spawned entity is an entity like any other:
+
+- It enters and leaves the model as any entity does, so a drain waits for it.
+- It counts as a flow of its own, under the spawned task's name.
+- Its records carry its own key, and the spawning entity's key is read as `attr.parent`.
+
+A spawned task cannot share its name with an arrival, because their flow statistics and entity numbers would merge.
 
 `spawn: {task: courier, after: 3 s}` starts the new entity 3 seconds after the task finishes, as SimPy's `start_delayed` does. `context.spawn(generator, delay=3)` does the same for a process. A drain that ends during the delay ends the run before the spawned entity starts, as it does for an arrival not yet due. An `after` of 0 or less is refused.
 

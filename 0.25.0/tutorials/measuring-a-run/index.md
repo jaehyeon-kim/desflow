@@ -78,7 +78,16 @@ Every name has the same form, `<sim_id>.stats.<kind>.<name>.<statistic>`, such a
 [TEL] {'sim_ts': 3600.0, 'timestamp': '...', 'path_id': 'Shop.stats.flows.orders.in_system', 'value': 11}
 ```
 
-The utilisation statistics are percentages: `utilization_avg` 86.56 means the packers were busy 86.56% of the time, and `utilization` 100.0 means all three were busy at the end. `desflow explain` and `--verify` give utilisation as a fraction, 0.9 for 90%. The names use the spelling `utilization`, and the text uses "utilisation" for the same thing. `tasks.pack_order.finished` counts the orders the task finished. `flows.orders.finished` counts the orders that left the shop, and the flow is named after the arrival that started them, `orders`. With one task the two counts are equal. `flows.orders.started` counts the orders that entered the shop, 6,261. `flows.orders.in_system` counts the 11 orders still in the shop when the hour ended, and `tasks.pack_order.in_progress` gives the same 11. The mean wait is 1.38 seconds, over the orders that started packing in [this one run with the seed 42](https://jaehyeon.me/desflow/latest/des/common-mistakes/#busy-hour-figures). [End Conditions](https://jaehyeon.me/desflow/latest/tutorials/end-conditions/index.md) shows what a run leaves out when it ends.
+The statistics mean:
+
+- `utilization_avg` 86.56: the packers were busy 86.56% of the time. The utilisation statistics are percentages, while `desflow explain` and `--verify` give utilisation as a fraction, 0.9 for 90%.
+- `utilization` 100.0: all three packers were busy at the end.
+- `tasks.pack_order.finished`: the orders the task finished.
+- `flows.orders.finished`: the orders that left the shop. The flow is named after the arrival that started them, `orders`. With one task the two counts are equal.
+- `flows.orders.started`: the orders that entered the shop, 6,261.
+- `flows.orders.in_system`: the 11 orders still in the shop when the hour ended. `tasks.pack_order.in_progress` gives the same 11.
+
+The names use the spelling `utilization`, and the text uses "utilisation" for the same thing. The mean wait is 1.38 seconds, over the orders that started packing in [this one run with the seed 42](https://jaehyeon.me/desflow/latest/des/common-mistakes/#busy-hour-figures). [End Conditions](https://jaehyeon.me/desflow/latest/tutorials/end-conditions/index.md) shows what a run leaves out when it ends.
 
 ______________________________________________________________________
 
@@ -114,7 +123,9 @@ What does a run tell me? One run of one hour of the busy shop tells you that:
 
 ## Why It Works
 
-The numbers check each other. [Little's Law](https://jaehyeon.me/desflow/latest/des/queueing-basics/#littles-law) says that the average number waiting equals the rate at which orders arrive times the average time each waits. 6,250 orders in 3,600 seconds is 1.74 a second, and 1.74 × 1.38 = 2.40, which matches `queue_length_avg`, 2.41. The [utilisation](https://jaehyeon.me/desflow/latest/des/queueing-basics/#utilisation) checks the same way: 1.74 orders a second × 1.50 seconds ÷ 3 packers = 0.87. A set of statistics that fails a check like this one points to a mistake in the model or in how it is read, as [Checking and Validating](https://jaehyeon.me/desflow/latest/des/checking-and-validating/#check-the-statistics-against-each-other) explains. [Statistics](https://jaehyeon.me/desflow/latest/user-guide/statistics/index.md) describes how each one is computed, and the [Statistics reference](https://jaehyeon.me/desflow/latest/reference/statistics/index.md) lists every name each level publishes.
+The numbers check each other. [Little's Law](https://jaehyeon.me/desflow/latest/des/queueing-basics/#littles-law) says that the average number waiting equals the rate at which orders arrive times the average time each waits. 6,250 orders in 3,600 seconds is 1.74 a second, and 1.74 × 1.38 = 2.40, which matches `queue_length_avg`, 2.41. The [utilisation](https://jaehyeon.me/desflow/latest/des/queueing-basics/#utilisation) checks the same way: 1.74 orders a second × 1.50 seconds ÷ 3 packers = 0.87. A set of statistics that fails a check like this one points to a mistake in the model or in how it is read, as [Checking and Validating](https://jaehyeon.me/desflow/latest/des/checking-and-validating/#check-the-statistics-against-each-other) explains.
+
+[Statistics](https://jaehyeon.me/desflow/latest/user-guide/statistics/index.md) describes how each one is computed, and the [Statistics reference](https://jaehyeon.me/desflow/latest/reference/statistics/index.md) lists every name each level publishes.
 
 ______________________________________________________________________
 

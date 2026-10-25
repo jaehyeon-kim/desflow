@@ -189,7 +189,12 @@ ______________________________________________________________________
 
 ## Routers, Serializers and Connector Classes
 
-A router replaces the default destination of every record. `path_router` on Parquet and JSONL and `table_router` on Iceberg each take a function that receives a record and returns its destination, or None to drop it. `topic_router` on Kafka must always return a topic. To drop records before Kafka, give the sink a `when` predicate. With a router, records are written as the router leaves them, so flattening events and dropping telemetry become the router's job. Kafka also leaves topic creation to the caller, because only the router knows which topics it uses. The hot rolling twin below sends every record to one of four topics with `topic_router: !python routing.custom_topic_router`.
+A router replaces the default destination of every record. Each router is a function that receives a record:
+
+- `path_router` on Parquet and JSONL, and `table_router` on Iceberg, return the record's destination, or None to drop it.
+- `topic_router` on Kafka must always return a topic. To drop records before Kafka, give the sink a `when` predicate.
+
+With a router, records are written as the router leaves them, so flattening events and dropping telemetry become the router's job. Kafka also leaves topic creation to the caller, because only the router knows which topics it uses. The hot rolling twin below sends every record to one of four topics with `topic_router: !python routing.custom_topic_router`.
 
 A serializer is an object, so it is built in a module and referenced. `KafkaEgress` takes `default_serializer` and `topic_serializers`, for example `default_serializer: !python serializers.AVRO`, where `serializers.py` builds a `ConfluentAvroSerializer` with the registry URL and the schema.
 

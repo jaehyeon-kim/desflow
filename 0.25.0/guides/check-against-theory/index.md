@@ -61,7 +61,12 @@ ______________________________________________________________________
 
 ## Verify It
 
-`desflow explain` gives the same values from the blueprint, and `--verify` runs the model and compares. With `--replications 10` it runs ten times and marks a pair as differing when the analytical value lies outside the [95% interval](https://jaehyeon.me/desflow/latest/des/output-analysis/#interval-and-half-width) of the runs and more than 1 percent from their mean. The 1 percent matters when every run gives the same value, as with constant times: the interval then has a width of 0, and the last order still being packed at the end would count as a difference. With one run, a pair differs when the two values are more than 10 percent apart:
+`desflow explain` gives the same values from the blueprint, and `--verify` runs the model and compares. Each pair is a value from the formulas and the same measure from the runs. A pair differs by one of two rules:
+
+- With `--replications 10`, the model runs ten times. A pair differs when the formula's value lies outside the [95% interval](https://jaehyeon.me/desflow/latest/des/output-analysis/#interval-and-half-width) of the runs and is more than 1 percent from their mean.
+- With one run, a pair differs when the two values are more than 10 percent apart.
+
+The 1 percent matters when every run gives the same value, as with constant times. The interval then has a width of 0, and the last order still being packed at the end would count as a difference. This command runs ten replications:
 
 ```bash
 desflow explain check_against_theory.yaml --verify --replications 10
@@ -157,7 +162,11 @@ ______________________________________________________________________
 
 ## Read a Difference
 
-A pair that differs on a model the formulas describe points at the model: a wrong rate or unit, a task that holds its resource longer than its service, or a route that sends entities somewhere else. A short run can differ by chance, so add [replications](https://jaehyeon.me/desflow/latest/des/output-analysis/#replications), or a longer `until`, before looking for a defect. With replications, each pair's 95% interval misses a correct value about 1 time in 20. Among many pairs, one difference is therefore expected now and then. Run the check again with more replications or another seed before looking for a defect. Agreement shows the program computes what the model on paper says. It says nothing about whether the model is close enough to the real shop, which only a comparison with the shop's own records can show, as [Checking a Model](https://jaehyeon.me/desflow/latest/tutorials/checking-a-model/index.md) does.
+A pair that differs on a model the formulas describe points at the model: a wrong rate or unit, a task that holds its resource longer than its service, or a route that sends entities somewhere else.
+
+Chance can also make a pair differ. A short run varies from one run to the next. With replications, each pair's 95% interval misses a correct value about 1 time in 20, so among many pairs one difference is expected now and then. Before looking for a defect, run the check again with more [replications](https://jaehyeon.me/desflow/latest/des/output-analysis/#replications), a longer `until` or another seed.
+
+Agreement shows the program computes what the model on paper says. It says nothing about whether the model is close enough to the real shop, which only a comparison with the shop's own records can show, as [Checking a Model](https://jaehyeon.me/desflow/latest/tutorials/checking-a-model/index.md) does.
 
 ______________________________________________________________________
 

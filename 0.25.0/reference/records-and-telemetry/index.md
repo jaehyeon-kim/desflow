@@ -97,7 +97,13 @@ An interrupted run publishes these as well, and its finished event when it ends:
 | preempted   | a request of a lower priority value took its unit                          | `{"path_id": ..., "status": "preempted", "resource": ..., "preempted_by": ..., "usage_since": ...}` |
 | resumed     | after an interrupt or a preemption, it holds its units again and is served | `{"path_id": ..., "status": "resumed"}`                                                             |
 
-`status`, `path_id` and `reason` are strings. `cause` is any JSON value the interrupt was given, or `None`. `resource` is the name of the resource that was taken or that refused the task. In a `preempted` record, `preempted_by` is the key of the entity whose request took the unit, or `None` when a process that is not a task took it. `usage_since` is the simulation time at which the preempted task was granted the unit. When a `subscribe` interrupts the instance, the `cause` is `{"event": name, "value": value}`. `value` is what the event carried. `name` is the subscribed task's name for a task, the process's name for a process, and `None` for any other event.
+The fields of these values are:
+
+- `status`, `path_id` and `reason`: strings.
+- `cause`: any JSON value the interrupt was given, or `None`. When a `subscribe` interrupts the instance, the `cause` is `{"event": name, "value": value}`. `value` is what the event carried. `name` is the subscribed task's name for a task, the process's name for a process, and `None` for any other event.
+- `resource`: the name of the resource that was taken or that refused the task.
+- `preempted_by`, in a `preempted` record: the key of the entity whose request took the unit, or `None` when a process that is not a task took it.
+- `usage_since`: the simulation time at which the preempted task was granted the unit.
 
 With statistics at `basic` or above, entities that enter and leave are counted as `<sim_id>.stats.flows.<arrival>.started`, `.finished` and `.in_system`. From `minimal`, each task's `<sim_id>.stats.tasks.<task>.in_progress` is published. Each of the outcomes above is counted as `<sim_id>.stats.tasks.<task>.balked`, `.reneged`, `.failed`, `.interrupted`, `.preempted` and `.resumed`, published once the first one happens. A flow that ends in a failure is counted as `<sim_id>.stats.flows.<arrival>.failed`. [Patience](https://jaehyeon.me/desflow/latest/tutorials/patience/index.md) shows balking and reneging, [Failures](https://jaehyeon.me/desflow/latest/user-guide/tasks-and-processes/failures/#failures) shows failures, and [Interruptions](https://jaehyeon.me/desflow/latest/tutorials/interruptions/index.md) shows interrupts and preemption. A failed task publishes `started` before its failure when it got that far, and a task with a `wait` publishes `queued` when the wait starts.
 
@@ -146,7 +152,12 @@ ______________________________________________________________________
 
 ## Reserved Payload Keys
 
-Some keys of a record's `value` belong to desflow, not to the data. They are the keys that start and end with two underscores around a name of at least one character, such as `__table__` or `__stream__`. This holds for the keys of an event's value, and of a telemetry value that is a mapping. A sink that routes by such a key uses it and removes it: `PostgresEgress` writes the record to the table its `__table__` names, and `RedisEgress` to the stream its `__stream__` names. Every other sink drops every such key, and logs one warning per key the first time it meets it. These sinks are `KafkaEgress`, the Parquet, JSON Lines and Iceberg sinks, and `ConsoleEgress`:
+Some keys of a record's `value` belong to desflow, not to the data. They are the keys that start and end with two underscores around a name of at least one character, such as `__table__` or `__stream__`, in an event's value or in a telemetry value that is a mapping. A sink handles them in one of two ways:
+
+- A sink that routes by such a key uses it and removes it. `PostgresEgress` writes the record to the table its `__table__` names, and `RedisEgress` to the stream its `__stream__` names.
+- Every other sink drops every such key, and logs one warning per key the first time it meets it. These sinks are `KafkaEgress`, the Parquet, JSON Lines and Iceberg sinks, and `ConsoleEgress`.
+
+The warning names the sink and the key:
 
 ```text
 KafkaEgress drops the payload key '__table__': keys that start and end with two underscores are reserved for desflow, and only a sink that routes by one, such as PostgreSQL's __table__ or Redis's __stream__, uses it. Rename the key to keep it as data.

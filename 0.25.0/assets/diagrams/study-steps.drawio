@@ -4,7 +4,7 @@
       <root>
         <mxCell id="0"/>
         <mxCell id="1" parent="0"/>
-        <mxCell id="c2" value="The seven steps of a simulation study" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=16;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="700" height="30" as="geometry"/></mxCell>
+        <mxCell id="c2" value="Seven steps of a simulation study" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=16;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="700" height="30" as="geometry"/></mxCell>
         <mxCell id="c3" value="1 Formulate the problem" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;spacing=8;" vertex="1" parent="1"><mxGeometry x="0" y="120" width="130" height="100" as="geometry"/></mxCell>
         <mxCell id="c4" value="2 Collect data and build the conceptual model" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;spacing=8;" vertex="1" parent="1"><mxGeometry x="190" y="120" width="130" height="100" as="geometry"/></mxCell>
         <mxCell id="c5" value="3 Is the conceptual model valid?" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=12;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;spacing=8;" vertex="1" parent="1"><mxGeometry x="380" y="120" width="130" height="100" as="geometry"/></mxCell>

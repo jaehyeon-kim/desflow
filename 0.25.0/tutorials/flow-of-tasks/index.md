@@ -9,7 +9,12 @@ Until now an order was one task: it was packed and left. A real order is picked 
 
 ## What You Add
 
-This page adds three tasks in a row: `pick_order`, `pack_order` and `ship_order`. It also adds a `backorder` delay for an order picked while the shelf of boxes from [Stock](https://jaehyeon.me/desflow/latest/tutorials/stock/index.md) is empty, and an `express` attribute that each order carries. The shop has two pickers and two packers. A regular order arrives every 2.5 seconds on average (24 a minute, `rate: 0.4`), and an express order every 10 seconds (6 a minute, `rate: 0.1`). A delivery of 53 boxes comes every 100 seconds, a little more than the orders take. Picking time is `uniform` from 1 to 3 seconds only to keep the example short. [Common Mistakes](https://jaehyeon.me/desflow/latest/des/common-mistakes/#choosing-a-normal-or-uniform-by-habit) explains why a real study fits a distribution to measured times instead, as [Choosing Inputs](https://jaehyeon.me/desflow/latest/tutorials/choosing-inputs/index.md) does.
+This page adds three tasks in a row: `pick_order`, `pack_order` and `ship_order`. It also adds a `backorder` delay for an order picked while the shelf of boxes from [Stock](https://jaehyeon.me/desflow/latest/tutorials/stock/index.md) is empty, and an `express` attribute that each order carries. The shop is set up as follows:
+
+- It has two pickers and two packers.
+- A regular order arrives every 2.5 seconds on average (24 a minute, `rate: 0.4`), and an express order every 10 seconds (6 a minute, `rate: 0.1`).
+- A delivery of 53 boxes comes every 100 seconds, a little more than the orders take.
+- Picking time is `uniform` from 1 to 3 seconds only to keep the example short. [Common Mistakes](https://jaehyeon.me/desflow/latest/des/common-mistakes/#choosing-a-normal-or-uniform-by-habit) explains why a real study fits a distribution to measured times instead, as [Choosing Inputs](https://jaehyeon.me/desflow/latest/tutorials/choosing-inputs/index.md) does.
 
 Look at the flow first:
 

@@ -88,7 +88,9 @@ ______________________________________________________________________
 
 ## Starvation
 
-Priority has a price. A regular order is served only when no express order is waiting, so every express order that arrives while it waits pushes it back. The price grows quickly as the shop gets busier. Run the hour once with the seed 42 at each of three total arrival rates, with a quarter of the orders express each time. In YAML, the variables `ORDERS_RATE` and `EXPRESS_RATE` set the two rates. When they are not set, a regular order arrives every 2.22 seconds (27 a minute, `0.45`) and an express order every 6.67 seconds (9 a minute, `0.15`). This command runs 30 orders a minute in all (0.5 a second):
+Priority has a price. A regular order is served only when no express order is waiting, so every express order that arrives while it waits pushes it back. The price grows quickly as the shop gets busier.
+
+Run the hour once with the seed 42 at each of three total arrival rates, with a quarter of the orders express each time. In YAML, the variables `ORDERS_RATE` and `EXPRESS_RATE` set the two rates. When they are not set, a regular order arrives every 2.22 seconds (27 a minute, `0.45`) and an express order every 6.67 seconds (9 a minute, `0.15`). This command runs 30 orders a minute in all (0.5 a second):
 
 ```bash
 ORDERS_RATE=0.375 EXPRESS_RATE=0.125 desflow run priorities.yaml 2>&1 | grep wait_mean
@@ -132,7 +134,9 @@ In one run of the hour with the seed 42, under `priority`, express orders wait *
 
 ## Why It Works
 
-Priority does not make the packer faster, so it cannot remove waiting. It only decides who waits. Weighted by how many orders of each kind arrive, the mean wait is 0.75 × 5.32 + 0.25 × 5.84 = 5.45 seconds under `fifo` and 0.75 × 6.94 + 0.25 × 0.84 = 5.41 seconds under `priority`: almost the same total, shared out differently. [Resources](https://jaehyeon.me/desflow/latest/user-guide/resources/index.md) describes how the queue orders requests. Plain SimPy's `PriorityResource`, which [SimPy and desflow](https://jaehyeon.me/desflow/latest/des/simpy-and-desflow/#resources) shows, serves these requests in the same order, ties included. The tests check the order in all three APIs ([SimPy Compatibility](https://jaehyeon.me/desflow/latest/reference/simpy-compatibility/index.md)). Items can be ranked too: a priority store returns the parcel with the lowest priority first, as [Stores and Containers](https://jaehyeon.me/desflow/latest/user-guide/stores-and-containers/#start-with-items-and-serve-by-priority) describes. A resource's priority decides which request is served, and a store's priority decides which item is taken.
+Priority does not make the packer faster, so it cannot remove waiting. It only decides who waits. Weighted by how many orders of each kind arrive, the mean wait is 0.75 × 5.32 + 0.25 × 5.84 = 5.45 seconds under `fifo` and 0.75 × 6.94 + 0.25 × 0.84 = 5.41 seconds under `priority`: almost the same total, shared out differently. [Resources](https://jaehyeon.me/desflow/latest/user-guide/resources/index.md) describes how the queue orders requests. Plain SimPy's `PriorityResource`, which [SimPy and desflow](https://jaehyeon.me/desflow/latest/des/simpy-and-desflow/#resources) shows, serves these requests in the same order, ties included. The tests check the order in all three APIs ([SimPy Compatibility](https://jaehyeon.me/desflow/latest/reference/simpy-compatibility/index.md)).
+
+Items can be ranked too: a priority store returns the parcel with the lowest priority first, as [Stores and Containers](https://jaehyeon.me/desflow/latest/user-guide/stores-and-containers/#start-with-items-and-serve-by-priority) describes. A resource's priority decides which request is served, and a store's priority decides which item is taken.
 
 ______________________________________________________________________
 

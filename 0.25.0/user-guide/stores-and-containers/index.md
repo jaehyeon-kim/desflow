@@ -113,11 +113,27 @@ def collect_parcel(env):
 
 A task with a resource gets its unit first and then takes its `get`, so it waits for stock while holding the unit. A task adds its `put` after its service time, then publishes the finished event. [Tasks and Processes](https://jaehyeon.me/desflow/latest/user-guide/tasks-and-processes/#what-apptask-does) lists every step.
 
-A `put` or `get` makes the task wait until it is granted. With `wait: false` (`"wait": False` in the builder), the task makes the request and goes on at once, as a SimPy `put` that is not yielded does. It publishes `finished` without waiting, and the request stays in the queue until it can be granted. Requests that are not waited for are granted first in, first out, together with the others. An interrupt, `on_interrupt: abandon` and `patience` never cancel one. A run can end while such a request still waits, and a `drain` does not wait for it. A `get` with `wait: false` takes its item later and drops it. So it cannot use `item_field` or a function that declares `item`, and its `item.<field>` can be read only in its own `filter`. `wait: false` is refused in a branch of a `wait`. The `pump` task of [Example: Fuel Dock](#example-fuel-dock) puts fuel into a tank this way. The third pump finds room for only 20 units of fuel, so its put stays queued.
+A `put` or `get` makes the task wait until it is granted. With `wait: false` (`"wait": False` in the builder), the task makes the request and goes on at once, as a SimPy `put` that is not yielded does. It publishes `finished` without waiting, and the request stays in the queue until it can be granted. Such a request follows these rules:
+
+- It is granted first in, first out, together with the requests that are waited for.
+- An interrupt, `on_interrupt: abandon` and `patience` never cancel it.
+- A run can end while it still waits, and a `drain` does not wait for it.
+- A `get` takes its item later and drops it. So it cannot use `item_field` or a function that declares `item`, and its `item.<field>` can be read only in its own `filter`.
+- It is refused in a branch of a `wait`.
+
+The `pump` task of [Example: Fuel Dock](#example-fuel-dock) puts fuel into a tank this way. The third pump finds room for only 20 units of fuel, so its put stays queued.
 
 ### Start With Items and Serve by Priority
 
-A store can hold items when the run starts, such as parcels left from yesterday: `items` lists them in the order a get returns them. A store with `priority` returns the item with the lowest `priority` value first, as SimPy's `PriorityStore` does. Its items are `[priority, item]` pairs, and a task's `put` gives each new item its `priority`. The priority can be a number, an expression such as `attr.priority`, or any other value that can be ordered against the others. A list such as `[1, 2]` works too, and is ordered element by element, as a tuple is. In YAML a string is an expression, so a text priority such as `'P1'` comes from `attr.grade` or `payload.grade`. A priority keeps the value it is given, so the text `'10'` sorts as text, before `'9'`. Priorities that cannot be compared, such as a number and a text, raise `TypeError` at the put, as in SimPy. Items of equal priority come out in the order they went in. A store cannot start with more items than its `current_cap`. The blueprint or `add_store` is refused with the reason.
+A store can hold items when the run starts, such as parcels left from yesterday. `items` lists them in the order a get returns them. A store cannot start with more items than its `current_cap`: the blueprint or `add_store` is refused with the reason.
+
+A store with `priority` returns the item with the lowest `priority` value first, as SimPy's `PriorityStore` does. Its items are `[priority, item]` pairs, and a task's `put` gives each new item its `priority`. Items of equal priority come out in the order they went in. A priority can be:
+
+- a number, or an expression such as `attr.priority` that gives one;
+- a list such as `[1, 2]`, ordered element by element, as a tuple is;
+- any other value that can be ordered against the others, such as a text.
+
+A priority keeps the value it is given, so the text `'10'` sorts as text, before `'9'`. In YAML a string is an expression, so a text priority such as `'P1'` comes from `attr.grade` or `payload.grade`. Priorities that cannot be compared, such as a number and a text, raise `TypeError` at the put, as in SimPy.
 
 ```yaml
 stores:
@@ -179,7 +195,9 @@ A `get` on a priority store takes no `priority` of its own and is refused with o
 
 ### Pick an Item, or Give Up Waiting
 
-A store `get` can take a `filter`, a condition that picks which item it takes, as SimPy's `FilterStore` does. `item.<field>` reads the item on offer. The filter can also read every name that other conditions read, such as `attr.area` for the entity's own attribute. The get takes the oldest item that matches, and waits while none does. A waiting get that matches nothing does not stop a later get from taking an item that matches it. A priority store takes no filter, because SimPy has no store that both ranks and filters. The blueprint or `run()` refuses a filter on one, and names the task.
+A store `get` can take a `filter`, a condition that picks which item it takes, as SimPy's `FilterStore` does. The filter reads the item on offer as `item.<field>`, and every name that other conditions read, such as `attr.area` for the entity's own attribute. The get takes the oldest item that matches, and waits while none does. A waiting get that matches nothing does not stop a later get from taking an item that matches it.
+
+A priority store takes no filter, because SimPy has no store that both ranks and filters. The blueprint or `run()` refuses a filter on one, and names the task.
 
 A task's `patience` covers its whole wait: for its `wait`, then its resource, then its `get`. When it runs out, the task publishes `reneged` and its get is cancelled, so it takes nothing later. In the low-level API, `cancel()` on a put or get event that has not succeeded takes it out of its queue, as in SimPy: a cancelled get takes nothing, and a cancelled put adds nothing. In YAML, `item_field` adds the item that the task's get took to its payload. A builder function receives the item as `item`:
 

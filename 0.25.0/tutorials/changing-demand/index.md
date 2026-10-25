@@ -92,7 +92,9 @@ The Builder and Low-level scripts print both plans:
 
 ## Why It Works
 
-During the rush one packer would need 0.9 × 1.5 = 1.35 seconds of packing every second, more than it has. Orders arrive at 54 a minute and the packer finishes at most 40, so the queue grows by about 14 orders a minute for as long as the rush lasts. An overload that ends is a **finite overload**. When the rush ends the load falls to 0.4 × 1.5 = 0.6, and the packer works off the queue, here by about 54 minutes. A load that stays at 1 or above is different: its queue grows for as long as the run lasts, and no run length gives a stable mean wait, as [Queueing Basics](https://jaehyeon.me/desflow/latest/des/queueing-basics/#utilisation) explains. A finite overload has an answer, but the answer depends on the schedule. A mean over the hour mixes the quiet minutes with the rush, so report the longest wait, or the waits during the rush, beside it. With two packers the rush load is 1.35 ÷ 2 = 0.68 for each packer, below 1, so waits stay short.
+During the rush one packer would need 0.9 × 1.5 = 1.35 seconds of packing every second, more than it has. Orders arrive at 54 a minute and the packer finishes at most 40, so the queue grows by about 14 orders a minute for as long as the rush lasts. An overload that ends is a **finite overload**. When the rush ends the load falls to 0.4 × 1.5 = 0.6, and the packer works off the queue, here by about 54 minutes. A load that stays at 1 or above is different: its queue grows for as long as the run lasts, and no run length gives a stable mean wait, as [Queueing Basics](https://jaehyeon.me/desflow/latest/des/queueing-basics/#utilisation) explains.
+
+A finite overload has an answer, but the answer depends on the schedule. A mean over the hour mixes the quiet minutes with the rush, so report the longest wait, or the waits during the rush, beside it. With two packers the rush load is 1.35 ÷ 2 = 0.68 for each packer, below 1, so waits stay short.
 
 ______________________________________________________________________
 

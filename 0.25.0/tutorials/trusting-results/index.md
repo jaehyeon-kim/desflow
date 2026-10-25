@@ -206,7 +206,9 @@ ______________________________________________________________________
 
 ## Result
 
-Is one run enough? No. Its empty start is not the problem. The warm-up is **2 minutes**, the shortest candidate that passes the comparison over five seeds and covers the climb in the plot. In the run with the seed 42, a 2-minute warm-up changes the mean wait only from 1.382 to 1.381 seconds. The shop fills within a minute or two, and those minutes are a small part of one hour. A shorter run, or a start further from the usual state, such as a shop that opens with a backlog of orders, needs the warm-up much more. The problem is that one run's answer depends on its seed. The run with the seed 42 measured 1.38 seconds, lower than every one of 40 replications. Over 40 replications the mean wait is **2.32 ± 0.20 seconds** with 95% confidence, within the chosen 10% precision, and the packers are busy **90.03 ± 0.45%** of the time.
+Is one run enough? No, because one run's answer depends on its seed. The run with the seed 42 measured 1.38 seconds, lower than every one of 40 replications. Over 40 replications the mean wait is **2.32 ± 0.20 seconds** with 95% confidence, within the chosen 10% precision, and the packers are busy **90.03 ± 0.45%** of the time.
+
+The empty start is not the problem. The warm-up is **2 minutes**, the shortest candidate that passes the comparison over five seeds and covers the climb in the plot. In the run with the seed 42, a 2-minute warm-up changes the mean wait only from 1.382 to 1.381 seconds. The shop fills within a minute or two, and those minutes are a small part of one hour. A shorter run, or a start further from the usual state, such as a shop that opens with a backlog of orders, needs the warm-up much more.
 
 ## Why It Works
 

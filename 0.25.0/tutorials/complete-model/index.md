@@ -9,7 +9,14 @@ Each earlier page added one idea to the shop and answered one question. This pag
 
 ## What You Add
 
-This page adds no new feature: the study uses the built-in commands of the earlier pages, in the order of a study. `desflow fit` from [Fitting the Inputs](https://jaehyeon.me/desflow/latest/tutorials/fit-the-inputs/index.md) fits the inputs to the records. `desflow explain --verify` from [Checking a Model](https://jaehyeon.me/desflow/latest/tutorials/checking-a-model/index.md) checks the program against the queueing formulas. An experiment, as in [Comparing Designs](https://jaehyeon.me/desflow/latest/tutorials/comparing-designs/index.md), compares the model with values observed in the shop, measures each design with the same seeds and checks the decision rule. `desflow report` writes the report. The model puts picking before packing, as in [A Flow of Tasks](https://jaehyeon.me/desflow/latest/tutorials/flow-of-tasks/index.md), and adds a shelf of boxes, from which each order takes one, as in [Stock](https://jaehyeon.me/desflow/latest/tutorials/stock/index.md).
+This page adds no new feature. The study uses the built-in commands of the earlier pages, in the order of a study:
+
+1. `desflow fit`, from [Fitting the Inputs](https://jaehyeon.me/desflow/latest/tutorials/fit-the-inputs/index.md), fits the inputs to the records.
+1. `desflow explain --verify`, from [Checking a Model](https://jaehyeon.me/desflow/latest/tutorials/checking-a-model/index.md), checks the program against the queueing formulas.
+1. An experiment, as in [Comparing Designs](https://jaehyeon.me/desflow/latest/tutorials/comparing-designs/index.md), compares the model with values observed in the shop, measures each design with the same seeds and checks the decision rule.
+1. `desflow report` writes the report.
+
+The model puts picking before packing, as in [A Flow of Tasks](https://jaehyeon.me/desflow/latest/tutorials/flow-of-tasks/index.md), and adds a shelf of boxes, from which each order takes one, as in [Stock](https://jaehyeon.me/desflow/latest/tutorials/stock/index.md).
 
 Fitting needs the `fit` extra, which adds scipy and matplotlib:
 
@@ -363,7 +370,14 @@ Not compared:
 --verify checks the implementation against the queueing analysis where it applies; it does not show that the model is close enough to the real system
 ```
 
-The picker is one server, and the orders reach it directly, with exponential gaps. For such a server [Kingman's formula](https://jaehyeon.me/desflow/latest/des/queueing-basics/#variation-lengthens-waits) gives the wait exactly, and the utilisation, the queue and the wait all agree with the runs. The packers' utilisation agrees too, and at a utilisation of 0.88 they are the [bottleneck](https://jaehyeon.me/desflow/latest/des/queueing-basics/#flow-balance-and-the-bottleneck). Three packers with gamma times are outside the formulas' assumptions, so their wait has no closed formula, and only the runs measure it. The shipping step takes a box from the shelf, which the formulas leave out, so the orders' throughput is not compared either. Agreement shows that the program computes what the model on paper says. It says nothing about whether the model is close enough to the shop.
+The comparison covers only the parts the formulas describe:
+
+- The picker is one server, and the orders reach it directly, with exponential gaps. For such a server [Kingman's formula](https://jaehyeon.me/desflow/latest/des/queueing-basics/#variation-lengthens-waits) gives the wait exactly, and the utilisation, the queue and the wait all agree with the runs.
+- The packers' utilisation agrees too, and at a utilisation of 0.88 they are the [bottleneck](https://jaehyeon.me/desflow/latest/des/queueing-basics/#flow-balance-and-the-bottleneck).
+- Three packers with gamma times are outside the formulas' assumptions, so their wait has no closed formula, and only the runs measure it.
+- The shipping step takes a box from the shelf, which the formulas leave out, so the orders' throughput is not compared either.
+
+Agreement shows that the program computes what the model on paper says. It says nothing about whether the model is close enough to the shop.
 
 ### Against the Shop
 
@@ -559,7 +573,11 @@ The table gives each design's mean waits over its 40 replications, in seconds, a
 | second-picker | 0.04 ± 0.00  | 2.17 ± 0.17  | 87.95 ± 0.52 |
 | fourth-packer | 0.56 ± 0.02  | 0.15 ± 0.01  | 65.96 ± 0.39 |
 
-Only the fourth packer keeps both waits under 1 second. Seed by seed, it cuts the packing wait by **1.77 ± 0.16** seconds and leaves the picking wait as it was. A second picker cuts the picking wait by 0.52 ± 0.01 seconds but lengthens the packing wait by 0.26 ± 0.02 seconds. One picker passes orders on one at a time, with at least one picking time between them. Two pickers pass orders on closer together, nearer the times they arrive, so more orders find all three packers busy. `explain` named the packers as the bottleneck, and the experiment measures how much each design changes the wait there. Every design draws from the same three random streams, `arrival.orders`, `service.packing` and `service.picking`, and the constant deliveries draw from none. Every difference is therefore [paired](https://jaehyeon.me/desflow/latest/des/output-analysis/#comparing-designs). In none of the three designs did an order wait for a box, so the shelf does not limit the answer.
+Only the fourth packer keeps both waits under 1 second. Seed by seed, it cuts the packing wait by **1.77 ± 0.16** seconds and leaves the picking wait as it was. A second picker cuts the picking wait by 0.52 ± 0.01 seconds but lengthens the packing wait by 0.26 ± 0.02 seconds.
+
+One picker passes orders on one at a time, with at least one picking time between them. Two pickers pass orders on closer together, nearer the times they arrive, so more orders find all three packers busy. `explain` named the packers as the bottleneck, and the experiment measures how much each design changes the wait there.
+
+Every design draws from the same three random streams, `arrival.orders`, `service.packing` and `service.picking`, and the constant deliveries draw from none. Every difference is therefore [paired](https://jaehyeon.me/desflow/latest/des/output-analysis/#comparing-designs). In none of the three designs did an order wait for a box, so the shelf does not limit the answer.
 
 ### Test the Sensitivity
 
@@ -604,7 +622,9 @@ A sixth and a seventh check state that both waits stay under 1 second:
 
 The same key, in the same mapping as the model.
 
-With orders 10% faster, the mean picking wait over the 40 replications is **0.78 ± 0.02** seconds, the mean packing wait **0.23 ± 0.01** seconds, and the packers are busy 72.59 ± 0.41% of the time. Both upper ends stay under 1 second, at 0.80 and 0.24 seconds, so the sixth and seventh checks pass. The variant shows something the three designs did not: orders now wait for shipping boxes, 0.22 ± 0.14 seconds on average. In 21 of the 40 replications some orders waited for a box, and the highest mean wait of one run was 1.84 seconds. A delivery of 1,000 boxes every 10 minutes is 1.67 boxes a second, only just above 1.66 orders a second. Orders arrive at random, so in some periods they take boxes faster than the deliveries replace them, and the shelf is empty before the next delivery. A busier hour would need larger or more frequent deliveries as well as the fourth packer.
+With orders 10% faster, the mean picking wait over the 40 replications is **0.78 ± 0.02** seconds, the mean packing wait **0.23 ± 0.01** seconds, and the packers are busy 72.59 ± 0.41% of the time. Both upper ends stay under 1 second, at 0.80 and 0.24 seconds, so the sixth and seventh checks pass.
+
+The variant shows something the three designs did not: orders now wait for shipping boxes, 0.22 ± 0.14 seconds on average. In 21 of the 40 replications some orders waited for a box, and the highest mean wait of one run was 1.84 seconds. A delivery of 1,000 boxes every 10 minutes is 1.67 boxes a second, only just above 1.66 orders a second. Orders arrive at random, so in some periods they take boxes faster than the deliveries replace them, and the shelf is empty before the next delivery. A busier hour would need larger or more frequent deliveries as well as the fourth packer.
 
 ______________________________________________________________________
 
@@ -707,7 +727,15 @@ ______________________________________________________________________
 
 ## Result
 
-Which shop design should be recommended? The fourth packer. With it, the mean picking wait over 40 replications is **0.56 ± 0.02** seconds and the mean packing wait **0.15 ± 0.01** seconds. Both upper ends are under 1 second, and every check passes. In today's shop the mean packing wait is **1.92 ± 0.16** seconds, and a second picker would lengthen it by 0.26 seconds. The model agrees with the formulas where they apply, and each observed value lies inside the model's interval for its mean. Any warm-up from none to 10 minutes changes the mean waits by less than their half-widths. With orders 10% faster, the fourth packer still keeps both waits under 1 second, but orders then sometimes wait for shipping boxes. The data on this page are illustrative, and a real study reaches its recommendation from the shop's own records.
+Which shop design should be recommended? The fourth packer:
+
+- With it, the mean picking wait over 40 replications is **0.56 ± 0.02** seconds and the mean packing wait **0.15 ± 0.01** seconds. Both upper ends are under 1 second, and every check passes.
+- In today's shop the mean packing wait is **1.92 ± 0.16** seconds, and a second picker would lengthen it by 0.26 seconds.
+- The model agrees with the formulas where they apply, and each observed value lies inside the model's interval for its mean.
+- Any warm-up from none to 10 minutes changes the mean waits by less than their half-widths.
+- With orders 10% faster, the fourth packer still keeps both waits under 1 second, but orders then sometimes wait for shipping boxes.
+
+The data on this page are illustrative, and a real study reaches its recommendation from the shop's own records.
 
 ## Why It Works
 

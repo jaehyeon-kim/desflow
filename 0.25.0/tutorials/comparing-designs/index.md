@@ -166,7 +166,7 @@ Does a fourth packer cut the mean wait, and by how much? Yes. Over 20 replicatio
 
 ## Why It Works
 
-Two designs run with different seeds differ by the design and by chance, and the chance part can hide a small effect. When both designs run with the same seeds, each pair of runs has the same arrivals and the same packing times. The chance part then partly cancels in their difference. So the interval on the differences is narrower than an unpaired comparison of the same runs would give. Each difference comes from a seed of its own, so the 20 differences are independent of each other. The interval is therefore a [Student t interval](https://jaehyeon.me/desflow/latest/des/output-analysis/#interval-and-half-width) on the 20 differences, as in [Output Analysis](https://jaehyeon.me/desflow/latest/des/output-analysis/#comparing-designs).
+Two designs run with different seeds differ by the design and by chance, and the chance part can hide a small effect. With the same seeds, each pair of runs has the same arrivals and the same packing times, so the chance part partly cancels in their difference, as [Output Analysis](https://jaehyeon.me/desflow/latest/des/output-analysis/#comparing-designs) explains. Each difference comes from a seed of its own, so the 20 differences are independent of each other, and the interval is a [Student t interval](https://jaehyeon.me/desflow/latest/des/output-analysis/#interval-and-half-width) on them.
 
 ______________________________________________________________________
 

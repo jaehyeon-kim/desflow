@@ -1,0 +1,18 @@
+<mxfile>
+  <diagram name="preemption" id="preemption">
+    <mxGraphModel grid="0" page="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="title" value="An express order takes the unit of the regular order that asked last" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=16;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="0" y="0" width="750" height="30" as="geometry"/></mxCell>
+        <mxCell id="g" value="packers: both units busy" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=none;strokeWidth=2;dashed=1;verticalAlign=top;align=center;spacingTop=6;fontStyle=1;strokeColor=#6c8ebf;" vertex="1" parent="1"><mxGeometry x="280" y="50" width="470" height="150" as="geometry"/></mxCell>
+        <mxCell id="x" value="express-1&lt;br&gt;&lt;font style=&#x27;font-size:12px&#x27;&gt;priority 1, a new request&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;strokeWidth=2;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="1"><mxGeometry x="0" y="100" width="170" height="70" as="geometry"/></mxCell>
+        <mxCell id="o2" value="orders-2&lt;br&gt;&lt;font style=&#x27;font-size:12px&#x27;&gt;priority 2, asked last&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;strokeWidth=2;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1"><mxGeometry x="300" y="100" width="210" height="70" as="geometry"/></mxCell>
+        <mxCell id="o1" value="orders-1&lt;br&gt;&lt;font style=&#x27;font-size:12px&#x27;&gt;priority 2, asked first,&lt;br&gt;keeps its unit&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;strokeWidth=2;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1"><mxGeometry x="525" y="100" width="210" height="70" as="geometry"/></mxCell>
+        <mxCell id="oi" value="on_interrupt&lt;br&gt;&lt;font style=&#x27;font-size:12px&#x27;&gt;resume, restart or abandon&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;strokeWidth=2;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="1"><mxGeometry x="300" y="290" width="210" height="60" as="geometry"/></mxCell>
+        <mxCell id="e1" value="takes its unit" style="edgeStyle=orthogonalEdgeStyle;rounded=0;sketch=1;html=1;strokeWidth=3;endArrow=block;fontFamily=Comic Sans MS;fontSize=13;labelBackgroundColor=#ffffff;strokeColor=#d6b656;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="x" target="o2"><mxGeometry relative="1" as="geometry"><mxPoint x="-5" y="-28" as="offset"/></mxGeometry></mxCell>
+        <mxCell id="e2" value="publishes preempted" style="edgeStyle=orthogonalEdgeStyle;rounded=0;sketch=1;html=1;strokeWidth=3;endArrow=block;fontFamily=Comic Sans MS;fontSize=13;labelBackgroundColor=#ffffff;strokeColor=#6c8ebf;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="o2" target="oi"><mxGeometry relative="1" as="geometry"><mxPoint x="75" y="0" as="offset"/></mxGeometry></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

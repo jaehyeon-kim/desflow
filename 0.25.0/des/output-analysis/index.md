@@ -25,7 +25,12 @@ A run starts with an empty shop, and the first orders find every packer free. Th
 
 A **warm-up** is a time at the start of a run whose observations are discarded. In desflow the run's `warmup` resets every statistic once at that time, as [Run Length](https://jaehyeon.me/desflow/latest/user-guide/time-and-pacing/run-length/index.md) and [Statistics](https://jaehyeon.me/desflow/latest/user-guide/statistics/index.md) describe.
 
-Choose the warm-up from evidence, not from habit, in two steps. First plot a running statistic from the start of the run, such as the queue length or the mean wait so far, and note when it stops climbing. Law's paper shows a plot made with Welch's method for this, in which the warm-up is the time after which the average has levelled off, and advises choosing it conservatively. Then compare a few candidate warm-ups: run the same replications after each, and check whether a longer warm-up moves the mean by more than its [half-width](#interval-and-half-width). A candidate passes when it does not. The rule is: **keep the shortest candidate that passes the comparison and covers the climb in the plot.** [Trusting Results](https://jaehyeon.me/desflow/latest/tutorials/trusting-results/#compare-warm-ups) applies it to the busy hour and keeps 2 minutes. An hour is long enough that its first minutes hardly count there. A shorter run, or one that starts far from the usual state, needs the warm-up much more.
+Choose the warm-up from evidence, not from habit, in two steps:
+
+1. Plot a running statistic from the start of the run, such as the queue length or the mean wait so far, and note when it stops climbing. Law's paper shows a plot made with Welch's method for this, in which the warm-up is the time after which the average has levelled off, and advises choosing it conservatively.
+1. Compare a few candidate warm-ups. Run the same replications after each, and check whether a longer warm-up moves the mean by more than its [half-width](#interval-and-half-width). A candidate passes when it does not.
+
+Then **keep the shortest candidate that passes the comparison and covers the climb in the plot.** [Trusting Results](https://jaehyeon.me/desflow/latest/tutorials/trusting-results/#compare-warm-ups) applies it to the busy hour and keeps 2 minutes. An hour is long enough that its first minutes hardly count there. A shorter run, or one that starts far from the usual state, needs the warm-up much more.
 
 A warm-up is not a fix for a model that never settles. If [utilisation](https://jaehyeon.me/desflow/latest/des/queueing-basics/#utilisation) is 1 or more, there is no steady state, and no warm-up will find one, as [Queueing Basics](https://jaehyeon.me/desflow/latest/des/queueing-basics/index.md) explains.
 
@@ -43,7 +48,13 @@ ______________________________________________________________________
 
 ## Interval and Half-width
 
-A **95% interval**, in full a 95% confidence interval, is the mean of the n replications plus or minus a **half-width** of t × s ÷ √n. Here s is the standard deviation of the n values, and s ÷ √n is the **standard error**, an estimate of how far the mean itself varies from one set of replications to the next. t is the **Student t quantile** for n − 1 degrees of freedom, one less than the number of replications. t is about 2.1 for 20 replications and 2.0 for 40, and larger for fewer, because s is then a rougher estimate. Over many studies, about 95% of the intervals built this way contain the true mean. In the busy hour above, 2.32 ± 0.20 seconds has a half-width of 0.20 seconds, so the interval runs from 2.12 to 2.52 seconds.
+Over 40 replications of the busy hour, the mean wait is 2.32 ± 0.20 seconds. The interval runs from 2.12 to 2.52 seconds, and 0.20 seconds is its **half-width**. A **95% interval**, in full a 95% confidence interval, is the mean of n replications plus or minus a half-width of t × s ÷ √n, where:
+
+- s is the standard deviation of the n values.
+- s ÷ √n is the **standard error**, an estimate of how far the mean itself varies from one set of replications to the next.
+- t is the **Student t quantile** for n − 1 degrees of freedom, one less than the number of replications. t is about 2.1 for 20 replications and 2.0 for 40, and larger for fewer, because s is then a rougher estimate.
+
+Over many studies, about 95% of the intervals built this way contain the true mean.
 
 ______________________________________________________________________
 

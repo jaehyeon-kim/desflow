@@ -10,7 +10,7 @@
         <mxCell id="c1" value="Kafka topic sim-config&lt;br&gt;&lt;font style='font-size:12px'&gt;{&amp;quot;path&amp;quot;: &amp;quot;Shop.arrival.orders.rate&amp;quot;, &amp;quot;value&amp;quot;: 1.5}&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=2;" vertex="1" parent="1">
           <mxGeometry x="175.0" y="50.0" width="400" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="c2" value="ingress thread" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=none;strokeColor=#9673a6;strokeWidth=2;dashed=1;verticalAlign=top;align=center;spacingTop=8;align=left;spacingLeft=12;" vertex="1" parent="1">
+        <mxCell id="c2" value="ingress thread" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=none;strokeColor=#9673a6;strokeWidth=2;dashed=1;verticalAlign=top;align=left;spacingLeft=12;spacingTop=8;" vertex="1" parent="1">
           <mxGeometry x="0.0" y="160.0" width="750" height="120" as="geometry" />
         </mxCell>
         <mxCell id="c3" value="KafkaIngress&lt;br&gt;&lt;font style='font-size:12px'&gt;decodes the message and reads path and value;&lt;br&gt;a bad message is a WARNING line, and skipped&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;" vertex="1" parent="1">
@@ -19,7 +19,7 @@
         <mxCell id="c4" value="ingress queue&lt;br&gt;&lt;font style='font-size:12px'&gt;(path, value) pairs&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;" vertex="1" parent="1">
           <mxGeometry x="175.0" y="340.0" width="400" height="56" as="geometry" />
         </mxCell>
-        <mxCell id="c5" value="SimPy thread" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=none;strokeColor=#6c8ebf;strokeWidth=2;dashed=1;verticalAlign=top;align=center;spacingTop=8;align=left;spacingLeft=12;" vertex="1" parent="1">
+        <mxCell id="c5" value="SimPy thread" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=none;strokeColor=#6c8ebf;strokeWidth=2;dashed=1;verticalAlign=top;align=left;spacingLeft=12;spacingTop=8;" vertex="1" parent="1">
           <mxGeometry x="0.0" y="430.0" width="750" height="240" as="geometry" />
         </mxCell>
         <mxCell id="c6" value="ingress monitor&lt;br&gt;&lt;font style='font-size:12px'&gt;every 0.1 simulation seconds, applies all that is queued&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1">

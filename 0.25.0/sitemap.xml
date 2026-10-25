@@ -173,7 +173,19 @@
          <lastmod>2026-10-25</lastmod>
     </url>
     <url>
+         <loc>https://jaehyeon.me/desflow/latest/guides/write-a-connector/</loc>
+         <lastmod>2026-10-25</lastmod>
+    </url>
+    <url>
          <loc>https://jaehyeon.me/desflow/latest/guides/yaml-advanced/</loc>
+         <lastmod>2026-10-25</lastmod>
+    </url>
+    <url>
+         <loc>https://jaehyeon.me/desflow/latest/learn/</loc>
+         <lastmod>2026-10-25</lastmod>
+    </url>
+    <url>
+         <loc>https://jaehyeon.me/desflow/latest/projects/</loc>
          <lastmod>2026-10-25</lastmod>
     </url>
     <url>
@@ -370,6 +382,10 @@
     </url>
     <url>
          <loc>https://jaehyeon.me/desflow/latest/user-guide/egress/</loc>
+         <lastmod>2026-10-25</lastmod>
+    </url>
+    <url>
+         <loc>https://jaehyeon.me/desflow/latest/user-guide/how-desflow-works/</loc>
          <lastmod>2026-10-25</lastmod>
     </url>
     <url>

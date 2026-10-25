@@ -139,7 +139,9 @@ ten: {Shop.resources.packers.current_cap: 10}
 
 The same keys, in the same mapping as the model.
 
-One packer takes 1.5 seconds an order on average, so it can finish at most 3,480 / 1.5 = 2,320 orders in the 3,480 seconds after the warm-up. Over the experiment's 20 replications, the one-packer design finishes **2,318** orders on average, with the packer busy **100%** of the time and a mean wait of about **1,179** seconds. Ten packers would be busy 1.8 orders a second × 1.5 seconds ÷ 10 packers = 27% of the time. The experiment measures **27.08%** on average, and the mean wait rounds to **0.00** seconds. Turn each extreme into a check, so a later change that breaks it fails. A check tests the far end of the interval, so it passes only when the whole interval is within the bound:
+One packer takes 1.5 seconds an order on average, so it can finish at most 3,480 ÷ 1.5 = 2,320 orders in the 3,480 seconds after the warm-up. Over the experiment's 20 replications, the one-packer design finishes **2,318** orders on average, with the packer busy **100%** of the time and a mean wait of about **1,179** seconds. Ten packers would be busy 1.8 orders a second × 1.5 seconds ÷ 10 packers = 27% of the time. The experiment measures **27.08%** on average, and the mean wait rounds to **0.00** seconds.
+
+Turn each extreme into a check, so a later change that breaks it fails. A check tests the far end of the interval, so it passes only when the whole interval is within the bound:
 
 ```yaml
 checks:
@@ -229,7 +231,11 @@ Not compared:
 --verify checks the implementation against the queueing analysis where it applies; it does not show that the model is close enough to the real system
 ```
 
-The utilisation of 0.9 and the throughput of 1.8 orders a second agree with the replications. `explain` and `--verify` give the utilisation as a fraction, so 0.9034 is 90.34%, while the experiment's statistics give a percentage. The measured wait, 2.252 ± 0.2476 seconds, is the mean of the 10 replications after the blueprint's 2-minute warm-up. The replications use the seeds of Trusting Results, so the figure equals [that page's figure for 10 replications](https://jaehyeon.me/desflow/latest/des/common-mistakes/#busy-hour-figures). The wait and the queue length have no analytical value, and the `Not estimated` line says why: three packers with measured packing times have no closed formula. For them the interval of the experiment is the check, as the next section shows. Agreement shows that the program computes what the model on paper says. It says nothing about whether the model is close enough to the real shop. [Check Against Theory](https://jaehyeon.me/desflow/latest/guides/check-against-theory/index.md) runs the same check on a shop the formulas describe in full.
+The utilisation of 0.9 and the throughput of 1.8 orders a second agree with the replications. `explain` and `--verify` give the utilisation as a fraction, so 0.9034 is 90.34%, while the experiment's statistics give a percentage.
+
+The measured wait, 2.252 ± 0.2476 seconds, is the mean of the 10 replications after the blueprint's 2-minute warm-up. The replications use the seeds of Trusting Results, so the figure equals [that page's figure for 10 replications](https://jaehyeon.me/desflow/latest/des/common-mistakes/#busy-hour-figures). The wait and the queue length have no analytical value, and the `Not estimated` line says why: three packers with measured packing times have no closed formula. For them the interval of the experiment is the check, as the next section shows.
+
+Agreement shows that the program computes what the model on paper says. It says nothing about whether the model is close enough to the real shop. [Check Against Theory](https://jaehyeon.me/desflow/latest/guides/check-against-theory/index.md) runs the same check on a shop the formulas describe in full.
 
 ______________________________________________________________________
 
@@ -254,7 +260,14 @@ observed: {file: checking_a_model_observed.csv, variant: three}
 
 The same key, in the same mapping as the model.
 
-The busy-hour wait with three packers and measured packing times has no exact formula in [Queueing Basics](https://jaehyeon.me/desflow/latest/des/queueing-basics/index.md), so the experiment's interval is the check. The interval covers only the model's spread from run to run, not the error in the shop's own measurement. One rule applies to both measures: a value outside its interval is a disagreement that the study must explain before it trusts the model for the decision. Each interval is the 95% interval of the model's mean over the 20 replications with three packers. The observed mean wait of 2.6 seconds is inside its interval, **2.16 to 2.80** seconds, so the wait agrees. The observed utilisation of 91% is outside its interval, **89.70 to 90.96%**, so the utilisation is a disagreement to explain. The study could, for example, check how the shop measured its utilisation, or whether the packing times are right.
+The busy-hour wait with three packers and measured packing times has no exact formula in [Queueing Basics](https://jaehyeon.me/desflow/latest/des/queueing-basics/index.md), so the experiment's interval is the check. The interval covers only the model's spread from run to run, not the error in the shop's own measurement. One rule applies to both measures: a value outside its interval is a disagreement that the study must explain before it trusts the model for the decision. Each interval is the 95% interval of the model's mean over the 20 replications with three packers:
+
+| Measure     | Observed in the shop | Model's interval         | Result                             |
+| ----------- | -------------------- | ------------------------ | ---------------------------------- |
+| Mean wait   | 2.6 seconds          | **2.16 to 2.80** seconds | inside, so it agrees               |
+| Utilisation | 91%                  | **89.70 to 90.96%**      | outside, a disagreement to explain |
+
+The study could, for example, check how the shop measured its utilisation, or whether the packing times are right.
 
 ______________________________________________________________________
 
@@ -342,7 +355,14 @@ ______________________________________________________________________
 
 Each value observed in the real shop beside the three-packer interval of the experiment:
 
-Does the program do what the model on paper says, and is the model good enough to decide the number of packers? The program does what the model on paper says. The fixed run matches the trace by hand: **4** orders finished, **5** still in the shop and a mean wait of **0.714** seconds. One packer finishes **2,318** orders on average against 2,320 by hand, and ten packers are busy **27.08%** of the time against 27%. Little's law holds for three packers, with a mean queue of **4.488** orders against 4.478, and the measured utilisation agrees with the formula's 0.9. With four packers at a rate 6% higher, the mean wait is **0.35 ± 0.02** seconds, and all three checks pass. The observed values are illustrative, and a real check uses the shop's own records. Against them the mean wait of 2.6 seconds lies inside the simulated **2.16 to 2.80**, but the utilisation of 91% lies outside **89.70 to 90.96**. The model is good enough for the decision only once the study has explained that disagreement.
+Does the program do what the model on paper says, and is the model good enough to decide the number of packers? The program does what the model on paper says:
+
+- The fixed run matches the trace by hand: **4** orders finished, **5** still in the shop and a mean wait of **0.714** seconds.
+- One packer finishes **2,318** orders on average against 2,320 by hand, and ten packers are busy **27.08%** of the time against 27%.
+- Little's law holds for three packers, with a mean queue of **4.488** orders against 4.478, and the measured utilisation agrees with the formula's 0.9.
+- With four packers at a rate 6% higher, the mean wait is **0.35 ± 0.02** seconds, and all three checks pass.
+
+The observed values are illustrative, and a real check uses the shop's own records. Against them the mean wait of 2.6 seconds lies inside the simulated **2.16 to 2.80**, but the utilisation of 91% lies outside **89.70 to 90.96**. The model is good enough for the decision only once the study has explained that disagreement.
 
 ## Why It Works
 

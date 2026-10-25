@@ -170,6 +170,16 @@ ______________________________________________________________________
 
 The environment does little for you. It paces the clock, holds the registry, writes records on the egress thread and keeps the statistics that `setup_stats` switches on. Everything else is your code. [Builder API](https://jaehyeon.me/desflow/latest/user-guide/builder-api/#how-it-works) lists what `SimulationContext.run()` writes for you on top of the same steps.
 
+The environment runs on three threads: the SimPy thread runs your processes, the ingress thread runs the sources and the egress thread runs the sinks. Alongside your processes, the environment starts processes of its own on the SimPy thread:
+
+- The ingress monitor applies the sources' changes to the registry every 0.1 simulation seconds.
+- Each sink has a process that flushes its buffer on the sink's interval.
+- The lag monitor measures how far the clock is behind the wall clock once the run is live.
+- The statistics timer publishes the statistics every interval.
+- One process ends the warm-up.
+
+`env.step()` and `env.peek()` do not count these processes. [Time and Pacing](https://jaehyeon.me/desflow/latest/user-guide/time-and-pacing/#how-it-works) shows the threads and the switch to real time.
+
 ______________________________________________________________________
 
 ## Stability and Limits

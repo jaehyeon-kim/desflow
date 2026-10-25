@@ -62,7 +62,10 @@ The runs range from 1.52 seconds, 28% below the mean, to 2.75 seconds, 30% above
 
 ### Busy Hour Figures
 
-The pages of this site run the busy hour with 3 packers in different ways, so they give different figures for its mean wait. A figure changes with the number of runs, the packing times, the [warm-up](https://jaehyeon.me/desflow/latest/des/output-analysis/#one-run-starts-empty), the run length and the seeds. The table lists each figure, the pages that give it and how it was run. Every run is one hour at 1.8 orders a second unless the row says otherwise. "Measured times" are the 40 packing times measured at the bench, drawn as an `empirical` distribution. "Replications" have seeds spawned from 42, and the first 5, 10 or 20 of the 40 are the replications a run of 5, 10 or 20 makes.
+The pages of this site run the busy hour with 3 packers in different ways, so they give different figures for its mean wait. A figure changes with the number of runs, the packing times, the [warm-up](https://jaehyeon.me/desflow/latest/des/output-analysis/#one-run-starts-empty), the run length and the seeds. The table lists each figure, the pages that give it and how it was run. Every run is one hour at 1.8 orders a second unless the row says otherwise. Two terms in the table need a definition:
+
+- "Measured times" are the 40 packing times measured at the bench, drawn as an `empirical` distribution.
+- "Replications" have seeds spawned from 42. A run of 5, 10 or 20 replications uses the first 5, 10 or 20 of the 40 seeds.
 
 | Mean wait (s) | Pages                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | How it was run                                                                                                              |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
@@ -136,7 +139,11 @@ def one_run_each():
     return wrong, len(slow), mean(slow), mean(fast)
 ```
 
-Over the 20 runs each, with seeds spawned from 1 for the slower design and from 2 for the faster one, the mean wait is 1.99 seconds for the slower design and 1.51 seconds for the faster. These runs are not paired, so they are not the runs of the paired comparison in [Output Analysis](https://jaehyeon.me/desflow/latest/des/output-analysis/#comparing-designs), which runs both designs with the seeds spawned from 42. Now match the runs in order, first with first. In 4 of the 20 matches, the slower design's run had a mean wait at or below the faster design's run. In those matches, one run of each design would have said the change did not help. Compare designs with the same number of replications each and an interval on the difference. Use [common random numbers](https://jaehyeon.me/desflow/latest/des/output-analysis/#comparing-designs) to reduce the random variation in the difference. [Comparing Designs](https://jaehyeon.me/desflow/latest/tutorials/comparing-designs/index.md) does this on the shop.
+Over the 20 runs each, with seeds spawned from 1 for the slower design and from 2 for the faster one, the mean wait is 1.99 seconds for the slower design and 1.51 seconds for the faster. These runs are not paired, so they are not the runs of the paired comparison in [Output Analysis](https://jaehyeon.me/desflow/latest/des/output-analysis/#comparing-designs), which runs both designs with the seeds spawned from 42.
+
+Now match the runs in order, first with first. In 4 of the 20 matches, the slower design's run had a mean wait at or below the faster design's run. In those matches, one run of each design would have said the change did not help.
+
+Compare designs with the same number of replications each and an interval on the difference. Use [common random numbers](https://jaehyeon.me/desflow/latest/des/output-analysis/#comparing-designs) to reduce the random variation in the difference. [Comparing Designs](https://jaehyeon.me/desflow/latest/tutorials/comparing-designs/index.md) does this on the shop.
 
 ______________________________________________________________________
 
