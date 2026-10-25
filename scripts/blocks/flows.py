@@ -52,7 +52,6 @@ def one_order_flow() -> List[str]:
     return [line for line in lines if fields(line)["key"] == "orders-172"]
 
 
-
 def priorities_explain() -> List[str]:
     """Priorities: `desflow explain` on the hour at its default rates."""
     return resources_and_reasons("docs/snippets/yaml/priorities.yaml")
