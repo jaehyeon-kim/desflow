@@ -3,6 +3,7 @@ from typing import Dict, List, Optional
 
 import numpy as np
 
+from desflow.config import MIN_DELAY
 from desflow.core.distributions import get_distribution
 from desflow.models.params import DistributionConfig
 
@@ -104,7 +105,7 @@ class Sampler:
         """
         return sorted(self._generators)
 
-    def sample(self, config: DistributionConfig, min_delay: float = 0.00001) -> float:
+    def sample(self, config: DistributionConfig, min_delay: float = MIN_DELAY) -> float:
         """
         Draws a random sample using the current parameters in the provided config.
 

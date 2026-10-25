@@ -13,11 +13,11 @@ stores:
 
 arrivals:
   # --8<-- [start:arrivals]
-  # A shirt every 10 seconds: 3 in 10 small, 4 medium, 3 large
+  # A shirt every 10 seconds on average: 3 in 10 small, 4 medium, 3 large
   shirts_s: {dist: exponential, rate: 0.03, spawn: restock, attributes: {size: S}}
   shirts_m: {dist: exponential, rate: 0.04, spawn: restock, attributes: {size: M}}
   shirts_l: {dist: exponential, rate: 0.03, spawn: restock, attributes: {size: L}}
-  # An order every 10 seconds: a quarter small, half medium, a quarter large
+  # An order every 10 seconds on average: a quarter small, half medium, a quarter large
   orders_s: {dist: exponential, rate: 0.025, spawn: take_shirt, attributes: {size: S}}
   orders_m: {dist: exponential, rate: 0.05, spawn: take_shirt, attributes: {size: M}}
   orders_l: {dist: exponential, rate: 0.025, spawn: take_shirt, attributes: {size: L}}
@@ -35,10 +35,15 @@ tasks:
     get: {store: shelf, filter: item.size == attr.size}
     # A customer cancels an order not filled within 10 minutes
     patience: 10 min
-    # The shirt the get took, in the finished event
+    # Adds the shirt the get took to the finished event
     item_field: shirt
     payload: {event_type: order_filled}
   # --8<-- [end:take]
+
+# --8<-- [start:stats]
+# The counts of each arrival's orders, published once, at the end of the 8 hours
+stats: {level: basic, interval: 8 h}
+# --8<-- [end:stats]
 
 egress:
   - type: Console

@@ -1,6 +1,6 @@
 """Replications, low-level API: one hour of the shop, run 20 times with intervals.
 
-The low-level twin of `builder/replications_example.py`. `model` builds the shop in
+The low-level version of `builder/replications_example.py`. `model` builds the shop in
 an environment and with a sampler it is given; `LowLevelModel` names it with its sim
 id, and `replicate` calls it once per replication, unpaced with no sinks, after a
 3-minute warm-up, with a seed spawned from 42. The pack task reports each step to

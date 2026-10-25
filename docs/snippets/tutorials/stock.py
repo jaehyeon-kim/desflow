@@ -2,8 +2,8 @@
 
 One packer, an order every 2 seconds on average, and a delivery of boxes every 100
 seconds. Every record is printed to the terminal, and the script prints the mean wait
-for 60-box and 40-box deliveries at the end: python stock.py 2>/dev/null shows only
-those lines.
+for 60-box and 40-box deliveries at the end. To see only those lines, run:
+python stock.py 2>/dev/null
 """
 
 import logging

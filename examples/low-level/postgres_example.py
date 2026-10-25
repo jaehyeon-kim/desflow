@@ -1,6 +1,6 @@
 """Relational output, low-level API.
 
-The low-level twin of `builder/postgres_example.py`. The simulation writes order
+The low-level version of `builder/postgres_example.py`. The simulation writes order
 records to the PostgreSQL table `orders`. `PostgresEgress` creates the table at start,
 and `PostgresIngress` creates `simulation_params` and polls it for parameter updates.
 
@@ -23,7 +23,7 @@ from desflow import (
 logger = logging.getLogger("postgres_example")
 
 # Connection string matching the odctl `postgres` profile
-DSN = "postgresql://user:password@localhost:5432/odctl"
+DSN = "postgresql://user:password@127.0.0.1:5432/odctl"
 
 # The table PostgresEgress creates when it does not exist. timestamp comes from the
 # record, and the egress converts its ISO string for the TIMESTAMP column.

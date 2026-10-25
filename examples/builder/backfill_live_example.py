@@ -31,7 +31,7 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "127.0.0.1:9092")
 EVENT_TOPIC = "sim-events"
 TELEMETRY_TOPIC = "sim-telemetry"
 
@@ -101,12 +101,14 @@ app = (
         ),
         when=is_live,
     )
-    # Only batch_size governs the history. The interval flush is a simulation process,
-    # started only when factor is non-zero as the egress is set up, and this run starts
-    # at 0.0. It starts at go-live, so the live tail also flushes every 10 seconds.
+    # Only batch_size decides when the history is flushed. The interval flush is a
+    # simulation process, started only when factor is non-zero as the egress is set up,
+    # and this run starts at 0.0. The interval flush starts at go-live, so the live
+    # tail also flushes every 10 seconds.
     .with_batching(batch_size=2000, flush_interval=10.0)
     .add_resource("packers", current_cap=4, max_cap=10)
     .add_service("packing", dist="normal", mean=2.0, std=0.2)
+    # An order every 2 s on average (rate 0.5)
     .add_arrival("orders", dist="exponential", rate=0.5)
     # The packers' readings every 30 simulation seconds
     .with_stats("minimal", interval=30.0)

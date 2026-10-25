@@ -1,6 +1,6 @@
 # An experiment in YAML: does a third packer keep the mean wait under 2 seconds?
 #
-# The twin of examples/builder/experiment_example.py. The model is
+# The YAML version of experiment_example.py, which --api builder downloads. The model is
 # experiment_shop.yaml. The experiment runs one hour of it 20 times with two packers
 # and 20 times with three, with the same seeds, after a 3-minute warm-up. It
 # compares the two designs seed by seed, checks the three-packer design against a

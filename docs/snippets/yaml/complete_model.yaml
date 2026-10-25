@@ -1,0 +1,64 @@
+# The Complete Model tutorial: the shop's busy hour, from order to shipment, with its
+# inputs fitted to the observed orders.
+# Fit the inputs, then run it:
+#   desflow fit complete_model_observed.csv --column gap_seconds --lower 0 --out fitted/complete_orders.yaml
+#   desflow fit complete_model_observed.csv --column picking_seconds --lower 0 --out fitted/complete_picking.yaml
+#   desflow fit complete_model_observed.csv --column packing_seconds --lower 0 --out fitted/complete_packing.yaml
+#   desflow run complete_model.yaml
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+  # Records and statistics start after the first 2 minutes; 0 keeps everything
+  warmup: ${WARMUP:-2 min}
+
+# --8<-- [start:resources]
+resources:
+  # One picker and three packers, as the shop has today
+  pickers: {current_cap: 1, max_cap: 4}
+  packers: {current_cap: 3, max_cap: 10}
+
+containers:
+  # Shipping boxes: 1,000 on the shelf at the start, and room for 2,000
+  stock: {current_cap: 2000, max_cap: 2000, level: 1000}
+# --8<-- [end:resources]
+
+# --8<-- [start:inputs]
+arrivals:
+  # The fitted gaps between orders; each order starts with picking
+  orders: !include {file: fitted/complete_orders.yaml, spawn: pick_order}
+  # A delivery of 1,000 boxes every 10 minutes
+  deliveries: {dist: constant, value: 10 min, spawn: restock}
+
+services:
+  # The fitted picking and packing times
+  picking: !include fitted/complete_picking.yaml
+  packing: !include fitted/complete_packing.yaml
+# --8<-- [end:inputs]
+
+# --8<-- [start:flow]
+tasks:
+  pick_order:
+    service: picking
+    resource: pickers
+    payload: {event_type: order_picked}
+    next: pack_order
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+    next: ship_order
+  ship_order:
+    # Each parcel leaves in a box from the shelf; waits while the shelf is empty
+    get: {container: stock, amount: 1}
+    payload: {event_type: order_shipped}
+  restock:
+    put: {container: stock, amount: 1000}
+    payload: {event_type: stock_delivered}
+# --8<-- [end:flow]
+
+# Waits, utilisation and the stock's level, published at the end
+stats: {level: typical, interval: 1 h}
+
+run:
+  until: 1 h

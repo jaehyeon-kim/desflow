@@ -1,6 +1,6 @@
 # Priority and Preemption
 
-Task priority, preemption and breakdowns are the forms of a [resource](index.md) that rank waiting requests and take units from tasks.
+This page covers three features of a [resource](index.md). Task priority ranks the waiting requests: a lower `priority` value is served first. Preemption lets a request take a unit from a task whose `priority` value is higher than its own. A breakdown takes every unit away until a repair.
 
 ---
 
@@ -8,7 +8,7 @@ Task priority, preemption and breakdowns are the forms of a [resource](index.md)
 
 ### Task Priority
 
-Under `queue: priority`, each task gives its requests a priority: a number, the same for every run of the task; an expression, read when the task joins the queue, such as `attr.tier` for the entity's attribute `tier`; or, in the builder, a function of the task id and the entity's attributes. The attributes exist before the request queues, and the task's own payload does not, so a priority cannot read it; an expression can read the previous task's payload as `payload.<field>`. The lowest priority is served first, and a task with no `priority` ranks 0, as a SimPy `PriorityRequest` does. Equal priorities are served first in, first out, which is the order of SimPy's `PriorityResource`: it ranks a request by `(priority, time, not preempt)`, so among equal priorities and times a request that may preempt goes before one with `preempt: false`. The tests check it, ties included, in all three APIs ([SimPy Compatibility](../../reference/simpy-compatibility.md)).
+Under `queue: priority`, each task gives its requests a priority. The priority can be a number, the same for every run of the task. It can be an expression, read when the task joins the queue, such as `attr.tier` for the entity's attribute `tier`. In the builder, it can also be a function of the task id and the entity's attributes. The attributes exist before the request queues, but the task's own payload does not, so a priority cannot read that payload. An expression can read the previous task's payload as `payload.<field>`. A lower `priority` value is served first, and a task with no `priority` ranks 0, as a SimPy `PriorityRequest` does. Equal priorities are served first in, first out, as in SimPy's `PriorityResource`. SimPy ranks a request by `(priority, time, not preempt)`, so among requests with equal priorities and times, a request that may preempt goes before one with `preempt: false`. The tests check it, ties included, in all three APIs ([SimPy Compatibility](../../reference/simpy-compatibility.md)).
 
 === "YAML"
 
@@ -24,11 +24,12 @@ Under `queue: priority`, each task gives its requests a priority: a number, the 
 
 === "Builder"
 
-    ```python title="docs/snippets/pages/resources.py:priority" hl_lines="14"
+    ```python title="docs/snippets/pages/resources.py:priority" hl_lines="15"
     app = (
         SimulationContext(sim_id="Shop", factor=0.0, random_seed=42)
         .add_resource("packers", current_cap=1, max_cap=4, queue="priority")
         .add_service("packing", dist="constant", value=1.5)
+        # An order every 2 s on average (rate 0.5)
         .add_arrival("orders", dist="exponential", rate=0.5, attributes={"tier": 2})
     )
 
@@ -46,13 +47,13 @@ Under `queue: priority`, each task gives its requests a priority: a number, the 
 
 === "Low-level"
 
-    A low-level process passes the priority to the request: `packers.request(priority=entity.attributes["tier"])`, as the queue-order example above does; a request with no priority has priority 0. A resource whose queue is `fifo` or `lifo` ignores it.
+    A low-level process passes the priority to the request: `packers.request(priority=entity.attributes["tier"])`, as the queue-order example above does. A request with no priority has priority 0. A resource whose queue is `fifo` or `lifo` ignores it.
 
-A `priority` on a task whose resource does not have `queue: priority` is refused: when the blueprint loads, or when `run()` starts. [Priorities](../../tutorials/priorities.md) shows what priority does to waits.
+A `priority` on a task whose resource does not have `queue: priority` is refused when the blueprint loads, or when `run()` starts. [Priorities](../../tutorials/priorities.md) shows what priority does to waits.
 
 ### Preemption
 
-On a resource with `preempt: true`, which needs `queue: priority`, a request that finds every unit busy takes a unit from a task of a higher priority value, as SimPy's `PreemptiveResource` does. The task that loses the unit is chosen by SimPy's rule: the user whose `(priority, request time, may not preempt)` sorts last, and only when that sorts after the new request, so equal priorities do not preempt; the one exception is a user whose request was made at the same moment as the new one with `preempt: false`, which sorts after a request that may preempt. The task publishes `preempted` with the resource's name, the key of the entity that took the unit (`preempted_by`) and the time the task was granted the unit (`usage_since`), and follows its `on_interrupt`, as an interrupt would ([Interruptions](../../tutorials/interruptions.md)); a task with `preempt: false` never takes a unit this way. The `interruptions` example lets express orders preempt regular ones:
+On a resource with `preempt: true`, which needs `queue: priority`, a request that finds every unit busy takes a unit from a task with a higher `priority` value, as SimPy's `PreemptiveResource` does. SimPy's rule chooses the task that loses the unit. It sorts the users by `(priority, request time, may not preempt)` and picks the one that sorts last, but only when that user sorts after the new request. A user with an equal priority made its request earlier, so it sorts before the new request, and equal priorities do not preempt. The one exception is a user whose request was made at the same moment as the new one, with `preempt: false`: it sorts after a request that may preempt. The task that loses the unit publishes `preempted` with the resource's name, the key of the entity that took the unit (`preempted_by`) and the time the task was granted the unit (`usage_since`). It then follows its `on_interrupt`, as it would for an interrupt ([Interruptions](../../tutorials/interruptions.md)). A task with `preempt: false` never takes a unit this way. The `interruptions` example lets express orders preempt regular ones:
 
 === "YAML"
 
@@ -154,11 +155,23 @@ On a resource with `preempt: true`, which needs `queue: priority`, a request tha
         env.stats.flow_finished(key.rsplit("-", 1)[0])
     ```
 
-    `DynamicResource(env, "Shop", "packers", queue="priority", preempt=True)` builds the resource, and `request(priority, preempt=True)` asks for a unit; the process that loses its unit receives `simpy.Interrupt` with a SimPy `Preempted` cause, whose `resource`, `by` (the process that took the unit) and `usage_since` say what happened.
+    `DynamicResource(env, "Shop", "packers", queue="priority", preempt=True)` builds the resource, and `request(priority, preempt=True)` asks for a unit. The process that loses its unit receives `simpy.Interrupt` with a SimPy `Preempted` cause, whose `resource`, `by` (the process that took the unit) and `usage_since` say what happened.
+
+A gift order with `preempt: false` is served before any regular order that waits. But it waits for the packer to be free, rather than take it from a regular order being packed:
+
+```yaml title="docs/snippets/yaml/preemption.yaml:no-preempt"
+pack_gift:
+  service: packing
+  resource: packers
+  # Served before any regular order that waits, but waits for the packer to be free
+  priority: 0
+  preempt: false
+  payload: {event_type: gift_packed}
+```
 
 ### Breakdowns
 
-A `breakdown` makes a resource fail at random and be repaired. `time_to_failure` is the time from the start, or from a repair, to the next failure, on calendar time, busy or idle; `repair` is how long a repair takes. While the resource is down its effective capacity is 0 and no request is granted:
+A `breakdown` makes a resource fail at random and be repaired. `time_to_failure` is the time from the start, or from a repair, to the next failure. It counts all simulation time, busy or idle. `repair` is how long a repair takes. While the resource is down its effective capacity is 0 and no request is granted:
 
 === "YAML"
 
@@ -169,6 +182,7 @@ A `breakdown` makes a resource fail at random and be repaired. `time_to_failure`
         max_cap: 3
         breakdown:
           # Calendar time from a repair, or the start, to the next failure.
+          # A failure every 60 s on average (rate 0.0167)
           time_to_failure: {dist: exponential, rate: 0.0167}
           repair: {dist: uniform, low: 5 s, high: 15 s}
           # The orders being packed are interrupted, and follow their on_interrupt.
@@ -182,6 +196,7 @@ A `breakdown` makes a resource fail at random and be repaired. `time_to_failure`
     .add_breakdown(
         "station",
         # Calendar time from a repair, or the start, to the next failure
+        # A failure every 60 s on average (rate 0.0167)
         time_to_failure={"dist": "exponential", "rate": 0.0167},
         repair={"dist": "uniform", "low": 5, "high": 15},
         # The orders being packed are interrupted, and follow their on_interrupt
@@ -195,6 +210,7 @@ A `breakdown` makes a resource fail at random and be repaired. `time_to_failure`
     breakdowns={
         "station": BreakdownConfig(
             # Calendar time from a repair, or the start, to the next failure
+            # A failure every 60 s on average (rate 0.0167)
             time_to_failure=DistributionConfig(dist="exponential", rate=0.0167),
             repair=DistributionConfig(dist="uniform", low=5, high=15),
             # The orders being packed are interrupted
@@ -205,11 +221,19 @@ A `breakdown` makes a resource fail at random and be repaired. `time_to_failure`
 
     Start `run_breakdowns(env, station, sampler, work="interrupt")` as a SimPy process beside the arrivals. `station.fail()` and `station.repair()` put a resource down and back by hand.
 
-`work` says what happens to the tasks being served: `interrupt`, the default, interrupts each with the cause `breakdown`, and it follows its `on_interrupt`; `finish` lets them finish. Each failure and repair publishes an event keyed by the resource's name, with `status` `down` or `repaired` and `reason: failure`. [Breakdowns](../../guides/breakdowns.md) checks the downtime of the example, and [Interruptions](../../tutorials/interruptions.md) explains `on_interrupt`.
+`work` says what happens to the tasks being served. Under `interrupt`, the default, each task is interrupted with the cause `breakdown` and follows its `on_interrupt`. Under `finish`, the tasks finish their work. Each failure and repair publishes an event keyed by the resource's name, with `status` `down` or `repaired` and `reason: failure`. [Model Breakdowns](../../guides/breakdowns.md) checks the downtime of the example, and [Interruptions](../../tutorials/interruptions.md) explains `on_interrupt`.
 
-### Example: Interruptions
+---
 
-The `interruptions` example: express orders preempt regular ones, and a fire drill at 60 seconds interrupts the order being packed; each resumes with the packing time it had left. It needs no Docker service and ends on its own after 120 simulation seconds.
+## Stability and Limits
+
+The limits of this page are listed with those of the whole section, in [Stability and Limits](index.md#stability-and-limits) on the Resources page.
+
+---
+
+## Example: Interruptions
+
+In the `interruptions` example, express orders preempt regular ones, and a fire drill at 60 seconds interrupts the order being packed. Each interrupted order resumes with the packing time it had left. It needs no Docker service and ends on its own after 120 simulation seconds.
 
 === "YAML"
 

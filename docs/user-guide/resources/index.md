@@ -12,7 +12,7 @@ A resource is a number of identical units: packers, packing benches, checkout la
 
 ## Pages in This Section
 
-- [Priority and Preemption](priority-and-preemption.md): rank waiting requests by task priority, take a unit from a lower-priority task, and fail a resource at random.
+- [Priority and Preemption](priority-and-preemption.md): rank waiting requests by task priority, let a more urgent request take a unit from a less urgent task, and fail a resource at random. A lower `priority` value is more urgent.
 - [Several Resources](several-resources.md): hold several resources in one task, and the order in which tasks acquire them.
 - [Custom Resource Types](custom-resource-types.md): change how a resource grants units with your own class.
 
@@ -22,7 +22,7 @@ A resource is a number of identical units: packers, packing benches, checkout la
 
 ### Declare a Resource
 
-A resource has a `current_cap`, the number of units now, and a `max_cap`, the most a live change can set. Both are whole numbers, and both may be left out: `current_cap` is then 1 and `max_cap` is the `current_cap`, so `packers: {}` is a resource of one unit, as `simpy.Resource(env)` is. `current_cap: .inf` (`float("inf")` in Python) is a resource with no limit: every request is granted at once, `capacity` is published as `null` and `utilization` as 0. `queue_limit` sets the most requests that may wait ([Refuse to Join](../../tutorials/patience.md#refuse-to-join)). A request made while that many wait raises `QueueFull` (in `desflow.resources.resource`), a `RuntimeError` with SimPy's message "Cannot append event. Queue is full.", before the request is granted or preempts a user; a task that catches it balks, and a `request` branch of a `wait` fails the wait. `run()` builds a `DynamicResource` for each one the context declares; in the low-level API you build it after registering the parameters, or with no registration at all, when it has one unit:
+A resource has a `current_cap`, the number of units now, and a `max_cap`, the most a live change can set. Both are whole numbers, and both may be left out: `current_cap` is then 1 and `max_cap` is the `current_cap`, so `packers: {}` is a resource of one unit, as `simpy.Resource(env)` is. `current_cap: .inf` (`float("inf")` in Python) is a resource with no limit: every request is granted at once, `capacity` is published as `null` and `utilization` as 0. `queue_limit` sets the most requests that may wait, as [Queue Limit](#queue-limit) describes. `run()` builds a `DynamicResource` for each one the context declares. In the low-level API you build it yourself, after registering the parameters. A resource of one unit needs no registration at all:
 
 === "YAML"
 
@@ -111,13 +111,27 @@ priority express-1, express-2, orders-1, orders-2
 capacity 2, in use 4
 ```
 
-The last line is the capacity drop that Under Live Changes describes, below. The same four requests, drawn:
+The last line is a capacity drop, which [Under Live Changes](#under-live-changes) describes below. The same four requests, drawn:
 
 ![Four requests join in the order orders-1, express-1, orders-2, express-2. fifo serves them in that order; lifo serves express-2, orders-2, express-1, orders-1; priority serves express-1 and express-2 first, then orders-1 and orders-2](../../assets/diagrams/queue-order.png)
 
+### Queue Limit
+
+A resource with a `queue_limit` of 5 (`queue_limit: 5` in a blueprint, `add_resource(..., queue_limit=5)` in the builder, and the same argument of `DynamicResource`) refuses a request made while five requests wait already, as SimPy's `SortedQueue(maxlen=5)` does. The refusal comes before a grant or a preemption, so a limit of 0 refuses every request. A task that is refused balks: it gives back the units it holds, publishes `balked` with the name of the resource, counts as balked and ends its flow. When the limited resource is the first one the task asks for, and the task has no wait before it, the task balks before it publishes `queued`. A `request` branch of a `wait` on a full resource, in an `any` or in an `all`, fails the wait at once, with SimPy's message "Cannot append event. Queue is full.". When a `request` branch has won its wait and the unit is then taken by preemption, the task asks for a unit again. It balks if the line is full then, and it reneges if its patience runs out while it waits, as for a `resource:` unit. In the low-level API `request()` raises `QueueFull` (in `desflow.resources.resource`), a `RuntimeError` with that message, which your process catches as it would catch a balk condition. A reneged or cancelled request leaves the line, which makes room for the next. [Refuse to Join](../../tutorials/patience.md#refuse-to-join) shows the other way an order balks, by a condition of its own.
+
+In a blueprint, `queue_limit` sits beside the capacity. `packers` has the default of one unit, and refuses a fourth waiting request:
+
+```yaml title="docs/snippets/yaml/resources_read.yaml:declare"
+resources:
+  # No capacity: one unit. At most 3 requests wait; a fourth is refused.
+  packers: {queue_limit: 3}
+  # No limit: every request is granted at once
+  benches: {current_cap: .inf}
+```
+
 ### Cancel and Release
 
-A task that leaves a queue cancels its request, so the request is never granted later: patience that runs out, an interrupt, and an `on_interrupt: abandon` all do. Once a unit is granted, the task gives it back when it finishes, when it is interrupted, and when it is preempted (the preempting task has it then). In the low-level API these are SimPy's calls:
+A task leaves a queue when its patience runs out, when it is interrupted, or under `on_interrupt: abandon`. It then cancels its request, so the request is never granted later. Once a unit is granted, the task gives it back when it finishes, when it is interrupted, and when it is preempted (the preempting task has it then). In the low-level API these are SimPy's calls:
 
 ```python title="docs/snippets/pages/resource_cancel.py:cancel"
 held = packers.request()  # granted at once: the packer was free
@@ -132,11 +146,11 @@ assert released.request is held  # the release is an event that holds its reques
 packers.release(held)  # a second release does nothing
 ```
 
-`request.cancel()` takes a waiting request out of the queue and does nothing to a granted one, and `packers.release(request)` gives a granted unit back once; releasing it again, or releasing a request that was never granted, gives nothing back. A release is an event, a `DynamicRelease` as SimPy's `Release`: its `request` is the request it releases (with no request, the oldest unit held), it is triggered as soon as it is made, and the next waiting request is granted one event later, when the release is processed. A `with` block does both on its way out, as in SimPy.
+`request.cancel()` takes a waiting request out of the queue, and does nothing to a granted one. `packers.release(request)` gives a granted unit back once. Releasing it again, or releasing a request that was never granted, gives nothing back. A release is an event, a `DynamicRelease`, as SimPy's `Release` is. Its `request` is the request it releases (with no request, the oldest unit held). It is triggered as soon as it is made, and the next waiting request is granted one event later, when the release is processed. A `with` block does both on its way out, as in SimPy.
 
 ### Read the Queue and Users
 
-A resource counts the units held and the requests waiting. In a condition, `users.<resource>` is how many units are held and `queue.<resource>` how many requests wait, so a task can turn an order away when the line is long, or wait until nobody holds a unit. The names are checked when the blueprint loads, as `level.<name>` is:
+A resource counts the units held and the requests waiting. In a condition, `users.<resource>` is how many units are held, and `queue.<resource>` is how many requests wait. A task can therefore turn an order away when the line is long, or wait until nobody holds a unit. The names are checked when the blueprint loads, as `level.<name>` is:
 
 === "YAML"
 
@@ -156,7 +170,7 @@ A resource counts the units held and the requests waiting. In a condition, `user
 
 === "Builder"
 
-    `context.get_resource("packers")` returns the running `DynamicResource`. Its `count` is the units held, `users` the requests that hold them in the order of their grants, and `queue` the requests waiting in the order they will be served, so `queue[0]` is the next. A request has `usage_since`, the time it was granted its unit, and `proc`, the process that made it; a task's process has the task's name.
+    `context.get_resource("packers")` returns the running `DynamicResource`. Its `count` is the number of units held. `users` lists the requests that hold them, in the order of their grants. `queue` lists the waiting requests in the order they will be served, so `queue[0]` is served next. A request has `usage_since`, the time it was granted its unit, and `proc`, the process that made it. A task's process has the task's name.
 
     ```python title="docs/snippets/pages/resource_read.py:builder"
     def look(context):
@@ -189,21 +203,21 @@ A resource counts the units held and the requests waiting. In a condition, `user
 
 ### Registry Paths and Readings
 
-Each resource has two registry paths, `<sim_id>.resources.<name>.current_cap` and `.max_cap`, which a scenario, an ingress message or a process can change; [Live Parameters](../live-parameters.md) explains how. A resource that breaks down adds `<sim_id>.breakdown.<name>.time_to_failure` and `.repair`, its two distributions. With statistics at the `minimal` level or above, each resource publishes four readings, such as `Shop.stats.resources.packers.utilization`: `capacity`, `in_use`, `queue_length` and `utilization`, the busy units as a percentage of the capacity (a resource with no limit publishes a `capacity` of `null` and a `utilization` of 0); one that breaks down adds `down`, 1 while it is down. [Statistics](../statistics.md) lists what the other levels add, among them `downtime` and `failures`.
+Each resource has two registry paths, `<sim_id>.resources.<name>.current_cap` and `.max_cap`, which a scenario, an ingress message or a process can change. [Live Parameters](../live-parameters.md) explains how. A resource that breaks down adds `<sim_id>.breakdown.<name>.time_to_failure` and `.repair`, its two distributions. With statistics at the `minimal` level or above, each resource publishes four readings, such as `Shop.stats.resources.packers.utilization`: `capacity`, `in_use`, `queue_length` and `utilization`. `utilization` is the busy units as a percentage of the capacity. A resource with no limit publishes a `capacity` of `null` and a `utilization` of 0. A resource that breaks down adds `down`, which is 1 while it is down. [Statistics](../statistics.md) lists what the other levels add, among them `downtime` and `failures`.
 
 ---
 
 ## How It Works
 
-A `DynamicResource` grants units the way SimPy's `Resource` does, with two lists: `queue`, the waiting requests ranked by the queue order and a sequence number, so requests that rank the same are served in the order they arrived, and `users`, the granted requests. A request is granted when it is made if a unit is free and nothing waits ahead of it. Otherwise it waits, and each release grants the head of the queue when its release event is processed, one event later, as SimPy's `Release` does:
+A `DynamicResource` grants units the way SimPy's `Resource` does, with two lists. `queue` holds the waiting requests, ranked by the queue order and then by a sequence number, so requests that rank the same are served in the order they arrived. `users` holds the granted requests. A request is granted when it is made if a unit is free and nothing waits ahead of it. Otherwise it waits, and each release grants the head of the queue when its release event is processed, one event later, as SimPy's `Release` does:
 
 ![A task's request joins the queue, ranked by queue order and a sequence number; it is granted, moving to users, when a unit is free and it is at the head. A release creates a release event, which grants the head of the queue when it is processed. The registry's current_cap and max_cap set how many users there can be](../../assets/diagrams/resource-grant.png)
 
 Because each step is the one SimPy takes, two events at the same simulation time are granted in SimPy's order: a waiting order whose patience runs out at the instant a unit is released reneges or is served exactly as it would in plain SimPy. `in_use` counts `users`: it goes up when a request is granted and down when a unit is released.
 
-A waiting request leaves the queue at once when it is cancelled, which a `with` block does when it is left before the grant; `request.cancel()` does the same by hand. `packers.release(request)` gives a granted unit back. Cancelling a granted request releases nothing, and releasing a request twice, or one never granted, gives nothing back, as in SimPy. Every release still tries the head of the queue when its release event is processed, as SimPy's does: when a request that reneged was the head, the request behind it may then be granted or preempt a user.
+A waiting request leaves the queue at once when it is cancelled. A `with` block cancels it when the block is left before the grant, and `request.cancel()` does the same by hand. `packers.release(request)` gives a granted unit back. Cancelling a granted request releases nothing, and releasing a request twice, or one never granted, gives nothing back, as in SimPy. Every release still tries the head of the queue when its release event is processed, as SimPy's does: when a request that reneged was the head, the request behind it may then be granted or preempt a user.
 
-**SimPy and desflow.** SimPy's `Resource` serves requests in the order they arrive, and `PriorityResource` by priority. Both take their capacity when they are created and keep it: `capacity` has no setter, so assigning a new one raises `AttributeError` (SimPy 4.1). desflow builds its own resource so the capacity can follow the registry and the queue order can be chosen; the `request()` call and the `with` block are SimPy's, so code written for SimPy works unchanged. [SimPy and desflow](../../des/simpy-and-desflow.md) compares the two.
+**SimPy and desflow.** SimPy's `Resource` serves requests in the order they arrive, and `PriorityResource` by priority. Both take their capacity when they are created and keep it: `capacity` has no setter, so assigning a new one raises `AttributeError` (SimPy 4.1). desflow builds its own resource, so that the capacity can follow the registry and the queue order can be chosen. The `request()` call and the `with` block are SimPy's, so code written for SimPy works unchanged. [SimPy and desflow](../../des/simpy-and-desflow.md) compares the two.
 
 ---
 
@@ -232,17 +246,17 @@ def capacity_drop(env):
     print(f"capacity {packers.capacity}, in use {packers.in_use}")
 ```
 
-Until the owed units finish, `in_use` is above `capacity`, and the `utilization` reading is above 100.
+Until the owed units finish, `in_use` is above `capacity`, and the `utilization` reading is above 100%.
 
 ---
 
 ## Stability and Limits
 
-- **Utilisation decides waits.** A resource whose load is at or above its capacity has a queue that grows for as long as the run lasts; [Queues and Capacity](../../tutorials/queues-and-capacity.md) shows how to work it out.
+- **Utilisation decides waits.** A resource whose load is at or above its capacity has a queue that grows for as long as the run lasts. [Queues and Capacity](../../tutorials/queues-and-capacity.md) shows how to work it out, and [Queueing Basics](../../des/queueing-basics.md#utilisation) explains utilisation.
 - **Priority needs `queue: priority`.** A task priority on a resource of another order is a load error, while a low-level request's priority is ignored under `fifo` and `lifo`.
-- **Priority can starve.** Under `priority`, a request with a high number is served only when no lower number is waiting; if the low numbers alone keep the resource busy, it is never served.
-- **One order of acquisition.** A model whose tasks acquire two resources in opposite orders is refused; [Several Resources](several-resources.md#several-resources) explains why.
-- **A shrink never stops work.** Lowering `current_cap` lets busy units finish. Work in progress stops only for an interrupt, a preemption or a breakdown: [Interruptions](../../tutorials/interruptions.md), and [Breakdowns](../../guides/breakdowns.md) for a machine that fails.
-- **A preempted task queues again.** With `resume` or `restart` it joins the back of its priority among the waiting requests, as a new SimPy request does; the time it waited before counts in its wait.
+- **Priority can starve.** Under `priority`, a request with a high number is served only when no lower number is waiting. If the low numbers alone keep the resource busy, it is never served.
+- **One order of acquisition.** A model whose tasks acquire two resources in opposite orders is refused. [Several Resources](several-resources.md#several-resources) explains why.
+- **A shrink never stops work.** Lowering `current_cap` lets busy units finish. Work in progress stops only for an interrupt, a preemption or a breakdown: [Interruptions](../../tutorials/interruptions.md), and [Model Breakdowns](../../guides/breakdowns.md) for a machine that fails.
+- **A preempted task queues again.** With `resume` or `restart` it joins the back of its priority among the waiting requests, as a new SimPy request does. The time it waited before counts in its wait.
 
 Amounts and items that tasks take and add, rather than hold, are [Stores and Containers](../stores-and-containers.md).

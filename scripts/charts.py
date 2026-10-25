@@ -107,6 +107,38 @@ def queues_wait() -> None:
     _save(fig, "queues-wait")
 
 
+def queues_mm1() -> None:
+    """Queues and Capacity: the M/M/1 mean wait against utilisation, from the formula
+    `desflow explain` uses, so the chart and the command agree."""
+    import numpy as np
+
+    from desflow.explain.formulas import kingman_wait
+
+    service = 1.5  # seconds, the shop's mean packing time
+    rho = np.linspace(0.05, 0.97, 200)
+    # Exponential gaps and service: ca² = cs² = 1, the M/M/1 wait
+    waits = [kingman_wait(r, 1.0, 1.0, service) for r in rho]
+    fig, ax = plt.subplots(figsize=(WIDTH, HEIGHT))
+    ax.plot(rho, waits, color=BLUE, linewidth=2.5)
+    for r in (0.8, 0.95):
+        wait = kingman_wait(r, 1.0, 1.0, service)
+        ax.plot([r], [wait], "o", color=ORANGE)
+        ax.annotate(
+            f"{wait:.1f} s at {r:g}",
+            (r, wait),
+            xytext=(-12, 0),
+            textcoords="offset points",
+            ha="right",
+            va="center",
+        )
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 50)
+    ax.set_xlabel("utilisation")
+    ax.set_ylabel("mean wait in the queue (seconds)")
+    ax.set_title("One packer, exponential gaps and service, mean service 1.5 s")
+    _save(fig, "queues-mm1")
+
+
 def _draws(config, n: int = 20000):
     """`n` draws of a distribution, as the run draws them."""
     from desflow import Sampler
@@ -668,7 +700,7 @@ def distribution_shapes() -> None:
 
 
 def fit_the_inputs() -> None:
-    """Fit the Inputs: the 40 packing times against values drawn from the best fit,
+    """Fitting the Inputs: the 40 packing times against values drawn from the best fit,
     as `desflow fit --plot` draws them."""
     module = _module("fit_the_inputs")
     with contextlib.redirect_stdout(io.StringIO()):
@@ -696,6 +728,215 @@ def animate_a_run() -> None:
     )
 
 
+def complete_waits() -> None:
+    """Complete Model: the mean picking and packing waits of the three designs, with
+    their 95% intervals, against the 1-second bound."""
+    module = _module("complete_model")
+    with tempfile.TemporaryDirectory() as folder:
+        result = module.experiment(output=Path(folder))
+    rows = {(r["design"], r["statistic"]): r for r in result.summary}
+    designs = module.DESIGNS
+    fig, ax = plt.subplots(figsize=(WIDTH, HEIGHT))
+    for offset, (measure, label, color) in enumerate(
+        (
+            ("tasks.pick_order.wait_mean", "picking wait", BLUE),
+            ("tasks.pack_order.wait_mean", "packing wait", ORANGE),
+        )
+    ):
+        means = [rows[d, measure]["mean"] for d in designs]
+        widths = [rows[d, measure]["half_width"] for d in designs]
+        ax.bar(
+            [i + (offset - 0.5) * 0.36 for i in range(len(designs))],
+            means,
+            0.36,
+            yerr=widths,
+            capsize=4,
+            color=color,
+            label=label,
+        )
+    ax.axhline(1, color=GREY, linestyle="--", linewidth=2)
+    ax.text(2.55, 1.06, "1 second", color=GREY, ha="right")
+    ax.set_xticks(range(len(designs)), designs)
+    ax.set_ylabel("mean wait (s), with 95% interval")
+    ax.set_ylim(0, 2.6)
+    ax.set_title("Only the fourth packer keeps both waits under 1 second")
+    ax.legend(frameon=False, loc="upper left")
+    _save(fig, "complete-waits")
+
+
+def checking_observed() -> None:
+    """Checking a Model: each value observed in the real shop beside the three-packer
+    design's 95% interval for its mean."""
+    module = _module("checking_a_model")
+    with tempfile.TemporaryDirectory() as folder:
+        result = module.experiment(output=Path(folder))
+    rows = {r["measure"]: r for r in result.observed}
+    fig, axes = plt.subplots(1, 2, figsize=(WIDTH, HEIGHT))
+    for ax, (measure, label) in zip(
+        axes,
+        (
+            ("tasks.pack_order.wait_mean", "mean wait (s)"),
+            ("resources.packers.utilization_avg", "utilisation (%)"),
+        ),
+    ):
+        row = rows[measure]
+        ax.errorbar(
+            [0],
+            [row["mean"]],
+            yerr=[row["half_width"]],
+            fmt="o",
+            color=BLUE,
+            capsize=8,
+            markersize=7,
+            label="model, 20 runs",
+        )
+        ax.plot([1], [row["value"]], "D", color=ORANGE, markersize=8, label="observed")
+        ax.set_xticks([0, 1], ["model", "observed"])
+        ax.set_xlim(-0.6, 1.6)
+        ax.set_ylabel(label)
+        verdict = "inside" if row["inside"] else "outside"
+        ax.set_title(f"observed {row['value']:g}: {verdict}")
+    fig.suptitle("The real shop beside the model's 95% interval, three packers")
+    _save(fig, "checking-observed")
+
+
+def comparing_waits() -> None:
+    """Comparing Designs: the mean wait of three and four packers, with their 95%
+    intervals, against the half-second bound."""
+    module = _module("comparing_designs")
+    with tempfile.TemporaryDirectory() as folder:
+        result = module.experiment(output=Path(folder))
+    rows = {
+        r["design"]: r
+        for r in result.summary
+        if r["statistic"] == "tasks.pack_order.wait_mean"
+    }
+    designs = ["three", "four"]
+    means = [rows[d]["mean"] for d in designs]
+    widths = [rows[d]["half_width"] for d in designs]
+    fig, ax = plt.subplots(figsize=(WIDTH, HEIGHT))
+    ax.bar(designs, means, 0.5, yerr=widths, capsize=6, color=BLUE)
+    for x, (mean, width) in enumerate(zip(means, widths)):
+        # Beside each bar, clear of its error bar and of the bound
+        ax.text(x + 0.3, mean, f"{mean:.2f} ± {width:.2f} s", va="center")
+    ax.axhline(0.5, color=GREY, linestyle="--", linewidth=2)
+    ax.text(0.5, 0.56, "0.5 seconds", color=GREY, ha="center")
+    ax.set_xlabel("packers")
+    ax.set_ylabel("mean wait (s), with 95% interval")
+    ax.set_xlim(-0.5, 1.9)
+    ax.set_ylim(0, 3.2)
+    ax.set_title("The busy hour, 20 runs of each design with the same seeds")
+    _save(fig, "comparing-waits")
+
+
+def sweep_waits() -> None:
+    """Parameter Sweeps: the mean wait of three and four packers at each arrival
+    rate, with their 95% intervals."""
+    module = _module("parameter_sweeps")
+    with tempfile.TemporaryDirectory() as folder:
+        result = module.experiment(output=Path(folder))
+    rate = "Shop.arrival.orders.rate"
+    wait = "tasks.pack_order.wait_mean"
+    fig, ax = plt.subplots(figsize=(WIDTH, HEIGHT))
+    for variant, label, colour in (
+        ("three", "three packers", ORANGE),
+        ("four", "four packers", BLUE),
+    ):
+        rows = sorted(
+            (
+                r
+                for r in result.summary
+                if r["variant"] == variant and r["statistic"] == wait
+            ),
+            key=lambda r: r[rate],
+        )
+        ax.errorbar(
+            [r[rate] for r in rows],
+            [r["mean"] for r in rows],
+            yerr=[r["half_width"] for r in rows],
+            fmt="o-",
+            color=colour,
+            capsize=5,
+            linewidth=2,
+            label=label,
+        )
+    ax.set_xticks([1.6, 1.7, 1.8, 1.9])
+    ax.set_xlabel("orders a second")
+    ax.set_ylabel("mean wait (s), with 95% interval")
+    ax.set_title("The busy hour's mean wait at four arrival rates, 20 runs each")
+    ax.legend(frameon=False, loc="upper left")
+    _save(fig, "sweep-waits")
+
+
+def jam_waits() -> None:
+    """Live Changes: the wait of every order over the hour, by the time it was
+    queued, with the printer jam and without it."""
+    import logging
+
+    module = _module("live_changes")
+    logging.getLogger("desflow").setLevel(logging.WARNING)
+    fig, ax = plt.subplots(figsize=(WIDTH, HEIGHT))
+    ax.axvspan(20, 30, color=GREY, alpha=0.15, label="jam, 3 s of packing")
+    with tempfile.TemporaryDirectory() as folder:
+        for jam, colour, label in (
+            (False, BLUE, "without the jam"),
+            (True, ORANGE, "with the jam"),
+        ):
+            out = Path(folder) / ("jam" if jam else "baseline")
+            module.shop(out, jam).run(until="1 h")
+            waits = module.waits(out)
+            ax.scatter(
+                [at / 60 for at in waits],
+                list(waits.values()),
+                s=4,
+                color=colour,
+                label=label,
+            )
+    ax.set_xlim(0, 60)
+    ax.set_xlabel("time the order was queued (minutes)")
+    ax.set_ylabel("wait before packing (seconds)")
+    ax.set_title("One packer, 1.5 s of packing outside the jam")
+    ax.legend(frameon=False, loc="upper right", markerscale=3)
+    _save(fig, "jam-waits")
+
+
+def streaming_rows() -> None:
+    """Streaming Out: the rows the file sink writes over the hour, counted by the
+    time each order was packed, one colour for each file."""
+    import logging
+
+    module = _module("streaming_out")
+    logging.getLogger("desflow").setLevel(logging.WARNING)
+    with tempfile.TemporaryDirectory() as folder:
+        module.shop(Path(folder)).run(until="1 h")
+        files = module.read_files(Path(folder) / "packed")
+    # The files in the order they were written, by their first packed order
+    ordered = sorted(files.values(), key=lambda rows: rows[0]["sim_ts"])
+    fig, ax = plt.subplots(figsize=(WIDTH, HEIGHT))
+    written = 0
+    for number, (rows, colour) in enumerate(zip(ordered, (BLUE, GREEN, ORANGE)), 1):
+        times = [row["sim_ts"] / 60 for row in rows]
+        counts = range(written + 1, written + len(rows) + 1)
+        ax.plot(
+            times,
+            counts,
+            color=colour,
+            linewidth=3,
+            label=f"file {number}: {len(rows)} rows",
+        )
+        written += len(rows)
+    ax.set_xlim(0, 60)
+    ax.set_ylim(0, written * 1.1)
+    ax.set_xlabel("time the order was packed (minutes)")
+    # Two lines, so the label fits the height of the chart
+    ax.set_ylabel("packed orders,\nby the file that holds them")
+    ax.set_title(
+        f"{written:,} packed orders in {len(ordered)} files of at most 500 rows"
+    )
+    ax.legend(frameon=False, loc="upper left")
+    _save(fig, "streaming-rows")
+
+
 CHARTS: Dict[str, Callable[[], None]] = {
     "distribution-shapes": distribution_shapes,
     "priorities-wait": priorities_wait,
@@ -711,13 +952,25 @@ CHARTS: Dict[str, Callable[[], None]] = {
     "trusting-warmup": trusting_warmup,
     "measuring-queue": measuring_queue,
     "queues-wait": queues_wait,
+    "queues-mm1": queues_mm1,
     "choosing-inputs": choosing_inputs,
     "fit-the-inputs": fit_the_inputs,
+    "complete-waits": complete_waits,
+    "checking-observed": checking_observed,
+    "comparing-waits": comparing_waits,
+    "sweep-waits": sweep_waits,
+    "jam-waits": jam_waits,
+    "streaming-rows": streaming_rows,
     "animate-a-run": animate_a_run,
 }
 
 
 def main(names) -> None:
+    """Draws the named charts, or every chart when none is named.
+
+    Args:
+        names: The chart names, keys of `CHARTS`.
+    """
     for name in names or CHARTS:
         CHARTS[name]()
         print(f"{name} -> {next(CHARTS_DIR.glob(f'{name}.*')).relative_to(ROOT)}")

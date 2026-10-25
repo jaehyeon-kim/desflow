@@ -163,6 +163,16 @@ def _scenarios(twins, folder: Path) -> Dict[str, Any]:
 
 
 def capture(root: str, out: str, scenarios: Optional[str] = None) -> None:
+    """Runs every example, blueprint and scenario of a checkout and writes their records.
+
+    Args:
+        root: The checkout to run.
+        out: The JSON file to write.
+        scenarios: The scenarios folder; `<root>/tests/regression/scenarios` when None.
+
+    Raises:
+        SystemExit: When the scenarios folder does not exist.
+    """
     root_path = Path(root).resolve()
     twins, harness = _load(root_path)
     folder = Path(scenarios or root_path / "tests" / "regression" / "scenarios")
@@ -204,6 +214,17 @@ def _expected(path: Path, baseline: str) -> Dict[str, Dict[str, Any]]:
 def compare(
     old: str, new: str, baseline: Optional[str] = None, expected: Path = EXPECTED
 ) -> int:
+    """Compares two capture files and prints each difference.
+
+    Args:
+        old: The capture of the baseline release.
+        new: The capture of the checkout under test.
+        baseline: The baseline release whose listed differences are expected.
+        expected: The file that lists the expected differences.
+
+    Returns:
+        int: 1 when a difference is not expected or an expected one is missing, else 0.
+    """
     before = json.loads(Path(old).read_text())
     after = json.loads(Path(new).read_text())
     listed = _expected(expected, baseline) if baseline else {}
@@ -247,6 +268,11 @@ def compare(
 
 
 def main() -> int:
+    """Runs the `capture` or `compare` command from the command line.
+
+    Returns:
+        int: The exit status of the command.
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     cap = commands.add_parser("capture", help="capture a checkout's runs to a file")

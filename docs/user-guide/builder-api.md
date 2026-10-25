@@ -2,11 +2,11 @@
 
 This page writes a whole simulation as one Python file with the builder, `SimulationContext`: a shop that packs orders with boxes from stock, prints a label, and leaves the parcel for a courier. It builds on [Ways to Write](ways-to-write.md), which places the builder between a blueprint and the low-level API, and on [Tasks and Processes](tasks-and-processes/index.md), which describes what a task does.
 
-The builder works in two phases. You describe the simulation with its methods and decorators, and nothing runs; `run()` then builds the environment and the connectors and starts the clock:
+The builder works in two phases. You describe the simulation with its methods and decorators, and nothing runs. `run()` then builds the environment and the connectors and starts the clock:
 
 ![You call add_resource, add_service, add_arrival, @app.task, add_process, add_ingress and add_egress; run() then creates the DynamicRealtimeEnvironment, starts the ingress and egress threads, and starts the processes and runs the clock](../assets/diagrams/builder-then-run.png)
 
-Until `run()`, `context.env`, `context.spawn` and `context.get_resource` raise `RuntimeError`, so they belong inside loops, tasks and processes.
+Until `run()` builds the environment, the runtime helpers `context.spawn`, `context.call`, `context.signal`, `context.get_resource`, `context.get_store`, `context.get_container` and `context.env` raise `RuntimeError`. Loops, tasks and processes run only after that, so the helpers belong inside them.
 
 ---
 
@@ -27,7 +27,7 @@ app = SimulationContext(
 
 ### Declare Resources, Stores and Containers
 
-A resource is held while a task works; a container holds an amount and a store holds items, which tasks take and add. `add_variable` registers any other live value. [Resources](resources/index.md) and [Stores and Containers](stores-and-containers.md) describe each.
+A task holds a resource while it works. A container holds an amount and a store holds items, and tasks take from and add to both. `add_variable` registers any other live value. [Resources](resources/index.md) and [Stores and Containers](stores-and-containers.md) describe each.
 
 ```python title="docs/snippets/pages/builder.py:resources"
 app.add_resource("packers", current_cap=2, max_cap=5)  # 2 packers now, room for 5
@@ -38,11 +38,9 @@ app.add_variable("conveyor_speed", 1.5)  # any other live value
 
 ### Add Distributions
 
-Each arrival and service is a distribution, with its parameters by keyword. A parameter out of range, or one the family does not take, raises `ValueError` here, before the run. [Arrivals and Services](arrivals-and-services.md) lists the ten families.
+Each service is a distribution, given its parameters by keyword. Each arrival is a distribution too, and [Start Them from Arrivals](#start-them-from-arrivals) adds it with the task it starts. A parameter out of range, or one the family does not take, raises `ValueError` here, before the run. [Arrivals and Services](arrivals-and-services.md) lists the ten families.
 
 ```python title="docs/snippets/pages/builder.py:distributions"
-app.add_arrival("orders", dist="exponential", rate=0.5)  # an order every 2 s on average
-app.add_arrival("couriers", dist="constant", value=10)  # a courier every 10 s
 app.add_service("packing", dist="triangular", low=1, mode=2, high=4)
 app.add_service("labelling", dist="constant", value=0.5)
 ```
@@ -76,30 +74,19 @@ def collect(task_id: int, item):
 
 ### Start Them from Arrivals
 
-An arrival loop waits for each arrival and starts a task for the entity it returns, keyed `orders-1`, `orders-2` and so on.
+`add_arrival` with `spawn=` is the builder form of YAML's `spawn`: each arrival starts the named task for its entity, keyed `orders-1`, `orders-2` and so on. The record's `instance` comes from the task's one counter, which `next` and other arrivals share, so no two runs of the task share an id. A `spawn` that names a task never added is refused when `run()` checks the model.
 
 ```python title="docs/snippets/pages/builder.py:arrivals"
-@app.arrival_loop("orders")
-def orders(context: SimulationContext):
-    task_id = 0
-    while True:
-        order = yield context.wait_for_arrival("orders")  # keyed orders-1, ...
-        context.spawn(pack_order(task_id, entity=order))
-        task_id += 1
-
-
-@app.arrival_loop("couriers")
-def couriers(context: SimulationContext):
-    task_id = 0
-    while True:
-        courier = yield context.wait_for_arrival("couriers")
-        context.spawn(collect(task_id, entity=courier))
-        task_id += 1
+# An order every 2 s on average, keyed orders-1, ..., each starting pack_order
+app.add_arrival("orders", dist="exponential", rate=0.5, spawn="pack_order")
+app.add_arrival("couriers", dist="constant", value=10, spawn="collect")  # every 10 s
 ```
+
+`@app.arrival_loop` runs a generator of your own that waits with `context.wait_for_arrival` and starts tasks with `context.spawn`. A loop is needed only when it does more than start one task, such as choosing the task from the entity's attributes. [Tasks and Processes](tasks-and-processes/index.md#arrivals-start-tasks) shows a loop that does what `spawn=` does, written by hand.
 
 ### Measure the Run
 
-`with_stats` switches on the built-in statistics, published as telemetry; [Statistics](statistics.md) lists the levels.
+`with_stats` switches on the built-in statistics, published as telemetry. [Statistics](statistics.md) lists the levels.
 
 ```python title="docs/snippets/pages/builder.py:stats"
 app.with_stats("typical", interval=30)  # readings, counts, waits, every 30 s
@@ -107,7 +94,7 @@ app.with_stats("typical", interval=30)  # readings, counts, waits, every 30 s
 
 ### Add a Process
 
-`add_process` starts any generator when the run starts, called with the context, for anything that is not a task: here a speed that drifts.
+`add_process` is for anything that is not a task. It calls a generator with the context when the run starts. Here the process is a speed that drifts.
 
 ```python title="docs/snippets/pages/builder.py:process"
 def speed_drift(context: SimulationContext, step: float):
@@ -132,9 +119,9 @@ app.add_egress(ConsoleEgress(), batch_size=100, flush_interval=1.0)
 app.with_batching(batch_size=1_000, flush_interval=5.0)  # defaults for other sinks
 ```
 
-`LocalIngress` counts its delays in wall-clock seconds. This unpaced run ends in under a second, so the change to 3 packers never lands; at `factor=1.0` it lands 5 seconds into the run. A change at an exact simulation time is a scenario step, `add_step(at, path=..., value=...)` or `add_scenario(steps)`, which [Live Parameters](live-parameters.md#script-an-experiment) describes, or a process that waits and then updates the registry, as `speed_drift` above does.
+`LocalIngress` counts its delays in wall-clock seconds, so the change to 3 packers is due 5 seconds after the run starts. This unpaced run ends in under a second, so the change never lands. At `factor=1.0`, it lands 5 seconds into the run. For a change at an exact simulation time, use a scenario step, `add_step(at, path=..., value=...)` or `add_scenario(steps)`, which [Live Parameters](live-parameters.md#script-an-experiment) describes. A process that waits and then updates the registry, as `speed_drift` above does, also works.
 
-`compile_parameters()` returns the `SimParameter` that `run()` will register, to check the registry paths before a run:
+`compile_parameters()` returns the `SimParameter` that `run()` will register. Call it to check the registry paths before a run:
 
 ```python title="docs/snippets/pages/builder.py:compile"
 paths = app.compile_parameters()  # the SimParameter that run() registers
@@ -150,7 +137,7 @@ if __name__ == "__main__":
     app.run(until="2 min")
 ```
 
-`ConsoleEgress` writes each batch of records in one INFO log call, one line per record, so the script switches logging on before it runs. Only the first line of a batch carries the logging format's prefix, such as the time and the level; the other lines are bare. The first events of the run:
+`ConsoleEgress` writes each batch of records in one INFO log call, one line per record, so the script switches logging on before it runs. Only the first line of a batch carries the logging format's prefix, such as the time and the level. The other lines are bare. The first events of the run:
 
 <!-- records: builder-first -->
 ```text
@@ -166,7 +153,7 @@ if __name__ == "__main__":
 
 ---
 
-## What It Does for You
+## How It Works
 
 `run()` takes the steps a [low-level script](low-level-api.md) writes by hand, in the same order, and adds these:
 
@@ -174,25 +161,48 @@ if __name__ == "__main__":
 - **Resources, stores and containers.** One for each `add_resource`, `add_store` and `add_container`, which `context.get_resource`, `get_store` and `get_container` return. `add_resource` takes a `type`, a subclass of `ResourceBase` to build the resource from ([Custom Resource Types](resources/custom-resource-types.md#custom-resource-types)). `add_store` and `add_container` take a `type` too, a subclass of `StoreBase` or `ContainerBase` ([Custom Store and Container Types](stores-and-containers.md#custom-store-and-container-types)). A store or container with no `current_cap` and no `max_cap` has no limit.
 - **Tasks.** `@app.task` publishes `queued`, `started` and the finished event with the entity key, task and instance, reports each step to the statistics, takes and adds stock, and routes to the next task with a `Router`.
 - **Entities.** `context.wait_for_arrival` returns an `Entity` with its key and attributes.
-- **Names with the `sim_id`.** `context.publish(name, value)` puts the `sim_id` in front of the name; the low-level `env.publish_telemetry` uses it as given.
+- **Names with the `sim_id`.** `context.publish(name, value)` puts the `sim_id` in front of the name. The low-level `env.publish_telemetry` uses the name as given.
 
 ---
 
-## Errors and Limits
+## Stability and Limits
 
-A mistake stops the script before the clock starts. A method raises `ValueError` when it is called with a value it cannot take: an `environment` that is not a subclass of `DynamicRealtimeEnvironment`, a `fire` action with `urgent` or `after` on a signal that is not `once=True` (raised at `start()`), a negative `after`, a distribution parameter out of range or one its family does not take, an unknown queue order, a `current_cap` or `max_cap` that is not a whole number or infinity, a `max_cap` below 1 given with no `current_cap`, a `type` that is not a subclass of `ResourceBase`, a negative `queue_limit` or one on a `type` with a `PutQueue` of its own, a task with a resource but no service, a priority without a resource, an unknown `on_interrupt`, a second task with the same name, a `spawn` with an `after` of 0 or less, or a `fire` action given both `value` and `from`. `run()` then checks what each task names, before the clock or any connector starts, and raises `ValueError` for a resource, service, store, container, signal or task that was not added, a priority on a resource that does not queue by priority, two tasks that acquire resources in opposite orders, a spawned task that shares an arrival's name, a `fire` action's `from` that names both a signal and a task or neither, and a `level.<name>`, `users.<name>`, `queue.<name>`, `signal.<name>`, `wait.<branch>` or `registry["..."]` that an expression reads but that does not exist.
+A mistake stops the script before the clock starts. A method raises `ValueError` when it is called with a value it cannot take:
+
+- an `environment` that is not a subclass of `DynamicRealtimeEnvironment`;
+- a `fire` action with `urgent` or `after` on a signal that is not `once=True` (raised at `start()`);
+- a negative `after`;
+- a distribution parameter out of range, or one its family does not take;
+- an unknown queue order;
+- a `current_cap` or `max_cap` that is not a whole number or infinity, or a `max_cap` below 1 given with no `current_cap`;
+- a `type` that is not a subclass of `ResourceBase`;
+- a negative `queue_limit`, or one on a `type` with a `PutQueue` of its own;
+- a task with a resource but no service, or a priority without a resource;
+- an unknown `on_interrupt`;
+- a second task with the same name;
+- a `spawn` with an `after` of 0 or less;
+- a `fire` action given both `value` and `from`.
+
+`run()` then checks what each task names, before the clock or any connector starts. It raises `ValueError` for:
+
+- a resource, service, store, container, signal or task that was not added;
+- a priority on a resource that does not queue by priority;
+- two tasks that acquire resources in opposite orders;
+- a spawned task that shares an arrival's name;
+- a `fire` action's `from` that names both a signal and a task, or neither;
+- a `level.<name>`, `users.<name>`, `queue.<name>`, `signal.<name>`, `wait.<branch>` or `registry["..."]` that an expression reads but that does not exist.
 
 The builder's limits are those of its tasks and its resources:
 
-- **Resources are fixed when the run starts.** `run()` creates every resource, store and container before the clock starts, and has no call to add one later; [Dynamic Topology](../guides/dynamic-topology.md) adds one with the low-level API.
-- **`advance()` needs a started run.** It raises `RuntimeError` before `start()`, after `close()` and after the run's own end, and `ValueError` for a time that is not after `now`; [Run in Segments](time-and-pacing/run-length.md#run-in-segments) shows it.
-- **`strict` defaults to False here.** `SimulationContext(strict=True)` raises `RuntimeError` when a paced step is more than `factor` seconds behind, as the low-level environment does by default.
-- **`environment=` takes a subclass of `DynamicRealtimeEnvironment`.** The context builds it in `start()` with the arguments it builds its own with, so its `__init__` takes `**kwargs` and passes them on.
+- **Resources are fixed when the run starts.** `run()` creates every resource, store and container before the clock starts, and has no call to add one later. [Add Resources Mid-run](../guides/dynamic-topology.md) adds one with the low-level API.
+- **`advance()` needs a started run.** It raises `RuntimeError` before `start()`, after `close()` and after the run's own end, and `ValueError` for a time that is not after `now`. [Run in Segments](time-and-pacing/run-length.md#run-in-segments) shows it.
+- **`strict` defaults to False here.** [Strict Pacing](time-and-pacing/clocks-and-pacing.md#strict-pacing) gives what it does and its default in each API.
+- **`environment=` takes a subclass of `DynamicRealtimeEnvironment`.** The context builds it in `start()` with the same arguments it would give its own environment, so its `__init__` takes `**kwargs` and passes them on.
 - **A subscribe refuses a processed event.** `context.subscribe(event)` raises `RuntimeError` when the event has already happened, or when it is called outside a process.
 
 ---
 
-## Full Script
+## Example
 
 ??? example "Full script"
 
@@ -222,8 +232,6 @@ The builder's limits are those of its tasks and its resources:
     app.add_store("parcels", current_cap=20, max_cap=50)  # items, waiting for a courier
     app.add_variable("conveyor_speed", 1.5)  # any other live value
 
-    app.add_arrival("orders", dist="exponential", rate=0.5)  # an order every 2 s on average
-    app.add_arrival("couriers", dist="constant", value=10)  # a courier every 10 s
     app.add_service("packing", dist="triangular", low=1, mode=2, high=4)
     app.add_service("labelling", dist="constant", value=0.5)
 
@@ -250,23 +258,9 @@ The builder's limits are those of its tasks and its resources:
         return {"event_type": "parcel_collected", "label": item["event_type"]}
 
 
-    @app.arrival_loop("orders")
-    def orders(context: SimulationContext):
-        task_id = 0
-        while True:
-            order = yield context.wait_for_arrival("orders")  # keyed orders-1, ...
-            context.spawn(pack_order(task_id, entity=order))
-            task_id += 1
-
-
-    @app.arrival_loop("couriers")
-    def couriers(context: SimulationContext):
-        task_id = 0
-        while True:
-            courier = yield context.wait_for_arrival("couriers")
-            context.spawn(collect(task_id, entity=courier))
-            task_id += 1
-
+    # An order every 2 s on average, keyed orders-1, ..., each starting pack_order
+    app.add_arrival("orders", dist="exponential", rate=0.5, spawn="pack_order")
+    app.add_arrival("couriers", dist="constant", value=10, spawn="collect")  # every 10 s
 
     app.with_stats("typical", interval=30)  # readings, counts, waits, every 30 s
 

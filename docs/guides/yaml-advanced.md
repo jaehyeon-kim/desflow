@@ -1,8 +1,8 @@
-# Python in a Blueprint: `!python`
+# Call Python from YAML
 
-A blueprint holds configuration as plain YAML, and the [YAML Blueprints](../user-guide/blueprints.md) page covers that. When a simulation needs logic that YAML cannot express, the file can reference a Python object with `!python module.attribute` in place of a value. This guide covers when to use it, how a reference is found, what each field receives and the security note, and ends with the OML hot rolling twin as a worked case.
+A blueprint holds configuration as plain YAML. When a simulation needs logic that YAML cannot express, the file can reference a Python object with `!python module.attribute` in place of a value. It builds on [YAML Blueprints](../user-guide/blueprints.md), which describes the blueprint file. This guide covers when to use it, how a reference is found, what each field receives, and the setup step. It then works through the OML hot rolling digital twin, a steel mill model, and ends with the errors a reference can give and a note on security.
 
-The [advanced Postgres example](../examples/advanced-postgres-orders.md) is a complete blueprint with one Python process. Every file on this page is in the repository under [`docs/snippets/`](https://github.com/jaehyeon-kim/desflow/tree/main/docs/snippets).
+The [Related Records](../examples/advanced-postgres-orders.md) example is a complete blueprint with one Python process. Every file on this page is in the repository under [`docs/snippets/`](https://github.com/jaehyeon-kim/desflow/tree/main/docs/snippets).
 
 ---
 
@@ -10,8 +10,8 @@ The [advanced Postgres example](../examples/advanced-postgres-orders.md) is a co
 
 Use `!python` when a blueprint needs one of these:
 
-- **Field values with logic.** Random or weighted choices, fields derived from other fields and state carried from one event to the next are a payload function or a process.
-- **More than a task can describe.** Collecting several entities into one, such as a batch, is a process. Routing (`next`), priorities (`priority` and `queue: priority`), stores and containers, several resources per task (`resource: [...]` and `keep`), preemption (`preempt: true`) and breakdowns (`breakdown:`) are plain YAML.
+- **Field values with logic.** Random or weighted choices, fields derived from other fields and state carried from one event to the next are written as a payload function or a process.
+- **More than a task can describe.** Collecting several entities into one, such as a batch, is written as a process. Routing (`next`), priorities (`priority` and `queue: priority`), stores and containers, several resources per task (`resource: [...]` and `keep`), preemption (`preempt: true`) and breakdowns (`breakdown:`) are written in plain YAML.
 - **Readings other than the built-in statistics.** `stats: minimal` publishes resource, store and container readings, a container's `level` among them. Use a telemetry function to publish variables and derived metrics.
 - **Routing over several destinations, and serializers.** A router or an Avro serializer is a Python object.
 - **Setup a connector does not do itself**, such as topics that only a router knows about.
@@ -27,7 +27,7 @@ A setting that is a value needs no Python. Environment variables, relative times
 
 ![A !python value such as shop_logic.choose_delivery imports the longest prefix that is a module and returns the rest, which the blueprint uses as a payload, process, router, serializer or connector class; a missing module or attribute raises BlueprintError](../assets/diagrams/python-reference.png)
 
-The longest prefix that is a module is imported, and the rest is read as attributes, so `pkg.module.func` and `module.Class.attribute` both work. The folder of the YAML file is added to the front of `sys.path`, unless it is already on it, before anything is resolved, so a module beside the blueprint is found from any working directory. Other modules are found on the normal `sys.path`, which includes installed packages. `${VAR}` is replaced inside a reference too, so `!python ${LOGIC}.ticker` picks the module from the environment.
+The longest prefix that is a module is imported, and the rest is read as attributes, so `pkg.module.func` and `module.Class.attribute` both work. Before anything is resolved, the folder of the YAML file is added to the front of `sys.path`, unless it is already on it. A module beside the blueprint is therefore found from any working directory. Other modules are found on the normal `sys.path`, which includes installed packages. `${VAR}` is replaced inside a reference too, so `!python ${LOGIC}.ticker` picks the module from the environment.
 
 Every reference is resolved and checked when the file is loaded, so a wrong reference fails before the run starts, with the file and line.
 
@@ -67,6 +67,7 @@ services:
   packing: {dist: normal, mean: 4.0, std: 1.0}
 
 arrivals:
+  # An order every 5 s on average (rate 0.2)
   orders: {dist: exponential, rate: 0.2, spawn: pack_order}
 
 tasks:
@@ -90,9 +91,9 @@ run:
 
 ```python title="docs/snippets/yaml/shop_logic.py"
 """Python for the blueprints beside it: a payload, a process with arguments, a
-predicate, a custom reading and a resource type."""
+predicate, a custom reading, a resource type and a container type."""
 
-from desflow import ResourceBase
+from desflow import ContainerBase, ResourceBase
 
 
 def choose_delivery(task_id: int, context):
@@ -142,6 +143,20 @@ class LoggedPackers(ResourceBase):
             self.waits.append(self.env.now - request.time)
 
 
+class CountedBin(ContainerBase):
+    """A container that counts the puts it grants."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.restocks = 0
+
+    def _do_put(self, event):
+        granted = super()._do_put(event)
+        if event.triggered:
+            self.restocks += 1
+        return granted
+
+
 ```
 
 What each reference receives:
@@ -150,7 +165,7 @@ What each reference receives:
 - `processes` entries are called as `function(context, **kwargs)` when the run starts. `kwargs` is how one function serves several resources.
 - `when` is called with every record and returns True to send it to that sink.
 
-The run shows both:
+The run shows the delivery that the payload picked and the events of the breaks process:
 
 <!-- records: hybrid-events -->
 ```text
@@ -159,7 +174,7 @@ The run shows both:
 [EVT] {'sim_ts': 55.0, 'timestamp': '...', 'key': 'packers-break', 'task': None, 'instance': None, 'value': {'status': 'up'}}
 ```
 
-A process is written either as a bare reference, `- !python module.func`, which is called as `func(context)`, or as a mapping with `function` and `kwargs`, which is called as `func(context, **kwargs)`. `kwargs` is what lets a blueprint start a process whose signature is not `(context)`. When the signature differs more, write a small adapter: a generator function that takes the context, picks out what the process needs, and hands over with `yield from`.
+A process is written in one of two ways. A bare reference, `- !python module.func`, is called as `func(context)`. A mapping with `function` and `kwargs` is called as `func(context, **kwargs)`. `kwargs` is what lets a blueprint start a process whose signature is not `(context)`. When the signature differs more, write a small adapter: a generator function that takes the context, picks out what the process needs, and hands over with `yield from`.
 
 ```python title="docs/snippets/hot_rolling/hot_rolling_adapter.py:arrivals"
 def arrivals(context, product):
@@ -191,7 +206,7 @@ A connector from another package is referenced by class: `type: !python my_packa
 
 `run.before` lists functions called with no arguments, once, at the start of `run()`. Connectors already create what they write to when they can: Kafka its event and telemetry topics, Postgres the tables under `tables`, and Parquet and JSONL their folders. `run.before` is for anything else, such as the five topics the hot rolling twin below creates for its router.
 
-Put such setup in a function rather than at the top of the module. The module is imported when the file is loaded, so its top-level code runs even when the file is loaded and never run.
+Put such setup in a function rather than at the top of the module. The module is imported when the file is loaded, so its top-level code runs even when the blueprint is loaded and never run.
 
 ```yaml title="docs/snippets/yaml_build/connectors.yaml:before"
 run:
@@ -224,13 +239,13 @@ def make_output_folder() -> None:
 
 ## Worked Case: Lift the OML Hot Rolling Twin
 
-The [OML hot rolling digital twin](https://github.com/jaehyeon-kim/oml-digital-twin-hotrolling) is a steel mill written with the low-level API. Its `generator.py` builds a `SimParameter` with three arrivals, three services, three resources, three containers and three variables, wires Kafka in both directions with a topic router, and starts the processes in `sim_logic.py`. Those processes take `(env, sampler, resource, ...)`, not a context, and `sim_logic.py` runs to 262 lines of multi-stage routing, wear and physics.
+The [OML hot rolling digital twin](https://github.com/jaehyeon-kim/oml-digital-twin-hotrolling) is a steel mill written with the low-level API. Its `generator.py` builds a `SimParameter` with three arrivals, three services, three resources, three containers and three variables. It connects Kafka in both directions with a topic router, and starts the processes in `sim_logic.py`. Those processes take `(env, sampler, resource, ...)`, not a context, and `sim_logic.py` runs to 262 lines of multi-stage routing, wear and physics.
 
 The configuration moves to YAML. The processes keep their logic, and a small adapter changes only how they are called.
 
 ```yaml title="docs/snippets/hot_rolling/hot_rolling.yaml"
 # The OML hot rolling digital twin as a blueprint. The parameters and the Kafka
-# wiring that generator.py builds in Python are declared here. The processes stay
+# connectors that generator.py builds in Python are declared here. The processes stay
 # in sim_logic.py, and hot_rolling_adapter.py beside this file adapts them.
 #
 # Place this file and the adapter in sim_control/, then run from there:
@@ -387,9 +402,9 @@ def create_topics():
     time.sleep(2)
 ```
 
-**What moved.** The whole `SimParameter`, both Kafka connectors with the custom topic router, the seed, the factor and the topic creation. The broker address and the topic names stay in `src/config.py`, and the blueprint references them. `containers` and `variables` carry the wear levels and drift velocities the processes read and write.
+**What moved.** The whole `SimParameter` moved to the blueprint, with both Kafka connectors and the custom topic router, the seed, the factor and the topic creation. The broker address and the topic names stay in `src/config.py`, and the blueprint references them. `containers` and `variables` carry the wear levels and drift velocities the processes read and write.
 
-**What stayed.** `drift_engine`, `arrival_process`, `roll_slab` and `telemetry_monitor`, with one change: they read and write the wear at `HotRolling.containers.wear_<grade>.current_cap`, and a container's `current_cap` is now its capacity, so those paths in `sim_logic.py` and `dashboard.py` become `.level`. The adapter is one generator function per process. Each takes the context, picks out the environment, the sampler and the mill resource, and hands over with `yield from`. The primer slab and the arrival loop are separate entries, so they start in the order `generator.py` starts them.
+**What stayed.** `drift_engine`, `arrival_process`, `roll_slab` and `telemetry_monitor` stay in Python, with one change. They read and write the wear at `HotRolling.containers.wear_<grade>.current_cap`, but a container's `current_cap` is now its capacity, not its level. Those paths in `sim_logic.py` and `dashboard.py` therefore become `.level`. The adapter is one generator function per process. Each takes the context, picks out the environment, the sampler and the mill resource, and hands over with `yield from`. The primer slab and the arrival loop are separate entries, so they start in the order `generator.py` starts them.
 
 **What is new.** The scenario turns on gradual wear on the structural line at ten minutes. The twin's dashboard does this by hand over Kafka. As a scenario it repeats exactly, and it can still be combined with the dashboard, because both write to the same registry.
 
@@ -397,10 +412,11 @@ def create_topics():
 
 ## Errors
 
-A reference that cannot be resolved stops the load with its line:
+A reference that cannot be resolved stops the load with its line. [`python_error.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/docs/snippets/yaml/python_error.yaml) names `shop_logic.missing` as the payload of its task, and `desflow run python_error.yaml` prints:
 
+<!-- records: python-error -->
 ```text
-Error: err.yaml:6: !python shop_logic.missing: 'shop_logic' has no attribute 'missing'
+Error: python_error.yaml:14: !python shop_logic.missing: 'shop_logic' has no attribute 'missing'
 ```
 
 A module that exists but fails on one of its own imports is reported with that error, rather than as a missing module.
@@ -411,4 +427,4 @@ A module that exists but fails on one of its own imports is reported with that e
 
 **Loading a blueprint runs the imports it names.** `!python` imports modules, and importing a module runs its top-level code. A blueprint is therefore as trusted as a Python script: load only files you would run as code, in a local or trusted CI workflow.
 
-Every other node is constructed by `yaml.SafeLoader`, and the tag is registered on a subclass of it, so `yaml.safe_load` elsewhere in the process is unaffected. Only `!python` and `!include` are added to YAML. Every other tag, such as `!!python/object`, is rejected as `yaml.safe_load` rejects it.
+Every other node is constructed by `yaml.SafeLoader`. The tag is registered on a subclass of it, so `yaml.safe_load` elsewhere in the process is unaffected. Only `!python` and `!include` are added to YAML. Every other tag, such as `!!python/object`, is rejected as `yaml.safe_load` rejects it.

@@ -1,6 +1,6 @@
 """End conditions: a drain after closing time, and a stop when the boxes run out, low-level API.
 
-The low-level twin of `builder/end_conditions_example.py`. Orders arrive until the
+The low-level version of `builder/end_conditions_example.py`. Orders arrive until the
 shop closes at 120 seconds; then the source process is interrupted and the run goes
 on until every order in the shop is packed, for at most 60 seconds more. Each order
 takes a box, and the run stops at once if the boxes run out first.

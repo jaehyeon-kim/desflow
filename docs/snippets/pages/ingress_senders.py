@@ -14,7 +14,7 @@ async def send_with_kafka(rate: float) -> None:
     """A JSON object with path and value, to the topic KafkaIngress reads."""
     from aiokafka import AIOKafkaProducer
 
-    producer = AIOKafkaProducer(bootstrap_servers="localhost:9092")
+    producer = AIOKafkaProducer(bootstrap_servers="127.0.0.1:9092")
     await producer.start()
     try:
         message = {"path": "Shop.arrival.orders.rate", "value": rate}
@@ -31,7 +31,7 @@ async def send_with_redis(rate: float) -> None:
     """The same JSON object, published to the channel RedisIngress subscribes to."""
     import redis.asyncio as redis
 
-    client = redis.from_url("redis://user:password@localhost:6379/0")
+    client = redis.from_url("redis://user:password@127.0.0.1:6379/0")
     message = {"path": "Shop.arrival.orders.rate", "value": rate}
     await client.publish("simulation_params", json.dumps(message))
     await client.aclose()
@@ -45,7 +45,7 @@ async def send_with_postgres(rate: float) -> None:
     """A row in the table PostgresIngress polls; value is JSON text."""
     import asyncpg
 
-    conn = await asyncpg.connect("postgresql://user:password@localhost:5432/odctl")
+    conn = await asyncpg.connect("postgresql://user:password@127.0.0.1:5432/odctl")
     try:
         await conn.execute(
             "INSERT INTO simulation_params (path, value) VALUES ($1, $2)",

@@ -1,6 +1,6 @@
-# Examples
+# Example Projects
 
-Each example is written three ways: as a YAML blueprint, with the builder API and with the low-level API. Its page shows the versions in tabs.
+Each example is a complete model that you can download with `desflow examples get` and run, as [Get an Example](../user-guide/command-line.md#get-an-example) shows. Each is written three ways: as a YAML blueprint, with the builder API and with the low-level API. Its page shows the versions in tabs.
 
 | Example | What it shows | YAML | Builder | Low-level |
 | --- | --- | --- | --- | --- |
@@ -11,7 +11,7 @@ Each example is written three ways: as a YAML blueprint, with the builder API an
 | [PostgreSQL](postgres.md) | writes orders to PostgreSQL and takes updates from a table | [`postgres.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/yaml/postgres.yaml) | [`postgres_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/builder/postgres_example.py) | [`postgres_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/postgres_example.py) |
 | [Redis](redis.md) | writes to a Redis Stream and takes updates from Pub/Sub | [`redis.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/yaml/redis.yaml) | [`redis_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/builder/redis_example.py) | [`redis_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/redis_example.py) |
 | [Parquet History, Kafka Live](backfill-live.md) | backdated history to Parquet, then live to Kafka | [`backfill_live.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/yaml/backfill_live.yaml) | [`backfill_live_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/builder/backfill_live_example.py) | [`backfill_live_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/backfill_live_example.py) |
-| [Generate Related Records](advanced-postgres-orders.md) | orders and their line items, in two PostgreSQL tables | [`postgres_orders.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/yaml/advanced/postgres_orders.yaml) | [`postgres_orders_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/builder/postgres_orders_example.py) | [`postgres_orders_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/postgres_orders_example.py) |
+| [Related Records](advanced-postgres-orders.md) | orders and their line items, in two PostgreSQL tables | [`postgres_orders.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/yaml/advanced/postgres_orders.yaml) | [`postgres_orders_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/builder/postgres_orders_example.py) | [`postgres_orders_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/postgres_orders_example.py) |
 | [Stock, Parcels and Express Orders](../user-guide/stores-and-containers.md#example-stock-parcels-and-express-orders) | packing takes stock and fills a priority store of parcels; express orders go first | [`stock.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/yaml/stock.yaml) | [`stock_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/builder/stock_example.py) | [`stock_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/stock_example.py) |
 | [A Flow of Tasks](../user-guide/task-flow.md#example-a-flow-of-tasks) | orders routed through pick, gift wrap, pack and ship, with rework | [`flow.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/yaml/flow.yaml) | [`flow_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/builder/flow_example.py) | [`flow_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/flow_example.py) |
 | [Measuring a Run](../user-guide/statistics.md#example-measuring-a-run) | built-in statistics after a warm-up, and ground truth for a fault | [`measuring.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/yaml/measuring.yaml) | [`measuring_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/builder/measuring_example.py) | [`measuring_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/measuring_example.py) |
@@ -30,7 +30,16 @@ Each example is written three ways: as a YAML blueprint, with the builder API an
 | [An Experiment](../user-guide/experiments/index.md#example-an-experiment) | two designs of the shop compared with paired replications, a check, observed waits and a report | [`experiment.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/yaml/experiment.yaml) | [`experiment_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/builder/experiment_example.py) | [`experiment_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/experiment_example.py) |
 | [Fitted Inputs](../user-guide/input-fitting.md#example-fitted-inputs) | the packing time fitted from 40 measured times, then loaded into the shop | [`fitting.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/yaml/fitting.yaml) | [`fitting_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/builder/fitting_example.py) | [`fitting_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/fitting_example.py) |
 
-The shop examples from Stock onwards are shown on the page that teaches their feature, with the same steps. Each example page says how to download and run it, and which odctl profile from [Installation](../getting-started.md#services-for-the-examples) it needs.
+The shop examples from Stock onwards are shown on the page that teaches their feature, with the same steps. Each example page says how to download and run it, and which odctl profile from [Installation](../getting-started.md#services-for-the-examples) it needs. `desflow examples get` prints the extra an example needs, and `pip install "desflow[all]"` installs every extra, so each example runs once its profile is up.
+
+`desflow examples list` prints the same list in the terminal, with the odctl profile each example needs. `desflow examples get NAME` downloads the files of the release you installed into `NAME/yaml/`, `NAME/builder/` and `NAME/low-level/`. `--api` keeps one version, `--dest` downloads into another folder, `--ref` names another tag or branch, such as `main`, and `--force` replaces files that are already there:
+
+```bash
+desflow examples list
+desflow examples get local --api yaml --dest work
+```
+
+The second command writes `work/local/yaml/local.yaml`.
 
 ## Used in
 

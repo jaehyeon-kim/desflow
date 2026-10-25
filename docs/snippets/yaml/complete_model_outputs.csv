@@ -1,0 +1,4 @@
+measure,value,unit,population,horizon
+tasks.pick_order.wait_mean,0.57,s,started instances,58 min
+tasks.pack_order.wait_mean,1.9,s,started instances,58 min
+resources.packers.utilization_avg,88.0,percent,time average,58 min

@@ -1,8 +1,8 @@
 """The Randomness and Seeds tutorial: the busy shop, seeded, with returns, builder.
 
-Orders arrive at 1.8 a second and three packers pack each in 1.5 seconds on average,
-give or take 0.5. Returned parcels arrive about every 5 seconds and are recorded as
-they arrive. Every record is printed to the terminal.
+Orders arrive at 1.8 a second, and three packers pack each in 1.5 seconds on average,
+with a standard deviation of 0.5 seconds. Returned parcels arrive every 5 seconds on
+average and are recorded as they arrive. Every record is printed to the terminal.
 """
 
 import logging
@@ -19,7 +19,7 @@ app = (
     SimulationContext(sim_id="Shop", factor=0, random_seed=42)
     # --8<-- [end:seed]
     .add_resource("packers", current_cap=3, max_cap=10)
-    # Packing varies: 1.5 seconds on average, give or take 0.5
+    # Packing varies: 1.5 seconds on average, with a standard deviation of 0.5
     .add_service("packing", dist="normal", mean=1.5, std=0.5)
     .add_arrival("orders", dist="exponential", rate=1.8)
     .add_egress(ConsoleEgress())
@@ -41,7 +41,7 @@ def order_generator(context: SimulationContext):
 
 
 # --8<-- [start:returns]
-# Returned parcels: about one every 5 seconds
+# Returned parcels: one every 5 seconds on average
 app.add_arrival("returns", dist="exponential", rate=0.2)
 
 

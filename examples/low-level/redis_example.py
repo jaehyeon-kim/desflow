@@ -1,6 +1,6 @@
 """Redis Streams output with live parameter updates, low-level API.
 
-The low-level twin of `builder/redis_example.py`. The simulation records each
+The low-level version of `builder/redis_example.py`. The simulation records each
 order as it is placed. `RedisEgress` writes the records to the `order_events` stream,
 named by each record's `__stream__` key, and `RedisIngress` subscribes to the
 `simulation_params` channel.
@@ -24,8 +24,8 @@ from desflow import (
 logger = logging.getLogger("redis_example")
 
 # The odctl `valkey` profile disables the unauthenticated default user, so the
-# URL carries credentials. A plain Redis without auth takes redis://localhost:6379/0.
-REDIS_URL = "redis://user:password@localhost:6379/0"
+# URL carries credentials. A plain Redis without auth takes redis://127.0.0.1:6379/0.
+REDIS_URL = "redis://user:password@127.0.0.1:6379/0"
 
 PARAMS = SimParameter(
     sim_id="Shop",

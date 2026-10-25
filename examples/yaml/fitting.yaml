@@ -1,10 +1,10 @@
 # Fitted inputs in YAML: the shop's packing time, fitted from 40 measured times.
 #
-# The twin of examples/builder/fitting_example.py. packing_fit.yaml holds the
+# The YAML version of fitting_example.py, which --api builder downloads. packing_fit.yaml holds the
 # distribution desflow fit chose for the 40 packing times in ../packing_times.csv;
-# the Quick Start runs the fit again, which writes the same file. Two packers and
-# orders at 0.8 a second. The run prints every event and the statistics, and ends
-# after one simulation hour.
+# the Quick Start runs the fit again, which writes the same file. Two packers, and
+# an order every 1.25 seconds on average (48 a minute, rate 0.8). The run prints
+# every event and the statistics, and ends after one simulation hour.
 #
 # Needs no containers.
 # Fit and run it with:

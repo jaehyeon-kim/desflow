@@ -1,10 +1,15 @@
 # Choosing Inputs
 
-Packing takes 1.5 seconds on average. So far the shop has said exactly that: a `constant` 1.5 seconds. Real packing times vary, and a model is only as good as the times it draws. This page asks: **which distribution fits packing times?**
+Packing takes 1.5 seconds on average. So far the model has used exactly that: a `constant` 1.5 seconds. Real packing times vary, and a model's results are only as accurate as the times it draws. This page asks: **which distribution fits packing times?**
+
+- **Decision:** which candidate distribution the model uses for packing.
+- **Measures:** the shape of each candidate beside the measured times, and the busy hour's mean wait with each.
+- **Runs:** four runs of the busy hour, one for each candidate, each with the seed 42.
+- **Assumptions:** orders arrive at random at 1.8 a second, and the times measured at the bench stand for every packer.
 
 ## What You Add
 
-A packing time chosen from evidence. The model simulates the busy hour with 3 packers from [Queues and Capacity](queues-and-capacity.md). It gets four candidates for packing, all with a mean of 1.5 seconds, and runs the hour with each:
+This page adds a packing time chosen from evidence. The model simulates the busy hour with 3 packers from [Queues and Capacity](queues-and-capacity.md). It gets four candidates for packing, all with a mean of 1.5 seconds, and runs the hour with each:
 
 - `constant`: the mean alone, as the shop had it;
 - `exponential`: the usual choice when nothing is known;
@@ -38,13 +43,13 @@ Choosing a distribution for an input is called **input modelling**. Often there 
     TRIANGULAR = DistributionConfig(dist="triangular", low=1, mode=1.25, high=2.25)
     ```
 
-Its mean is (low + mode + high) ÷ 3 = (1 + 1.25 + 2.25) ÷ 3 = 1.5 seconds. In a blueprint every time-valued parameter takes a duration such as `1.25 s` or `2 min`; a plain number is seconds.
+Its mean is (low + mode + high) ÷ 3 = (1 + 1.25 + 2.25) ÷ 3 = 1.5 seconds.
 
 ---
 
 ## Measured Times
 
-When times can be measured, use them. An **empirical** distribution draws from a list of measured `values`, each equally likely (or with `weights`, one per value). These are 40 packing times timed at the bench, with a mean of 1.5 seconds:
+When times can be measured, use them. An **empirical** distribution draws from a list of measured `values`. Each value is equally likely, unless a `weights` list gives one weight per value. The 40 packing times below are illustrative: they stand for times taken at the bench, and their mean is 1.5 seconds:
 
 === "YAML"
 
@@ -84,13 +89,46 @@ When times can be measured, use them. An **empirical** distribution draws from a
     EMPIRICAL = DistributionConfig(dist="empirical", values=MEASURED)
     ```
 
-The values are taken when the model is loaded. A list is not one number, so an `empirical` distribution has no registry path and does not change while the run goes on; the other distributions have one path per parameter, such as `Shop.service.triangular.mode`.
+The values are taken when the model is loaded. A registry path holds one number, and a list is not one number. So an `empirical` distribution has no registry path, and its values do not change while the run goes on. The other distributions have one path per parameter, such as `Shop.service.triangular.mode`.
+
+The measured times have a mean of 1.5 seconds and a standard deviation of 0.4832 seconds. A family fitted to them, such as a `gamma`, takes other parameters: a `shape` and a `scale`. `desflow dist` turns a mean and a standard deviation into them. Save the files from [Full Files](#full-files) in one folder and run the commands there:
+
+```bash
+desflow dist gamma --mean 1.5 --std 0.4832
+```
+
+<!-- records: choosing-dist -->
+```text
+parameters: shape 9.63671, scale 0.155655
+mean 1.5, std 0.4832
+variability: low (std / mean 0.322)
+with no random generator, every draw is 1.5
+YAML: {dist: gamma, shape: 9.63671, scale: 0.155655}
+Python: dist="gamma", shape=9.63671, scale=0.155655
+```
+
+The last two lines are the service in a blueprint and in the builder. The variability label is desflow's own scale for the standard deviation divided by the mean: `none` at 0, `low` below 0.75, `moderate` from 0.75 to 1.33, and `high` above 1.33. It is `low` here, because the standard deviation is about a third of the mean (0.322). The fourth line is the value a `Sampler` with no seed gives for every draw. A run always has a seed, so it draws at random and never uses that value. A test can use the value to get the same times on every run, as [Arrivals and Services](../user-guide/arrivals-and-services.md#how-it-works) explains.
+
+An `exponential` has a standard deviation equal to its mean, a ratio of 1, so it is `moderate`. The arrivals of the busy hour show it. `--rate` gives the family's own parameter, here 1.8 orders a second:
+
+```bash
+desflow dist exponential --rate 1.8
+```
+
+<!-- records: choosing-rate -->
+```text
+parameters: rate 1.8
+mean 0.555556, std 0.555556
+variability: moderate (std / mean 1)
+```
+
+The gap between two orders is 0.56 seconds on average, and its standard deviation is the same 0.56 seconds.
 
 ---
 
 ## Same Mean, Different Waits
 
-All four candidates have the same mean, so the packers are equally busy with each: utilisation 0.9. Run the hour with each, and read the mean wait from the statistics at the `typical` level, which [Measuring a Run](measuring-a-run.md) explains:
+All four candidates have the same mean, so the packers are equally busy with each: [utilisation](../des/queueing-basics.md#utilisation) 0.9. Run the hour with each, and read the mean wait from the statistics at the `typical` level, which [Measuring a Run](measuring-a-run.md) explains:
 
 === "YAML"
 
@@ -137,7 +175,7 @@ All four candidates have the same mean, so the packers are equally busy with eac
         env.stats.task_finished("pack_order", task_id)
     ```
 
-The Builder and Low-level scripts print one line per candidate; the YAML runs print the same numbers as the `value` of their `wait_mean` lines:
+The Builder and Low-level scripts print one line per candidate. The YAML runs print the same numbers as the `value` of their `wait_mean` lines:
 
 <!-- records: choosing-table -->
 ```text
@@ -153,15 +191,15 @@ A mean alone hides queues. With constant packing nobody holds a packer for long.
 
 ## Result
 
-Which distribution fits packing times? **The empirical distribution**, because it is the measured times themselves. On the left, the shapes of the four candidates; on the right, the mean wait each gives in the busy hour:
+Which distribution fits packing times? **The empirical distribution**, because it is the measured times themselves. The chart shows the shapes of the four candidates on the left, and the mean wait each gives in the busy hour on the right:
 
 ![On the left, the four packing distributions: exponential spread from 0 to over 6 seconds, empirical and triangular between 0.5 and 2.75 seconds, constant a line at 1.5; on the right, the mean waits: constant 1.27, triangular 1.28, empirical 1.35 and exponential 2.37 seconds](../assets/charts/choosing-inputs.png)
 
-With the empirical distribution the mean wait is **1.35 seconds**. The constant mean gives 1.27 seconds, 6% too short, and the exponential guess gives 2.37 seconds, 75% too long. The expert's triangle is close to the constant, because its range is narrower than the measured one.
+With the empirical distribution the mean wait is **1.35 seconds**, from [one run of the hour with the seed 42 and no warm-up](../des/common-mistakes.md#busy-hour-figures), like each figure here. The constant mean gives 1.27 seconds, 6% shorter than with the measured times. The exponential guess gives 2.37 seconds, 75% longer. The expert's triangle is close to the constant, because its range is narrower than the measured one.
 
 ## Why It Works
 
-In the busy hour the mean wait is roughly proportional to the square of the spread of the gaps between orders plus the square of the spread of the packing times, each spread measured relative to its mean ([Kingman's approximation](../des/queueing-basics.md#variation-lengthens-waits)). The gaps are the same in all four runs, so only the packing spread differs: none for `constant`, a little for `triangular`, more for the measured times, and as much as the mean itself for `exponential`. Replacing a distribution by its mean, as `constant` does, is one of the [Common Mistakes](../des/common-mistakes.md#replacing-a-distribution-by-its-mean). A family fitted to the measured times, such as a `gamma` with their mean and standard deviation, takes other parameters, a `shape` and a `scale`; [Arrivals and Services](../user-guide/arrivals-and-services.md) gives the formulas that turn a mean and a standard deviation into them, and lists each distribution with its parameters and rules. [Fit the Inputs](fit-the-inputs.md) fits every family to the 40 times with `desflow fit`, [Input Fitting](../user-guide/input-fitting.md) describes its options and outcomes, and [Fit a Distribution](../guides/fit-a-distribution.md) fits a column of your own. [Distributions](../reference/distributions.md) gives the mean and variance of each family.
+In the busy hour the mean wait grows with the spread of the gaps between orders and with the spread of the packing times. [Kingman's formula](../des/queueing-basics.md#variation-lengthens-waits) puts it in numbers: the wait is roughly proportional to the square of one spread plus the square of the other, each spread measured relative to its mean. The gaps are the same in all four runs, so only the packing spread differs: none for `constant`, a little for `triangular`, more for the measured times, and as much as the mean itself for `exponential`. Replacing a distribution by its mean, as `constant` does, is one of the [Common Mistakes](../des/common-mistakes.md#replacing-a-distribution-by-its-mean). [Arrivals and Services](../user-guide/arrivals-and-services.md) lists each distribution with its parameters and rules. [Fitting the Inputs](fit-the-inputs.md) fits every family to the 40 times with `desflow fit`. [Input Fitting](../user-guide/input-fitting.md) describes its options and outcomes, and [Fit a Distribution](../guides/fit-a-distribution.md) fits a column of your own. [Distributions](../reference/distributions.md) gives the mean and variance of each family.
 
 ---
 
@@ -236,7 +274,8 @@ In the busy hour the mean wait is roughly proportional to the square of the spre
             app = (
                 SimulationContext(sim_id="Shop", factor=0, random_seed=42)
                 .add_resource("packers", current_cap=3, max_cap=10)
-                .add_arrival("orders", dist="exponential", rate=1.8)
+                # Each order starts the task pack_order
+                .add_arrival("orders", dist="exponential", rate=1.8, spawn="pack_order")
                 # Four candidates for packing, each with a mean of 1.5 seconds
                 .add_service("constant", dist="constant", value=1.5)
                 .add_service("exponential", dist="exponential", rate=0.6667)  # 1 / 1.5 s
@@ -258,14 +297,6 @@ In the busy hour the mean wait is roughly proportional to the square of the spre
                 return {"event_type": "order_packed"}
 
             app.with_stats("typical", interval=3600)
-
-            @app.arrival_loop("orders")
-            def order_generator(context):
-                task_id = 0
-                while True:
-                    order = yield context.wait_for_arrival("orders")
-                    context.spawn(pack_order(task_id, entity=order))
-                    task_id += 1
 
             return app
 
@@ -367,5 +398,3 @@ In the busy hour the mean wait is roughly proportional to the square of the spre
             for packing in CANDIDATES:
                 print(f"{packing:<12} mean wait {mean_wait(packing):5.2f} s")
         ```
-
-Next, [Measuring a Run](measuring-a-run.md) asks what else a run can tell you.

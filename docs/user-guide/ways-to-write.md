@@ -12,7 +12,7 @@ The three are layers, not alternatives. Each layer writes the one below it for y
 
 - **YAML blueprint:** a file. `SimulationContext.from_yaml`, which `desflow run` calls, reads it and makes the same builder calls a Python script would make, so the result is an ordinary `SimulationContext`.
 - **Builder API:** `SimulationContext` collects resources, distributions, tasks and connectors through its methods and decorators. Its `run()` compiles them into a `SimParameter`, builds the environment, registers the parameters and starts the processes.
-- **Low-level API:** that last step written by hand: a `SimParameter`, a `DynamicRealtimeEnvironment` that registers it, and SimPy processes that use the environment's resources and publish records.
+- **Low-level API:** you write that last step by hand: a `SimParameter`, a `DynamicRealtimeEnvironment` that registers it, and SimPy processes that use the environment's resources and publish records.
 
 Because each layer ends in the one below, the layers mix: a blueprint can reference Python written for the builder with `!python`, and a builder process can use the environment directly.
 
@@ -29,7 +29,7 @@ Because each layer ends in the one below, the layers mix: a blueprint can refere
 
 ### Which to Choose
 
-- **YAML blueprint** when the configuration is what changes between runs: a new arrival rate, another packer, a different broker, a scripted experiment. A file is easy to review and to diff, a run is one command, and a blueprint has a scenario of timed changes on the simulation clock built in. Logic that YAML cannot express goes in a Python module beside the file, as [Python in a Blueprint](../guides/yaml-advanced.md) shows.
+- **YAML blueprint** when the configuration is what changes between runs: a new arrival rate, another packer, a different broker, a scripted experiment. A file is easy to review and to diff, a run is one command, and a blueprint has a scenario of timed changes on the simulation clock built in. Logic that YAML cannot express goes in a Python module beside the file, as [Call Python from YAML](../guides/yaml-advanced.md) shows.
 - **Builder API** when most of the program is logic and you want it in one Python file, or when you build the configuration in code.
 - **Low-level API** when you need what the builder does not do, or full control of every event.
 
@@ -41,6 +41,6 @@ Because each layer ends in the one below, the layers mix: a blueprint can refere
 
 Whichever way a simulation is written, one run goes the same way from there:
 
-![The three ways to write a simulation build one DynamicRealtimeEnvironment. Its registry holds every live parameter; ingress connectors on background threads update it from Kafka, Redis, PostgreSQL or a local schedule, and the resources follow it. Telemetry and events go to egress connectors on their own thread, which write them to Kafka, Redis, PostgreSQL, Parquet or JSONL files, or Iceberg](../assets/architecture.png)
+![The three ways to write a simulation build one DynamicRealtimeEnvironment. Its registry holds every live parameter; ingress connectors on background threads update it from Kafka, Redis, PostgreSQL or a local schedule, and the resources follow it. Telemetry and events go to egress connectors on their own thread, which write them to Kafka, Redis, PostgreSQL, Parquet or JSONL files, Iceberg or the console](../assets/diagrams/architecture.png)
 
 The environment holds the registry of live parameters, and the resources, stores and containers follow it. Ingress connectors change registry values from outside while the run goes on. Tasks and other processes publish events and telemetry, and egress connectors write them to their sinks on a thread of their own. The registry paths, the records, the batching and the connectors are therefore the same in all three ways, and the User Guide describes each once: [Live Parameters](live-parameters.md), [Ingress](ingress.md), [Egress](egress.md) and [Records and Telemetry](../reference/records-and-telemetry.md).

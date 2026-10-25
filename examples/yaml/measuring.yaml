@@ -1,6 +1,6 @@
 # Measuring a run in YAML: built-in statistics, a warm-up and ground-truth records.
 #
-# The twin of examples/builder/measuring_example.py. The shop publishes every
+# The YAML version of measuring_example.py, which --api builder downloads. The shop publishes every
 # statistic of its packers and its pack task every 5 minutes. The first 3 minutes
 # are a warm-up: no sink receives records from them, and the statistics start again
 # when it ends, so they measure the busy shop, not the empty one it started as. At

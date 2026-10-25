@@ -1,5 +1,5 @@
 """Python for share_by_weight.yaml: a packer that shares its time between classes by
-weight, as the Share by Weight guide builds it."""
+weight, as the Share Work by Weight guide builds it."""
 
 import bisect
 import itertools
@@ -8,7 +8,7 @@ from fractions import Fraction
 from desflow import ResourceBase
 
 # --8<-- [start:weights]
-# Tier 1 is served three times for every once of tier 2
+# Tier 1 is served three times for each time tier 2 is served
 WEIGHTS = {1: 3, 2: 1}
 # --8<-- [end:weights]
 

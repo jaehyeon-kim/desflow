@@ -1,4 +1,4 @@
-"""Share by Weight: one packer shared between two tiers of orders, 3 to 1.
+"""Share Work by Weight: one packer shared between two tiers of orders, 3 to 1.
 
 Nine orders arrive at time 0: the first is tier 2, then six of tier 1, then two more
 of tier 2. The first takes the packer and the rest wait. The packer grants the
@@ -47,7 +47,7 @@ def builder_form():
             "orders", [{"time": 0, "tier": tier} for tier in TIERS], fields=["tier"]
         )
     )
-    # queue="priority" lets a task set a priority; the class orders the line itself
+    # queue="priority" lets a task set a priority; the class orders the waiting requests itself
     app.add_resource(
         "packers", current_cap=1, max_cap=4, queue="priority", type=WeightedPackers
     )

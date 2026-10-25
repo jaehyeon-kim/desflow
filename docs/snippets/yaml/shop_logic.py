@@ -1,7 +1,7 @@
 """Python for the blueprints beside it: a payload, a process with arguments, a
-predicate, a custom reading and a resource type."""
+predicate, a custom reading, a resource type and a container type."""
 
-from desflow import ResourceBase
+from desflow import ContainerBase, ResourceBase
 
 
 def choose_delivery(task_id: int, context):
@@ -57,3 +57,21 @@ class LoggedPackers(ResourceBase):
 
 
 # --8<-- [end:logged-packers]
+
+
+# --8<-- [start:counted-bin]
+class CountedBin(ContainerBase):
+    """A container that counts the puts it grants."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.restocks = 0
+
+    def _do_put(self, event):
+        granted = super()._do_put(event)
+        if event.triggered:
+            self.restocks += 1
+        return granted
+
+
+# --8<-- [end:counted-bin]

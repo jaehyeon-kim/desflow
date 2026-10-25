@@ -150,7 +150,7 @@ for e in (raising, tolerant):
 paused = DynamicRealtimeEnvironment(factor=0.01, strict=False)  # 1.0 follows the clock
 paused.run(until=10)
 # ... a pause, such as a stop in a debugger: the wall clock is now ahead of the run
-paused.resume_pacing()  # the next event waits factor seconds per second from here
+paused.resume_pacing()  # from here, factor real seconds per simulation second
 paused.run(until=20)
 # --8<-- [end:resume-pacing]
 assert paused.now == 20

@@ -1,5 +1,6 @@
 import asyncio
 import queue
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -1228,3 +1229,94 @@ def test_a_priority_needs_a_resource_or_a_wait_request_on_a_priority_queue():
         SimulationContext("TestSim").task(
             "s", wait={"timeout": 1}, priority=2, name="b"
         )
+
+
+class _Records:
+    """Keeps every record it receives."""
+
+    def __init__(self):
+        self.records: list = []
+
+    async def run(self, egress_queue):
+        while True:
+            try:
+                self.records.extend(egress_queue.get_nowait())
+            except queue.Empty:
+                await asyncio.sleep(0.01)
+
+
+def _busy_hour(spawn: bool) -> list:
+    """The shop of the Queues and Capacity snippet, with spawn= or its hand loop."""
+    app = SimulationContext(
+        sim_id="Shop",
+        factor=0,
+        random_seed=42,
+        logical_start_time=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    app.add_service("packing", dist="constant", value=1.5)
+    app.add_arrival(
+        "orders", dist="exponential", rate=1.8, spawn="pack_order" if spawn else None
+    )
+    app.add_resource("packers", current_cap=2, max_cap=10)
+    capture = _Records()
+    app.add_egress(capture)
+
+    @app.task(service_id="packing", resource_id="packers")
+    def pack_order(task_id):
+        return {"event_type": "order_packed"}
+
+    if not spawn:
+
+        @app.arrival_loop("orders")
+        def order_generator(context):
+            task_id = 0
+            while True:
+                order = yield context.wait_for_arrival("orders")
+                context.spawn(pack_order(task_id, entity=order))
+                task_id += 1
+
+    app.run(until=120)
+    return capture.records
+
+
+def test_add_arrival_spawn_starts_the_task():
+    """spawn= gives the records of the arrival loop a builder model writes by hand."""
+    records = _busy_hour(spawn=True)
+    assert any(r["stream_type"] == "event" for r in records)
+    assert records == _busy_hour(spawn=False)
+
+
+def test_spawn_naming_no_task_is_refused():
+    app = SimulationContext("Shop", factor=0)
+    app.add_arrival("orders", dist="constant", value=1, spawn="pack_ordr")
+
+    @app.task()
+    def pack_order(task_id):
+        return {}
+
+    with pytest.raises(
+        ValueError,
+        match="arrival 'orders' spawns task 'pack_ordr', which is not added; "
+        "did you mean 'pack_order'",
+    ):
+        app.run(until=1)
+
+
+def test_replay_spawn():
+    """A replayed arrival with spawn= starts the task for each row, at its time."""
+    app = SimulationContext("Shop", factor=0)
+    rows = [{"time": 1.0, "order": "a"}, {"time": 2.5, "order": "b"}]
+    app.add_arrival_replay("orders", rows, spawn="pack_order")
+    capture = _Records()
+    app.add_egress(capture)
+
+    @app.task()
+    def pack_order(task_id):
+        return {"task_id": task_id}
+
+    app.run(until=5)
+    events = [r for r in capture.records if r["stream_type"] == "event"]
+    assert [(e["sim_ts"], e["key"], e["value"]) for e in events] == [
+        (1.0, "orders-1", {"task_id": 0}),
+        (2.5, "orders-2", {"task_id": 1}),
+    ]

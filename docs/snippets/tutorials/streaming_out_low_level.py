@@ -1,9 +1,10 @@
 """The Streaming Out tutorial: the shop's records, to the terminal and to a file, low-level.
 
-One packer and 1.5 seconds of packing; orders arrive at 0.4 a second for an hour.
-Every record is printed to the terminal, the finished orders are written to packed/,
-and the script prints the files the sink wrote and one order's row:
-python streaming_out_low_level.py 2>/dev/null shows only those lines.
+One packer takes 1.5 seconds to pack an order, and an order arrives every 2.5 seconds
+on average (rate 0.4), for an hour. Every record is printed to the terminal, and the
+finished orders are written to packed/. The script then prints the files the sink
+wrote and one order's row. To see only those lines, run:
+python streaming_out_low_level.py 2>/dev/null
 """
 
 import itertools

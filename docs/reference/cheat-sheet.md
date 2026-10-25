@@ -1,6 +1,6 @@
 # Cheat Sheet
 
-The common YAML keys and builder calls side by side, each linked to the page that explains it. [YAML Format](yaml-format.md) lists every key, and the [API Reference](../api.md) every call. In the builder column, `app` is a `SimulationContext`, and a task's settings are arguments of `@app.task(...)`.
+This page shows the common YAML keys and builder calls side by side, each linked to the page that explains it. [YAML Format](yaml-format.md) lists every key, and the [API Reference](../api.md) every call. In the builder column, `app` is a `SimulationContext`, and a task's settings are arguments of `@app.task(...)`.
 
 ## Simulation
 
@@ -9,15 +9,14 @@ The common YAML keys and builder calls side by side, each linked to the page tha
 | Name the model and set the clock | `simulation: {sim_id, factor, random_seed}` | `SimulationContext(sim_id, factor=, random_seed=)` | [Time and Pacing](../user-guide/time-and-pacing/index.md) |
 | Leave the start of a run out of the statistics | `simulation.warmup` | `SimulationContext(warmup=)` | [Statistics](../user-guide/statistics.md) |
 | Start the clock at a time other than 0 | `simulation.initial_time` | `SimulationContext(initial_time=)` | [Run Length](../user-guide/time-and-pacing/run-length.md#initial-time) |
-| Print the JSON Schema of a blueprint | `desflow schema` | none | [Set Up Your Editor](../guides/set-up-your-editor.md) |
-| Write timestamps in a time zone | `simulation.timezone` | `SimulationContext(timezone=)` | [Records and Telemetry](records-and-telemetry.md) |
+| Write timestamps in a time zone | `simulation.timezone` | `SimulationContext(timezone=)` | [Clocks and Pacing](../user-guide/time-and-pacing/clocks-and-pacing.md#time-zone) |
 
 ## Arrivals and Services
 
 | To | YAML | Builder | Read |
 |---|---|---|---|
 | Draw a service time | `services: {packing: {dist: normal, mean: 3, std: 0.5}}` | `app.add_service("packing", dist="normal", mean=3, std=0.5)` | [Arrivals and Services](../user-guide/arrivals-and-services.md) |
-| Start a task at random gaps | `arrivals: {orders: {dist: exponential, rate: 0.5, spawn: pack}}` | `app.add_arrival("orders", dist="exponential", rate=0.5)` and an `arrival_loop` | [Arrivals and Services](../user-guide/arrivals-and-services.md) |
+| Start a task at random gaps (here every 2 seconds on average) | `arrivals: {orders: {dist: exponential, rate: 0.5, spawn: pack}}` | `app.add_arrival("orders", dist="exponential", rate=0.5, spawn="pack")` | [Arrivals and Services](../user-guide/arrivals-and-services.md) |
 | Give each entity attributes | `arrivals.<name>.attributes` | `app.add_arrival(..., attributes={...})` | [Task Flow](../user-guide/task-flow.md) |
 | Replay recorded arrivals | `arrivals.<name>.replay: {path, time}` | `app.add_arrival_replay(name, source)` | [Local Replay](../tutorials/local-replay.md) |
 | Fit a service time to data | `desflow fit`, then `!include` | `fit_column(values)` | [Input Fitting](../user-guide/input-fitting.md) |
@@ -27,13 +26,13 @@ The common YAML keys and builder calls side by side, each linked to the page tha
 | To | YAML | Builder | Read |
 |---|---|---|---|
 | Add staff or machines | `resources: {packers: {current_cap: 2, max_cap: 4}}` | `app.add_resource("packers", current_cap=2, max_cap=4)` | [Resources](../user-guide/resources/index.md) |
-| Declare a resource with one unit, or none to wait for | `resources: {packers: {}}`, or `{current_cap: .inf}` for no limit | `app.add_resource("packers")`, or `current_cap=float("inf")` | [Resources](../user-guide/resources/index.md#declare-a-resource) |
-| Refuse a request when the line is long | `queue_limit: 5` | `add_resource(..., queue_limit=5)` | [Patience](../tutorials/patience.md#refuse-to-join) |
+| Declare a resource with one unit, or with no limit | `resources: {packers: {}}`, or `{current_cap: .inf}` for no limit | `app.add_resource("packers")`, or `current_cap=float("inf")` | [Resources](../user-guide/resources/index.md#declare-a-resource) |
+| Refuse a request when the line is long | `queue_limit: 5` | `add_resource(..., queue_limit=5)` | [Resources](../user-guide/resources/index.md#queue-limit) |
 | Read how many units are held or wait | `users.packers`, `queue.packers` in a condition | `context.get_resource("packers").count`, `.users`, `.queue` | [Resources](../user-guide/resources/index.md#read-the-queue-and-users) |
 | Build a resource from your own class | `type: !python shop_logic.MyPackers` | `add_resource(..., type=MyPackers)` | [Custom Resource Types](../user-guide/resources/custom-resource-types.md#custom-resource-types) |
 | Serve by priority | `queue: priority` and a task's `priority` | `add_resource(..., queue="priority")` and `@app.task(priority=)` | [Priorities](../tutorials/priorities.md) |
 | Let urgent work take a busy unit | `preempt: true` | `add_resource(..., preempt=True)` | [Interruptions](../tutorials/interruptions.md) |
-| Make a resource fail and be repaired | `resources.<name>.breakdown` | `app.add_breakdown(resource, time_to_failure=, repair=)` | [Breakdowns](../guides/breakdowns.md) |
+| Make a resource fail and be repaired | `resources.<name>.breakdown` | `app.add_breakdown(resource, time_to_failure=, repair=)` | [Model Breakdowns](../guides/breakdowns.md) |
 | Hold an amount, such as boxes | `containers: {stock: {current_cap, max_cap, level, type}}` | `app.add_container("stock", current_cap, max_cap, level=, type=)` | [Stores and Containers](../user-guide/stores-and-containers.md) |
 | Hold items, such as parcels | `stores: {parcels: {current_cap, max_cap, items, type}}` | `app.add_store("parcels", current_cap, max_cap, items=, type=)` | [Stores and Containers](../user-guide/stores-and-containers.md) |
 
@@ -76,6 +75,13 @@ The common YAML keys and builder calls side by side, each linked to the page tha
 | Send records to a sink | `egress: [{type: Kafka, config: {...}}]` | `app.add_egress(KafkaEgress(...))` | [Egress](../user-guide/egress.md) |
 | Send history and live records to different sinks | `egress[].when: history` or `live` | `add_egress(..., when="history")` | [Parquet History, Kafka Live](../examples/backfill-live.md) |
 
+## Check
+
+| To | YAML | Builder | Read |
+|---|---|---|---|
+| Find a distribution's parameters from a mean and std | `desflow dist gamma --mean 1.5 --std 0.5` | the same command | [Command Line](../user-guide/command-line.md#convert-parameters) |
+| Show the graph, utilisation and waits before a run, and check them with runs | `desflow explain FILE --verify` | `app.analyze()`; `verify=True` for a context loaded from a file | [Command Line](../user-guide/command-line.md#check-it-before-a-long-run) |
+
 ## Run
 
 | To | YAML | Builder | Read |
@@ -88,5 +94,8 @@ The common YAML keys and builder calls side by side, each linked to the page tha
 | Fire a one-shot signal first at its time, or later | `on: [{fire: {signal: s, urgent: true, after: 5 s}}]` | `@app.task(on=[{"fire": {"signal": "s", "urgent": True, "after": 5}}])` | [Signals and Waiting](../user-guide/tasks-and-processes/signals-and-waiting.md#actions-when-an-event-happens) |
 | Run on your own environment class | `simulation: {environment: !python mod.Env}` | `SimulationContext(environment=Env)` | [Blueprints](../user-guide/blueprints.md) |
 | Stop the run on a failure nobody handles | `run: {on_unhandled_failure: stop}` | `app.run(on_unhandled_failure="stop")` | [Failures](../user-guide/tasks-and-processes/failures.md#failures) |
+| Print the first events of a blueprint as JSON lines | `desflow run FILE --sample 5` | not in the builder | [YAML Format](yaml-format.md#running-a-blueprint) |
+| Print every record of a run except the `system.simulation.lag_seconds` readings, in place of its sinks | `desflow run FILE --stdout` | not in the builder | [YAML Format](yaml-format.md#running-a-blueprint) |
+| Print the JSON Schema of a blueprint | `desflow schema` | none | [Set Up Your Editor](../guides/set-up-your-editor.md) |
 | Repeat a run with other seeds | `desflow run FILE --replications 20` | `replicate(model, 20, seed=, until=)` | [Replications](../user-guide/replications.md) |
 | Compare designs | `desflow experiment FILE` | `run_experiment(spec)` | [Experiments](../user-guide/experiments/index.md) |

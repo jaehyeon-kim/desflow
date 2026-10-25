@@ -9,7 +9,7 @@ from typer.testing import CliRunner
 
 from desflow import SimulationContext
 from desflow.blueprint import BlueprintError
-from desflow.blueprint.cli import app as cli
+from desflow.cli import app as cli
 from desflow.connectors.egress.base import BaseEgress
 
 MINIMAL = """\
@@ -85,6 +85,25 @@ def test_tasks_spawned_from_an_arrival_publish_the_payload(tmp_path):
     assert finished
     assert finished[0] == {"status": "finished", "order_id": finished[0]["order_id"]}
     assert max(r["sim_ts"] for r in capture.records) <= 30.0
+
+
+def test_yaml_spawn_goes_through_add_arrival(tmp_path, monkeypatch):
+    """A YAML arrival's spawn is the builder's add_arrival(spawn=), so both APIs
+    start their tasks through one loop, in the order the arrivals are written."""
+    calls = []
+    add_arrival = SimulationContext.add_arrival
+
+    def recording(self, name, dist, **kwargs):
+        calls.append((name, kwargs.get("spawn")))
+        return add_arrival(self, name, dist, **kwargs)
+
+    monkeypatch.setattr(SimulationContext, "add_arrival", recording)
+    text = MINIMAL.replace(
+        "arrivals:\n", "arrivals:\n  walk_in: {dist: constant, value: 2}\n"
+    )
+    app = SimulationContext.from_yaml(write(tmp_path, text))
+    assert calls == [("walk_in", None), ("standard", "part")]
+    assert [meta for _, meta in app._startup_loops] == ["standard"]
 
 
 @pytest.mark.parametrize(

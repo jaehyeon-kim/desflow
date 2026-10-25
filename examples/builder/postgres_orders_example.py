@@ -1,7 +1,7 @@
 """
 Orders with line items, builder API.
 
-The builder twin of `yaml/advanced/postgres_orders.yaml`. Each order arrival
+The builder version of `yaml/advanced/postgres_orders.yaml`. Each order arrival
 builds an order with 1 to 5 items, random prices and quantities, and a total computed
 from them. Two PostgresEgress instances are attached, one per table, and each keeps
 only the records whose `__table__` key names its table. Each creates its table at
@@ -18,7 +18,7 @@ logging.basicConfig(
     level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
 )
 
-DSN = "postgresql://user:password@localhost:5432/odctl"
+DSN = "postgresql://user:password@127.0.0.1:5432/odctl"
 
 ORDERS = {
     "columns": {
@@ -45,9 +45,9 @@ ORDER_ITEMS = {
 def order_generator(context: SimulationContext, arrival: str, max_items: int):
     """Publishes an order and its items on every arrival.
 
-    Draws from `context.sampler.rng`, the generator seeded by `random_seed`, so a
-    seeded run repeats the same orders. The `__table__` key names the table each
-    record is written to.
+    Draws from `context.sampler.rng`, the random number generator seeded by
+    `random_seed`, so a seeded run repeats the same orders. The `__table__` key
+    names the table each record is written to.
     """
     rng = context.sampler.rng
     order_id = 1

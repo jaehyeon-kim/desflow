@@ -16,7 +16,7 @@ services:
   packing: {dist: constant, value: 1.5 s}
 
 arrivals:
-  # 0.6 orders a second in all, one in four of them express
+  # An order every 1.67 s on average in all (0.6 a second), one in four express
   orders: {dist: exponential, rate: 0.45, spawn: pack_order}
   express: {dist: exponential, rate: 0.15, spawn: pack_express}
 
@@ -38,9 +38,9 @@ tasks:
 
 # --8<-- [start:interrupt]
 scenario:
-  # The packer is called away at 30 minutes: every regular order in the shop,
+  # The packer is called away at 31 minutes: every regular order in the shop,
   # waiting or being packed, is interrupted
-  - {at: 30 min, interrupt: {task: pack_order, cause: called away}}
+  - {at: 31 min, interrupt: {task: pack_order, cause: called away}}
 # --8<-- [end:interrupt]
 
 # --8<-- [start:watch]

@@ -4,13 +4,7 @@ tests/docs runs this file. Each run is unpaced and covers one simulated hour, so
 finishes in under a second.
 """
 
-import sys
-from pathlib import Path
-
 from desflow import SimulationContext
-
-sys.path.insert(0, str(Path(__file__).parent))
-from queueing_basics import little  # noqa: E402
 
 
 # --8<-- [start:fixed]
@@ -42,7 +36,8 @@ def run_fixed(gap: float, service: float, until: float, packers: int = 1) -> dic
 
 # --8<-- [start:checks]
 # One order every 3 s and 1.5 s to pack: orders arrive at 3, 6, ... 3597 s, so 1,199 of
-# them, and none waits. The packer works 1,199 x 1.5 s of the 3,600 s: 49.96%.
+# them. Each is packed before the next arrives, so none waits. The packer works
+# 1,199 x 1.5 s of the 3,600 s: 49.96%.
 easy = run_fixed(gap=3, service=1.5, until=3600)
 assert easy["Shop.stats.flows.orders.started"] == 1199
 assert easy["Shop.stats.tasks.pack_order.wait_max"] == 0
@@ -76,13 +71,3 @@ print(
     round(easy["Shop.stats.resources.packers.utilization_avg"], 2),
 )
 print("overloaded: in system", overloaded["Shop.stats.flows.orders.in_system"])
-
-# --8<-- [start:little]
-# Little's law on the busy hour of Queueing Basics: queue length = arrival rate x mean wait
-rate, (queue, wait), _ = little()
-print(
-    f"queue {queue:.3f}, arrival rate {rate:.3f} x wait {wait:.4f} = {rate * wait:.3f}"
-)
-# --8<-- [end:little]
-assert abs(queue - 3.417) < 0.0005 and abs(rate - 1.782) < 0.0005
-assert abs(wait - 1.9175) < 0.00005 and abs(queue - rate * wait) < 0.01 * queue

@@ -1,4 +1,4 @@
-"""The Performance Tuning guide: records per second of a model, without its sinks.
+"""The Tune Performance guide: records per second of a model, without its sinks.
 
 python performance_tuning.py prints the records a one-hour run of the shop below
 published, and how many a second.
@@ -60,7 +60,7 @@ def shop() -> SimulationContext:
 
 # --8<-- [start:measure]
 def throughput(app: SimulationContext, until: float) -> dict:
-    """Runs a model with a counting sink: the records and records per second."""
+    """Runs a model with a counting sink: the record count and the records per second."""
     count = Count()
     app.add_egress(count)
     gc.collect()

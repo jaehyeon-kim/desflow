@@ -239,6 +239,17 @@ def test_wait_for_one_or_all_first_ties_and_failure():
     ]
 
 
+def test_wait_for_one_or_all_example_packs_and_refunds():
+    """The page's example: each restock waits for all of its delivery (10 s) and its
+    stock count (20 s), so it comes 20 s after each delivery starts, at 80 s to 560 s;
+    27 orders are packed after a restock and 35 are refunded at the limit."""
+    assert _load("wait_for_one_or_all_example").outcome() == {
+        "pack": 27,
+        "refund": 35,
+        "restocked_at": [80.0 + 60 * n for n in range(9)],
+    }
+
+
 def test_performance_tuning_counts_the_records():
     """An hour of the shop publishes 108,688 records at factor 0: no lag readings,
     which would add 3,600, and a rate above 0."""
@@ -392,3 +403,31 @@ def test_editor_settings_hold_the_schema_and_the_three_tags():
         "!include mapping:object",
     ]
     assert list(settings["yaml.schemas"].values()) == ["blueprints/*.yaml"]
+
+
+def test_check_against_theory_agrees_with_the_formulas(capsys, monkeypatch):
+    """The wait by hand is 3 s for one packer and 1.286 s for two; explain gives the
+    same values; 10 runs of the blueprint agree on every measure; and two packers
+    with constant packing have no wait estimate, with D3's reason."""
+    from desflow import SimulationContext
+
+    module = _load("check_against_theory")
+    blueprint = ROOT / "docs" / "snippets" / "yaml" / "check_against_theory.yaml"
+    assert module.BLUEPRINT == blueprint
+    assert round(module.by_hand(1, 0.75), 3) == 3.0
+    assert round(module.by_hand(2, 1.5), 3) == 1.286
+    packers = SimulationContext.from_yaml(blueprint).analyze().resources[0]
+    assert packers.wait == pytest.approx(module.by_hand(1, 0.75), abs=1e-9)
+    with monkeypatch.context() as patch:
+        patch.setenv("PACKERS", "2")
+        patch.setenv("RATE", "1.5")
+        two = SimulationContext.from_yaml(blueprint).analyze().resources[0]
+    assert two.wait == pytest.approx(module.by_hand(2, 1.5), abs=1e-9)
+    explanation = module.verify()
+    assert [c.differs for c in explanation.verification.comparisons] == [False] * 4
+    unsupported = module.unsupported()
+    assert (unsupported.utilization, unsupported.wait) == (0.75, None)
+    assert unsupported.wait_reason == (
+        "no closed formula for c > 1 with non-exponential times; run --verify to measure it"
+    )
+    capsys.readouterr()

@@ -19,6 +19,7 @@ app = (
     SimulationContext(sim_id="Shop", factor=0.0, random_seed=42)
     .add_resource("packers", current_cap=2, max_cap=5)
     .add_service("packing", dist="gamma", shape=4, scale=0.75)
+    # An order every 1.67 s on average (rate 0.6)
     .add_arrival("orders", dist="exponential", rate=0.6)
     .add_egress(ConsoleEgress())
 )
@@ -87,6 +88,7 @@ def run_low_level(until=120):
     env.registry.register_sim_parameter(
         SimParameter(
             sim_id="Shop",
+            # An order every 1.67 s on average (rate 0.6)
             arrival={"orders": DistributionConfig(dist="exponential", rate=0.6)},
             service={"packing": DistributionConfig(dist="gamma", shape=4, scale=0.75)},
             resources={"packers": CapacityConfig(current_cap=2, max_cap=5)},

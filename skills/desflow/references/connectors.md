@@ -22,3 +22,12 @@ The short names a connector `type` takes in `ingress` and `egress`. A name is wr
 | `Iceberg` | `desflow.connectors.egress.iceberg.IcebergStorageEgress` | `iceberg` |
 | `Postgres` | `desflow.connectors.egress.postgres.PostgresEgress` | `postgres` |
 | `Redis` | `desflow.connectors.egress.redis.RedisEgress` | `redis` |
+
+## Avro Serializers
+
+A `KafkaEgress` serializer of a topic, given in Python. Each needs its own extra.
+
+| Class | Schema registry | Extra |
+|---|---|---|
+| `desflow.connectors.egress.kafka.ConfluentAvroSerializer` | Confluent Schema Registry | `confluent` |
+| `desflow.connectors.egress.kafka.GlueAvroSerializer` | AWS Glue Schema Registry | `glue` |

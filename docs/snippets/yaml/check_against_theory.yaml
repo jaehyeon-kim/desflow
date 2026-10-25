@@ -1,0 +1,37 @@
+# Check Against Theory: a shop the queueing formulas describe exactly. Gaps and
+# packing times are exponential, one queue, no limits, nothing changes during the run.
+# Check it with: desflow explain check_against_theory.yaml --verify --replications 10
+# --8<-- [start:shop]
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+  warmup: 2000  # seconds left out of every measure, while the queue fills
+
+arrivals:
+  # An order every 1.33 s on average (rate 0.75) with one packer; RATE=1.5 with PACKERS=2
+  orders:
+    dist: exponential
+    rate: ${RATE:-0.75}
+    spawn: pack_order
+
+services:
+  packing: {dist: exponential, rate: 1}  # 1 second on average
+
+resources:
+  packers:
+    current_cap: ${PACKERS:-1}
+    max_cap: 4
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+
+run:
+  until: 20000
+# --8<-- [end:shop]
+
+egress:
+  - type: Console

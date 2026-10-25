@@ -9,6 +9,7 @@ left off, or published without a meaning or a page.
 
 import ast
 import importlib.util
+import re
 from pathlib import Path
 
 from desflow.config import STATS_LEVELS
@@ -54,7 +55,39 @@ def test_yaml_keys_page_lists_every_key():
         for key in node.get("properties", {}):
             assert f"| `{key}` |" in page, f"{name}.{key}"
     # one line per paragraph, as the writing rules ask
-    assert "\n\n".join(gen_pages._paragraphs("a\nb\n\nc")) == "a b\n\nc"
+    assert "\n\n".join(gen_pages.paragraphs("a\nb\n\nc")) == "a b\n\nc"
+
+
+def test_every_command_has_a_cli_page_and_every_page_names_a_command():
+    from typer.main import get_command
+
+    from desflow.cli import app
+
+    def paths(command, path):
+        yield path
+        for name, child in getattr(command, "commands", {}).items():
+            yield from paths(child, f"{path} {name}")
+
+    commands = set(paths(get_command(app), "desflow"))
+    pages = gen_pages.cli_pages()
+    named = {
+        page.split("\n")[0].removeprefix("# ")
+        for path, page in pages.items()
+        if path != "reference/cli/index.md"
+    }
+    assert named | {"desflow"} == commands
+    assert len(pages) == len(commands)
+    for path, page in pages.items():
+        usage = "desflow" if path.endswith("index.md") else page.split("\n")[0][2:]
+        assert f"Usage: {usage} [OPTIONS]" in page, path
+        assert "object at 0x" not in page, path
+    index = pages["reference/cli/index.md"]
+    for command in commands - {"desflow"}:
+        assert f"[`{command}`]" in index
+    # Every CLI page links the section of the Command Line page that uses it
+    # The strict build checks each anchor, so only the link is checked here
+    for path, page in pages.items():
+        assert re.search(r"user-guide/command-line\.md(?:#[a-z-]+)?\)", page), path
 
 
 ROOT = _SCRIPT.parents[1]

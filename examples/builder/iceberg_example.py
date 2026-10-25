@@ -1,14 +1,14 @@
 """
 Lakehouse Data Generation Example.
 
-The Iceberg twin of `builder/parquet_example.py`. The same fast-forward engine,
+The Iceberg version of `builder/parquet_example.py`. The same fast-forward engine,
 but each flush of the buffer becomes one Iceberg commit rather than one Parquet file,
 so the run ends with a table another engine can query instead of a folder someone
 still has to register.
 
-Every commit writes a manifest, a manifest list and a new `metadata.json`, so the
-buffer is sized to produce a handful of snapshots rather than hundreds. That is what
-`batch_size` on `add_egress` is for.
+Every commit writes a manifest, a manifest list and a new `metadata.json`.
+`batch_size` on `add_egress` sizes the buffer, so the run produces a handful of
+snapshots rather than hundreds.
 
 Requires the odctl `catalog` profile: `odctl up catalog`.
 """
@@ -87,9 +87,9 @@ def build_catalog():
     return RestCatalog(
         "odctl",
         **{
-            "uri": os.getenv("ICEBERG_URI", "http://localhost:8181"),
+            "uri": os.getenv("ICEBERG_URI", "http://127.0.0.1:8181"),
             "warehouse": os.getenv("ICEBERG_WAREHOUSE", "s3://warehouse/"),
-            "s3.endpoint": os.getenv("S3_ENDPOINT", "http://localhost:8333"),
+            "s3.endpoint": os.getenv("S3_ENDPOINT", "http://127.0.0.1:8333"),
             "s3.access-key-id": os.getenv("S3_ACCESS_KEY", "user"),
             "s3.secret-access-key": os.getenv("S3_SECRET_KEY", "password"),
             "s3.region": os.getenv("S3_REGION", "us-east-1"),

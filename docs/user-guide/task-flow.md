@@ -71,9 +71,9 @@ A **flow** is the sequence of tasks one entity passes through. Each task names w
     assert route.choose(finished, env=None) == "pack_order"
     ```
 
-    A `Router` takes the same rules as `next`. When a task finishes, its process builds the `Upstream`, asks `route.choose(upstream, env, levels=...)` for the next task's name, and starts that task with the same entity. `env` lets a condition read `registry[...]` and `t`, and `levels`, a mapping of store and container names to the objects, lets it read `level.<name>`.
+    A `Router` takes the same rules as `next`. When a task finishes, its process builds the `Upstream`, asks `route.choose(upstream, env, levels=...)` for the next task's name, and starts that task with the same entity. `env` lets a condition read `registry[...]` and `t`. `levels`, a mapping from store and container names to the objects, lets it read `level.<name>`.
 
-The condition is evaluated when the task finishes, after its `set`. `payload.` reads the payload of the task that just finished, `attr.` the entity's attributes, `level.` a store's or container's level, and `registry["..."]` a live parameter. How It Works lists everything a condition can use.
+The condition is evaluated when the task finishes, after its `set`. `payload.` reads the payload of the task that just finished, `attr.` the entity's attributes, `level.` a store's or container's level, and `registry["..."]` a live parameter. [How It Works](#how-it-works) lists everything a condition can use.
 
 ### Weights
 
@@ -124,7 +124,9 @@ An arrival gives each new entity its starting `attributes`, and a task's `set` c
     ```yaml title="docs/snippets/yaml/task_flow.yaml:attributes"
     arrivals:
       # Each order starts with these attributes, read as attr.gift
+      # An order every 2 s on average (rate 0.5)
       orders: {dist: exponential, rate: 0.5, spawn: check_order, attributes: {gift: 0}}
+      # A gift order every 10 s on average (rate 0.1)
       gifts: {dist: exponential, rate: 0.1, spawn: check_order, attributes: {gift: 1}}
     ```
 
@@ -133,13 +135,15 @@ An arrival gives each new entity its starting `attributes`, and a task's `set` c
     set: {backordered: 1}
     ```
 
-    A task's `attributes` list adds the named attributes to a mapping payload, as `ship_order` does in the full blueprint.
+    A task's `attributes` list adds the named attributes to a mapping payload, as `ship_order` does in the full blueprint, [`task_flow.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/docs/snippets/yaml/task_flow.yaml).
 
 === "Builder"
 
     ```python title="docs/snippets/pages/task_flow.py:builder-attributes"
     # Each order starts with these attributes, read as attr.gift
+    # An order every 2 s on average (rate 0.5)
     app.add_arrival("orders", dist="exponential", rate=0.5, attributes={"gift": 0})
+    # A gift order every 10 s on average (rate 0.1)
     app.add_arrival("gifts", dist="exponential", rate=0.1, attributes={"gift": 1})
     ```
 
@@ -152,11 +156,11 @@ An arrival gives each new entity its starting `attributes`, and a task's `set` c
 
 === "Low-level"
 
-    An `Entity(key, arrival, attributes)` carries them; the process updates `entity.attributes` itself after a task, as the low-level tab of [A Flow of Tasks](../tutorials/flow-of-tasks.md) shows.
+    An `Entity(key, arrival, attributes)` carries them. The process updates `entity.attributes` itself after a task, as the low-level tab of [A Flow of Tasks](../tutorials/flow-of-tasks.md) shows.
 
 ### Entity Key
 
-Each arrival starts a new entity, keyed by the arrival's name and a counter from 1: `orders-1`, `orders-2`. Every event of every task in its flow carries that key as its record key, so a sink can follow one order through the whole flow, and Kafka keeps its events in order on one partition. The builder can replace the key with a function of the counter:
+Each arrival starts a new entity, keyed by the arrival's name and a counter from 1: `orders-1`, `orders-2`. Every event of every task in its flow carries that key as its record key, so a sink can follow one order through the whole flow. Kafka sends records with the same key to one partition, so it keeps one order's events in order. The builder can replace the key with a function of the counter:
 
 === "YAML"
 
@@ -166,6 +170,7 @@ Each arrival starts a new entity, keyed by the arrival's name and a counter from
 
     ```python title="docs/snippets/pages/task_flow.py:builder-key"
     # Keys ret-00001, ret-00002 instead of returns-1, from the counter, which starts at 1
+    # A return every 20 s on average (rate 0.05)
     app.add_arrival("returns", dist="exponential", rate=0.05, key=lambda n: f"ret-{n:05d}")
     ```
 
@@ -173,7 +178,7 @@ Each arrival starts a new entity, keyed by the arrival's name and a counter from
 
     The process that creates each `Entity` gives it its key.
 
-These are the finished events of `gifts-5` in the blueprint above: checked while the shelf was empty, backordered, checked again, wrapped, packed and shipped, all under one key:
+Below are the finished events of `gifts-5` in [`task_flow.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/docs/snippets/yaml/task_flow.yaml), the blueprint whose parts this page shows. The gift order is checked while the shelf is empty, backordered, checked again, wrapped, packed and shipped, all under one key:
 
 <!-- records: gift-flow -->
 ```text
@@ -187,7 +192,7 @@ These are the finished events of `gifts-5` in the blueprint above: checked while
 
 ### Upstream
 
-A task started by `next` receives what the task before it handed on, the `Upstream`: the finished task's instance id, the entity's key and attributes, and its payload. A builder function gets it by declaring a parameter called `upstream`, and the entity by declaring `entity`; a function that declares neither works as before. The first task of a flow gets `upstream=None`.
+A task started by `next` receives what the task before it handed on, the `Upstream`: the finished task's instance id, the entity's key and attributes, and the finished task's payload. A builder function gets it by declaring a parameter called `upstream`, and gets the entity by declaring `entity`. A function that declares neither is called without them. The first task of a flow gets `upstream=None`.
 
 ```python title="docs/snippets/pages/task_flow.py:builder-upstream"
 # A function declaring `upstream` receives what the previous task handed on,
@@ -208,9 +213,64 @@ def inspect_return(task_id: int):
     return {"ok": False}
 ```
 
-### Example: A Flow of Tasks
+---
 
-The `flow` example: orders are picked, gift orders are wrapped, one parcel in ten is packed again, and every order is shipped. Wrapping and shipping are timed steps. It needs no Docker service and ends on its own.
+## How It Works
+
+**Conditions.** A condition is a Python expression, parsed with Python's `ast` module and checked against a list of what is allowed before it is ever evaluated. Nothing goes through `eval`. It may use:
+
+- numbers, `True` and `False`, and the arithmetic `+`, `-`, `*`, `/`, `//` and `%`;
+- the comparisons `<`, `<=`, `>`, `>=`, `==` and `!=`, strings compared with `==` or `!=`, and `in` and `not in` with `items(<store>)` on the right;
+- `and`, `or`, `not`, and the conditional form `a if c else b`;
+- names with their source as a prefix:
+    - `payload.<field>`, `attr.<name>` and `level.<name>`;
+    - `users.<name>`, how many units of a resource are held, and `queue.<name>`, how many requests wait for it ([Resources](resources/index.md#read-the-queue-and-users));
+    - `putters.<name>` and `getters.<name>`, how many puts and gets wait at a store or container;
+    - `count(<store>)` and `items(<store>)`, how many items a store holds and the list of them ([Stores and Containers](stores-and-containers.md#registry-paths-readings-and-conditions));
+    - `item.<field>`, the item the task's store `get` took ([Stores and Containers](stores-and-containers.md#pick-an-item-or-give-up-waiting));
+    - `wait.<branch>.done`, `.ok` and `.value`, the task's wait, and `signal.<name>.count`, `.ok` and `.value` ([Signals and Waiting](tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows));
+    - `process.<name>`, `.instance` and `.target` ([Tasks and Processes](tasks-and-processes/index.md#processes-and-the-low-level-api));
+    - `registry["<path>"]`;
+- `t`, the simulation time in seconds.
+
+A name carries its source, so adding a payload field cannot change what an attribute of the same name means. The `registry[...]` form lets a registry path, which contains dots, be written whole. Anything else is refused with a message that names it:
+
+```python title="docs/snippets/pages/task_flow.py:refused"
+for text in ("payload.total ** 2", "x > 1", "open('orders.csv')"):
+    try:
+        Expression(text)
+    except ValueError as error:
+        print(error)
+```
+
+<!-- records: refused-expressions -->
+```text
+'payload.total ** 2' uses the operator Pow, which an expression cannot
+'x > 1' uses the name 'x' (write payload.<field>, attr.<name>, level.<name>, users.<name>, queue.<name>, putters.<name>, getters.<name>, item.<field>, count(<store>), items(<store>), wait.<branch>.<part>, signal.<name>.<part>, process.<name>, registry["<path>"] or t), which an expression cannot
+'open('orders.csv')' uses a Call other than count(<store>) or items(<store>), which an expression cannot
+```
+
+A blueprint is checked when it loads, and each error names its YAML line. Every condition must parse, and every task a rule names must exist. Every `level.<name>` must name a store or container, every `users.<name>` and `queue.<name>` a resource, every `putters.<name>` and `getters.<name>` a store or container, and every `count(...)` and `items(...)` a store. Every `registry["..."]` must be a path of the model. The builder makes the same checks when `run()` starts. A name that is missing when a condition is evaluated, such as a payload field, raises an error naming the expression.
+
+**Weights.** The weights are turned into cumulative shares once. Each choice draws one uniform number from the routing task's stream and picks the task whose share it falls in.
+
+**Starting the Next Task.** When a task finishes, it applies `set`, builds the `Upstream` and asks its rules for the next task. It starts that task as a new SimPy process, with the same entity and the next instance id from the task's counter. An arrival that spawns the task uses the same counter, so no two runs of a task share an id. In SimPy terms, one process starting the next is the whole mechanism. [SimPy and desflow](../des/simpy-and-desflow.md) describes processes.
+
+---
+
+## Stability and Limits
+
+- **Flow balance.** The rate into each task follows from the rates into the tasks before it and the routing shares. With weights of 9 to ship and 1 back to packing, one packing in ten sends the order back to be packed again. Every order is packed once, one in ten a second time, one in a hundred a third time, and so on. An order is therefore packed 1 + 0.1 + 0.01 + ... = 1 ÷ 0.9 = 1.11 times on average, so the packers see 11% more work than there are orders.
+- **Rework raises utilisation.** Work the load out with the rework included, as [Queues and Capacity](../tutorials/queues-and-capacity.md) does, or a rework loop can push a resource past full use. [Queueing Basics](../des/queueing-basics.md#utilisation) explains utilisation.
+- **Refused expressions.** `**`, function calls, indexing other than `registry["..."]`, list and dictionary literals, and bare names other than `t` are refused.
+- **One entity, one flow.** A task leads to at most one next task. Splitting one order into several, or joining several into one, comes after 1.0.
+- **`decide` is kept free.** The task key `decide` is kept for decisions sent from outside for one entity, planned after 1.0. Today it is refused like any unknown key.
+
+---
+
+## Example: A Flow of Tasks
+
+In the `flow` example, orders are picked, gift orders are wrapped, one parcel in ten is packed again, and every order is shipped. Wrapping and shipping are timed steps. It needs no Docker service and ends on its own.
 
 === "YAML"
 
@@ -228,7 +288,10 @@ The `flow` example: orders are picked, gift orders are wrapped, one parcel in te
         desflow examples get flow --api yaml
         cd flow/yaml
 
-        # 3. Run it
+        # 3. Find the bottleneck, with no run
+        desflow explain flow.yaml
+
+        # 4. Run it
         desflow run flow.yaml
         ```
 
@@ -242,7 +305,10 @@ The `flow` example: orders are picked, gift orders are wrapped, one parcel in te
         desflow examples get flow --api yaml
         cd flow/yaml
 
-        # 3. Run it
+        # 3. Find the bottleneck, with no run
+        desflow explain flow.yaml
+
+        # 4. Run it
         desflow run flow.yaml
         ```
 
@@ -390,48 +456,3 @@ The `flow` example: orders are picked, gift orders are wrapped, one parcel in te
     ```
 
     The whole file is [`examples/low-level/flow_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/flow_example.py).
-
----
-
-## How It Works
-
-**Conditions.** A condition is a Python expression, parsed with Python's `ast` module and checked against a list of what is allowed before it is ever evaluated; nothing goes through `eval`. It may use:
-
-- numbers, `True` and `False`, and the arithmetic `+`, `-`, `*`, `/`, `//` and `%`;
-- the comparisons `<`, `<=`, `>`, `>=`, `==` and `!=`, strings compared with `==` or `!=`, and `in` and `not in` with `items(<store>)` on the right;
-- `and`, `or`, `not`, and the conditional form `a if c else b`;
-- names with their source as a prefix: `payload.<field>`, `attr.<name>`, `level.<name>`, `users.<name>` (how many units of a resource are held), `queue.<name>` (how many requests wait for it, [Resources](resources/index.md#read-the-queue-and-users)), `putters.<name>` and `getters.<name>` (how many puts and gets wait at a store or container), `count(<store>)` and `items(<store>)` (how many items a store holds, and the list of them; [Stores and Containers](stores-and-containers.md#registry-paths-readings-and-conditions)), `item.<field>` (the item the task's store `get` took, [Stores and Containers](stores-and-containers.md#pick-an-item-or-give-up-waiting)), `wait.<branch>.done`, `.ok` and `.value` (the task's wait) and `signal.<name>.count`, `.ok` and `.value` ([Signals and Waiting](tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows)), `process.<name>`, `.instance` and `.target` ([Tasks and Processes](tasks-and-processes/index.md#processes-and-the-low-level-api)), and `registry["<path>"]`;
-- `t`, the simulation time in seconds.
-
-A name carries its source so that adding a payload field cannot change what an attribute of the same name means, and so registry paths, which contain dots, can be written whole. Anything else is refused with a message that names it:
-
-```python title="docs/snippets/pages/task_flow.py:refused"
-for text in ("payload.total ** 2", "x > 1", "open('orders.csv')"):
-    try:
-        Expression(text)
-    except ValueError as error:
-        print(error)
-```
-
-<!-- records: refused-expressions -->
-```text
-'payload.total ** 2' uses the operator Pow, which an expression cannot
-'x > 1' uses the name 'x' (write payload.<field>, attr.<name>, level.<name>, users.<name>, queue.<name>, putters.<name>, getters.<name>, item.<field>, count(<store>), items(<store>), wait.<branch>.<part>, signal.<name>.<part>, process.<name>, registry["<path>"] or t), which an expression cannot
-'open('orders.csv')' uses a Call other than count(<store>) or items(<store>), which an expression cannot
-```
-
-A blueprint is checked when it loads: every condition parses, every task a rule names exists, every `level.<name>` names a store or container, every `users.<name>` and `queue.<name>` names a resource, every `putters.<name>` and `getters.<name>` a store or container, every `count(...)` and `items(...)` a store, and every `registry["..."]` is a path of the model, each with its YAML line. The builder makes the same checks when `run()` starts. A name that is missing when a condition is evaluated, such as a payload field, raises an error naming the expression.
-
-**Weights.** The weights are turned into cumulative shares once. Each choice draws one uniform number from the routing task's stream and picks the task whose share it falls in.
-
-**Starting the Next Task.** When a task finishes, it applies `set`, builds the `Upstream`, asks its rules for the next task and starts it as a new SimPy process, with the same entity and the next instance id from the task's counter. An arrival that spawns the task uses the same counter, so no two runs of a task share an id. In SimPy terms, one process starting the next is the whole mechanism; [SimPy and desflow](../des/simpy-and-desflow.md) describes processes.
-
----
-
-## Stability and Limits
-
-- **Flow balance.** The rate into each task follows from the rates into the tasks before it and the routing shares. With weights 9 to 1 back to packing, each order is packed 1 ÷ 0.9 = 1.11 times on average, so the packers see 11% more work than there are orders.
-- **Rework raises utilisation.** Work the load out with the rework included, as [Queues and Capacity](../tutorials/queues-and-capacity.md) does, or a rework loop can push a resource past full use.
-- **Refused expressions.** `**`, function calls, indexing other than `registry["..."]`, list and dictionary literals, and bare names other than `t` are refused.
-- **One entity, one flow.** A task leads to at most one next task; splitting one order into several, or joining several into one, comes after 1.0.
-- **`decide` is kept free.** The task key `decide` is kept for decisions sent from outside for one entity, planned after 1.0; today it is refused like any unknown key.

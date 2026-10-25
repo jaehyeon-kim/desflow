@@ -25,7 +25,7 @@ def is_live(record: dict) -> bool:
 
 
 parquet = ParquetStorageEgress(path_router=lambda data: "data/backfill/events.parquet")
-kafka = KafkaEgress(bootstrap_servers="localhost:9092")
+kafka = KafkaEgress(bootstrap_servers="127.0.0.1:9092")
 app = SimulationContext(sim_id="Shop", factor=0.0)
 
 # --8<-- [start:per-sink]
@@ -33,16 +33,14 @@ app.add_egress(parquet, when=is_history, batch_size=200_000)
 app.add_egress(kafka, when=is_live, batch_size=500, flush_interval=1.0)
 # --8<-- [end:per-sink]
 
-# --8<-- [start:low-level]
 go_live_at = datetime.now(timezone.utc)
 
 env = DynamicRealtimeEnvironment(
     factor=0.0,
     logical_start_time=go_live_at - timedelta(days=7),
     go_live_at=go_live_at,
-    strict=False,  # a live run with a sink that blocks goes on
+    strict=False,  # a live run goes on when a slow sink makes it fall behind
 )
-# --8<-- [end:low-level]
 
 if __name__ == "__main__":
     # Until the logical clock reaches go_live_at, the run is unpaced.

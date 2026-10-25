@@ -11,15 +11,15 @@ Two building blocks set the timing of every simulation. An **arrival** decides h
 | Arrival | How long until the next entity? | the arrival loop, which starts a task for each one | an order every 2 s on average |
 | Service | How long does this piece of work take? | a task, while it holds its resource | 3 s of packing, give or take 0.5 s |
 
-An arrival draws one gap after another, so entities arrive at uneven times. Look at the first five orders of the shop in [First Simulation](../tutorials/first-simulation.md):
+An arrival draws each gap afresh from its distribution, so the gaps differ and entities arrive at uneven times. Look at the first five orders of the shop in [First Simulation](../tutorials/first-simulation.md):
 
-![The first five orders arrive at 2.552, 2.696, 3.737, 4.020 and 6.196 seconds; each gap, from 0.14 to 2.55 seconds, is a new draw from an exponential distribution with rate 0.5](../assets/diagrams/arrival-timeline.png)
+![The first five orders arrive at 2.552, 2.696, 3.737, 4.020 and 6.196 seconds; each gap, from 0.14 to 2.55 seconds, is a new draw from an exponential distribution with rate 0.5, one order every 2 seconds on average](../assets/diagrams/arrival-timeline.png)
 
 ---
 
 ## How to Use It
 
-Every distribution is a family, `dist`, and the parameters that family takes. There are ten families. A parameter outside its range, a missing one, or one the family does not take is refused when the model is built, with the YAML line when it comes from a blueprint. [Reference, Distributions](../reference/distributions.md) lists every family with its parameters, rules, mean and variance; the table names each family, the list under it gives each family's rules, and one example shows the form.
+Every distribution is a family, `dist`, and the parameters that family takes. There are ten families. A parameter outside its range, a missing one, or one the family does not take is refused when the model is built, with the YAML line when it comes from a blueprint. [Reference, Distributions](../reference/distributions.md) lists every family with its parameters, rules, mean and variance. On this page, the table below names each family, the list under it gives each family's rules, and one example shows the form.
 
 | Family | Use it for | Parameters |
 |---|---|---|
@@ -37,17 +37,43 @@ Every distribution is a family, `dist`, and the parameters that family takes. Th
 The rules for each family's parameters:
 
 - `exponential`: `rate` above 0, in events per second: 0.5 is one every 2 seconds on average, 2.0 is two a second. It is the one parameter that is not a time, so it takes no duration.
-- `normal`: `mean`, and `std` 0 or more (0 when left out). A `std` of 0 gives the mean every time. A draw can be negative, and every time is raised to at least 0.00001 seconds, which raises the mean of a wide normal; use `truncated_normal` for that.
-- `truncated_normal`: `mean`, `std` 0 or more, and `low`, 0 when left out; with `std` 0, `mean` must be at least `low`. A draw below `low` is thrown away and drawn again, so no draws pile up at the limit, and the mean is the truncated distribution's own: 1.29 seconds for `mean: 1, std: 1, low: 0`. When `low` is more than half a standard deviation above the mean, where plain draws are kept less and less often, it uses an exponential proposal (Robert, 1995), so it stays exact and fast for any `low`.
-- `lognormal`: `mean` above 0 and `std` 0 or more (0 when left out). Both describe the times you get, not the underlying normal; desflow converts them.
+- `normal`: `mean`, and `std` 0 or more (0 when left out). A `std` of 0 gives the mean every time. A draw can be negative, and every time is raised to at least 0.00001 seconds. In a wide normal, these raised draws raise the mean, so use `truncated_normal` instead.
+- `truncated_normal`: `mean`, `std` 0 or more, and `low`, 0 when left out. With `std` 0, `mean` must be at least `low`. A draw below `low` is thrown away and drawn again, so no draws pile up at the limit. The mean is therefore the truncated distribution's own: 1.29 seconds for `mean: 1, std: 1, low: 0`. The higher `low` is above the mean, the fewer plain draws are kept. So when `low` is more than half a standard deviation above the mean, `truncated_normal` draws from an exponential proposal instead (Robert, 1995), which stays exact and fast for any `low`.
+- `lognormal`: `mean` above 0 and `std` 0 or more (0 when left out). Both describe the times you get, not the underlying normal. desflow converts them.
 - `constant`: `value` 0 or more. It uses no random number at all.
 - `uniform`: `low` and `high`, with `low < high`. The mean is halfway between them.
 - `triangular`: `low`, `mode` and `high`, all required, with `low <= mode <= high` and `low < high`. The mean is (low + mode + high) ÷ 3.
 - `gamma`: `shape` and `scale`, both above 0. The mean is shape × scale and the variance shape × scale². From a mean and a standard deviation: shape = (mean ÷ std)² and scale = std² ÷ mean, so a mean of 1.5 seconds with a std of 0.5 is shape 9 and scale 0.1667.
 - `weibull`: `shape` and `scale`, both above 0. The mean is scale × gamma(1 + 1 ÷ shape), where gamma is the gamma function.
-- `empirical`: either `values`, each equally likely, with optional `weights`, one per value; or a histogram of `edges` and `counts`, one count per bin, where a draw picks a bin by its count and a time inside it uniformly. Weights and counts are 0 or more and add up to more than 0, and edges increase. The lists are taken when the model is loaded, so an `empirical` distribution has no registry path and does not change while the run goes on.
+- `empirical`: either `values`, each equally likely unless the optional `weights` give one weight per value; or a histogram of `edges` and `counts`, with one count per bin. A histogram draw picks a bin in proportion to its count, then any time inside the bin, all equally likely. Weights and counts are 0 or more and add up to more than 0, and edges increase. The lists are taken when the model is loaded, so an `empirical` distribution has no registry path and does not change while the run goes on.
 
-An arrival or a service takes the same form for every family, `dist` and the parameters of its row. An exponential arrival, in the three ways to write it:
+`desflow dist` lists the families, and `desflow dist <family>` prints one family's parameters and rules. With `--mean` and `--std` it converts them to the family's parameters, so the gamma above needs no arithmetic:
+
+```bash
+desflow dist gamma --mean 1.5 --std 0.5
+```
+
+<!-- records: arrivals-dist -->
+```text
+parameters: shape 9, scale 0.166667
+YAML: {dist: gamma, shape: 9, scale: 0.166667}
+Python: dist="gamma", shape=9, scale=0.166667
+```
+
+The last two lines are the service in a blueprint and in the builder. [Command Line](command-line.md#convert-parameters) shows the other conversions.
+
+Three of these families in a blueprint: a labelling time of at least 0.2 seconds, a station that fails more often as it wears, a histogram of measured packing times with three bins, and a scanning time of 0.5 seconds four times in five and 2 seconds otherwise:
+
+```yaml title="docs/snippets/yaml/arrivals_services.yaml:families"
+# under services: a hard minimum, a time to failure, a histogram of data, and
+# weighted values
+labelling: {dist: truncated_normal, mean: 1 s, std: 1 s, low: 0.2 s}
+station_failure: {dist: weibull, shape: 1.5, scale: 10 min}
+measured_packing: {dist: empirical, edges: [1 s, 2 s, 3 s, 4 s], counts: [5, 3, 2]}
+scanning: {dist: empirical, values: [0.5 s, 2 s], weights: [4, 1]}
+```
+
+An arrival or a service takes the same form for every family: `dist`, and the parameters in that family's row of the table. An exponential arrival, in the three ways to write it:
 
 === "YAML"
 
@@ -59,7 +85,8 @@ An arrival or a service takes the same form for every family, `dist` and the par
 === "Builder"
 
     ```python title="docs/snippets/pages/arrivals_services.py:builder-exponential"
-    app.add_arrival("orders", dist="exponential", rate=0.5)  # an order every 2 s on average
+    # An order every 2 s on average, each starting the task pack
+    app.add_arrival("orders", dist="exponential", rate=0.5, spawn="pack")
     ```
 
 === "Low-level"
@@ -67,6 +94,13 @@ An arrival or a service takes the same form for every family, `dist` and the par
     ```python title="docs/snippets/pages/arrivals_services.py:low-level-exponential"
     gap = DistributionConfig(dist="exponential", rate=0.5)  # an order every 2 s on average
     ```
+
+An arrival draws its gap from data in the same way. Here a batch arrives 1 second after the last one three times in four, and 5 seconds after it otherwise:
+
+```yaml title="docs/snippets/yaml/arrivals_services.yaml:weighted-arrival"
+# under arrivals: a gap of 1 second three times in four, and 5 seconds otherwise
+batches: {dist: empirical, values: [1 s, 5 s], weights: [3, 1], spawn: pack}
+```
 
 ### Durations
 
@@ -118,11 +152,11 @@ A run without a seed draws one and logs it, so it can be repeated: `desflow run`
 No random_seed was given, so this run uses 3166812249. Pass random_seed=3166812249 to repeat it.
 ```
 
-A low-level `Sampler()` with no seed draws nothing at random, as How It Works explains. [Randomness and Seeds](../tutorials/randomness-and-seeds.md) shows seeds in use.
+A low-level `Sampler()` with no seed draws nothing at random, as [How It Works](#how-it-works) explains. [Randomness and Seeds](../tutorials/randomness-and-seeds.md) shows seeds in use.
 
 ### Replay
 
-An arrival can take its times from recorded rows instead of a distribution: each row of a CSV or Parquet file, or of a list of dicts, becomes one entity at the row's time, and the fields named in `fields` become its attributes. Here each row of `local_replay_orders.csv` is an order, at its time in seconds from the start of the run:
+An arrival can take its times from recorded rows instead of a distribution. Each row of a CSV or Parquet file, or of a list of dicts, becomes one entity at the row's time. The fields named in `fields` become the entity's attributes. Here each row of `local_replay_orders.csv` is an order, at its time in seconds from the start of the run:
 
 === "YAML"
 
@@ -147,7 +181,7 @@ An arrival can take its times from recorded rows instead of a distribution: each
     )
     ```
 
-    `wait_for_arrival("orders")` then waits for the next row, so the arrival loop is written as for any other arrival.
+    `add_arrival_replay` takes `spawn=` as `add_arrival` does, which starts the named task for each row. This example writes an `@app.arrival_loop` of its own instead, where `wait_for_arrival("orders")` waits for the next row.
 
 === "Low-level"
 
@@ -163,113 +197,7 @@ An arrival can take its times from recorded rows instead of a distribution: each
 
     `read_trace` reads and checks the rows, and returns each with its simulation `time`, row `number` and `fields`.
 
-`unit` is `ms`, `s`, `min` or `h` from the start of the run, or `timestamp` for a date and time read from `logical_start_time`. The rows must be in time order; rows at equal times arrive at that time in the order of the file; a row before the start stops the run; rows at or after `until` never arrive; after the last row the arrival stops, with one INFO line. A row without a valid time stops the run, unless `on_invalid` is `skip`, which leaves it out with a warning. A Parquet file needs the `parquet` extra. A replayed arrival has no registry path. [Local Replay](../tutorials/local-replay.md) compares a recorded morning with a model of it.
-
-### Example: Local Replay
-
-The `local-replay` example: one packer and the 40 orders of a recorded morning, replayed from a CSV file at their times. The last order arrives at 73 seconds. It needs no Docker service and ends on its own after 120 simulation seconds.
-
-=== "YAML"
-
-    **Quick Start**
-
-    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
-
-    === "uv"
-
-        ```bash
-        # 1. Install
-        uv tool install desflow
-
-        # 2. Download the example
-        desflow examples get local-replay --api yaml
-        cd local-replay/yaml
-
-        # 3. Run it
-        desflow run local_replay.yaml
-        ```
-
-    === "pip"
-
-        ```bash
-        # 1. Install
-        pip install desflow
-
-        # 2. Download the example
-        desflow examples get local-replay --api yaml
-        cd local-replay/yaml
-
-        # 3. Run it
-        desflow run local_replay.yaml
-        ```
-
-=== "Builder"
-
-    **Quick Start**
-
-    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
-
-    === "uv"
-
-        ```bash
-        # 1. Install
-        uv tool install desflow
-
-        # 2. Download the example
-        desflow examples get local-replay --api builder
-        cd local-replay/builder
-
-        # 3. Run it
-        uv run --no-project --with desflow local_replay_example.py
-        ```
-
-    === "pip"
-
-        ```bash
-        # 1. Install
-        pip install desflow
-
-        # 2. Download the example
-        desflow examples get local-replay --api builder
-        cd local-replay/builder
-
-        # 3. Run it
-        python local_replay_example.py
-        ```
-
-=== "Low-level"
-
-    **Quick Start**
-
-    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
-
-    === "uv"
-
-        ```bash
-        # 1. Install
-        uv tool install desflow
-
-        # 2. Download the example
-        desflow examples get local-replay --api low-level
-        cd local-replay/low-level
-
-        # 3. Run it
-        uv run --no-project --with desflow local_replay_example.py
-        ```
-
-    === "pip"
-
-        ```bash
-        # 1. Install
-        pip install desflow
-
-        # 2. Download the example
-        desflow examples get local-replay --api low-level
-        cd local-replay/low-level
-
-        # 3. Run it
-        python local_replay_example.py
-        ```
+`unit` is `ms`, `s`, `min` or `h` from the start of the run, or `timestamp` for a date and time, placed on the run's clock from `logical_start_time`. The rows must be in time order. Rows at equal times arrive at that time, in the order of the file. A row before the start stops the run, and rows at or after `until` never arrive. After the last row, the arrival stops and logs one INFO line. A row without a valid time stops the run, unless `on_invalid` is `skip`, which leaves it out with a warning. A Parquet file needs the `parquet` extra. A replayed arrival has no registry path. [Local Replay](../tutorials/local-replay.md) compares a recorded morning with a model of it.
 
 ---
 
@@ -277,11 +205,11 @@ The `local-replay` example: one packer and the 40 orders of a recorded morning, 
 
 **One registry of distributions.** Every family is declared once, in `desflow.core.distributions.DISTRIBUTIONS`, with its parameters, its range rules, how to draw from it, its mean and variance, and what it gives with no random generator. The YAML models, the builder, `DistributionConfig`, the `Sampler` and the registry's live paths all read it, so they accept the same families and parameters. These are 200,000 draws from each family:
 
-![Histograms of 200,000 draws from each of the ten families, with the mean marked: exponential falls away from 0; normal with mean 1 and std 1 has a pile at 0 where negative draws are raised; truncated normal has none; lognormal has a long right tail; constant is one value; uniform is flat between 1 and 2; triangular rises to 1.25 and falls to 2.25; gamma and weibull are skewed to the right; the empirical histogram has three flat bins](../assets/charts/distribution-shapes.png)
+![Histograms of 200,000 draws from each of the ten families, with the mean marked. Exponential falls away from 0. Normal with mean 1 and std 1 has a pile at 0, where negative draws are raised; truncated normal has none. Lognormal has a long right tail, and constant is one value. Uniform is flat between 1 and 2, and triangular rises to 1.25 and falls to 2.25. Gamma and weibull are skewed to the right, and the empirical histogram has three flat bins](../assets/charts/distribution-shapes.png)
 
-**A draw reads the live configuration.** A `DistributionConfig` holds the family and its parameters. `Sampler.sample(config)` reads the parameters at the moment it is called, so a change made while the run goes on applies from the next draw. A task draws its service time once it has its resource and has published `started`; the arrival loop draws the next gap when it starts waiting. Every value is raised to at least 0.00001 seconds, so a time is never 0 or negative.
+**A draw reads the live configuration.** A `DistributionConfig` holds the family and its parameters. `Sampler.sample(config)` reads the parameters at the moment it is called, so a change made while the run goes on applies from the next draw. A task draws its service time once it has its resource and has published `started`. The arrival loop draws the next gap when it starts waiting. Every value is raised to at least 0.00001 seconds, so a time is never 0 or negative.
 
-**One random stream per distribution.** A seeded `Sampler` makes one generator for each name: NumPy's `SeedSequence(seed, spawn_key=(CRC32 of the name,))`. When the registry registers a distribution, it names it by its path without the sim id, such as `arrival.orders` or `service.packing`, and every draw from that distribution comes from that stream. Probability routing draws from `route.<task>` in the same way, as [Task Flow](task-flow.md) describes. Adding a distribution therefore leaves every other one's draws unchanged, and renaming the simulation does not change them either:
+**One random stream per distribution.** A seeded `Sampler` makes one generator for each name: NumPy's `SeedSequence(seed, spawn_key=(CRC32 of the name,))`. When the registry registers a distribution, it names it by its path without the sim id, such as `arrival.orders` or `service.packing`, and every draw from that distribution comes from that stream. Probability routing draws from `route.<task>` in the same way, as [Task Flow](task-flow.md) describes. Each stream depends only on the seed and the distribution's name. Adding a distribution therefore leaves every other one's draws unchanged. The name leaves out the sim id, so renaming the simulation does not change them either:
 
 ![With the seed 42, the first run draws arrival.orders and service.packing; the second run, with returns added, draws the same numbers from those two streams and adds a stream of its own, arrival.returns](../assets/diagrams/seed-sequences.png)
 
@@ -299,7 +227,7 @@ assert stream is not None and sampler.sample(gap) == stream.exponential(2.0)
 
 `Sampler(rng=np.random.default_rng(42))` draws the same numbers as `Sampler(seed=42)`, because the streams come from the generator's seed.
 
-**No random generator.** A `Sampler()` with neither a seed nor a generator draws nothing at random: every sample is the distribution's mean, or its value, which gives the time a model takes on average and suits a test. A `truncated_normal` gives its `mean` or its `low`, whichever is higher.
+**No random generator.** A `Sampler()` with neither a seed nor a generator draws nothing at random: every sample is the distribution's mean, or a constant's value. A run then uses the mean of every input and gives the same output each time, which suits a test. That output is not the model's average result: [variation lengthens waits](../des/queueing-basics.md#variation-lengthens-waits), so a run on mean inputs gives shorter waits than random runs give on average. A `truncated_normal` gives its `mean` or its `low`, whichever is higher.
 
 ```python title="docs/snippets/pages/arrivals_services.py:no-generator"
 fixed = Sampler()  # no random generator: every draw is the mean, or the value
@@ -307,7 +235,7 @@ assert fixed.sample(packing) == 3.0 and fixed.sample(gap) == 2.0
 assert fixed.sample(checking) == 1.5  # shape × scale
 ```
 
-**SimPy and desflow.** SimPy has no distributions: a SimPy model draws its own times, usually with `random.expovariate(0.5)` for a gap, and writes `yield env.timeout(...)` with the result. Nothing checks the parameters, a negative draw makes `timeout` raise, and the parameters are ordinary variables. desflow names each distribution and its parameters once, checks them, keeps them in the registry, and gives each a stream of its own; [SimPy and desflow](../des/simpy-and-desflow.md) compares the two.
+**SimPy and desflow.** SimPy has no distributions: a SimPy model draws its own times, usually with `random.expovariate(0.5)` for a gap of 2 seconds on average, and writes `yield env.timeout(...)` with the result. Nothing checks the parameters, a negative draw makes `timeout` raise, and the parameters are ordinary variables. desflow names each distribution and its parameters once, checks them, keeps them in the registry, and gives each a stream of its own. [SimPy and desflow](../des/simpy-and-desflow.md) compares the two.
 
 ---
 
@@ -332,7 +260,7 @@ assert registry.get(packing_path).value == 0.5  # the old value stays
 Invalid value for 'Shop.service.packing.std': normal std must be 0 or more, got -1.0. Update ignored.
 ```
 
-- The family is fixed when the model is built. There is no path that turns a `normal` into an `exponential`, and an update to a parameter the family does not have, such as `.rate` on a normal, is refused as an unknown path, with a warning.
+- The family is fixed when the model is built. There is no path that turns a `normal` into an `exponential`. An update to a parameter the family does not have, such as `.rate` on a normal, is refused as an unknown path, with a warning.
 - An `empirical` distribution has no paths: its lists are taken at load.
 
 ---
@@ -361,7 +289,115 @@ Invalid value for 'Shop.service.packing.std': normal std must be 0 or more, got 
     triangular needs low <= mode <= high, got low 1.0, mode 3.0, high 2.0
     ```
 
-- **A wide `normal`.** When `std` is half of `mean`, 2.3% of draws fall below 0 and are raised to the floor, and at `std` equal to `mean` it is 15.9%, so the average time rises: the normal panel in the chart above has a mean of 1.08, not 1. Use `truncated_normal`.
+- **A wide `normal`.** When `std` is half of `mean`, 2.3% of draws fall below 0 and are raised to the floor. When `std` equals `mean`, 15.9% are. The raised draws push the average time up: the 200,000 draws of the normal panel in the chart above, with mean 1 and std 1, average 1.08, not 1. Use `truncated_normal`.
 - **Rate against mean.** `exponential` takes a `rate` per second, not a mean gap: an order every 30 seconds is `rate: 0.0333`, not `30`.
 - **A seed and the timestamps.** A seed fixes the draws and so the simulation times, but each record's `timestamp` also depends on when the run started, unless `logical_start_time` is set, as [Time and Pacing](time-and-pacing/index.md) explains.
 - **Spread lengthens queues.** Two models with the same mean times but a different spread have different queues: more spread means longer waits, as [Queues and Capacity](../tutorials/queues-and-capacity.md) and [Choosing Inputs](../tutorials/choosing-inputs.md) measure.
+
+---
+
+## Example: Local Replay
+
+The `local-replay` example has one packer and the 40 orders of a recorded morning, which it replays from a CSV file at their times. The last order arrives at 73 seconds. It needs no Docker service and ends on its own after 120 simulation seconds.
+
+=== "YAML"
+
+    **Quick Start**
+
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+    === "uv"
+
+        ```bash
+        # 1. Install
+        uv tool install desflow
+
+        # 2. Download the example
+        desflow examples get local-replay --api yaml
+        cd local-replay/yaml
+
+        # 3. Run it
+        desflow run local_replay.yaml
+        ```
+
+    === "pip"
+
+        ```bash
+        # 1. Install
+        pip install desflow
+
+        # 2. Download the example
+        desflow examples get local-replay --api yaml
+        cd local-replay/yaml
+
+        # 3. Run it
+        desflow run local_replay.yaml
+        ```
+
+=== "Builder"
+
+    **Quick Start**
+
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+    === "uv"
+
+        ```bash
+        # 1. Install
+        uv tool install desflow
+
+        # 2. Download the example
+        desflow examples get local-replay --api builder
+        cd local-replay/builder
+
+        # 3. Run it
+        uv run --no-project --with desflow local_replay_example.py
+        ```
+
+    === "pip"
+
+        ```bash
+        # 1. Install
+        pip install desflow
+
+        # 2. Download the example
+        desflow examples get local-replay --api builder
+        cd local-replay/builder
+
+        # 3. Run it
+        python local_replay_example.py
+        ```
+
+=== "Low-level"
+
+    **Quick Start**
+
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+    === "uv"
+
+        ```bash
+        # 1. Install
+        uv tool install desflow
+
+        # 2. Download the example
+        desflow examples get local-replay --api low-level
+        cd local-replay/low-level
+
+        # 3. Run it
+        uv run --no-project --with desflow local_replay_example.py
+        ```
+
+    === "pip"
+
+        ```bash
+        # 1. Install
+        pip install desflow
+
+        # 2. Download the example
+        desflow examples get local-replay --api low-level
+        cd local-replay/low-level
+
+        # 3. Run it
+        python local_replay_example.py
+        ```

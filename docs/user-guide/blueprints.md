@@ -6,9 +6,9 @@ A YAML blueprint is a simulation written as a file. This page shows how to run o
 
 ## What It Is
 
-A blueprint is the builder calls of a Python script, written as data. Each section becomes the builder call of the same name: `resources` is `add_resource`, `tasks` is `@app.task`, `stats` is `with_stats`, and so on. There is no second way of building: `SimulationContext.from_yaml` makes those calls, in the order a script would, and returns an ordinary `SimulationContext`. A blueprint and a script that make the same calls produce the same simulation, and the tests check that the YAML, builder and low-level versions of every example publish the same records.
+A blueprint holds, as data, the builder calls that a Python script would make. Each section becomes the builder call of the same name: `resources` is `add_resource`, `tasks` is `@app.task`, `stats` is `with_stats`, and so on. There is no second way of building: `SimulationContext.from_yaml` makes those calls, in the order a script would, and returns an ordinary `SimulationContext`. A blueprint and a script that make the same calls produce the same simulation, and the tests check that the YAML, builder and low-level versions of every example publish the same records.
 
-Use Python for logic that YAML cannot express. Reference it with `!python`, as [Python in a Blueprint](../guides/yaml-advanced.md) shows.
+Use Python for logic that YAML cannot express. Reference it with `!python`, as [Call Python from YAML](../guides/yaml-advanced.md) shows.
 
 ---
 
@@ -16,7 +16,7 @@ Use Python for logic that YAML cannot express. Reference it with `!python`, as [
 
 ### Run a Blueprint
 
-From a shell, with the `desflow` command that the package installs. These lines use the local example:
+Run it from a shell with the `desflow` command, which the package installs. These lines use the local example:
 
 ```bash
 desflow examples get local --api yaml    # downloads local/yaml/local.yaml
@@ -28,9 +28,9 @@ desflow examples                         # lists the other examples
 desflow --version
 ```
 
-`--until` takes seconds or a duration such as `10 min`, `2 hours` or `1 week`. The command logs at INFO level, so `ConsoleEgress` output is visible. A run with no seed logs the seed it drew, with the command that repeats it. An invalid file prints its errors and exits with code 1.
+`--until` takes seconds or a duration such as `10 min`, `2 hours` or `1 week`. The command logs at INFO level. `ConsoleEgress`, in its default `log` format, writes each batch at that level, so its output is visible. A run with no seed logs the seed it drew, with the command that repeats it. An invalid file prints its errors and exits with code 1.
 
-From Python:
+Or run it from Python:
 
 ```python title="docs/snippets/pages/yaml_loading.py:from-yaml"
 from desflow import SimulationContext
@@ -41,6 +41,16 @@ app.run()  # calls run.before, then runs until run.until
 
 `run()` calls the blueprint's `run.before` functions first, and uses `run.until` when no `until` is passed. The builder methods and decorators still work on the context `from_yaml` returns.
 
+`load_context` loads a blueprint or a builder Python file by the same path, so a script that takes either kind of file needs no check of its own:
+
+```python title="docs/snippets/pages/yaml_loading.py:load-context"
+from desflow import load_context
+
+# A blueprint, or a builder Python file that defines a SimulationContext at
+# module level, from its folder: the one loader desflow run and explain use
+app = load_context(".", "local.yaml")
+```
+
 ### Times and Durations
 
 A time in a blueprint is a number of seconds or a duration such as `90 s`, `10 min`, `2 hours` or `1 week`: `run.until`, a scenario step's `at`, `simulation.warmup`, a stats `interval`, and every time-valued distribution parameter. `rate` is the exception: it is a number per second.
@@ -49,7 +59,7 @@ A time in a blueprint is a number of seconds or a duration such as `90 s`, `10 m
 
 ### Settings per Environment
 
-`${VAR}` in a value is replaced with the environment variable, so one file can serve several environments. `${VAR:-default}` uses the default when the variable is unset or empty, as in a shell, and `$${` writes a literal `${`. An unquoted value is read as YAML reads it after the replacement, so `factor: ${SIM_FACTOR:-0}` is the number 0; a quoted value stays a string. A variable without a default that is unset stops the load with its line.
+`${VAR}` in a value is replaced with the environment variable, so one file can serve several environments. `${VAR:-default}` uses the default when the variable is unset or empty, as in a shell, and `$${` writes a literal `${`. An unquoted value is read as YAML reads it after the replacement, so `factor: ${SIM_FACTOR:-0}` is the number 0. A quoted value stays a string. An unset variable with no default stops the load, and the error names its line.
 
 ```yaml title="docs/snippets/yaml/environment.yaml"
 # Settings that change per environment, read from environment variables.
@@ -88,7 +98,14 @@ The [Parquet example](../examples/parquet.md) switches from the local disk to S3
 
 `simulation.environment` runs the model on your own subclass of `DynamicRealtimeEnvironment`, named with `!python`, as `SimulationContext(environment=...)` does in Python, for example `environment: !python my_model.TracingEnvironment`.
 
-A subclass that overrides `__init__` takes `**kwargs` and passes them on, because desflow builds it with the arguments it builds its own environment with. One that overrides `schedule` or `step` calls `super()`. `step` then runs once per model event when a script steps outside `run()`, and once per event, desflow's own included, inside `run()`.
+A subclass that overrides `__init__` takes `**kwargs` and passes them on, because desflow builds it with the arguments it builds its own environment with. One that overrides `schedule` or `step` calls `super()`. When a script steps outside `run()`, `step` runs once per model event. Inside `run()`, it runs once per event, desflow's own events included.
+
+In a blueprint, the class is named under `simulation`. `CountingEnvironment` in `endings_logic.py` counts the events the run processes:
+
+```yaml title="docs/snippets/yaml/task_endings.yaml:environment"
+# Run on a subclass of DynamicRealtimeEnvironment, from endings_logic.py beside the file
+environment: !python endings_logic.CountingEnvironment
+```
 
 ### Check as You Type
 
@@ -96,21 +113,32 @@ A subclass that overrides `__init__` takes `**kwargs` and passes them on, becaus
 
 ---
 
-## What It Does for You
+## How It Works
 
-`from_yaml` makes the builder calls for you, so a blueprint gets everything [the builder does](builder-api.md#what-it-does-for-you), and it checks the whole file before anything runs. A file is read and checked in five steps, and any step that fails stops the load with a `BlueprintError` before anything runs:
+`from_yaml` makes the builder calls for you, so a blueprint gets everything [the builder does](builder-api.md#how-it-works), and it checks the whole file before anything runs. A file is read and checked in five steps, and any step that fails stops the load with a `BlueprintError` before anything runs:
 
 ![from_yaml and desflow run read the file, check every field, check the names, build the context and check the paths, in that order, and return a SimulationContext; any step that fails raises BlueprintError with the file and line](../assets/diagrams/blueprint-loading.png)
 
 1. **Read the file.** `read_document` reads it with a subclass of `yaml.SafeLoader`. `${VAR}` is replaced while each scalar is read, `!python module.attribute` imports the module and returns the attribute, `!include path` reads a mapping from another YAML file relative to this one, and every key's line is kept in a source map. Every other node is built as `yaml.safe_load` would build it.
-2. **Check every field.** The document is validated against the `Blueprint` model. Unknown keys are refused, so a misspelt key is reported rather than ignored, and every distribution is built as the builder would build it, so a parameter out of range or one the family does not take is refused here. Every relative time is read against one `now`, a `spawn` `after` and a `fire` `after` must be above 0, and `simulation.environment` must be a subclass of `DynamicRealtimeEnvironment`. All validation errors are reported at once.
-3. **Check the names.** Every service, resource, store, container and next task a task names exists; every task's `spawn` and `on:` spawn names a task that does not share an arrival's name; a `subscribe` names a task or signal; an `on:` fire names a signal, an `on:` interrupt names a task, and an `on:` `fire ... from` names a signal, or a task that runs on the same entity as the task or firing the `on:` hangs on; every `level.<name>` in an expression names a store or container, and every `users.<name>` and `queue.<name>` a resource; a store and a container do not share a name; a task's `priority` needs a resource with `queue: priority`; resources and stores have whole-number capacities; an `on:` fire with `urgent` or `after` names a signal with `once: true`, and `simulation.environment` names a subclass of `DynamicRealtimeEnvironment`.
+2. **Check every field.** The document is validated against the `Blueprint` model. Unknown keys are refused, so a misspelt key is reported rather than ignored. Every distribution is built as the builder would build it, so a parameter out of range, or one the family does not take, is refused here. Every relative time is read against one `now`. A `spawn` `after` and a `fire` `after` must be above 0. `simulation.environment` must be a subclass of `DynamicRealtimeEnvironment`. All validation errors are reported at once.
+3. **Check the names.** Each name in the file must exist and fit where it is used:
+    - Every service, resource, store, container and next task that a task names exists.
+    - Every task's `spawn` and `on:` spawn names a task that does not share an arrival's name.
+    - A `subscribe` names a task or a signal.
+    - An `on:` fire names a signal, and an `on:` interrupt names a task.
+    - An `on:` `fire ... from` names a signal or a task. The task must run on the same entity as the `on:` list. For a task's list, that is the entity of the task that holds the list. For a signal's list, it is the entity of a task that fires the signal.
+    - Every `level.<name>` in an expression names a store or a container, and every `users.<name>` and `queue.<name>` names a resource.
+    - A store and a container do not share a name.
+    - A task's `priority` needs a resource with `queue: priority`.
+    - Resources and stores have whole-number capacities.
+    - An `on:` fire with `urgent` or `after` names a signal with `once: true`.
+    - `simulation.environment` names a subclass of `DynamicRealtimeEnvironment`.
 4. **Build the context.** The builder calls are made in the order a script would make them: the simulation, ingress, egress, batching, stats, resources, stores, containers, variables, services, arrivals, tasks, arrival loops, processes, telemetry and the scenario.
-5. **Check the paths.** The parameters are registered into a scratch registry with the code the run uses, so every scenario `path` and every `registry["..."]` an expression reads is checked against the paths the run will have, and every scenario `value` must convert to the type its path holds.
+5. **Check the paths.** The parameters are registered into a scratch registry, with the code that the run uses. Every scenario `path`, and every `registry["..."]` that an expression reads, is then checked against the paths the run will have. Every scenario `value` must convert to the type its path holds.
 
 ---
 
-## Errors and Limits
+## Stability and Limits
 
 An error at any step is mapped back to its line through the source map:
 
@@ -150,11 +178,11 @@ except BlueprintError as error:
 Error: blueprint_error.yaml:20: task 'pack_order' has a priority, but resource 'packers' does not set queue: priority; set it, or remove the priority
 ```
 
-A blueprint covers configuration. These stay in Python:
+A blueprint covers configuration, including several resources per task (`resource: [picker, bench]` and `keep`), preemption (`preempt: true`) and breakdowns (`breakdown:`). These stay in Python:
 
-- **Values computed per entity.** A mapping payload is a constant, apart from the task id that `id_field` adds, the attributes that `attributes` adds and the item a `get` took, which `item_field` adds. Random choices, derived fields and state carried between events are a Python payload or process, as [Python in a Blueprint](../guides/yaml-advanced.md) shows. A task's `priority` and a `get` or `put` amount can be an expression, and `next` rules read attributes, payload fields, levels, registry values, the item a `get` took (`item.<field>`), the wait's branches (`wait.<branch>.done`) and signals (`signal.<name>.count`), as [Task Flow](task-flow.md) describes.
-- **Entity keys.** A blueprint uses the default key, `<arrival>-<n>`; a key function is builder only.
-- **Batching.** Collecting several entities into one is a process in Python. Several resources per task (`resource: [picker, bench]` and `keep`), preemption (`preempt: true`) and breakdowns (`breakdown:`) are plain YAML.
+- **Values computed per entity.** A mapping payload is a constant, apart from three values added for each entity: the task id that `id_field` adds, the attributes that `attributes` adds, and the item a `get` took, which `item_field` adds. Random choices, derived fields and state carried between events are a Python payload or process, as [Call Python from YAML](../guides/yaml-advanced.md) shows. A task's `priority` and a `get` or `put` amount can be an expression. `next` rules read attributes, payload fields, levels, registry values, the item a `get` took (`item.<field>`), the wait's branches (`wait.<branch>.done`) and signals (`signal.<name>.count`), as [Task Flow](task-flow.md) describes.
+- **Entity keys.** A blueprint uses the default key, `<arrival>-<n>`. A key function is builder only.
+- **Batching.** Collecting several entities into one is a process in Python.
 - **One simulation per file.** A blueprint has one `sim_id`. `!include` puts a mapping from another file in place, such as fitted settings, but not a second simulation.
 
-A file with no `!python` references is read entirely by `yaml.SafeLoader`, and loading it imports only the connector modules its `type` entries name. A file that references Python runs the imports it names, so it is as trusted as a Python script; [YAML Format](../reference/yaml-format.md#security) explains.
+A file with no `!python` references is read entirely by `yaml.SafeLoader`, and loading it imports only the connector modules its `type` entries name. A file that references Python runs the imports it names, so it is as trusted as a Python script. [YAML Format](../reference/yaml-format.md#security) explains.

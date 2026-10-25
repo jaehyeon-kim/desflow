@@ -17,6 +17,14 @@ def _pages(items):
 
 
 def on_config(config):
+    """Sets the llms.txt sections from the sidebar, one per top-level entry.
+
+    Args:
+        config: The MkDocs config.
+
+    Returns:
+        The config, with the llmstxt plugin's sections set.
+    """
     sections = {}
     for item in config.nav:
         title, value = next(iter(item.items()))

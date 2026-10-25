@@ -204,6 +204,20 @@ def test_registry_clamps_current_cap_to_max_cap(registry, sample_params, caplog)
     assert "7" in caplog.text and "5" in caplog.text
 
 
+def test_a_current_cap_above_max_cap_is_clamped_when_registered(registry, caplog):
+    """A low-level SimParameter with current_cap above max_cap is clamped with a
+    warning when it registers, as a live update is."""
+    params = SimParameter(
+        sim_id="Shop", resources={"packers": CapacityConfig(current_cap=2, max_cap=1)}
+    )
+    with caplog.at_level(logging.WARNING, logger="desflow.core.registry"):
+        registry.register_sim_parameter(params)
+
+    assert registry.get("Shop.resources.packers.current_cap").value == 1
+    assert params.resources["packers"].current_cap == 1
+    assert "current_cap 2" in caplog.text and "Stored as 1" in caplog.text
+
+
 def test_registry_lowers_current_cap_with_a_lower_max_cap(
     registry, sample_params, caplog
 ):

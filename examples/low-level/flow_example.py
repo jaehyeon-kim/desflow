@@ -1,6 +1,6 @@
 """A flow of tasks, low-level API: pick, wrap gifts, pack, then ship.
 
-The low-level twin of `builder/flow_example.py`. Each order is an `Entity` whose key,
+The low-level version of `builder/flow_example.py`. Each order is an `Entity` whose key,
 such as `orders-1`, every event carries, with the task's name and instance id. A
 `Router` per task takes the same rules as the builder's `next` and returns the name
 of the task to start: gift orders are wrapped after picking, and one parcel in ten

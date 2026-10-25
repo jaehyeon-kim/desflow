@@ -1,9 +1,9 @@
 # Orders with random line items, in YAML with one Python function.
 #
 # Each order arrival builds an order with 1 to 5 items, random prices and
-# quantities, and a total computed from them. A mapping payload is a constant, so
-# the generator is Python in postgres_orders_logic.py beside this file, referenced
-# with !python. Everything else is plain YAML.
+# quantities, and a total computed from them. A mapping payload is a constant and
+# cannot hold random values, so the generator is Python in postgres_orders_logic.py
+# beside this file, referenced with !python. Everything else is plain YAML.
 #
 # Two PostgresEgress instances are attached, one per table, and each keeps only the
 # records whose __table__ key names its table. Each creates its table at start.
@@ -19,13 +19,13 @@ simulation:
 ingress:
   - type: Postgres
     config:
-      connection_dsn: postgresql://user:password@localhost:5432/odctl
+      connection_dsn: postgresql://user:password@127.0.0.1:5432/odctl
       table_name: simulation_params
 
 egress:
   - type: Postgres
     config:
-      connection_dsn: postgresql://user:password@localhost:5432/odctl
+      connection_dsn: postgresql://user:password@127.0.0.1:5432/odctl
       tables:
         orders:
           columns:
@@ -37,7 +37,7 @@ egress:
           primary_key: order_id
   - type: Postgres
     config:
-      connection_dsn: postgresql://user:password@localhost:5432/odctl
+      connection_dsn: postgresql://user:password@127.0.0.1:5432/odctl
       tables:
         order_items:
           columns:

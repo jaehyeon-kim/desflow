@@ -1,6 +1,6 @@
 """Breakdowns: a packing station that fails and is repaired, low-level API.
 
-The low-level twin of `builder/breakdowns_example.py`. `run_breakdowns` is a SimPy
+The low-level version of `builder/breakdowns_example.py`. `run_breakdowns` is a SimPy
 process that puts the station down about once a minute and repairs it after 5 to 15
 seconds. A breakdown interrupts the orders being packed: each catches the
 `simpy.Interrupt`, gives the station back, queues again, and packs what it had left.
@@ -31,6 +31,7 @@ logging.basicConfig(
 
 PARAMS = SimParameter(
     sim_id="Shop",
+    # An order every 1.67 s on average (rate 0.6)
     arrival={"orders": DistributionConfig(dist="exponential", rate=0.6)},
     service={
         "packing": DistributionConfig(dist="triangular", low=1, mode=2, high=4),
@@ -40,6 +41,7 @@ PARAMS = SimParameter(
     breakdowns={
         "station": BreakdownConfig(
             # Calendar time from a repair, or the start, to the next failure
+            # A failure every 60 s on average (rate 0.0167)
             time_to_failure=DistributionConfig(dist="exponential", rate=0.0167),
             repair=DistributionConfig(dist="uniform", low=5, high=15),
             # The orders being packed are interrupted

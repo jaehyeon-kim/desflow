@@ -1,6 +1,6 @@
 # Relational output in YAML.
 #
-# The YAML version of examples/builder/postgres_example.py: a simulation that
+# The YAML version of postgres_example.py, which --api builder downloads: a simulation that
 # writes order records to one table. Each order spawns place_order, a task with no
 # service or resource, which publishes its payload at once. PostgresEgress creates
 # the orders table at start and writes one row per order. PostgresIngress creates
@@ -17,13 +17,13 @@ simulation:
 ingress:
   - type: Postgres
     config:
-      connection_dsn: postgresql://user:password@localhost:5432/odctl
+      connection_dsn: postgresql://user:password@127.0.0.1:5432/odctl
       table_name: simulation_params
 
 egress:
   - type: Postgres
     config:
-      connection_dsn: postgresql://user:password@localhost:5432/odctl
+      connection_dsn: postgresql://user:password@127.0.0.1:5432/odctl
       tables:
         orders:
           columns:

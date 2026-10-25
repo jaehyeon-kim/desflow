@@ -1,8 +1,8 @@
 # Coming from SimPy
 
-If you have written a SimPy model, you already know most of what desflow needs. This page takes a plain SimPy model in the structure most tutorials teach and shows where each part goes in desflow. Nothing you know is lost: a desflow model is SimPy underneath, and [SimPy and desflow](simpy-and-desflow.md) shows each construct.
+If you have written a SimPy model, you already know most of what desflow needs. This page takes a plain SimPy model in the structure most tutorials teach and shows where each part goes in desflow. Nothing you know is lost: a desflow model is SimPy underneath. [SimPy and desflow](simpy-and-desflow.md) teaches each SimPy construct, and the last two sections of this page list what desflow changes and the form each construct takes in desflow.
 
-The structure comes from the open book [HSMA: the little book of DES](https://des.hsma.co.uk/) by Dan Chalk, Sammi Rosser and Amy Heather, which teaches SimPy to health-service modellers. Its chapter [The Recommended Structure for DES Models](https://des.hsma.co.uk/recommended_structure_classes_for_des_models.html) splits a model into four classes: a class of global parameters, an entity class, a model class and a trial class. We read that chapter and the chapter on running large numbers of scenarios. The book's text is under CC BY-NC-SA, so none of it is copied here: the code below is our own, on the packing shop, and follows the same four-class shape.
+The structure comes from the open book [HSMA: the little book of DES](https://des.hsma.co.uk/) by Dan Chalk, Sammi Rosser and Amy Heather, which teaches SimPy to health-service modellers. Its chapter [The Recommended Structure for DES Models](https://des.hsma.co.uk/recommended_structure_classes_for_des_models.html) splits a model into four classes: a class of global parameters, an entity class, a model class and a trial class. We read that chapter and the chapter on running large numbers of scenarios. The book's text is under CC BY-NC-SA, so none of it is copied here. The code below is our own. It models the packing shop and follows the same four-class shape.
 
 ---
 
@@ -34,7 +34,7 @@ class G:
     runs = 10
 ```
 
-In desflow these numbers are arguments of the parts they describe: `add_arrival("orders", dist="exponential", rate=0.5)`, `add_service("packing", dist="constant", value=1.5)` and `add_resource("packers", current_cap=1, max_cap=10)`. Each is stored in a registry under a path such as `Shop.resources.packers.current_cap`, and the model reads the registry whenever it needs the value. So the difference from `G` is that a value can change while the run goes on, from a scenario or a connector, and each change is checked before it is applied. A number of your own, such as a conveyor speed, goes in `add_variable` in the builder and `variables` in YAML. The run length and the number of runs are arguments of `run` and `replicate`, because they belong to the run and not to the system. [Live Parameters](../user-guide/live-parameters.md) lists the paths.
+In desflow these numbers are arguments of the parts they describe: `add_arrival("orders", dist="exponential", rate=0.5)` for an order every 2 seconds on average, `add_service("packing", dist="constant", value=1.5)` and `add_resource("packers", current_cap=1, max_cap=10)`. Each is stored in a registry under a path such as `Shop.resources.packers.current_cap`, and the model reads the registry whenever it needs the value. A value can therefore change while the run goes on, from a scenario or a connector, which a value in `G` cannot. Each change is checked before it is applied. A number of your own, such as a conveyor speed, goes in `add_variable` in the builder and `variables` in YAML. The run length and the number of runs are arguments of `run` and `replicate`, because they belong to the run and not to the system. [Live Parameters](../user-guide/live-parameters.md) lists the paths.
 
 ---
 
@@ -106,7 +106,7 @@ class Trial:
         return [Model(run).run() for run in range(G.runs)]
 ```
 
-In desflow this loop is `replicate`. It runs the model `n` times, gives each run its own seed spawned from one seed, reads the statistics at the end of each run, and returns the interval for each measure you name. You do not write the loop, the seeding or the interval. [Replications](../user-guide/replications.md) explains the options, and [Trusting Results](../tutorials/trusting-results.md) uses it on the shop.
+In desflow this loop is `replicate`. It runs the model `n` times, gives each run its own seed spawned from one seed, reads the statistics at the end of each run, and returns the [interval](output-analysis.md#interval-and-half-width) for each measure you name. You do not write the loop, the seeding or the interval. [Replications](../user-guide/replications.md) explains the options, and [Trusting Results](../tutorials/trusting-results.md) uses it on the shop.
 
 ---
 
@@ -146,11 +146,57 @@ def trial():
     return result.summary[0]
 ```
 
-Both versions run 10 times for one hour from an empty shop, so the two answers estimate the same thing. They use different random numbers, so the values differ, but the check in the script asserts that they agree within their intervals.
+Four parts of the desflow version have no line in the SimPy one:
+
+- `context.wait_for_arrival("orders")` waits for the gap to the next order, drawn from the `orders` arrival's distribution, and returns the new order as an entity.
+- `entity=order` hands that order to the task, so every record of the task carries the order's key, such as `orders-1`. Without it the task starts an entity of its own.
+- The dictionary the task returns is the payload of its finished event, so `{"event_type": "order_packed"}` is published as a record.
+- `with_stats("typical", interval=3600)` switches on the built-in statistics, such as the mean wait that `replicate` reads, and publishes them every hour of simulated time.
+
+[Builder API](../user-guide/builder-api.md#write-the-tasks) describes each call, and [Statistics](../user-guide/statistics.md#choose-a-level) lists the levels.
+
+Both versions run 10 times for one hour from an empty shop, so the two answers estimate the same thing. Each line of the output below gives the mean wait over the 10 runs and the half-width of its 95% interval. The two versions use different random numbers, so the values differ, but the check in the script asserts that they agree within their intervals. This shop is not the busy hour of the tutorials: it has one packer and an order every 2 seconds on average, so its mean wait differs from theirs.
 
 ```text
 plain SimPy: mean wait 2.30 ± 0.20 s over 10 runs
 desflow:     mean wait 2.45 ± 0.27 s over 10 runs
 ```
 
-What you take with you is the SimPy you wrote. A model can still be a SimPy generator inside desflow, through the low-level API, and it keeps the SimPy constructs it uses. What you leave behind is the code around it: the parameters class, the result bookkeeping and the trial loop. What you gain is [records](../reference/records-and-telemetry.md), pacing, live parameters and the checks on [Output Analysis](output-analysis.md).
+What you take with you is the SimPy you wrote. A model can still be a SimPy generator inside desflow, through the [Low-level API](../user-guide/low-level-api.md), and it keeps the SimPy constructs it uses. What you leave behind is the code around it: the parameters class, the result bookkeeping and the trial loop. What you gain is [records](../reference/records-and-telemetry.md), pacing, live parameters and the checks on [Output Analysis](output-analysis.md).
+
+---
+
+## What desflow Changes
+
+desflow keeps SimPy's event list, clock, processes and resources. It changes the six things in the table:
+
+| Part | In SimPy | In desflow |
+|---|---|---|
+| Clock and pacing | `Environment` runs without waiting; `RealtimeEnvironment(factor, strict=True)` follows the wall clock and raises `RuntimeError` when the model falls behind | one class, `DynamicRealtimeEnvironment`, does both: `factor=0` runs without waiting, `go_live_at` switches to real time partway through a run (SimPy's `factor` cannot change once set), `logical_start_time` gives every record a date and time, and falling behind is reported as telemetry; `strict` raises `RuntimeError` as SimPy's does, with the defaults that [Strict Pacing](../user-guide/time-and-pacing/clocks-and-pacing.md#strict-pacing) gives; `sync()` is SimPy's, and `resume_pacing()` also moves the simulation anchor after a pause; `advance(until)` runs a started run in segments, as repeated `env.run(until=...)` does |
+| Processes | generators started with `env.process` | the same, and the builder adds `@app.task`, `@app.arrival_loop`, `@app.telemetry_loop` and `add_process`, which write the common ones for you |
+| Random times | none built in: a model calls `random` or NumPy itself | ten named distributions with checked parameters, drawn by a `Sampler` from the current values each time; each distribution draws from a random sequence of its own, made from the run's seed and its registry path |
+| Resources | `Resource`, `Container` and `Store` keep the capacity they were created with: it has no setter, so assigning a new one raises `AttributeError` (SimPy 4.1). `Resource` serves requests in the order they arrive, and `PriorityResource` by priority | `DynamicResource`, `DynamicContainer` and `DynamicStore` follow a capacity in the registry, and a resource that shrinks lets busy units finish. A resource serves its queue `fifo`, `lifo` or by `priority`, equal priorities first in, first out. `run()` builds the stores and containers a model declares, and tasks put to and get from them |
+| Parameters | Python variables, changed only by the model's own code | a registry of named paths, changed by connectors, scenarios or processes, with each change checked |
+| Output | whatever the model prints or logs | events and telemetry with a fixed shape, written to Kafka, Redis, PostgreSQL, files or Iceberg on background threads |
+
+---
+
+## Each Construct in desflow
+
+Each row names a construct, its form in the three ways of writing a model, and the group of conformance checks on [SimPy Compatibility](../reference/simpy-compatibility.md) that runs it in plain SimPy and in all three forms and compares the results. A construct with no native form in one of the three is marked as a difference there, with the reason.
+
+| SimPy construct | YAML | Builder | Low-level | Checks |
+|---|---|---|---|---|
+| `Environment`: `run`, `step`, `peek`, `now` | `run.until` | `app.run(until=)`, `app.step()`, `app.peek()` | `env.run(until=)` | [Run Control](../reference/simpy-compatibility.md#c6-run-control) |
+| `timeout` | a task with `service` and no `resource` | `@app.task(service_id=...)` | `yield env.timeout(delay)` | [Events and Processes](../reference/simpy-compatibility.md#c1-events-and-processes) |
+| Events and callbacks | `signals:`, `on:` | `add_signal`, `on=` | `Signal`, `event.callbacks.append(fn)` | [Events and Processes](../reference/simpy-compatibility.md#c1-events-and-processes) |
+| Processes and waiting for one | `wait: {task: ...}` | `wait={"task": ...}`, `context.call(...)` | `yield env.process(child())` | [Events and Processes](../reference/simpy-compatibility.md#c1-events-and-processes) |
+| Interrupts | `interrupt:`, `on_interrupt` | `context.interrupt(...)`, `on_interrupt=` | `process.interrupt(cause)` | [Interrupts and Preemption](../reference/simpy-compatibility.md#c3-interrupts-and-preemption) |
+| `AnyOf`, `AllOf` | `wait: {any: ...}`, `wait: {all: ...}` | `wait={"any": ...}`, `wait={"all": ...}` | `yield a \| b`, `yield a & b` | [Wait for One or All](../reference/simpy-compatibility.md#c2-wait-for-one-or-all) |
+| `Resource`, `PriorityResource` | `resource: packers`, `queue: priority` | `@app.task(resource_id=...)`, `add_resource(queue=...)` | `with packers.request() as req: yield req` | [Resources](../reference/simpy-compatibility.md#c4-resources) |
+| `PreemptiveResource` | `preempt: true, queue: priority` | `add_resource(queue="priority", preempt=True)` | `DynamicResource(queue="priority", preempt=True)` | [Interrupts and Preemption](../reference/simpy-compatibility.md#c3-interrupts-and-preemption) |
+| `Container` | `put` and `get` with `container` and `amount` | `put={"container": ...}`, `get={"container": ...}` | `yield stock.put(2)`, `yield stock.get(1)` | [Stores and Containers](../reference/simpy-compatibility.md#c5-stores-and-containers) |
+| `Store`, `FilterStore`, `PriorityStore` | `put` and `get` with `store`, `filter`, `priority: true` | `put={"store": ...}`, `get={"store": ..., "filter": ...}` | `parcels.get(filter=...)` | [Stores and Containers](../reference/simpy-compatibility.md#c5-stores-and-containers) |
+| `RealtimeEnvironment` | `simulation.factor`, `simulation.strict` | `SimulationContext(factor=, strict=)` | `DynamicRealtimeEnvironment(factor=)` | [Run Control](../reference/simpy-compatibility.md#c6-run-control) |
+
+`!python` and `add_process` run SimPy code you write yourself. They are extension points, so a construct that has no native form in YAML or the builder is not covered by using them. User Guide pages that build on SimPy name the parts they use in their How It Works section, starting with [Arrivals and Services](../user-guide/arrivals-and-services.md).

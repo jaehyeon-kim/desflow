@@ -1,9 +1,9 @@
-"""The Fit the Inputs tutorial: which distribution fits the 40 packing times? low-level.
+"""The Fitting the Inputs tutorial: which distribution fits the 40 packing times? low-level.
 
-Fits the 40 packing times measured at the bench to every family, prints the table
-of candidates, then runs the busy hour of Trusting Results 40 times with the best
-fit, with the gamma fit and with the 40 times themselves, and prints the mean wait
-of each.
+Fits every family to the 40 packing times measured at the bench and prints the table
+of candidates. Then it runs the busy hour 40 times with each of three packing
+distributions: the best fit, the gamma fit and the 40 times themselves. Each run
+leaves out a 2-minute warm-up. The script prints the mean wait for each distribution.
 """
 
 import logging
@@ -17,10 +17,13 @@ from desflow import (
     fit_column,
     replicate,
 )
-from trusting_results_low_level import MEASURED, WARMUP, order_generator
+from measuring_a_run_low_level import MEASURED, order_generator
 
 # The imported model logs at INFO; replications log only their warnings
 logging.getLogger("desflow").setLevel(logging.WARNING)
+
+# Records and statistics start after the first 2 minutes of each run
+WARMUP = 120.0  # seconds
 
 
 def fitted():

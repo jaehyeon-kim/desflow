@@ -1,6 +1,6 @@
 """Process interaction: a signal, a wait with a time limit, a child flow and a failure, low-level API.
 
-The low-level twin of `builder/process_interaction_example.py`. A packed order is
+The low-level version of `builder/process_interaction_example.py`. A packed order is
 inspected by a child process it waits for; a gift fails inspection, and is wrapped
 instead, which ends the child. The order then waits for the courier, who leaves every
 50 seconds and fires the signal courier_left, taking every order that waits; an

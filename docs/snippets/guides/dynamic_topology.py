@@ -37,6 +37,7 @@ def supervisor(env, resources):
         yield env.timeout(NEW_JOBS_EVERY)
 
         if env.now >= ADD_WRAPPERS_AT and "wrappers" not in resources:
+            # --8<-- [start:add]
             # Give the gift wrappers their registry paths, then create the resource
             # that reads its capacity from them.
             env.registry.register_sim_parameter(
@@ -46,6 +47,7 @@ def supervisor(env, resources):
                 )
             )
             resources["wrappers"] = DynamicResource(env, "Shop", "wrappers")
+            # --8<-- [end:add]
             env.publish_event(
                 "supervisor",
                 {

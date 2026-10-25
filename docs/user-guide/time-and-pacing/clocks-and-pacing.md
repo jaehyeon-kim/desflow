@@ -8,7 +8,7 @@ This page shows the clock settings of a run, described in [Time and Pacing](inde
 
 ### Logical Start Time
 
-`logical_start_time` is the date and time that simulation time 0 maps to; without it, the run uses the moment the environment is created. A run with a backdated start writes history:
+`logical_start_time` is the date and time that simulation time 0 maps to. Without it, the run uses the moment the environment is created. A run with a backdated start writes history:
 
 ```python title="docs/snippets/pages/pacing.py:logical-start"
 app = SimulationContext(
@@ -22,7 +22,7 @@ A datetime without an offset is read in the run's time zone, described next. In 
 
 ### Time Zone
 
-`timezone` names the zone that record timestamps are written in, as an IANA name such as `Australia/Melbourne`. Every `timestamp` carries the offset of its moment, such as `2026-10-03T12:00:00.000+10:00`, or `+00:00` in UTC. By default the zone is that of `logical_start_time` when it has one, and UTC otherwise. A `logical_start_time` or `go_live_at` without an offset, `now`, and the default start are read in it:
+`timezone` names the zone that record timestamps are written in, as an IANA name such as `Australia/Melbourne`. Every `timestamp` carries the offset of its moment, such as `2026-10-03T12:00:00.000+10:00`, or `+00:00` in UTC. By default the zone is that of `logical_start_time` when it has one, and UTC otherwise. A `logical_start_time` or `go_live_at` without an offset, `now`, and the default start are read in that zone:
 
 === "YAML"
 
@@ -55,7 +55,7 @@ A datetime without an offset is read in the run's time zone, described next. In 
     print(zoned.start_datetime)  # 2026-10-03 12:00:00+10:00
     ```
 
-The clock runs in UTC, so a daylight-saving change in the zone never adds or drops simulation time: in Melbourne, where the clocks went forward an hour on 4 October 2026, 24 hours of simulation from 12:00 on 3 October end at 13:00 on 4 October, `2026-10-04T13:00:00.000+11:00`. A replayed timestamp without an offset is read in the zone too.
+The clock runs in UTC, so a daylight-saving change in the zone never adds or drops simulation time. In Melbourne, the clocks went forward an hour on 4 October 2026. A run of 24 simulation hours from 12:00 on 3 October therefore ends at 13:00 on 4 October, `2026-10-04T13:00:00.000+11:00`. A replayed timestamp without an offset is read in the zone too.
 
 ### Factor
 
@@ -68,7 +68,7 @@ unpaced = DynamicRealtimeEnvironment(factor=0.0)  # takes no real time at all
 ```
 
 - `factor: 1.0` follows the wall clock: a process that waits 5 simulation seconds waits 5 real seconds. It suits a live twin feeding a dashboard.
-- `factor: 0` does not wait at all: the run goes as fast as the machine allows. It suits history, tests and experiments. At `factor: 0` each event is processed by SimPy's own `Environment.step`, without the real-time arithmetic, and `strict` is not checked, as there is no wall clock to fall behind. A pending `go_live_at` is still checked before each event, and pacing starts at it.
+- `factor: 0` does not wait at all: the run goes as fast as the machine allows. It suits history, tests and experiments. At `factor: 0` each event is processed by SimPy's own `Environment.step`, without the real-time arithmetic. `strict` is not checked, because there is no wall clock to fall behind. A pending `go_live_at` is still checked before each event, and pacing starts at it.
 
 ### Go Live
 
@@ -92,7 +92,7 @@ A sink with `when: history` receives the records stamped before `go_live_at`, an
 
 ### Lag
 
-At a `factor` above 0 the run follows the wall clock, and `system.simulation.lag_seconds` says how many seconds it is behind, as telemetry. `lag_interval` sets how often, in simulation seconds or a duration. By default it is every simulation second at a `factor` above 0, and off at `factor: 0`, where the run is meant to be ahead of the wall clock; a run at `factor: 0` that goes live starts it at the go-live instant. 0 turns it off:
+At a `factor` above 0 the run follows the wall clock, and `system.simulation.lag_seconds` says how many seconds it is behind, as telemetry. `lag_interval` sets how often it is published, in simulation seconds or a duration. By default, it is published every simulation second at a `factor` above 0. At `factor: 0` it is off, because such a run is meant to be ahead of the wall clock. A run at `factor: 0` that goes live starts publishing it at the go-live instant. A `lag_interval` of 0 turns it off:
 
 === "YAML"
 
@@ -121,7 +121,7 @@ At a `factor` above 0 the run follows the wall clock, and `system.simulation.lag
 A paced step that starts more than `factor` real seconds late has fallen behind the wall clock. By default the run goes on and `system.simulation.lag_seconds` reports the delay. With `strict` on, the run raises `RuntimeError` (`Simulation too slow for real time (1.500s).`) instead, as SimPy's `RealtimeEnvironment` does. The setting has a different default in each API:
 
 - **Low-level API:** `strict=True`, SimPy's default. A live script with a sink that can block passes `strict=False`.
-- **Builder:** `SimulationContext(strict=False)`, the default, as a live run with a sink goes on when the sink is slow.
+- **Builder:** `SimulationContext(strict=False)`, the default, so that a live run with a sink goes on when the sink is slow.
 - **YAML:** `simulation.strict`, default `false`.
 
 === "YAML"
@@ -148,12 +148,18 @@ A paced step that starts more than `factor` real seconds late has fallen behind 
     tolerant = DynamicRealtimeEnvironment(factor=1.0, strict=False)
     ```
 
-`strict` is never checked at `factor: 0`, including before `go_live_at`: an unpaced run has no wall clock to fall behind, and SimPy's check would raise on the first step of every unpaced script. After a pause, `env.sync()` (SimPy's) moves only the wall-clock anchor to now, so the next event would wait `factor` seconds for each simulation second since `env_start`, which is the start of the run, or the go-live instant once the run has gone live, or the last `resume_pacing()`. `env.resume_pacing()` moves both anchors, so the next event waits `factor` seconds for each simulation second after `now`:
+`strict` is never checked at `factor: 0`, including before `go_live_at`: an unpaced run has no wall clock to fall behind, and SimPy's check would raise on the first step of every unpaced script. After a pause, SimPy's `env.sync()` moves only the wall-clock anchor to now. The next event would then wait `factor` seconds for each simulation second since `env_start`. `env_start` is the start of the run, the go-live instant once the run has gone live, or the last `resume_pacing()`. `env.resume_pacing()` moves both anchors, so the next event waits `factor` seconds for each simulation second after `now`:
 
 ```python title="docs/snippets/pages/pacing.py:resume-pacing"
 paused = DynamicRealtimeEnvironment(factor=0.01, strict=False)  # 1.0 follows the clock
 paused.run(until=10)
 # ... a pause, such as a stop in a debugger: the wall clock is now ahead of the run
-paused.resume_pacing()  # the next event waits factor seconds per second from here
+paused.resume_pacing()  # from here, factor real seconds per simulation second
 paused.run(until=20)
 ```
+
+---
+
+## Stability and Limits
+
+The limits of this page are listed with those of the whole section, in [Stability and Limits](index.md#stability-and-limits) on the Time and Pacing page.

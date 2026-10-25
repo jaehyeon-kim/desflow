@@ -286,6 +286,24 @@ def test_a_router_with_weights_needs_a_generator():
         Router({"weights": {"ship": 1}, "default": "pack"})
 
 
+@pytest.mark.parametrize(
+    "rules, shares",
+    [
+        ("ship", {"ship": 1.0}),
+        ({"weights": {"ship": 9, "rework": 1}}, {"ship": 0.9, "rework": 0.1}),
+        (None, {}),
+        ({"when": [{"condition": "attr.gift == 1", "task": "wrap"}]}, None),
+        (lambda upstream: "ship", None),
+    ],
+)
+def test_router_probabilities_are_known_only_for_fixed_rules(rules, shares):
+    probabilities = Router(rules).probabilities
+    if shares is None:
+        assert probabilities is None
+    else:
+        assert probabilities == pytest.approx(shares)
+
+
 BLUEPRINT = """\
 simulation: {sim_id: Shop, factor: 0, random_seed: 1}
 resources:

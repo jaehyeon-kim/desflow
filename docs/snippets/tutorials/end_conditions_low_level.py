@@ -1,9 +1,10 @@
 """The End Conditions tutorial: a fixed horizon against a drain.
 
-One packer, 0.7 orders a second and 1.5 seconds of packing, for an hour. Every
-record is printed to the terminal, and the script prints the counts and the mean
-wait with a fixed horizon and with a drain at the end:
-python end_conditions_low_level.py 2>/dev/null shows only those lines.
+One packer, an order every 1.43 seconds on average (rate 0.7) and 1.5 seconds of
+packing, for an hour. Every record is printed to the terminal, and the script prints the
+counts and the mean wait with a fixed horizon and with a drain at the end. To see only
+those lines, run:
+python end_conditions_low_level.py 2>/dev/null
 """
 
 import itertools

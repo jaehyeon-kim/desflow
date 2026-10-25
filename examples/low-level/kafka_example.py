@@ -1,6 +1,6 @@
 """Kafka Digital Twin, low-level API.
 
-The low-level twin of `builder/kafka_example.py`, a shop packing orders, with
+The low-level version of `builder/kafka_example.py`, a shop packing orders, with
 the environment, registry and connectors wired by hand. Like the builder version, it
 creates its topics first with `KafkaAdminConnector`.
 
@@ -31,17 +31,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger("kafka_example")
 
-BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "127.0.0.1:9092")
 
 
 # ==========================================
-# 1. Define Strongly-Typed Event Payloads
+# 1. Event Payload Model
 # ==========================================
 class TaskEvent(BaseModel):
-    """
-    Thanks to desflow's duck-typing, we can pass this Pydantic model
-    directly into env.publish_event(). KafkaEgress converts it to a dict and
-    serializes it, to JSON or to Avro.
+    """The fields and types of each lifecycle event.
+
+    env.publish_event() takes this Pydantic model in place of a dict, and turns it
+    into a dict. KafkaEgress serializes that dict, to JSON or to Avro.
     """
 
     path_id: str
@@ -123,17 +123,17 @@ def run():
     admin_connector.create_topics(topics_config=TOPICS_CONFIG)
     time.sleep(2)
 
-    # (Optional: Pass **kwargs like `security_protocol="SASL_SSL"` for enterprise clusters)
+    # A secured cluster needs more keyword arguments, such as security_protocol="SASL_SSL"
     ingress = KafkaIngress(topic="sim-config", bootstrap_servers=BOOTSTRAP_SERVERS)
 
-    # By default, this uses JsonSerializer. To use Avro for enterprise environments:
+    # KafkaEgress uses JsonSerializer by default. To write Avro instead:
     # from desflow.connectors.egress.kafka import ConfluentAvroSerializer
     # avro_serializer = ConfluentAvroSerializer(
     #     registry_url="http://127.0.0.1:8081", schema_str=AVRO_SCHEMA
     # )
     # Then pass: topic_serializers={"sim-events": avro_serializer}
     # Generate AVRO_SCHEMA from AvroBaseModel rather than a plain Pydantic model;
-    # see the Avro and Pydantic guide. TaskEvent above has no .avro_schema().
+    # see Use Avro and Pydantic. TaskEvent above has no .avro_schema().
     egress = KafkaEgress(
         telemetry_topic="sim-telemetry",
         event_topic="sim-events",

@@ -1,6 +1,6 @@
 # Redis Streams output with live parameter updates, in YAML.
 #
-# The YAML version of examples/builder/redis_example.py: a simulation that records
+# The YAML version of redis_example.py, which --api builder downloads: a simulation that records
 # each order as it is placed. Each order spawns record_order, a task with no service
 # or resource, which publishes its payload at once. RedisEgress writes it to the
 # order_events stream that the __stream__ key names, while RedisIngress subscribes to
@@ -19,13 +19,13 @@ ingress:
     config:
       # The odctl valkey profile disables the unauthenticated default user, so the
       # URL carries credentials.
-      url: redis://user:password@localhost:6379/0
+      url: redis://user:password@127.0.0.1:6379/0
       channel_name: simulation_params
 
 egress:
   - type: Redis
     config:
-      url: redis://user:password@localhost:6379/0
+      url: redis://user:password@127.0.0.1:6379/0
       stream_name: events
 
 arrivals:

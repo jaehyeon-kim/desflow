@@ -20,9 +20,21 @@ def load_and_run():
     return app
 
 
+def load_either():
+    # --8<-- [start:load-context]
+    from desflow import load_context
+
+    # A blueprint, or a builder Python file that defines a SimulationContext at
+    # module level, from its folder: the one loader desflow run and explain use
+    app = load_context(".", "local.yaml")
+    # --8<-- [end:load-context]
+    return app
+
+
 if __name__ == "__main__":
     text = EXAMPLE.read_text(encoding="utf-8")
     assert "factor: 1.0" in text
     Path("local.yaml").write_text(text.replace("factor: 1.0", "factor: 0.0"))
     app = load_and_run()
     assert app.env.now == 30
+    assert load_either().sim_id == app.sim_id

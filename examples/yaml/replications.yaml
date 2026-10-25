@@ -1,6 +1,6 @@
 # Replications in YAML: one hour of the shop, run 20 times with seeds spawned from 42.
 #
-# The twin of examples/builder/replications_example.py. Two packers, orders every 2.5
+# The YAML version of replications_example.py, which --api builder downloads. Two packers, orders every 2.5
 # seconds on average and a packing time of 4 seconds on average. Each replication
 # runs unpaced with no sinks, after a 3-minute warm-up, and reads every statistic up
 # to the typical level at its end. The command prints the mean and the 95% half-width

@@ -249,7 +249,7 @@ class KafkaEgress(BaseEgress):
 
         # Pass it to the egress connector
         egress = KafkaEgress(
-            bootstrap_servers="localhost:9092",
+            bootstrap_servers="127.0.0.1:9092",
             topic_router=custom_topic_router
         )
         ```

@@ -1,10 +1,15 @@
 # Streaming Out
 
-The shop of [Changing Demand](changing-demand.md), without the rush, packs orders for an hour: one packer, 1.5 seconds of packing and orders at 0.4 a second. A team downstream wants a file of the finished orders. This page asks: **which records reach the team's files, how does the team find every record of one order, and when are the files complete?** The decision is what the file sink receives and when the team's job may read the folder. The measures are the records each sink receives, the files the file sink writes and the rows in each. The boundary is the hour. The assumptions are an unpaced run (`factor: 0`) and the default batch of 500 records.
+The shop of [Changing Demand](changing-demand.md), without the rush, packs orders for an hour. It has one packer, which takes 1.5 seconds to pack an order, and an order arrives every 2.5 seconds on average (24 a minute, `rate: 0.4`). A team downstream wants a file of the finished orders. This page asks: **which records reach the team's files, how does the team find every record of one order, and when are the files complete?**
+
+- **Decision:** what the file sink receives, and when the team's job may read the folder.
+- **Measures:** the records each sink receives, the files the file sink writes and the rows in each.
+- **Runs:** one unpaced run (`factor: 0`) of the hour with the seed 42.
+- **Assumptions:** the default batch of 500 records.
 
 ## What You Add
 
-Two **sinks**: `ConsoleEgress`, which prints every record to the terminal, and `JsonlStorageEgress`, which writes JSON Lines files, with a `when` predicate that passes only the finished orders. [Egress, Batching and Delivery](../user-guide/egress.md) describes every sink.
+This page adds two **sinks**: `ConsoleEgress`, which prints every record to the terminal, and `JsonlStorageEgress`, which writes JSON Lines files. The file sink has a `when` predicate that passes only the finished orders. [Egress, Batching and Delivery](../user-guide/egress.md) describes every sink.
 
 ---
 
@@ -78,7 +83,7 @@ The predicate sees the record as published, so an event's payload is still under
 
 ## Find One Order's Records
 
-Every event carries three names. `key` names the entity, here the order: the arrival calls them `orders-1`, `orders-2`, and so on. `task` names the task, and `instance` names this run of it. The terminal shows the three events of `orders-12`, each with the same three names:
+Save the files from [Full Files](#full-files) in one folder and run the commands there: `desflow run streaming_out.yaml`, `python streaming_out.py` or `python streaming_out_low_level.py`. Every event carries three names. `key` names the entity, here the order, and the arrival names the orders `orders-1`, `orders-2`, and so on. `task` names the task, and `instance` names this run of it. The terminal shows the three events of `orders-12`, each with the same three names:
 
 ```text
 [EVT] {'sim_ts': 26.97, 'timestamp': '...', 'key': 'orders-12', 'task': 'pack_order', 'instance': 11, 'value': {'path_id': 'Shop.service.packing', 'status': 'queued'}}
@@ -86,13 +91,21 @@ Every event carries three names. `key` names the entity, here the order: the arr
 [EVT] {'sim_ts': 29.702, 'timestamp': '...', 'key': 'orders-12', 'task': 'pack_order', 'instance': 11, 'value': {'event_type': 'order_packed'}}
 ```
 
-The file sink receives only the last. Without a router it writes one flat row per event, with the payload's fields beside the record's own:
+The file sink receives only the last of the three, the `order_packed` event. Without a router it writes one flat row per event, with the payload's fields beside the record's own:
 
 ```text
 {"stream_type":"event","sim_ts":29.702,"timestamp":"...","key":"orders-12","task":"pack_order","instance":11,"event_type":"order_packed"}
 ```
 
-A reader that joins the files with another source uses `key`, and one that follows a task through its states uses `task` and `instance`. [Records and Telemetry](../reference/records-and-telemetry.md#record-shape) lists every field, and [What Each Sink Writes](../reference/records-and-telemetry.md#what-each-sink-writes) how each sink lays them out.
+To find one order's records among the 4,329 of the hour, print the records as JSON lines with `--stdout` and keep the lines with its key. `--stdout` sends the records to the terminal in place of the sinks, so this run writes no files:
+
+```bash
+desflow run streaming_out.yaml --stdout | grep '"key":"orders-12"'
+```
+
+It prints the three events of `orders-12` above, each as the whole record. In the builder and the low-level API, `ConsoleEgress(format="json")` as the sink prints the same lines.
+
+A reader that joins the files with another source uses `key`, and one that follows a task through its states uses `task` and `instance`. [Records and Telemetry](../reference/records-and-telemetry.md#record-shape) lists every field, and [What Each Sink Writes](../reference/records-and-telemetry.md#what-each-sink-writes) shows how each sink lays them out.
 
 ---
 
@@ -109,13 +122,13 @@ def read_files(folder: Path) -> dict:
     }
 ```
 
-The names are random, so the order of the files is not the order of the records: sort by `sim_ts` when the order matters. A second run in the same folder adds new files beside the old ones, so the scripts empty `packed/` before they run.
+The names are random, so the order of the files is not the order of the records. Sort by `sim_ts` when the order matters. A second run in the same folder adds new files beside the old ones, so the scripts empty `packed/` before they run.
 
 ---
 
 ## Know When the Files Are Complete
 
-The model and the sinks finish at different times. The model stops at `until`. A sink receives records in batches: at `factor: 0` a batch is handed over only when it holds 500 records, and the rest at **teardown**, after the model has stopped. Teardown hands over what each sink still holds, then waits until every sink has written it:
+The model and the sinks finish at different times. The model stops at `until`. A sink receives records in batches. At `factor: 0`, a batch is handed over only when it holds 500 records, and the records left over are handed over at **teardown**, after the model has stopped. Teardown hands over what each sink still holds, then waits until every sink has written it:
 
 === "YAML"
 
@@ -134,15 +147,19 @@ The model and the sinks finish at different times. The model stops at `until`. A
         env.teardown()  # the sinks receive the rest and finish writing
     ```
 
-    `env.run` runs SimPy's event loop and stops at `until`; `env.teardown()` is desflow's step that hands over the rest and waits for the sinks, as [SimPy and desflow](../des/simpy-and-desflow.md) describes.
+    `env.run` runs SimPy's event loop and stops at `until`, as [SimPy and desflow](../des/simpy-and-desflow.md#environment-and-the-event-list) describes. `env.teardown()` is desflow's step that hands over the rest and waits for the sinks.
 
-So a job that reads the folder while the run is going sees only the full batches. The terminal can show the same thing: on a fast machine the model can be done before the console sink prints its first line, and then every line appears after the log says `Tearing down egress connectors`. Teardown waits for the sinks to finish writing, and gives up only when they have made no progress for `drain_stall_seconds`, as [Egress](../user-guide/egress.md#how-it-works) describes. Records not written by then are lost, with a warning.
+A job that reads the folder while the run is going therefore sees only the full batches. The terminal can show the same effect. On a fast machine the model can finish before the console sink prints its first line, and then every line appears after the log says `Tearing down egress connectors`. Teardown waits for the sinks to finish writing, and gives up only when they have made no progress for `drain_stall_seconds`, as [Egress](../user-guide/egress.md#how-it-works) describes. Records not written by then are lost, with a warning.
 
 ---
 
 ## Result
 
-Which records reach the team's files? The terminal receives every record: **4,299** events (**1,434** orders queued, **1,433** started and **1,432** packed) and **30** telemetry records, five statistics every 10 minutes. The file sink receives only the **1,432** packed orders, one row each, in **3** files of **500**, **500** and **432** rows. The two files of 500 were handed over while the model ran; the file of 432 was handed over at teardown, after the model stopped, so the team's job should start when the run has returned. One order's records share its `key`: `orders-12` was queued at **26.97** seconds, started at **28.202** and packed at **29.702**.
+The rows the file sink writes over the hour, counted by the time each order was packed:
+
+![The packed orders, counted by the time each was packed, rise steadily over the hour to 1,432. File 1 holds the 500 orders packed in the first 20.5 minutes, file 2 the 500 packed from 20.5 to 40.6 minutes, and file 3 the 432 packed from 40.6 minutes to the end of the hour](../assets/charts/streaming-rows.png)
+
+Which records reach the team's files? The terminal receives every record: **4,299** events (**1,434** orders queued, **1,433** started and **1,432** packed) and **30** telemetry records, five statistics read every 10 minutes. The file sink receives only the **1,432** packed orders, one row each, in **3** files of **500**, **500** and **432** rows. The two files of 500 were handed over while the model ran. The file of 432 was handed over at teardown, after the model stopped. The run returns only when teardown has finished, so the team's job should start only after the run has returned. One order's records share its `key`: `orders-12` was queued at **26.97** seconds, started at **28.202** and packed at **29.702**.
 
 The Builder and Low-level scripts print:
 
@@ -153,7 +170,7 @@ orders-12: {'stream_type': 'event', 'sim_ts': 29.702, 'key': 'orders-12', 'task'
 
 ## Why It Works
 
-A record goes from `publish_event` to each sink's test, then into that sink's buffer, then to a queue that a separate thread writes from. The model only fills buffers, so it can finish while the threads are still writing, and teardown is the step that waits for them. Writing records on background threads is one of the things desflow adds to SimPy, as [What desflow Changes](../des/simpy-and-desflow.md#what-desflow-changes) sets out. [Egress, Batching and Delivery](../user-guide/egress.md#how-it-works) shows each stage of that path.
+A record goes from `publish_event` to each sink's `when` test, then into that sink's buffer, then to a queue that a separate thread writes from. The model only fills buffers, so it can finish while the threads are still writing. Teardown is the step that waits for them. Writing records on background threads is one of the things desflow adds to SimPy, as [What desflow Changes](../des/coming-from-simpy.md#what-desflow-changes) sets out. [Egress, Batching and Delivery](../user-guide/egress.md#how-it-works) shows each stage of that path.
 
 ---
 
@@ -219,10 +236,11 @@ A record goes from `publish_event` to each sink's test, then into that sink's bu
         ```python title="docs/snippets/tutorials/streaming_out.py"
         """The Streaming Out tutorial: the shop's records, to the terminal and to a file, builder.
 
-        One packer and 1.5 seconds of packing; orders arrive at 0.4 a second for an hour.
-        Every record is printed to the terminal, the finished orders are written to packed/,
-        and the script prints the files the sink wrote and one order's row:
-        python streaming_out.py 2>/dev/null shows only those lines.
+        One packer takes 1.5 seconds to pack an order, and an order arrives every 2.5 seconds
+        on average (rate 0.4), for an hour. Every record is printed to the terminal, and the
+        finished orders are written to packed/. The script then prints the files the sink
+        wrote and one order's row. To see only those lines, run:
+        python streaming_out.py 2>/dev/null
         """
 
         import json
@@ -310,10 +328,11 @@ A record goes from `publish_event` to each sink's test, then into that sink's bu
         ```python title="docs/snippets/tutorials/streaming_out_low_level.py"
         """The Streaming Out tutorial: the shop's records, to the terminal and to a file, low-level.
 
-        One packer and 1.5 seconds of packing; orders arrive at 0.4 a second for an hour.
-        Every record is printed to the terminal, the finished orders are written to packed/,
-        and the script prints the files the sink wrote and one order's row:
-        python streaming_out_low_level.py 2>/dev/null shows only those lines.
+        One packer takes 1.5 seconds to pack an order, and an order arrives every 2.5 seconds
+        on average (rate 0.4), for an hour. Every record is printed to the terminal, and the
+        finished orders are written to packed/. The script then prints the files the sink
+        wrote and one order's row. To see only those lines, run:
+        python streaming_out_low_level.py 2>/dev/null
         """
 
         import itertools
@@ -429,4 +448,4 @@ A record goes from `publish_event` to each sink's test, then into that sink's bu
             print(f"orders-12: {row}")
         ```
 
-This is the last page of the tutorial for now. [Experiments](../user-guide/experiments/index.md) describes every setting of an experiment, its files and its report, and the rest of the [User Guide](../user-guide/ways-to-write.md) describes each part of desflow in full. The [Kafka Digital Twin](../examples/kafka.md) example takes live changes from Kafka and sends its records to Kafka.
+[Experiments](../user-guide/experiments/index.md) describes every setting of an experiment, its files and its report, and the rest of the [User Guide](../user-guide/ways-to-write.md) describes each part of desflow in full. The [Kafka Digital Twin](../examples/kafka.md) example takes live changes from Kafka and sends its records to Kafka.

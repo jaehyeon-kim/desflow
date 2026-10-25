@@ -18,7 +18,9 @@ services:
 # --8<-- [start:arrival]
 arrivals:
   # Each arrival spawns one pack_order, and one return_logged
+  # An order every 5 s on average (rate 0.2)
   orders: {dist: exponential, rate: 0.2, spawn: pack_order}
+  # A return every 10 s on average (rate 0.1)
   returns: {dist: exponential, rate: 0.1, spawn: return_logged}
 # --8<-- [end:arrival]
 

@@ -11,6 +11,7 @@ import ast
 import importlib.util
 import logging
 import runpy
+import statistics
 import sys
 from pathlib import Path
 
@@ -103,6 +104,53 @@ def test_queues_and_capacity_three_packers(api, monkeypatch):
     waits = {n: _queue_wait(api, n, monkeypatch) for n in QUEUE_WAITS}
     assert {n: round(w, 2) for n, w in waits.items()} == QUEUE_WAITS
     assert min(n for n, w in waits.items() if w < 10) == 3
+
+
+def test_queues_and_capacity_explain_is_the_same_in_yaml_and_builder(monkeypatch):
+    """The Builder tab prints what desflow explain prints for the blueprint: one
+    packer at utilisation 2.7, and 4 packers the fewest below 0.85."""
+    from typer.testing import CliRunner
+
+    from desflow.cli import app
+
+    monkeypatch.delenv("PACKERS", raising=False)
+    path = BLUEPRINTS / "queues_and_capacity.yaml"
+    printed = CliRunner().invoke(app, ["explain", str(path)]).stdout
+    assert _load("queues_and_capacity").explain(1) == printed
+    packers = SimulationContext.from_yaml(path).analyze().resources[0]
+    assert (packers.utilization, packers.status) == (pytest.approx(2.7), "UNSTABLE")
+    assert (
+        packers.capacities[3].status == "OK"
+        and packers.capacities[2].status == "CONGESTED"
+    )
+
+
+def _counts(readings):
+    return {
+        k: v
+        for k, v in readings.items()
+        if any(part in k for part in (".tasks.", ".flows.", ".resources."))
+    }
+
+
+def test_queues_and_capacity_network_is_the_same_in_three_apis():
+    """Networks and Bottlenecks: the Builder tab's model explains as the blueprint
+    does, with the checker the bottleneck, and runs as the Low-level tab's does."""
+    from typer.testing import CliRunner
+
+    from desflow.cli import app
+    from desflow.explain.render import render_terminal
+
+    path = BLUEPRINTS / "queues_network.yaml"
+    printed = CliRunner().invoke(app, ["explain", str(path)]).stdout
+    builder = _load("queues_and_capacity").network()
+    explanation = builder.analyze()
+    assert render_terminal(explanation) == printed
+    assert explanation.bottleneck == "checkers"
+    builder.with_stats("typical", interval=3600)
+    builder.run(until=3600)
+    low_level = _load("queues_and_capacity_low_level").run_network()
+    assert _counts(builder.env.stats.readings()) == _counts(low_level.stats.readings())
 
 
 def _wait_of(events, key):
@@ -223,6 +271,43 @@ def test_trusting_results_warmup(api, monkeypatch):
     assert round(_trusting_wait(api, "2 min", monkeypatch), 3) == 1.381
 
 
+# The mean wait of 5 runs after each candidate warm-up: (mean, half-width), seconds
+TRUSTING_WARMUPS = {60: (2.196, 0.47), 120: (2.207, 0.47), 240: (2.232, 0.47)}
+
+
+def _shortest_warmup(table):
+    """The shortest warm-up after which no longer one moves the mean by more than
+    that one's half-width."""
+    warmups = sorted(table)
+    for i, warmup in enumerate(warmups):
+        mean = table[warmup][0]
+        later = warmups[i + 1 :]
+        if all(abs(table[w][0] - mean) <= table[w][1] for w in later):
+            return warmup
+
+
+@pytest.mark.parametrize("api", APIS)
+def test_trusting_results_candidate_warmups(api, monkeypatch):
+    """Five runs after warm-ups of 1, 2 and 4 minutes; by the rule, 1 minute is enough."""
+    wait = "tasks.pack_order.wait_mean"
+    if api == "yaml":
+        # The page's command, with each warm-up through the blueprint's ${WARMUP}
+        got = {}
+        for seconds, text in ((60, "1 min"), (120, "2 min"), (240, "4 min")):
+            monkeypatch.setenv("WARMUP", text)
+            mean, half_width = _cli_waits("trusting_results.yaml", 5, wait)[wait]
+            got[seconds] = (mean, round(half_width, 2))
+    else:
+        module = _load("trusting_results" + ("" if api == "builder" else "_low_level"))
+        rows = [result.summary[0] for result in module.warmups().values()]
+        got = {
+            seconds: (round(row["mean"], 3), round(row["half_width"], 2))
+            for seconds, row in zip(TRUSTING_WARMUPS, rows)
+        }
+    assert got == TRUSTING_WARMUPS
+    assert _shortest_warmup(got) == 60
+
+
 # (mean, half-width, half-width as a share of the mean in percent) after n runs
 TRUSTING_PRECISION = {
     ("tasks.pack_order.wait_mean", 5): (2.21, 0.47, 21.2),
@@ -300,10 +385,8 @@ def _yaml_waits(path, tasks=("pack_express", "pack_order")):
     return {t: round(r[f"Shop.stats.tasks.{t}.wait_mean"], 2) for t in tasks}
 
 
-def _priority_yaml(tmp_path, name, fifo=False, orders=0.45, express=0.15):
+def _priority_yaml(tmp_path, name, fifo=False):
     text = (BLUEPRINTS / "priorities.yaml").read_text()
-    text = text.replace("rate: 0.45, spawn", f"rate: {orders}, spawn")
-    text = text.replace("rate: 0.15, spawn", f"rate: {express}, spawn")
     if fifo:
         text = text.replace(", queue: priority}", "}")
         text = "\n".join(
@@ -333,16 +416,15 @@ def test_priorities_four_waits(api, tmp_path):
     assert waits == PRIORITY_WAITS
 
 
-def test_priorities_starvation(tmp_path):
-    """The regular waits as load rises."""
-    for total, regular in ((0.5, 2.50), (0.55, 3.98)):
-        path = _priority_yaml(
-            tmp_path,
-            f"load{total}",
-            orders=round(total * 0.75, 4),
-            express=round(total / 4, 4),
-        )
-        waits = _yaml_waits(path)
+def test_priorities_starvation(monkeypatch):
+    """The regular waits as load rises, with the rates the page's command sets."""
+    for orders, express, regular in (
+        ("0.375", "0.125", 2.50),
+        ("0.4125", "0.1375", 3.98),
+    ):
+        monkeypatch.setenv("ORDERS_RATE", orders)
+        monkeypatch.setenv("EXPRESS_RATE", express)
+        waits = _yaml_waits(BLUEPRINTS / "priorities.yaml")
         assert waits["pack_order"] == regular and waits["pack_express"] < 1
 
 
@@ -450,6 +532,21 @@ def test_filtered_inventory_outcomes(api):
         app.add_egress(outcome)
         app.run()
         counts = outcome.counts
+        # The flow statistics give the same counts: cancelled is started minus
+        # finished minus the orders still waiting
+        readings = app.env.stats.readings()
+        for size in "SML":
+            flow = f"Shop.stats.flows.orders_{size.lower()}"
+            filled = readings[f"{flow}.finished"]
+            waiting = readings[f"{flow}.in_system"]
+            assert filled == counts[(size, "filled")]
+            assert (
+                readings[f"{flow}.started"] - filled - waiting
+                == counts[(size, "cancelled")]
+            )
+        # The figures of the page's sum for the medium orders
+        assert readings["Shop.stats.flows.orders_m.started"] == 1454
+        assert readings["Shop.stats.flows.orders_m.in_system"] == 29
     elif api == "builder":
         counts = builder.outcomes()
     else:
@@ -490,15 +587,16 @@ def test_process_interaction_courier_shares(api, monkeypatch):
 
 
 INTERRUPTION_OUTCOMES = {
-    "resume": (344, 1607, 8.12, 1.50),
-    "restart": (393, 1606, 25.03, 1.69),
-    "abandon": (313, 1294, 3.60, 1.50),
+    "resume": (344, 3, 1607, 8.12, 1.50),
+    "restart": (393, 23, 1606, 25.33, 1.69),
+    "abandon": (312, 2, 1293, 3.60, 1.50),
 }
 
 
 @pytest.mark.parametrize("api", APIS)
 def test_interruptions_policies(api, monkeypatch):
-    """Restart triples the regular wait, abandon loses 313 orders."""
+    """Restart triples the regular wait, abandon loses 312 orders, and the call at
+    31 minutes reaches orders under every policy."""
     for policy, expected in INTERRUPTION_OUTCOMES.items():
         if api == "yaml":
             monkeypatch.setenv("POLICY", policy)
@@ -508,6 +606,7 @@ def test_interruptions_policies(api, monkeypatch):
             name = "Shop.stats.tasks.pack_order.{}".format
             got = (
                 r[name("preempted")],
+                r.get(name("interrupted"), 0),
                 r[name("finished")],
                 r[name("wait_mean")],
                 r[name("service_mean")],
@@ -515,8 +614,14 @@ def test_interruptions_policies(api, monkeypatch):
         else:
             module = _load("interruptions" + ("" if api == "builder" else "_low_level"))
             o = module.outcomes(policy)
-            got = (o["preempted"], o["finished"], o["wait_mean"], o["service_mean"])
-        assert (got[0], got[1], round(got[2], 2), round(got[3], 2)) == expected
+            got = (
+                o["preempted"],
+                o["interrupted"],
+                o["finished"],
+                o["wait_mean"],
+                o["service_mean"],
+            )
+        assert (*got[:3], round(got[3], 2), round(got[4], 2)) == expected
 
 
 @pytest.mark.parametrize("api", APIS)
@@ -643,7 +748,7 @@ def test_local_replay_recorded_and_modelled(api, caplog):
         if api == "yaml":
             if not replay:
                 continue  # the blueprint replays the recorded orders only
-            app = SimulationContext.from_yaml(TUTORIALS / "local_replay.yaml")
+            app = SimulationContext.from_yaml(BLUEPRINTS / "local_replay.yaml")
             app.run()
             r = app.env.stats.readings()
             n = "Shop.stats.tasks.pack_order.{}".format
@@ -750,9 +855,11 @@ def test_checking_a_model_fixed_trace(api):
     assert round(readings["resources.packers.queue_length_avg"], 3) == 0.8
 
 
-def test_checking_a_model_observed_copies():
-    """The YAML experiment and the scripts read the same observed values."""
-    name = "checking_a_model_observed.csv"
+@pytest.mark.parametrize(
+    "name", ["checking_a_model_observed.csv", "local_replay_orders.csv"]
+)
+def test_data_file_copies(name):
+    """The YAML blueprints and the scripts read the same data files."""
     assert (BLUEPRINTS / name).read_text() == (TUTORIALS / name).read_text()
 
 
@@ -883,7 +990,7 @@ def test_live_changes_local_ingress(api, tmp_path, monkeypatch):
     if api == "yaml":
         app = SimulationContext.from_yaml(BLUEPRINTS / "live_changes_live.yaml")
         app.run()
-        env, out = app.env, tmp_path
+        env, out = app.env, tmp_path / "live"
     elif api == "builder":
         env, out = helpers.live(tmp_path).env, tmp_path
     else:
@@ -986,7 +1093,7 @@ FIT_WAITS = {
 def _fit_cli(*args):
     from typer.testing import CliRunner
 
-    from desflow.blueprint.cli import app as cli
+    from desflow.cli import app as cli
 
     run = CliRunner().invoke(cli, ["fit", *map(str, args)])
     assert run.exit_code == 0, run.output
@@ -994,22 +1101,25 @@ def _fit_cli(*args):
 
 
 @pytest.mark.parametrize("api", APIS)
-def test_fit_the_inputs(api, tmp_path, capsys):
+def test_fit_the_inputs(api, tmp_path, capsys, monkeypatch):
     """Triangular has the lowest AIC, gamma is 0.11 behind; the triangular raises
-    the mean wait to 2.93 s while the gamma agrees with the 40 times."""
+    the mean wait to 2.93 s while the gamma agrees with the 40 times. In YAML each
+    fit is the file the page shows, and PACKING_FIT loads the gamma's."""
     pytest.importorskip("scipy")
     from desflow import replicate
 
     if api == "yaml":
         data = BLUEPRINTS / "packing_times.csv"
-        out = tmp_path / "fitted" / "packing.yaml"
-        table = _fit_cli(
-            data, "--column", "packing_seconds", "--lower", "0", "--out", out
-        )
-        assert out.read_text() == (BLUEPRINTS / "fitted" / "packing.yaml").read_text()
+        blueprint = tmp_path / "fit_the_inputs.yaml"
+        blueprint.write_text((BLUEPRINTS / "fit_the_inputs.yaml").read_text())
+        monkeypatch.delenv("PACKING_FIT", raising=False)
         waits = {}
-        for name, extra in (("triangular", []), ("gamma", ["--candidates", "gamma"])):
-            _fit_cli(
+        for name, file, extra in (
+            ("triangular", "packing.yaml", []),
+            ("gamma", "packing_gamma.yaml", ["--candidates", "gamma"]),
+        ):
+            out = tmp_path / "fitted" / file
+            printed = _fit_cli(
                 data,
                 "--column",
                 "packing_seconds",
@@ -1019,8 +1129,11 @@ def test_fit_the_inputs(api, tmp_path, capsys):
                 out,
                 *extra,
             )
-            blueprint = tmp_path / "fit_the_inputs.yaml"
-            blueprint.write_text((BLUEPRINTS / "fit_the_inputs.yaml").read_text())
+            assert out.read_text() == (BLUEPRINTS / "fitted" / file).read_text()
+            if name == "triangular":
+                table = printed
+            else:
+                monkeypatch.setenv("PACKING_FIT", f"fitted/{file}")
             [row] = replicate(
                 blueprint,
                 40,
@@ -1044,3 +1157,305 @@ def test_fit_the_inputs(api, tmp_path, capsys):
     assert "gamma             fitted            56.79" in table
     assert "exponential       rejected" in table
     assert "(can draw below the lower bound 0)" in table
+
+
+COMPLETE_FITTED = {
+    "orders": ("gap_seconds", "complete_orders.yaml"),
+    "picking": ("picking_seconds", "complete_picking.yaml"),
+    "packing": ("packing_seconds", "complete_packing.yaml"),
+}
+
+
+@pytest.mark.parametrize("api", APIS)
+def test_complete_model_fits(api, tmp_path):
+    """Each column's best fit is the settings the blueprint includes: exponential
+    gaps, gamma picking and packing times."""
+    pytest.importorskip("scipy")
+    import yaml
+
+    fitted = BLUEPRINTS / "fitted"
+    if api == "yaml":
+        tables = {}
+        for input_, (column, name) in COMPLETE_FITTED.items():
+            out = tmp_path / name
+            tables[input_] = _fit_cli(
+                TUTORIALS / "complete_model_observed.csv",
+                "--column",
+                column,
+                "--lower",
+                "0",
+                "--out",
+                out,
+            )
+            assert out.read_text() == (fitted / name).read_text()
+        # The KS p-values the page quotes for the two fits it does not show
+        orders, picking = tables["orders"], tables["picking"]
+        assert (
+            "exponential *     fitted            355.9  0.02357          0.995"
+            in orders
+        )
+        assert (
+            "gamma *           fitted           -101.7  0.04252         0.6341"
+            in picking
+        )
+    else:
+        module = _load("complete_model" + ("" if api == "builder" else "_low_level"))
+        assert module.FITS == {
+            input_: yaml.safe_load((fitted / name).read_text())
+            for input_, (_, name) in COMPLETE_FITTED.items()
+        }
+    assert yaml.safe_load((fitted / "complete_orders.yaml").read_text()) == {
+        "dist": "exponential",
+        "rate": 1.50719,
+    }
+    # The sensitivity rate: the fitted rate's standard error is rate / sqrt(n) for
+    # n gaps, about 6% of it, a 95% interval reaches about 11% either side, and the
+    # busier variant's rate is 10% higher
+    n = len((TUTORIALS / "complete_model_observed.csv").read_text().splitlines()) - 1
+    assert (n, round(100 / n**0.5), round(196 / n**0.5)) == (300, 6, 11)
+    assert round(1.50719 * 1.1, 5) == 1.65791
+
+
+class _Records:
+    """A sink that keeps every record it receives, without its timestamp."""
+
+    def __init__(self):
+        from desflow.connectors.egress.base import BaseEgress
+
+        records = self.records = []
+
+        class Sink(BaseEgress):
+            async def run(self, egress_queue):
+                import asyncio
+                import queue
+
+                while True:
+                    try:
+                        batch = egress_queue.get_nowait()
+                    except queue.Empty:
+                        await asyncio.sleep(0.01)
+                        continue
+                    records.extend(
+                        {k: v for k, v in r.items() if k != "timestamp"}
+                        for r in batch
+                        if not str(r.get("path_id", "")).startswith("system.")
+                    )
+
+        self.sink = Sink()
+
+
+def _complete_records(api, monkeypatch):
+    kept = _Records()
+    if api == "low-level":
+        _load("complete_model_low_level").run([kept.sink])
+        return kept.records
+    if api == "yaml":
+        monkeypatch.delenv("WARMUP", raising=False)
+        app = SimulationContext.from_yaml(BLUEPRINTS / "complete_model.yaml")
+    else:
+        app = _load("complete_model").shop()
+    app.add_egress(kept.sink)
+    app.run(until="1 h")
+    return kept.records
+
+
+def test_complete_model_same_records_in_three_apis(monkeypatch):
+    """The busy hour publishes the same events and telemetry in all three tabs."""
+    pytest.importorskip("scipy")
+    records = {api: _complete_records(api, monkeypatch) for api in APIS}
+    assert len(records["yaml"]) > 40000
+    assert records["builder"] == records["yaml"]
+    assert records["low-level"] == records["yaml"]
+
+
+def test_complete_model_explain_is_the_same_in_yaml_and_builder(monkeypatch):
+    """desflow explain --verify prints the same for the blueprint and the builder
+    file, and names the packers as the bottleneck."""
+    pytest.importorskip("scipy")
+    from typer.testing import CliRunner
+
+    from desflow.cli import app
+
+    monkeypatch.delenv("WARMUP", raising=False)
+    verify = ["--verify", "--replications", "10"]
+    yaml_run = CliRunner().invoke(
+        app, ["explain", str(BLUEPRINTS / "complete_model.yaml"), *verify]
+    )
+    builder_run = CliRunner().invoke(
+        app,
+        ["explain", str(TUTORIALS / "complete_model.py"), *verify, "--until", "1 h"],
+    )
+    assert yaml_run.exit_code == builder_run.exit_code == 0
+    assert builder_run.stdout == yaml_run.stdout
+    assert "Bottleneck: packers" in yaml_run.stdout
+
+
+COMPLETE_WARMUPS = {
+    0: {"pick": (0.562, 0.014), "pack": (1.903, 0.163)},
+    120: {"pick": (0.562, 0.015), "pack": (1.916, 0.165)},
+    600: {"pick": (0.563, 0.015), "pack": (1.915, 0.175)},
+}
+
+
+@pytest.mark.parametrize("api", APIS)
+def test_complete_model_warmups(api, monkeypatch):
+    """The mean waits after warm-ups of 0, 2 and 10 minutes differ by less than
+    their half-widths."""
+    pytest.importorskip("scipy")
+    if api == "yaml":
+        # The page's command, with each warm-up through the blueprint's ${WARMUP}
+        got = {}
+        for w, text in ((0, "0"), (120, "2 min"), (600, "10 min")):
+            monkeypatch.setenv("WARMUP", text)
+            waits = _cli_waits(
+                "complete_model.yaml",
+                40,
+                "tasks.pick_order.wait_mean",
+                "tasks.pack_order.wait_mean",
+            )
+            got[w] = {name.split(".")[1][:4]: value for name, value in waits.items()}
+    else:
+        module = _load("complete_model" + ("" if api == "builder" else "_low_level"))
+        results = dict(zip(COMPLETE_WARMUPS, module.warmups().values()))
+        got = {
+            w: {
+                r["measure"].split(".")[1][:4]: (
+                    round(r["mean"], 3),
+                    round(r["half_width"], 3),
+                )
+                for r in result.summary
+            }
+            for w, result in results.items()
+        }
+    assert got == COMPLETE_WARMUPS
+
+
+def _cli_waits(blueprint, replications, *measures):
+    """The mean waits `desflow run <blueprint> --replications <n> --measure ...`
+    prints, as (mean, half-width) by measure."""
+    import re
+
+    from typer.testing import CliRunner
+
+    from desflow.cli import app
+
+    arguments = ["run", blueprint, "--replications", str(replications)]
+    for measure in measures:
+        arguments += ["--measure", measure]
+    with pytest.MonkeyPatch.context() as patch:
+        patch.chdir(BLUEPRINTS)
+        run = CliRunner().invoke(app, arguments)
+    assert run.exit_code == 0, run.output
+    rows = re.findall(
+        rf"^(tasks\.\w+\.wait_mean) +{replications} +(\S+) +(\S+)$", run.stdout, re.M
+    )
+    return {name: (round(float(m), 3), round(float(h), 3)) for name, m, h in rows}
+
+
+def test_complete_model_outputs_copies():
+    """The YAML experiment and the scripts read the same observed outputs."""
+    name = "complete_model_outputs.csv"
+    assert (BLUEPRINTS / name).read_text() == (TUTORIALS / name).read_text()
+
+
+@pytest.mark.parametrize("api", APIS)
+def test_complete_model_recommends_a_design(api, tmp_path, monkeypatch):
+    """Only the fourth packer keeps both mean waits under 1 second: it cuts the
+    packing wait by 1.77 +/- 0.16 s, while a second picker lengthens it; each
+    observed value lies inside the model's interval; with orders 10% faster the
+    fourth packer still keeps both waits under 1 second; every check passes."""
+    pytest.importorskip("scipy")
+    result = _experiment("complete_model", api, tmp_path, monkeypatch)
+    pick, pack, use, ship = (
+        "tasks.pick_order.wait_mean",
+        "tasks.pack_order.wait_mean",
+        "resources.packers.utilization_avg",
+        "tasks.ship_order.wait_mean",
+    )
+    means = {
+        (r["design"], r["statistic"]): (round(r["mean"], 2), round(r["half_width"], 2))
+        for r in result.summary
+        if r["statistic"] in (pick, pack, use, ship)
+    }
+    assert means == {
+        ("current", pick): (0.56, 0.02),
+        ("current", pack): (1.92, 0.16),
+        ("current", use): (87.96, 0.52),
+        ("current", ship): (0.0, 0.0),
+        ("second-picker", pick): (0.04, 0.0),
+        ("second-picker", pack): (2.17, 0.17),
+        ("second-picker", use): (87.95, 0.52),
+        ("second-picker", ship): (0.0, 0.0),
+        ("fourth-packer", pick): (0.56, 0.02),
+        ("fourth-packer", pack): (0.15, 0.01),
+        ("fourth-packer", use): (65.96, 0.39),
+        ("fourth-packer", ship): (0.0, 0.0),
+        # The sensitivity variant: the fourth packer with orders 10% faster
+        ("fourth-packer-busier", pick): (0.78, 0.02),
+        ("fourth-packer-busier", pack): (0.23, 0.01),
+        ("fourth-packer-busier", use): (72.59, 0.41),
+        ("fourth-packer-busier", ship): (0.22, 0.14),
+    }
+    # With orders faster, some runs have orders waiting for shipping boxes
+    busier_ship = [
+        r["value"]
+        for r in result.results
+        if r["design"] == "fourth-packer-busier" and r["statistic"] == ship
+    ]
+    assert (len(busier_ship), sum(v > 0 for v in busier_ship)) == (40, 21)
+    assert round(max(busier_ship), 2) == 1.84
+    difference = {
+        (r["variant"], r["measure"]): (
+            round(r["difference"], 2),
+            round(r["half_width"], 2),
+        )
+        for r in result.comparisons
+        if r["measure"] in (pick, pack)
+    }
+    assert difference == {
+        ("second-picker", pick): (-0.52, 0.01),
+        ("second-picker", pack): (0.26, 0.02),
+        ("fourth-packer", pick): (0.0, 0.0),
+        ("fourth-packer", pack): (-1.77, 0.16),
+    }
+    assert [c["passed"] for c in result.checks] == [True] * 7
+    assert round(result.checks[0]["value"], 2) == 0.58
+    assert [round(c["value"], 2) for c in result.checks[5:]] == [0.8, 0.24]
+    observed = {
+        r["measure"]: (r["value"], round(r["low"], 2), round(r["high"], 2), r["inside"])
+        for r in result.observed
+    }
+    assert observed == {
+        pick: (0.57, 0.55, 0.58, True),
+        pack: (1.9, 1.75, 2.08, True),
+        use: (88.0, 87.44, 88.47, True),
+    }
+    # One observed hour varies like one run, not like a mean of 40 runs
+    runs = {
+        m: [
+            r["value"]
+            for r in result.results
+            if r["design"] == "current" and r["statistic"] == m
+        ]
+        for m in (pick, pack, use)
+    }
+    spread = {m: round(statistics.stdev(v), 3) for m, v in runs.items()}
+    assert spread == {pick: 0.048, pack: 0.515, use: 1.615}
+    inside = {
+        r["measure"]: sum(r["low"] <= v <= r["high"] for v in runs[r["measure"]])
+        for r in result.observed
+    }
+    assert inside == {pick: 7, pack: 9, use: 9}
+    # How many single-run standard deviations each observed value lies from the mean
+    current = {
+        r["statistic"]: r["mean"] for r in result.summary if r["design"] == "current"
+    }
+    away = {
+        r["measure"]: round(
+            abs(r["value"] - current[r["measure"]]) / spread[r["measure"]], 2
+        )
+        for r in result.observed
+    }
+    assert away == {pick: 0.16, pack: 0.03, use: 0.03}
+    assert _load("complete_model").recommended(result) == ["fourth-packer"]
+    assert "## Missing Inputs\n\nNone." in result.report

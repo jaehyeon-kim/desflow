@@ -1,8 +1,8 @@
 # Records and Telemetry
 
-Everything a simulation publishes is a record of one of three kinds: a **telemetry** record for a single value, an **event** record for something that happened to an entity, and a **label** record for the ground truth of a scenario step. The records have the shape of the `TelemetryPayload`, `EventPayload` and `LabelPayload` models, and they are the same whichever way the simulation was written.
+Everything a simulation publishes is a record of one of three kinds: a **telemetry** record for a single value, an **event** record for something that happened to an entity, and a **label** record for the ground truth of a scenario step. The records have the shape of the `TelemetryPayload`, `EventPayload` and `LabelPayload` models. They are the same whichever way the simulation was written.
 
-All three share `stream_type`, `sim_ts` and `timestamp`. Telemetry names its value in `path_id`; an event names its entity in `key` and its task in `task` and `instance`; a label carries what a step changed:
+All three share `stream_type`, `sim_ts` and `timestamp`. Telemetry names its value in `path_id`. An event names its entity in `key`, and its task in `task` and `instance`. A label carries what a step changed:
 
 ![A telemetry record has stream_type, sim_ts, timestamp, path_id and value; an event record has stream_type, sim_ts, timestamp, key, task, instance and value; a label record has stream_type, sim_ts, timestamp, path, old, new and label](../assets/diagrams/record-shapes.png)
 
@@ -27,7 +27,7 @@ Every sink, router and `when` predicate receives records as plain dictionaries, 
 | `label` | object | | | the step's `record` mapping |
 | `value` | any JSON value | a single value | the event's value | |
 
-As `ConsoleEgress` prints them, a statistic and the three events of one task:
+This is how `ConsoleEgress` prints a statistic and the three events of one task:
 
 <!-- records: record-examples -->
 ```text
@@ -37,7 +37,7 @@ As `ConsoleEgress` prints them, a statistic and the three events of one task:
 [EVT] {'sim_ts': 5.369, 'timestamp': '...', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'event_type': 'order_packed'}}
 ```
 
-And two labels, as a JSON Lines sink writes them:
+This is how a JSON Lines sink writes two labels:
 
 <!-- records: label-records -->
 ```text
@@ -45,16 +45,16 @@ And two labels, as a JSON Lines sink writes them:
 {"stream_type":"label","sim_ts":45.0,"timestamp":"...","path":null,"old":null,"new":null,"label":{"fault":"label_printer_offline"}}
 ```
 
-`sim_ts` is simulation seconds. `timestamp` is `logical_start_time` plus the simulation time, as an ISO 8601 string with milliseconds and the offset of the run's time zone, such as `2026-10-03T12:00:00.000+10:00`, or `+00:00` in UTC, the default; [Clocks and Pacing](../user-guide/time-and-pacing/clocks-and-pacing.md#time-zone) describes the zone. `sim_ts` is rounded to the millisecond and `timestamp` cut to it, so their milliseconds can differ by 1.
+`sim_ts` is simulation seconds. `timestamp` is `logical_start_time` plus the simulation time. It is an ISO 8601 string with milliseconds and the offset of the run's time zone, such as `2026-10-03T12:00:00.000+10:00`, or `+00:00` in UTC, the default. [Clocks and Pacing](../user-guide/time-and-pacing/clocks-and-pacing.md#time-zone) describes the zone. `sim_ts` is rounded to the millisecond and `timestamp` cut to it, so their milliseconds can differ by 1.
 
 ---
 
 ## Field Values
 
 - `sim_ts` is rounded to three decimal places and is always a float, so simulation time 0 is `0.0`.
-- `key` and `path_id` are strings. `bytes` and `bytearray` are decoded to strings; any other type, such as an `int`, raises a Pydantic `ValidationError` at the call.
-- `task` is the name of a builder or YAML task; `instance` is its instance id, an integer from 0 for a builder or YAML task, or what a low-level process passes. `publish_event` and `publish_label` do not check `task`, `instance` or `path`, so a low-level process that passes another type writes that type; the types in the table are what the builder and YAML write.
-- `value`, `old`, `new` and `label` are converted to plain JSON values before any sink sees them. A Pydantic V2 model becomes a dictionary, a datetime an ISO string, and a NaN or an infinity `None`, in a model at any depth as in a plain dictionary.
+- `key` and `path_id` are strings. `bytes` and `bytearray` are decoded to strings. Any other type, such as an `int`, raises a Pydantic `ValidationError` at the call.
+- `task` is the name of a builder or YAML task. `instance` is its instance id: an integer from 0 for a builder or YAML task, or what a low-level process passes. `publish_event` and `publish_label` do not check the type of `task`, `instance` or `path`, so a low-level process that passes another type writes that type. The types in the table are what the builder and YAML write.
+- `value`, `old`, `new` and `label` are converted to plain JSON values before any sink sees them. A Pydantic V2 model becomes a dictionary, a datetime becomes an ISO string, and a NaN or an infinity becomes `None`. This holds at any depth, in a model as in a plain dictionary.
 
 ```python title="docs/snippets/pages/records.py:values"
 class Reading(BaseModel):
@@ -91,7 +91,7 @@ A run that is not served, or fails, publishes one other event in place of its fi
 
 | Event | When | `value` |
 |---|---|---|
-| balked | its `balk` condition held, so it never joined the queue and publishes no `queued`; or a resource it asked for already held `queue_limit` requests, which publishes no `queued` either when that resource is its first and nothing is waited for before it. A task that was preempted and asks again on a full line balks after `started` and `preempted` | `{"path_id": ..., "status": "balked"}`, with `"resource": ...` when a resource refused it |
+| balked | its `balk` condition held, so it never joined the queue and publishes no `queued`. Or a resource it asked for already held `queue_limit` requests; then it publishes no `queued` either, when that resource is its first and nothing is waited for before it. A task that was preempted and asks again when the queue is full balks after `started` and `preempted` | `{"path_id": ..., "status": "balked"}`, with `"resource": ...` when a resource refused it |
 | reneged | its `patience` ran out before it was served; it left the queue at that moment | `{"path_id": ..., "status": "reneged"}` |
 | failed | its `fail` condition held, its wait failed, or its function raised | `{"path_id": ..., "status": "failed", "reason": ...}` |
 
@@ -104,9 +104,9 @@ An interrupted run publishes these as well, and its finished event when it ends:
 | preempted | a request of a lower priority value took its unit | `{"path_id": ..., "status": "preempted", "resource": ..., "preempted_by": ..., "usage_since": ...}` |
 | resumed | after an interrupt or a preemption, it holds its units again and is served | `{"path_id": ..., "status": "resumed"}` |
 
-`status` and `path_id` are strings; `reason` is a string, `cause` any JSON value the interrupt was given, or `None`, and `resource` the name of the resource that was taken or that refused the task. In a `preempted` record, `preempted_by` is the key of the entity whose request took the unit, or `None` when a process that is no task did, and `usage_since` the simulation time at which the preempted task was granted the unit. When a `subscribe` interrupts the instance, the `cause` is `{"event": name, "value": value}`, where `name` is the subscribed task's name, the process's name for a process, or `None` for any other event, and `value` is what the event carried.
+`status`, `path_id` and `reason` are strings. `cause` is any JSON value the interrupt was given, or `None`. `resource` is the name of the resource that was taken or that refused the task. In a `preempted` record, `preempted_by` is the key of the entity whose request took the unit, or `None` when a process that is not a task took it. `usage_since` is the simulation time at which the preempted task was granted the unit. When a `subscribe` interrupts the instance, the `cause` is `{"event": name, "value": value}`. `value` is what the event carried. `name` is the subscribed task's name for a task, the process's name for a process, and `None` for any other event.
 
-With statistics at `basic` or above, entities that enter and leave are counted as `<sim_id>.stats.flows.<arrival>.started`, `.finished` and `.in_system`, and from `minimal` each task's `<sim_id>.stats.tasks.<task>.in_progress`; each of the outcomes above is counted as `<sim_id>.stats.tasks.<task>.balked`, `.reneged`, `.failed`, `.interrupted`, `.preempted` and `.resumed`, published once the first one happens, and a flow that ends in a failure as `<sim_id>.stats.flows.<arrival>.failed`. [Patience](../tutorials/patience.md) shows balking and reneging, and [Failures](../user-guide/tasks-and-processes/failures.md#failures) failures, and [Interruptions](../tutorials/interruptions.md) interrupts and preemption. A failed task publishes `started` before its failure when it got that far, and a task with a `wait` publishes `queued` when the wait starts.
+With statistics at `basic` or above, entities that enter and leave are counted as `<sim_id>.stats.flows.<arrival>.started`, `.finished` and `.in_system`. From `minimal`, each task's `<sim_id>.stats.tasks.<task>.in_progress` is published. Each of the outcomes above is counted as `<sim_id>.stats.tasks.<task>.balked`, `.reneged`, `.failed`, `.interrupted`, `.preempted` and `.resumed`, published once the first one happens. A flow that ends in a failure is counted as `<sim_id>.stats.flows.<arrival>.failed`. [Patience](../tutorials/patience.md) shows balking and reneging, [Failures](../user-guide/tasks-and-processes/failures.md#failures) shows failures, and [Interruptions](../tutorials/interruptions.md) shows interrupts and preemption. A failed task publishes `started` before its failure when it got that far, and a task with a `wait` publishes `queued` when the wait starts.
 
 A resource with a `breakdown` publishes an event at each failure and each repair. Its key is the resource's name, and it has no task or instance:
 
@@ -115,9 +115,9 @@ A resource with a `breakdown` publishes an event at each failure and each repair
 | down | the resource failed; its capacity is 0 until the repair | `{"status": "down", "reason": "failure"}` |
 | repaired | the repair ended; its capacity is `current_cap` again | `{"status": "repaired", "reason": "failure"}` |
 
-With statistics at `minimal` or above, such a resource publishes `<sim_id>.stats.resources.<name>.down`, 1 while it is down, and from `basic` `.downtime`, the seconds it has been down, and `.failures`; [Breakdowns](../guides/breakdowns.md) checks them against the events.
+With statistics at `minimal` or above, such a resource publishes `<sim_id>.stats.resources.<name>.down`, which is 1 while it is down. From `basic`, it also publishes `.downtime`, the seconds it has been down, and `.failures`. [Model Breakdowns](../guides/breakdowns.md) checks them against the events.
 
-A task with no service has `{"status": ...}` without `path_id`. A timed step, with a service and no resource, publishes no `queued`. A task with no service, resource or `get` publishes only the finished event, as soon as it starts. The key is the arrival's name and a counter from 1, such as `orders-1`, on every event of every task the entity passes through; [Task Flow](../user-guide/task-flow.md#entity-key) describes it. A low-level process publishes whatever it passes to `env.publish_event(key, value, task=..., instance=...)`.
+A task with no service has `{"status": ...}` without `path_id`. A timed step, with a service and no resource, publishes no `queued`. A task with no service, resource or `get` publishes only the finished event, as soon as it starts. The key is the arrival's name and a counter from 1, such as `orders-1`, on every event of every task the entity passes through. [Task Flow](../user-guide/task-flow.md#entity-key) describes it. A low-level process publishes whatever it passes to `env.publish_event(key, value, task=..., instance=...)`.
 
 ---
 
@@ -126,7 +126,7 @@ A task with no service has `{"status": ...}` without `path_id`. A timed step, wi
 | Published by | `path_id` |
 |---|---|
 | the built-in statistics | `<sim_id>.stats.<kind>.<name>.<statistic>`, such as `Shop.stats.resources.packers.in_use`; [Reference, Statistics](statistics.md) lists every name |
-| [replications](../user-guide/replications.md#what-the-sinks-receive), once at the end | `<sim_id>.stats.<measure>.replication.<i>` for each replication from 1, then `<sim_id>.stats.<measure>.mean`, `.half_width` and `.n`, where the measure is a statistic's name without the sim id, such as `tasks.pack.wait_mean` |
+| [replications](../user-guide/replications.md#what-the-sinks-receive), once at the end | `<sim_id>.stats.<measure>.replication.<i>` for each replication from 1, then `<sim_id>.stats.<measure>.mean`, `.half_width` and `.n`. The measure is a statistic's name without the sim id, such as `tasks.pack.wait_mean` |
 | `context.publish(name, value)` and a YAML `telemetry` function | `<sim_id>.<name>` |
 | `env.publish_telemetry(path_id, value)` | `path_id`, as given |
 | the lag monitor | `system.simulation.lag_seconds`, every `lag_interval`: by default every simulation second at a `factor` above 0, and none at `factor: 0` ([Clocks and Pacing](../user-guide/time-and-pacing/clocks-and-pacing.md#lag)) |
@@ -153,7 +153,7 @@ env.publish_label({"fault": "slow_packing"}, path="Shop.service.packing.scale")
 
 ## Reserved Payload Keys
 
-A key of a record's `value`, an event's or a telemetry value that is a mapping, that is two underscores, a name of at least one character, then two underscores, such as `__table__` or `__stream__`, belongs to desflow, not to the data. A sink that routes by one uses it and removes it: `PostgresEgress` writes the record to the table its `__table__` names, and `RedisEgress` to the stream its `__stream__` names. Every other sink, `KafkaEgress`, the Parquet, JSON Lines and Iceberg sinks and `ConsoleEgress`, drops every such key and logs one warning per key the first time it meets it:
+Some keys of a record's `value` belong to desflow, not to the data. They are the keys that start and end with two underscores around a name of at least one character, such as `__table__` or `__stream__`. This holds for the keys of an event's value, and of a telemetry value that is a mapping. A sink that routes by such a key uses it and removes it: `PostgresEgress` writes the record to the table its `__table__` names, and `RedisEgress` to the stream its `__stream__` names. Every other sink drops every such key, and logs one warning per key the first time it meets it. These sinks are `KafkaEgress`, the Parquet, JSON Lines and Iceberg sinks, and `ConsoleEgress`:
 
 ```text
 KafkaEgress drops the payload key '__table__': keys that start and end with two underscores are reserved for desflow, and only a sink that routes by one, such as PostgreSQL's __table__ or Redis's __stream__, uses it. Rename the key to keep it as data.
@@ -167,10 +167,10 @@ Every sink receives the events and telemetry above, and a `when: labels` sink re
 
 | Sink | Writes |
 |---|---|
-| `ConsoleEgress` | one line per record, `[TEL]`, `[EVT]` or `[LBL]` followed by the record without `stream_type`, in one INFO log call per batch, so only a batch's first line carries the logging format's prefix and the other lines are bare |
+| `ConsoleEgress` | one line per record: `[TEL]`, `[EVT]` or `[LBL]`, followed by the record without `stream_type`. Each batch is one INFO log call, so only a batch's first line carries the logging format's prefix |
 | `KafkaEgress` | the record as JSON, without `stream_type` unless `include_stream_type=True`; the message key is `path_id` for telemetry and `key` for an event. A label goes to `event_topic` with no key |
 | `RedisEgress` | the record as JSON in one `payload` field, with any `__stream__` key removed |
 | `ParquetStorageEgress`, `JsonlStorageEgress`, `IcebergStorageEgress` | without a router, one flat row per event or label, with an event's `value` mapping unpacked into columns, and no telemetry; with a router, each record as the router leaves it |
-| `PostgresEgress` | an event or telemetry record whose value is a mapping, routed by its `__table__` key, which is removed, with `sim_ts`, `timestamp`, `key` as `event_id`, `task` and `instance`, or `path_id`, added to it, as [Egress](../user-guide/egress.md#postgresql) describes; a label as the columns `sim_ts`, `timestamp`, `path`, `old`, `new` and `label`, the last three as JSON text |
+| `PostgresEgress` | an event or telemetry record whose value is a mapping, written to the table its `__table__` key names; the key is removed. The sink adds `sim_ts` and `timestamp` to the row, and for an event `key` as `event_id`, `task` and `instance`, or for telemetry `path_id`, as [Egress](../user-guide/egress.md#postgresql) describes. A label is written as the columns `sim_ts`, `timestamp`, `path`, `old`, `new` and `label`, the last three as JSON text |
 
-In a flat row, a finished event's columns are its task's payload only: the `queued` and `started` rows of a task carry `path_id` and `status`, and its finished row has them null unless the payload holds them. [Egress](../user-guide/egress.md#parquet-and-json-lines) describes the file sinks.
+In a flat row, a finished event's columns are its task's payload only. The `queued` and `started` rows of a task carry `path_id` and `status`. Its finished row has them null unless the payload holds them. [Egress](../user-guide/egress.md#parquet-and-json-lines) describes the file sinks.

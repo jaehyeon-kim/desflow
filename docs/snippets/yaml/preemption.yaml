@@ -1,0 +1,39 @@
+# The Priority and Preemption page: a gift order goes ahead in the line but never
+# takes the packer from a regular order.
+# Run it with: desflow run preemption.yaml
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+resources:
+  packers: {current_cap: 1, max_cap: 1, queue: priority, preempt: true}
+
+services:
+  packing: {dist: constant, value: 4 s}
+
+arrivals:
+  orders: {dist: constant, value: 3 s, spawn: pack_order}
+  gifts: {dist: constant, value: 10 s, spawn: pack_gift}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    priority: 1
+    payload: {event_type: order_packed}
+  # --8<-- [start:no-preempt]
+  pack_gift:
+    service: packing
+    resource: packers
+    # Served before any regular order that waits, but waits for the packer to be free
+    priority: 0
+    preempt: false
+    payload: {event_type: gift_packed}
+  # --8<-- [end:no-preempt]
+
+egress:
+  - type: Console
+
+run:
+  until: 1 min

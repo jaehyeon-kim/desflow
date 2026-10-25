@@ -22,7 +22,7 @@ jobs:
   # Stages, each starting only when the one before it passes:
   # 1. checks, in parallel: lint, extras-isolation and core-install;
   # 2. tests, in parallel: unit-test, integration-test, blueprint, simpy-range,
-  #    docs-build and regression;
+  #    docs-build, docs-strict-build and regression;
   # 3. docs, on main only, once every test job has passed.
   # The unit, conformance and docs tests run in parallel worker processes
   # (pytest-xdist, -n auto, one worker per CPU).
@@ -309,13 +309,35 @@ jobs:
         run: .venv/bin/desflow run examples/yaml/local.yaml --until 2
 
   # The docs tests check that every page's code matches its file, that the snippets
-  # and examples run, and that the generated pages and record blocks are current. A
-  # strict build fails on a broken link or anchor, so a pull request finds it before
-  # the docs job deploys from main. It runs beside the other tests; the docs job waits
-  # for all of them, so the docs are only deployed from code that passed them.
-  # Material prints a notice about MkDocs 2.0 that strict mode counts as a warning;
-  # the variable turns that notice off.
+  # and examples run, and that the generated pages and record blocks are current.
+  # They run in 8 groups at once, which tests/docs/conftest.py balances by the times
+  # in tests/docs/durations.json, so each job finishes in a few minutes on the
+  # runner's 2 CPUs. The strict build runs beside them and fails on a broken link or
+  # anchor, so a pull request finds it before the docs job deploys from main. The
+  # docs job waits for all of them, so the docs are only deployed from code that
+  # passed them. Material prints a notice about MkDocs 2.0 that strict mode counts as
+  # a warning; the variable turns that notice off.
   docs-build:
+    needs: [lint, extras-isolation, core-install]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [1, 2, 3, 4, 5, 6, 7, 8]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Run group ${{ matrix.group }} of the docs and example tests
+        env:
+          DOCS_SHARD: ${{ matrix.group }}/8
+        run: uv run --all-extras pytest tests/docs/ -q -n auto
+
+  docs-strict-build:
     needs: [lint, extras-isolation, core-install]
     runs-on: ubuntu-latest
     steps:
@@ -325,9 +347,6 @@ jobs:
         uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
-
-      - name: Run the docs and example tests
-        run: uv run --all-extras pytest tests/docs/ -q -n auto
 
       - name: Build the docs in strict mode
         env:
@@ -377,7 +396,7 @@ jobs:
         run: uv run --all-extras python scripts/regression.py compare "$RUNNER_TEMP/old.json" "$RUNNER_TEMP/new.json" --baseline "$BASELINE"
 
   docs:
-    needs: [unit-test, integration-test, blueprint, simpy-range, docs-build, regression]
+    needs: [unit-test, integration-test, blueprint, simpy-range, docs-build, docs-strict-build, regression]
     permissions:
       contents: write
       pages: write

@@ -1,6 +1,6 @@
 # End conditions: a drain after closing time, and a stop when the boxes run out, in YAML.
 #
-# The twin of examples/builder/end_conditions_example.py. Orders arrive until the
+# The YAML version of end_conditions_example.py, which --api builder downloads. Orders arrive until the
 # shop closes at 120 seconds; then the run drains, packing the orders already in
 # the shop for at most 60 seconds more. Each order takes a box, and the run stops
 # at once if the boxes run out first. The statistics count the orders that started,

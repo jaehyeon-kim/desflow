@@ -8,7 +8,7 @@ This page shows what an [experiment](index.md) compares, checks and writes: the 
 
 ### Compare Designs
 
-Each `compare` pair gives, for each measure and each sweep point, the variant's value minus the baseline's in each replication, the mean of those differences and its Student t half-width. An interval that does not contain 0 says the designs differ at that confidence level.
+For each measure and each sweep point, a `compare` pair gives three things: the variant's value minus the baseline's in each [replication](../../des/output-analysis.md#replications), the mean of those differences, and the mean's [Student t](../../des/output-analysis.md#interval-and-half-width) half-width. An interval that does not contain 0 says the designs differ at that confidence level.
 
 ### Check Results
 
@@ -34,7 +34,7 @@ A check whose measure is not in `measures` is refused. The experiment writes eve
 | `in_system` of a flow and `in_progress` of a task | `count` | `end of run` |
 | other readings, such as `queue_length` | `count`, or `amount` for a container | `end of run` |
 
-The horizon is `until` minus the warm-up, in seconds or a duration such as `57 min`; it describes a run that ends at `until`, so with a `stop` or a `drain` the observed values must cover the same entities as the simulated ones. This compares the model's output with the real system's; it is not the fitting of an input distribution, which [Input Fitting](../input-fitting.md) covers.
+The horizon is `until` minus the [warm-up](../../des/output-analysis.md#one-run-starts-empty), in seconds or a duration such as `57 min`. The horizon describes a run that ends at `until`, so with a `stop` or a `drain`, the observed values must cover the same entities as the simulated ones. The observed comparison checks the model's output against the real system's. It does not fit an input distribution, which [Input Fitting](../input-fitting.md) covers.
 
 ### Files
 
@@ -51,7 +51,17 @@ An experiment writes six files to its output folder:
 
 ### Read the Report
 
-`report.md` has these sections, and one with nothing to report says so: Question, Model, Assumptions, Inputs and Provenance (every distribution of the model with its parameters, and its provenance from `inputs` or "not stated"), Run Settings, Counts (the mean of each count the statistics publish, such as finished orders, for each design), Results (with the population each measure is taken over), Comparisons, Checks, Observed Comparison, Limits and Missing Inputs. Missing Inputs names what the experiment does not state, such as an input without a provenance, rather than filling it in. This is the middle of the example's report:
+`report.md` has the sections below, and a section with nothing to report says so:
+
+- Question, Model and Assumptions.
+- Inputs and Provenance: every distribution of the model with its parameters, and its provenance from `inputs` or "not stated".
+- Run Settings.
+- Counts: the mean of each count the statistics publish, such as finished orders, for each design.
+- Results, with the population each measure is taken over.
+- Comparisons, Checks, Observed Comparison and Limits.
+- Missing Inputs: what the experiment does not state, such as an input without a provenance. The report names it rather than filling it in.
+
+The middle of the example's report follows. It is for the example's own shop, not the busy hour of the tutorials:
 
 <!-- records: experiment-report -->
 ```text

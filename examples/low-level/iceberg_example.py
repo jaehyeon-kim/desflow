@@ -1,6 +1,6 @@
 """Lakehouse data generation, low-level API.
 
-The low-level twin of `builder/iceberg_example.py`. It wires
+The low-level version of `builder/iceberg_example.py`. It wires
 `DynamicRealtimeEnvironment`, the registry and the connectors by hand rather than
 through the builder, which shows what `SimulationContext` does for you.
 
@@ -57,9 +57,9 @@ def build_catalog():
     return RestCatalog(
         "odctl",
         **{
-            "uri": os.getenv("ICEBERG_URI", "http://localhost:8181"),
+            "uri": os.getenv("ICEBERG_URI", "http://127.0.0.1:8181"),
             "warehouse": os.getenv("ICEBERG_WAREHOUSE", "s3://warehouse/"),
-            "s3.endpoint": os.getenv("S3_ENDPOINT", "http://localhost:8333"),
+            "s3.endpoint": os.getenv("S3_ENDPOINT", "http://127.0.0.1:8333"),
             "s3.access-key-id": os.getenv("S3_ACCESS_KEY", "user"),
             "s3.secret-access-key": os.getenv("S3_SECRET_KEY", "password"),
             "s3.region": os.getenv("S3_REGION", "us-east-1"),

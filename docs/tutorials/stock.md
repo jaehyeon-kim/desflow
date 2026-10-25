@@ -1,16 +1,21 @@
 # Stock
 
-Every order needs a box, and boxes come from a shelf that a delivery fills every 100 seconds. Orders take about 50 boxes in that time. This page asks: **what happens when stock runs out?** It compares deliveries of 60 boxes with deliveries of 40.
+Every order needs a box, and boxes come from a shelf that a delivery fills every 100 seconds. In that time about 50 orders arrive on average, and each takes one box. This page asks: **what happens when stock runs out?**
+
+- **Decision:** the size of each delivery: 60 boxes or 40.
+- **Measures:** the mean wait for packing and how often the shelf is empty.
+- **Runs:** two runs of the hour, one for each delivery size, each with the seed 42 and starting with 50 boxes on the shelf.
+- **Assumptions:** orders arrive at random, every delivery comes on time, and every order takes the same time to pack.
 
 ## What You Add
 
-A `stock` container that packing takes one box from, and a `deliveries` arrival whose task puts boxes back. The shop is the one from [First Simulation](first-simulation.md): one packer, an order every 2 seconds on average, and 1.5 seconds of packing, run for an hour.
+This page adds a `stock` container, from which packing takes one box per order, and a `deliveries` arrival, whose task adds boxes to the shelf. The shop is the one from [First Simulation](first-simulation.md): one packer, an order every 2 seconds on average, and 1.5 seconds of packing.
 
 ---
 
 ## Hold Stock
 
-So far each order needed only a packer, a **resource** that it holds and gives back. Stock is a different thing: a **quantity** that tasks take away and others add, and that is not given back. In SimPy it is a `Container`: a level between 0 and a capacity, with `get(amount)` to take and `put(amount)` to add. A `get` waits while the level is too low, and a `put` waits while there is no room. A desflow container behaves the same in all three ways of writing it: the tests compare its waiting gets and puts with a plain SimPy `Container` ([SimPy Compatibility](../reference/simpy-compatibility.md)).
+So far each order needed only a packer, a **resource** that it holds and gives back. Stock is different: it is a **quantity**, which some tasks take away and others add, and which is not given back. In SimPy it is a `Container`: a level between 0 and a capacity, with `get(amount)` to take and `put(amount)` to add. A `get` waits while the level is too low, and a `put` waits while there is no room. A desflow container behaves like a SimPy `Container` in all three APIs. The tests compare its waiting gets and puts with a plain SimPy `Container` ([SimPy Compatibility](../reference/simpy-compatibility.md)).
 
 In desflow it is a container in the `containers` section. Its `current_cap` is the capacity, the most it can hold, and `level` is what it holds when the run starts:
 
@@ -83,7 +88,7 @@ Packing an order takes one box. The task gets its packer first and then its box,
 
     The stock is a SimPy container: `get(1)` is an event that happens when the level covers the amount, and the process waits at the `yield` until then. [SimPy and desflow](../des/simpy-and-desflow.md#containers-and-stores) describes containers and stores.
 
-A delivery arrives every 100 seconds, and its task puts the boxes on the shelf. It waits while there is no room for all of them. It has no service and no resource, so it takes no time and publishes its payload once the boxes are on the shelf:
+Save the files from [Full Files](#full-files) in one folder and run the commands there. A delivery arrives every 100 seconds, and its task puts the boxes on the shelf. The task waits while there is no room for all of them. It has no service and no resource, so it takes no time and publishes its payload once the boxes are on the shelf:
 
 === "YAML"
 
@@ -147,7 +152,7 @@ A delivery arrives every 100 seconds, and its task puts the boxes on the shelf. 
 
 ## Watch the Level
 
-The built-in statistics, which [Statistics](../user-guide/statistics.md) describes, at the `minimal` level and above publish each container's `capacity`, `level`, `getters_waiting` and `putters_waiting`. `typical` adds the mean wait:
+At the `minimal` level and above, the built-in statistics publish each container's `capacity`, `level`, `getters_waiting` and `putters_waiting`. `typical` adds the mean wait. [Statistics](../user-guide/statistics.md) describes the statistics:
 
 === "YAML"
 
@@ -170,7 +175,7 @@ The built-in statistics, which [Statistics](../user-guide/statistics.md) describ
     env.setup_stats("Shop", "typical", interval=10)
     ```
 
-With deliveries of 40, the shelf runs out before the second delivery. These are the readings around it, with the packer queue:
+With deliveries of 40, the shelf runs out before the second delivery. Each reading publishes every statistic of the level. The block keeps three of them, around the stock-out: the packer queue, the level and the orders waiting for a box:
 
 <!-- records: stock-out -->
 ```text
@@ -188,7 +193,7 @@ With deliveries of 40, the shelf runs out before the second delivery. These are 
 [TEL] {'sim_ts': 200.0, 'timestamp': '...', 'path_id': 'Shop.stats.containers.stock.getters_waiting', 'value': 1}
 ```
 
-At 180 seconds the shelf is empty, one order waits for a box, and three more wait behind it for the packer. The delivery at 200 seconds puts 40 boxes on the shelf; the waiting order takes its box at that same moment, just after the reading.
+At 180 seconds the shelf is empty, one order waits for a box, and three more wait behind it for the packer. The delivery at 200 seconds puts 40 boxes on the shelf. The waiting order takes its box at that same moment, just after the reading.
 
 The level is also a registry path, `Shop.containers.stock.level`, so a scenario step or a message from outside can set it during a run, as a stock count would. [Stores and Containers](../user-guide/stores-and-containers.md) describes what such an update does.
 
@@ -200,7 +205,7 @@ What happens when stock runs out? Orders wait for boxes, and when deliveries can
 
 ![With deliveries of 60 every 100 seconds, the level climbs in a saw-tooth from 50 to about 200 over 30 minutes; with deliveries of 40, it falls to 0 before each delivery and stays there for about 40 seconds, while orders wait](../assets/charts/stock-level.png)
 
-With deliveries of 60, the mean wait for packing is **1.93 seconds**, and stock runs out only once, just before the first delivery. With deliveries of 40, it is **341.89 seconds**, and the shelf is empty for about 40 of every 100 seconds. Deliveries of 40 boxes every 100 seconds support packing at most 0.4 orders a second while 0.5 arrive, so the packer queue grows all hour, as with too few packers on [Queues and Capacity](queues-and-capacity.md). The Builder and Low-level scripts print both:
+These figures come from one run of the hour for each delivery size, with the seed 42. With deliveries of 60, the mean wait for packing is **1.93 seconds**, and stock runs out only once, just before the first delivery. With deliveries of 40, the mean wait is **341.89 seconds**, and the shelf is empty for about 40 of every 100 seconds. Deliveries of 40 boxes every 100 seconds allow at most 40 orders to be packed in 100 seconds, while 50 arrive on average. So the packer queue grows all hour, as with too few packers on [Queues and Capacity](queues-and-capacity.md). The Builder and Low-level scripts print both:
 
 <!-- records: stock-table -->
 ```text
@@ -210,7 +215,7 @@ deliveries of 40: mean wait 341.89 s
 
 ## Why It Works
 
-Stock adds a second queue: orders wait at the shelf as well as at the packer. Because packing takes its packer before its box, the shelf's queue is never longer than the number of packers, and the rest of the orders wait in the packer queue behind it, so an empty shelf also stops the packer. Taking the box first would put the long queue at the shelf and keep the packer free, which suits a task whose resource is scarce. Either way, supply below demand means a queue that grows for as long as the run lasts, as [Queueing Basics](../des/queueing-basics.md#parts-of-a-queue) explains for a packer. [Stores and Containers](../user-guide/stores-and-containers.md) describes both kinds of holding.
+Stock adds a second queue: orders wait at the shelf as well as at the packer. Packing takes its packer before its box. So the shelf's queue is never longer than the number of packers, and the other orders wait in the packer queue behind it. An empty shelf therefore also stops the packer. A task whose resource is scarce can take the box first instead: the long queue then forms at the shelf, and the packer stays free. Either way, supply below demand means a queue that grows for as long as the run lasts, as [Queueing Basics](../des/queueing-basics.md#utilisation) explains for a packer. [Stores and Containers](../user-guide/stores-and-containers.md) describes both kinds of holding.
 
 ---
 
@@ -276,8 +281,8 @@ Stock adds a second queue: orders wait at the shelf as well as at the packer. Be
 
         One packer, an order every 2 seconds on average, and a delivery of boxes every 100
         seconds. Every record is printed to the terminal, and the script prints the mean wait
-        for 60-box and 40-box deliveries at the end: python stock.py 2>/dev/null shows only
-        those lines.
+        for 60-box and 40-box deliveries at the end. To see only those lines, run:
+        python stock.py 2>/dev/null
         """
 
         import logging
@@ -360,8 +365,8 @@ Stock adds a second queue: orders wait at the shelf as well as at the packer. Be
 
         One packer, an order every 2 seconds on average, and a delivery of boxes every 100
         seconds. Every record is printed to the terminal, and the script prints the mean wait
-        for 60-box and 40-box deliveries at the end: python stock_low_level.py 2>/dev/null
-        shows only those lines.
+        for 60-box and 40-box deliveries at the end. To see only those lines, run:
+        python stock_low_level.py 2>/dev/null
         """
 
         import logging
@@ -472,5 +477,3 @@ Stock adds a second queue: orders wait at the shelf as well as at the packer. Be
             for delivery in (60, 40):
                 print(f"deliveries of {delivery}: mean wait {mean_wait(delivery):6.2f} s")
         ```
-
-Next, [Priorities](priorities.md) asks whether express orders can jump the queue.

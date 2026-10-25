@@ -32,7 +32,7 @@ tasks:
     payload: {event_type: order_packed}
 
 # --8<-- [start:plot]
-# wait_mean every 10 seconds is the mean wait so far: plot it against sim_ts
+# Every 10 seconds, wait_mean is the mean wait so far: plot it against sim_ts
 stats: {level: typical, interval: 10}
 
 egress:

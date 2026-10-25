@@ -1,9 +1,9 @@
 """The Process Interaction tutorial: packed orders wait for the courier, with a limit.
 
-One packer, an order every 2 seconds on average, and a courier every 10 minutes.
-Every record is printed to the terminal, and the script prints how many orders went
-by courier and by post, with limits of 5 and 8 minutes, at the end:
-python process_interaction_low_level.py 2>/dev/null shows only those lines.
+One packer, an order every 2 seconds on average, and a courier every 10 minutes. Every
+record is printed to the terminal, and the script prints how many orders went by courier
+and by post, with limits of 5 and 8 minutes, at the end. To see only those lines, run:
+python process_interaction_low_level.py 2>/dev/null
 """
 
 import itertools

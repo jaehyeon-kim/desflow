@@ -2,7 +2,7 @@
 
 This page writes a simulation with SimPy and the environment directly: a packing team with a stock of boxes and a store of packed orders, every step written by hand. It builds on [SimPy and desflow](../des/simpy-and-desflow.md), which describes the SimPy constructs, and on [Builder API](builder-api.md), which writes the same kind of model for you.
 
-Use the low-level API when you need what the builder does not do: resources created while the run goes on, as in [Dynamic Topology](../guides/dynamic-topology.md), or events and interactions of your own shape. A builder or blueprint model can also start a low-level process with `add_process`, as [Tasks and Processes](tasks-and-processes/index.md#processes-and-the-low-level-api) shows.
+Use the low-level API when you need what the builder does not do: resources created while the run goes on, as in [Add Resources Mid-run](../guides/dynamic-topology.md), or events and interactions of your own shape. A builder or blueprint model can also start a low-level process with `add_process`, as [Tasks and Processes](tasks-and-processes/index.md#processes-and-the-low-level-api) shows.
 
 A low-level script takes these steps, in this order:
 
@@ -42,6 +42,7 @@ env = DynamicRealtimeEnvironment(factor=0.0)  # unpaced; 1.0 follows the wall cl
 env.registry.register_sim_parameter(
     SimParameter(
         sim_id="Shop",
+        # An order every 2 s on average (rate 0.5)
         arrival={"orders": DistributionConfig(dist="exponential", rate=0.5)},
         service={"packing": DistributionConfig(dist="normal", mean=1.5, std=0.3)},
         resources={"packers": CapacityConfig(current_cap=1, max_cap=3)},
@@ -62,7 +63,7 @@ env.setup_egress([ConsoleEgress()])  # starts the egress thread
 env.setup_stats("Shop", "basic", interval=60)  # readings and counts every minute
 ```
 
-`setup_egress` starts the egress thread, which writes every record the processes publish. `setup_ingress` starts the ingress thread for parameter changes from outside, and `setup_stats` switches on the built-in statistics. [Egress](egress.md) lists the arguments of `setup_egress`, including a warm-up and labels sinks.
+`setup_egress` starts the egress thread, which writes every record the processes publish. `setup_ingress` starts the ingress thread for parameter changes from outside, and `setup_stats` switches on the built-in statistics. [Egress](egress.md) lists the arguments of `setup_egress`, including a [warm-up](../des/output-analysis.md#one-run-starts-empty) and labels sinks.
 
 ## Create Resources, Containers and Stores
 
@@ -73,7 +74,7 @@ finished = DynamicStore(env, "Shop", "finished")
 sampler = Sampler(seed=42)  # a random stream per distribution, from one seed
 ```
 
-Each reads its capacity from the registry when it is created, so the parameters must be registered first, and adds itself to the statistics. `Sampler(seed=42)` gives each registered distribution a random stream of its own, so a run repeats exactly, as [Arrivals and Services](arrivals-and-services.md#seeding) describes.
+Each one reads its capacity from the registry when it is created, so the parameters must be registered first. Each one also adds itself to the statistics. `Sampler(seed=42)` gives each registered distribution a random stream of its own, so a run repeats exactly, as [Arrivals and Services](arrivals-and-services.md#seeding) describes.
 
 ## Write the Processes
 
@@ -104,7 +105,7 @@ def order(env, key, task_id):
 
 The service time is drawn once the order has a packer and a box, from the configuration the registry holds at that moment, so a change made while it waited still applies to it.
 
-The arrival loop keeps the configuration object rather than a copy of the rate, so the next draw uses whatever rate the registry holds. It gives each order its key, `orders-1`, `orders-2`:
+The arrival loop keeps the configuration object rather than a copy of the rate. The registry changes that object in place when a new rate arrives, so the next draw uses the current rate. It gives each order its key, `orders-1`, `orders-2`:
 
 ```python title="docs/snippets/pages/low_level.py:arrivals"
 def arrivals(env):
@@ -116,7 +117,7 @@ def arrivals(env):
         task_id += 1
 ```
 
-A reading of your own is a process that publishes at an interval; `publish_telemetry` uses the name exactly as given:
+A reading of your own is a process that publishes at an interval. `publish_telemetry` uses the name exactly as given:
 
 ```python title="docs/snippets/pages/low_level.py:telemetry"
 def telemetry(env):
@@ -159,35 +160,35 @@ finally:
     env.teardown()  # flushes the buffers and stops the threads
 ```
 
-`ConsoleEgress` writes each record as a log line at INFO level, so logging is switched on first. `env.run` is SimPy's, so `until` is a number of simulation seconds; `time_to_seconds` converts a duration such as `"10 min"`. `teardown` in `finally` publishes the last statistics, flushes the last records and stops both threads, even when the run stops with Ctrl+C or an error.
+`ConsoleEgress` writes each record as a log line at INFO level, so logging is switched on first. `env.run` is SimPy's, so `until` is a number of simulation seconds. `time_to_seconds` converts a duration such as `"10 min"`. `teardown` in `finally` publishes the last statistics, flushes the last records and stops both threads, even when the run stops with Ctrl+C or an error.
 
-A script can run the model in segments with `env.run(until=...)` again, as in SimPy, and `env.schedule(event, priority, delay)` is SimPy's own: `simpy.events.URGENT` puts an event before the `NORMAL` ones at its time. [Run Length](time-and-pacing/run-length.md#run-in-segments) covers segments, `strict`, `sync()` and `env.resume_pacing()`.
+A script can run the model in segments by calling `env.run(until=...)` again, as in SimPy. `env.schedule(event, priority, delay)` is SimPy's own: `simpy.events.URGENT` puts an event before the `NORMAL` ones at its time. [Run Length](time-and-pacing/run-length.md#run-in-segments) covers segments, `strict`, `sync()` and `env.resume_pacing()`.
 
-An environment subclass is plain Python: `class Traced(DynamicRealtimeEnvironment)`, whose `__init__` takes `**kwargs` and passes them on, and whose `step` or `schedule` calls `super()`. `step` runs once per event inside `run()`, desflow's own included.
-
----
-
-## What It Does for You
-
-Little: the environment paces the clock, holds the registry, writes records on the egress thread and keeps the statistics that `setup_stats` switches on. Everything else is your code. [Builder API](builder-api.md#what-it-does-for-you) lists what `SimulationContext.run()` writes for you on top of the same steps.
+An environment subclass is plain Python: `class Traced(DynamicRealtimeEnvironment)`, whose `__init__` takes `**kwargs` and passes them on, and whose `step` or `schedule` calls `super()`. Inside `run()`, `step` runs once per event, desflow's own events included.
 
 ---
 
-## Errors and Limits
+## How It Works
+
+The environment does little for you. It paces the clock, holds the registry, writes records on the egress thread and keeps the statistics that `setup_stats` switches on. Everything else is your code. [Builder API](builder-api.md#how-it-works) lists what `SimulationContext.run()` writes for you on top of the same steps.
+
+---
+
+## Stability and Limits
 
 Nothing is checked before the run as a whole. Each call checks only what it reads, when it runs:
 
 - **An unregistered path raises `KeyError`** when a resource, a process or a `registry.get` asks for it, so register the parameters before creating anything that reads them.
 - **A record without egress is dropped.** Until `setup_egress` runs, `publish_event` and `publish_telemetry` do nothing, without an error.
-- **A `Sampler()` with no seed draws nothing at random.** Every sample is the distribution's mean (for a `truncated_normal`, its `mean` or its `low`, whichever is higher), so give it a seed.
-- **A paced run is strict by default.** `DynamicRealtimeEnvironment(strict=True)` raises `RuntimeError` when a paced step is more than `factor` seconds behind the wall clock, as SimPy's does, and never at `factor` 0. A live script with a sink that can block passes `strict=False`.
-- **An unhandled failure stops the run under `stop`.** `DynamicRealtimeEnvironment(on_unhandled_failure=...)` is `stop` by default, as a plain SimPy environment is: a one-shot `Signal` failure that nobody waits for raises `SignalFailed`, so the run stops. Pass `"continue"` to defuse such a failure and let the run go on. A re-arming signal's failure is always defused, and an exception raised in a process stops the run under both. The keyword must be `stop` or `continue`.
+- **A `Sampler()` with no seed draws nothing at random,** as [Arrivals and Services](arrivals-and-services.md#how-it-works) explains, so give it a seed.
+- **A paced run is strict by default.** [Strict Pacing](time-and-pacing/clocks-and-pacing.md#strict-pacing) gives what it does and its default in each API.
+- **An unhandled failure stops the run under `stop`.** `DynamicRealtimeEnvironment(on_unhandled_failure=...)` is `stop` by default, as a plain SimPy environment is. Under `stop`, a one-shot `Signal` failure that nobody waits for raises `SignalFailed`, and the run stops. Pass `"continue"` to defuse such a failure and let the run go on. A re-arming signal's failure is always defused. An exception raised in a process stops the run under both settings. The keyword must be `stop` or `continue`.
 
 Beyond those, a process can do anything SimPy can model.
 
 ---
 
-## Full Script
+## Example
 
 ??? example "Full script"
 
@@ -222,6 +223,7 @@ Beyond those, a process can do anything SimPy can model.
     env.registry.register_sim_parameter(
         SimParameter(
             sim_id="Shop",
+            # An order every 2 s on average (rate 0.5)
             arrival={"orders": DistributionConfig(dist="exponential", rate=0.5)},
             service={"packing": DistributionConfig(dist="normal", mean=1.5, std=0.3)},
             resources={"packers": CapacityConfig(current_cap=1, max_cap=3)},

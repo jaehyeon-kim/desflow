@@ -1,8 +1,8 @@
-# Complex Routing (Kafka)
+# Route Records to Topics
 
-Records often belong in different Kafka topics: task events in one, telemetry in another, and alarms in a topic that someone watches. `KafkaEgress` takes a `topic_router` function that picks the topic for each record, instead of one event topic and one telemetry topic.
+Records often belong in different Kafka topics: task events in one, telemetry in another, and alarms in a topic that someone watches. `KafkaEgress` takes a `topic_router` function that picks the topic for each record, instead of one event topic and one telemetry topic. It builds on [Egress](../user-guide/egress.md#kafka), which explains `KafkaEgress` and its two topics.
 
-With a router, `KafkaEgress` does not create topics at start, because only the router knows which ones it uses, so create them first. The snippets below publish to Kafka, so start a broker first with `odctl up kafka-lite`. See [Installation](../getting-started.md) for the one-time odctl install. Tear it down with `odctl down kafka-lite --volumes`.
+With a router, `KafkaEgress` does not create topics at start, because only the router knows which topics it uses. Create the topics before the run. The snippets below publish to Kafka, so start a broker first with `odctl up kafka-lite`. See [Installation](../getting-started.md) for the one-time odctl install. Tear it down with `odctl down kafka-lite --volumes`.
 
 ---
 
@@ -42,7 +42,7 @@ app = (
     .add_resource("packers", current_cap=1, max_cap=1)
     .add_egress(
         KafkaEgress(
-            bootstrap_servers="localhost:9092",
+            bootstrap_servers="127.0.0.1:9092",
             topic_router=custom_kafka_router,
         )
     )
@@ -83,7 +83,7 @@ if __name__ == "__main__":
         level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
     )
     # With a router, KafkaEgress creates no topics, so create them first
-    admin = KafkaAdminConnector(bootstrap_servers="localhost:9092")
+    admin = KafkaAdminConnector(bootstrap_servers="127.0.0.1:9092")
     admin.create_topics([{"name": topic} for topic in TOPICS])
     app.run(until="1 min")
 ```
@@ -92,16 +92,16 @@ Run it with `python complex_routing.py` while `kafka-lite` is up. The Kafka UI o
 
 ---
 
-## Full Script
+## Example
 
 ??? example "Full script"
 
-    The complete file. It needs the `kafka-lite` profile:
+    The complete file is below. It needs the `kafka-lite` profile:
 
     ```python title="docs/snippets/guides/complex_routing.py"
-    """The Complex Routing guide: a shop whose records go to three Kafka topics.
+    """The Route Records to Topics guide: a shop whose records go to three Kafka topics.
 
-    It needs a Kafka broker on localhost:9092: start one with `odctl up kafka-lite`. Run it
+    It needs a Kafka broker on 127.0.0.1:9092: start one with `odctl up kafka-lite`. Run it
     with `python complex_routing.py`; it runs for one minute.
     """
 
@@ -133,7 +133,7 @@ Run it with `python complex_routing.py` while `kafka-lite` is up. The Kafka UI o
         .add_resource("packers", current_cap=1, max_cap=1)
         .add_egress(
             KafkaEgress(
-                bootstrap_servers="localhost:9092",
+                bootstrap_servers="127.0.0.1:9092",
                 topic_router=custom_kafka_router,
             )
         )
@@ -163,7 +163,7 @@ Run it with `python complex_routing.py` while `kafka-lite` is up. The Kafka UI o
             level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
         )
         # With a router, KafkaEgress creates no topics, so create them first
-        admin = KafkaAdminConnector(bootstrap_servers="localhost:9092")
+        admin = KafkaAdminConnector(bootstrap_servers="127.0.0.1:9092")
         admin.create_topics([{"name": topic} for topic in TOPICS])
         app.run(until="1 min")
     ```

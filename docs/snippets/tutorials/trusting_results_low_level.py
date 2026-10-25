@@ -1,10 +1,11 @@
 """The Trusting Results tutorial: the busy hour, measured after a warm-up, low-level.
 
-Three packers, orders at 1.8 a second and the measured packing times. Every record is
-printed to the terminal. At the end the script prints the mean wait without and with
-the warm-up, then the mean and half-width of two outputs over 5, 10, 20 and 40
-replications: python trusting_results_low_level.py 2>/dev/null shows only those
-lines.
+Three packers pack orders that arrive at 1.8 a second on average, with the packing
+times measured at the bench. Every record is printed to the terminal. At the end the
+script prints the mean wait without and with the warm-up, the mean wait of 5 runs
+after each of three candidate warm-ups, then the mean and half-width of two outputs
+over 5, 10, 20 and 40 replications. To see only those lines, run:
+python trusting_results_low_level.py 2>/dev/null
 """
 
 import logging
@@ -81,10 +82,10 @@ def run(warmup=WARMUP, until=3600, factor=0.0):
     env = DynamicRealtimeEnvironment(factor=factor)
     env.registry.register_sim_parameter(PARAMS)
     # --8<-- [start:plot]
-    # wait_mean every 10 seconds is the mean wait so far: plot it against sim_ts
+    # Every 10 seconds, wait_mean is the mean wait so far: plot it against sim_ts
     env.setup_stats("Shop", "typical", interval=10)
-    # The warm-up is set with the sinks: none receives a record before it, and the
-    # statistics start again when it ends
+    # The warm-up is set with the sinks: no sink receives a record stamped before it
+    # ends, and the statistics start again from zero when it ends
     env.setup_egress([ConsoleEgress()], warmup=warmup)
     # --8<-- [end:plot]
     packers = DynamicResource(env, "Shop", "packers")
@@ -119,8 +120,20 @@ def replications(n=40):
 
 
 # --8<-- [end:replicate]
+# --8<-- [start:warmups]
+def warmups(n=5) -> dict:
+    """The mean wait of n runs after each candidate warm-up, with seeds spawned from 42."""
+    shop = LowLevelModel(model, sim_id="Shop")
+    wait = ["tasks.pack_order.wait_mean"]
+    return {
+        warmup: replicate(shop, n, seed=42, until=3600, warmup=warmup, measures=wait)
+        for warmup in (60, WARMUP, 240)
+    }
+
+
+# --8<-- [end:warmups]
 def precision(result) -> dict:
-    """Each output's mean and half-width over the first 5, 10, 20 and 40 runs."""
+    """Each output's mean and half-width over the first 5, 10, 20 and 40 replications."""
     return {
         (measure, n): interval(result.values[measure][:n])
         for measure in MEASURES
@@ -131,6 +144,11 @@ def precision(result) -> dict:
 if __name__ == "__main__":
     print(f"without a warm-up: mean wait {mean_wait(None):.3f} s")
     print(f"with a 2 min warm-up: mean wait {mean_wait(WARMUP):.3f} s")
+    for warmup, result in warmups().items():
+        row = result.summary[0]
+        print(
+            f"warm-up {warmup:g} s: mean wait {row['mean']:.3f} ± {row['half_width']:.2f} s"
+        )
     for (measure, n), result in precision(replications()).items():
         share = result.half_width / result.mean
         print(

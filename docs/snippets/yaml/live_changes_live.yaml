@@ -31,12 +31,13 @@ ingress:
 
 egress:
   # Flush every 60 simulated seconds: at this pace the default of 1 s flushes on a timer
-  # over and over, and desflow warns about it
+  # over and over, and desflow warns about it. The files go to live/, apart from the
+  # files of live_changes.yaml
   - type: Jsonl
-    config: {default_path: events/orders.jsonl}
+    config: {default_path: live/events/orders.jsonl}
     flush_interval: 60
   - type: Jsonl
-    config: {default_path: labels/labels.jsonl}
+    config: {default_path: live/labels/labels.jsonl}
     when: labels
 
 run:

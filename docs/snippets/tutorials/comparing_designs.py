@@ -1,9 +1,9 @@
 """The Comparing Designs tutorial: a fourth packer, builder.
 
-The busy hour of Trusting Results, run 20 times with three packers and 20 times with
-four, with the same seeds, and compared seed by seed. The experiment writes its artifacts
-and report to results/four-packers, and the script prints the comparison and the
-check.
+Runs the busy hour of Trusting Results 20 times with three packers and 20 times with
+four, with the same seeds, and compares the two designs seed by seed. The experiment
+writes its artifacts and report to results/four-packers, and the script prints the
+comparison and the check.
 """
 
 import logging

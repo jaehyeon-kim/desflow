@@ -1,10 +1,10 @@
 # Fast-Forward to Iceberg
 
-A day of a shop's orders, generated at `factor=0.0` and appended to an Apache Iceberg table through an Iceberg REST catalog. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../user-guide/ways-to-write.md) compares the three.
+This example generates a day of a shop's orders at `factor=0.0` and appends them to an Apache Iceberg table through an Iceberg REST catalog. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../user-guide/ways-to-write.md) compares the three.
 
-`ParquetStorageEgress` writes files and leaves registering them as a table to you. `IcebergStorageEgress` appends into an Iceberg table instead, so one run ends with a table another engine can query.
+`ParquetStorageEgress` writes files and leaves registering them as a table to you. `IcebergStorageEgress` appends into an Iceberg table instead, so one run ends with a table another engine can query. Look for the day's events as rows of `simulation.events`, and for the few snapshots that hold them.
 
-Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, a manifest list and a new `metadata.json`, so query planning slows down as snapshots accumulate. That is why this example gives the provider a large `batch_size` of its own: a day of events lands in four snapshots.
+Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, a manifest list and a new `metadata.json`, so query planning slows down as snapshots build up. This example therefore gives the Iceberg egress a large `batch_size` of its own. At `factor=0.0` the buffer is flushed each time it holds 200,000 records, and once more at the end of the run. Each flush adds one snapshot to the table.
 
 === "YAML"
 
@@ -24,13 +24,16 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
         desflow examples get iceberg --api yaml
         cd iceberg/yaml
 
-        # 3. Start its service
+        # 3. Find the bottleneck, with no run
+        desflow explain iceberg.yaml
+
+        # 4. Start its service
         odctl up catalog
 
-        # 4. Run it
+        # 5. Run it
         desflow run iceberg.yaml
 
-        # 5. Stop its service when finished
+        # 6. Stop its service when finished
         odctl down catalog --volumes
         ```
 
@@ -44,19 +47,22 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
         desflow examples get iceberg --api yaml
         cd iceberg/yaml
 
-        # 3. Start its service
+        # 3. Find the bottleneck, with no run
+        desflow explain iceberg.yaml
+
+        # 4. Start its service
         odctl up catalog
 
-        # 4. Run it
+        # 5. Run it
         desflow run iceberg.yaml
 
-        # 5. Stop its service when finished
+        # 6. Stop its service when finished
         odctl down catalog --volumes
         ```
 
     **What It Does**
 
-    The run appends a day of lifecycle events to the `simulation.events` table and ends on its own. `batch_size: 200000` on the egress makes each flush one commit, so the day lands in a few snapshots. Without a router, each event is written to `default_table` as one flat row, and telemetry is left out.
+    The run appends a day of lifecycle events to the `simulation.events` table and ends on its own. With `batch_size: 200000` on the egress, the buffer is flushed once per 200,000 records, and each flush is one commit. The day therefore lands in a few snapshots. Without a router, each event is written to `default_table` as one flat row, and telemetry is left out.
 
     The catalog is contacted on the first write, not when the blueprint is loaded, so a blueprint with a wrong catalog address still loads and fails when the first batch is written.
 
@@ -64,14 +70,14 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
 
     **Full Source Code**
 
-    `catalog` is a mapping of PyIceberg catalog properties, passed to PyIceberg's `load_catalog`. `schemas` names a type for each column, so `timestamp` is created as a timestamp rather than inferred as a string, and the ISO time each record carries is converted before the write.
+    `catalog` is a mapping of PyIceberg catalog properties, passed to PyIceberg's `load_catalog`. `schemas` names a type for each column, so `timestamp` is created as a timestamp rather than inferred as a string. The ISO time each record carries is converted to a timestamp before the write.
 
     Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
     ```yaml title="examples/yaml/iceberg.yaml"
     # Lakehouse data generation in YAML.
     #
-    # The YAML version of examples/builder/iceberg_example.py. A day of shop
+    # The YAML version of iceberg_example.py, which --api builder downloads. A day of shop
     # orders is generated at factor 0, and each flush of the buffer becomes one Iceberg
     # commit. Without a router, each event is written to default_table as one flat row
     # and telemetry is left out. The catalog is contacted on the first write.
@@ -94,9 +100,9 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
           catalog:
             name: odctl
             type: rest
-            uri: ${ICEBERG_URI:-http://localhost:8181}
+            uri: ${ICEBERG_URI:-http://127.0.0.1:8181}
             warehouse: ${ICEBERG_WAREHOUSE:-s3://warehouse/}
-            s3.endpoint: ${S3_ENDPOINT:-http://localhost:8333}
+            s3.endpoint: ${S3_ENDPOINT:-http://127.0.0.1:8333}
             s3.access-key-id: ${S3_ACCESS_KEY:-user}
             s3.secret-access-key: ${S3_SECRET_KEY:-password}
             s3.region: ${S3_REGION:-us-east-1}
@@ -133,7 +139,7 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
 
 === "Builder"
 
-    This example demonstrates how to run a simulation in **fast-forward mode** using the **builder API (`SimulationContext`)** and commit the output straight into an Apache Iceberg table using the `IcebergStorageEgress` connector.
+    This version builds the simulation with the builder API (`SimulationContext`) and writes with `IcebergStorageEgress`.
 
     **Quick Start**
 
@@ -181,11 +187,11 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
 
     `ICEBERG_URI`, `ICEBERG_WAREHOUSE`, `ICEBERG_NAMESPACE`, `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` and `S3_REGION` override the catalog and credentials.
 
-    Running it twice appends to the same table rather than replacing it, which is what an Iceberg table is for. Use `odctl down catalog --volumes` to start from nothing.
+    A second run appends to the same table rather than replacing it, because `IcebergStorageEgress` appends every record by default. Use `odctl down catalog --volumes` to start again with an empty catalog.
 
     **Full Source Code**
 
-    This script simulates the shop over a 1-day period. It routes lifecycle events into one Iceberg table and pins the schema so the event time is a real timestamp rather than the string inference would give.
+    This script simulates the shop over a 1-day period. It routes lifecycle events into one Iceberg table. It pins the schema, so the event time is stored as a timestamp. Without the schema, the column would be inferred as a string.
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
@@ -193,14 +199,14 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
     """
     Lakehouse Data Generation Example.
 
-    The Iceberg twin of `builder/parquet_example.py`. The same fast-forward engine,
+    The Iceberg version of `builder/parquet_example.py`. The same fast-forward engine,
     but each flush of the buffer becomes one Iceberg commit rather than one Parquet file,
     so the run ends with a table another engine can query instead of a folder someone
     still has to register.
 
-    Every commit writes a manifest, a manifest list and a new `metadata.json`, so the
-    buffer is sized to produce a handful of snapshots rather than hundreds. That is what
-    `batch_size` on `add_egress` is for.
+    Every commit writes a manifest, a manifest list and a new `metadata.json`.
+    `batch_size` on `add_egress` sizes the buffer, so the run produces a handful of
+    snapshots rather than hundreds.
 
     Requires the odctl `catalog` profile: `odctl up catalog`.
     """
@@ -279,9 +285,9 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
         return RestCatalog(
             "odctl",
             **{
-                "uri": os.getenv("ICEBERG_URI", "http://localhost:8181"),
+                "uri": os.getenv("ICEBERG_URI", "http://127.0.0.1:8181"),
                 "warehouse": os.getenv("ICEBERG_WAREHOUSE", "s3://warehouse/"),
-                "s3.endpoint": os.getenv("S3_ENDPOINT", "http://localhost:8333"),
+                "s3.endpoint": os.getenv("S3_ENDPOINT", "http://127.0.0.1:8333"),
                 "s3.access-key-id": os.getenv("S3_ACCESS_KEY", "user"),
                 "s3.secret-access-key": os.getenv("S3_SECRET_KEY", "password"),
                 "s3.region": os.getenv("S3_REGION", "us-east-1"),
@@ -369,7 +375,7 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
 
 === "Low-level"
 
-    This example demonstrates how to run a simulation in **fast-forward mode** using the low-level **Low-level API (`DynamicRealtimeEnvironment`)** and commit the output straight into an Apache Iceberg table using the `IcebergStorageEgress` connector.
+    This version wires the simulation by hand on `DynamicRealtimeEnvironment`, the low-level API, and writes with `IcebergStorageEgress`.
 
     **Quick Start**
 
@@ -417,18 +423,18 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
 
     `ICEBERG_URI`, `ICEBERG_WAREHOUSE`, `ICEBERG_NAMESPACE`, `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` and `S3_REGION` override the catalog and credentials.
 
-    Running it twice appends to the same table rather than replacing it, which is what an Iceberg table is for. Use `odctl down catalog --volumes` to start from nothing.
+    A second run appends to the same table rather than replacing it, because `IcebergStorageEgress` appends every record by default. Use `odctl down catalog --volumes` to start again with an empty catalog.
 
     **Full Source Code**
 
-    This script simulates the shop over a 1-day period. It routes lifecycle events into one Iceberg table and pins the schema so the event time is a real timestamp rather than the string inference would give.
+    This script simulates the shop over a 1-day period. It routes lifecycle events into one Iceberg table. It pins the schema, so the event time is stored as a timestamp. Without the schema, the column would be inferred as a string.
 
     Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples) of the repository, and the label on the block below is this one's path there.
 
     ```python title="examples/low-level/iceberg_example.py"
     """Lakehouse data generation, low-level API.
 
-    The low-level twin of `builder/iceberg_example.py`. It wires
+    The low-level version of `builder/iceberg_example.py`. It wires
     `DynamicRealtimeEnvironment`, the registry and the connectors by hand rather than
     through the builder, which shows what `SimulationContext` does for you.
 
@@ -485,9 +491,9 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
         return RestCatalog(
             "odctl",
             **{
-                "uri": os.getenv("ICEBERG_URI", "http://localhost:8181"),
+                "uri": os.getenv("ICEBERG_URI", "http://127.0.0.1:8181"),
                 "warehouse": os.getenv("ICEBERG_WAREHOUSE", "s3://warehouse/"),
-                "s3.endpoint": os.getenv("S3_ENDPOINT", "http://localhost:8333"),
+                "s3.endpoint": os.getenv("S3_ENDPOINT", "http://127.0.0.1:8333"),
                 "s3.access-key-id": os.getenv("S3_ACCESS_KEY", "user"),
                 "s3.secret-access-key": os.getenv("S3_SECRET_KEY", "password"),
                 "s3.region": os.getenv("S3_REGION", "us-east-1"),
@@ -611,3 +617,17 @@ Each flush of the buffer is one Iceberg commit. Every commit writes a manifest, 
     if __name__ == "__main__":
         run()
     ```
+
+## Records
+
+The three tabs write the same records, which [a test](https://github.com/jaehyeon-kim/desflow/blob/main/tests/docs/test_example_twins.py) checks by running each version unpaced. A real run appends them as rows of the `simulation.events` table. `desflow run iceberg.yaml --sample 4 --stdout` prints the first four events as JSON lines instead, and contacts no catalog:
+
+<!-- records: iceberg-sample -->
+```text
+{"stream_type":"event","sim_ts":0.638,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","status":"queued"}}
+{"stream_type":"event","sim_ts":0.638,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","status":"started"}}
+{"stream_type":"event","sim_ts":0.674,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","status":"queued"}}
+{"stream_type":"event","sim_ts":0.674,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","status":"started"}}
+```
+
+Each event becomes one row of the table, and the two fields of `value`, `path_id` and `status`, become columns of their own.

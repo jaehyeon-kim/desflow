@@ -153,7 +153,7 @@ class IcebergStorageEgress(BaseEgress):
         from pyiceberg.catalog.rest import RestCatalog
 
         catalog = RestCatalog(
-            "odctl", uri="http://localhost:8181", warehouse="s3://warehouse/"
+            "odctl", uri="http://127.0.0.1:8181", warehouse="s3://warehouse/"
         )
 
         def table_router(data: dict) -> str | None:

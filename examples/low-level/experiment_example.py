@@ -1,6 +1,6 @@
 """An experiment, low-level API: does a third packer keep the mean wait under 2 seconds?
 
-The low-level twin of `builder/experiment_example.py`. `model` builds the shop in an
+The low-level version of `builder/experiment_example.py`. `model` builds the shop in an
 environment and with a sampler it is given; `LowLevelModel` names it with its sim
 id. The experiment runs one hour of it 20 times with two packers and 20 times with
 three, with the same seeds, after a 3-minute warm-up. It compares the two designs

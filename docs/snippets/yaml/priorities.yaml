@@ -15,9 +15,10 @@ services:
   packing: {dist: constant, value: 1.5 s}
 
 arrivals:
-  # 0.6 orders a second in all, one in four of them express
-  orders: {dist: exponential, rate: 0.45, spawn: pack_order}
-  express: {dist: exponential, rate: 0.15, spawn: pack_express}
+  # An order every 1.67 s on average in all (0.6 a second), one in four express;
+  # ORDERS_RATE and EXPRESS_RATE set other rates
+  orders: {dist: exponential, rate: "${ORDERS_RATE:-0.45}", spawn: pack_order}
+  express: {dist: exponential, rate: "${EXPRESS_RATE:-0.15}", spawn: pack_express}
 
 # --8<-- [start:priority]
 tasks:

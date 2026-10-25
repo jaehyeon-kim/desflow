@@ -36,7 +36,7 @@ logging.basicConfig(
 
 
 # Initialize Admin Connector Globally (Safe to share across clients)
-admin = KafkaAdminConnector(bootstrap_servers="localhost:9092", max_tasks=200)
+admin = KafkaAdminConnector(bootstrap_servers="127.0.0.1:9092", max_tasks=200)
 
 app.on_startup(
     lambda: asyncio.create_task(

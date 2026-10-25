@@ -1,10 +1,45 @@
-# Dynamic Topology: Resources Changed Mid-run
+# Add Resources Mid-run
 
 Sometimes the layout itself changes during a run: a dock opens a new bay, or a shop adds a gift wrapping station. Here a supervisor process adds gift wrappers at 12 seconds, and from then on new jobs go to the wrappers as well as the packers.
 
 ![A supervisor process registers the new wrappers paths in the registry, creates a DynamicResource for them, and new workers request the wrappers](../assets/diagrams/topology-change.png)
 
-The builder (`SimulationContext`) creates every resource before the clock starts and has no call to add one later. A resource added during the run is written with the [low-level API](../user-guide/low-level-api.md): register its parameters, then create the `DynamicResource` that reads them.
+The builder (`SimulationContext`) creates every resource before the clock starts and has no call to add one later, so a resource added during the run is written with the low-level API. It builds on [Low-level API](../user-guide/low-level-api.md), which explains how to register parameters and create resources, and on [Live Parameters](../user-guide/live-parameters.md), which explains the registry paths a resource reads.
+
+---
+
+## Steps
+
+1. Keep the resources that exist in a mapping, so the process that starts new work also finds a resource added later.
+2. When the layout changes, register a `SimParameter` that holds only the new resource. The registry adds its paths, here `Shop.resources.wrappers.current_cap` and `Shop.resources.wrappers.max_cap`.
+3. Create the `DynamicResource` for it, which reads its capacity from those paths, and add it to the mapping.
+4. Start work on it as on any other resource.
+
+This is the part of the supervisor process that adds the gift wrappers:
+
+```python title="docs/snippets/guides/dynamic_topology.py:add"
+# Give the gift wrappers their registry paths, then create the resource
+# that reads its capacity from them.
+env.registry.register_sim_parameter(
+    SimParameter(
+        sim_id="Shop",
+        resources={"wrappers": CapacityConfig(current_cap=2, max_cap=5)},
+    )
+)
+resources["wrappers"] = DynamicResource(env, "Shop", "wrappers")
+```
+
+---
+
+## How It Works
+
+- **`PARAMS`** registers only the packers when the run starts.
+- **`supervisor`** wakes every `NEW_JOBS_EVERY` seconds. At `ADD_WRAPPERS_AT` it adds the wrappers as the steps above do, and publishes `wrappers_added`.
+- **New jobs** are started for every resource in `resources`, so the wrappers get jobs from the round in which they are added.
+- **`worker`** is one job: it publishes `queued`, `started` and `finished` with the resource it used.
+- **`run`** creates the environment, starts the supervisor and calls `env.teardown()` at the end, which writes the records still in the buffers.
+
+The wrappers' capacity is live like any other. A scenario, a connector or a process can change `Shop.resources.wrappers.current_cap` once the path exists, as [Live Parameters](../user-guide/live-parameters.md) describes.
 
 ---
 
@@ -92,15 +127,3 @@ if __name__ == "__main__":
 ```
 
 Save it as `dynamic_topology.py` and run `python dynamic_topology.py`. It runs for 20 seconds in real time (`factor=1.0`) and prints each event.
-
----
-
-## How It Works
-
-- **`PARAMS`** registers only the packers when the run starts.
-- **`supervisor`** wakes every `NEW_JOBS_EVERY` seconds. At `ADD_WRAPPERS_AT` it calls `env.registry.register_sim_parameter` with a `SimParameter` that holds only the wrappers, which adds the paths `Shop.resources.wrappers.current_cap` and `Shop.resources.wrappers.max_cap`. It then creates `DynamicResource(env, "Shop", "wrappers")`, which reads its capacity from those paths, and publishes `wrappers_added`.
-- **New jobs** are started for every resource in `resources`, so the wrappers get jobs from the round in which they are added.
-- **`worker`** is one job: it publishes `queued`, `started` and `finished` with the resource it used.
-- **`run`** creates the environment, starts the supervisor and calls `env.teardown()` at the end, which writes the records still in the buffers.
-
-The wrappers' capacity is live like any other. A scenario, a connector or a process can change `Shop.resources.wrappers.current_cap` once the path exists, as [Live Parameters](../user-guide/live-parameters.md) describes.

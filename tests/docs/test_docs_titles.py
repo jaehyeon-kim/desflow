@@ -1,7 +1,8 @@
 """Sidebar titles stay short, headings carry no step numbers, and figures are images.
 
 A sidebar title names the subject in 24 characters or fewer; the page's own title can
-be longer and name the classes. Headings are names, and the order of the sections
+be longer and name the classes, except on a How-To page, whose title is its sidebar
+title. Headings are names, and the order of the sections
 shows the steps, so a heading never starts with a number. A figure is a draw.io
 diagram, never box characters in a text block. Every tutorial and How-To page opens
 with its level, so a reader knows which pages can wait.
@@ -60,6 +61,28 @@ def test_sidebar_titles_are_short(mkdocs_nav):
         f"Sidebar titles over {MAX_TITLE} characters. Shorten the nav title and keep "
         "the full name in the page's own title."
     )
+
+
+def _nav_pages(items):
+    for item in items:
+        if isinstance(item, dict):
+            title, value = next(iter(item.items()))
+            if isinstance(value, list):
+                yield from _nav_pages(value)
+            else:
+                yield title, value
+
+
+def test_how_to_titles_match_the_sidebar(mkdocs_nav):
+    """A How-To page names one task, so its own title is its sidebar title."""
+    differ = [
+        f"{page}: {title!r}"
+        for title, page in _nav_pages(mkdocs_nav)
+        if page.startswith("guides/")
+        and (ROOT / "docs" / page).read_text(encoding="utf-8").split("\n")[0]
+        != f"# {title}"
+    ]
+    assert differ == [], "Give these pages their sidebar title: " + "; ".join(differ)
 
 
 def test_headings_do_not_start_with_a_number():

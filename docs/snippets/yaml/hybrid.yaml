@@ -17,6 +17,7 @@ services:
   packing: {dist: normal, mean: 4.0, std: 1.0}
 
 arrivals:
+  # An order every 5 s on average (rate 0.2)
   orders: {dist: exponential, rate: 0.2, spawn: pack_order}
 
 tasks:

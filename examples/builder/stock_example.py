@@ -3,9 +3,9 @@
 Packing an order takes one box from the `stock` container and puts the packed parcel
 in the `parcels` store, where a courier collects it; two parcels packed yesterday are
 already there. Express orders have priority 1 and standard orders 2: the packers,
-whose queue order is `priority`, serve the lowest priority first, and a courier takes
-the lowest priority parcel from the priority store first. The stock runs out, so
-packing waits until a restock at 40 seconds sets the level to 30.
+whose queue order is `priority`, serve the lowest priority value first, and a courier
+takes the parcel with the lowest priority value from the priority store first. The
+stock runs out, so packing waits until a restock at 40 seconds sets the level to 30.
 
 Needs no containers. Runs unpaced and ends after 60 simulation seconds.
 """
@@ -32,7 +32,7 @@ app = (
     # Waiting orders are served by priority, the oldest first among equal priorities
     .add_resource("packers", current_cap=2, max_cap=4, queue="priority")
     # Packed parcels wait here for a courier; packing waits when it is full. A
-    # courier takes the lowest priority first, the oldest first among equals.
+    # courier takes the lowest priority value first, the oldest first among equals.
     .add_store("parcels", current_cap=10, max_cap=10, priority=True, items=YESTERDAY)
     # current_cap is the most it holds; level is what it holds now
     .add_container("stock", current_cap=50, max_cap=50, level=15)

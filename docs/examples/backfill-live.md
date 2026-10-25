@@ -1,6 +1,6 @@
 # Parquet History, Kafka Live
 
-One run writes ten minutes of backdated history to Parquet, then publishes to Kafka in real time. Each tab shows the example written one way, and the three publish the same records. The sections after the tabs explain why one run is better than two, how the settings fit together and what to get right.
+One run writes ten minutes of backdated history to Parquet. It then publishes to Kafka in real time, and this second part is the live tail. Look for the history's Parquet files in `data/backfill/`, then for the `Logical clock reached go-live` line in the log, after which records reach Kafka at the pace of the wall clock. Each tab shows the example written one way. The sections after the tabs show the records, and explain why one run is better than two, how the settings fit together and what to get right.
 
 === "YAML"
 
@@ -20,13 +20,16 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
         desflow examples get backfill-live --api yaml
         cd backfill-live/yaml
 
-        # 3. Start its service
+        # 3. Find the bottleneck, with no run
+        desflow explain backfill_live.yaml
+
+        # 4. Start its service
         odctl up kafka-lite
 
-        # 4. Run it
+        # 5. Run it
         desflow run backfill_live.yaml
 
-        # 5. Stop its service when finished
+        # 6. Stop its service when finished
         odctl down kafka-lite --volumes
         ```
 
@@ -40,13 +43,16 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
         desflow examples get backfill-live --api yaml
         cd backfill-live/yaml
 
-        # 3. Start its service
+        # 3. Find the bottleneck, with no run
+        desflow explain backfill_live.yaml
+
+        # 4. Start its service
         odctl up kafka-lite
 
-        # 4. Run it
+        # 5. Run it
         desflow run backfill_live.yaml
 
-        # 5. Stop its service when finished
+        # 6. Stop its service when finished
         odctl down kafka-lite --volumes
         ```
 
@@ -54,16 +60,16 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
 
     Ten minutes of history are written to `data/backfill/` within the first second, then the run publishes to `sim-events` and `sim-telemetry` in real time for 60 seconds and ends. The history folder is created on the first write, and `KafkaEgress` creates the two topics when it starts.
 
-    **Full Source Code**
+    `logical_start_time: -10m` and `go_live_at: now` are both read against one moment, the time the file is loaded, so they are exactly ten minutes apart. `until: 11m` then adds one minute of live tail. `when: history` sends the records stamped before `go_live_at` to Parquet, and `when: live` sends the rest to Kafka.
 
-    `logical_start_time: -10m` and `go_live_at: now` are read against one moment, when the file is loaded, so they are exactly ten minutes apart, and `until: 11m` adds one minute of live tail. `when: history` sends the records stamped before `go_live_at` to Parquet, and `when: live` sends the rest to Kafka.
+    **Full Source Code**
 
     Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
     ```yaml title="examples/yaml/backfill_live.yaml"
     # Backfill then go live in one run, in YAML.
     #
-    # The YAML version of examples/builder/backfill_live_example.py. Until
+    # The YAML version of backfill_live_example.py, which --api builder downloads. Until
     # go_live_at the clock is detached from the wall clock, so ten minutes of backdated
     # shop orders are written to Parquet as fast as the machine allows. From go_live_at
     # the run is paced at one simulated second per real second, and the same events go
@@ -91,12 +97,12 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
         config:
           event_topic: sim-events
           telemetry_topic: sim-telemetry
-          bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-localhost:9092}
+          bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-127.0.0.1:9092}
         # Records stamped at or after go_live_at.
         when: live
 
-    # Only batch_size governs the history. The interval flush starts at go-live, so the
-    # live tail also flushes every 10 seconds.
+    # Only batch_size decides when the history is flushed. The interval flush starts at
+    # go-live, so the live tail also flushes every 10 seconds.
     batching:
       batch_size: 2000
       flush_interval: 10.0
@@ -108,6 +114,7 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
       packing: {dist: normal, mean: 2.0, std: 0.2}
 
     arrivals:
+      # An order every 2 s on average (rate 0.5)
       orders: {dist: exponential, rate: 0.5, spawn: pack_order}
 
     tasks:
@@ -126,7 +133,7 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
 
 === "Builder"
 
-    [`examples/builder/backfill_live_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/builder/backfill_live_example.py) backdates the clock by ten minutes, writes those ten minutes to Parquet in well under a second, then publishes to Kafka in real time for sixty seconds. `HISTORY_MINUTES` and `LIVE_SECONDS` set the two halves; a day of history (about 130,000 records) still generates in about two seconds.
+    [`examples/builder/backfill_live_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/builder/backfill_live_example.py) backdates the clock by ten minutes, writes those ten minutes to Parquet in well under a second, then publishes to Kafka in real time for sixty seconds. `HISTORY_MINUTES` and `LIVE_SECONDS` set the length of the two halves. A day of history (`HISTORY_MINUTES=1440`) is about 128,000 events.
 
     **Quick Start**
 
@@ -210,7 +217,7 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
 
     logger = logging.getLogger(__name__)
 
-    BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+    BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "127.0.0.1:9092")
     EVENT_TOPIC = "sim-events"
     TELEMETRY_TOPIC = "sim-telemetry"
 
@@ -277,12 +284,14 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
             ),
             when=is_live,
         )
-        # Only batch_size governs the history. The interval flush is a simulation process,
-        # started only when factor is non-zero as the egress is set up, and this run starts
-        # at 0.0. It starts at go-live, so the live tail also flushes every 10 seconds.
+        # Only batch_size decides when the history is flushed. The interval flush is a
+        # simulation process, started only when factor is non-zero as the egress is set up,
+        # and this run starts at 0.0. The interval flush starts at go-live, so the live
+        # tail also flushes every 10 seconds.
         .with_batching(batch_size=2000, flush_interval=10.0)
         .add_resource("packers", current_cap=4, max_cap=10)
         .add_service("packing", dist="normal", mean=2.0, std=0.2)
+        # An order every 2 s on average (rate 0.5)
         .add_arrival("orders", dist="exponential", rate=0.5)
         # The packers' readings every 30 simulation seconds
         .with_stats("minimal", interval=30.0)
@@ -399,7 +408,7 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
     """
     Backfill-then-live Example, low-level API.
 
-    The low-level twin of `builder/backfill_live_example.py`. One run produces both
+    The low-level version of `builder/backfill_live_example.py`. One run produces both
     halves of a tiered dataset. Until `go_live_at` the clock is detached from the wall
     clock, so ten minutes of backdated shop orders are written to Parquet as fast as the
     machine allows. From `go_live_at` the same run is paced at one simulated second per
@@ -432,7 +441,7 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
     )
     logger = logging.getLogger(__name__)
 
-    BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+    BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "127.0.0.1:9092")
     EVENT_TOPIC = "sim-events"
     TELEMETRY_TOPIC = "sim-telemetry"
 
@@ -448,6 +457,7 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
 
     PARAMS = SimParameter(
         sim_id="Shop",
+        # An order every 2 s on average (rate 0.5)
         arrival={"orders": DistributionConfig(dist="exponential", rate=0.5)},
         service={"packing": DistributionConfig(dist="normal", mean=2.0, std=0.2)},
         resources={"packers": CapacityConfig(current_cap=4, max_cap=10)},
@@ -530,7 +540,7 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
             factor=0.0,  # unpaced, so the history costs no real time
             logical_start_time=LOGICAL_START_TIME,
             go_live_at=GO_LIVE_AT,  # from here, one simulated second per real second
-            strict=False,  # a live run with a sink that blocks goes on
+            strict=False,  # a live run goes on when a slow sink makes it fall behind
         )
         env.registry.register_sim_parameter(PARAMS)
         env.setup_egress(
@@ -572,19 +582,35 @@ One run writes ten minutes of backdated history to Parquet, then publishes to Ka
 
 ---
 
+## Records
+
+The three tabs publish the same records, which [a test](https://github.com/jaehyeon-kim/desflow/blob/main/tests/docs/test_example_twins.py) checks by running each version unpaced. A real run writes the records stamped before `go_live_at` to Parquet files under `data/backfill/`, and the rest to `sim-events` and `sim-telemetry`. `desflow run backfill_live.yaml --sample 4 --stdout` prints the first four events as JSON lines instead, unpaced and with no broker:
+
+<!-- records: backfill-live-sample -->
+```text
+{"stream_type":"event","sim_ts":2.552,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","status":"queued"}}
+{"stream_type":"event","sim_ts":2.552,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","status":"started"}}
+{"stream_type":"event","sim_ts":2.696,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","status":"queued"}}
+{"stream_type":"event","sim_ts":2.696,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","status":"started"}}
+```
+
+Each `timestamp` is shown as `...`, because it changes with every run. It is the start of the history plus `sim_ts`, so these records are stamped before `go_live_at` and belong to the history.
+
+---
+
 ## Why One Run Rather Than Two
 
 A tiered demo usually needs two datasets: a backdated history sitting in a lake, and a live stream arriving now. They have to be the same shop, with the same packers, the same distributions and the same task ids, or the join between them is meaningless.
 
-Producing them takes two settings that contradict each other. History wants `factor=0.0`, so a week of events is generated as fast as the machine allows. A live tail wants `factor=1.0`, so events arrive one simulated second per real second.
+Producing them needs two values of `factor` that conflict. History needs `factor=0.0`, so that a week of events is generated as fast as the machine allows. A live tail needs `factor=1.0`, so that events arrive at one simulated second per real second.
 
 Without `go_live_at`, the only way to get both is to start two processes with the same `random_seed` and the same `logical_start_time`, one fast-forwarding into Parquet and one pacing into Kafka. That costs:
 
 * A second full execution of the same simulation, so the history is generated twice.
-* Seed and start instant duplicated in two places, which have to be edited together. Change one and the two halves silently stop being the same shop.
-* No guarantee about the seam. Each process decides on its own where its half ends, so the join can overlap or leave a gap.
+* The seed and the start instant are written in two places, which have to be edited together. If one changes and the other does not, the two halves stop being the same shop, with no error.
+* Nothing makes the two halves meet. Each process decides on its own where its half ends, so the two halves can overlap or leave a gap.
 
-`go_live_at` replaces both processes with one. The run generates history unpaced up to that logical instant, then switches to real-time pacing and keeps going. There is one seed, one start instant and one seam.
+`go_live_at` replaces both processes with one. The run generates history unpaced up to that logical instant, then switches to real-time pacing and keeps going. There is one seed, one start instant and one instant where history ends and the live tail begins.
 
 ---
 
@@ -598,51 +624,17 @@ Three separate settings make up the feature, and each answers a different questi
 | `go_live_at` | At which logical instant does pacing stop being `factor` and become real time? |
 | `when` on `add_egress` | Which sink receives each record? |
 
-They are independent. `go_live_at` changes pacing only; it never routes a record. `when` routes records only; it never changes pacing. Using them together is what produces a tiered dataset, and the two instants have to agree: pass the same instant to `go_live_at` and to the predicates, or the seam in the data will not match the seam in the pacing.
+They are independent. `go_live_at` changes pacing only. It never routes a record. `when` routes records only. It never changes pacing. Used together, they produce a tiered dataset. The two instants have to agree: pass the same instant to `go_live_at` and to the predicates. Otherwise the records switch sinks at a different instant from the one where the pacing switches.
 
 ![From logical_start_time to go_live_at the run writes the backdated history to Parquet without waiting; from go_live_at to the end it streams records to Kafka in real time](../assets/diagrams/backfill-timeline.png)
 
-In the Builder version, the three settings make the run:
-
-```python title="examples/builder/backfill_live_example.py:builder"
-app = (
-    SimulationContext(
-        sim_id="Shop",
-        # Unpaced to begin with, so the history costs no real time.
-        factor=0.0,
-        random_seed=42,
-        logical_start_time=LOGICAL_START_TIME,
-        # From here the same run is paced at one simulated second per real second.
-        go_live_at=GO_LIVE_AT,
-    )
-    .add_egress(ParquetStorageEgress(path_router=history_router), when=is_history)
-    .add_egress(
-        KafkaEgress(
-            event_topic=EVENT_TOPIC,
-            telemetry_topic=TELEMETRY_TOPIC,
-            bootstrap_servers=BOOTSTRAP_SERVERS,
-        ),
-        when=is_live,
-    )
-    # Only batch_size governs the history. The interval flush is a simulation process,
-    # started only when factor is non-zero as the egress is set up, and this run starts
-    # at 0.0. It starts at go-live, so the live tail also flushes every 10 seconds.
-    .with_batching(batch_size=2000, flush_interval=10.0)
-    .add_resource("packers", current_cap=4, max_cap=10)
-    .add_service("packing", dist="normal", mean=2.0, std=0.2)
-    .add_arrival("orders", dist="exponential", rate=0.5)
-    # The packers' readings every 30 simulation seconds
-    .with_stats("minimal", interval=30.0)
-)
-```
-
-[Time and Pacing](../user-guide/time-and-pacing/index.md#how-it-works) describes how the switch is applied, and the cases where `go_live_at` is before the start or after the end of the run.
+The Builder tab above sets all three in the `SimulationContext` and its two `add_egress` calls. [Time and Pacing](../user-guide/time-and-pacing/index.md#how-it-works) describes how the switch is applied, and the cases where `go_live_at` is before the start or after the end of the run.
 
 ---
 
 ## Two Details to Get Right
 
-**Predicates compare times read from the timestamp.** A record carries its logical time as an ISO string with its zone offset, such as `+00:00`, so `record["timestamp"] >= GO_LIVE_AT` raises a `TypeError`. Read it with `datetime.fromisoformat` and compare instants, which holds whatever zone each side is written in. Cut the go-live instant to milliseconds, as timestamps are, so a record stamped in the go-live millisecond counts as live. Take the instant with `datetime.now(timezone.utc)`: a datetime without an offset is read in the run's `timezone`, else in the zone of `logical_start_time`, else in UTC, not in the machine's local time.
+**Predicates compare times read from the timestamp.** A record carries its logical time as an ISO string with its zone offset, such as `+00:00`. `GO_LIVE_AT` is a datetime, and Python cannot compare a string with a datetime, so `record["timestamp"] >= GO_LIVE_AT` raises a `TypeError`. Read the string with `datetime.fromisoformat` and compare the two instants. The comparison is correct whatever zone each side is written in. Cut the go-live instant to milliseconds, as timestamps are, so a record stamped in the go-live millisecond counts as live. Take the instant with `datetime.now(timezone.utc)`: a datetime without an offset is read in the run's `timezone`, else in the zone of `logical_start_time`, else in UTC, not in the machine's local time.
 
 ```python title="examples/builder/backfill_live_example.py:clock"
 GO_LIVE_AT = datetime.now(timezone.utc)
@@ -655,7 +647,7 @@ LOGICAL_START_TIME = GO_LIVE_AT - HISTORY
 # predicates that split the two sinks read it as a time and compare instants.
 ```
 
-**`flush_interval` has no effect before `go_live_at`, so `batch_size` decides the history.** The interval flush is a simulation process, and it is only started if `factor` is non-zero when the egress is set up. This run starts at `factor=0.0`, so until go-live records leave the buffer only when it fills to `batch_size`. That sets the number of Parquet part files. From go-live the interval flush starts, so the live tail also flushes every `flush_interval`, and that decides how often Kafka sees anything. Give each sink its own `batch_size` and `flush_interval` to separate those two jobs:
+**Before `go_live_at`, only `batch_size` decides when the history is flushed.** `flush_interval` has no effect yet. The interval flush is a simulation process. It starts only if `factor` is non-zero when the egress is set up. This run starts at `factor=0.0`, so before go-live, records leave the buffer only when it fills to `batch_size`. `batch_size` therefore sets the number of Parquet files. The interval flush starts at go-live, so the live tail also flushes every `flush_interval`. `flush_interval` therefore decides how often Kafka receives records. Give each sink its own `batch_size` and `flush_interval` to separate those two jobs:
 
 ```python title="docs/snippets/pages/backfill_live.py:per-sink"
 app.add_egress(parquet, when=is_history, batch_size=200_000)
@@ -666,23 +658,10 @@ app.add_egress(kafka, when=is_live, batch_size=500, flush_interval=1.0)
 
 ## What the Run Logs
 
-The two halves look different enough that the second can be mistaken for a hang. History finishes within the same second the run starts, then nothing is logged at all until teardown, because from `go_live_at` the run waits on the wall clock exactly as a live twin does. `Logical clock reached go-live` is the line that confirms the switch.
+During the live tail the run can look as if it has stopped responding. History finishes within the first second of the run. After the `Logical clock reached go-live` line, the run logs at most one more line, the Kafka producer's connection line, until it shuts down. From `go_live_at` the run waits on the wall clock, as any live run does. That line confirms the switch.
 
 ---
 
 ## Low-level API
 
-`go_live_at` behaves identically on `DynamicRealtimeEnvironment`, alongside `logical_start_time`:
-
-```python title="docs/snippets/pages/backfill_live.py:low-level"
-go_live_at = datetime.now(timezone.utc)
-
-env = DynamicRealtimeEnvironment(
-    factor=0.0,
-    logical_start_time=go_live_at - timedelta(days=7),
-    go_live_at=go_live_at,
-    strict=False,  # a live run with a sink that blocks goes on
-)
-```
-
-`env.factor` reports `0.0` until the logical clock reaches `go_live_at`, and `1.0` afterwards.
+`go_live_at` works the same way on `DynamicRealtimeEnvironment`, where it is passed beside `logical_start_time`, as the Low-level tab above shows. `env.factor` reports `0.0` until the logical clock reaches `go_live_at`, and `1.0` afterwards.

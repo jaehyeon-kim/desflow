@@ -6,12 +6,14 @@ low-level part takes from and adds to a container and a store and checks the lev
 
 from desflow import (
     CapacityConfig,
+    ContainerBase,
     ContainerConfig,
     DynamicContainer,
     DynamicRealtimeEnvironment,
     DynamicStore,
     SimParameter,
     SimulationContext,
+    Transfer,
 )
 
 app = (
@@ -69,6 +71,35 @@ def stock_count(context: SimulationContext):
 
 app.add_process(stock_count)
 # --8<-- [end:builder-level]
+
+
+# --8<-- [start:builder-types]
+class CountedBin(ContainerBase):
+    """A container that counts the puts it grants."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.restocks = 0
+
+    def _do_put(self, event):
+        granted = super()._do_put(event)
+        if event.triggered:
+            self.restocks += 1
+        return granted
+
+
+app.add_container("labels", current_cap=10, level=10, type=CountedBin)
+
+# A task's get or put can also be a Transfer, built once and given to several tasks
+one_label = Transfer(container="labels", amount=1)
+
+
+@app.task(get=one_label)
+def print_label(task_id: int):
+    return {"event_type": "label_printed"}
+
+
+# --8<-- [end:builder-types]
 
 
 # --8<-- [start:low-level-container]

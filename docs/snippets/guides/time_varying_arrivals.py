@@ -1,4 +1,4 @@
-"""The Time-varying Arrivals guide: what a scenario step does at its boundary.
+"""The Vary Arrivals by Time guide: what a scenario step does at its boundary.
 
 python time_varying_arrivals.py prints the arrival times around a step, and the
 gap in force after a run whose until is the step's time.

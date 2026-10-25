@@ -16,7 +16,7 @@ from desflow import (
     SimulationContext,
     run_experiment,
 )
-from desflow.blueprint.cli import app as cli
+from desflow.cli import app as cli
 from desflow.blueprint.loader import BlueprintError
 from desflow.analysis import results as found
 from desflow.analysis.models import RunResult

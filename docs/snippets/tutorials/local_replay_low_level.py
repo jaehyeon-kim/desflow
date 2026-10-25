@@ -1,10 +1,11 @@
 """The Local Replay tutorial: a recorded morning of orders, against a model of it.
 
-One packer and 1.5 seconds of packing. The orders of 09:00 to 10:00 on 1 October
-2026 arrive at their recorded times from local_replay_orders.csv; a second run
-draws exponential gaps at the same mean rate, 0.545 orders a second. Every record
-is printed to the terminal, and the script prints the waits of both runs:
-python local_replay_low_level.py 2>/dev/null shows only those lines.
+One packer and 1.5 seconds of packing. The orders of 09:00 to 10:00 on 1 October 2026
+arrive at their recorded times from local_replay_orders.csv. A second run draws
+exponential gaps at the same mean rate: an order every 1.83 seconds on average (rate
+0.545). Every record is printed to the terminal, and the script prints the waits of both
+runs. To see only those lines, run:
+python local_replay_low_level.py 2>/dev/null
 """
 
 import itertools

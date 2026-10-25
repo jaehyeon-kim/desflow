@@ -1,0 +1,95 @@
+# The Wait for One or All guide: every kind of wait group, on one order's way.
+# Run it with: desflow run wait_groups.yaml
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+resources:
+  packers: {current_cap: 1, max_cap: 1}
+  vans: {current_cap: 1, max_cap: 1}
+
+containers:
+  boxes: {current_cap: 50, max_cap: 50, level: 6}
+
+stores:
+  shelf: {current_cap: 100, max_cap: 100}
+
+services:
+  packing: {dist: constant, value: 3 s}
+  driving: {dist: constant, value: 20 s}
+
+arrivals:
+  orders: {dist: constant, value: 10 s, spawn: print}
+
+tasks:
+  print:
+    # --8<-- [start:all]
+    # Go on once both the label and the invoice are printed
+    wait:
+      all:
+        label: {timeout: 2 s}
+        invoice: {timeout: 4 s}
+    # --8<-- [end:all]
+    payload: {event_type: printed}
+    next: approve
+  approve:
+    # --8<-- [start:at-least]
+    # Go on once two of the three checks have answered
+    wait:
+      at_least: 2
+      of:
+        stock: {timeout: 1 s}
+        payment: {timeout: 3 s}
+        address: {timeout: 6 s}
+    # --8<-- [end:at-least]
+    payload: {event_type: approved}
+    next: reserve
+  reserve:
+    # --8<-- [start:get]
+    # Two boxes, or go on without them after 5 seconds with the value "no boxes"
+    wait:
+      any:
+        boxes: {get: {container: boxes, amount: 2}}
+        limit: {timeout: {after: 5 s, value: no boxes}}
+    # --8<-- [end:get]
+    payload: {event_type: reserved}
+    next: pack
+  pack:
+    # --8<-- [start:request]
+    # A packer, or give up after 30 seconds; a packer won is held through packing
+    wait:
+      any:
+        unit: {request: packers}
+        limit: {timeout: 30 s}
+    # --8<-- [end:request]
+    service: packing
+    payload: {event_type: packed}
+    spawn: {task: deliver}
+    next: close
+  deliver:
+    service: driving
+    resource: vans
+    payload: {event_type: delivered}
+  close:
+    # --8<-- [start:running]
+    # Wait for the delivery this order started, unless it has left with the van
+    wait:
+      running:
+        task: deliver
+        where: process.target != 'service'
+    # --8<-- [end:running]
+    payload: {event_type: closed}
+    next: file
+  file:
+    # --8<-- [start:put]
+    # Put the closed order's payload on the shelf, waiting while the shelf is full
+    wait: {put: {store: shelf}}
+    # --8<-- [end:put]
+    payload: {event_type: filed}
+
+egress:
+  - type: Console
+
+run:
+  until: 1 min

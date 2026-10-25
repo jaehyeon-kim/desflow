@@ -1,10 +1,11 @@
 """
 Historical Data Generation Example.
 
-Demonstrates using SimulationContext as a fast-forward data engine.
-By setting `factor=0.0`, the SimPy clock detaches from wall-clock time,
-executing the same shop logic instantly to generate a week of
-historical orders for machine learning models, written to Parquet on disk or S3.
+Uses SimulationContext to generate data faster than real time. With
+`factor=0.0` the SimPy clock is detached from the wall clock, so the shop model
+generates a week of historical orders as fast as the machine allows, for example
+as training data for machine learning models. The orders are written to Parquet
+on disk or S3.
 """
 
 import logging
@@ -74,7 +75,7 @@ router = create_history_router(base_path)
 
 # The week of backdating this example exists to demonstrate. It sits at module scope
 # because the builder below needs it, and the builder has to stay at module scope for
-# the decorators further down to attach to it. The low-level twin computes the same
+# the decorators further down to attach to it. The low-level version computes the same
 # value inside run(), where it has no such constraint.
 LOGICAL_START_TIME = datetime.now(timezone.utc) - timedelta(days=7)
 
@@ -86,8 +87,8 @@ app = (
         sim_id="Shop",
         factor=0.0,
         random_seed=42,
-        # Without this the example logs that it is backdating a week and then timestamps
-        # every record from the current clock, which is the opposite of what it claims.
+        # Without this, the example would log that it backdates a week but stamp every
+        # record from the current clock.
         logical_start_time=LOGICAL_START_TIME,
     )
     .add_egress(ParquetStorageEgress(path_router=router, filesystem=filesystem))

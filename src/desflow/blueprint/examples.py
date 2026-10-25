@@ -5,6 +5,7 @@ of the installed release, such as `v0.17.0`, so an example always matches the co
 runs on. A development install has no tag and downloads from `main`.
 """
 
+import shlex
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -12,6 +13,8 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 RAW_URL = "https://raw.githubusercontent.com/jaehyeon-kim/desflow/{ref}/examples/{path}"
+# A file every tag has, read to tell a tag that is not published from a missing file
+TAG_URL = "https://raw.githubusercontent.com/jaehyeon-kim/desflow/{ref}/pyproject.toml"
 APIS = ("yaml", "builder", "low-level")
 _FOLDERS = {"yaml": "yaml", "builder": "builder", "low-level": "low-level"}
 
@@ -33,6 +36,8 @@ class Example:
     watch_needs: str = ""  # the package that script needs beyond desflow
     # The YAML version's command when it is not `desflow run <file>`
     yaml_command: Optional[str] = None
+    # The blueprint `desflow explain` reads before the run, where it names a bottleneck
+    explain: Optional[str] = None
 
 
 def _three(yaml: str, python: str, *yaml_helpers: str) -> Dict[str, List[str]]:
@@ -73,6 +78,7 @@ EXAMPLES: Dict[str, Example] = {
             "Fast-Forward to Parquet",
             "a week generated unpaced, written to Parquet",
             _three("parquet.yaml", "parquet_example.py"),
+            explain="parquet.yaml",
             extras="parquet",
         ),
         Example(
@@ -80,6 +86,7 @@ EXAMPLES: Dict[str, Example] = {
             "Fast-Forward to Iceberg",
             "a day generated unpaced, appended to an Iceberg table",
             _three("iceberg.yaml", "iceberg_example.py"),
+            explain="iceberg.yaml",
             profile="catalog",
             extras="iceberg",
         ),
@@ -106,6 +113,7 @@ EXAMPLES: Dict[str, Example] = {
             "Parquet History, Kafka Live",
             "backdated history to Parquet, then live to Kafka",
             _three("backfill_live.yaml", "backfill_live_example.py"),
+            explain="backfill_live.yaml",
             profile="kafka-lite",
             extras="kafka,parquet",
         ),
@@ -120,6 +128,7 @@ EXAMPLES: Dict[str, Example] = {
             "A Flow of Tasks",
             "orders routed through pick, gift wrap, pack and ship, with rework",
             _three("flow.yaml", "flow_example.py"),
+            explain="flow.yaml",
         ),
         Example(
             "measuring",
@@ -144,6 +153,7 @@ EXAMPLES: Dict[str, Example] = {
             "Process Interaction",
             "a child flow, a failure handled by on_fail, and orders waiting for a courier's signal with a time limit",
             _three("process_interaction.yaml", "process_interaction_example.py"),
+            explain="process_interaction.yaml",
         ),
         Example(
             "process-events",
@@ -206,6 +216,7 @@ EXAMPLES: Dict[str, Example] = {
             "Replications",
             "one hour of the shop run 20 times, with the mean and interval of each statistic",
             _three("replications.yaml", "replications_example.py"),
+            explain="replications.yaml",
             yaml_command="desflow run replications.yaml --replications 20",
         ),
         Example(
@@ -219,6 +230,7 @@ EXAMPLES: Dict[str, Example] = {
                 "low-level": ["low-level/experiment_example.py"],
             },
             shared=["observed_waits.csv"],
+            explain="experiment_shop.yaml",
             yaml_command="desflow experiment experiment.yaml",
         ),
         Example(
@@ -233,7 +245,7 @@ EXAMPLES: Dict[str, Example] = {
         ),
         Example(
             "related-records",
-            "Generate Related Records",
+            "Related Records",
             "orders and their line items, in two PostgreSQL tables",
             {
                 "yaml": [
@@ -268,6 +280,19 @@ def release_ref(version: str) -> str:
 def _fetch(url: str) -> bytes:
     with urllib.request.urlopen(url, timeout=30) as response:  # noqa: S310 (fixed host)
         return response.read()
+
+
+def _missing_hint(ref: str) -> str:
+    """What to try when a file is not at `ref`: the tag itself may not be published
+    yet, as for a version installed before its release, or the example was added
+    after that release."""
+    try:
+        _fetch(TAG_URL.format(ref=ref))
+    except urllib.error.HTTPError:
+        return f" The tag {ref} of this version is not published yet; try --ref main."
+    except urllib.error.URLError:
+        pass
+    return f" An example added after this release is not at {ref}; try --ref main."
 
 
 def download(
@@ -311,12 +336,8 @@ def download(
         try:
             contents.append((target, _fetch(url)))
         except urllib.error.HTTPError as exc:
-            hint = ""
-            if ref != "main":  # main has every example, so nothing else to try
-                hint = (
-                    f" An example added after this release is not at {ref}; "
-                    "try --ref main."
-                )
+            # main has every example, so nothing else to try
+            hint = _missing_hint(ref) if ref != "main" else ""
             raise RuntimeError(
                 f"could not download {url} ({exc.code}).{hint}"
             ) from None
@@ -350,21 +371,23 @@ def download(
     return [target for target, _ in contents]
 
 
-def run_hint(example: Example, api: str) -> str:
+def run_hint(example: Example, api: str, dest: Path = Path(".")) -> str:
     """Returns how to run one API's version of an example once it is downloaded.
 
     Args:
         example: The example.
         api: The version: `yaml`, `builder` or `low-level`.
+        dest: The folder the example was downloaded into, as `download` took it.
 
     Returns:
-        str: The command to run, in the folder the version was downloaded to.
+        str: The command to run, from the folder the download ran in.
     """
-    folder = f"{example.name}/{api}"
+    folder = (dest / example.name / api).as_posix()
     main_file = Path(example.files[api][0]).name
     command = (
         example.yaml_command or f"desflow run {main_file}"
         if api == "yaml"
         else f"python {main_file}"
     )
-    return f"cd {folder} && {command}"
+    # Quoted, so a folder such as "my shop" still works when pasted
+    return f"cd {shlex.quote(folder)} && {command}"

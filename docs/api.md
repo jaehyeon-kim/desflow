@@ -10,7 +10,7 @@
 
 ## Task Flow
 
-The classes a task's flow is built from, and the signals and failures tasks share.
+A task's flow is built from the classes below. The signals and failures here are shared between tasks.
 
 <!-- prettier-ignore -->
 ::: desflow.core.signals.Signal
@@ -54,12 +54,24 @@ The classes a task's flow is built from, and the signals and failures tasks shar
       heading_level: 3
       show_root_heading: true
 
-## YAML Blueprints
+## Loading a Model
 
-`SimulationContext.from_yaml` is the usual entry point. `build` is what it calls, and returns the `run` section as well.
+`SimulationContext.from_yaml` is the usual entry point for a blueprint. `from_yaml` calls `build`, which returns the context and the `run` section. `load_context` loads a blueprint or a builder Python file from a folder, local or in object storage, in the way `desflow run` loads a blueprint. `desflow run --sample` and `--stdout` pass a `Preview` to these functions.
+
+<!-- prettier-ignore -->
+::: desflow.loading.load_context
+    options:
+      heading_level: 3
+      show_root_heading: true
 
 <!-- prettier-ignore -->
 ::: desflow.blueprint.build.build
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.blueprint.build.Preview
     options:
       heading_level: 3
       show_root_heading: true
@@ -160,6 +172,46 @@ The classes a task's flow is built from, and the signals and failures tasks shar
       heading_level: 3
       show_root_heading: true
 
+## Explaining a Model
+
+`SimulationContext.analyze` is the usual entry point, and `desflow explain` prints the same `Explanation`. `build_graph`, `analyze` and `verify` are the steps it takes, and `render_terminal` and `to_json` print the result. The JSON form is experimental through 1.x.
+
+<!-- prettier-ignore -->
+::: desflow.explain.models.Explanation
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.explain.graph.build_graph
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.explain.analysis.analyze
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.explain.verify.verify
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.explain.render.render_terminal
+    options:
+      heading_level: 3
+      show_root_heading: true
+
+<!-- prettier-ignore -->
+::: desflow.explain.render.to_json
+    options:
+      heading_level: 3
+      show_root_heading: true
+
 ## Environment
 
 <!-- prettier-ignore -->
@@ -181,7 +233,7 @@ The classes a task's flow is built from, and the signals and failures tasks shar
         - resume_pacing
         - teardown
 
-## Registry & Parameters
+## Registry and Parameters
 
 <!-- prettier-ignore -->
 ::: desflow.core.registry.SimulationRegistry
@@ -311,7 +363,7 @@ The classes a task's flow is built from, and the signals and failures tasks shar
 
 ## Breakdowns, Schedules and Replay
 
-SimPy processes and readers the builder and YAML use, which low-level code starts itself.
+The builder and YAML start these SimPy processes and readers for you. Low-level code starts them itself.
 
 <!-- prettier-ignore -->
 ::: desflow.core.breakdowns.run_breakdowns
@@ -331,7 +383,7 @@ SimPy processes and readers the builder and YAML use, which low-level code start
       heading_level: 3
       show_root_heading: true
 
-## Admin & Infrastructure
+## Admin and Infrastructure
 
 <!-- prettier-ignore -->
 ::: desflow.connectors.admin.kafka.KafkaAdminConnector

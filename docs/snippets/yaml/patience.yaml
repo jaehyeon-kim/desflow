@@ -13,7 +13,7 @@ services:
   packing: {dist: constant, value: 1.5 s}
 
 arrivals:
-  # 0.7 orders a second: more than one packer can pack
+  # An order every 1.43 s on average (0.7 a second): more than one packer packs
   orders: {dist: exponential, rate: 0.7, spawn: pack_order}
 
 tasks:

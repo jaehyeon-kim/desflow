@@ -1,6 +1,6 @@
 # Processes
 
-A process runs alongside the [tasks](index.md); this page shows how to write one, and an example in which processes and tasks interact.
+A process runs alongside the [tasks](index.md). This page shows how to write one, and an example in which processes and tasks interact.
 
 ---
 
@@ -8,7 +8,7 @@ A process runs alongside the [tasks](index.md); this page shows how to write one
 
 ### A Process
 
-A process runs alongside the tasks. This one sends the packers on a 5-second break every 50 seconds:
+This process sends the packers on a 5-second break every 50 seconds:
 
 === "YAML"
 
@@ -53,9 +53,17 @@ A process runs alongside the tasks. This one sends the packers on a 5-second bre
 
 Setting `current_cap` to 0 stops new work but not the work in progress: [Resources](../resources/index.md) explains what happens to busy units when a capacity drops.
 
-### Example: Process Interaction
+---
 
-The `process-interaction` example puts these together: a child flow, a failure that `on_fail` handles, and orders that wait for a courier's signal or a time limit. It needs no Docker service and ends on its own after 300 simulation seconds.
+## Stability and Limits
+
+The limits of this page are listed with those of the whole section, in [Stability and Limits](index.md#stability-and-limits) on the Tasks and Processes page.
+
+---
+
+## Example: Process Interaction
+
+The `process-interaction` example combines a child flow, a failure that `on_fail` handles, and orders that wait for a courier's signal or a time limit. It needs no Docker service and ends on its own after 300 simulation seconds.
 
 === "YAML"
 
@@ -73,7 +81,10 @@ The `process-interaction` example puts these together: a child flow, a failure t
         desflow examples get process-interaction --api yaml
         cd process-interaction/yaml
 
-        # 3. Run it
+        # 3. Find the bottleneck, with no run
+        desflow explain process_interaction.yaml
+
+        # 4. Run it
         desflow run process_interaction.yaml
         ```
 
@@ -87,7 +98,10 @@ The `process-interaction` example puts these together: a child flow, a failure t
         desflow examples get process-interaction --api yaml
         cd process-interaction/yaml
 
-        # 3. Run it
+        # 3. Find the bottleneck, with no run
+        desflow explain process_interaction.yaml
+
+        # 4. Run it
         desflow run process_interaction.yaml
         ```
 

@@ -1,8 +1,22 @@
-# Generate Related Records
+# Related Records
 
-Related records are rows that belong together across tables. Here every customer order has 1 to 5 line items with random products, prices and quantities, and a total computed from them, written to two PostgreSQL tables, `orders` and `order_items`. Each tab shows the example written one way, and the three publish the same records. In YAML a mapping payload is a constant, so the order generator is a process in `postgres_orders_logic.py`, referenced with `!python`; [Python in a Blueprint](../guides/yaml-advanced.md) explains how references work.
+Related records are rows that belong together across tables. Here every customer order has 1 to 5 line items with random products, prices and quantities, and a total computed from them. The orders and their items are written to two PostgreSQL tables, `orders` and `order_items`. Each tab shows the example written one way. In YAML a mapping payload is a constant and cannot hold random values, so the order generator is a Python process in `postgres_orders_logic.py`, referenced with `!python`. [Call Python from YAML](../guides/yaml-advanced.md) explains how references work. The connection string names `odctl`, the database that the odctl `postgres` profile creates, with the user `user` and the password `password`.
+
+Look for each order's line items in `order_items`, with the same `order_id` as the order's row in `orders`, and for a `total_amount` that is the sum of its items.
+
+**What It Does**
+
+When the run starts, each `PostgresEgress` creates its table, `orders` or `order_items`, and `PostgresIngress` creates `simulation_params`, if they do not exist. The run then writes orders and their items until you stop it. Both egresses receive every record. Each keeps only the records whose `__table__` key names its table.
+
+After you start the run with a tab's Quick Start, raise the arrival rate from a second terminal:
+
+```bash
+docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params (path, value) VALUES ('Shop.arrival.orders.rate', '5.0');"
+```
 
 === "YAML"
+
+    The generator is listed under `processes` with `kwargs`, so it is called as `order_generator(context, arrival="orders", max_items=5)`. It draws from `context.sampler.rng`, the random number generator seeded by `random_seed`, so a seeded run repeats the same orders.
 
     **Quick Start**
 
@@ -50,17 +64,15 @@ Related records are rows that belong together across tables. Here every customer
 
     **Full Source Code**
 
-    The generator is listed under `processes` with `kwargs`, so it is called as `order_generator(context, arrival="orders", max_items=5)`. It draws from `context.sampler.rng`, the generator seeded by `random_seed`, so a seeded run repeats the same orders.
-
     Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/main/examples/yaml) of the repository, and the label on each block below is its path there.
 
     ```yaml title="examples/yaml/advanced/postgres_orders.yaml"
     # Orders with random line items, in YAML with one Python function.
     #
     # Each order arrival builds an order with 1 to 5 items, random prices and
-    # quantities, and a total computed from them. A mapping payload is a constant, so
-    # the generator is Python in postgres_orders_logic.py beside this file, referenced
-    # with !python. Everything else is plain YAML.
+    # quantities, and a total computed from them. A mapping payload is a constant and
+    # cannot hold random values, so the generator is Python in postgres_orders_logic.py
+    # beside this file, referenced with !python. Everything else is plain YAML.
     #
     # Two PostgresEgress instances are attached, one per table, and each keeps only the
     # records whose __table__ key names its table. Each creates its table at start.
@@ -76,13 +88,13 @@ Related records are rows that belong together across tables. Here every customer
     ingress:
       - type: Postgres
         config:
-          connection_dsn: postgresql://user:password@localhost:5432/odctl
+          connection_dsn: postgresql://user:password@127.0.0.1:5432/odctl
           table_name: simulation_params
 
     egress:
       - type: Postgres
         config:
-          connection_dsn: postgresql://user:password@localhost:5432/odctl
+          connection_dsn: postgresql://user:password@127.0.0.1:5432/odctl
           tables:
             orders:
               columns:
@@ -94,7 +106,7 @@ Related records are rows that belong together across tables. Here every customer
               primary_key: order_id
       - type: Postgres
         config:
-          connection_dsn: postgresql://user:password@localhost:5432/odctl
+          connection_dsn: postgresql://user:password@127.0.0.1:5432/odctl
           tables:
             order_items:
               columns:
@@ -122,9 +134,9 @@ Related records are rows that belong together across tables. Here every customer
     def order_generator(context, arrival: str, max_items: int):
         """Publishes an order and its items on every arrival.
 
-        Draws from `context.sampler.rng`, the generator seeded by `random_seed`, so a
-        seeded run repeats the same orders. The `__table__` key names the table each
-        record is written to.
+        Draws from `context.sampler.rng`, the random number generator seeded by
+        `random_seed`, so a seeded run repeats the same orders. The `__table__` key
+        names the table each record is written to.
         """
         rng = context.sampler.rng
         order_id = 1
@@ -165,6 +177,8 @@ Related records are rows that belong together across tables. Here every customer
     ```
 
 === "Builder"
+
+    The generator is added with `add_process`, so it is called as `order_generator(context, arrival="orders", max_items=5)`. It draws from `context.sampler.rng`, the random number generator seeded by `random_seed`, so a seeded run repeats the same orders.
 
     **Quick Start**
 
@@ -212,13 +226,11 @@ Related records are rows that belong together across tables. Here every customer
 
     **Full Source Code**
 
-    The generator is added with `add_process`, so it is called as `order_generator(context, arrival="orders", max_items=5)`. It draws from `context.sampler.rng`, the generator seeded by `random_seed`, so a seeded run repeats the same orders.
-
     ```python title="examples/builder/postgres_orders_example.py"
     """
     Orders with line items, builder API.
 
-    The builder twin of `yaml/advanced/postgres_orders.yaml`. Each order arrival
+    The builder version of `yaml/advanced/postgres_orders.yaml`. Each order arrival
     builds an order with 1 to 5 items, random prices and quantities, and a total computed
     from them. Two PostgresEgress instances are attached, one per table, and each keeps
     only the records whose `__table__` key names its table. Each creates its table at
@@ -235,7 +247,7 @@ Related records are rows that belong together across tables. Here every customer
         level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
     )
 
-    DSN = "postgresql://user:password@localhost:5432/odctl"
+    DSN = "postgresql://user:password@127.0.0.1:5432/odctl"
 
     ORDERS = {
         "columns": {
@@ -262,9 +274,9 @@ Related records are rows that belong together across tables. Here every customer
     def order_generator(context: SimulationContext, arrival: str, max_items: int):
         """Publishes an order and its items on every arrival.
 
-        Draws from `context.sampler.rng`, the generator seeded by `random_seed`, so a
-        seeded run repeats the same orders. The `__table__` key names the table each
-        record is written to.
+        Draws from `context.sampler.rng`, the random number generator seeded by
+        `random_seed`, so a seeded run repeats the same orders. The `__table__` key
+        names the table each record is written to.
         """
         rng = context.sampler.rng
         order_id = 1
@@ -319,6 +331,8 @@ Related records are rows that belong together across tables. Here every customer
 
 === "Low-level"
 
+    The generator is a SimPy process started with `env.process`. It draws the gaps between orders and the order contents from one `Sampler` seeded with 42, in the same order as the other two versions, so it publishes the same orders.
+
     **Quick Start**
 
     `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
@@ -365,13 +379,11 @@ Related records are rows that belong together across tables. Here every customer
 
     **Full Source Code**
 
-    The generator is a SimPy process started with `env.process`. It draws the gaps and the order contents from one `Sampler` seeded with 42, in the same order as the other two, so it publishes the same orders.
-
     ```python title="examples/low-level/postgres_orders_example.py"
     """
     Orders with line items, low-level API.
 
-    The low-level twin of `builder/postgres_orders_example.py` and
+    The low-level version of `builder/postgres_orders_example.py` and
     `yaml/advanced/postgres_orders.yaml`. It wires `DynamicRealtimeEnvironment`, the
     registry and the connectors by hand. With the same seed it publishes the same orders
     as the other two.
@@ -396,7 +408,7 @@ Related records are rows that belong together across tables. Here every customer
         level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
     )
 
-    DSN = "postgresql://user:password@localhost:5432/odctl"
+    DSN = "postgresql://user:password@127.0.0.1:5432/odctl"
 
     PARAMS = SimParameter(
         sim_id="Shop",
@@ -491,14 +503,14 @@ Related records are rows that belong together across tables. Here every customer
         run()
     ```
 
----
+## Records
 
-## What It Does
+The three tabs write the same records, which [a test](https://github.com/jaehyeon-kim/desflow/blob/main/tests/docs/test_example_twins.py) checks by running each version unpaced. A real run writes each order as a row of `orders` and each line item as a row of `order_items`. `desflow run postgres_orders.yaml --sample 2 --stdout` prints the first two records as JSON lines instead, with no database. They are the one line item of `orders-1`, then the order itself:
 
-When the run starts, each `PostgresEgress` creates its table, `orders` or `order_items`, and `PostgresIngress` creates `simulation_params`, if they do not exist. The run then writes orders and their items until you stop it. Both egresses receive every record and each keeps the records whose `__table__` key names its table.
-
-In a second terminal, raise the arrival rate while it runs:
-
-```bash
-docker exec -it postgres psql -U user -d odctl -c "INSERT INTO simulation_params (path, value) VALUES ('Shop.arrival.orders.rate', '5.0');"
+<!-- records: related-records-sample -->
+```text
+{"stream_type":"event","sim_ts":1.276,"timestamp":"...","key":"orders-1","task":null,"instance":null,"value":{"order_item_id":1,"order_id":1,"product_id":22,"quantity":3,"unit_price":27.56}}
+{"stream_type":"event","sim_ts":1.276,"timestamp":"...","key":"orders-1","task":null,"instance":null,"value":{"order_id":1,"customer_id":86,"total_amount":82.68,"status":"pending"}}
 ```
+
+This command leaves out the `__table__` key that picks each record's table, because only a PostgreSQL sink uses it. It logs a warning that says so. The order's `total_amount` is its item's `quantity` times its `unit_price`.

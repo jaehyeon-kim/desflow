@@ -17,7 +17,7 @@ import yaml
 from jsonschema import Draft202012Validator
 
 from desflow.blueprint import models
-from desflow.blueprint.loader import BlueprintLoader, _keep_on_keys
+from desflow.blueprint.loader import BlueprintLoader, _keep_on_keys, substitute
 from desflow.blueprint.schema import schema_text
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -31,8 +31,13 @@ NOT_BLUEPRINTS = {
     "docs/snippets/yaml/parameter_sweeps_experiment.yaml",
     "docs/snippets/yaml/comparing_designs_experiment.yaml",
     "docs/snippets/yaml/checking_a_model_experiment.yaml",
+    "docs/snippets/yaml/complete_model_experiment.yaml",
     "docs/snippets/yaml/fitted/orders.yaml",
     "docs/snippets/yaml/fitted/packing.yaml",
+    "docs/snippets/yaml/fitted/packing_gamma.yaml",
+    "docs/snippets/yaml/fitted/complete_orders.yaml",
+    "docs/snippets/yaml/fitted/complete_picking.yaml",
+    "docs/snippets/yaml/fitted/complete_packing.yaml",
 }
 FOLDERS = ("examples/yaml", "tests/conformance/blueprints", "docs/snippets/yaml")
 
@@ -67,7 +72,8 @@ def _include(loader, node):
         extra = dict(loader.construct_mapping(node, deep=True))
         name = extra.pop("file")
     else:
-        name = loader.construct_scalar(node)
+        # The path is substituted, as the loader does, so the file can be read
+        name = substitute(loader.construct_scalar(node))
     return {
         **_read(
             Path(loader.name).parent / name, getattr(loader, "includes", {}).get(node)

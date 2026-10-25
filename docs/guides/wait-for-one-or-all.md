@@ -6,7 +6,7 @@ Make a task wait for the first of several things, or for all of them, and read w
 
 ## Wait for the First
 
-`wait: {any: {...}}` ends when the first branch happens, as SimPy's `AnyOf` (`a | b`) does. Name each branch; after the wait, `wait.<branch>.done` says which happened. Here an order waits for a restock or 30 seconds, and a builder function that declares `wait` reads the branches:
+`wait: {any: {...}}` ends when the first branch happens, as SimPy's `AnyOf` (`a | b`) does. Name each branch. After the wait, `wait.<branch>.done` says which happened. Here an order waits for a restock or 30 seconds, and a builder function that declares `wait` reads the branches:
 
 ```python title="docs/snippets/guides/wait_for_one_or_all.py:first"
 def first(gap: float) -> dict:
@@ -95,13 +95,13 @@ def two_at_once() -> dict:
     return seen
 ```
 
-`two_at_once()` returns `{"boxes": True, "labels": True}`. A model that routes on one branch should therefore check the branch it cares about, not assume that only one is done.
+`two_at_once()` returns `{"boxes": True, "labels": True}`. A model that routes on one branch should therefore check that branch, not assume that only one is done.
 
 ---
 
 ## Wait for All
 
-`wait: {all: {...}}` ends when every branch has happened, as SimPy's `AllOf` (`a & b`) does. If a branch fails first, the wait fails at once, with that branch's reason, and the task publishes `failed`; branches still pending are cleaned up as for `any`, so a child flow runs on. Here the restock fails at 2 while the inspection, a child flow, runs until 4:
+`wait: {all: {...}}` ends when every branch has happened, as SimPy's `AllOf` (`a & b`) does. If a branch fails first, the wait fails at once, with that branch's reason, and the task publishes `failed`. Branches still pending are cleaned up as for `any`, so a child flow runs on. Here the restock fails at 2 while the inspection, a child flow, runs until 4:
 
 ```python title="docs/snippets/guides/wait_for_one_or_all.py:all"
 def all_with_a_failure() -> list:
@@ -148,24 +148,156 @@ A wait for signals, tasks and times never holds a resource. Waiting for all of s
 
 ## Nest Any and All
 
-A branch of an `any` or an `all` may itself be an `any` or an `all`, so a wait nests to any depth. For example, `wait: {all: {look: {task: inspect}, either: {any: {stock: {signal: restocked}, limit: {timeout: 30 s}}}}}` is done when the inspection ends and either a restock or a time limit arrives. Each branch name in the tree is unique, and `wait.<name>` reads any node, a group or a leaf: `wait.either.done` is true once the inner `any` is done, and `wait.either.value` maps its done leaves to their values. The low-level form is `yield (stock | limit) & inspect`.
+A branch of an `any` or an `all` may itself be an `any` or an `all`, so a wait nests to any depth. For example, `wait: {all: {look: {task: inspect}, either: {any: {stock: {signal: restocked}, limit: {timeout: 30 s}}}}}` is done when the inspection ends and either a restock or a time limit arrives. Each branch name in the tree is unique. `wait.<name>` reads any node, whether a group or a leaf. For example, `wait.either.done` is true once the inner `any` is done, and `wait.either.value` maps its done leaves to their values. The low-level form is `yield (stock | limit) & inspect`.
 
 ## At Least Some of Them
 
-`wait: {at_least: 2, of: {a: ..., b: ..., c: ...}}` is done when at least two of its branches are, as SimPy's `Condition` with a count rule. `at_least` is a whole number of 1 or more, and an `at_least` above the number of branches is refused when the file loads. An empty `of` succeeds at once, whatever the count. The low-level form is `Condition(env, lambda events, count: count >= 2, [a, b, c])`.
+`wait: {at_least: 2, of: {a: ..., b: ..., c: ...}}` is done when at least two of its branches are done. SimPy's `Condition` with a count rule does the same. `at_least` is a whole number of 1 or more, and an `at_least` above the number of branches is refused when the file loads. An empty `of` succeeds at once, whatever the count. The low-level form is `Condition(env, lambda events, count: count >= 2, [a, b, c])`.
+
+In a blueprint, an order waits for both its label and its invoice, then for two of three checks:
+
+```yaml title="docs/snippets/yaml/wait_groups.yaml:all"
+# Go on once both the label and the invoice are printed
+wait:
+  all:
+    label: {timeout: 2 s}
+    invoice: {timeout: 4 s}
+```
+
+```yaml title="docs/snippets/yaml/wait_groups.yaml:at-least"
+# Go on once two of the three checks have answered
+wait:
+  at_least: 2
+  of:
+    stock: {timeout: 1 s}
+    payment: {timeout: 3 s}
+    address: {timeout: 6 s}
+```
 
 ## Wait for a Unit, an Item or Room
 
-A branch may also be a resource `request`, a store or container `get`, or a `put`, so a task waits for the first of a unit, an item, a signal or a time. A `request` branch that wins holds its unit through the task's service and gives it back when the task ends, as a listed `resource` does; `wait.<branch>.value` is the request. A `get` branch takes an item, and `wait.<branch>.value` is that item; a `put` branch adds the payload of the task before it, or `None` for the first task of a flow. An `any` ends when its first branch is granted, and every request, get or put granted at that same instant is kept as won too. A branch that loses the race is cancelled, so it takes or holds nothing: `wait: {any: {unit: {request: packers}, limit: {timeout: 30 s}}}` waits for a packer or a time limit, and gives the packer back if the limit comes first. A single branch is named after its resource for a `request`, and `get` or `put` otherwise. An interrupt with `on_interrupt: restart` during the wait starts the branches again, so an item a get already took is used by neither the old nor the new branch, as SimPy cannot put a taken item back.
+A branch may also be a resource `request`, a store or container `get`, or a `put`. A task can then wait for the first of a unit, an item, a signal or a time. A `request` branch that wins holds its unit through the task's service and gives it back when the task ends, as a listed `resource` does. Its `wait.<branch>.value` is the request. A `get` branch takes an item, and `wait.<branch>.value` is that item. A `put` branch adds the payload of the task before it, or `None` for the first task of a flow. An `any` ends when its first branch is granted, and every request, get or put granted at that same instant is kept as won too. A branch that loses is cancelled, so it takes or holds nothing. For example, `wait: {any: {unit: {request: packers}, limit: {timeout: 30 s}}}` waits for a packer or a time limit, and gives the packer back if the limit comes first. A single branch is named after its resource for a `request`, and `get` or `put` otherwise. An interrupt with `on_interrupt: restart` during the wait starts the branches again, so an item a get already took is used by neither the old nor the new branch, as SimPy cannot put a taken item back.
 
-Requests in a wait count in the [order of acquisition](../user-guide/resources/several-resources.md#several-resources): they come before the task's `resource` list. The requests under an `all`, or under an `at_least` of 2 or more, are made together, and the first one granted is held while the others are waited for, so no other task may acquire two of them one after the other, in either order. A single `request` branch of an `any` ends the `any` when it is granted, so it holds nothing while the `any` waits, and such branches set no order. A group branch of an `any`, such as an `all` of two requests, can hold a unit before it is won, so its requests are made together with those of the other branches. A task that keeps a resource for a next task that requests it in its wait is refused when the model is built, because the request would wait behind the unit kept for it.
+```yaml title="docs/snippets/yaml/wait_groups.yaml:request"
+# A packer, or give up after 30 seconds; a packer won is held through packing
+wait:
+  any:
+    unit: {request: packers}
+    limit: {timeout: 30 s}
+```
+
+A `get` branch with a time limit, whose `value` says why the wait ended, and a `put` branch on its own:
+
+```yaml title="docs/snippets/yaml/wait_groups.yaml:get"
+# Two boxes, or go on without them after 5 seconds with the value "no boxes"
+wait:
+  any:
+    boxes: {get: {container: boxes, amount: 2}}
+    limit: {timeout: {after: 5 s, value: no boxes}}
+```
+
+```yaml title="docs/snippets/yaml/wait_groups.yaml:put"
+# Put the closed order's payload on the shelf, waiting while the shelf is full
+wait: {put: {store: shelf}}
+```
+
+Requests in a wait count in the [order of acquisition](../user-guide/resources/several-resources.md#several-resources): they come before the task's `resource` list. The requests under an `all`, or under an `at_least` of 2 or more, are made together. The first one granted is held while the others are waited for. No other task can therefore acquire two of them one after the other, in either order. A single `request` branch of an `any` ends the `any` when it is granted. It holds nothing while the `any` waits, so such branches set no order. A group branch of an `any`, such as an `all` of two requests, is different. It can hold a unit before the `any` is won, so its requests are made together with those of the other branches. A task that keeps a resource for a next task that requests it in its wait is refused when the model is built, because the request would wait behind the unit kept for it.
 
 ## An Empty Wait
 
-An `any` or an `all` with no branches is accepted, and succeeds at once with an empty value. A task whose wait is `{any: {}}` or `{all: {}}` goes on in the step it starts, as SimPy's `env.any_of([])` and `env.all_of([])` do. With a `patience` of 0 the wait still wins: the empty wait succeeds the instant it is built, so it is already processed when the task resumes, and the task does not renege.
+An `any` or an `all` with no branches is accepted, and succeeds at once with an empty value. A task whose wait is `{any: {}}` or `{all: {}}` goes on in the step it starts, as SimPy's `env.any_of([])` and `env.all_of([])` do. With a `patience` of 0 the wait still wins. The empty wait succeeds the instant it is built, so it is already processed when the task resumes. The task therefore does not renege.
 
 ---
 
 ## Example
+
+The example is a shop where each order waits for a restock or 30 seconds, whichever comes first. A restock waits for both its delivery, which takes 10 seconds, and a stock count, which takes 20 seconds. Orders arrive about every 10 seconds, and a delivery every minute:
+
+```python title="docs/snippets/guides/wait_for_one_or_all_example.py"
+"""Wait for one or all: a shop where orders wait for a restock or a time limit.
+
+Each order waits for the next restock or 30 seconds, whichever comes first, and is
+packed after a restock or refunded at the limit. A restock waits for both its
+delivery and a stock count, then fires the signal the orders wait for. The script
+runs 10 minutes at factor 0 and prints how many orders were packed and refunded, and
+the times of the restocks: python wait_for_one_or_all_example.py.
+"""
+
+from desflow import SimulationContext
+
+app = (
+    SimulationContext(sim_id="Shop", factor=0, random_seed=42)
+    .add_arrival("orders", dist="exponential", rate=0.1, spawn="order")
+    .add_arrival("deliveries", dist="constant", value=60, spawn="restock")
+    .add_service("counting", dist="constant", value=20)
+    .add_signal("restocked")
+    .with_stats("basic")
+)
+
+
+# Each order waits for the next restock or 30 seconds, whichever comes first
+@app.task(
+    wait={"any": {"stock": {"signal": "restocked"}, "limit": {"timeout": 30}}},
+    next={
+        "when": [{"condition": "wait.stock.done", "task": "pack"}],
+        "default": "refund",
+    },
+)
+def order(task_id):
+    return {"event_type": "waited"}
+
+
+@app.task()
+def pack(task_id):
+    return {"event_type": "packed"}
+
+
+@app.task()
+def refund(task_id):
+    return {"event_type": "refunded"}
+
+
+restocked_at = []  # the time of each restock
+
+
+# A restock waits for its delivery, 10 seconds, and a stock count, a child flow of
+# 20 seconds; when both are done it finishes and fires restocked
+@app.task(
+    wait={"all": {"delivery": {"timeout": 10}, "count": {"task": "count_stock"}}},
+    signal="restocked",
+)
+def restock(task_id):
+    restocked_at.append(app.env.now)
+    return {"event_type": "restocked"}
+
+
+@app.task(service_id="counting")
+def count_stock(task_id):
+    return {"event_type": "counted"}
+
+
+def outcome() -> dict:
+    """Runs 10 minutes and returns the orders packed and refunded, and the times of
+    the restocks."""
+    app.run(until="10 min")
+    readings = app.env.stats.readings()
+    counts = {
+        task: readings[f"Shop.stats.tasks.{task}.finished"]
+        for task in ("pack", "refund")
+    }
+    return {**counts, "restocked_at": restocked_at}
+
+
+if __name__ == "__main__":
+    print(outcome())
+```
+
+Save it as `wait_for_one_or_all_example.py` and run `python wait_for_one_or_all_example.py`. It prints:
+
+```text
+{'pack': 27, 'refund': 35, 'restocked_at': [80.0, 140.0, 200.0, 260.0, 320.0, 380.0, 440.0, 500.0, 560.0]}
+```
+
+It runs once for 10 simulation minutes at `factor=0`: 27 orders are packed after a restock and 35 are refunded at the time limit. The restocks come at 80, 140 and so on to 560 seconds, 20 seconds after each delivery starts, because the wait for all ends with the stock count, the longer of its two branches. With `any` in place of `all`, each restock would come after the 10-second delivery instead, and more orders would be packed.
 
 The `process-interaction` example waits for a child flow, then for the first of a courier's signal and a time limit. [Processes](../user-guide/tasks-and-processes/processes.md#example-process-interaction) shows how to download and run it.

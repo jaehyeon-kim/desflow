@@ -3,7 +3,8 @@
 mkdocs-gen-files runs this file during every docs build (the `gen-files` plugin in
 mkdocs.yml), so the pages are built from the code and cannot disagree with it. The
 functions return Markdown, so tests/docs/test_gen_pages.py checks them without a
-build.
+build. They are in `scripts/reference_pages/`, one module for each page or group of
+pages:
 
 - Distributions: every family in `desflow.core.distributions.DISTRIBUTIONS`, with its
   parameters, rules and registry paths, and the mean, variance and value with no
@@ -14,641 +15,68 @@ build.
   (`desflow schema`), which is also published as `schema/blueprint.schema.json`.
 - SimPy Compatibility: every operation in `tests/conformance/register.yaml`, with its
   form in each API, the conformance tests that compare it with SimPy, and its page.
+- CLI: one page per command and sub-command of `desflow`, each its help as Click
+  prints it, and an index page for `desflow` itself.
 """
 
-import json
-import re
-import tomllib
+import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
 
-ROOT = Path(__file__).resolve().parents[1]
-REGISTER = ROOT / "tests" / "conformance" / "register.yaml"
-LOCK = ROOT / "uv.lock"
-SOURCE_URL = "https://github.com/jaehyeon-kim/desflow/blob/main/"
+# The page modules are a package beside this file; mkdocs-gen-files and the tests run
+# this file by its path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-# One example per family, in the units a blueprint uses. The code does not know a
-# typical value, so these are written here; every number below them is computed.
-EXAMPLES: Dict[str, Dict[str, object]] = {
-    "exponential": {"rate": 0.5},
-    "normal": {"mean": 3.0, "std": 0.5},
-    "lognormal": {"mean": 4.0, "std": 3.0},
-    "truncated_normal": {"mean": 1.0, "std": 1.0, "low": 0.0},
-    "constant": {"value": 1.5},
-    "uniform": {"low": 1.0, "high": 2.0},
-    "triangular": {"low": 1.0, "mode": 1.25, "high": 2.25},
-    "gamma": {"shape": 9.0, "scale": 0.1667},
-    "weibull": {"shape": 1.5, "scale": 3600.0},
-    "empirical": {"values": [1.2, 1.5, 1.5, 2.1, 3.0]},
-}
+from reference_pages.cli import cli_pages, commands  # noqa: E402
+from reference_pages.compatibility import (  # noqa: E402
+    GROUPS,
+    compatibility_page,
+    register,
+    simpy_version,
+)
+from reference_pages.distributions import (  # noqa: E402
+    EXAMPLES,
+    distribution_sections,
+    distributions_page,
+)
+from reference_pages.statistics import statistic_names, statistics_page  # noqa: E402
+from reference_pages.yaml_keys import (  # noqa: E402
+    paragraphs,
+    yaml_keys_body,
+    yaml_keys_page,
+)
 
-# What each statistic measures. The code knows the names; these say what they mean.
-MEANINGS: Dict[str, str] = {
-    "resources.capacity": "units now",
-    "resources.in_use": "units held by tasks; above `capacity` after a drop, until they finish",
-    "resources.queue_length": "requests waiting now",
-    "resources.utilization": "`in_use` as a percentage of `capacity`, now",
-    "resources.utilization_avg": "utilisation averaged over time, in percent",
-    "resources.queue_length_avg": "requests waiting, averaged over time",
-    "resources.down": "1 while a resource with a `breakdown` is down, 0 otherwise",
-    "resources.downtime": "seconds a resource with a `breakdown` has been down so far",
-    "resources.failures": "failures of a resource with a `breakdown` so far",
-    "stores.capacity": "items it can hold now",
-    "stores.level": "items held now",
-    "stores.getters_waiting": "tasks waiting to get an item",
-    "stores.putters_waiting": "tasks waiting to put an item",
-    "stores.level_avg": "items held, averaged over time",
-    "containers.capacity": "largest amount, now",
-    "containers.level": "amount held now",
-    "containers.getters_waiting": "tasks waiting to take an amount",
-    "containers.putters_waiting": "tasks waiting to add an amount",
-    "containers.level_avg": "amount held, averaged over time",
-    "tasks.finished": "instances finished so far",
-    "tasks.in_progress": "instances queued or started and not yet ended, now",
-    "tasks.balked": "instances that refused to join the queue; published once one does",
-    "tasks.reneged": "instances that left the queue before they were served; published once one does",
-    "tasks.wait_mean": "mean time from `queued` to `started`",
-    "tasks.wait_max": "longest time from `queued` to `started`",
-    "tasks.service_mean": "mean time from `started` to finished",
-    "tasks.service_max": "longest time from `started` to finished",
-    "tasks.wait_p50": "median wait",
-    "tasks.wait_p95": "the wait 95% of instances stay under",
-    "tasks.wait_p99": "the wait 99% of instances stay under",
-    "tasks.service_p50": "median service time",
-    "tasks.service_p95": "the service time 95% of instances stay under",
-    "tasks.service_p99": "the service time 99% of instances stay under",
-    "flows.finished": "entities that left the model, by the arrival that started them",
-    "flows.started": "entities whose first task has started, by the arrival that started them",
-    "flows.in_system": "entities in the model now: started, and not yet finished, failed or gone",
-    "flows.failed": "entities whose flow ended in a failure no `on_fail` handled; published once one does",
-    "tasks.interrupted": "interrupts delivered to instances, preemptions not included; published once one is",
-    "tasks.preempted": "times a higher-priority request took an instance's unit; published once one does",
-    "tasks.resumed": "times an interrupted instance got its units back and was served again; published once one does",
-    "tasks.failed": "instances that failed: their `fail` held, their function raised or their wait failed; published once one does",
-}
-
-
-def _number(value: float) -> str:
-    return f"{value:.4g}"
-
-
-def distributions_page() -> str:
-    """The Distributions reference page, as Markdown."""
-    from desflow.core.distributions import TIME_LIST_PARAMETERS, TIME_PARAMETERS
-
-    lines: List[str] = [
-        "# Distributions",
-        "",
-        "Every distribution family desflow can draw from, generated from the registry of "
-        "distributions in the code. [Arrivals and Services](../user-guide/arrivals-and-services.md) "
-        "explains how a draw works, and how each family is seeded and changed live.",
-        "",
-        "Each family lists its parameters, the rules they must follow, and the registry "
-        "path of each parameter that can change during a run. The mean, variance and "
-        "value with no random generator are computed by the family's own functions for "
-        "the example given. In a blueprint, a time-valued parameter "
-        f"({', '.join(f'`{p}`' for p in TIME_PARAMETERS + TIME_LIST_PARAMETERS)}) also takes "
-        "a duration such as `5 min`. The builder and the low-level API take these "
-        'parameters in seconds only, so `add_service("packing", dist="constant", '
-        'value=120)`, not `value="2 min"`; a task\'s `patience` takes a duration in '
-        "the builder as well.",
-        "",
-    ]
-    lines += distribution_sections()
-    return "\n".join(lines) + "\n"
-
-
-def distribution_sections() -> List[str]:
-    """The family table and one section per family, as lines of Markdown.
-
-    The Distributions page and the skill's `references/distributions.md` both use
-    these lines.
-    """
-    from desflow.core.distributions import DISTRIBUTIONS
-    from desflow.models.params import DistributionConfig
-
-    lines: List[str] = [
-        "| Family | Parameters | Live paths |",
-        "|---|---|---|",
-    ]
-    for name, family in DISTRIBUTIONS.items():
-        live = ", ".join(f"`.{p}`" for p in family.live) or "none"
-        params = ", ".join(f"`{p}`" for p in family.parameters)
-        lines.append(f"| [`{name}`](#{name}) | {params} | {live} |")
-    for name, family in DISTRIBUTIONS.items():
-        example = EXAMPLES[name]
-        config = DistributionConfig(dist=name, **example)  # type: ignore[arg-type]
-        yaml_line = ", ".join(
-            f"{key}: {value}" for key, value in {"dist": name, **example}.items()
-        ).replace("'", "")
-        defaults = ", ".join(f"`{k}` {v:g}" for k, v in family.defaults.items())
-        lines += [
-            "",
-            f"## {name}",
-            "",
-            family.summary,
-            "",
-            "| | |",
-            "|---|---|",
-            f"| `dist` | `{name}` |",
-            f"| Parameters | {', '.join(f'`{p}`' for p in family.parameters)} |",
-            f"| Defaults | {defaults or 'none'} |",
-            f"| Rules | {family.rules} |",
-            "| Registry paths | "
-            + (
-                ", ".join(f"`<sim_id>.service.<name>.{p}`" for p in family.live)
-                + " (and `.arrival.` for an arrival)"
-                if family.live
-                else "none: the lists are taken at load"
-            )
-            + " |",
-            f"| Uses a random number | {'yes' if family.random else 'no'} |",
-            "",
-            f"For the example `{{{yaml_line}}}`: mean {_number(family.mean(config))}, "
-            f"variance {_number(family.variance(config))}, and with no random "
-            f"generator every draw is {_number(family.fixed(config))}.",
-        ]
-    return lines
-
-
-def statistic_names() -> Dict[str, List[str]]:
-    """Every name each level publishes, by level, found by running the statistics."""
-    from desflow import (
-        CapacityConfig,
-        ContainerConfig,
-        DynamicContainer,
-        DynamicRealtimeEnvironment,
-        DynamicResource,
-        DynamicStore,
-        SimParameter,
-    )
-    from desflow.config import STATS_LEVELS
-
-    names: Dict[str, List[str]] = {}
-    for level in STATS_LEVELS:
-        env = DynamicRealtimeEnvironment(factor=0)
-        env.registry.register_sim_parameter(
-            SimParameter(
-                sim_id="<sim_id>",
-                resources={"<name>": CapacityConfig(current_cap=1, max_cap=1)},
-                stores={"<name>": CapacityConfig(current_cap=1, max_cap=1)},
-                containers={"<name>": ContainerConfig(current_cap=1, max_cap=1)},
-            )
-        )
-        env.setup_stats("<sim_id>", level)
-        # A resource with a breakdown, as run_breakdowns marks it, adds its readings
-        DynamicResource(env, "<sim_id>", "<name>").has_breakdowns = True
-        DynamicStore(env, "<sim_id>", "<name>")
-        DynamicContainer(env, "<sim_id>", "<name>")
-        env.stats.task_queued("<task>", 0)
-        env.stats.task_started("<task>", 0)
-        env.stats.task_finished("<task>", 0)
-        env.stats.flow_started("<arrival>")
-        env.stats.task_balked("<task>", 1)
-        env.stats.task_queued("<task>", 2)
-        env.stats.task_reneged("<task>", 2)
-        env.stats.task_queued("<task>", 3)
-        env.stats.task_failed("<task>", 3)
-        env.stats.flow_failed("<arrival>")
-        env.stats.task_queued("<task>", 4)
-        env.stats.task_started("<task>", 4)
-        env.stats.task_interrupted("<task>", 4)
-        env.stats.task_interrupted("<task>", 4, preempted=True)
-        env.stats.task_resumed("<task>", 4)
-        env.stats.task_queued("<task>", 5)
-        env.stats.flow_finished("<arrival>")
-        names[level] = list(env.stats.readings())
-        env.teardown()
-    return names
-
-
-def _meaning(name: str) -> str:
-    parts = name.split(".")
-    return MEANINGS[f"{parts[2]}.{parts[-1]}"]
-
-
-def statistics_page() -> str:
-    """The Statistic Names reference page, as Markdown."""
-    names = statistic_names()
-    lines: List[str] = [
-        "# Statistic Names",
-        "",
-        "Every name the built-in statistics publish, at each level, generated by running "
-        "the statistics in the code. [Statistics](../user-guide/statistics.md) explains "
-        "the levels and how each value is computed. Each level publishes the names of the "
-        "levels before it, and the new ones listed under it. `<sim_id>` is the "
-        "simulation's id, `<name>` a resource, store or container, `<task>` a task, and "
-        "`<arrival>` the arrival that started a flow's entities.",
-    ]
-    seen: List[str] = []
-    for level, published in names.items():
-        new = [name for name in published if name not in seen]
-        seen += new
-        lines += ["", f"## {level}", ""]
-        if not new:
-            lines.append("Publishes nothing: the statistics are off.")
-            continue
-        lines += ["| Name | Measures |", "|---|---|"]
-        lines += [f"| `{name}` | {_meaning(name)} |" for name in new]
-    return "\n".join(lines) + "\n"
-
-
-def register() -> List[Dict[str, Any]]:
-    """The entries of the compatibility register, in file order."""
-    import yaml
-
-    return yaml.safe_load(REGISTER.read_text(encoding="utf-8"))
-
-
-# The heading of each group of the register.
-GROUPS: Dict[str, str] = {
-    "C1": "Events and Processes",
-    "C2": "Wait for One or All",
-    "C3": "Interrupts and Preemption",
-    "C4": "Resources",
-    "C5": "Stores and Containers",
-    "C6": "Run Control",
-    "C7": "Patience",
-    "S1": "Breakdowns",
-    "S2": "Schedules",
-    "S3": "Replay",
-    "D": "Differences Kept by Design",
-}
-
-# One or two sentences under each group's heading: what the group covers.
-GROUP_INTROS: Dict[str, str] = {
-    "C1": (
-        "Waiting a fixed time, events a task can fire or fail, including an event "
-        "that triggers once, and processes: starting one, with or without a delay "
-        "and without waiting for it, waiting for it, reading its return value or "
-        "its failure, being told when it ends, running actions when an event "
-        "happens, and inspecting an event, a process or the running process while "
-        "it runs."
-    ),
-    "C2": (
-        "Waiting for the first of several events, or for all of them, as SimPy's "
-        "`AnyOf` and `AllOf` conditions do, with conditions inside conditions, a "
-        "rule of your own such as at least some of them (SimPy's condition with a "
-        "count rule), a condition over no events, and a request, put or get as "
-        "one of the events."
-    ),
-    "C3": (
-        "Interrupting a task while it waits or while it is in service, and a "
-        "higher-priority request taking a resource unit from a lower-priority user, "
-        "with the cause that tells the user who took it and since when it held it."
-    ),
-    "C4": (
-        "Requesting and releasing resource units, in order of arrival or of "
-        "priority, with a default capacity of one unit or no limit, reading the "
-        "count, users and queue, limiting the waiting line, cancelling a request "
-        "before or after its grant, holding several resources at once, and "
-        "resources of your own classes."
-    ),
-    "C5": (
-        "Putting and getting items in a store and amounts in a container, with "
-        "capacity limits or none, priority items of any orderable type, filtered "
-        "gets, cancelled puts and gets, the order of puts and gets at the same "
-        "time, reading what a store holds and its put and get queues, a put or get "
-        "that the task does not wait for, and stores and containers of your own "
-        "classes."
-    ),
-    "C6": (
-        "Starting a run from a given time and state, reading the current time, "
-        "ending it at a time, at an event or on a condition and reading the value "
-        "that ended it, draining it, running it in segments, stepping through it "
-        "one model event at a time, scheduling an event with a priority, an "
-        "environment class of your own, and the pace of the run: its factor, "
-        "strict pacing and syncing with the wall clock."
-    ),
-    "C7": (
-        "Customers who give up after waiting too long (reneging) and customers "
-        "who do not join a queue that is too long (balking)."
-    ),
-    "S1": "A resource that fails and is repaired, with the work it interrupts.",
-    "S2": (
-        "A schedule of times at which an arrival rate or a capacity changes during "
-        "a run."
-    ),
-    "S3": "Arrivals read from a local CSV or Parquet file instead of drawn at random.",
-}
-
-
-def _anchor(group: str) -> str:
-    """The id MkDocs gives a group's heading: its text in lower case, joined by
-    hyphens, with punctuation dropped."""
-    title = f"{group}: {GROUPS[group]}" if group != "D" else GROUPS[group]
-    return "-".join(re.sub(r"[^a-z0-9 ]", "", title.lower()).split())
-
-
-def _check_link(check: str) -> str:
-    path, name = check.split("::")
-    return f"[`{name}`]({SOURCE_URL}{path})"
-
-
-def simpy_version() -> str:
-    """The SimPy version in `uv.lock`, the one the conformance tests run against.
-
-    It is named here once, read from the lock, so a Dependabot update of the lock
-    changes the page with no edit.
-    """
-    lock = tomllib.loads(LOCK.read_text(encoding="utf-8"))
-    return next(p["version"] for p in lock["package"] if p["name"] == "simpy")
-
-
-def compatibility_page() -> str:
-    """The SimPy Compatibility reference page, as Markdown."""
-    entries = register()
-    native = [e for e in entries if e.get("status", "native") == "native"]
-    kept = [e for e in entries if e.get("status") == "difference"]
-
-    def count(rows: List[Dict[str, Any]]) -> int:
-        return sum(len(row["inventory"]) for row in rows)
-
-    version = simpy_version()
-    total = count(entries)
-    # A difference with no inventory item is named from its register row, so the
-    # sentence follows the register; with no such row the clause is left out.
-    alone = [
-        e["operation"][0].lower() + e["operation"][1:]
-        for e in kept
-        if not e["inventory"]
-    ]
-    names = (
-        ", ".join(alone[:-1]) + " and " + alone[-1]
-        if len(alone) > 1
-        else "".join(alone)
-    )
-    # The register's rows without an inventory item are not SimPy features, so the
-    # count above leaves them out and this clause names them.
-    one_more = (
-        f" and one more, {names}, which is not a SimPy feature of its own"
-        if len(alone) == 1
-        else f" and {len(alone)} more, {names}, which are not SimPy features of "
-        "their own"
-        if alone
-        else ""
-    )
-    lines: List[str] = [
-        "# SimPy Compatibility",
-        "",
-        f"Every modelling feature of SimPy {version}, {total} in all, with its status "
-        "in YAML, the builder and the low-level API: native and checked, or a "
-        "difference kept by design. "
-        f"A native feature is checked by conformance tests that run a plain SimPy "
-        f"{version} model and the same model in all three APIs, and compare event "
-        "times, outcomes and balances. The page is generated from "
-        f"[`tests/conformance/register.yaml`]({SOURCE_URL}tests/conformance/register.yaml), "
-        "the list the tests read, so a feature is native here only with its checks.",
-        "",
-        f"**{count(native)}** features are native and checked in all three APIs, "
-        f"and **{count(kept)}** are differences kept by design. The last section "
-        f"lists those{one_more}.",
-        "",
-        "The low-level API is SimPy with a few classes added, so most SimPy features "
-        "work in it; "
-        "[SimPy and desflow]"
-        "(../des/simpy-and-desflow.md) explains how the two fit together. Where "
-        "desflow differs from SimPy on purpose, the difference is listed under the "
-        "table.",
-        "",
-        "The sections are numbered by kind. **C1 to C7** are SimPy's core "
-        "operations, such as events, conditions, interrupts, resources and stores. "
-        "**S1 to S3** are support features desflow builds from those operations: "
-        "breakdowns, schedules and replay. SimPy has no single call for them, so "
-        "their conformance tests compare with the same behaviour written in plain "
-        "SimPy.",
-    ]
-    groups: Dict[str, List[Dict[str, Any]]] = {}
-    for entry in native:
-        groups.setdefault(entry["id"], []).append(entry)
-    lines += [
-        "",
-        "| Section | Operations native in all three APIs |",
-        "|---|---|",
-        *(
-            f"| [{group}: {GROUPS[group]}](#{_anchor(group)}) | {len(rows)} |"
-            for group, rows in groups.items()
-        ),
-        f"| [{GROUPS['D']}](#{_anchor('D')}) | {len(kept)} differences |",
-        "",
-        "Under each feature, API details opens to show its SimPy construct, "
-        "its form in YAML, the builder and the low-level API, and the conformance "
-        "tests that check it.",
-    ]
-    for group, rows in groups.items():
-        lines += ["", f"## {group}: {GROUPS[group]}", "", GROUP_INTROS[group], ""]
-        for row in rows:
-            checks = ", ".join(_check_link(check) for check in row["checks"])
-            lines += [
-                f"**{row['operation']}**: {row['description']}",
-                "",
-                '??? note "API details"',
-                "",
-                f"    - **SimPy:** {row['simpy']}",
-                f"    - **YAML:** {row['yaml']}",
-                f"    - **Builder:** {row['builder']}",
-                f"    - **Low-level:** {row['low_level']}",
-                f"    - **Checks:** {checks}",
-            ]
-            if row.get("differences"):
-                lines.append(f"    - **Difference:** {row['differences']}")
-            lines += [
-                f"    - **Taught on:** [{row['operation']}](../{row['page']})",
-                "",
-            ]
-    lines += ["", f"## {GROUPS['D']}", ""]
-    for row in kept:
-        link = (
-            f" **Taught on:** [{row['operation']}](../{row['page']})"
-            if row.get("page")
-            else ""
-        )
-        lines.append(
-            f"- **{row['operation']}** (SimPy: {row['simpy']}): {row['differences']}"
-            + link
-        )
-    return "\n".join(lines) + "\n"
-
-
-def _schema_text() -> str:
-    """The text of the blueprint JSON Schema that ships with the package."""
-    from desflow.blueprint.schema import schema_text
-
-    return schema_text()
-
-
-def _schema() -> Dict[str, Any]:
-    return json.loads(_schema_text())
-
-
-def _ref_name(node: Dict[str, Any]) -> Optional[str]:
-    ref = node.get("$ref")
-    return ref.rsplit("/", 1)[1] if isinstance(ref, str) else None
-
-
-def _models_in(node: Any, defs: Dict[str, Any]) -> List[str]:
-    """The names of the models a property refers to, in order."""
-    found: List[str] = []
-    if isinstance(node, dict):
-        name = _ref_name(node)
-        if name is not None and "properties" in defs[name]:
-            found.append(name)
-        for key in ("anyOf", "oneOf", "items", "additionalProperties"):
-            inner = node.get(key)
-            for item in inner if isinstance(inner, list) else [inner]:
-                found += [m for m in _models_in(item, defs) if m not in found]
-    return found
-
-
-def _type_text(node: Any, defs: Dict[str, Any], anchors: Dict[str, str]) -> str:
-    """What a property takes, in a few words. A model links to its section."""
-    if node is True or node == {}:
-        return "any value"
-    name = _ref_name(node)
-    if name is not None:
-        if name == "Placeholder":
-            return ""
-        target = defs[name]
-        if "properties" in target:
-            return f"[{name}](#{anchors.get(name, name.lower())})"
-        return str(target.get("title", name))
-    if "title" in node:
-        return str(node["title"])
-    if "enum" in node:
-        return " or ".join(f"`{value}`" for value in node["enum"])
-    if "anyOf" in node or "oneOf" in node:
-        parts: List[str] = []
-        for alt in node.get("anyOf") or node["oneOf"]:
-            if alt.get("type") == "null":
-                continue
-            text = _type_text(alt, defs, anchors)
-            if text and text not in parts:
-                parts.append(text)
-        return " or ".join(parts)
-    kind = node.get("type")
-    if kind == "array":
-        return f"list of {_type_text(node.get('items', {}), defs, anchors)}".rstrip()
-    if kind == "object":
-        extra = node.get("additionalProperties")
-        if extra in (None, True):
-            return "mapping"
-        return f"mapping of names to {_type_text(extra, defs, anchors)}"
-    if "title" in node:
-        return str(node["title"])
-    return {"string": "text"}.get(str(kind), str(kind))
-
-
-def _default_text(prop: Dict[str, Any], required: bool) -> str:
-    if required:
-        return "required"
-    if "default" not in prop:
-        return ""
-    value = prop["default"]
-    if value is None:
-        return "none"
-    return f"`{json.dumps(value)}`"
-
-
-def _paragraphs(text: str) -> List[str]:
-    """A docstring as Markdown paragraphs of one line each."""
-    return [" ".join(part.split()) for part in text.strip().split("\n\n") if part]
-
-
-def yaml_keys_body(level: int = 2) -> List[str]:
-    """One section per top-level key of a blueprint, as lines of Markdown.
-
-    A key whose entries are a model shows that model's keys in a table, and each model
-    nested in it follows as a section of its own, in the order it is first used.
-    `level` is the heading level of the top-level keys. The YAML Keys page and the
-    skill's `references/blueprint-keys.md` both use these lines.
-    """
-    schema = _schema()
-    defs = schema["$defs"]
-    top = schema["properties"]
-    hashes = "#" * level
-    sub = "#" * (level + 1)
-
-    # A model that is the entry of a top-level key is shown under that key
-    primary: Dict[str, str] = {}
-    for key, prop in top.items():
-        models = _models_in(prop, defs)
-        if models and models[0] not in primary.values():
-            primary[key] = models[0]
-    anchors = {model: key for key, model in primary.items()}
-    taken: Set[str] = set()
-
-    def table(model: str) -> List[str]:
-        required = set(defs[model].get("required", []))
-        rows = ["| Key | Type | Default |", "|---|---|---|"]
-        for name, prop in defs[model]["properties"].items():
-            rows.append(
-                f"| `{name}` | {_type_text(prop, defs, anchors)} | "
-                f"{_default_text(prop, name in required)} |"
-            )
-        return rows
-
-    def section(model: str, heading: Optional[str]) -> List[str]:
-        """The description and table of a model, then the models nested in it."""
-        taken.add(model)
-        lines: List[str] = []
-        if heading:
-            lines += [heading, ""]
-        for paragraph in _paragraphs(defs[model].get("description", "")):
-            lines += [paragraph, ""]
-        lines += table(model) + [""]
-        for prop in defs[model]["properties"].values():
-            for nested in _models_in(prop, defs):
-                if nested not in taken and nested not in primary.values():
-                    lines += section(nested, f"{sub} {nested}")
-        return lines
-
-    lines: List[str] = []
-    for key, prop in top.items():
-        required = key in schema.get("required", [])
-        lines += [f"{hashes} {key}", ""]
-        # A key that is one model needs no link to the table that follows
-        kind = "mapping" if _ref_name(prop) else _type_text(prop, defs, anchors)
-        lines.append(f"Type: {kind}. " + ("Required." if required else "Optional."))
-        lines.append("")
-        if key in primary:
-            lines += section(primary[key], None)
-        else:
-            for nested in _models_in(prop, defs):
-                if nested not in taken:
-                    lines += section(nested, f"{sub} {nested}")
-    return lines
-
-
-def yaml_keys_page() -> str:
-    """The YAML Keys reference page, as Markdown."""
-    lines = [
-        "# YAML Keys",
-        "",
-        "Every key a blueprint file takes, generated from the JSON Schema that ships "
-        "with desflow. [YAML Format](yaml-format.md) explains how a file is read. "
-        "[Set Up Your Editor](../guides/set-up-your-editor.md) shows how to have "
-        "your editor complete and check these keys as you type.",
-        "",
-        "Each section below is a top-level key. A table lists the keys that an entry "
-        "of it takes, and a section follows for each entry nested in it. Where a "
-        "value is a number, a whole number, `true` or `false`, or one of a fixed "
-        "set of names, a `${VAR}` or `${VAR:-default}` reference is also "
-        "accepted, and a duration such as `5 min` is accepted where the type says "
-        "Duration.",
-        "",
-    ]
-    return "\n".join(lines + yaml_keys_body(2)).rstrip("\n") + "\n"
+# What the tests and scripts/gen_skill.py read from this file
+__all__ = [
+    "EXAMPLES",
+    "GROUPS",
+    "cli_pages",
+    "commands",
+    "compatibility_page",
+    "distribution_sections",
+    "distributions_page",
+    "paragraphs",
+    "register",
+    "simpy_version",
+    "statistic_names",
+    "statistics_page",
+    "write",
+    "yaml_keys_body",
+    "yaml_keys_page",
+]
 
 
 def write() -> None:
     """Writes the generated pages into the docs build."""
     import mkdocs_gen_files
 
+    from desflow.blueprint.schema import schema_text
+
     for path, page in (
         ("reference/distributions.md", distributions_page()),
         ("reference/statistics.md", statistics_page()),
         ("reference/yaml-keys.md", yaml_keys_page()),
         ("reference/simpy-compatibility.md", compatibility_page()),
+        *cli_pages().items(),
     ):
         with mkdocs_gen_files.open(path, "w") as file:
             file.write(page)
@@ -656,7 +84,7 @@ def write() -> None:
     # The schema file as the package holds it, so the URL a modeline names serves the
     # same text as `desflow schema`
     with mkdocs_gen_files.open("schema/blueprint.schema.json", "w") as file:
-        file.write(_schema_text())
+        file.write(schema_text())
 
 
 # mkdocs-gen-files runs this file with runpy, under this name

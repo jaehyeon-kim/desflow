@@ -24,7 +24,7 @@ A level switches them on. Each level publishes what the levels before it publish
 | `typical` | How long did tasks take? | tasks: `wait_mean`, `wait_max`, `service_mean`, `service_max` |
 | `all` | How long did the slowest take? | tasks: `wait_p50`, `wait_p95`, `wait_p99`, `service_p50`, `service_p95`, `service_p99` |
 
-They are published every `interval` of simulation time, 10 seconds when it is not given, starting one interval after the start, and once more at the end of the run. When the timer has already published at the end's time, the end publishes only the values that changed since:
+They are published every `interval` of simulation time, 10 seconds when it is not given. The first publication comes one interval after the start, and one more comes at the end of the run. When the timer has already published at the end's time, the end publishes only the values that changed since:
 
 === "YAML"
 
@@ -65,7 +65,7 @@ They are published every `interval` of simulation time, 10 seconds when it is no
 
 ### Read the Names
 
-Every statistic is published as telemetry named `<sim_id>.stats.<kind>.<name>.<statistic>`, where the kind is `resources`, `stores`, `containers`, `tasks` or `flows`. A flow is named by the arrival that started its entities: `Shop.stats.flows.orders.finished` counts the orders that left the model. [Reference, Statistics](../reference/statistics.md) lists every name with what it measures. These are the statistics the blueprint above publishes at the end of its two minutes:
+Every statistic is published as telemetry named `<sim_id>.stats.<kind>.<name>.<statistic>`, where the kind is `resources`, `stores`, `containers`, `tasks` or `flows`. A flow is named by the arrival that started its entities: `Shop.stats.flows.orders.finished` counts the orders that left the model. [Reference, Statistics](../reference/statistics.md) lists every name with what it measures. Below are the statistics that [`statistics.yaml`](https://github.com/jaehyeon-kim/desflow/blob/main/docs/snippets/yaml/statistics.yaml), the blueprint whose `levels` part is shown above, publishes at the end of its two-minute run:
 
 <!-- records: statistics-final -->
 ```text
@@ -98,7 +98,7 @@ print(f"mean wait {readings['Shop.stats.tasks.pack_order.wait_mean']:.2f} s")
 
 ### Which Entities a Count Covers
 
-Every entity that arrives belongs to one population when the statistics are read, and each population has its counts, from `basic` unless noted. A mean wait or service time covers only the instances that reached that step, so report the counts beside it:
+When the statistics are read, every entity that has arrived belongs to one population. Each population has its own counts, published from `basic` unless the table says otherwise. A mean wait or service time covers only the instances that reached that step, so report the counts beside it:
 
 | Population | Which entities | Counts |
 |---|---|---|
@@ -109,9 +109,9 @@ Every entity that arrives belongs to one population when the statistics are read
 | failed | ended in a failure that no `on_fail` handled | `flows.<arrival>.failed`; `tasks.<task>.failed` counts failed instances |
 | warm-up-crossing | started before the warm-up ended and ended after it | in `finished`, and in the wait and service times with their whole wait, but not in `started` |
 
-An entity a task spawns ([Start a Flow Without Waiting](tasks-and-processes/signals-and-waiting.md#start-a-flow-without-waiting)) counts as a flow of its own under the spawned task's name, so `flows.<task>.*` and `tasks.<task>.*` cover it as they cover any arrival's flow, with the spawning entity's key in `attr.parent`.
+An entity a task spawns ([Start a Flow Without Waiting](tasks-and-processes/signals-and-waiting.md#start-a-flow-without-waiting)) counts as a flow of its own under the spawned task's name. So `flows.<task>.*` and `tasks.<task>.*` cover it as they cover any arrival's flow. The spawning entity's key is in `attr.parent`.
 
-Without a warm-up, `started` is `finished` plus `in_system` plus the entities that balked, reneged, failed or were abandoned. A warm-up starts `started`, `finished`, `failed` and the outcome counts again from zero and leaves `in_system` and `in_progress` as they are, so after it `finished` also counts the warm-up-crossing entities and can be larger than `started`. [End Conditions](../tutorials/end-conditions.md) counts each population of a run.
+Without a [warm-up](../des/output-analysis.md#one-run-starts-empty), `started` is `finished` plus `in_system` plus the entities that balked, reneged, failed or were abandoned. A warm-up starts `started`, `finished`, `failed` and the outcome counts again from zero, and leaves `in_system` and `in_progress` as they are. After a warm-up, `finished` also counts the warm-up-crossing entities, which `started` leaves out, so `finished` can be larger than `started`. [End Conditions](../tutorials/end-conditions.md) counts each population of a run.
 
 ### Add Readings of Your Own
 
@@ -155,9 +155,40 @@ Anything else is a custom reading: a function called at an interval of simulatio
 
     A process that loops, publishes with `env.publish_telemetry(name, value)` and waits with `env.timeout(interval)` does the same.
 
-### Example: Measuring a Run
+---
 
-The `measuring` example publishes every statistic of the packers and the pack task every 5 minutes, leaves out a 3-minute warm-up, and sends a ground-truth record when packing slows down, to a sink of its own. It needs no Docker service and ends on its own.
+## How It Works
+
+The environment keeps one `Statistics` object, `env.stats`, which collects nothing until a level above `none` is set. Its timer publishes every value at each interval, and the teardown publishes them once more. When the timer has already published at the teardown's time, the teardown publishes only the values that changed since.
+
+**Readings now.** `capacity`, `in_use`, `queue_length` and `level` are read from the object at the moment of publishing. `in_use` counts the units held by tasks, and a capacity drop does not take busy units away. After a drop, `in_use` can therefore be above `capacity`, and `utilization` (`in_use ÷ capacity × 100`) can be above 100%. A resource with no limit (`current_cap: .inf`) publishes `capacity` as `null` and a `utilization` of 0. A store or container with no limit publishes its `capacity` as `null` too.
+
+**Breakdowns.** A resource with a `breakdown` reads `down` now: 1 while it is down, 0 otherwise. `downtime` adds the length of each down period, and of one still going on. `failures` adds one at each failure. [Model Breakdowns](../guides/breakdowns.md) checks both against the events.
+
+**Averages over time.** `utilization_avg`, `queue_length_avg` and `level_avg` weigh each value by how long it lasted. Each resource, store and container reports every change, and the statistics add the area under the value since the last change, so the average is exact at any moment rather than sampled:
+
+![Busy packers over 10 seconds: 1 for 2 seconds, 3 for 4 seconds, 2 for 4 seconds; the areas 2, 12 and 8 add up to 22, so the time-weighted average is 2.2 busy packers, while a reading at 10 seconds sees 2](../assets/diagrams/stats-time-weighted.png)
+
+**Counts.** `finished` adds one when a task instance finishes, and a flow's `finished` adds one when an entity's last task has no next task. A flow's `started` adds one when an entity's first task instance begins, before its balk check and its queue, whether or not it is then served. An entity that the `spawn` key or an `on:` spawn action starts is counted at the spawn when the spawn has no `after`. With an `after`, it is counted when the spawned task starts, after the delay. `in_system` is the number of the flow's entities in the model now: started, and not yet finished, failed or gone. [Which Entities a Count Covers](#which-entities-a-count-covers) shows how `started` adds up. A task's `in_progress` is the number of its instances queued or started and not yet ended, now. A low-level process reports an entity's start with `env.stats.flow_started(arrival)`. It reports an entity that leaves without finishing or failing with `env.stats.flow_ended(arrival)`. A task's `balked` adds one when an instance refuses to join its queue, `reneged` when one leaves the queue after its patience, and `failed` when one fails ([Failures](tasks-and-processes/failures.md#failures)). A flow's `failed` adds one when an entity's flow ends in a failure no `on_fail` handles. `interrupted` and `preempted` add one for each interrupt or preemption an instance receives, and `resumed` when it is served again. Each is published once it is above 0. A balked, reneged or failed instance adds no wait or service time. An interrupted instance that resumes adds one wait, the sum of all its waits, and one service time, the time it was served. A low-level process counts them with `env.stats.task_balked(task, instance)`, `env.stats.task_reneged(task, instance)`, `env.stats.task_failed(task, instance)`, `env.stats.flow_failed(arrival)`, `env.stats.task_interrupted(task, instance, preempted=...)` and `env.stats.task_resumed(task, instance)`.
+
+**Wait and service.** The wait of a task instance runs from its `queued` step to its `started` step, and its service from `started` to finished. A task that never queues, such as a timed step, waits 0. `typical` keeps only a count, a total and a maximum of each, so the memory they use does not grow with the run. `all` keeps every observation and computes the percentiles exactly with NumPy's `percentile` at each publication, so its memory grows with the number of tasks.
+
+**Warm-up.** A run's `warmup` resets every statistic once, at that time: the averages start again from zero area, and the counts and observations from zero. An instance that was queued before the reset and starts after it counts with its whole wait. [Time and Pacing](time-and-pacing/index.md) describes the warm-up.
+
+---
+
+## Stability and Limits
+
+- **Cost.** `minimal` reads a few values at each publication. `basic` adds a little work at every change of a resource, store or container. `typical` adds a little at every task step. `all` keeps every wait and service time in memory for the whole run. Use it for runs of thousands of tasks, not for a generator that runs for days.
+- **One way to get resource readings.** Before 0.21.0, a `telemetry` entry could publish `<resource>.<reading>` by name. That shortcut is gone: `stats: minimal` publishes the same readings, under `Shop.stats.resources.<name>.<reading>`. `telemetry` now takes only a function, for readings of your own.
+- **One run is one sample.** The statistics describe one run with one seed. Values from the same run are not independent of each other, and another seed gives other values. [Replications](../des/output-analysis.md#replications) give independent values. [Trusting Results](../tutorials/trusting-results.md) shows what that means for a result, and [Replications](replications.md) run a model with many seeds.
+- **A task appears once it has run.** At `typical` and `all`, a task's statistics are published from the first time it starts. At `basic`, they are published from the first time it finishes.
+
+---
+
+## Example: Measuring a Run
+
+The `measuring` example publishes every statistic of the packers and the pack task every 5 minutes of simulation time, and leaves out a 3-minute warm-up. When packing slows down, it sends a ground-truth record to a sink of its own. It needs no Docker service and ends on its own.
 
 === "YAML"
 
@@ -307,32 +338,3 @@ The `measuring` example publishes every statistic of the packers and the pack ta
     ```
 
     The whole file is [`examples/low-level/measuring_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/measuring_example.py).
-
----
-
-## How It Works
-
-The environment keeps one `Statistics` object, `env.stats`, which collects nothing until a level above `none` is set. Its timer publishes every value at each interval, and the teardown publishes them once more. When the timer has already published at the teardown's time, the teardown publishes only the values that changed since.
-
-**Readings now.** `capacity`, `in_use`, `queue_length` and `level` are read from the object at the moment of publishing. `in_use` counts the units held by tasks, so after a capacity drop it can be above `capacity`, and `utilization`, `in_use ÷ capacity × 100`, above 100. A resource with no limit (`current_cap: .inf`) publishes `capacity` as `null` and a `utilization` of 0. A store or container with no limit publishes its `capacity` as `null` too.
-
-**Breakdowns.** A resource with a `breakdown` reads `down` now: 1 while it is down, 0 otherwise. `downtime` adds the length of each down period, and of one still going on, and `failures` adds one at each failure; [Breakdowns](../guides/breakdowns.md) checks both against the events.
-
-**Averages over time.** `utilization_avg`, `queue_length_avg` and `level_avg` weigh each value by how long it lasted. Each resource, store and container reports every change, and the statistics add the area under the value since the last change, so the average is exact at any moment rather than sampled:
-
-![Busy packers over 10 seconds: 1 for 2 seconds, 3 for 4 seconds, 2 for 4 seconds; the areas 2, 12 and 8 add up to 22, so the time-weighted average is 2.2 busy packers, while a reading at 10 seconds sees 2](../assets/diagrams/stats-time-weighted.png)
-
-**Counts.** `finished` adds one when a task instance finishes, and a flow's `finished` adds one when an entity's last task has no next task. A flow's `started` adds one when an entity's first task instance begins, before its balk check and its queue, whether or not it is then served; for an entity the `spawn` key or an `on:` spawn action starts it adds one at the spawn when the spawn has no `after`, and when the spawned task starts after the delay when it has one. `in_system` is the number of its entities in the model now, started and not yet finished, failed or gone; so `started` is `finished` plus `in_system` plus the entities that balked, reneged, failed or were abandoned. A task's `in_progress` is the number of its instances queued or started and not yet ended, now. A low-level process reports entities with `env.stats.flow_started(arrival)` and, for one that leaves without finishing or failing, `env.stats.flow_ended(arrival)`. A task's `balked` adds one when an instance refuses to join its queue, `reneged` when one leaves the queue after its patience, and `failed` when one fails ([Failures](tasks-and-processes/failures.md#failures)); a flow's `failed` adds one when an entity's flow ends in a failure no `on_fail` handles. `interrupted` and `preempted` add one for each interrupt or preemption an instance receives, and `resumed` when it is served again. Each is published once it is above 0. A balked, reneged or failed instance adds no wait or service time. An interrupted instance that resumes adds one wait, the sum of all its waits, and one service time, the time it was served. A low-level process counts them with `env.stats.task_balked(task, instance)`, `env.stats.task_reneged(task, instance)`, `env.stats.task_failed(task, instance)`, `env.stats.flow_failed(arrival)`, `env.stats.task_interrupted(task, instance, preempted=...)` and `env.stats.task_resumed(task, instance)`.
-
-**Wait and service.** The wait of a task instance runs from its `queued` step to its `started` step, and its service from `started` to finished; a task that never queues, such as a timed step, waits 0. `typical` keeps a count, a total and a maximum of each, so their cost does not grow with the run. `all` keeps every observation and computes the percentiles exactly with NumPy's `percentile` at each publication, so its memory grows with the number of tasks.
-
-**Warm-up.** A run's `warmup` resets every statistic once, at that time: the averages start again from zero area, and the counts and observations from zero. An instance that was queued before the reset and starts after it counts with its whole wait. [Time and Pacing](time-and-pacing/index.md) describes the warm-up.
-
----
-
-## Stability and Limits
-
-- **Cost.** `minimal` reads a few values at each publication. `basic` adds a little work at every change of a resource, store or container. `typical` adds a little at every task step. `all` keeps every wait and service time in memory for the whole run; use it for runs of thousands of tasks, not for a generator that runs for days.
-- **One way to get resource readings.** Before 0.21.0, a `telemetry` entry could publish `<resource>.<reading>` by name. That shortcut is gone: `stats: minimal` publishes the same readings, under `Shop.stats.resources.<name>.<reading>`. `telemetry` now takes only a function, for readings of your own.
-- **One run is one sample.** The statistics describe one run with one seed. Values from the same run are not independent of each other, and another seed gives other values; [Trusting Results](../tutorials/trusting-results.md) shows what that means for a result, and [Replications](replications.md) run a model with many seeds.
-- **A task appears once it has run.** A task's statistics are published from the first time it starts, at `typical` and `all`, or finishes, at `basic`.

@@ -1,6 +1,6 @@
 """Fuel dock: a lane of your own type, a tank that fills up and a put that is not waited for, low-level API.
 
-The low-level twin of `builder/fuel_dock_example.py`. Fuel trucks drive into a lane at
+The low-level version of `builder/fuel_dock_example.py`. Fuel trucks drive into a lane at
 the dock, which holds two. The lane is a store of your own type (`Lane`) that gives
 back the newest truck first. A crew unloads one truck every 7 seconds. A tank truck
 starts its pump into the tank and drives off without waiting; the tank holds 100, so the

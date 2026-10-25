@@ -1,22 +1,27 @@
 # Randomness and Seeds
 
-Run the busy shop twice: orders arrive at different times and packing durations vary. That is what a stochastic model does, but it makes a result hard to check or to compare. This page asks: **why do runs differ, and how can you reproduce one?**
+Run the busy shop twice, and the orders arrive at different times and take different times to pack. A stochastic model, one that draws random times, behaves this way, but its results are then hard to check or to compare. This page asks: **why do runs differ, and how can you reproduce one?**
+
+- **Decision:** how to set up runs so that a result can be checked and two versions of the model compared.
+- **Measures:** the times of one order's events, on repeated runs and after a second arrival is added.
+- **Runs:** runs of one minute: two with no seed, then repeated runs with the seed 42, with and without a second arrival.
+- **Assumptions:** orders arrive at random at 1.8 a second, and each packing time is drawn on its own, whatever the others were.
 
 ## What You Add
 
-A seed, then a second arrival. The model simulates the busy hour from [Queues and Capacity](queues-and-capacity.md), using its answer of 3 packers. Packing times now vary: 1.5 seconds on average, give or take 0.5, drawn from a `normal` distribution. The run is one minute long.
+This page adds a seed, then a second arrival: returned parcels. The model simulates the busy hour from [Queues and Capacity](queues-and-capacity.md), using its answer of 3 packers. Packing times now vary: 1.5 seconds on average with a standard deviation of 0.5 seconds, drawn from a `normal` distribution. This page uses the normal only to get times that vary. [Choosing Inputs](choosing-inputs.md) chooses packing times from data. [Common Mistakes](../des/common-mistakes.md#choosing-a-normal-or-uniform-by-habit) explains why a normal is a poor model of a time. This one draws a value below 0 about once in 740 draws, and desflow raises such a draw to its minimum delay, as [Distributions](../reference/distributions.md) says.
 
 ---
 
 ## Run Twice
 
-A simulation draws its random times from a **random number stream**: a long sequence of numbers that looks random but is computed from a starting value, the **seed**. The same seed gives the same sequence, and so the same run. A run without a seed takes a new seed each time, so two runs give two different sets of records.
+A simulation draws its random times from a **random number stream**: a long sequence of numbers that looks random but is computed from a starting value, the **seed**. The same seed gives the same sequence, and so the same run. A simulation given no seed starts from a new seed each time, so two runs give two different sets of records.
 
-desflow never runs without a seed. When you give none, it draws one, uses it, and logs it, so any run can be repeated afterwards:
+Save the files from [Full Files](#full-files) in one folder and run the commands there. desflow never runs without a seed. When you give none, it draws one, uses it, and logs it, so any run can be repeated afterwards:
 
 === "YAML"
 
-    Leave `random_seed` out of the `simulation` section and run the blueprint twice. Each run logs its seed with the command that repeats it:
+    Leave `random_seed` out of the `simulation` section and run the blueprint twice. Each run logs its seed with the command that repeats it. Each run draws its own seed, so your number differs from this one:
 
     <!-- records: seed-line-yaml -->
     ```text
@@ -25,7 +30,7 @@ desflow never runs without a seed. When you give none, it draws one, uses it, an
 
 === "Builder"
 
-    Leave `random_seed` out of `SimulationContext` and run the script twice. Each run logs its seed with the argument that repeats it:
+    Leave `random_seed` out of `SimulationContext` and run the script twice. Each run logs its seed with the argument that repeats it. Each run draws its own seed, so your number differs from this one:
 
     <!-- records: seed-line-builder -->
     ```text
@@ -34,7 +39,7 @@ desflow never runs without a seed. When you give none, it draws one, uses it, an
 
 === "Low-level"
 
-    The low-level API never draws a seed for you: you pass one to `Sampler`. A `Sampler()` with no seed draws nothing at random, and every sample is the distribution's mean (for a `truncated_normal`, its `mean` or its `low`, whichever is higher), which suits a test that needs fixed times. To start from a new seed each run, draw one yourself, for example with `secrets.randbelow(2**32)`, and print it.
+    The low-level API never draws a seed for you: you pass one to `Sampler`. A `Sampler()` with no seed draws nothing at random, as [Arrivals and Services](../user-guide/arrivals-and-services.md#how-it-works) explains. To start from a new seed each run, draw one yourself, for example with `secrets.randbelow(2**32)`, and print it.
 
 ---
 
@@ -80,14 +85,14 @@ It is `queued` at 5.993, gets a packer at 6.695 and is packed at 8.443: a wait o
 
 ## Add Returns
 
-Now add returned parcels: about one every 5 seconds, recorded as they arrive. They do not use the packers.
+Now add returned parcels: one every 5 seconds on average (12 a minute), each recorded as it arrives. They do not use the packers.
 
 === "YAML"
 
     ```yaml title="docs/snippets/yaml/randomness_and_seeds.yaml:returns" hl_lines="4 8 9"
     arrivals:
       orders: {dist: exponential, rate: 1.8, spawn: pack_order}
-      # Returned parcels: about one every 5 seconds
+      # Returned parcels: one every 5 seconds on average
       returns: {dist: exponential, rate: 0.2, spawn: receive_return}
 
     tasks:
@@ -99,7 +104,7 @@ Now add returned parcels: about one every 5 seconds, recorded as they arrive. Th
 === "Builder"
 
     ```python title="docs/snippets/tutorials/randomness_and_seeds.py:returns"
-    # Returned parcels: about one every 5 seconds
+    # Returned parcels: one every 5 seconds on average
     app.add_arrival("returns", dist="exponential", rate=0.2)
 
 
@@ -121,7 +126,7 @@ Now add returned parcels: about one every 5 seconds, recorded as they arrive. Th
 === "Low-level"
 
     ```python title="docs/snippets/tutorials/randomness_and_seeds_low_level.py:returns"
-    # Returned parcels: about one every 5 seconds
+    # Returned parcels: one every 5 seconds on average
     PARAMS.arrival["returns"] = DistributionConfig(dist="exponential", rate=0.2)
 
 
@@ -138,15 +143,15 @@ Now add returned parcels: about one every 5 seconds, recorded as they arrive. Th
             task_id += 1
     ```
 
-    `Sampler(seed=SEED)` makes one generator per name, `sampler.generator("arrival.returns")`, from the seed and the name. When the registry registers a distribution it names it by its path without the sim id, and `sampler.sample(config)` draws from the generator of that name. Your own code can take a sequence of its own the same way.
+    `Sampler(seed=SEED)` makes one generator per name, `sampler.generator("arrival.returns")`, from the seed and the name. The registry names each distribution it registers by its path without the sim id, such as `arrival.returns`. `sampler.sample(config)` draws from the generator of that name. Your own code can take a sequence of its own the same way.
 
 A task with no service and no resource, such as `receive_return`, takes no time: it publishes its payload as soon as the arrival starts it.
 
-Run it with the seed 42. `orders-12` has the same three events as before, at the same times. Adding an arrival changed nothing for the orders, because of how desflow hands out random numbers: each distribution draws from a stream of its own, named by its registry path without the sim id. The orders draw from `arrival.orders`, packing from `service.packing`, and the new returns from `arrival.returns`. Look at the two runs side by side:
+Run it with the seed 42. `orders-12` has the same three events as before, at the same times. Adding an arrival changed nothing for the orders, because each distribution draws from a random number stream of its own, named by its registry path without the sim id. The orders draw from `arrival.orders`, packing from `service.packing`, and the new returns from `arrival.returns`. Look at the two runs side by side:
 
 ![With the seed 42, the first run draws arrival.orders and service.packing; the second run, with returns added, draws the same numbers from those two streams and adds a stream of its own, arrival.returns](../assets/diagrams/seed-sequences.png)
 
-With one shared stream, the returns would take some of the numbers the orders and packing used to get, and every later time would shift.
+With one shared stream, the returns would take some of the numbers the orders and packing used to get, and every later time would shift. The name is part of the stream. Renaming a service, an arrival or a task that routes by weights therefore gives it a new stream, and a run with the same seed then gives other results. [Common Mistakes](../des/common-mistakes.md#busy-hour-figures) shows two such runs: the same measured packing times give 1.35 or 1.38 seconds of mean wait, depending on the service's name.
 
 ---
 
@@ -179,12 +184,12 @@ One stream per input means that two versions of a model run with the same seed s
           packers: {current_cap: 3, max_cap: 10}
 
         services:
-          # Packing varies: 1.5 seconds on average, give or take 0.5
+          # Packing varies: 1.5 seconds on average, with a standard deviation of 0.5
           packing: {dist: normal, mean: 1.5 s, std: 0.5 s}
 
         arrivals:
           orders: {dist: exponential, rate: 1.8, spawn: pack_order}
-          # Returned parcels: about one every 5 seconds
+          # Returned parcels: one every 5 seconds on average
           returns: {dist: exponential, rate: 0.2, spawn: receive_return}
 
         tasks:
@@ -208,9 +213,9 @@ One stream per input means that two versions of a model run with the same seed s
         ```python title="docs/snippets/tutorials/randomness_and_seeds.py"
         """The Randomness and Seeds tutorial: the busy shop, seeded, with returns, builder.
 
-        Orders arrive at 1.8 a second and three packers pack each in 1.5 seconds on average,
-        give or take 0.5. Returned parcels arrive about every 5 seconds and are recorded as
-        they arrive. Every record is printed to the terminal.
+        Orders arrive at 1.8 a second, and three packers pack each in 1.5 seconds on average,
+        with a standard deviation of 0.5 seconds. Returned parcels arrive every 5 seconds on
+        average and are recorded as they arrive. Every record is printed to the terminal.
         """
 
         import logging
@@ -225,7 +230,7 @@ One stream per input means that two versions of a model run with the same seed s
             # The same random numbers on every run; leave it out to draw a new seed
             SimulationContext(sim_id="Shop", factor=0, random_seed=42)
             .add_resource("packers", current_cap=3, max_cap=10)
-            # Packing varies: 1.5 seconds on average, give or take 0.5
+            # Packing varies: 1.5 seconds on average, with a standard deviation of 0.5
             .add_service("packing", dist="normal", mean=1.5, std=0.5)
             .add_arrival("orders", dist="exponential", rate=1.8)
             .add_egress(ConsoleEgress())
@@ -246,7 +251,7 @@ One stream per input means that two versions of a model run with the same seed s
                 task_id += 1
 
 
-        # Returned parcels: about one every 5 seconds
+        # Returned parcels: one every 5 seconds on average
         app.add_arrival("returns", dist="exponential", rate=0.2)
 
 
@@ -274,9 +279,9 @@ One stream per input means that two versions of a model run with the same seed s
         ```python title="docs/snippets/tutorials/randomness_and_seeds_low_level.py"
         """The Randomness and Seeds tutorial: the busy shop, seeded, with returns, low-level.
 
-        Orders arrive at 1.8 a second and three packers pack each in 1.5 seconds on average,
-        give or take 0.5. Returned parcels arrive about every 5 seconds and are recorded as
-        they arrive. Every record is printed to the terminal.
+        Orders arrive at 1.8 a second, and three packers pack each in 1.5 seconds on average,
+        with a standard deviation of 0.5 seconds. Returned parcels arrive every 5 seconds on
+        average and are recorded as they arrive. Every record is printed to the terminal.
         """
 
         import logging
@@ -298,7 +303,7 @@ One stream per input means that two versions of a model run with the same seed s
         PARAMS = SimParameter(
             sim_id="Shop",
             arrival={"orders": DistributionConfig(dist="exponential", rate=1.8)},
-            # Packing varies: 1.5 seconds on average, give or take 0.5
+            # Packing varies: 1.5 seconds on average, with a standard deviation of 0.5
             service={"packing": DistributionConfig(dist="normal", mean=1.5, std=0.5)},
             resources={"packers": CapacityConfig(current_cap=3, max_cap=10)},
         )
@@ -329,7 +334,7 @@ One stream per input means that two versions of a model run with the same seed s
                 task_id += 1
 
 
-        # Returned parcels: about one every 5 seconds
+        # Returned parcels: one every 5 seconds on average
         PARAMS.arrival["returns"] = DistributionConfig(dist="exponential", rate=0.2)
 
 
@@ -364,5 +369,3 @@ One stream per input means that two versions of a model run with the same seed s
         if __name__ == "__main__":
             run()
         ```
-
-Next, [Choosing Inputs](choosing-inputs.md) asks which distribution fits packing times.

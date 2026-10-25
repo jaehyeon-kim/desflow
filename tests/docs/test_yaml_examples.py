@@ -165,12 +165,12 @@ def test_kafka():
     [egress] = app._egress_providers
     assert app._default_until is None
     assert ingress.topic == "sim-config"
-    assert ingress.bootstrap_servers == "localhost:9092"
+    assert ingress.bootstrap_servers == "127.0.0.1:9092"
     assert (egress.event_topic, egress.telemetry_topic) == (
         "sim-events",
         "sim-telemetry",
     )
-    assert egress.producer_config["bootstrap_servers"] == "localhost:9092"
+    assert egress.producer_config["bootstrap_servers"] == "127.0.0.1:9092"
     # No router, so the egress creates both topics when it starts.
     assert egress.topic_router is None
 
@@ -239,7 +239,7 @@ def test_parquet_on_s3(monkeypatch):
     """The variables in the file's header switch the same file to S3."""
     monkeypatch.setenv("PARQUET_FILESYSTEM", "s3")
     monkeypatch.setenv("DEST_PATH", "odctl-dev/history")
-    monkeypatch.setenv("S3_ENDPOINT", "http://localhost:8333")
+    monkeypatch.setenv("S3_ENDPOINT", "http://127.0.0.1:8333")
     monkeypatch.setenv("S3_ACCESS_KEY", "user")
     monkeypatch.setenv("S3_SECRET_KEY", "password")
     [egress] = _build("parquet.yaml")._egress_providers
@@ -249,7 +249,7 @@ def test_parquet_on_s3(monkeypatch):
     assert isinstance(built, fs.S3FileSystem)
     options = built.__reduce__()[1][0]
     assert (options["endpoint_override"], options["scheme"]) == (
-        "localhost:8333",
+        "127.0.0.1:8333",
         "http",
     )
     assert (options["access_key"], options["secret_key"]) == ("user", "password")
@@ -290,9 +290,9 @@ def test_iceberg():
     assert egress.catalog_properties == {
         "name": "odctl",
         "type": "rest",
-        "uri": "http://localhost:8181",
+        "uri": "http://127.0.0.1:8181",
         "warehouse": "s3://warehouse/",
-        "s3.endpoint": "http://localhost:8333",
+        "s3.endpoint": "http://127.0.0.1:8333",
         "s3.access-key-id": "user",
         "s3.secret-access-key": "password",
         "s3.region": "us-east-1",
@@ -442,7 +442,7 @@ def test_backfill_live():
     assert app._default_until == 660.0
     assert (app.go_live_at - app.logical_start_time).total_seconds() == 600
     assert history.default_path == "data/backfill/events.parquet"
-    assert live.producer_config["bootstrap_servers"] == "localhost:9092"
+    assert live.producer_config["bootstrap_servers"] == "127.0.0.1:9092"
     assert (app._batch_size, app._flush_interval) == (2000, 10.0)
 
     go_live_iso = app.go_live_at.isoformat(timespec="milliseconds")

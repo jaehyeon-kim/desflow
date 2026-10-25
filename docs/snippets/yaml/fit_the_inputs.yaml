@@ -1,8 +1,10 @@
-# The Fit the Inputs tutorial: the busy hour, with a packing time fitted to the data.
+# The Fitting the Inputs tutorial: the busy hour, with a packing time fitted to the data.
 # Fit, then run it:
 #   desflow fit packing_times.csv --column packing_seconds --lower 0 --out fitted/packing.yaml
 #   desflow run fit_the_inputs.yaml
 # 40 replications: desflow run fit_the_inputs.yaml --replications 40 --measure tasks.pack_order.wait_mean
+# The gamma fit instead: write fitted/packing_gamma.yaml with --candidates gamma, then
+#   PACKING_FIT=fitted/packing_gamma.yaml desflow run fit_the_inputs.yaml
 simulation:
   sim_id: Shop
   factor: 0
@@ -17,8 +19,9 @@ arrivals:
 
 # --8<-- [start:include]
 services:
-  # The best fit of the 40 packing times, as desflow fit wrote it
-  packing: !include fitted/packing.yaml
+  # The best fit of the 40 packing times, as desflow fit wrote it, or the fit
+  # file the PACKING_FIT variable names
+  packing: !include ${PACKING_FIT:-fitted/packing.yaml}
 # --8<-- [end:include]
 
 tasks:

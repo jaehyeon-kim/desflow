@@ -2,7 +2,7 @@
 
 A model that runs is not a model that is right. This page explains how to check a model in two ways that need different evidence: **verification** asks whether the program does what the model on paper says, and **validation** asks whether that model is a good enough picture of the real system for the question. Both are done on the way through a [simulation study](a-simulation-study.md), and neither is finished by one test.
 
-The two terms, and the trace, the reasonableness checks, review by someone else, calibration and the three-step approach, follow Banks, Carson, Nelson and Nicol, *Discrete-Event System Simulation*, chapter 10, and Law, "How to Conduct a Successful Simulation Study" (Winter Simulation Conference, 2003). We read the chapter through [lecture notes on it](https://courses.ie.bilkent.edu.tr/ie324/wp-content/uploads/sites/4/2016/09/Validation.pdf), and [the paper](https://www.informs-sim.org/wsc03papers/009.pdf) itself. The checks with Little's law, with a formula and with fixed gaps, the extreme-condition tests, the explanations and the shop examples are our own.
+The two terms follow Banks, Carson, Nelson and Nicol, *Discrete-Event System Simulation*, chapter 10, and Law, "How to Conduct a Successful Simulation Study" (Winter Simulation Conference, 2003). So do the trace, the reasonableness checks, review by someone else, calibration and the three-step approach. We read the chapter through [lecture notes on it](https://courses.ie.bilkent.edu.tr/ie324/wp-content/uploads/sites/4/2016/09/Validation.pdf), and [the paper](https://www.informs-sim.org/wsc03papers/009.pdf) itself. The checks with [Little's law](queueing-basics.md#littles-law), with a formula and with fixed gaps, the extreme-condition tests, the explanations and the shop examples are our own.
 
 ---
 
@@ -18,7 +18,7 @@ A model can pass one and fail the other. A program can follow the model on paper
 
 ## Read the Trace
 
-The cheapest check is to read what a run did. A **trace** is the record of each event in time order. Run a few orders and follow one by hand: it should arrive, wait while the packer is busy, start when the packer is free and finish after the service time. The records of a desflow run are a trace, and [First Simulation](../tutorials/first-simulation.md) reads the first of them. The [lecture notes](https://courses.ie.bilkent.edu.tr/ie324/wp-content/uploads/sites/4/2016/09/Validation.pdf) on Banks et al. list a trace, examining the output for reasonableness under a variety of input settings, and having someone else check the model among the ways to find errors in a program.
+The cheapest check is to read what a run did. A **trace** is the record of each event in time order. Run a few orders and follow one by hand: it should arrive, wait while the packer is busy, start when the packer is free and finish after the service time. The records of a desflow run are a trace, and [First Simulation](../tutorials/first-simulation.md) reads the first of them. The [lecture notes](https://courses.ie.bilkent.edu.tr/ie324/wp-content/uploads/sites/4/2016/09/Validation.pdf) on Banks et al. list three ways to find errors in a program: a trace, a look at whether the output is reasonable under a variety of input settings, and a check of the model by someone else.
 
 ---
 
@@ -51,11 +51,12 @@ def run_fixed(gap: float, service: float, until: float, packers: int = 1) -> dic
     return app.env.stats.readings()
 ```
 
-With one order every 3 seconds and 1.5 seconds to pack, orders arrive at 3, 6 and on to 3,597 seconds, so 1,199 arrive in the hour. A packer is free each time, so no order waits, and the packer works 1,199 × 1.5 seconds of the 3,600, which is 49.96%. With one order every second the packer can never keep up: 3,599 orders arrive, 2,399 finish, and 1,200 are in the shop at the end. The code checks each of these numbers:
+With one order every 3 seconds and 1.5 seconds to pack, orders arrive at 3, 6 and on to 3,597 seconds, so 1,199 arrive in the hour. Each order is packed in 1.5 seconds, before the next arrives 3 seconds later. The packer is therefore free each time, no order waits, and the packer works 1,199 × 1.5 seconds of the 3,600, which is 49.96%. With one order every second the packer can never keep up, because it needs 1.5 seconds for each: 3,599 orders arrive, 2,399 finish, and 1,200 are in the shop at the end. The code checks each of these numbers:
 
 ```python title="docs/snippets/pages/checking_and_validating.py:checks"
 # One order every 3 s and 1.5 s to pack: orders arrive at 3, 6, ... 3597 s, so 1,199 of
-# them, and none waits. The packer works 1,199 x 1.5 s of the 3,600 s: 49.96%.
+# them. Each is packed before the next arrives, so none waits. The packer works
+# 1,199 x 1.5 s of the 3,600 s: 49.96%.
 easy = run_fixed(gap=3, service=1.5, until=3600)
 assert easy["Shop.stats.flows.orders.started"] == 1199
 assert easy["Shop.stats.tasks.pack_order.wait_max"] == 0
@@ -73,7 +74,7 @@ assert overloaded["Shop.stats.flows.orders.in_system"] == 3599 - 2399
 assert overloaded["Shop.stats.resources.packers.utilization_avg"] > 99.9
 ```
 
-The second case is also an extreme-condition test: with demand above capacity, the queue must grow for as long as the run lasts. A model that cannot show this has a fault. Two more cases of this kind are no arrivals, which should give no orders started or finished, and a huge number of packers, which should give no waits. The code runs both, with one order every 10,000 seconds in an hour and with 100 packers for an order a second:
+The second case is also an extreme-condition test: with demand above capacity, the queue must grow for as long as the run lasts. A model that cannot show this has a fault. Two more cases of this kind are no arrivals, which should give no orders started or finished, and a huge number of packers, which should give no waits. The code runs both: one order every 10,000 seconds, so no order arrives in the hour, and 100 packers for an order a second:
 
 ```python title="docs/snippets/pages/checking_and_validating.py:extremes"
 # No order arrives within the hour: none starts and none finishes.
@@ -91,27 +92,17 @@ assert many_packers["Shop.stats.tasks.pack_order.wait_max"] == 0
 
 ## Check the Statistics Against Each Other
 
-Some relations hold for every model that settles, so they test the statistics without any hand calculation. **Little's law** is the main one: the average number of orders in a system equals the arrival rate times the average time an order spends in it. The queue length, the arrival rate and the mean wait are measured separately, so if they disagree, one of them is wrong. [Queueing Basics](queueing-basics.md) runs this check on the shop's busy hour: a queue of 3.417 orders against 1.782 orders a second times a wait of 1.9175 seconds, which is 3.417. The code runs that busy hour and checks the figures:
+Some relations hold for every model that settles, so they test the statistics without any hand calculation. [Little's law](queueing-basics.md#littles-law) is the main one. It ties the queue length to the arrival rate and the mean wait. A run measures the three separately, so if they disagree, one of them is wrong. Queueing Basics states the law and checks it on a run of the shop.
 
-```python title="docs/snippets/pages/checking_and_validating.py:little"
-# Little's law on the busy hour of Queueing Basics: queue length = arrival rate x mean wait
-rate, (queue, wait), _ = little()
-print(
-    f"queue {queue:.3f}, arrival rate {rate:.3f} x wait {wait:.4f} = {rate * wait:.3f}"
-)
-```
-
-```text
-queue 3.417, arrival rate 1.782 x wait 1.9175 = 3.417
-```
-
-[Measuring a Run](../tutorials/measuring-a-run.md) shows the same idea on a shorter run, and the counts in [Statistics](../user-guide/statistics.md) must also add up: when no order balks or reneges, the orders started over the whole run are those finished plus those still in the shop.
+[Measuring a Run](../tutorials/measuring-a-run.md) shows the same idea on a shorter run. The counts in [Statistics](../user-guide/statistics.md) must also add up. When no order balks or reneges, the orders started over the whole run are those finished plus those still in the shop.
 
 ---
 
 ## Check Against a Formula
 
-For a simple case there may be a formula. One packer with exponential gaps and service times at utilisation 0.75 has a mean wait of 4.5 seconds when the service time averages 1.5 seconds. A run of the model, repeated with several seeds, must produce an interval that contains it. [Queueing Basics](queueing-basics.md) gives the formulas for one and several servers, and shows runs of the shop within their intervals. A formula tests the part of the model it covers. It cannot test priorities, breakdowns or changing demand, which is why those are the parts to check by hand and by comparison with the real shop.
+For a simple case there may be a formula. One packer with exponential gaps and service times at [utilisation](queueing-basics.md#utilisation) 0.75 has a mean wait of 4.5 seconds when the service time averages 1.5 seconds. A run of the model, repeated with several seeds, must produce an interval that contains it. [Queueing Basics](queueing-basics.md) gives the formulas for one and several servers, and shows runs of the shop within their intervals. A formula tests the part of the model it covers. It cannot test priorities, breakdowns or changing demand, which is why those are the parts to check by hand and by comparison with the real shop.
+
+`desflow explain` applies these formulas to a model without running it: it gives each resource's utilisation, and the mean wait where a formula applies. `desflow explain --verify` then runs the model and compares what the run measures with those values. This is verification. It checks that the program agrees with the queueing formulas, and that the model's rates, units and service times are consistent with each other. It is not validation: it does not show that the model is close enough to the real shop. Where the formulas do not hold, it gives no value, makes no comparison and says why. [Check Against Theory](../guides/check-against-theory.md#when-the-formulas-do-not-apply) states the rule. The same page shows the commands and how to read a difference.
 
 ---
 
@@ -119,13 +110,13 @@ For a simple case there may be a formula. One packer with exponential gaps and s
 
 Validation needs evidence from the real system. Law suggests comparing the model's results with the existing system's, where there is one, along with a walk-through of the assumptions by the people who know the system, and sensitivity analysis. For the shop, give the model the inputs of a real day and compare its mean wait, queue length and utilisation with what happened. They need to agree closely enough for the decision, not exactly.
 
-The [lecture notes](https://courses.ie.bilkent.edu.tr/ie324/wp-content/uploads/sites/4/2016/09/Validation.pdf) on Banks et al. describe calibration as iterative: compare the model with the real system, adjust it, compare again. They also have three steps, which are to build a model with high face validity, to validate the model's assumptions, and to compare input-output behaviour with the real system's data, so the assumptions and inputs are checked and not only the outputs. [Choosing Inputs](../tutorials/choosing-inputs.md) and [Fit the Inputs](../tutorials/fit-the-inputs.md) cover the inputs, and [Local Replay](../tutorials/local-replay.md) runs a model on the arrivals of a real trace. When the real system does not exist yet, as for a proposed design, there is nothing to compare with. Then validity rests on the assumptions and on sensitivity analysis.
+The [lecture notes](https://courses.ie.bilkent.edu.tr/ie324/wp-content/uploads/sites/4/2016/09/Validation.pdf) on Banks et al. describe calibration as iterative: compare the model with the real system, adjust it, compare again. They also give three steps: build a model with high face validity, validate the model's assumptions, and compare input-output behaviour with the real system's data. The assumptions and the inputs are then checked, and not only the outputs. [Choosing Inputs](../tutorials/choosing-inputs.md) and [Fitting the Inputs](../tutorials/fit-the-inputs.md) cover the inputs, and [Local Replay](../tutorials/local-replay.md) runs a model on the arrivals of a real trace. When the real system does not exist yet, as for a proposed design, there is nothing to compare with. Then validity rests on the assumptions and on sensitivity analysis.
 
 ---
 
 ## Test the Sensitivity
 
-A model has inputs that are estimates. **Sensitivity analysis** changes them and sees whether the answer changes. If a 6% change in the arrival rate changes the decision, the estimate needs more work. If it does not, it does not. [Parameter Sweeps](../tutorials/parameter-sweeps.md) does it for the shop: with three packers a rate 6% above the estimate more than doubles the mean wait to 5.55 seconds, and with four packers the wait is at most 0.35 seconds at every rate, so the choice of four packers holds whatever the demand within the range.
+A model has inputs that are estimates. **Sensitivity analysis** changes them and sees whether the answer changes. If a 6% change in the arrival rate changes the decision, the estimate needs more work. If the decision stays the same, the estimate is good enough. [Parameter Sweeps](../tutorials/parameter-sweeps.md) does this for the shop. With three packers, a rate 6% above the estimate more than doubles the mean wait, from 2.48 to 5.55 seconds, each the [mean of 20 replications after a 2-minute warm-up](common-mistakes.md#busy-hour-figures). With four packers, the mean wait is at most 0.35 seconds at every rate in the sweep, so the choice of four packers holds for any demand in that range.
 
 ---
 

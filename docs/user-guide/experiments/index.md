@@ -1,12 +1,12 @@
 # Experiments
 
-An experiment answers a question with many runs rather than one. It runs designs of a model, each with replications, compares them seed by seed, checks them against bounds, places them beside values observed in the real system, and writes its results and a report to files. This page describes the experiment file, the Python call and every setting; [Experiment Results](experiment-results.md) describes the files an experiment writes and its report. It runs on one machine and needs no server.
+An experiment answers a question with many runs rather than one. It runs several designs of a model, each with [replications](../../des/output-analysis.md#replications). It compares the designs seed by seed, checks them against bounds, and places them beside values observed in the real system. It writes its results and a report to files. This page describes the experiment file, the Python call and every setting. [Experiment Results](experiment-results.md) describes the files an experiment writes and its report. It runs on one machine and needs no server.
 
 ---
 
 ## What It Is
 
-A **design** is the model with some registry values changed before the clock starts: a variant, or a variant at one point of a sweep. An experiment runs every design with the same number of [replications](../replications.md), reads the built-in statistics at the end of each run, and summarises each with a mean and a confidence interval. [Comparing Designs](../../tutorials/comparing-designs.md) and [Parameter Sweeps](../../tutorials/parameter-sweeps.md) use one on the shop.
+A **design** is the model with some registry values changed before the clock starts: a variant, or a variant at one point of a sweep. An experiment runs every design with the same number of [replications](../replications.md), reads the built-in statistics at the end of each run, and summarises each with a mean and a [95% interval](../../des/output-analysis.md#interval-and-half-width). [Comparing Designs](../../tutorials/comparing-designs.md) and [Parameter Sweeps](../../tutorials/parameter-sweeps.md) use one on the shop.
 
 ---
 
@@ -25,7 +25,7 @@ An experiment names its model, how long and how often to run it, what to measure
 ```yaml title="examples/yaml/experiment.yaml"
 # An experiment in YAML: does a third packer keep the mean wait under 2 seconds?
 #
-# The twin of examples/builder/experiment_example.py. The model is
+# The YAML version of experiment_example.py, which --api builder downloads. The model is
 # experiment_shop.yaml. The experiment runs one hour of it 20 times with two packers
 # and 20 times with three, with the same seeds, after a 3-minute warm-up. It
 # compares the two designs seed by seed, checks the three-packer design against a
@@ -68,7 +68,7 @@ limits:
 output: results/packers
 ```
 
-In Python the same settings are a mapping, and the model is a blueprint path, a builder factory or a `LowLevelModel`. These are every setting:
+In Python the same settings are a mapping, and the model is a blueprint path, a builder factory or a `LowLevelModel`. The table lists every setting:
 
 | Setting | What it sets | Default |
 |---|---|---|
@@ -93,9 +93,9 @@ In Python the same settings are a mapping, and the model is a blueprint path, a 
 | `observed` | `{file: ..., variant: ...}`, values measured in the real system | none |
 | `limits` | sentences the report lists | none |
 | `output` | the folder the files are written to | `results/<experiment>` |
-| `workers` | runs at once, each in its own process | 1 |
+| `workers` | how many runs go at once, each in its own process | 1 |
 
-A key the experiment does not know is refused with its line, as in a blueprint. Paths in a file, the model's and the observed file's and `output`, are read from the experiment file's folder, and in a Python mapping from the working directory.
+A key the experiment does not know is refused with its line, as in a blueprint. In a file, the paths of the model, the observed file and `output` are read from the experiment file's folder. In a Python mapping, they are read from the working directory.
 
 ### Run It
 
@@ -119,7 +119,8 @@ A key the experiment does not know is refused with its line, as in a blueprint. 
         "seed": 42,
         "measures": ["tasks.pack.wait_mean"],
         "variants": {"two": {}, "three": {"Shop.resources.packers.current_cap": 3}},
-        # A sweep would run every variant at each rate: 6 designs
+        # A sweep would run every variant at each rate, an order every 2.86, 2.5 or
+        # 2.22 seconds on average: 6 designs
         # "sweep": {"Shop.arrival.orders.rate": [0.35, 0.4, 0.45]},
         "compare": [{"baseline": "two", "variant": "three"}],
         "checks": [{"measure": "tasks.pack.wait_mean", "variant": "two", "max": 2}],
@@ -135,7 +136,7 @@ A key the experiment does not know is refused with its line, as in a blueprint. 
 
 === "Low-level"
 
-    The same call, with `LowLevelModel(model, sim_id="Shop")` as the model, where `model` builds the shop in the environment and with the sampler it is given, as the [example](#example-an-experiment) shows.
+    The same call takes `LowLevelModel(model, sim_id="Shop")` as the model. Here `model` is a function that builds the shop from an environment and a sampler, as the [example](#example-an-experiment) shows.
 
 The result holds every row the files hold:
 
@@ -150,17 +151,39 @@ print(result.output / "report.md")
 
 ### Variants and Sweeps
 
-Each variant sets registry paths before the clock starts, as a live update would. A path the model does not have, or a value the registry refuses or clamps, such as a capacity above `max_cap`, stops the experiment before anything runs, with the line of the variant. Paths are set in the order the variant lists them, so a variant that lowers `max_cap` below the model's `current_cap` sets `current_cap` first. A sweep runs every variant at every combination of its paths' values, so one variant and one swept path with three values give three designs: a one-factor sensitivity experiment. A path is set by a variant or by the sweep, not both. A design's name is its variant followed by its swept values, such as `three Shop.arrival.orders.rate=0.5`.
+Each variant sets registry paths before the clock starts, as a live update would. The experiment stops before anything runs when a variant sets a path the model does not have, or a value the registry refuses or clamps, such as a capacity above `max_cap`. The error names the variant's line. Paths are set in the order the variant lists them, so a variant that lowers `max_cap` below the model's `current_cap` sets `current_cap` first. A sweep runs every variant at every combination of its paths' values, so one variant and one swept path with three values give three designs: a one-factor sensitivity experiment. A path is set by a variant or by the sweep, not both. A design's name is its variant followed by its swept values, such as `three Shop.arrival.orders.rate=0.5` (an order every 2 seconds on average).
 
 ### Pairing and Random Streams
 
-With `pairing: common`, every design runs with the same seeds, so a design's replication 3 and another design's replication 3 meet the same arrivals and service times, and their difference leaves most of the chance out ([Comparing Designs](../../tutorials/comparing-designs.md#compare-two-designs)). With `pairing: independent`, each design's seeds are spawned from a seed of its own, and `compare` is refused.
+With `pairing: common`, every design runs with the same seeds. A design's replication 3 and another design's replication 3 then meet the same arrivals and service times, so most of the random variation cancels in their difference ([Comparing Designs](../../tutorials/comparing-designs.md#compare-two-designs)). With `pairing: independent`, each design's seeds are spawned from a seed of its own, and `compare` is refused.
 
-The same seeds pair two runs only where both draw from the same random streams. Each distribution has a stream of its own, named by its registry path without the sim id, such as `service.packing`. The experiment records the streams each run drew from, and each comparison lists the streams both designs used and any that only one used. A stream only one design uses, such as a gift-wrap step only one design has, is not paired.
+The same seeds pair two runs only where both draw from the same random streams. Each distribution has a stream of its own, named by its registry path without the sim id, such as `service.packing`. The experiment records the streams each run drew from, and each comparison lists the streams both designs used and any that only one used. A stream only one design uses, such as a gift-wrap step only one design has, is not [paired](../../des/output-analysis.md#comparing-designs).
 
-### Example: An Experiment
+---
 
-The `experiment` example is the experiment above: one hour of the shop with two packers and with three, 20 replications of each with the same seeds, a comparison, a check, and the mean wait observed in the real shop. It needs no Docker service and ends on its own.
+## How It Works
+
+**Before running.** The experiment builds the model once without running it, records its compiled parameters, and refuses an `inputs` path that is not a distribution. It then builds each design the same way, so a bad registry path or value fails before any run. It reads the observed file and refuses a row that does not match its measure.
+
+**Runs.** Each design runs its replications as [Replications](../replications.md#how-it-works) describes: each run builds the model again, unpaced, with no ingress and no egress, and reads the statistics at its end. The statistics level is the lowest that publishes every measure, and at least `basic`, so the counts are there. A low-level model's parameters are put back after each replication, so the next replication never starts from a variant's value or a live change left by the one before.
+
+**Intervals.** Every interval, of a design's mean and of a difference, is the Student t interval of [Replications](../replications.md#how-it-works), at the experiment's `level`.
+
+---
+
+## Stability and Limits
+
+- **Finite designs only.** Variants and sweeps list their values. Latin hypercube designs, sampling uncertain inputs and searching for the best design are not part of an experiment.
+- **No event records.** An experiment writes its files and sends nothing to the model's sinks. Run one design with one seed to see its records.
+- **End of a run.** A run ends at `until`, unless `stop` ends it earlier or `drain` runs it on until the model is empty. A blueprint's own `run.stop` and `run.drain` apply when the experiment does not set them. Entities still in the model at the end are not finished, so a count of finished entities leaves them out. The Counts section of the report ([Read the Report](experiment-results.md#read-the-report)) shows what each design started, finished and left.
+- **Observed values are outputs.** The observed comparison is a check of the model's output against the real system's for the question asked. It does not fit inputs, and one value inside an interval does not make a model valid for every question.
+- **One machine.** `workers` runs replications in parallel processes on one machine. There is no distributed or server executor.
+
+---
+
+## Example: An Experiment
+
+The `experiment` example is the experiment above. It runs one hour of the shop with two packers and with three, 20 replications of each with the same seeds. It makes one comparison and one check, and places the mean wait observed in the real shop beside the result. Its shop is not the busy hour of the tutorials: an order arrives every 2.5 seconds on average and packing takes 4 seconds on average, so its waits differ from theirs. The example needs no Docker service and ends on its own.
 
 === "YAML"
 
@@ -178,7 +201,10 @@ The `experiment` example is the experiment above: one hour of the shop with two 
         desflow examples get experiment --api yaml
         cd experiment/yaml
 
-        # 3. Run it
+        # 3. Find the bottleneck, with no run
+        desflow explain experiment_shop.yaml
+
+        # 4. Run it
         desflow experiment experiment.yaml
         ```
 
@@ -192,7 +218,10 @@ The `experiment` example is the experiment above: one hour of the shop with two 
         desflow examples get experiment --api yaml
         cd experiment/yaml
 
-        # 3. Run it
+        # 3. Find the bottleneck, with no run
+        desflow explain experiment_shop.yaml
+
+        # 4. Run it
         desflow experiment experiment.yaml
         ```
 
@@ -201,7 +230,7 @@ The `experiment` example is the experiment above: one hour of the shop with two 
     ```yaml title="examples/yaml/experiment_shop.yaml"
     # The model of the experiment in experiment.yaml: one hour of the shop.
     #
-    # The twin of the shop function in examples/builder/experiment_example.py. Two packers,
+    # The YAML version of the shop function in experiment_example.py, which --api builder downloads. Two packers,
     # orders every 2.5 seconds on average and a packing time of 4 seconds on average.
     # It has no sinks and no statistics level: the experiment runs it without sinks and
     # keeps the statistics its measures need.
@@ -223,6 +252,7 @@ The `experiment` example is the experiment above: one hour of the shop with two 
       packing: {dist: gamma, shape: 4, scale: 1}
 
     arrivals:
+      # An order every 2.5 s on average (rate 0.4)
       orders: {dist: exponential, rate: 0.4, spawn: pack}
 
     tasks:
@@ -327,23 +357,3 @@ The `experiment` example is the experiment above: one hour of the shop with two 
     ```
 
     The whole file is [`examples/low-level/experiment_example.py`](https://github.com/jaehyeon-kim/desflow/blob/main/examples/low-level/experiment_example.py).
-
----
-
-## How It Works
-
-**Before running.** The experiment builds the model once without running it, records its compiled parameters, and refuses an `inputs` path that is not a distribution. It then builds each design the same way, so a bad registry path or value fails before any run. It reads the observed file and refuses a row that does not match its measure.
-
-**Runs.** Each design runs its replications as [Replications](../replications.md#how-it-works) describes: each run builds the model again, unpaced, with no ingress and no egress, and reads the statistics at its end. The statistics level is the lowest that publishes every measure, and at least `basic`, so the counts are there. A low-level model's parameters are put back after each run, so a variant's value or a live change in one run is never where the next run starts.
-
-**Intervals.** Every interval, of a design's mean and of a difference, is the Student t interval of [Replications](../replications.md#how-it-works), at the experiment's `level`.
-
----
-
-## Stability and Limits
-
-- **Finite designs only.** Variants and sweeps list their values. Latin hypercube designs, sampling uncertain inputs and searching for the best design are not part of an experiment.
-- **No event records.** An experiment writes its files and sends nothing to the model's sinks. Run one design with one seed to see its records.
-- **End of a run.** A run ends at `until`, unless `stop` ends it earlier or `drain` runs it on until the model is empty; a blueprint's own `run.stop` and `run.drain` apply when the experiment does not set them. Entities still in the model at the end are not finished, so a count of finished entities leaves them out; Counts shows what each design started, finished and left.
-- **Observed values are outputs.** The observed comparison is a check of the model's output against the real system's for the question asked. It does not fit inputs, and one value inside an interval does not make a model valid for every question.
-- **One machine.** `workers` runs replications in parallel processes on one machine; there is no distributed or server executor.

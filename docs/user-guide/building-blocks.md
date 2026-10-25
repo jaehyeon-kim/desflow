@@ -6,7 +6,7 @@ A model is made of a few kinds of parts. This page is the map: which block model
 
 ## What It Is
 
-An **entity** is the thing that flows through a model: an order, a visitor, a support call. It enters through an arrival, does the work its task describes, holds a resource while it works, may take from or add to a store or container, and goes on to the next task. [What Is DES?](../des/how-it-works.md) explains the simulation they run in. Look at how the blocks connect:
+An **entity** is the thing that flows through a model: an order, a visitor, a support call. It enters through an arrival and does the work its task describes. While it works, it holds a resource, and it may take from or add to a store or container. Then it goes on to the next task. [What Is DES?](../des/how-it-works.md) explains discrete-event simulation, the kind of simulation these blocks build. Look at how the blocks connect:
 
 ![An arrival spawns a task for each entity. The task draws its service time, requests a resource, gets from and puts to containers and stores, and names the next task. Processes run anything else; the registry holds every value live; the statistics measure the run; and everything publishes records](../assets/diagrams/building-blocks.png)
 

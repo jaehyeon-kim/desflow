@@ -1,9 +1,9 @@
 """The Filtered Inventory tutorial: each order waits for a shirt of its own size.
 
 Shirts of three sizes arrive on one shelf, and orders of three sizes take them.
-Every record is printed to the terminal, and the script prints, for each size, how
-many orders were filled and how many were cancelled: python filtered_inventory.py
-2>/dev/null shows only those lines.
+Every record is printed to the terminal. The script then prints, for each size, how
+many orders were filled and how many were cancelled. To see only those lines, run:
+python filtered_inventory.py 2>/dev/null
 """
 
 import logging
@@ -15,9 +15,9 @@ logging.basicConfig(
     level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
 )
 
-# A shirt every 10 seconds: 3 in 10 small, 4 medium, 3 large
+# A shirt every 10 seconds on average: 3 in 10 small, 4 medium, 3 large
 SHIRTS = {"S": 0.03, "M": 0.04, "L": 0.03}
-# An order every 10 seconds: a quarter small, half medium, a quarter large
+# An order every 10 seconds on average: a quarter small, half medium, a quarter large
 ORDERS = {"S": 0.025, "M": 0.05, "L": 0.025}
 
 

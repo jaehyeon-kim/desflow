@@ -12,7 +12,7 @@ A clear and concise description of what the problem is. Ex. I'm always frustrate
 
 **Describe the solution you'd like**
 
-A clear and concise description of what you want to happen. (e.g., "I want an MQTT Ingress connector that works like the Kafka one.")
+A clear and concise description of what you want to happen. (for example, "I want an MQTT Ingress connector that works like the Kafka one.")
 
 **Describe alternatives you've considered**
 

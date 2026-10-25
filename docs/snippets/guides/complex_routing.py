@@ -1,6 +1,6 @@
-"""The Complex Routing guide: a shop whose records go to three Kafka topics.
+"""The Route Records to Topics guide: a shop whose records go to three Kafka topics.
 
-It needs a Kafka broker on localhost:9092: start one with `odctl up kafka-lite`. Run it
+It needs a Kafka broker on 127.0.0.1:9092: start one with `odctl up kafka-lite`. Run it
 with `python complex_routing.py`; it runs for one minute.
 """
 
@@ -37,7 +37,7 @@ app = (
     .add_resource("packers", current_cap=1, max_cap=1)
     .add_egress(
         KafkaEgress(
-            bootstrap_servers="localhost:9092",
+            bootstrap_servers="127.0.0.1:9092",
             topic_router=custom_kafka_router,
         )
     )
@@ -72,7 +72,7 @@ if __name__ == "__main__":
         level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
     )
     # With a router, KafkaEgress creates no topics, so create them first
-    admin = KafkaAdminConnector(bootstrap_servers="localhost:9092")
+    admin = KafkaAdminConnector(bootstrap_servers="127.0.0.1:9092")
     admin.create_topics([{"name": topic} for topic in TOPICS])
     app.run(until="1 min")
 # --8<-- [end:run]

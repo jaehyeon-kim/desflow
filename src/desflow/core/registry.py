@@ -484,8 +484,20 @@ class SimulationRegistry:
     def _register_cap(
         self, path_prefix: str, cap_config: Any, cast: Optional[Callable] = None
     ):
-        """Internal: Flattens a CapacityConfig, converting both values with `cast` if given."""
+        """Internal: Flattens a CapacityConfig, converting both values with `cast` if given.
+
+        A `current_cap` outside `[0, max_cap]` is clamped to that range with a warning,
+        as a live update is, and the config is updated, so `explain` reads the
+        capacity the run uses.
+        """
         current_cap, max_cap = cap_config.current_cap, cap_config.max_cap
+        clamped = type(current_cap)(min(max(current_cap, 0), max_cap))
+        if clamped != current_cap:
+            logger.warning(
+                f"current_cap {current_cap} for '{path_prefix}.current_cap' is "
+                f"outside [0, max_cap {max_cap}]. Stored as {clamped}."
+            )
+            current_cap = cap_config.current_cap = clamped
         if cast is not None:
             current_cap, max_cap = cast(current_cap), cast(max_cap)
         self._values[f"{path_prefix}.current_cap"] = DynamicValue(

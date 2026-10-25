@@ -1,6 +1,6 @@
 # SimPy and desflow
 
-desflow is built on [SimPy](https://simpy.readthedocs.io/), a Python library for discrete-event simulation. SimPy provides the event list, the clock, processes and resources, and desflow keeps all of them. This page teaches the SimPy constructs one at a time, each on the packing shop in plain SimPy with no desflow in it, and then lists the four things desflow changes. A low-level desflow model is ordinary SimPy code with these additions.
+desflow is built on [SimPy](https://simpy.readthedocs.io/), a Python library for discrete-event simulation. SimPy provides the event list, the clock, processes and resources, and desflow keeps all of them. This page teaches the SimPy constructs one at a time, each on the packing shop in plain SimPy with no desflow in it, A low-level desflow model is ordinary SimPy code with a few additions, which [Coming from SimPy](coming-from-simpy.md#what-desflow-changes) lists.
 
 The code is plain SimPy 4.1.2, the version desflow is tested against. We confirmed each statement about a construct against SimPy's source in that version (`core.py`, `events.py`, `rt.py` and the `resources` package). Every function below runs as a script in the docs tests, and its output is the one shown.
 
@@ -8,7 +8,7 @@ The code is plain SimPy 4.1.2, the version desflow is tested against. We confirm
 
 ## Environment and the Event List
 
-An `Environment` holds the clock, `env.now`, and the event list. The list is ordered by time, then by priority, then by the order in which events were scheduled, so two events at one time run in scheduling order unless one has the higher priority (`URGENT` is 0 and `NORMAL` is 1). [What Is DES?](how-it-works.md) explains why the clock jumps from event to event, and [Run Length](../user-guide/time-and-pacing/run-length.md) shows how the order matters at the end of a run.
+An `Environment` holds the clock, `env.now`, and the event list. The list is ordered by time, then by priority, then by the order in which events were scheduled. Two events at one time therefore run in the order they were scheduled, unless one has the higher priority (`URGENT` is 0 and `NORMAL` is 1, and the lower number runs first). [What Is DES?](how-it-works.md) explains why the clock jumps from event to event, and [Run Length](../user-guide/time-and-pacing/run-length.md) shows how the order matters at the end of a run.
 
 `env.timeout(delay)` is an event that SimPy schedules `delay` seconds from now, and a negative delay raises `ValueError`. `env.step()` takes the earliest event, moves the clock to its time and runs the event's callbacks. `env.peek()` gives the time of the next event, or infinity when none is left. `env.run(until=...)` calls `step` until the time or the event you give it. The function below schedules two timeouts in the wrong order and steps through them.
 
@@ -31,15 +31,15 @@ Each pair is the time of the next event and the clock before the step. The event
 event list: [(1.5, 0), (2.6, 1.5)], clock at 2.6
 ```
 
-In desflow, `env` is a `DynamicRealtimeEnvironment`, which is a SimPy environment with pacing added. The builder and YAML give the same operations as `app.run(until=...)`, `app.step()`, `app.peek()` and `run.until`.
+In desflow, `env` is a `DynamicRealtimeEnvironment`, which is a SimPy environment with pacing added. In the builder, `env.run(until=...)`, `env.step()` and `env.peek()` are `app.run(until=...)`, `app.step()` and `app.peek()`. In YAML, the end time is `run.until`.
 
 ---
 
 ## Events and Callbacks
 
-An event is something that happens once. It starts pending, becomes **triggered** when `succeed(value)` or `fail(exception)` is called, which schedules it, and becomes **processed** when the environment takes it from the list and runs its **callbacks**. A callback is a function that takes the event, and callbacks run in the order they were added. A process that yields an event waits on it by adding its own resume function to the callbacks, so one event can wake any number of processes. Calling `succeed` twice raises `RuntimeError`, and a failed event that nothing handles stops the run with its exception.
+An event is something that happens once. It starts pending. It becomes **triggered** when `succeed(value)` or `fail(exception)` is called, which schedules it. It becomes **processed** when the environment takes it from the list and runs its **callbacks**. A callback is a function that takes the event, and callbacks run in the order they were added. A process that yields an event waits on it by adding its own resume function to the callbacks, so one event can wake any number of processes. Calling `succeed` twice raises `RuntimeError`, and a failed event that nothing handles stops the run with its exception.
 
-In the shop, packing an order is an event several things care about. Here a callback and two couriers wait on one event, and the packer triggers it at 1.5 seconds.
+In the shop, several parts of the model wait for an order to be packed. Here a callback and two couriers wait on one event, and the packer triggers it at 1.5 seconds.
 
 ```python title="docs/snippets/pages/simpy_and_desflow.py:events"
 def events():
@@ -76,7 +76,7 @@ courier 2 at 1.5: order 1
 triggered, processed, ok: (True, True, True)
 ```
 
-In desflow, a **signal** is an event that tasks wait for and fire, such as a restock. `Signal` is its low-level form, `add_signal` its builder form and `signals:` its YAML form. A failed event that nothing handles stops a SimPy run, and the low-level API keeps that. The builder and YAML publish a `failed` record and go on only by default (`on_unhandled_failure: continue`); the setting `stop` keeps SimPy's behaviour. [Failures](../user-guide/tasks-and-processes/failures.md) explains both.
+In desflow, a **signal** is an event that tasks wait for and fire, such as a restock. `Signal` is its low-level form, `add_signal` its builder form and `signals:` its YAML form. A failed event that nothing handles stops a SimPy run, and the low-level API keeps that. By default the builder and YAML publish a `failed` record and go on (`on_unhandled_failure: continue`). With `on_unhandled_failure: stop` they stop the run, as SimPy does. [Failures](../user-guide/tasks-and-processes/failures.md) explains both.
 
 ---
 
@@ -161,7 +161,7 @@ The packer is interrupted at 1.0 with 0.5 seconds left, rests for 0.5, and finis
 [(1.0, 'break', 0.5), (2.0, 'packed', 0)]
 ```
 
-In desflow, `on_interrupt: resume`, `restart` or `abandon` on a task chooses what happens to the packing in progress, as this code does for `resume`, and `interrupt:` sends one. [Interruptions](../tutorials/interruptions.md) uses all three.
+In desflow, `on_interrupt: resume`, `restart` or `abandon` on a task chooses what happens to the work in progress. This code does what `resume` does. `interrupt:` sends an interrupt. [Interruptions](../tutorials/interruptions.md) uses all three.
 
 ---
 
@@ -190,7 +190,7 @@ def conditions():
     return log
 ```
 
-At 1.0 the limit was processed and the packing was not, so the courier gave up. The second wait ends at 4.0, when the timeout created at 1.0 triggers, and both events are in its value.
+At 1.0 the limit was processed and the packing was not, so the courier stopped waiting. The second wait ends at 4.0, when the timeout created at 1.0 triggers, and both events are in its value.
 
 ```text
 [(1.0, False, True), (4.0, 2)]
@@ -256,7 +256,7 @@ def priority():
 [('first', 0), ('express', 1.5), ('standard', 3.0)]
 ```
 
-`PreemptiveResource` adds preemption: a request with a lower number than a current user, and `preempt=True` (the default), takes that user's unit. The user is interrupted, and `interrupt.cause` is a `Preempted` object with `by`, `usage_since` and `resource`. The preempted process does not get the unit back, so it must request again if it wants to continue. Below, an express order arrives at 1.0 and interrupts a standard order that has used the packer since 0.
+`PreemptiveResource` adds preemption: a request whose priority number is lower than a current user's, made with `preempt=True` (the default), takes that user's unit. The user is interrupted, and `interrupt.cause` is a `Preempted` object with `by`, `usage_since` and `resource`. The preempted process does not get the unit back, so it must request again if it wants to continue. Below, an express order arrives at 1.0 and interrupts a standard order that has used the packer since 0.
 
 ```python title="docs/snippets/pages/simpy_and_desflow.py:preemptive"
 def preemptive():
@@ -298,7 +298,7 @@ In desflow, `DynamicResource` is all three: `queue: fifo` is `Resource`, `queue:
 
 ## Containers and Stores
 
-A `Container(env, capacity, init)` holds a quantity, such as boxes on a shelf. `put(amount)` waits while there is no room and `get(amount)` waits until enough is held, and `level` is the quantity now. Waiting requests are served in order, so a large `get` at the head holds back smaller ones behind it. Here the packer needs 3 boxes while the shelf holds 2, so it waits for a delivery of 5 at 4 seconds.
+A `Container(env, capacity, init)` holds a quantity, such as boxes on a shelf. `put(amount)` waits while there is no room, and `get(amount)` waits until enough is held. `level` is the quantity held now. Waiting requests are served in order, so a large `get` at the head holds back smaller ones behind it. Here the packer needs 3 boxes while the shelf holds 2, so it waits for a delivery of 5 at 4 seconds.
 
 ```python title="docs/snippets/pages/simpy_and_desflow.py:container"
 def container():
@@ -365,7 +365,7 @@ In desflow, a task's `put` and `get` use these: `put: {container: stock, amount:
 
 ## Real-time Environment
 
-`RealtimeEnvironment(factor)` is an environment whose clock follows the wall clock: a step of one time unit takes `factor` seconds of real time. With `strict=True`, the default, `step` raises `RuntimeError` when the model falls behind by more than one `factor`. Set `strict=False` to let it catch up instead. `sync()` restarts the real-time reference from the present. One simulated second takes 0.2 seconds here, so the 2 second run takes at least 0.4.
+`RealtimeEnvironment(factor)` is an environment whose clock follows the wall clock: a step of one time unit takes `factor` seconds of real time. With `strict=True`, the default, `step` raises `RuntimeError` when the model falls behind the wall clock by more than `factor` seconds. Set `strict=False` to let it catch up instead. `sync()` restarts the real-time reference from the present. Here one simulated second takes 0.2 seconds of real time, so a run of 2 simulated seconds takes at least 0.4 seconds.
 
 ```python title="docs/snippets/pages/simpy_and_desflow.py:realtime"
 def realtime():
@@ -385,41 +385,4 @@ def realtime():
 clock 2, wall clock at least 0.4 s: True
 ```
 
-SimPy's `factor` is fixed when the environment is made. desflow's environment changes that, as the table at the end of this page shows. [Time and Pacing](../user-guide/time-and-pacing/index.md) explains it.
-
----
-
-## What desflow Changes
-
-desflow keeps SimPy's event list, clock, processes and resources, and changes four things: the clock can switch pacing, every parameter can change while the run goes on, random times are named distributions, and everything that happens is published as records.
-
-| Part | In SimPy | In desflow |
-|---|---|---|
-| Clock and pacing | `Environment` runs without waiting; `RealtimeEnvironment(factor, strict=True)` follows the wall clock and raises `RuntimeError` when the model falls behind | one class, `DynamicRealtimeEnvironment`, does both: `factor=0` runs without waiting, `go_live_at` switches to real time partway through a run (SimPy's `factor` cannot change once set), `logical_start_time` gives every record a date and time, and falling behind is reported as telemetry; `strict` raises `RuntimeError` as SimPy's does, at a `factor` above 0 and never at `factor: 0`, where SimPy's check would raise as soon as the wall clock moves; it is on by default in the low-level API, as in SimPy, and off by default in the builder and in YAML (`simulation.strict`); `sync()` is SimPy's, and `resume_pacing()` also moves the simulation anchor after a pause; `advance(until)` runs a started run in segments, as repeated `env.run(until=...)` does |
-| Processes | generators started with `env.process` | the same, and the builder adds `@app.task`, `@app.arrival_loop`, `@app.telemetry_loop` and `add_process`, which write the common ones for you |
-| Random times | none built in: a model calls `random` or NumPy itself | ten named distributions with checked parameters, drawn by a `Sampler` from the current values each time; each distribution draws from a random sequence of its own, made from the run's seed and its registry path |
-| Resources | `Resource`, `Container` and `Store` keep the capacity they were created with: it has no setter, so assigning a new one raises `AttributeError` (SimPy 4.1). `Resource` serves requests in the order they arrive, and `PriorityResource` by priority | `DynamicResource`, `DynamicContainer` and `DynamicStore` follow a capacity in the registry, and a resource that shrinks lets busy units finish. A resource serves its queue `fifo`, `lifo` or by `priority`, equal priorities first in, first out. `run()` builds the stores and containers a model declares, and tasks put to and get from them |
-| Parameters | Python variables, changed only by the model's own code | a registry of named paths, changed by connectors, scenarios or processes, with each change checked |
-| Output | whatever the model prints or logs | events and telemetry with a fixed shape, written to Kafka, Redis, PostgreSQL, files or Iceberg on background threads |
-
----
-
-## Each Construct in desflow
-
-Each row names a construct, its form in the three ways of writing a model, and the group of conformance checks on [SimPy Compatibility](../reference/simpy-compatibility.md) that runs it in plain SimPy and in all three forms and compares the results. A construct with no native form in one of the three is marked as a difference there, with the reason.
-
-| SimPy construct | YAML | Builder | Low-level | Checks |
-|---|---|---|---|---|
-| `Environment`: `run`, `step`, `peek`, `now` | `run.until` | `app.run(until=)`, `app.step()`, `app.peek()` | `env.run(until=)` | [Run Control](../reference/simpy-compatibility.md#c6-run-control) |
-| `timeout` | a task with `service` and no `resource` | `@app.task(service_id=...)` | `yield env.timeout(delay)` | [Events and Processes](../reference/simpy-compatibility.md#c1-events-and-processes) |
-| Events and callbacks | `signals:`, `on:` | `add_signal`, `on=` | `Signal`, `event.callbacks.append(fn)` | [Events and Processes](../reference/simpy-compatibility.md#c1-events-and-processes) |
-| Processes and waiting for one | `wait: {task: ...}` | `wait={"task": ...}`, `context.call(...)` | `yield env.process(child())` | [Events and Processes](../reference/simpy-compatibility.md#c1-events-and-processes) |
-| Interrupts | `interrupt:`, `on_interrupt` | `context.interrupt(...)`, `on_interrupt=` | `process.interrupt(cause)` | [Interrupts and Preemption](../reference/simpy-compatibility.md#c3-interrupts-and-preemption) |
-| `AnyOf`, `AllOf` | `wait: {any: ...}`, `wait: {all: ...}` | `wait={"any": ...}`, `wait={"all": ...}` | `yield a \| b`, `yield a & b` | [Wait for One or All](../reference/simpy-compatibility.md#c2-wait-for-one-or-all) |
-| `Resource`, `PriorityResource` | `resource: packers`, `queue: priority` | `@app.task(resource_id=...)`, `add_resource(queue=...)` | `with packers.request() as req: yield req` | [Resources](../reference/simpy-compatibility.md#c4-resources) |
-| `PreemptiveResource` | `preempt: true, queue: priority` | `add_resource(queue="priority", preempt=True)` | `DynamicResource(queue="priority", preempt=True)` | [Interrupts and Preemption](../reference/simpy-compatibility.md#c3-interrupts-and-preemption) |
-| `Container` | `put` and `get` with `container` and `amount` | `put={"container": ...}`, `get={"container": ...}` | `yield stock.put(2)`, `yield stock.get(1)` | [Stores and Containers](../reference/simpy-compatibility.md#c5-stores-and-containers) |
-| `Store`, `FilterStore`, `PriorityStore` | `put` and `get` with `store`, `filter`, `priority: true` | `put={"store": ...}`, `get={"store": ..., "filter": ...}` | `parcels.get(filter=...)` | [Stores and Containers](../reference/simpy-compatibility.md#c5-stores-and-containers) |
-| `RealtimeEnvironment` | `simulation.factor`, `simulation.strict` | `SimulationContext(factor=, strict=)` | `DynamicRealtimeEnvironment(factor=)` | [Run Control](../reference/simpy-compatibility.md#c6-run-control) |
-
-`!python` and `add_process` run SimPy code you write yourself. They are extension points, so a construct that has no native form in YAML or the builder is not covered by using them. User Guide pages that build on SimPy name the parts they use in their How It Works section, starting with [Arrivals and Services](../user-guide/arrivals-and-services.md). [Coming from SimPy](coming-from-simpy.md) maps a whole SimPy model onto desflow.
+SimPy's `factor` is fixed when the environment is made. desflow's environment can switch to real time during a run, as the Clock and pacing row of [What desflow Changes](coming-from-simpy.md#what-desflow-changes) shows. [Time and Pacing](../user-guide/time-and-pacing/index.md) explains it.

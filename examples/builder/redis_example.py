@@ -15,8 +15,8 @@ from desflow import RedisEgress, RedisIngress, SimulationContext
 logger = logging.getLogger(__name__)
 
 # The odctl `valkey` profile disables the unauthenticated default user, so the
-# URL carries credentials. A plain Redis without auth takes redis://localhost:6379/0.
-REDIS_URL = "redis://user:password@localhost:6379/0"
+# URL carries credentials. A plain Redis without auth takes redis://127.0.0.1:6379/0.
+REDIS_URL = "redis://user:password@127.0.0.1:6379/0"
 
 # --8<-- [start:app]
 app = (

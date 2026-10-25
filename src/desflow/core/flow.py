@@ -152,6 +152,19 @@ class Router:
         """The parsed conditions, in rule order."""
         return [condition for condition, _ in self._when]
 
+    @property
+    def probabilities(self) -> Optional[Dict[str, float]]:
+        """The share of finished instances each next task receives, where the rules
+        fix it: 1.0 for a task name, the normalised weights for weights, and an
+        empty mapping when the flow ends. None for when rules or a function, whose
+        split depends on the run."""
+        if self._function is not None or self._when:
+            return None
+        if self._cumulative is not None:
+            shares = np.diff(self._cumulative, prepend=0.0)
+            return {name: float(share) for name, share in zip(self._names, shares)}
+        return {} if self._default is None else {self._default: 1.0}
+
     def choose(
         self,
         upstream: Upstream,
