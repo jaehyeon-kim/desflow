@@ -8,6 +8,8 @@ shape.
 import importlib.util
 from pathlib import Path
 
+import pytest
+
 _SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "record_blocks.py"
 _spec = importlib.util.spec_from_file_location("record_blocks", _SCRIPT)
 assert _spec is not None and _spec.loader is not None
@@ -23,8 +25,18 @@ def test_every_generator_is_used_on_a_page():
     assert set(record_blocks.BLOCKS) <= set(record_blocks.used())
 
 
-def test_every_block_is_up_to_date():
-    stale = record_blocks.stale()
+# One test per block, so the docs jobs and their workers share the runs out
+@pytest.mark.parametrize("name", sorted(record_blocks.used()))
+def test_block_is_up_to_date(name):
+    lines = record_blocks.BLOCKS[name]()
+    stale = [
+        str(page.relative_to(record_blocks.ROOT))
+        for page in record_blocks.used()[name]
+        for match in record_blocks._MARKER.finditer(page.read_text(encoding="utf-8"))
+        if match["name"] == name
+        and match["body"] != "\n".join(match["indent"] + line for line in lines)
+    ]
     assert stale == [], (
-        "Run python scripts/record_blocks.py to regenerate: " + "; ".join(stale)
+        f"Run python scripts/record_blocks.py to regenerate {name} on: "
+        + ", ".join(stale)
     )

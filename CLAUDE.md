@@ -33,7 +33,8 @@ Real-time SimPy simulations whose parameters change while they run, writing even
 
 ```bash
 uv run --all-extras pytest tests/unit tests/conformance -q -n auto  # unit and SimPy conformance tests, as CI runs them (--all-extras matters)
-uv run --all-extras pytest tests/docs -q -n auto  # docs, snippet, example and script tests, run in the docs-build CI job
+uv run --all-extras pytest tests/docs -q -n auto  # docs, snippet, example and script tests, run in the docs-build CI job in 8 groups
+DOCS_STORE_DURATIONS=1 uv run --all-extras pytest tests/docs -q -n auto  # record the test times that balance the groups, in tests/docs/durations.json
 uv run --all-extras pytest tests/integration -ra  # needs Docker; starts odctl profiles on demand
 uvx pre-commit run --all-files                    # ruff, ruff format, mypy, whitespace, YAML
 DISABLE_MKDOCS_2_WARNING=true uv run --all-extras mkdocs build --strict
