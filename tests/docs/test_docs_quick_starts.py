@@ -205,4 +205,4 @@ def test_readme_runs_the_template_commands():
         if line and not line.startswith(("#", "`", "*", "pip install"))
     ]
     expected = "```bash\n" + "\n".join(commands) + "\n```"
-    assert expected in readme[readme.index("## Run an Example") :]
+    assert expected in readme[readme.index("## Quick Start") :]
