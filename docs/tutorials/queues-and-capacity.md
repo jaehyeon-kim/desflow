@@ -149,7 +149,12 @@ Hints for utilisation 0.85:
   packers with 1 unit: utilisation 0.85 at a request every 1.76 seconds (34 a minute, 0.5667 a second)
 ```
 
-The tree shows each order starting `pack_order`, which uses `packers`, and the flow ending after it. The status is `CONGESTED` from utilisation 0.85 and `UNSTABLE` from 1. The resources table gives λ 1.8 orders a second, μ 0.667 orders a second, c 1 and utilisation ρ 2.7, so the status is `UNSTABLE`. The wait (`Wq`) and the number in the shop (`L`) are left blank. The reason is printed below the tables: the queue grows for as long as the run lasts. The table by units covers 1 to 10 packers, up to `max_cap`. Three packers are stable but congested at utilisation 0.9, and the first hint names 4 as the fewest packers at or below 0.85. The second hint keeps the current number of units. It gives the rate of requests into the resource at which utilisation reaches the target. With one packer, an arrival rate of 0.5667 orders a second, an order every 1.76 seconds (34 a minute), gives utilisation 0.85. In a network, that rate includes the requests that come back for rework, not only new arrivals.
+The output has four parts:
+
+- The tree shows each order starting `pack_order`, which uses `packers`, and the flow ending after it.
+- The resources table gives λ (the arrival rate) 1.8 orders a second, μ (the rate one packer serves) 0.667 orders a second, c (the number of packers) 1 and utilisation ρ 2.7. The status is `CONGESTED` from utilisation 0.85 and `UNSTABLE` from 1, so it is `UNSTABLE`. The wait (`Wq`) and the number in the shop (`L`) are left blank, and the reason is printed below the tables: the queue grows for as long as the run lasts.
+- The table by units covers 1 to 10 packers, up to `max_cap`. Three packers are stable but congested at utilisation 0.9.
+- The first hint names 4 as the fewest packers at or below 0.85. The second hint keeps the current number of units. It gives the rate of requests into the resource at which utilisation reaches the target. With one packer, an arrival rate of 0.5667 orders a second, an order every 1.76 seconds (34 a minute), gives utilisation 0.85. In a network, that rate includes the requests that come back for rework, not only new arrivals.
 
 ---
 
@@ -269,7 +274,7 @@ A stable model can still wait a long time, because the wait grows much faster th
 
 ![The M/M/1 mean wait against utilisation for a mean service of 1.5 seconds: 6.0 seconds at 0.8 and 28.5 seconds at 0.95, rising steeply towards 1](../assets/charts/queues-mm1.png)
 
-Variable times make the wait longer still. Bursts of arrivals, or packing times that vary a lot, fill the queue while the average load is moderate, and the queue takes a long time to empty again. [Kingman's formula](../des/queueing-basics.md#variation-lengthens-waits) gives the size of the effect for one server. It multiplies the M/M/1 wait by (ca² + cs²) ÷ 2. Here ca and cs are the coefficients of variation of the gaps and of the service times, each the standard deviation divided by the mean. An exponential time has a coefficient of 1 and a constant time 0. With exponential gaps and constant packing the factor is (1² + 0²) ÷ 2 = 0.5, so the shop's constant packing halves the wait. `desflow explain` uses Kingman's formula for a resource with one unit, and [Choosing Inputs](choosing-inputs.md) measures the wait with constant, triangular, empirical and exponential packing times.
+Variable times make the wait longer still. Bursts of arrivals, or packing times that vary a lot, fill the queue while the average load is moderate, and the queue takes a long time to empty again. [Kingman's formula](../des/queueing-basics.md#variation-lengthens-waits) gives the size of the effect for one server: it multiplies the M/M/1 wait by a factor for the spread of the gaps and of the service times. With exponential gaps and constant packing the factor is 0.5, so the shop's constant packing halves the wait. `desflow explain` uses Kingman's formula for a resource with one unit, and [Choosing Inputs](choosing-inputs.md) measures the wait with constant, triangular, empirical and exponential packing times.
 
 Little's Law checks a run's output. In a model that settles, the mean number of orders waiting is the arrival rate times the mean wait, Lq = λ × Wq, and the number in the shop is L = λ × (Wq + mean service time). `desflow explain` prints L beside Wq, and [Queueing Basics](../des/queueing-basics.md#littles-law) checks the law against runs of the shop.
 

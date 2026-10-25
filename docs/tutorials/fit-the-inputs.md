@@ -74,7 +74,14 @@ empirical         fitted                                           values: 40 nu
 * best: triangular
 ```
 
-Lower AIC is better, and a small KS p-value is a reason to reject a family. [A Simulation Study](../des/a-simulation-study.md#aic-and-the-ks-test) explains both scores. The `KS stat` column is the KS statistic, and the next column is its p-value. desflow reports the p-value but does not reject a family on it. So `uniform` stays `fitted` with a p-value of 0.029. That is below 0.05, which is a reason not to use it. `exponential` was rejected: its standard deviation equals its mean, 1.5 seconds, more than three times the data's 0.4832. `constant` was skipped, because the times are not all equal. `normal` fitted, but it can draw values below 0. desflow does not choose it while another family that stays within the bounds fits. `empirical`, the 40 times themselves, is always offered. The `triangular` has the lowest AIC, 56.68, and is marked best; `gamma` is 0.11 behind it.
+Lower AIC is better, and a small KS p-value is a reason to reject a family. [A Simulation Study](../des/a-simulation-study.md#aic-and-the-ks-test) explains both scores. The `KS stat` column is the KS statistic, and the next column is its p-value. desflow reports the p-value but does not reject a family on it. Each family's outcome is:
+
+- `triangular` has the lowest AIC, 56.68, and is marked best. `gamma` is 0.11 behind it.
+- `uniform` stays `fitted` with a p-value of 0.029. That is below 0.05, which is a reason not to use it.
+- `normal` fitted, but it can draw values below 0. desflow does not choose it while another family that stays within the bounds fits.
+- `exponential` was rejected: its standard deviation equals its mean, 1.5 seconds, more than three times the data's 0.4832.
+- `constant` was skipped, because the times are not all equal.
+- `empirical`, the 40 times themselves, is always offered.
 
 ---
 
@@ -136,7 +143,9 @@ The fitted settings go where the 40 times were:
 
 ## Does the Choice Matter?
 
-Run the busy hour 40 times with each distribution, each time with a different seed. These runs are **[replications](../des/output-analysis.md#replications)**. The mean wait differs from one replication to the next. The 95% [half-width](../des/output-analysis.md#interval-and-half-width) below says how far the mean of the 40 replications can be from the true mean wait. Each replication also leaves out its first 2 minutes, a **[warm-up](../des/output-analysis.md#one-run-starts-empty)**, because the shop starts empty and its first orders wait less than later ones. [Trusting Results](trusting-results.md) shows how to choose both numbers. In YAML, `desflow run fit_the_inputs.yaml --replications 40 --measure tasks.pack_order.wait_mean` runs the best fit, and [Result](#result) shows the gamma's commands. The table gives each distribution's mean packing time, and the [mean wait over the 40 replications](../des/common-mistakes.md#busy-hour-figures) with its half-width:
+Run the busy hour 40 times with each distribution, each time with a different seed. These runs are **[replications](../des/output-analysis.md#replications)**. The mean wait differs from one replication to the next. The 95% [half-width](../des/output-analysis.md#interval-and-half-width) below says how far the mean of the 40 replications can be from the true mean wait. Each replication also leaves out its first 2 minutes, a **[warm-up](../des/output-analysis.md#one-run-starts-empty)**, because the shop starts empty and its first orders wait less than later ones. [Trusting Results](trusting-results.md) shows how to choose both numbers.
+
+In YAML, `desflow run fit_the_inputs.yaml --replications 40 --measure tasks.pack_order.wait_mean` runs the best fit, and [Result](#result) shows the gamma's commands. The table gives each distribution's mean packing time, and the [mean wait over the 40 replications](../des/common-mistakes.md#busy-hour-figures) with its half-width:
 
 | Packing time | Mean packing time (s) | Mean wait over 40 replications (s) |
 |---|---|---|

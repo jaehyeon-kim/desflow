@@ -104,7 +104,16 @@ Hints for utilisation 0.85:
   packers with 2 units: utilisation 0.85 at a request every 2.35 seconds (25.5 a minute, 0.425 a second)
 ```
 
-The packers are at utilisation 0.8. An order arrives every 2.5 seconds on average (24 a minute, `rate 0.4/s` in the graph, λ in the table). Each order needs 4 seconds of a packer, and 2 packers share the work. μ is the rate one packer serves, 0.25 orders a second (4 seconds each), and ρ is the utilisation. Wq is the mean wait in the queue and L the mean number of orders in the shop, shown as `-` when no formula applies. The status is `OK` below 0.85, `CONGESTED` from 0.85 and `UNSTABLE` from 1, where the queue grows for as long as the run lasts. The table by units shows that one packer would be `UNSTABLE`. The hints give the units and the arrival rate that reach the target of 0.85. A hint of more units than the resource's `max_cap` also says to raise `max_cap`, because a `current_cap` above `max_cap` is clamped to it. The formulas give no wait for two packers with gamma packing times, so the line under `Not estimated` says to measure it. [Queues and Capacity](../tutorials/queues-and-capacity.md#explain-the-load) works the same numbers out by hand.
+The packers are at utilisation 0.8: they are busy 80% of the time. An order arrives every 2.5 seconds on average (24 a minute, `rate 0.4/s` in the graph). Each order needs 4 seconds of a packer, and 2 packers share the work. The resources table names its columns with the usual queueing symbols:
+
+- λ (lambda) is the arrival rate, 0.4 orders a second.
+- μ (mu) is the rate one packer serves, 0.25 orders a second (4 seconds each).
+- ρ (rho) is the utilisation.
+- Wq is the mean wait in the queue, and L the mean number of orders in the shop. Both show `-` when no formula applies.
+
+The status is `OK` below 0.85, `CONGESTED` from 0.85 and `UNSTABLE` from 1, where the queue grows for as long as the run lasts. The table by units shows that one packer would be `UNSTABLE`. The hints give the units and the arrival rate that reach the target of 0.85. A hint of more units than the resource's `max_cap` also says to raise `max_cap`, because a `current_cap` above `max_cap` is lowered to it.
+
+The formulas give no wait for two packers with gamma packing times, so the line under `Not estimated` says to measure it. [Queues and Capacity](../tutorials/queues-and-capacity.md#explain-the-load) works the same numbers out by hand.
 
 `--verify` measures it. It runs the model unpaced and compares each statistic with the analysis, as [Check Against Theory](../guides/check-against-theory.md) shows. With `--replications`, it runs the model that many times from `--seed`, each to `--until`, and compares with each measure's 95% interval. `--target` sets the utilisation the hints aim for:
 
@@ -381,6 +390,57 @@ desflow schema > blueprint.schema.json
 ```
 
 [Set Up Your Editor](../guides/set-up-your-editor.md) names the file in the editor's settings.
+
+---
+
+## How It Works
+
+Each command reads its file and calls the library function a Python script would call. `desflow run` loads the model with `load_context` and runs it once, or calls `replicate` when `--replications` is given. `desflow experiment` calls `run_experiment`, `desflow report` calls `write_report`, and `desflow fit` reads the column and calls `fit_column`. `desflow dist`, `desflow schema` and `desflow examples` read the distribution table, the blueprint schema and the list of examples. A command therefore gives the same result as the Python call with the same arguments.
+
+`desflow explain` takes the most steps. Look at them in order:
+
+![desflow explain loads the model, builds the graph from what the model declares, works out each task's rate by flow balance, marks the tasks the formulas do not cover, then gives each resource its utilisation, status and wait by Kingman's formula or Erlang C, and names the bottleneck and the hints. --verify runs the model unpaced with no ingress or egress and compares utilisation, queue length, wait and throughput with the analysis, within 10% for one run, or for replications within the 95% interval's half-width or 1%, whichever is larger](../assets/diagrams/explain-steps.png)
+
+**Graph.** `explain` builds the graph from what the model declares: its arrivals, tasks, resources, stores, containers and `next` shares. It builds and runs nothing. Code the model does not declare, such as a hand-written arrival loop or an `add_process` function, becomes an opaque node.
+
+**Rates.** Each task's arrival rate comes from flow balance: the rate from its arrivals plus the share of each task that sends work to it. A `next` function or a hand-written arrival loop makes the rates unknown, because the graph cannot see where the work goes.
+
+**Coverage.** The formulas hold for a plain network of queues:
+
+- Each task holds at most one resource.
+- Each queue serves in arrival order, `fifo` or `lifo`, which give the same mean wait.
+- Nothing blocks, removes, delays or reorders work by priority.
+
+Anything else marks tasks, and the rate of a marked task is unknown. These mark tasks:
+
+- A task feature, such as `put`, `patience` or `fail`, marks that task and every task after it.
+- A resource feature, such as `queue_limit` or breakdowns, marks the tasks that use it and every task after them.
+- A priority queue whose tasks have different priorities marks every task after its tasks. The resource keeps its utilisation but has no wait.
+- An unstable resource marks every task after its tasks. The resource keeps its status.
+- A scenario step, live ingress or an `add_process` function marks every arrival and every task.
+
+A resource used by a marked task has no supported utilisation, status or wait, and the output names the reason under `Not estimated`.
+
+**Waits.** The utilisation ρ is λ ÷ (c × μ): the arrival rate divided by the units times the rate one unit serves. The status follows from it. The wait depends on the units and the input:
+
+- With no unit limit, the wait is 0.
+- At one unit, the wait comes from Kingman's formula. It is exact when the input is Poisson, and an approximation when one arrival with other gaps feeds the resource's only task.
+- At more than one unit, the wait comes from Erlang C, which needs Poisson arrivals and one exponential service time shared by every task that uses the resource.
+- With any other input or times there is no wait, and the output says to run `--verify`.
+
+Little's law then gives the queue length and the number in the system. The bottleneck is the resource with the highest supported utilisation. The hints solve the utilisation alone for the units and the arrival rate that reach `--target`.
+
+**Verify.** `--verify` runs the model as one replication does: unpaced, with no ingress or egress, and with the `typical` statistics. It measures from the end of the warm-up to `--until`, or to the blueprint's `run.until` when `--until` is not given. It compares four measures with the analysis: each resource's utilisation and queue length, the wait of each task that holds one resource, and each arrival's throughput. A measure agrees with the analysis:
+
+- For one run, when it is within 10% of the analysis, or measures 0 where the analysis gives 0.
+- For replications, when it is within the 95% interval's half-width or 1%, whichever is larger.
+
+A measure is not compared in these cases:
+
+- The analysis has no value for it.
+- Its resource is unstable.
+- Its wait comes from Kingman's formula as an approximation.
+- For a throughput, the arrival starts no task the graph shows, or its flow passes a marked task or an unstable resource.
 
 ---
 

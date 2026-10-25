@@ -238,7 +238,13 @@ Preemption is one source of interrupts, and a model can send others. An `interru
 
 ## Result
 
-What remains of a regular order's packing when an express order takes its packer? Each figure here comes from one run of the hour with the seed 42. With `resume`, the time it had left remains: after **344** preemptions, regular orders wait **8.12 seconds** on average. With `restart`, nothing remains: each preempted order packs again from the start, preemptions rise to **393**, and the mean wait triples to **25.33 seconds**. With `abandon`, the order is lost. **314** orders are lost, 312 to preemption and 2 to the call at 31 minutes. The **1,293** packed orders wait only **3.60 seconds** on average, because every interrupted order leaves the queue. The call at 31 minutes reaches every regular order in the shop at that moment: 3 under `resume`, 23 under `restart`, whose longer queue holds more orders, and 2 under `abandon`:
+What remains of a regular order's packing when an express order takes its packer? Each figure here comes from one run of the hour with the seed 42.
+
+- With `resume`, the time it had left remains. After **344** preemptions, regular orders wait **8.12 seconds** on average.
+- With `restart`, nothing remains: each preempted order packs again from the start. Preemptions rise to **393**, and the mean wait triples to **25.33 seconds**.
+- With `abandon`, the order is lost. **314** orders are lost, 312 to preemption and 2 to the call at 31 minutes. The **1,293** packed orders wait only **3.60 seconds** on average, because every interrupted order leaves the queue.
+
+The call at 31 minutes reaches every regular order in the shop at that moment: 3 under `resume`, 23 under `restart`, whose longer queue holds more orders, and 2 under `abandon`:
 
 ![Mean wait of regular orders: resume 8.12 s with 1607 packed; restart 25.33 s with 1606 packed; abandon 3.60 s with 1293 packed](../assets/charts/interruption-policies.png)
 

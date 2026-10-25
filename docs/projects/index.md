@@ -1,0 +1,12 @@
+# Projects Using desflow
+
+These public projects generate their data with desflow. The first four are in [benchtop](https://github.com/jaehyeon-kim/benchtop). Each row says what the project does, what desflow simulates there and the desflow requirement in the project's `requirements.txt`.
+
+| Project | What it covers |
+| --- | --- |
+| [Change Data Capture with Debezium](https://github.com/jaehyeon-kim/benchtop/tree/main/ecommerce-cdc) | every change to a shop's database, captured as it happens with Debezium and Kafka Connect. desflow simulates the shop and writes it to PostgreSQL. It requires `desflow[postgres,kafka]>=0.20.0`. |
+| [Live Game Leaderboards with Flink SQL](https://github.com/jaehyeon-kim/benchtop/tree/main/game-leaderboard) | live leaderboards for a mobile game, kept up to date by Flink SQL. desflow plays the game in real time, sends each score to Kafka and reads parameter changes from Kafka while it runs. It requires `desflow[kafka,confluent]>=0.20.0`. |
+| [Live Sales Dashboards](https://github.com/jaehyeon-kim/benchtop/tree/main/live-dashboard) | two dashboards that update themselves as a shop takes orders. desflow runs the shop in real time and writes every row to PostgreSQL. It requires `desflow[postgres]>=0.21.0`. |
+| [Air Quality Forecasting with a Feature Store](https://github.com/jaehyeon-kim/benchtop/tree/main/air-quality) | an MLOps project that forecasts daily air pollution (PM2.5) for the next seven days from weather forecasts, with a feature store, a monitoring dashboard and a chat assistant. desflow generates the hourly weather forecasts and PM2.5 readings, written to four Iceberg tables. It requires `desflow[iceberg]>=0.20.0`. |
+| [Agentic Analytics System](https://github.com/jaehyeon-kim/agentic-analytics-system) | conversational analytics over an Iceberg lakehouse, where an agent answers questions through a semantic layer. desflow generates 90 days of an online shop's history (customers, products, orders, order items, payments and returns), unpaced, as Parquet files in S3-compatible storage, which become the Iceberg tables. It requires `desflow[parquet]==0.20.0`. |
+| [Hot Strip Mill: Real-Time Online Machine Learning and Digital Twin](https://github.com/jaehyeon-kim/oml-digital-twin-hotrolling) | a model of a steel hot strip mill, trained online by a Flink job as the wear on its rolls drifts. desflow runs the mill in real time and sends prediction requests and the measured forces to Kafka. It requires `dynamic-des[kafka,dashboard]==0.12.0`, under desflow's earlier name. |

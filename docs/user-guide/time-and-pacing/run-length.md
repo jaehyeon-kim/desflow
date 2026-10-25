@@ -60,7 +60,13 @@ The warm-up drops early records. `go_live_at` drops nothing, and only decides wh
     morning = DynamicRealtimeEnvironment(factor=0.0, initial_time=8 * 3600)
     ```
 
-`until` is a clock reading too, so a run with `initial_time: 8 h` and `until: 16 h` lasts 8 hours. A scenario step's `at` and the `warmup` are different: they are lengths of time from the start of the run. With `initial_time: 8 h`, a step at `30 min` applies at 8.5 hours, and a warm-up of `10 min` ends at 8 hours 10 minutes. The state the run starts with is declared beside it: a resource's `current_cap`, a container's `level`, a store's `items` and an arrival's `attributes` hold from the initial time, before the first arrival. The tests check each against plain SimPy ([SimPy Compatibility](../../reference/simpy-compatibility.md)).
+`until` is a clock reading too, so a run with `initial_time: 8 h` and `until: 16 h` lasts 8 hours. A scenario step's `at` and the `warmup` are different: they are lengths of time from the start of the run. Look at where each falls on the clock of that run:
+
+![A run on its clock: it starts at initial_time 8 h, the 10-minute warm-up ends at 8 h 10 min, a step at 30 min applies at 8.5 h, and until ends the run at 16 h](../../assets/diagrams/run-clock.png)
+
+With `initial_time: 8 h`, a step at `30 min` applies at 8.5 hours, and a warm-up of `10 min` ends at 8 hours 10 minutes.
+
+The state the run starts with holds from the initial time, before the first arrival: a resource's `current_cap`, a container's `level`, a store's `items` and an arrival's `attributes`. The tests check each against plain SimPy ([SimPy Compatibility](../../reference/simpy-compatibility.md)).
 
 ### Run Length
 
@@ -98,9 +104,25 @@ Without `until`, SimPy runs until no events remain, and a run with an arrival ne
 
 ### Stop Early
 
-`stop` ends the run before `until` when something happens. `{signal: name}` ends it at the next firing of a signal. `{condition: ...}` ends it at the first moment a condition holds, checked after every change of a level, a capacity, a registry value or a signal, and after every finished task. The builder's `run(stop=...)` also takes a signal's name, or a function of the context, called once the run is built, that returns any SimPy event, such as `lambda context: context.env.timeout(30)`. The run ends at whichever comes first, `stop` or `until`, and no other event at that moment runs after it. When both fall at the same moment, `until` ends the run, as SimPy's own `until` would. In the low-level API it is SimPy's `env.run(until=event)`.
+`stop` ends the run before `until` when something happens. It takes these forms:
 
-`run()` and `finish()` return what SimPy's `env.run(until=event)` returns: the value of the event that ended the run. A `stop` on a signal gives the signal's value, such as the finished payload of the task that fired it. A `stop` on a condition gives `True`, and a function's event gives its own value. A run that `until` or a drain ends returns `None`, and so does one where `until` and the stop fall at the same moment. If the signal fails, the run still closes, and the sinks receive their records. Then `run()` raises the `SignalFailed` the signal failed with, as SimPy raises the exception of a failed event. `desflow run` reports it and exits with an error.
+- `{signal: name}` ends the run at the next firing of a signal.
+- `{condition: ...}` ends it at the first moment a condition holds. The condition is checked after every change of a level, a capacity, a registry value or a signal, and after every finished task.
+- In the builder, `run(stop=...)` also takes a signal's name, or a function of the context that returns any SimPy event, such as `lambda context: context.env.timeout(30)`. The function is called once the run is built.
+- In the low-level API, the same is SimPy's `env.run(until=event)`.
+
+The run ends at whichever comes first, `stop` or `until`, and no other event at that moment runs after it. When both fall at the same moment, `until` ends the run, as SimPy's own `until` would.
+
+`run()` and `finish()` return what SimPy's `env.run(until=event)` returns: the value of the event that ended the run:
+
+| What ended the run | Value returned |
+|---|---|
+| A `stop` on a signal | the signal's value, such as the finished payload of the task that fired it |
+| A `stop` on a condition | `True` |
+| A `stop` on a function's event | the event's own value |
+| `until`, a drain, or `until` and the stop at the same moment | `None` |
+
+If the signal fails, the run still closes, and the sinks receive their records. Then `run()` raises the `SignalFailed` the signal failed with, as SimPy raises the exception of a failed event. `desflow run` reports it and exits with an error.
 
 ### Drain
 
@@ -160,7 +182,12 @@ With statistics at `basic` or above, `flows.<arrival>.started`, `finished` and `
 
 ### Step and Peek
 
-`start()` builds everything `run()` builds and starts every process, with the clock still at its start. `step()` then processes the next event of the model, and `peek()` gives the time of the next one, or infinity when none is left, as SimPy's `env.step()` and `env.peek()` do. Both count only the model's events, so a script steps the model as it would in SimPy. The events desflow adds do not count: the statistics timer, the flush timers, the lag and ingress monitors, and a resource's capacity watcher. `peek()` skips them, and `step()` runs those due before the model's next event in the same call. When only desflow's events are left, `step()` raises `EmptySchedule` and `peek()` gives infinity; `finish()` and `run()` still process them.
+`start()` builds everything `run()` builds and starts every process, with the clock still at its start. Two methods then move through the model one event at a time, as SimPy's `env.step()` and `env.peek()` do:
+
+- `step()` processes the next event of the model.
+- `peek()` gives the time of the next event, or infinity when none is left.
+
+Both count only the model's events, so a script steps the model as it would in SimPy. The events desflow adds do not count: the statistics timer, the flush timers, the lag and ingress monitors, and a resource's capacity watcher. `peek()` skips them, and `step()` runs those due before the model's next event in the same call. When only desflow's events are left, `step()` raises `EmptySchedule` and `peek()` gives infinity. `finish()` and `run()` still process them.
 
 `finish()` runs a started run on to the end that `run()` would reach (`until`, the `stop` or the end of the drain), then closes it. `run()` is `start()` followed by `finish()`. After `advance()` or `step()`, `finish()` closes the run as follows:
 

@@ -168,6 +168,7 @@ nav:
   - Home: index.md
   - Installation: getting-started.md
   - Learn:
+      - learn/index.md
       - What Is DES?: des/how-it-works.md
       - Queueing Basics: des/queueing-basics.md
       - A Simulation Study: des/a-simulation-study.md
@@ -211,6 +212,7 @@ nav:
               - Streaming Out: tutorials/streaming-out.md
   - User Guide:
       - user-guide/index.md
+      - How desflow Works: user-guide/how-desflow-works.md
       - Writing a Model:
           - Ways to Write: user-guide/ways-to-write.md
           - YAML Blueprints: user-guide/blueprints.md
@@ -261,6 +263,7 @@ nav:
           - Route Records to Topics: guides/complex-routing.md
           - Use Avro and Pydantic: guides/avro-and-pydantic.md
           - Connect to Secure Kafka: guides/kafka-security.md
+          - Write a Connector: guides/write-a-connector.md
       - Analysis:
           - Fit a Distribution: guides/fit-a-distribution.md
           - Check Against Theory: guides/check-against-theory.md
@@ -272,7 +275,7 @@ nav:
           - Set Up Your Editor: guides/set-up-your-editor.md
           - Use an AI Assistant: guides/use-an-ai-assistant.md
           - Tune Performance: guides/performance-tuning.md
-  - Example Projects:
+  - Runnable Examples:
       - Overview: examples/index.md
       - Local Simulation: examples/local.md
       - Kafka Digital Twin: examples/kafka.md
@@ -283,6 +286,7 @@ nav:
       - Redis: examples/redis.md
       - Parquet History, Kafka Live: examples/backfill-live.md
       - Related Records: examples/advanced-postgres-orders.md
+  - Projects Using desflow: projects/index.md
   - Reference:
       - Cheat Sheet: reference/cheat-sheet.md
       - YAML Format: reference/yaml-format.md
@@ -334,7 +338,9 @@ extra_css:
   - css/roadmap.css
   - css/tables.css
   - css/code-lines.css
+  - css/external-links.css
 
 extra_javascript:
   - js/code-lines.js
   - js/moved-anchors.js
+  - js/external-links.js

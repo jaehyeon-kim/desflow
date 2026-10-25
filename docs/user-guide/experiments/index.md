@@ -151,7 +151,12 @@ print(result.output / "report.md")
 
 ### Variants and Sweeps
 
-Each variant sets registry paths before the clock starts, as a live update would. The experiment stops before anything runs when a variant sets a path the model does not have, or a value the registry refuses or clamps, such as a capacity above `max_cap`. The error names the variant's line. Paths are set in the order the variant lists them, so a variant that lowers `max_cap` below the model's `current_cap` sets `current_cap` first. A sweep runs every variant at every combination of its paths' values, so one variant and one swept path with three values give three designs: a one-factor sensitivity experiment. A path is set by a variant or by the sweep, not both. A design's name is its variant followed by its swept values, such as `three Shop.arrival.orders.rate=0.5` (an order every 2 seconds on average).
+Each variant sets registry paths before the clock starts, as a live update would. Paths are set in the order the variant lists them, so a variant that lowers `max_cap` below the model's `current_cap` sets `current_cap` first. The experiment stops before anything runs, with an error that names the variant's line, when a variant sets:
+
+- a path the model does not have;
+- a value the registry refuses, or lowers to its limit, such as a capacity above `max_cap`.
+
+A sweep runs every variant at every combination of its paths' values. So one variant and one swept path with three values give three designs: a one-factor sensitivity experiment, which changes one input to see how much the answer changes. A path is set by a variant or by the sweep, not both. A design's name is its variant followed by its swept values, such as `three Shop.arrival.orders.rate=0.5` (an order every 2 seconds on average).
 
 ### Pairing and Random Streams
 

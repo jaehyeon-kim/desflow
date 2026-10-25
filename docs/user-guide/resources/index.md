@@ -22,7 +22,14 @@ A resource is a number of identical units: packers, packing benches, checkout la
 
 ### Declare a Resource
 
-A resource has a `current_cap`, the number of units now, and a `max_cap`, the most a live change can set. Both are whole numbers, and both may be left out: `current_cap` is then 1 and `max_cap` is the `current_cap`, so `packers: {}` is a resource of one unit, as `simpy.Resource(env)` is. `current_cap: .inf` (`float("inf")` in Python) is a resource with no limit: every request is granted at once, `capacity` is published as `null` and `utilization` as 0. `queue_limit` sets the most requests that may wait, as [Queue Limit](#queue-limit) describes. `run()` builds a `DynamicResource` for each one the context declares. In the low-level API you build it yourself, after registering the parameters. A resource of one unit needs no registration at all:
+Two whole numbers set the size of a resource, and both may be left out:
+
+- `current_cap` is the number of units now. Left out, it is 1, so `packers: {}` is a resource of one unit, as `simpy.Resource(env)` is.
+- `max_cap` is the most units a live change can set. Left out, it equals `current_cap`.
+
+`current_cap: .inf` (`float("inf")` in Python) is a resource with no limit. Every request is granted at once, `capacity` is published as `null` and `utilization` as 0.
+
+`queue_limit` sets the most requests that may wait, as [Queue Limit](#queue-limit) describes. `run()` builds a `DynamicResource` for each resource the context declares. In the low-level API you build it yourself, after registering the parameters. A resource of one unit needs no registration at all:
 
 === "YAML"
 
@@ -117,7 +124,16 @@ The last line is a capacity drop, which [Under Live Changes](#under-live-changes
 
 ### Queue Limit
 
-A resource with a `queue_limit` of 5 (`queue_limit: 5` in a blueprint, `add_resource(..., queue_limit=5)` in the builder, and the same argument of `DynamicResource`) refuses a request made while five requests wait already, as SimPy's `SortedQueue(maxlen=5)` does. The refusal comes before a grant or a preemption, so a limit of 0 refuses every request. A task that is refused balks: it gives back the units it holds, publishes `balked` with the name of the resource, counts as balked and ends its flow. When the limited resource is the first one the task asks for, and the task has no wait before it, the task balks before it publishes `queued`. A `request` branch of a `wait` on a full resource, in an `any` or in an `all`, fails the wait at once, with SimPy's message "Cannot append event. Queue is full.". When a `request` branch has won its wait and the unit is then taken by preemption, the task asks for a unit again. It balks if the line is full then, and it reneges if its patience runs out while it waits, as for a `resource:` unit. In the low-level API `request()` raises `QueueFull` (in `desflow.resources.resource`), a `RuntimeError` with that message, which your process catches as it would catch a balk condition. A reneged or cancelled request leaves the line, which makes room for the next. [Refuse to Join](../../tutorials/patience.md#refuse-to-join) shows the other way an order balks, by a condition of its own.
+`queue_limit` sets the most requests that may wait for a resource. With a limit of 5, a request made while five requests wait already is refused, as SimPy's `SortedQueue(maxlen=5)` does. Set it with `queue_limit: 5` in a blueprint, `add_resource(..., queue_limit=5)` in the builder, or the same argument of `DynamicResource`. The refusal comes before a grant or a preemption, so a limit of 0 refuses every request.
+
+A task that is refused **balks**: it leaves without being served. It gives back the units it holds, publishes `balked` with the name of the resource, counts as balked and ends its flow. When it balks depends on how it asked:
+
+- A task whose first resource is the limited one, with no wait before it, balks before it publishes `queued`.
+- A `request` branch of a `wait`, in an `any` or an `all`, fails the wait at once, with SimPy's message "Cannot append event. Queue is full.".
+- A `request` branch that has won its wait and then loses the unit to preemption asks for a unit again. The task balks if the line is full then. It reneges, that is, leaves the line, if its patience runs out while it waits, as for a `resource:` unit.
+- In the low-level API, `request()` raises `QueueFull` (in `desflow.resources.resource`), a `RuntimeError` with that message. Your process catches it as it would catch a balk condition.
+
+A request that reneges or is cancelled leaves the line and makes room for the next. [Refuse to Join](../../tutorials/patience.md#refuse-to-join) shows the other way an order balks, by a condition of its own.
 
 In a blueprint, `queue_limit` sits beside the capacity. `packers` has the default of one unit, and refuses a fourth waiting request:
 
@@ -203,7 +219,16 @@ A resource counts the units held and the requests waiting. In a condition, `user
 
 ### Registry Paths and Readings
 
-Each resource has two registry paths, `<sim_id>.resources.<name>.current_cap` and `.max_cap`, which a scenario, an ingress message or a process can change. [Live Parameters](../live-parameters.md) explains how. A resource that breaks down adds `<sim_id>.breakdown.<name>.time_to_failure` and `.repair`, its two distributions. With statistics at the `minimal` level or above, each resource publishes four readings, such as `Shop.stats.resources.packers.utilization`: `capacity`, `in_use`, `queue_length` and `utilization`. `utilization` is the busy units as a percentage of the capacity. A resource with no limit publishes a `capacity` of `null` and a `utilization` of 0. A resource that breaks down adds `down`, which is 1 while it is down. [Statistics](../statistics.md) lists what the other levels add, among them `downtime` and `failures`.
+Each resource has two registry paths, `<sim_id>.resources.<name>.current_cap` and `.max_cap`, which a scenario, an ingress message or a process can change. [Live Parameters](../live-parameters.md) explains how. A resource that breaks down adds `<sim_id>.breakdown.<name>.time_to_failure` and `.repair`, its two distributions.
+
+With statistics at the `minimal` level or above, each resource publishes four readings, such as `Shop.stats.resources.packers.utilization`:
+
+- `capacity`: the number of units, or `null` for a resource with no limit.
+- `in_use`: the units held by tasks.
+- `queue_length`: the requests waiting.
+- `utilization`: the units in use as a percentage of the capacity, or 0 for a resource with no limit.
+
+A resource that breaks down adds `down`, which is 1 while it is down. [Statistics](../statistics.md) lists what the other levels add, among them `downtime` and `failures`.
 
 ---
 

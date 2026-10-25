@@ -1,0 +1,39 @@
+# The Write a Connector guide: a shop whose packers follow a file of changes and
+# whose events go to a CSV file, through two connectors of its own.
+# Run it with: python write_a_connector.py, which writes changes.jsonl first.
+# In a folder with no changes.jsonl, desflow run write_a_connector.yaml keeps one packer.
+simulation:
+  sim_id: Shop
+  factor: 0.05  # 20 simulation seconds a second, so the file is read during the run
+  random_seed: 42
+
+resources:
+  packers: {current_cap: 1, max_cap: 3}
+
+services:
+  packing: {dist: constant, value: 1.5 s}
+
+arrivals:
+  orders:
+    dist: constant
+    value: 1 s
+    spawn: pack_order
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+
+# --8<-- [start:connectors]
+ingress:
+  - type: !python write_a_connector_logic.JsonlIngress
+    config: {path: changes.jsonl}
+
+egress:
+  - type: !python write_a_connector_logic.CsvEgress
+    config: {path: events.csv, columns: [status, event_type]}
+# --8<-- [end:connectors]
+
+run:
+  until: 20 s

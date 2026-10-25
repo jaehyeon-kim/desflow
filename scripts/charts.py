@@ -21,6 +21,8 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
+from matplotlib.colors import to_hex  # noqa: E402
+from matplotlib.patches import Rectangle  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 CHARTS_DIR = ROOT / "docs" / "assets" / "charts"
@@ -30,10 +32,27 @@ TUTORIALS = ROOT / "docs" / "snippets" / "tutorials"
 # without shrinking the text.
 WIDTH, HEIGHT, DPI = 7.5, 4.0, 150
 BLUE, ORANGE, GREY, GREEN = "#6c8ebf", "#d79b00", "#666666", "#82b366"
+# Titles are bold, as the draw.io diagrams' titles are
+TITLE_FONT = {"fontweight": "bold"}
+# A bar's fill is the light colour a draw.io box of the same line colour has
+FILLS = {BLUE: "#dae8fc", ORANGE: "#ffe6cc", GREY: "#f5f5f5", GREEN: "#d5e8d4"}
 
+# The draw.io diagrams use a sketch style. xkcd mode draws the lines the same way,
+# with a small wobble, so each line still passes through its data points.
+plt.xkcd(scale=0.5, length=100, randomness=2)
 plt.rcParams.update(
     {
         "font.size": 12,
+        # The font of the draw.io diagrams, so charts and diagrams read as one set
+        "font.family": "Comic Sans MS",
+        "axes.unicode_minus": False,
+        # xkcd mode outlines every line in white, which the diagrams do not
+        "path.effects": [],
+        # Thinner ticks than xkcd mode's, so the axes do not outweigh the data
+        "xtick.major.width": 1.5,
+        "ytick.major.width": 1.5,
+        "xtick.major.size": 5,
+        "ytick.major.size": 5,
         "axes.spines.top": False,
         "axes.spines.right": False,
         "axes.titlesize": 13,
@@ -80,6 +99,23 @@ def _guides_module(name: str):
 
 def _save(fig, name: str) -> None:
     CHARTS_DIR.mkdir(parents=True, exist_ok=True)
+    titles = [ax.title for ax in fig.axes]
+    if fig._suptitle is not None:
+        titles.append(fig._suptitle)
+    for title in titles:
+        title.set(**TITLE_FONT)
+    # Bars, and their legend keys, get the hatched fill of a draw.io box
+    patches = []
+    for ax in fig.axes:
+        patches += [patch for patch in ax.patches if isinstance(patch, Rectangle)]
+        legend = ax.get_legend()
+        if legend is not None:
+            patches += [p for p in legend.get_patches() if isinstance(p, Rectangle)]
+    for patch in patches:
+        colour = to_hex(patch.get_facecolor())
+        if colour in FILLS:
+            patch.set(facecolor=FILLS[colour], edgecolor=colour, hatch="///")
+            patch.set_linewidth(2)
     fig.tight_layout()
     fig.savefig(CHARTS_DIR / f"{name}.png", dpi=DPI)
     plt.close(fig)
@@ -291,7 +327,7 @@ def trusting_warmup() -> None:
     fig, (queue, wait) = plt.subplots(2, 1, figsize=(WIDTH, 5.0), sharex=True)
     queue.plot(minutes, [q for _, q, _ in readings], "o-", color=BLUE, markersize=3)
     queue.set_ylabel("orders waiting")
-    queue.set_title("The busy hour from an empty shop, read every 10 seconds")
+    queue.set_title("Busy hour from an empty shop, read every 10 seconds")
     wait.plot(minutes, [w for _, _, w in readings], color=BLUE, linewidth=2)
     wait.set_ylabel("mean wait so far (s)")
     wait.set_xlabel("simulation time (minutes)")
@@ -599,7 +635,7 @@ def rush_waits() -> None:
     ax.set_ylim(-20, 640)
     ax.set_xlabel("time packing started (minutes)")
     ax.set_ylabel("wait before packing (seconds)")
-    ax.set_title("1.5 s of packing, 0.4 orders a second outside the rush")
+    ax.set_title("Packing of 1.5 s, 0.4 orders a second outside the rush")
     ax.legend(frameon=False, loc="upper left", markerscale=3)
     _save(fig, "rush-waits")
 
@@ -695,7 +731,7 @@ def distribution_shapes() -> None:
         ax.set_yticks([])
         for side in ("left",):
             ax.spines[side].set_visible(False)
-    fig.suptitle("200,000 draws from each family; the orange line is their mean")
+    fig.suptitle("Each family drawn 200,000 times, with its mean as the orange line")
     _save(fig, "distribution-shapes")
 
 
@@ -796,7 +832,7 @@ def checking_observed() -> None:
         ax.set_ylabel(label)
         verdict = "inside" if row["inside"] else "outside"
         ax.set_title(f"observed {row['value']:g}: {verdict}")
-    fig.suptitle("The real shop beside the model's 95% interval, three packers")
+    fig.suptitle("Real shop beside the model's 95% interval, three packers")
     _save(fig, "checking-observed")
 
 
@@ -825,7 +861,7 @@ def comparing_waits() -> None:
     ax.set_ylabel("mean wait (s), with 95% interval")
     ax.set_xlim(-0.5, 1.9)
     ax.set_ylim(0, 3.2)
-    ax.set_title("The busy hour, 20 runs of each design with the same seeds")
+    ax.set_title("Busy hour, 20 runs of each design with the same seeds")
     _save(fig, "comparing-waits")
 
 
@@ -863,7 +899,7 @@ def sweep_waits() -> None:
     ax.set_xticks([1.6, 1.7, 1.8, 1.9])
     ax.set_xlabel("orders a second")
     ax.set_ylabel("mean wait (s), with 95% interval")
-    ax.set_title("The busy hour's mean wait at four arrival rates, 20 runs each")
+    ax.set_title("Mean wait in the busy hour at four arrival rates, 20 runs each")
     ax.legend(frameon=False, loc="upper left")
     _save(fig, "sweep-waits")
 
@@ -931,7 +967,7 @@ def streaming_rows() -> None:
     # Two lines, so the label fits the height of the chart
     ax.set_ylabel("packed orders,\nby the file that holds them")
     ax.set_title(
-        f"{written:,} packed orders in {len(ordered)} files of at most 500 rows"
+        f"Packed orders: {written:,} in {len(ordered)} files of at most 500 rows"
     )
     ax.legend(frameon=False, loc="upper left")
     _save(fig, "streaming-rows")

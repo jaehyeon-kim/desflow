@@ -197,7 +197,14 @@ An arrival can take its times from recorded rows instead of a distribution. Each
 
     `read_trace` reads and checks the rows, and returns each with its simulation `time`, row `number` and `fields`.
 
-`unit` is `ms`, `s`, `min` or `h` from the start of the run, or `timestamp` for a date and time, placed on the run's clock from `logical_start_time`. The rows must be in time order. Rows at equal times arrive at that time, in the order of the file. A row before the start stops the run, and rows at or after `until` never arrive. After the last row, the arrival stops and logs one INFO line. A row without a valid time stops the run, unless `on_invalid` is `skip`, which leaves it out with a warning. A Parquet file needs the `parquet` extra. A replayed arrival has no registry path. [Local Replay](../tutorials/local-replay.md) compares a recorded morning with a model of it.
+`unit` is `ms`, `s`, `min` or `h` from the start of the run, or `timestamp` for a date and time, placed on the run's clock from `logical_start_time`. The rows must be in time order, and the arrival follows these rules:
+
+- Rows at equal times arrive at that time, in the order of the file.
+- A row before the start stops the run, and rows at or after `until` never arrive.
+- A row without a valid time stops the run, unless `on_invalid` is `skip`, which leaves it out with a warning.
+- After the last row, the arrival stops and logs one INFO line.
+
+A Parquet file needs the `parquet` extra. A replayed arrival has no registry path. [Local Replay](../tutorials/local-replay.md) compares a recorded morning with a model of it.
 
 ---
 
