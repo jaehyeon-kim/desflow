@@ -24,17 +24,19 @@ Running a model is one step of a study. The question comes first, and the checki
 
 ## Events and the Event List
 
-This section is the same idea in the terms the rest of the docs use. The terms follow two sources. One is chapter 3, General Principles, of Banks, Carson, Nelson and Nicol, *Discrete-Event System Simulation*, read through [lecture notes on that chapter](https://eg.bucknell.edu/~xmeng/Course/CS6337/Note/master/node15.html). The other is Ingalls, "Introduction to Simulation" (Winter Simulation Conference, 2001), read through [its published text](https://www.informs-sim.org/wsc01papers/002.PDF). The explanations are our own.
+This section is the same idea in the terms the rest of the docs use. The terms follow two sources. One is chapter 3, General Principles, of Banks et al., *Discrete-Event System Simulation*, read through [lecture notes on that chapter](https://eg.bucknell.edu/~xmeng/Course/CS6337/Note/master/node15.html). The other is Ingalls, "Introduction to Simulation" (Winter Simulation Conference, 2001), read through [its published text](https://www.informs-sim.org/wsc01papers/002.PDF). The explanations are our own.
 
 A discrete-event simulation models a system as a series of **events**: an order arrives, a packer starts on it, the packer finishes. Each event happens at an instant, and between two events nothing changes. The simulation therefore only needs to visit the instants when events happen. It keeps a list of the events to come, in time order. It takes the earliest, moves its clock straight to that instant, and carries the event out. Carrying out an event usually schedules more: when a packer starts on an order, the simulation schedules the end of packing 1.5 seconds later.
 
 ![The simulation clock jumps from event to event: order 1 arrives and starts at 0.0 s and finishes at 1.5 s, order 2 arrives and starts at 2.6 s and finishes at 4.1 s. Just after 0.0 s the event list holds order 1 finishing at 1.5 s and order 2 arriving at 2.6 s, so the clock jumps to 1.5 s](../assets/diagrams/event-clock.png)
 
-The clock jumps from one event to the next. A simulated week with a few thousand events therefore takes only the time needed to compute those events, not a week. desflow runs on [SimPy](https://simpy.readthedocs.io/), which provides the event list and the clock. On top of SimPy it adds:
+The clock jumps from one event to the next. A simulated week with a few thousand events therefore takes only the time needed to compute those events, not a week. desflow runs on [SimPy](https://simpy.readthedocs.io/), which provides the event list and the clock. On top of SimPy it adds the parts of a simulation study that you would otherwise write yourself:
 
-- **Pacing.** `factor` makes the clock follow the wall clock (`1.0`), run faster or slower, or not wait at all (`0.0`), so the same model can drive a live dashboard or write a month of history in seconds. [Time and Pacing](../user-guide/time-and-pacing/index.md) explains it.
-- **Live values.** Every parameter is in a registry and can change while the simulation runs. [Live Parameters](../user-guide/live-parameters.md) explains it.
-- **Records.** What happens is published as events and telemetry to the sinks you attach. [Records and Telemetry](../reference/records-and-telemetry.md) shows the formats.
+- **Statistics.** Waits, queue lengths and utilisation are collected for you, with a warm-up period left out. [Statistics](../user-guide/statistics.md) explains them.
+- **Replications.** `desflow run --replications` repeats a run with different seeds and gives each statistic with a 95% interval. [Replications](../user-guide/replications.md) explains it.
+- **Experiments.** `desflow experiment` compares designs with the same random numbers, checks them against bounds and observed values, and writes a report. [Experiments](../user-guide/experiments/index.md) explains it.
+- **Checks against queueing theory.** `desflow explain` works out each resource's utilisation and waits from the model alone, and `--verify` compares those figures with runs. [Command Line](../user-guide/command-line.md#check-it-before-a-long-run) shows it.
+- **Inputs from data.** `desflow fit` fits measured times to distributions, and `desflow dist` converts a distribution's parameters. [Input Fitting](../user-guide/input-fitting.md) explains it.
 
 Two events can fall at the same instant. They run by priority and then in the order they were scheduled. [Run Length](../user-guide/time-and-pacing/run-length.md) shows the detail.
 
@@ -54,7 +56,7 @@ Queues are where the interesting behaviour comes from. Two models with the same 
 
 ## From Model to Records
 
-A model on its own only moves its clock. What makes it useful here is what it publishes. A task publishes `queued`, `started` and a finished event for every entity, and telemetry reports what you choose, such as how many units of a resource are busy. A sink writes each record to Kafka, a database or files, so the simulation becomes a source of realistic data for whatever reads it.
+A model on its own only moves its clock. What makes it useful here is what it publishes. A task publishes `queued`, `started` and a finished event for every entity, and telemetry reports what you choose, such as how many units of a resource are busy. A sink writes each record to a destination, such as a Kafka topic, a database table or an Iceberg table ([Egress](../user-guide/egress.md) lists them all), so the simulation becomes a source of realistic data for whatever reads it.
 
 Whether that data looks real depends on the model being **stable**: if work arrives faster than the resources can finish it, the queue grows without limit and every later event is delayed more. [Queues and Capacity](../tutorials/queues-and-capacity.md) explains how to tell, and how to fix it.
 

@@ -1,6 +1,6 @@
 # Installation
 
-This page installs desflow, runs a first simulation that needs no containers, and sets up the services the other examples use.
+This page installs desflow and runs a first simulation that needs no containers.
 
 ## Install the Package
 
@@ -22,9 +22,9 @@ Install the core library with uv or pip:
     pip install desflow
     ```
 
-desflow was called dynamic-des before 0.20.0. Install the package `desflow`, import the module `desflow` and run the command `desflow`. Code that imports `dynamic_des` and scripts that run `ddes` keep working with a warning until 0.30.0, and the [Changelog](about/changelog.md) says what to change.
+desflow was called dynamic-des before 0.20.0. The package, the Python module and the command are now all named `desflow`. Code that imports `dynamic_des` and scripts that run `ddes` keep working with a warning until 0.30.0, and the [Changelog](about/changelog.md) says what to change.
 
-The connectors are optional extras, for example `uv add "desflow[kafka,parquet]"` or `pip install "desflow[kafka,parquet]"`, and `uv tool install "desflow[kafka,parquet]"` for the `desflow` command:
+Connectors and input fitting are optional extras. For example, `uv add "desflow[kafka,parquet]"` or `pip install "desflow[kafka,parquet]"`, and `uv tool install "desflow[kafka,parquet]"` for the `desflow` command:
 
 | Extra | Adds |
 |---|---|
@@ -38,7 +38,7 @@ The connectors are optional extras, for example `uv add "desflow[kafka,parquet]"
 | `fit` | scipy and matplotlib, for [input fitting](user-guide/input-fitting.md) with `desflow fit` |
 | `all` | Every extra above |
 
-The package installs the `desflow` command, and `desflow` on its own lists its commands. [Command Line](user-guide/command-line.md) uses each one on the shop, and [CLI](reference/cli/index.md) gives the help of each.
+Run `desflow` on its own to list its commands. [Command Line](user-guide/command-line.md) uses each command on one shop, the model of the `experiment` example, and [CLI](reference/cli/index.md) gives the help of each.
 
 ---
 
@@ -148,57 +148,7 @@ The local example models a shop that receives and packs customer orders. The sim
         python local_example.py
         ```
 
-`desflow examples` lists every example.
-
----
-
-## Services for the Examples
-
-Every example that needs a broker, a database or an object store gets it from [odctl](https://github.com/jaehyeon-kim/odctl), a separate CLI that manages curated Docker Compose stacks. Install it once:
-
-```bash
-# With uv
-uv tool install "odctl>=1.0,<2"
-
-# Or with pip
-pip install "odctl>=1.0,<2"
-```
-
-`odctl list -d` shows every profile and the ports it publishes. The examples here use five of them: `kafka-lite`, `postgres`, `valkey`, `storage` and `catalog`.
-
-### Starting a Profile
-
-Each example needs at most one odctl profile. Start the profile before you run the example, and stop it afterwards:
-
-![Every example that desflow examples marks (no service) needs nothing started; kafka and backfill-live need odctl up kafka-lite; postgres and related-records need postgres; redis needs valkey; iceberg needs catalog; parquet written to S3 needs storage](assets/diagrams/example-infrastructure.png)
-
-| Example | Start | Stop |
-|---|---|---|
-| every example that `desflow examples` marks `(no service)`, such as local, parquet and stock | nothing needed | |
-| kafka, backfill-live | `odctl up kafka-lite` | `odctl down kafka-lite --volumes` |
-| postgres, related-records | `odctl up postgres` | `odctl down postgres --volumes` |
-| redis | `odctl up valkey` | `odctl down valkey --volumes` |
-| parquet with `PARQUET_FILESYSTEM=s3` | `odctl up storage` | `odctl down storage --volumes` |
-| iceberg | `odctl up catalog` | `odctl down catalog --volumes` |
-
-An example's YAML version needs the same profile as its builder version: `desflow examples get <name>` prints the profile with the run command.
-
-The Kafka and Redis profiles are not named after their service. odctl's one-broker Kafka profile is `kafka-lite` and its three-broker Kafka profile is `kafka-full`. odctl runs Valkey in place of Redis, so its Redis profile is `valkey`. The Kafka examples run on either Kafka profile, because both publish a broker at `127.0.0.1:9092`.
-
-### Endpoints These Profiles Publish
-
-These are the addresses the examples use. Every profile publishes on your machine only, on `127.0.0.1`. Use that address rather than `localhost`, which macOS resolves to the IPv6 address `::1` first, where nothing listens.
-
-| Profile | Service | Address the examples use |
-|---|---|---|
-| `kafka-lite` | Kafka, one broker, with the Karapace schema registry | `127.0.0.1:9092`; schema registry `http://127.0.0.1:8081` |
-| `kafka-full` | Kafka, three brokers, with the same schema registry | `127.0.0.1:9092,127.0.0.1:9093,127.0.0.1:9094`; schema registry `http://127.0.0.1:8081` |
-| `postgres` | PostgreSQL, database `odctl` | `postgresql://user:password@127.0.0.1:5432/odctl` |
-| `valkey` | Valkey (Redis protocol) | `redis://user:password@127.0.0.1:6379/0` |
-| `storage` | S3-compatible object store, bucket `odctl-dev` | `http://127.0.0.1:8333`, access key `user`, secret key `password` |
-| `catalog` | Iceberg REST catalog, warehouse `s3://warehouse/` | `http://127.0.0.1:8181` |
-
-`odctl list -d` shows every port a profile publishes.
+`desflow examples` lists every example. Examples that need Kafka, a database or an object store start it with [odctl](https://github.com/jaehyeon-kim/odctl), and each example page shows how.
 
 ---
 

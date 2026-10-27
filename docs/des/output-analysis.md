@@ -2,7 +2,7 @@
 
 A simulation run gives numbers, and a number from one run is a sample, not the answer. Output analysis is the work of turning runs into an answer with a stated precision. This page explains the ideas, and the tutorials and User Guide pages named below apply them to the packing shop and show the commands.
 
-It follows two sources: chapter 11 of Banks, Carson, Nelson and Nicol, *Discrete-Event System Simulation*, on output analysis for a single model, and the output-analysis pitfalls in Law, "Twenty-Three Critical Pitfalls in Simulation Modeling and How to Avoid Them" (Winter Simulation Conference, 2024). We read the chapter through [lecture notes on it](https://courses.grainger.illinois.edu/ece541/fa2016/OutputAnalysis.pdf) and the paper through [its published text](https://informs-sim.org/wsc24papers/inv198.pdf). The explanations are our own.
+It follows two sources: chapter 11 of Banks et al., *Discrete-Event System Simulation*, on output analysis for a single model, and the output-analysis pitfalls in Law, "Twenty-Three Critical Pitfalls in Simulation Modeling and How to Avoid Them" (Winter Simulation Conference, 2024). We read the chapter through [lecture notes on it](https://courses.grainger.illinois.edu/ece541/fa2016/OutputAnalysis.pdf) and the paper through [its published text](https://informs-sim.org/wsc24papers/inv198.pdf). The explanations are our own.
 
 ---
 
