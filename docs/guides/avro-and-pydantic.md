@@ -91,7 +91,7 @@ egress = KafkaEgress(
 
 ## Generate the Schema from the Model
 
-A schema written by hand as a JSON string stops matching the model it describes when someone changes the model and not the schema. The `dataclasses-avroschema` package generates it from a Pydantic model instead. `AvroBaseModel` is a Pydantic model that can also write its Avro schema:
+A schema written by hand as a JSON string stops matching the model it describes when someone changes the model and not the schema. The `dataclasses-avroschema` package generates it from a Pydantic model instead. desflow's extras do not install it, so install it with `pip install "dataclasses-avroschema[pydantic]"`. `AvroBaseModel` is a Pydantic model that can also write its Avro schema:
 
 ```python title="docs/snippets/guides/avro_and_pydantic.py:schema"
 from typing import Optional
@@ -140,6 +140,34 @@ egress = KafkaEgress(
     topic_serializers={"ml-predictions": generated_serializer},
 )
 ```
+
+---
+
+## Registry Connection
+
+For a secured registry, `ConfluentAvroSerializer` and `ConfluentAvroDeserializer` take `auth` for a user name and password, `verify` for how to check the registry's certificate, `cert` for a client certificate, `headers` for extra headers such as a bearer token, and `proxy` for the URL of a proxy. `verify` is `True`, `False`, the path of a CA file or directory, or an `ssl.SSLContext`. `cert` is a certificate file, or a tuple of the certificate file, the key file and the key password.
+
+Each step of a request to the registry (connecting, sending, reading) times out after 10 seconds by default. `timeout=` sets another number of seconds, and `timeout=None` waits without a limit. A request that times out is retried up to `max_retries` times (3 by default) with a short random wait. A registry that never answers therefore holds up every sink of the run (for the serializer) or every source (for the deserializer) for up to about 50 seconds for each registry URL, on each request. The Kafka sink then logs the error, drops the rest of that batch and reconnects, and the next batch asks the registry again. The Kafka source logs the error and skips that message, and the next message asks the registry again. The simulation goes on while each sink's queue has room. Once a queue stays full, the run stops with an error, as [Egress](../user-guide/egress.md#how-it-works) describes.
+
+```python title="docs/snippets/guides/avro_and_pydantic.py:secured-registry"
+import ssl
+
+import certifi
+
+from desflow.connectors.egress.kafka import ConfluentAvroSerializer
+
+# A registry behind HTTPS and basic authentication, where each step of a request may take 30 seconds.
+secured_serializer = ConfluentAvroSerializer(
+    registry_url="https://registry.example.com:8081",
+    schema_str=PredictionRecord.avro_schema(),
+    auth=("registry-user", "registry-password"),
+    # a private CA: cafile="ca.pem"
+    verify=ssl.create_default_context(cafile=certifi.where()),
+    timeout=30,
+)
+```
+
+A YAML blueprint sets these arguments in the module its `!python` tag loads, as [Call Python from YAML](yaml-advanced.md#routers-serializers-and-connector-classes) shows.
 
 ---
 
@@ -310,6 +338,23 @@ Run it with `python avro_and_pydantic.py` while `kafka-lite` is up. The serializ
         bootstrap_servers="127.0.0.1:9092",
         topic_router=ml_topic_router,
         topic_serializers={"ml-predictions": generated_serializer},
+    )
+
+
+    import ssl
+
+    import certifi
+
+    from desflow.connectors.egress.kafka import ConfluentAvroSerializer
+
+    # A registry behind HTTPS and basic authentication, where each step of a request may take 30 seconds.
+    secured_serializer = ConfluentAvroSerializer(
+        registry_url="https://registry.example.com:8081",
+        schema_str=PredictionRecord.avro_schema(),
+        auth=("registry-user", "registry-password"),
+        # a private CA: cafile="ca.pem"
+        verify=ssl.create_default_context(cafile=certifi.where()),
+        timeout=30,
     )
 
 

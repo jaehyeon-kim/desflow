@@ -1,0 +1,31 @@
+# Parquet, JSON Lines and Iceberg on other storage, as the Egress page shows them.
+# tests/docs only loads this file, so no cloud account is needed.
+simulation:
+  sim_id: Shop
+  factor: 1
+
+# --8<-- [start:egress]
+egress:
+  - type: Parquet
+    config:
+      default_path: my-bucket/events.parquet
+      # type: gcs makes PyArrow's GcsFileSystem; without credentials it uses Google's default ones
+      filesystem:
+        type: gcs
+  - type: Jsonl
+    config:
+      default_path: my-container/events.jsonl
+      # type: azure makes PyArrow's AzureFileSystem; without a key it uses Azure's default credentials
+      filesystem:
+        type: azure
+        account_name: myaccount
+  - type: Iceberg
+    config:
+      default_table: sim.events
+      # The folder iceberg/ must exist: the database file and the table files are under it
+      catalog:
+        name: local
+        type: sql
+        uri: sqlite:///iceberg/catalog.db
+        warehouse: file://${PWD}/iceberg/warehouse
+# --8<-- [end:egress]

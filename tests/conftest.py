@@ -36,6 +36,32 @@ def restore_desflow_log_level():
 
 
 @pytest.fixture
+def registry_transport(monkeypatch):
+    """
+    Returns `install(handler)`, which sends the requests of every `httpx.Client`
+    built afterwards to `handler` through `httpx.MockTransport`.
+
+    `ConfluentAvroSerializer` and `ConfluentAvroDeserializer` take no transport, so a
+    test installs its fake registry before it builds one. `install` returns the
+    transport.
+    """
+    import httpx
+
+    real_client = httpx.Client
+
+    def install(handler):
+        transport = httpx.MockTransport(handler)
+
+        def client(**kwargs):
+            return real_client(**{**kwargs, "transport": transport})
+
+        monkeypatch.setattr(httpx, "Client", client)
+        return transport
+
+    return install
+
+
+@pytest.fixture
 def run_until():
     """
     Runs a coroutine as a task until `done()` is true, then cancels it.

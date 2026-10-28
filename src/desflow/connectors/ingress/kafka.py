@@ -2,10 +2,18 @@ import asyncio
 import json
 import logging
 import queue
-from typing import Any, Dict, Optional, Protocol
+import ssl
+import threading
+from collections.abc import Mapping
+from typing import Any, Dict, Optional, Protocol, Tuple, Union
 
 from aiokafka import AIOKafkaConsumer
 
+from desflow.connectors._schema_registry.unset import UNSET
+from desflow.connectors._schema_registry.errors import (  # noqa: F401
+    SchemaRegistryError,
+    SerializationError,
+)
 from desflow.connectors.ingress.base import BaseIngress, parse_change
 
 logger = logging.getLogger(__name__)
@@ -60,47 +68,111 @@ class JsonDeserializer:
 
 class ConfluentAvroDeserializer:
     """
-    Lazy-loaded deserializer for Confluent Schema Registry.
+    Lazy-loaded deserializer for Confluent Schema Registry using fastavro and httpx.
 
     This class converts Avro-encoded byte strings back into Python dictionaries.
-    It automatically fetches the appropriate schema from the registry using the
-    schema ID embedded within the message's binary payload, so no `schema_str`
-    is required during initialization.
+    It fetches the writer schema from the registry using the schema id (or GUID)
+    in the message's prefix, once for each id, so no `schema_str` is required
+    during initialization.
     """
 
-    def __init__(self, registry_url: str, **registry_kwargs: Any):
+    def __init__(
+        self,
+        registry_url: str,
+        *,
+        auth: Optional[Tuple[str, str]] = UNSET,
+        verify: Union[bool, str, ssl.SSLContext] = UNSET,
+        cert: Optional[
+            Union[
+                str,
+                Tuple[str, Optional[str]],
+                Tuple[str, Optional[str], Optional[str]],
+            ]
+        ] = UNSET,
+        timeout: Optional[float] = UNSET,
+        headers: Optional[Mapping[str, str]] = UNSET,
+        proxy: Optional[str] = UNSET,
+        max_retries: int = UNSET,
+        **registry_kwargs: Any,
+    ):
         """
-        Initializes the Confluent Avro deserializer.
+        Initializes the Confluent Avro deserializer. It makes no request to the registry.
+
+        `UNSET` as a default, in the signature or the Default column of the API page,
+        means the argument was not given; each argument's description says its real
+        default.
 
         Args:
             registry_url (str): The base URL of the Confluent Schema Registry.
-            **registry_kwargs: Additional configuration arguments passed directly
-                to the `SchemaRegistryClient` (e.g., `{'basic.auth.user.info': 'user:pass'}`).
+                Several URLs separated by commas are tried in order.
+            auth (Optional[Tuple[str, str]]): A username and password for basic
+                authentication, for example `("user", "pass")`. The default is None.
+            verify (bool | str | ssl.SSLContext): How to check the registry's
+                certificate: True (the default), False, the path of a CA file or
+                directory, or an SSL context.
+            cert (str | tuple | None): A client certificate file, or a tuple of the
+                certificate file, the key file and the key password. The default is None.
+            timeout (Optional[float]): Seconds each step of a request to the registry
+                (connecting, sending, reading) may take. The default is 10.0. None
+                waits without a limit.
+            headers (Optional[Mapping[str, str]]): Headers sent with every request,
+                for example `{"Authorization": "Bearer <token>"}`. The default is None.
+            proxy (Optional[str]): The URL of a proxy. The default is None.
+            max_retries (int): How many times a request is repeated after a
+                transport error or a status of 408, 429, 500, 502, 503 or 504. The
+                default is 3.
+            **registry_kwargs: Deprecated confluent-kafka keys, such as
+                `{'basic.auth.user.info': 'user:pass'}`, which desflow accepts with a
+                `FutureWarning` and removes in 0.30.0. Use the named arguments.
 
         Raises:
-            ImportError: If the 'confluent-kafka' package is not installed.
+            ImportError: If the 'fastavro' or 'httpx' package is not installed.
+            ValueError: If a deprecated key is not accepted, or is given together with
+                its named argument.
         """
         try:
-            from confluent_kafka.schema_registry import SchemaRegistryClient
-            from confluent_kafka.schema_registry.avro import AvroDeserializer
-            from confluent_kafka.serialization import MessageField, SerializationContext
+            import fastavro  # noqa: F401
+            import httpx  # noqa: F401
+
+            from desflow.connectors._schema_registry import avro
+            from desflow.connectors._schema_registry.confluent_client import (
+                ConfluentRegistryClient,
+                resolve_legacy_options,
+            )
+            from desflow.connectors._schema_registry.rules import refuse_rules
+            from desflow.connectors._schema_registry.wire import unframe_confluent
         except ImportError:
             raise ImportError(
-                "The 'confluent-kafka' package is required to use ConfluentAvroDeserializer. "
-                "Install it using: pip install desflow[confluent]"
+                "The 'fastavro' and 'httpx' packages are required to use "
+                "ConfluentAvroDeserializer. "
+                "Install them using: pip install desflow[confluent]"
             )
 
-        conf = {"url": registry_url, **registry_kwargs}
-        client = SchemaRegistryClient(conf)
-
-        # No schema string required! It reads the Schema ID from the message bytes.
-        self.avro_deserializer = AvroDeserializer(client)
-        self.SerializationContext = SerializationContext
-        self.MessageField = MessageField
+        options = resolve_legacy_options(
+            registry_kwargs,
+            auth=auth,
+            verify=verify,
+            cert=cert,
+            timeout=timeout,
+            headers=headers,
+            proxy=proxy,
+            max_retries=max_retries,
+        )
+        self._client = ConfluentRegistryClient(registry_url, **options)
+        self._avro = avro
+        self._refuse_rules = refuse_rules
+        self._unframe = unframe_confluent
+        # Parsed writer schemas by schema id or GUID. The client caches the
+        # registry's responses; the parsed schema belongs to the Avro codec.
+        self._parsed: Dict[Any, Any] = {}
+        self._lock = threading.Lock()
 
     def deserialize(self, topic: str, payload: bytes) -> Any:
         """
         Deserializes an Avro-encoded byte string.
+
+        The first message with a schema id makes a request to the registry for the
+        writer schema.
 
         Args:
             topic (str): The Kafka topic from which the message was consumed.
@@ -108,9 +180,36 @@ class ConfluentAvroDeserializer:
 
         Returns:
             Any: The deserialized data as a Python dictionary.
+
+        Raises:
+            SerializationError: If the payload has no valid prefix, the writer
+                schema is not Avro, or the schema has Data Contract read rules.
+            SchemaRegistryError: If the registry has no schema for the id.
+            httpx.TransportError: If no registry URL could be reached.
         """
-        ctx = self.SerializationContext(topic, self.MessageField.VALUE)
-        return self.avro_deserializer(payload, ctx)
+        schema_id, data = self._unframe(payload)
+        return self._avro.decode(self._writer_schema(schema_id), data)
+
+    def _writer_schema(self, schema_id: Any) -> Any:
+        """Returns the parsed writer schema of an id or GUID, fetching it once."""
+        with self._lock:
+            if schema_id not in self._parsed:
+                if isinstance(schema_id, int):
+                    response = self._client.schema_by_id(schema_id)
+                else:
+                    response = self._client.schema_by_guid(str(schema_id))
+                if response["schemaType"] != "AVRO":
+                    raise SerializationError(
+                        f"The schema is of type {response['schemaType']}, "
+                        "and ConfluentAvroDeserializer reads AVRO only"
+                    )
+                self._refuse_rules(response)
+                self._parsed[schema_id] = self._avro.parse_writer_schema(
+                    response["schema"],
+                    response.get("references") or [],
+                    self._client.subject_version,
+                )
+            return self._parsed[schema_id]
 
 
 class GlueAvroDeserializer:

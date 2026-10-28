@@ -214,6 +214,35 @@ def test_predictions_fit_the_avro_schema():
         assert fastavro.validate(sent, parsed)
 
 
+def test_secured_registry_serializer_sends_its_credentials(registry_transport):
+    """The Registry Connection section builds a serializer whose requests carry `auth`."""
+    httpx = pytest.importorskip("httpx")
+    sent = []
+
+    def registry(request):
+        sent.append(request)
+        return httpx.Response(200, json={"id": 1})
+
+    registry_transport(registry)
+    module = _load("avro_and_pydantic")
+
+    payload = module.secured_serializer.serialize(
+        "ml-predictions",
+        {
+            "key": "o1",
+            "task": None,
+            "instance": None,
+            "sim_ts": 1.0,
+            "timestamp": "2026-01-01T00:00:00Z",
+            "value": {"event_type": "prediction", "task_id": "o1", "confidence": 0.9},
+        },
+    )
+
+    assert sent[0].url.host == "registry.example.com"
+    assert sent[0].headers["Authorization"].startswith("Basic ")
+    assert payload[:5] == b"\x00\x00\x00\x00\x01"
+
+
 def test_reneging_and_balking_ties_and_balance():
     """At a tie, the order scheduled later is served and the one scheduled first
     reneges, as the page says; and every order of the patience example is packed,

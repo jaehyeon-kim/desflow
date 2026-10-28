@@ -4,6 +4,7 @@ import posixpath
 import queue
 import uuid
 from collections.abc import Mapping
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
@@ -40,7 +41,12 @@ def _generate_chunk_filename(base_path: str) -> str:
 
 
 # The `type` values a filesystem mapping can name, and the PyArrow class each builds.
-_FILESYSTEM_TYPES = {"local": "LocalFileSystem", "s3": "S3FileSystem"}
+_FILESYSTEM_TYPES = {
+    "local": "LocalFileSystem",
+    "s3": "S3FileSystem",
+    "gcs": "GcsFileSystem",
+    "azure": "AzureFileSystem",
+}
 
 
 def _check_filesystem(filesystem: Any) -> None:
@@ -51,7 +57,7 @@ def _check_filesystem(filesystem: Any) -> None:
         filesystem (Any): The `filesystem` argument of a storage egress.
 
     Raises:
-        ValueError: If a mapping names a type other than `local` or `s3`.
+        ValueError: If a mapping names a type other than `local`, `s3`, `gcs` or `azure`.
     """
     if isinstance(filesystem, Mapping):
         kind = str(filesystem.get("type") or "local").lower()
@@ -62,6 +68,30 @@ def _check_filesystem(filesystem: Any) -> None:
             )
 
 
+def _convert_gcs_options(options: dict) -> None:
+    """
+    Converts the two GCS options a blueprint gives as a string or a number, in place.
+
+    `GcsFileSystem` takes `credential_token_expiration` as a `datetime` and
+    `retry_time_limit` as a `timedelta`. A time with an offset is converted to UTC,
+    because PyArrow reads the clock fields and ignores the offset; a time without
+    one is read as UTC, as PyArrow does. A `timedelta` is left as it is.
+
+    Args:
+        options (dict): The constructor arguments of the `GcsFileSystem`.
+    """
+    expiration = options.get("credential_token_expiration")
+    if isinstance(expiration, str):
+        expiration = datetime.fromisoformat(expiration)
+    if isinstance(expiration, datetime) and expiration.tzinfo is not None:
+        expiration = expiration.astimezone(timezone.utc)
+    if expiration is not None:
+        options["credential_token_expiration"] = expiration
+    limit = options.get("retry_time_limit")
+    if isinstance(limit, (int, float)) and not isinstance(limit, bool):
+        options["retry_time_limit"] = timedelta(seconds=limit)
+
+
 def _build_filesystem(filesystem: Any, fs: Any) -> Any:
     """
     Returns the PyArrow FileSystem a storage egress writes through.
@@ -69,14 +99,20 @@ def _build_filesystem(filesystem: Any, fs: Any) -> Any:
     Args:
         filesystem (Any): None for the local disk, a PyArrow FileSystem, which is
             returned as it is, or a mapping. A mapping's `type` (`local`, the
-            default, or `s3`) picks the class, and its other keys are passed to that
-            class's constructor, so an S3 mapping takes `S3FileSystem` arguments
-            such as `endpoint_override`, `access_key`, `secret_key`, `region` and
-            `scheme`. An `endpoint_override` that starts with `http://` or
-            `https://` also sets `scheme`, unless `scheme` is given. A key whose
-            value is empty or null is left out, so a setting that an unset
-            environment variable leaves empty takes the class default, and one
-            mapping can serve both the local disk and S3.
+            default, `s3`, `gcs` or `azure`) picks the class, and its other keys are
+            passed to that class's constructor, so an S3 mapping takes
+            `S3FileSystem` arguments such as `endpoint_override`, `access_key`,
+            `secret_key`, `region` and `scheme`, a GCS mapping takes
+            `GcsFileSystem` arguments such as `anonymous` and `access_token`, and an
+            Azure mapping takes `AzureFileSystem` arguments such as `account_name`
+            and `account_key`. For `s3` and `gcs`, an `endpoint_override` that
+            starts with `http://` or `https://` also sets `scheme`, unless `scheme`
+            is given. For `gcs`, an ISO 8601 string `credential_token_expiration` is
+            converted to a `datetime`, and a number `retry_time_limit` (seconds) to a
+            `timedelta`, so a blueprint can give them. A key whose value is empty
+            or null is left out, so a setting that an unset environment variable
+            leaves empty takes the class default, and one mapping can serve the local
+            disk and any cloud.
         fs (Any): Injected reference to the `pyarrow.fs` module.
 
     Returns:
@@ -92,10 +128,12 @@ def _build_filesystem(filesystem: Any, fs: Any) -> Any:
     }
     kind = str(options.pop("type", "local")).lower()
     endpoint = options.get("endpoint_override")
-    if kind == "s3" and isinstance(endpoint, str) and "://" in endpoint:
+    if kind in ("s3", "gcs") and isinstance(endpoint, str) and "://" in endpoint:
         scheme, _, address = endpoint.partition("://")
         options["endpoint_override"] = address
         options.setdefault("scheme", scheme)
+    if kind == "gcs":
+        _convert_gcs_options(options)
     return getattr(fs, _FILESYSTEM_TYPES[kind])(**options)
 
 
@@ -103,8 +141,8 @@ def _ensure_folder(filesystem: Any, file_path: str, created: set) -> None:
     """
     Creates the folder that holds `file_path`, once per folder.
 
-    A local disk needs the folder before a file can be written into it. On S3 this
-    creates the prefix. If the folder cannot be created the write still goes ahead,
+    A local disk needs the folder before a file can be written into it. On object
+    storage this creates the prefix. If the folder cannot be created the write still goes ahead,
     because object storage accepts a key under a prefix that was never created, and
     a local write then fails with the underlying error.
 
@@ -128,9 +166,9 @@ class JsonlStorageEgress(BaseEgress):
     High-throughput JSONL batch writer for local file systems or object storage.
 
     This connector uses PyArrow's Virtual File System (VFS) to write data to local
-    disks or S3-compatible storage such as AWS S3 or SeaweedFS. It writes a uniquely
-    named file for every batch, so no two writes go to the same file and a
-    file, once written, is never changed.
+    disks, S3-compatible storage such as AWS S3 or SeaweedFS, Google Cloud Storage or
+    Azure Blob Storage. It writes a uniquely named file for every batch, so no two
+    writes go to the same file and a file, once written, is never changed.
 
     By default, events are appended to the `default_path` as flat rows: each
     event's `value` mapping is unpacked into top-level fields, and telemetry is left
@@ -275,7 +313,8 @@ class ParquetStorageEgress(BaseEgress):
 
     This connector buffers simulation records and converts them into heavily
     compressed Parquet tables using `pyarrow`. It natively supports writing to
-    local disks or S3-compatible object stores (AWS S3, SeaweedFS) via PyArrow's VFS.
+    local disks, S3-compatible object stores (AWS S3, SeaweedFS), Google Cloud Storage
+    or Azure Blob Storage via PyArrow's VFS.
 
     To support massive parallel processing (e.g., Athena, Databricks), it
     implements file rotation (chunking), creating a uniquely named Parquet

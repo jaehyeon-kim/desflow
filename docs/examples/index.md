@@ -2,11 +2,12 @@
 
 Each example is a complete model that you can download with `desflow examples get` and run, as [Get an Example](../user-guide/command-line.md#get-an-example) shows. Each is written three ways: as a YAML blueprint, with the builder API and with the low-level API. Its page shows the versions in tabs.
 
-| Group | What it covers |
+| Example | What it covers |
 | --- | --- |
 | [Local Simulation](local.md) | prints events and telemetry, with no container |
 | [Kafka Digital Twin](kafka.md) | takes updates from Kafka and publishes events and telemetry to Kafka |
-| [Fast-Forward to Storage](parquet.md) | data generated unpaced at `factor=0.0`: a week written to Parquet, and a day appended to an Iceberg table |
+| [Fast-Forward to Parquet](parquet.md) | data generated unpaced at `factor=0.0`: a week written to Parquet |
+| [Fast-Forward to Iceberg](iceberg.md) | data generated unpaced at `factor=0.0`: a day appended to an Iceberg table |
 | [PostgreSQL](postgres.md) | writes orders to PostgreSQL and takes updates from a table |
 | [Redis](redis.md) | writes to a Redis Stream and takes updates from Pub/Sub |
 | [Parquet History, Kafka Live](backfill-live.md) | backdated history to Parquet, then live to Kafka |

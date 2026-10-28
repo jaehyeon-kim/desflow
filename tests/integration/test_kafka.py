@@ -7,9 +7,10 @@ from aiokafka import AIOKafkaConsumer
 from desflow.connectors.egress.kafka import KafkaEgress
 from desflow.connectors.admin.kafka import KafkaAdminConnector
 
+pytestmark = [pytest.mark.integration, pytest.mark.services]
+
 
 @pytest.mark.asyncio
-@pytest.mark.integration
 async def test_kafka_egress_and_admin(kafka_container):
     """
     Tests that KafkaEgress successfully writes to a broker,

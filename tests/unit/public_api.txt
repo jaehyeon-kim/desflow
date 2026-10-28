@@ -90,6 +90,8 @@ desflow.blueprint.build.Preview(sample: int | None = None) -> None
 desflow.blueprint.build.Preview.sample: NoneType
 desflow.blueprint.build.build(path: str | pathlib.Path, preview: desflow.blueprint.build.Preview | None = None) -> tuple[desflow.core.context.SimulationContext, desflow.blueprint.models.Run]
 desflow.blueprint.loader.BlueprintError(...)
+desflow.connectors._schema_registry.errors.SchemaRegistryError(http_status: int, error_code: int, message: str)
+desflow.connectors._schema_registry.errors.SerializationError(...)
 desflow.connectors.admin.kafka.KafkaAdminConnector(bootstrap_servers: str, max_tasks: int = 100, **kwargs: Any)
 desflow.connectors.admin.kafka.KafkaAdminConnector.collect_data(topics: list[str], auto_offset_reset: str = 'latest')
 desflow.connectors.admin.kafka.KafkaAdminConnector.create_topics(topics_config: list[dict[str, Any]])
@@ -100,7 +102,7 @@ desflow.connectors.egress.base.BaseEgress()
 desflow.connectors.egress.base.BaseEgress.run(egress_queue: queue.Queue) -> None
 desflow.connectors.egress.iceberg.IcebergStorageEgress(catalog: Any, default_table: str | None = None, table_router: collections.abc.Callable[[dict], str | None] | None = None, schemas: dict[str, Any] | None = None, locations: dict[str, str] | None = None, upsert_keys: dict[str, list] | None = None)
 desflow.connectors.egress.iceberg.IcebergStorageEgress.run(egress_queue: queue.Queue) -> None
-desflow.connectors.egress.kafka.ConfluentAvroSerializer(registry_url: str, schema_str: str, **registry_kwargs: Any)
+desflow.connectors.egress.kafka.ConfluentAvroSerializer(registry_url: str, schema_str: str, *, auth: tuple[str, str] | None = <not given>, verify: bool | str | ssl.SSLContext = <not given>, cert: str | tuple[str, str | None] | tuple[str, str | None, str | None] | None = <not given>, timeout: float | None = <not given>, headers: collections.abc.Mapping[str, str] | None = <not given>, proxy: str | None = <not given>, max_retries: int = <not given>, **registry_kwargs: Any)
 desflow.connectors.egress.kafka.ConfluentAvroSerializer.serialize(topic: str, data: Any) -> bytes
 desflow.connectors.egress.kafka.GlueAvroSerializer(registry_name: str, schema_str: str, **boto3_kwargs: Any)
 desflow.connectors.egress.kafka.GlueAvroSerializer.serialize(topic: str, data: Any) -> bytes
@@ -110,6 +112,8 @@ desflow.connectors.egress.kafka.KafkaEgress(bootstrap_servers: str, telemetry_to
 desflow.connectors.egress.kafka.KafkaEgress.run(egress_queue: queue.Queue) -> None
 desflow.connectors.egress.kafka.MessageSerializer(*args, **kwargs)
 desflow.connectors.egress.kafka.MessageSerializer.serialize(topic: str, data: Any) -> bytes
+desflow.connectors.egress.kafka.SchemaRegistryError = desflow.connectors._schema_registry.errors.SchemaRegistryError
+desflow.connectors.egress.kafka.SerializationError = desflow.connectors._schema_registry.errors.SerializationError
 desflow.connectors.egress.local.ConsoleEgress(format: Literal['log', 'json'] = 'log')
 desflow.connectors.egress.local.ConsoleEgress.run(egress_queue: queue.Queue) -> None
 desflow.connectors.egress.postgres.PostgresEgress(connection_dsn: str, table_name: str | None = None, upsert_keys: list[str] | None = None, tables: dict[str, Any] | None = None, **kwargs: Any)
@@ -123,7 +127,7 @@ desflow.connectors.egress.storage.ParquetStorageEgress.run(egress_queue: queue.Q
 desflow.connectors.ingress.base.BaseIngress()
 desflow.connectors.ingress.base.BaseIngress.run(ingress_queue: queue.Queue) -> None
 desflow.connectors.ingress.base.parse_change(data: Any) -> tuple[str, Any]
-desflow.connectors.ingress.kafka.ConfluentAvroDeserializer(registry_url: str, **registry_kwargs: Any)
+desflow.connectors.ingress.kafka.ConfluentAvroDeserializer(registry_url: str, *, auth: tuple[str, str] | None = <not given>, verify: bool | str | ssl.SSLContext = <not given>, cert: str | tuple[str, str | None] | tuple[str, str | None, str | None] | None = <not given>, timeout: float | None = <not given>, headers: collections.abc.Mapping[str, str] | None = <not given>, proxy: str | None = <not given>, max_retries: int = <not given>, **registry_kwargs: Any)
 desflow.connectors.ingress.kafka.ConfluentAvroDeserializer.deserialize(topic: str, payload: bytes) -> Any
 desflow.connectors.ingress.kafka.GlueAvroDeserializer(registry_name: str, **boto3_kwargs: Any)
 desflow.connectors.ingress.kafka.GlueAvroDeserializer.deserialize(topic: str, payload: bytes) -> Any

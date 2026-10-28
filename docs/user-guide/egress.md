@@ -63,7 +63,7 @@ app.add_egress(
 
 ### Parquet and JSON Lines
 
-`ParquetStorageEgress` and `JsonlStorageEgress` write each batch as a file of its own, on a local disk or S3-compatible storage, through PyArrow. Without a `path_router`, each event is one flat row in `default_path`, with its `value` mapping unpacked into columns, and telemetry is left out.
+`ParquetStorageEgress` and `JsonlStorageEgress` write each batch as a file of its own, on a local disk, S3-compatible storage, Google Cloud Storage or Azure Blob Storage, through PyArrow. Without a `path_router`, each event is one flat row in `default_path`, with its `value` mapping unpacked into columns, and telemetry is left out.
 
 A Parquet file has a column for every key of any row in its batch, and a mapping value becomes a struct column. A later batch can change the columns:
 
@@ -106,6 +106,36 @@ def read_events(folder="output"):
 
 A second run adds its files beside the first run's, so reading the folder then counts both runs. Give each run a folder of its own, or clear the folder before a run.
 
+**Filesystems.** `filesystem` is a PyArrow `FileSystem` object, or a mapping that desflow builds into one when the run starts. The mapping's `type` picks the class, and its other keys are the arguments of that class:
+
+| `type` | PyArrow class | Credentials |
+|---|---|---|
+| `local` (the default) | `LocalFileSystem` | none |
+| `s3` | `S3FileSystem` | `access_key` and `secret_key`; without them, the standard AWS settings |
+| `gcs` | `GcsFileSystem` | `anonymous: true`; or `access_token` with `credential_token_expiration`; without them, Google's default credentials |
+| `azure` | `AzureFileSystem` | `account_name`, always; with it `account_key`, or `sas_token` (pyarrow 20.0.0 or later), or `client_id`, `client_secret` and `tenant_id` (pyarrow 21.0.0 or later); with `account_name` alone, Azure's default credentials |
+
+An `endpoint_override` that starts with `http://` or `https://` also sets `scheme`, for `s3` and `gcs`, unless `scheme` is given. `azure` has no `endpoint_override`: `blob_storage_authority` and `blob_storage_scheme` point it at an emulator such as Azurite. For `gcs`, `credential_token_expiration` is an ISO 8601 time, quoted or not, which desflow converts to UTC, and `retry_time_limit` is a number of seconds, because YAML has no duration type. A key whose value is empty is left out. PyArrow has `AzureFileSystem` from 16.0.0, the release the `parquet` extra requires. `sas_token` and the client credentials need the later releases the table names. PyPI's pyarrow wheels for Windows include it only from 24.0.0.
+
+The same two sinks write to Google Cloud Storage and Azure Blob Storage when `filesystem` is a mapping:
+
+```python title="docs/snippets/pages/storage_backends.py:cloud"
+# Parquet files on Google Cloud Storage, with Google's default credentials
+cloud.add_egress(
+    ParquetStorageEgress(
+        default_path="my-bucket/events.parquet",
+        filesystem={"type": "gcs"},
+    )
+)
+# JSON Lines files on Azure Blob Storage, with Azure's default credentials
+cloud.add_egress(
+    JsonlStorageEgress(
+        default_path="my-container/events.jsonl",
+        filesystem={"type": "azure", "account_name": "myaccount"},
+    )
+)
+```
+
 ### Redis
 
 `RedisEgress` appends each record to a Redis Stream with `XADD`, as one `payload` field holding the record as JSON. A `__stream__` key in the record's value picks the stream, and is removed before writing.
@@ -141,7 +171,7 @@ app.add_egress(PostgresEgress(dsn, table_name="orders", upsert_keys=["order_id"]
 
 ### Iceberg
 
-`IcebergStorageEgress` appends records to an Apache Iceberg table through a REST catalog. One flush is one commit, so this sink needs a large `batch_size` of its own: every commit writes new metadata, and many small commits slow down queries.
+`IcebergStorageEgress` appends records to an Apache Iceberg table through a catalog. One flush is one commit, so this sink needs a large `batch_size` of its own: every commit writes new metadata, and many small commits slow down queries.
 
 A table the sink creates takes its columns from the records:
 
@@ -150,6 +180,17 @@ A table the sink creates takes its columns from the records:
 - A key that first appears in a later batch is added as an optional column, unless the table is named in `schemas`, which keeps the columns it gives.
 
 A batch the table refuses is logged at ERROR.
+
+**Catalogs.** `catalog` is a PyIceberg `Catalog` object, or a mapping of PyIceberg catalog properties that desflow passes to `load_catalog` on the first write. The mapping's optional `name` key names the catalog. Each catalog below has a test that writes through it:
+
+| Catalog | `type` | Tested against |
+|---|---|---|
+| REST | `rest` | the odctl `catalog` profile |
+| SQL on SQLite | `sql` | the unit tests, with a database file |
+| SQL on PostgreSQL | `sql` | the odctl `postgres` profile |
+| Glue | `glue` | Floci, an AWS emulator, not AWS itself |
+
+The properties of each catalog are listed in [PyIceberg's configuration](https://py.iceberg.apache.org/configuration/).
 
 ```python title="docs/snippets/pages/connectors.py:iceberg-egress"
 catalog = RestCatalog(
@@ -170,6 +211,21 @@ app.add_egress(
 )
 ```
 
+A SQL catalog on SQLite needs no service, so it suits a first run. Its database file and the table files are under one folder:
+
+```python title="docs/snippets/pages/storage_backends.py:sqlite"
+# The catalog's database and the table files are under the folder iceberg/
+folder = Path("iceberg").resolve()
+folder.mkdir(exist_ok=True)
+catalog = {
+    "name": "local",
+    "type": "sql",
+    "uri": f"sqlite:///{folder}/catalog.db",
+    "warehouse": f"file://{folder}/warehouse",
+}
+app.add_egress(IcebergStorageEgress(catalog=catalog, default_table="sim.events"))
+```
+
 `upsert_keys` upserts on key columns instead of appending. A seeded model rerun over the same window writes rows with the same keys, so the upsert replaces those rows instead of duplicating them. An upsert reads the matching rows first, replaces whole rows, never deletes, and needs pyiceberg 0.9.0 or later.
 
 ```python title="docs/snippets/pages/connectors.py:iceberg-upsert"
@@ -185,7 +241,7 @@ app.add_egress(
 
 ### Connectors in a Blueprint
 
-In a blueprint, `config` holds the constructor's arguments. Settings that Python takes as objects are plain values there: a Parquet or JSON Lines `filesystem` is a mapping with `type: local` or `type: s3`, and an Iceberg `catalog` is a mapping of PyIceberg properties. A Postgres `tables` mapping creates its tables when the run starts. [YAML Format](../reference/yaml-format.md#ingress-and-egress) lists them all.
+In a blueprint, `config` holds the constructor's arguments. Settings that Python takes as objects are plain values there: a Parquet or JSON Lines `filesystem` is a mapping with `type: local`, `s3`, `gcs` or `azure`, and an Iceberg `catalog` is a mapping of PyIceberg properties. A Postgres `tables` mapping creates its tables when the run starts. [YAML Format](../reference/yaml-format.md#ingress-and-egress) lists them all.
 
 ```yaml title="docs/snippets/yaml_build/connectors.yaml:egress"
 egress:
@@ -219,6 +275,34 @@ egress:
     config:
       url: redis://user:password@127.0.0.1:6379/0
       stream_name: events
+```
+
+The same sinks on Google Cloud Storage, Azure Blob Storage and a SQL catalog on SQLite:
+
+```yaml title="docs/snippets/yaml_build/storage_backends.yaml:egress"
+egress:
+  - type: Parquet
+    config:
+      default_path: my-bucket/events.parquet
+      # type: gcs makes PyArrow's GcsFileSystem; without credentials it uses Google's default ones
+      filesystem:
+        type: gcs
+  - type: Jsonl
+    config:
+      default_path: my-container/events.jsonl
+      # type: azure makes PyArrow's AzureFileSystem; without a key it uses Azure's default credentials
+      filesystem:
+        type: azure
+        account_name: myaccount
+  - type: Iceberg
+    config:
+      default_table: sim.events
+      # The folder iceberg/ must exist: the database file and the table files are under it
+      catalog:
+        name: local
+        type: sql
+        uri: sqlite:///iceberg/catalog.db
+        warehouse: file://${PWD}/iceberg/warehouse
 ```
 
 ### Choose What Each Sink Gets
@@ -358,7 +442,7 @@ A published record goes through the same steps for each sink:
 
 A connector is a class with one method, `async run(queue)`, so a sink desflow does not have takes one class to write: [Write a Connector](../guides/write-a-connector.md) shows how.
 
-Each sink has its own buffer and its own queue, so a slow sink does not hold up a fast one, and memory is the sum of the buffers. A queue holds at most `max_queued_batches` batches. When it is full, the simulation waits for room, so a sink that cannot keep up slows the run instead of building a backlog. When a queue stays full for `drain_stall_seconds`, the sink has stopped consuming, and the run raises `RuntimeError` rather than losing records.
+Each sink has its own buffer and its own queue. All sinks run as tasks on one thread, so a sink that waits with `await` does not hold up the others. A sink that blocks the thread holds up every sink, as a Kafka sink does while its serializer waits for a schema registry. Memory holds each sink's buffer and the batches waiting in its queue. A record that several sinks take is stored once. A queue holds at most `max_queued_batches` batches. When it is full, the simulation waits for room, so a sink that cannot keep up slows the run instead of building a backlog. When a queue stays full for `drain_stall_seconds`, the sink has stopped consuming, and the run raises `RuntimeError` rather than losing records.
 
 **Teardown** flushes every buffer, then waits for the queues to drain. It keeps waiting while they shrink, and gives up only when they have not shrunk for `drain_stall_seconds`. Records still queued then are lost, and a warning names the sinks that held them.
 

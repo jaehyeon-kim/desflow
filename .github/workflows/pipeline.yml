@@ -21,8 +21,8 @@ concurrency:
 jobs:
   # Stages, each starting only when the one before it passes:
   # 1. checks, in parallel: lint, extras-isolation and core-install;
-  # 2. tests, in parallel: unit-test, integration-test, blueprint, simpy-range,
-  #    docs-build, docs-strict-build and regression;
+  # 2. tests, in parallel: unit-test, integration-test (five jobs, one per group),
+  #    blueprint, simpy-range, docs-build, docs-strict-build and regression;
   # 3. docs, on main only, once every test job has passed.
   # The unit, conformance and docs tests run in parallel worker processes
   # (pytest-xdist, -n auto, one worker per CPU).
@@ -65,6 +65,7 @@ jobs:
               KafkaAdminConnector(bootstrap_servers="localhost:9092")
           - extra: confluent
             check: |
+              import importlib.util
               import json
 
               from desflow.connectors.egress.kafka import ConfluentAvroSerializer
@@ -79,6 +80,9 @@ jobs:
               )
               ConfluentAvroSerializer(registry_url="http://localhost:8081", schema_str=schema)
               ConfluentAvroDeserializer(registry_url="http://localhost:8081")
+
+              # desflow writes the wire format itself, so the extra brings no confluent-kafka
+              assert importlib.util.find_spec("confluent_kafka") is None
           - extra: glue
             check: |
               import json
@@ -125,10 +129,15 @@ jobs:
               IcebergStorageEgress(catalog=object(), default_table="sim.events")
 
               # The connector takes the catalog from the caller and imports pyarrow
-              # lazily, so constructing it proves neither is installed. The REST
-              # catalog client and the Arrow FileIO are what the extra has to carry.
+              # lazily, so constructing it proves neither is installed. The extra has
+              # to carry the Arrow FileIO and every catalog the docs list: REST, SQL
+              # on SQLite or PostgreSQL, and Glue.
+              from pyiceberg.catalog import load_catalog
               from pyiceberg.catalog.rest import RestCatalog
               from pyiceberg.io.pyarrow import PyArrowFileIO
+              import psycopg2
+              load_catalog("local", type="sql", uri="sqlite:///:memory:", warehouse="file:///tmp/warehouse")
+              load_catalog("aws", type="glue", **{"glue.region": "us-east-1"})
           - extra: fit
             check: |
               import numpy as np
@@ -146,7 +155,7 @@ jobs:
               import importlib.util
 
               for module in (
-                  "aiokafka", "kafka", "confluent_kafka", "aws_schema_registry",
+                  "aiokafka", "kafka", "fastavro", "httpx", "aws_schema_registry",
                   "boto3", "redis", "asyncpg", "pyarrow", "pyiceberg", "scipy",
                   "matplotlib",
               ):
@@ -198,7 +207,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.11", "3.12", "3.13", "3.14", "3.15"]
     steps:
       - uses: actions/checkout@v7
 
@@ -214,7 +223,7 @@ jobs:
       - name: Run Unit and Conformance Tests
         # --python is what selects the interpreter. `uv python install` above only
         # downloads it, so without this every leg of the matrix would run the
-        # version in .python-version and the other three would test nothing new.
+        # version in .python-version and the other four would test nothing new.
         run: uv run --python ${{ matrix.python-version }} --with pytest-cov --all-extras pytest tests/unit/ tests/conformance/ -n auto --cov=src/desflow --cov-report=xml
 
   # SimPy is what desflow is checked against, so the conformance tests run at both
@@ -249,11 +258,22 @@ jobs:
       - name: Run the conformance tests
         run: |
           uv run --all-extras --with "$SIMPY" python -c "import simpy; print('SimPy', simpy.__version__)"
-          uv run --all-extras --with "$SIMPY" pytest tests/conformance/ -q -n auto
+          uv run --all-extras --with "$SIMPY" python -m pytest tests/conformance/ -q -n auto
 
+  # One job per test group, named by its pytest mark: services (the odctl
+  # kafka-lite, postgres and valkey profiles), storage (the odctl storage and
+  # catalog profiles, and the SQL catalog test on the PostgreSQL that the catalog
+  # profile starts), floci (the Floci AWS emulator), azure (Azurite) and gcp
+  # (fake-gcs-server). The odctl tests are split in two so that neither job holds
+  # up the stage. The emulators are containers that the tests start with
+  # `docker run`.
   integration-test:
     needs: [lint, extras-isolation, core-install]
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [services, storage, floci, azure, gcp]
     steps:
       - uses: actions/checkout@v7
 
@@ -269,16 +289,18 @@ jobs:
       # Example and test infrastructure comes from odctl, which the conftest
       # drives with `odctl up` and `odctl down`. odctl is in the dev dependency
       # group, so `uv run` installs it into .venv and puts it on PATH. Without
-      # it on PATH every container-backed test skips instead of failing, and the
-      # job reports green while testing nothing, so fail here if it is missing.
+      # it on PATH the odctl tests fail, so fail here with a clearer message.
       - name: Verify odctl is on PATH
+        if: matrix.group == 'services' || matrix.group == 'storage'
         run: |
           uv run --python 3.11 --all-extras python -c "import shutil, sys; path = shutil.which('odctl'); print(path or 'odctl not found on PATH'); sys.exit(0 if path else 1)"
 
-      - name: Run Integration Tests
-        # Run tests/integration on a single baseline version. -ra lists every
-        # skipped test, so an unexpected skip is visible in the job log.
-        run: uv run --python 3.11 --all-extras pytest tests/integration/ -ra
+      - name: Run the ${{ matrix.group }} integration tests
+        # Run the group on a single baseline version. A test whose infrastructure is
+        # missing fails when CI is set, and pytest exits with code 5 when the mark
+        # selects no test, so a job cannot pass by testing nothing. -ra lists every
+        # skipped test.
+        run: uv run --python 3.11 --all-extras pytest tests/integration/ -m ${{ matrix.group }} -ra
 
       # - name: Upload coverage reports to Codecov
       #   uses: codecov/codecov-action@v4

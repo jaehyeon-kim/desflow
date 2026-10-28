@@ -125,6 +125,25 @@ egress = KafkaEgress(
 # --8<-- [end:generated]
 
 
+# --8<-- [start:secured-registry]
+import ssl
+
+import certifi
+
+from desflow.connectors.egress.kafka import ConfluentAvroSerializer
+
+# A registry behind HTTPS and basic authentication, where each step of a request may take 30 seconds.
+secured_serializer = ConfluentAvroSerializer(
+    registry_url="https://registry.example.com:8081",
+    schema_str=PredictionRecord.avro_schema(),
+    auth=("registry-user", "registry-password"),
+    # a private CA: cafile="ca.pem"
+    verify=ssl.create_default_context(cafile=certifi.where()),
+    timeout=30,
+)
+# --8<-- [end:secured-registry]
+
+
 # --8<-- [start:shop]
 import logging
 

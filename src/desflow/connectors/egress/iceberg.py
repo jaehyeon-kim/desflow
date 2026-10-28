@@ -121,8 +121,14 @@ class IcebergStorageEgress(BaseEgress):
 
     The catalog is supplied by the caller, either as a built `Catalog` or as a
     mapping of PyIceberg catalog properties that is passed to `load_catalog`. The
-    supported catalog is Iceberg REST, which is what the integration tests run
-    against.
+    supported catalogs, which the `iceberg` extra installs, each with the test that
+    writes through it, are:
+
+    - Iceberg REST, in the integration tests against the odctl `catalog` profile;
+    - SQL on SQLite, in the unit tests;
+    - SQL on PostgreSQL, in the integration tests against the odctl `postgres`
+      profile;
+    - Glue, in the integration tests against Floci, an AWS emulator.
 
     A table without a schema in `schemas` is created with the columns of every row of
     its first batch, and a column a later batch adds is added to the table, as the

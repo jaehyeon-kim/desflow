@@ -33,10 +33,12 @@ Connectors and input fitting are optional extras. For example, `uv add "desflow[
 | `glue` | Avro with the AWS Glue Schema Registry (includes `kafka`) |
 | `redis` | Redis ingress and egress |
 | `postgres` | PostgreSQL ingress and egress |
-| `parquet` | Parquet and JSONL files on local disk or S3-compatible storage |
-| `iceberg` | Apache Iceberg tables through a REST catalog |
+| `parquet` | Parquet and JSONL files on local disk, S3-compatible storage, Google Cloud Storage or Azure Blob Storage |
+| `iceberg` | Apache Iceberg tables through a REST catalog, a SQL catalog on SQLite or PostgreSQL, or the Glue catalog |
 | `fit` | scipy and matplotlib, for [input fitting](user-guide/input-fitting.md) with `desflow fit` |
 | `all` | Every extra above |
+
+On Python 3.15, the `kafka`, `confluent` and `glue` extras build aiokafka, and the `iceberg` extra builds pyiceberg and zstandard, from source, because those packages publish no wheel for 3.15 yet. A build from source needs a C compiler.
 
 Run `desflow` on its own to list its commands. [Command Line](user-guide/command-line.md) uses each command on one shop, the model of the `experiment` example, and [CLI](reference/cli/index.md) gives the help of each.
 

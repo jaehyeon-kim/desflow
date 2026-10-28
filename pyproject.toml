@@ -1,6 +1,6 @@
 [project]
 name = "desflow"
-version = "0.25.0"
+version = "0.26.0"
 description = "Realistic event streams from a SimPy simulation you can steer while it runs, written to Kafka, Redis, PostgreSQL, Parquet, JSONL and Iceberg."
 readme = "README.md"
 authors = [
@@ -37,6 +37,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Topic :: Scientific/Engineering",
     "Topic :: Scientific/Engineering :: Information Analysis",
     "Topic :: Software Development :: Libraries :: Python Modules",
@@ -75,30 +76,38 @@ confluent = [
     # ConfluentAvroSerializer lives in the Kafka connector module, so the kafka
     # extra is required for `pip install desflow[confluent]` to be usable.
     "desflow[kafka]",
-    # The schemaregistry and avro extras carry httpx and fastavro, which
-    # confluent-kafka stopped bundling in 2.6. Without them the registry client
-    # cannot be imported at all.
-    "confluent-kafka[schemaregistry,avro]>=2.6",
-    # 0.65.7 is the oldest release with which this extra installs alone and the
-    # Kafka connector tests and the Avro guide's test pass on Python 3.11 to 3.14:
-    # 0.53.0 to 0.65.6 fail on 3.14, and releases before 0.53.0 need pydantic 1.
-    "dataclasses-avroschema[pydantic]>=0.65.7"
+    # desflow writes the Confluent wire format itself: fastavro for Avro binary,
+    # httpx for the registry's REST API. fastavro 1.13.0 is the first release
+    # with wheels for every supported Python, 3.11 to 3.15. httpx 0.26.0 added
+    # the proxy argument.
+    "fastavro>=1.13.0",
+    "httpx>=0.26.0",
+    # build_ssl_context reads its CA bundle for the default check, as httpx does,
+    # and httpx already installs it.
+    "certifi",
 ]
 glue = [
     # aws_schema_registry.adapter.kafka imports the kafka package
     "desflow[kafka]",
     # The oldest releases with which this extra installs alone and the Kafka
-    # connector tests pass on Python 3.11 to 3.14, found by installing older ones.
+    # connector tests pass on Python 3.11 to 3.15, found by installing older ones.
     # aws-glue-schema-registry 1.1.0 to 1.1.2 pin an orjson older than desflow's
     # and are never chosen. boto3 before 1.26.0 pulls a botocore that imports
     # cgi, which Python 3.13 removed.
     "aws-glue-schema-registry>=1.0.0",
     "boto3>=1.26.0",
-    # The floor of the confluent extra
-    "dataclasses-avroschema[pydantic]>=0.65.7"
 ]
 parquet = [
-    "pyarrow>=14.0.0"
+    # 16.0.0 is the first release with AzureFileSystem, which the `azure` filesystem
+    # type builds (python/pyarrow/_azurefs.pyx is absent at the apache-arrow-15.0.0
+    # tag and present at apache-arrow-16.0.0). The floor covers `account_key` and
+    # Azure's default credentials; `sas_token` needs pyarrow 20.0.0 and `client_id`,
+    # `client_secret` and `tenant_id` need 21.0.0 (python/pyarrow/_azurefs.pyx at
+    # apache-arrow-19.0.0, 20.0.0 and 21.0.0). PyPI's Windows wheels include it only
+    # from 24.0.0. The floor is checked with
+    # `uv run --all-extras --with pyarrow==16.0.0 python -m pytest tests/integration -m azure`
+    # and the same for `-m gcp`.
+    "pyarrow>=16.0.0"
 ]
 iceberg = [
     # pyiceberg reads and writes through pyarrow, and its own pyarrow extra is what
@@ -108,7 +117,12 @@ iceberg = [
     # floor. Everything the connector calls has been there since then. A newer
     # pin elsewhere still resolves: odctl's airflow image asks for 0.11.1, and on
     # Python 3.13 or later only 0.11.0 and above are installable anyway.
-    "pyiceberg[pyarrow]>=0.7.0"
+    #
+    # pyiceberg's sql-postgres extra (SQLAlchemy and psycopg2-binary) serves the
+    # SQL catalogs on SQLite and PostgreSQL, and its glue extra (boto3) the Glue
+    # catalog, so one install gives every catalog the connector is tested against.
+    # Both extras exist from 0.7.0.
+    "pyiceberg[pyarrow,sql-postgres,glue]>=0.7.0"
 ]
 fit = [
     "matplotlib>=3.11.2",
@@ -158,6 +172,11 @@ dev = [
     "jsonschema>=4.26.0",
     # scripts/charts.py animates a run for the Animate a Run page.
     "vidigi>=2.0.0",
+    # The Avro and Pydantic guide generates its schema from a Pydantic model with
+    # it; desflow's own code does not import it. Every release before 0.71.1 fails
+    # that guide's test on Python 3.15 (`module 'dataclasses' has no attribute
+    # '_MISSING_TYPE'`), and 0.71.1 passes on 3.11, 3.12 and 3.15.
+    "dataclasses-avroschema[pydantic]>=0.71.1",
 ]
 
 [tool.pytest.ini_options]
@@ -165,4 +184,9 @@ dev = [
 testpaths = ["tests"]
 markers = [
     "integration: marks tests that require Docker infrastructure (deselect with '-m \"not integration\"')",
+    "services: integration tests that use the odctl kafka-lite, postgres and valkey profiles",
+    "storage: integration tests that use the odctl storage and catalog profiles (SeaweedFS, the Iceberg REST catalog and its PostgreSQL)",
+    "floci: integration tests that start a Floci container (AWS emulator: S3 and Glue)",
+    "azure: integration tests that start an Azurite container (Azure Blob Storage emulator)",
+    "gcp: integration tests that start a fake-gcs-server container (Google Cloud Storage emulator)",
 ]

@@ -17,7 +17,9 @@ def _commands(text):
     lines = []
     for block in re.findall(r"```bash\n(.*?)\n *```", section, re.S):
         lines += [line.strip() for line in block.split("\n") if line.strip()]
-    extras = re.search(r"Connectors and input fitting are optional extras[^\n]*", section).group(0)
+    extras = re.search(
+        r"Connectors and input fitting are optional extras[^\n]*", section
+    ).group(0)
     return lines, extras
 
 

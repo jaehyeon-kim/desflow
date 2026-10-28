@@ -15,16 +15,8 @@ from desflow.connectors.ingress.kafka import (
 
 def test_missing_avro_deserializer_dependencies():
     """Verify that using Avro deserializers without the extras raises an explicit ImportError."""
-    # Hide confluent_kafka
-    with patch.dict(
-        sys.modules,
-        {
-            "confluent_kafka": None,
-            "confluent_kafka.schema_registry": None,
-            "confluent_kafka.schema_registry.avro": None,
-            "confluent_kafka.serialization": None,
-        },
-    ):
+    # Hide fastavro and httpx
+    with patch.dict(sys.modules, {"fastavro": None, "httpx": None}):
         with pytest.raises(ImportError, match=r"pip install desflow\[confluent\]"):
             ConfluentAvroDeserializer(registry_url="http://mock")
 

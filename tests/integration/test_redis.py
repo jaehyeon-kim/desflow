@@ -7,8 +7,9 @@ import orjson
 from desflow.connectors.egress.redis import RedisEgress
 from desflow.connectors.ingress.redis import RedisIngress
 
+pytestmark = [pytest.mark.integration, pytest.mark.services]
 
-@pytest.mark.integration
+
 @pytest.mark.asyncio
 async def test_redis_integration(redis_container):
     url = redis_container

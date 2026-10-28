@@ -1,4 +1,3 @@
-import asyncio
 import queue
 import uuid
 from datetime import datetime
@@ -7,6 +6,9 @@ import pyarrow as pa
 import pytest
 
 from desflow.connectors.egress.iceberg import IcebergStorageEgress
+from tests.integration.helpers import drain
+
+pytestmark = [pytest.mark.integration, pytest.mark.storage]
 
 
 @pytest.fixture
@@ -19,25 +21,7 @@ def namespace(iceberg_catalog):
     iceberg_catalog.drop_namespace(name)
 
 
-async def _drain(egress: IcebergStorageEgress, q: queue.Queue) -> None:
-    """Runs the egress until the queue is empty, then cancels it as teardown does.
-
-    The budget is generous because the first commit of a run pays for the namespace,
-    the table and a cold S3 connection. A tighter one failed intermittently while
-    proving nothing about the connector.
-    """
-    task = asyncio.create_task(egress.run(q))
-    for _ in range(600):
-        await asyncio.sleep(0.1)
-        if q.empty() and not getattr(egress, "active_tasks", 0):
-            break
-    else:
-        pytest.fail("The egress did not drain the queue within 60 seconds.")
-    task.cancel()
-
-
 @pytest.mark.asyncio
-@pytest.mark.integration
 async def test_snapshot_count_equals_flush_count(iceberg_catalog, namespace):
     """One commit per flush is the behaviour the buffer size exists to control.
 
@@ -51,7 +35,7 @@ async def test_snapshot_count_equals_flush_count(iceberg_catalog, namespace):
     for flush in range(3):
         q.put([{"key": f"task-{flush}-{i}", "n": i} for i in range(4)])
 
-    await _drain(egress, q)
+    await drain(egress, q)
 
     table = iceberg_catalog.load_table(identifier)
     assert len(table.metadata.snapshots) == 3
@@ -59,7 +43,6 @@ async def test_snapshot_count_equals_flush_count(iceberg_catalog, namespace):
 
 
 @pytest.mark.asyncio
-@pytest.mark.integration
 async def test_explicit_schema_and_location_survive_the_round_trip(
     iceberg_catalog, namespace
 ):
@@ -77,7 +60,7 @@ async def test_explicit_schema_and_location_survive_the_round_trip(
     q: queue.Queue = queue.Queue()
     q.put([{"key": "a", "event_time": datetime(2026, 1, 1, 12, 30)}])
 
-    await _drain(egress, q)
+    await drain(egress, q)
 
     table = iceberg_catalog.load_table(identifier)
     assert table.location() == location
@@ -90,7 +73,6 @@ async def test_explicit_schema_and_location_survive_the_round_trip(
 
 
 @pytest.mark.asyncio
-@pytest.mark.integration
 async def test_upsert_updates_rows_and_a_rerun_adds_none(iceberg_catalog, namespace):
     """With upsert_keys a changed key is updated, a new key inserted, and a rerun of the same batch duplicates nothing."""
     identifier = f"{namespace}.orders"
@@ -112,7 +94,7 @@ async def test_upsert_updates_rows_and_a_rerun_adds_none(iceberg_catalog, namesp
     for batch in (first, second, second):
         q.put(batch)
 
-    await _drain(egress, q)
+    await drain(egress, q)
 
     rows = iceberg_catalog.load_table(identifier).scan().to_arrow().to_pylist()
     assert sorted((r["order_id"], r["status"]) for r in rows) == [
@@ -123,7 +105,6 @@ async def test_upsert_updates_rows_and_a_rerun_adds_none(iceberg_catalog, namesp
 
 
 @pytest.mark.asyncio
-@pytest.mark.integration
 async def test_a_column_a_later_batch_adds_reaches_the_table(
     iceberg_catalog, namespace
 ):
@@ -134,7 +115,7 @@ async def test_a_column_a_later_batch_adds_reaches_the_table(
     q.put([{"stream_type": "event", "key": "o-1", "value": {"a": 1}}])
     q.put([{"stream_type": "event", "key": "o-2", "value": {"a": 2, "b": "x"}}])
 
-    await _drain(egress, q)
+    await drain(egress, q)
 
     rows = iceberg_catalog.load_table(identifier).scan().to_arrow().to_pylist()
     assert sorted((r["key"], r["a"], r["b"]) for r in rows) == [
@@ -144,7 +125,6 @@ async def test_a_column_a_later_batch_adds_reaches_the_table(
 
 
 @pytest.mark.asyncio
-@pytest.mark.integration
 async def test_a_column_null_in_the_first_batch_waits_for_a_value(
     iceberg_catalog, namespace
 ):
@@ -156,7 +136,7 @@ async def test_a_column_null_in_the_first_batch_waits_for_a_value(
     q.put([{"stream_type": "event", "key": "o-1", "task": None, "value": {"a": 1}}])
     q.put([{"stream_type": "event", "key": "o-2", "task": "pack", "value": {"a": 2}}])
 
-    await _drain(egress, q)
+    await drain(egress, q)
 
     rows = iceberg_catalog.load_table(identifier).scan().to_arrow().to_pylist()
     assert sorted((r["key"], r["task"]) for r in rows) == [

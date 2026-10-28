@@ -425,6 +425,29 @@ def test_catalog_properties_are_loaded_on_first_write(monkeypatch):
     assert len(fake.tables["sim.events"].appended) == 2
 
 
+def test_a_sql_catalog_on_sqlite_writes_one_snapshot_per_flush(tmp_path):
+    """A SQL catalog mapping reaches a real PyIceberg catalog; no service is needed."""
+    from pyiceberg.catalog import load_catalog
+
+    properties = {
+        "type": "sql",
+        "uri": f"sqlite:///{tmp_path}/catalog.db",
+        "warehouse": f"file://{tmp_path}/warehouse",
+    }
+    egress = IcebergStorageEgress(
+        catalog={"name": "local", **properties}, default_table="sim.events"
+    )
+
+    for flush in range(3):
+        egress._write_batch(
+            [{"key": f"task-{flush}-{i}", "n": i} for i in range(4)], pa
+        )
+
+    table = load_catalog("local", **properties).load_table("sim.events")
+    assert len(table.metadata.snapshots) == 3
+    assert table.scan().to_arrow().num_rows == 12
+
+
 def test_catalog_object_is_used_as_given():
     """A Catalog object keeps working, with no properties recorded."""
     catalog = FakeCatalog()

@@ -2,6 +2,29 @@
 
 Each release, newest first: what changed, then under Upgrading what to change in code, commands or installs that use the previous release.
 
+## Version 0.26.0
+
+- The `confluent` extra no longer installs confluent-kafka. desflow writes and reads the Confluent Schema Registry wire format itself with httpx and fastavro, so the extra no longer depends on a package without Python 3.15 support. The bytes on the topic are the same.
+- `ConfluentAvroSerializer` and `ConfluentAvroDeserializer` take named arguments for a secured registry: `auth`, `verify`, `cert`, `timeout`, `headers`, `proxy` and `max_retries`. See [Registry Connection](../guides/avro-and-pydantic.md#registry-connection).
+- A Parquet or JSON Lines egress writes to Google Cloud Storage and Azure Blob Storage, from a `filesystem` mapping with `type: gcs` or `type: azure`, in YAML, the builder and the low-level API. See [Parquet and JSON Lines](../user-guide/egress.md#parquet-and-json-lines).
+- An Iceberg egress writes through a SQL catalog on SQLite or PostgreSQL and through a Glue catalog, and the `iceberg` extra installs what they need. See [Iceberg](../user-guide/egress.md#iceberg).
+- Python 3.15 is supported. On 3.15 the `kafka`, `confluent` and `glue` extras build aiokafka, and the `iceberg` extra builds pyiceberg and zstandard, from source, which needs a C compiler. See [Installation](../getting-started.md#install-the-package).
+- `GlueAvroSerializer` serializes a record. It failed on every record in every release since 0.7.0.
+- The Examples section is named [Runnable Examples](../examples/index.md), and its overview page now holds [Services for the Examples](../examples/index.md#services-for-the-examples), the odctl profiles each example needs, which moved from Installation.
+
+### Upgrading
+
+- `pip install "desflow[confluent]"` no longer installs confluent-kafka. Code that imports `confluent_kafka` itself installs it separately.
+- The `confluent` and `glue` extras no longer install dataclasses-avroschema, which desflow's own code does not use. Code that builds its schema with `AvroBaseModel` installs it with `pip install "dataclasses-avroschema[pydantic]"`.
+- The confluent-kafka keys passed as `**registry_kwargs`, such as `basic.auth.user.info`, still work with a `FutureWarning` and are removed in 0.30.0. Use `auth=`, `verify=`, `cert=`, `timeout=`, `proxy=`, `headers=` and `max_retries=` instead. OAuth bearer sources other than `STATIC_TOKEN` are refused: pass the token in `headers=`. `retries.wait.ms`, `retries.max.wait.ms` and `url` are refused: set `max_retries=` and pass the URL as `registry_url`. `cache.capacity` and `cache.latest.ttl.sec` are ignored.
+- Registry and framing errors are `SchemaRegistryError` and `SerializationError`, importable from `desflow.connectors.egress.kafka` or `desflow.connectors.ingress.kafka`, not confluent-kafka's classes.
+- The subject is always `<topic>-value`. confluent-kafka 2.14.0 and later first asked the registry for a topic association, so on a registry with associations defined it could use another subject.
+- The deserializer looks up a writer schema by its id alone. confluent-kafka 2.11.0 and later also sent the subject, which makes the registry search every schema context, so a schema registered only in a context other than the default one is no longer found.
+- A writer schema with enabled Data Contract read rules (domain or encoding) is refused, including a rule with `onFailure: NONE`, which confluent-kafka skipped.
+- A connection error to the registry is retried up to `max_retries` times (3 by default), with a random wait of up to 1, 2 and 4 seconds; it failed at once before.
+- Each step of a request to the registry (connecting, sending, reading) times out after 10 seconds. It never timed out before. Pass `timeout=None` for the old behaviour.
+- The `parquet` extra requires pyarrow 16.0.0 or later. It was 14.0.0. Azure Blob Storage needs `AzureFileSystem`, which pyarrow has from 16.0.0. On Windows, PyPI's pyarrow wheels include it from 24.0.0.
+
 ## Version 0.25.0
 
 - `desflow explain FILE` shows a model as a graph from its arrivals to its exits, without running it. For each resource it gives the utilisation, the status and, where the queueing formulas apply, the waits. It also names the bottleneck and the capacity that brings utilisation to a target. Where a formula does not apply, it says why. `--json` prints the same result as JSON, which is experimental through 1.x. See [Explain the Load](../tutorials/queues-and-capacity.md#explain-the-load).

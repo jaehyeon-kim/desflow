@@ -37,3 +37,19 @@ def test_failures_print_what_the_page_says(capsys):
         "pack failed: after the cut-off",
         "closing failed: the till did not balance",
     ]
+
+
+def test_storage_backends_make_their_filesystems(monkeypatch, tmp_path):
+    """The GCS and Azure mappings on the Egress page build the PyArrow classes they name."""
+    from pyarrow import fs
+
+    from desflow.connectors.egress.storage import _build_filesystem
+
+    monkeypatch.chdir(tmp_path)  # the snippet makes the folder iceberg/ here
+    namespace = runpy.run_path(str(ROOT / "docs/snippets/pages/storage_backends.py"))
+    classes = [
+        type(_build_filesystem(egress.filesystem, fs))
+        for egress in namespace["cloud"]._egress_providers
+    ]
+
+    assert classes == [fs.GcsFileSystem, fs.AzureFileSystem]

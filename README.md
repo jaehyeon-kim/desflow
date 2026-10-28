@@ -34,7 +34,7 @@ The simulation is a discrete-event simulation (DES): the model moves from one ev
 | [Time](https://jaehyeon.me/desflow/latest/user-guide/time-and-pacing/) | a run in real time or at full speed, history written at full speed and then carried on live, and a run that ends at a time, on an event or once the last work has left |
 | [Live changes](https://jaehyeon.me/desflow/latest/user-guide/live-parameters/) | arrival rates, service times and capacities changed during a run by name, such as `Shop.arrival.orders.rate`, from a timed scenario, a local schedule, Kafka, Redis or PostgreSQL |
 | [Records](https://jaehyeon.me/desflow/latest/reference/records-and-telemetry/) | an event for each step of each entity, telemetry with the statistics, and label records that hold the ground truth of each planned change. Records are JSON, Avro through the Confluent or AWS Glue Schema Registry, or Pydantic models. |
-| [Connectors](https://jaehyeon.me/desflow/latest/user-guide/egress/) | several sinks in one run, each with its own filter: Kafka, including SASL, mTLS, OAuth and AWS IAM clusters, Redis, PostgreSQL, Parquet or JSONL files on local disk or S3-compatible storage, and Iceberg tables. A connector of your own is one class. |
+| [Connectors](https://jaehyeon.me/desflow/latest/user-guide/egress/) | several sinks in one run, each with its own filter: Kafka, including SASL, mTLS, OAuth and AWS IAM clusters, Redis, PostgreSQL, Parquet or JSONL files on local disk, S3-compatible storage, Google Cloud Storage or Azure Blob Storage, and Iceberg tables. A connector of your own is one class. |
 | [Studies](https://jaehyeon.me/desflow/latest/user-guide/statistics/) | built-in statistics with a warm-up, replications with a 95% interval for each statistic, experiments that compare designs with the same random numbers and write a report, a check against the queueing formulas before a long run, and distributions fitted to measured times |
 | [Tools](https://jaehyeon.me/desflow/latest/guides/use-an-ai-assistant/) | the `desflow` command, a JSON Schema that gives an editor completion for blueprints, and a skill with which an AI coding assistant writes and checks blueprints |
 
@@ -67,12 +67,12 @@ Connectors and input fitting are optional extras. For example, `uv add "desflow[
 | `glue` | Avro with the AWS Glue Schema Registry (includes `kafka`) |
 | `redis` | Redis ingress and egress |
 | `postgres` | PostgreSQL ingress and egress |
-| `parquet` | Parquet and JSONL files on local disk or S3-compatible storage |
-| `iceberg` | Apache Iceberg tables through a REST catalog |
+| `parquet` | Parquet and JSONL files on local disk, S3-compatible storage, Google Cloud Storage or Azure Blob Storage |
+| `iceberg` | Apache Iceberg tables through a REST catalog, a SQL catalog on SQLite or PostgreSQL, or the Glue catalog |
 | `fit` | scipy and matplotlib, for [input fitting](https://jaehyeon.me/desflow/latest/user-guide/input-fitting/) with `desflow fit` |
 | `all` | Every extra above |
 
-**Upgrading from dynamic-des.** desflow was called dynamic-des before 0.20.0. Install, import and run `desflow`. Code that imports `dynamic_des` and scripts that run `ddes` keep working with a warning until a release before 1.0 removes them. The [Changelog](https://jaehyeon.me/desflow/latest/about/changelog/) says what to change.
+**Upgrading from dynamic-des.** desflow was previously called dynamic-des. Install, import and run `desflow`. Code that imports `dynamic_des` and scripts that run `ddes` keep working with a warning until a release before 1.0 removes them. The [Changelog](https://jaehyeon.me/desflow/latest/about/changelog/) says what to change.
 
 ## Quick Start
 
@@ -144,7 +144,7 @@ Six public projects generate their data with desflow: four data engineering and 
 
 ## Roadmap
 
-desflow already does in YAML, the builder and the low-level API everything that plain SimPy does, and tests check each case. Before 1.0, it adds more storage backends, JSON Schema and Protobuf for the schema registries, hooks for a simulation server, and a record format that 1.0 keeps stable. After 1.0, a simulation server with tools for AI agents follows. The [roadmap page](https://jaehyeon.me/desflow/latest/about/roadmap/) shows each step in order.
+desflow already does in YAML, the builder and the low-level API everything that plain SimPy does, and tests check each case. Before 1.0, it adds JSON Schema and Protobuf for the schema registries, hooks for a simulation server, and a record format that 1.0 keeps stable. After 1.0, a simulation server with tools for AI agents follows. The [roadmap page](https://jaehyeon.me/desflow/latest/about/roadmap/) shows each step in order.
 
 ## Learn More
 
