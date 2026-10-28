@@ -5,24 +5,20 @@ Releases come in the order shown, without dates: a release ships when it is read
 ## Before 1.0
 
 ::timeline::
-- title: '0.25.0: desflow explain'
-  content: '`desflow explain` shows a simulation as a graph, marks each resource OK, congested or unstable (its queue grows without limit), names the bottleneck and suggests changes. `desflow dist` converts between a distribution''s parameters and its mean and standard deviation. `desflow run --sample` prints a few records from a blueprint, and `--stdout` sends every record except the `system.simulation.lag_seconds` readings to the standard output as JSON lines in place of the real sinks. `load_context` loads a simulation folder from Python. Builder arrivals can name the task they start. The `desflow` command has a generated reference page. Learn: Complete Model, the `explain` section of Checking a Model and Check Against Theory. [#47](https://github.com/jaehyeon-kim/desflow/issues/47), [#60](https://github.com/jaehyeon-kim/desflow/issues/60)'
+- title: '0.26.0: Storage, schema registry code and Python 3.15'
+  content: 'Parquet and JSONL on Google Cloud Storage and Azure Blob Storage, and Iceberg through SQL catalogs on SQLite or PostgreSQL and the Glue catalog. The Confluent schema registry client moves into desflow, so the `confluent` extra no longer installs confluent-kafka. Python 3.15 is supported. `GlueAvroSerializer` serializes a record. [#32](https://github.com/jaehyeon-kim/desflow/issues/32), [#83](https://github.com/jaehyeon-kim/desflow/issues/83), [#40](https://github.com/jaehyeon-kim/desflow/issues/40), [#85](https://github.com/jaehyeon-kim/desflow/issues/85)'
   icon: ':material-play:'
   key: now
-- title: '0.26.0: Storage, schema registry code and Python 3.15'
-  content: 'Parquet and JSONL on Google Cloud Storage and Azure Blob Storage, and Iceberg through SQL catalogs. The Confluent schema registry client moves into desflow, so the `confluent` extra no longer installs confluent-kafka. Python 3.15 is supported. `GlueAvroSerializer` serializes a record. [#32](https://github.com/jaehyeon-kim/desflow/issues/32), [#83](https://github.com/jaehyeon-kim/desflow/issues/83), [#40](https://github.com/jaehyeon-kim/desflow/issues/40), [#85](https://github.com/jaehyeon-kim/desflow/issues/85)'
-  icon: ':material-clock-outline:'
-  key: planned
 - title: '0.27.0: Schema registry formats'
-  content: 'JSON Schema and Protobuf serializers and deserializers for the Confluent and Glue schema registries, next to Avro. desflow writes the Glue wire format itself and no longer depends on `aws-glue-schema-registry`. [#82](https://github.com/jaehyeon-kim/desflow/issues/82)'
+  content: 'JSON Schema and Protobuf serializers and deserializers for the Confluent and Glue schema registries, next to Avro. desflow writes the Glue wire format itself and no longer depends on `aws-glue-schema-registry`, so the `kafka` extra also drops kafka-python and creates topics through aiokafka. [#82](https://github.com/jaehyeon-kim/desflow/issues/82)'
   icon: ':material-clock-outline:'
   key: planned
 - title: '0.28.0: Library hooks for the server'
   content: 'Parameter changes that report who made them and why: `change` returns a `ParamChange` or raises `ParamRejected`, an `on_change` list of callbacks receives each accepted change, and `registry_paths()` lists the paths a simulation will have without running it. The server after 1.0 then adds to the library without changing it. `FileIngress` changes parameters during a run when you edit a local file, with no broker. [#70](https://github.com/jaehyeon-kim/desflow/issues/70) [#86](https://github.com/jaehyeon-kim/desflow/issues/86)'
   icon: ':material-clock-outline:'
   key: planned
-- title: '0.29.0: Reserved gen key and record contract freeze'
-  content: 'After 1.0, a `gen` key marks a generated value. To keep the key free, a blueprint refuses a mapping with a `gen` key in any of these places: a payload, a scenario value, a `record` field, an action or timeout value, a task''s `set` or an arrival''s `attributes`. The Pydantic floor rises to 2.6.1. Every record field is checked, then the format is marked frozen: no 1.x release removes a field, renames it or changes its type. [#53](https://github.com/jaehyeon-kim/desflow/issues/53), [#51](https://github.com/jaehyeon-kim/desflow/issues/51)'
+- title: '0.29.0: Reserved gen key, SimPy''s examples and record contract freeze'
+  content: 'After 1.0, a `gen` key marks a generated value. To keep the key free, a blueprint refuses a mapping with a `gen` key in any of these places: a payload, a scenario value, a `record` field, an action or timeout value, a task''s `set` or an arrival''s `attributes`. The Pydantic floor rises to 2.6.1. The seven examples of the SimPy docs, such as Bank Renege and Machine Shop, are written in YAML, the builder and the low-level API, each beside SimPy''s own. Every record field is checked, then the format is marked frozen: no 1.x release removes a field, renames it or changes its type. [#53](https://github.com/jaehyeon-kim/desflow/issues/53), [#95](https://github.com/jaehyeon-kim/desflow/issues/95), [#51](https://github.com/jaehyeon-kim/desflow/issues/51)'
   icon: ':material-clock-outline:'
   key: planned
 - title: '0.30.0: Preparation for 1.0'
