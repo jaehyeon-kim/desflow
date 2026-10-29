@@ -146,7 +146,7 @@ module-name = ["desflow", "dynamic_des"]
 dev = [
     "mkdocs<2.0",
     "mkdocs-material>=9.7.4",
-    "mkdocstrings[python]>=1.0.3",
+    "mkdocstrings[python]>=1.0.8",
     "mike>=2.1.0",
     "mypy>=1.19.1",
     "pytest>=9.0.2",
