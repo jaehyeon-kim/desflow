@@ -946,3 +946,181 @@ def test_write_a_connector_applies_the_change_and_writes_the_events(
             ("19.0", "started"),
         ]
     assert written[0] == written[1] == written[2]
+
+
+_STORAGE_MODULES = ("cloud_storage", "cloud_storage_logic", "cloud_storage_low_level")
+
+
+def _run_storage_form(form, tmp_path, monkeypatch):
+    """Runs one form of the Write to Cloud Storage shop on the local disk, in tmp_path.
+
+    Returns the Parquet and the JSON Lines tables, read back with the page's
+    read_events.
+    """
+    from pyarrow import fs
+
+    from desflow import SimulationContext
+
+    for source in (
+        GUIDES / "cloud_storage.py",
+        GUIDES / "cloud_storage_low_level.py",
+        ROOT / "docs" / "snippets" / "yaml" / "cloud_storage.yaml",
+        ROOT / "docs" / "snippets" / "yaml" / "cloud_storage_logic.py",
+    ):
+        shutil.copy(source, tmp_path)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("STORAGE", "local")
+    monkeypatch.setenv("STORAGE_BUCKET", "output")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    for name in _STORAGE_MODULES:
+        monkeypatch.delitem(sys.modules, name, raising=False)
+    try:
+        if form == "builder":
+            module = _load_from(tmp_path, "cloud_storage")
+            module.app.run(until=600)
+        elif form == "yaml":
+            SimulationContext.from_yaml(tmp_path / "cloud_storage.yaml").run(until=600)
+            module = sys.modules["cloud_storage"]
+        else:
+            low_level = _load_from(tmp_path, "cloud_storage_low_level")
+            env = low_level.shop(low_level.sinks)
+            env.run(until=600)
+            env.teardown()
+            module = sys.modules["cloud_storage"]
+        store = fs.LocalFileSystem()
+        folder = str(tmp_path / "output")
+        return (
+            module.read_events(store, f"{folder}/parquet"),
+            module.read_events(store, f"{folder}/jsonl", format="json"),
+        )
+    finally:
+        for name in _STORAGE_MODULES:
+            sys.modules.pop(name, None)
+
+
+@pytest.mark.parametrize("form", ["builder", "yaml", "low-level"])
+def test_cloud_storage_shop_writes_the_same_events_as_parquet_and_jsonl(
+    form, tmp_path, monkeypatch
+):
+    """Each form writes every event to both folders, and read_events reads them back:
+    queued, started and finished events, the finished ones with the order record."""
+    parquet, jsonl = _run_storage_form(form, tmp_path, monkeypatch)
+    assert parquet.num_rows == jsonl.num_rows > 0
+    rows = parquet.to_pylist()
+    assert {row["status"] for row in rows} == {"queued", "started", None}
+    finished = [row for row in rows if row["status"] is None]
+    assert finished and all(row["amount"] == 19.99 for row in finished)
+    assert {row["key"] for row in rows} == {row["key"] for row in jsonl.to_pylist()}
+
+
+def test_cloud_storage_forms_write_the_same_rows(tmp_path, monkeypatch):
+    """The seeded shop gives the same rows in YAML, Builder and Low-level."""
+    rows = []
+    for form in ("builder", "yaml", "low-level"):
+        folder = tmp_path / form
+        folder.mkdir()
+        parquet, _ = _run_storage_form(form, folder, monkeypatch)
+        columns = ["sim_ts", "key", "status", "order_id"]
+        rows.append(sorted(parquet.select(columns).to_pylist(), key=str))
+    assert rows[0] == rows[1] == rows[2]
+
+
+def test_cloud_storage_stores_make_their_filesystems(monkeypatch):
+    """Each mapping of the page builds the PyArrow class of its store."""
+    from pyarrow import fs
+
+    from desflow.connectors.egress.storage import _build_filesystem
+
+    monkeypatch.setenv("AZURE_STORAGE_ACCOUNT", "myaccount")
+    sys.modules.pop("cloud_storage", None)
+    try:
+        stores = _load("cloud_storage").STORES
+    finally:
+        sys.modules.pop("cloud_storage", None)
+    classes = {name: type(_build_filesystem(m, fs)) for name, m in stores.items()}
+    assert classes == {
+        "local": fs.LocalFileSystem,
+        "s3": fs.S3FileSystem,
+        "gcs": fs.GcsFileSystem,
+        "azure": fs.AzureFileSystem,
+    }
+
+
+_ICEBERG_MODULES = (
+    "iceberg_tables",
+    "iceberg_tables_logic",
+    "iceberg_tables_low_level",
+)
+
+
+def _run_iceberg_form(form, tmp_path, monkeypatch):
+    """Runs one form of the Write to Iceberg Tables shop on the SQLite catalog, in
+    tmp_path, and returns the rows of shop.events, read back with the page's
+    read_events."""
+    from desflow import SimulationContext
+
+    for source in (
+        GUIDES / "iceberg_tables.py",
+        GUIDES / "iceberg_tables_low_level.py",
+        ROOT / "docs" / "snippets" / "yaml" / "iceberg_tables.yaml",
+        ROOT / "docs" / "snippets" / "yaml" / "iceberg_tables_logic.py",
+    ):
+        shutil.copy(source, tmp_path)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("ICEBERG_CATALOG", raising=False)
+    monkeypatch.syspath_prepend(str(tmp_path))
+    for name in _ICEBERG_MODULES:
+        monkeypatch.delitem(sys.modules, name, raising=False)
+    try:
+        if form == "builder":
+            module = _load_from(tmp_path, "iceberg_tables")
+            module.app.run(until=600)
+        elif form == "yaml":
+            SimulationContext.from_yaml(tmp_path / "iceberg_tables.yaml").run(until=600)
+            module = sys.modules["iceberg_tables"]
+        else:
+            low_level = _load_from(tmp_path, "iceberg_tables_low_level")
+            env = low_level.shop(low_level.sink)
+            env.run(until=600)
+            env.teardown()
+            module = sys.modules["iceberg_tables"]
+        assert (
+            module.catalog["uri"]
+            == f"sqlite:///{tmp_path.resolve()}/iceberg/catalog.db"
+        )
+        return module.read_events(module.catalog)
+    finally:
+        for name in _ICEBERG_MODULES:
+            sys.modules.pop(name, None)
+
+
+def test_iceberg_shop_writes_the_same_rows_in_every_form(tmp_path, monkeypatch):
+    """Each form appends every event to shop.events in one commit, and the seeded shop
+    gives the same rows in YAML, Builder and Low-level."""
+    rows = []
+    for form in ("builder", "yaml", "low-level"):
+        folder = tmp_path / form
+        folder.mkdir()
+        table = _run_iceberg_form(form, folder, monkeypatch)
+        assert table.num_rows > 0
+        columns = ["sim_ts", "key", "status", "order_id", "amount"]
+        rows.append(sorted(table.select(columns).to_pylist(), key=str))
+    assert rows[0] == rows[1] == rows[2]
+    statuses = {row["status"] for row in rows[0]}
+    assert statuses == {"queued", "started", None}
+    assert all(row["amount"] == 19.99 for row in rows[0] if row["status"] is None)
+
+
+def test_iceberg_catalogs_name_their_types(monkeypatch, tmp_path):
+    """Each catalog of the page is the PyIceberg type its comment names, and
+    ICEBERG_CATALOG picks one, with its name."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("ICEBERG_CATALOG", "glue")
+    sys.modules.pop("iceberg_tables", None)
+    try:
+        module = _load("iceberg_tables")
+    finally:
+        sys.modules.pop("iceberg_tables", None)
+    types = {name: c["type"] for name, c in module.CATALOGS.items()}
+    assert types == {"sqlite": "sql", "rest": "rest", "postgres": "sql", "glue": "glue"}
+    assert module.catalog == {"name": "glue", **module.CATALOGS["glue"]}

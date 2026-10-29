@@ -1,6 +1,6 @@
 # Fast-Forward to Parquet
 
-This example generates a week of a shop's orders at `factor=0.0` and writes them to Parquet files, on the local disk or in S3-compatible storage. [Egress](../../user-guide/live-runs-and-connectors/egress.md#parquet-and-json-lines) shows Google Cloud Storage and Azure Blob Storage. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../../user-guide/writing-a-model/index.md) compares the three.
+This example generates a week of a shop's orders at `factor=0.0` and writes them to Parquet files, on the local disk or in S3-compatible storage. [Write to Cloud Storage](../storage-and-tables/cloud-storage.md) shows Amazon S3, Google Cloud Storage and Azure Blob Storage. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../../user-guide/writing-a-model/index.md) compares the three.
 
 desflow is built for real-time digital twins, but the same model can also run faster than real time. With `factor` set to 0 the clock does not wait for the wall clock, and `logical_start_time` puts the week before now, so the records are stamped as history. Look for the Parquet files the run writes, one per batch, with one row for each lifecycle event.
 

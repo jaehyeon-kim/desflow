@@ -201,7 +201,7 @@ A second run adds its files beside the first run's, so reading the folder then c
 
 An `endpoint_override` that starts with `http://` or `https://` also sets `scheme`, for `s3` and `gcs`, unless `scheme` is given. `azure` has no `endpoint_override`: `blob_storage_authority` and `blob_storage_scheme` point it at an emulator such as Azurite. For `gcs`, `credential_token_expiration` is an ISO 8601 time, quoted or not, which desflow converts to UTC, and `retry_time_limit` is a number of seconds, because YAML has no duration type. A key whose value is empty is left out. PyArrow has `AzureFileSystem` from 16.0.0, the release the `parquet` extra requires. `sas_token` and the client credentials need the later releases the table names. PyPI's pyarrow wheels for Windows include it only from 24.0.0.
 
-The same two sinks write to Google Cloud Storage and Azure Blob Storage when `filesystem` is a mapping:
+The same two sinks write to Google Cloud Storage and Azure Blob Storage when `filesystem` is a mapping. [Write to Cloud Storage](../../how-to/storage-and-tables/cloud-storage.md) runs a shop against each store, from start to end:
 
 === "YAML"
 
@@ -347,7 +347,7 @@ A batch the table refuses is logged at ERROR.
 | SQL on PostgreSQL | `sql` | the odctl `postgres` profile |
 | Glue | `glue` | Floci, an AWS emulator, not AWS itself |
 
-The properties of each catalog are listed in [PyIceberg's configuration](https://py.iceberg.apache.org/configuration/).
+The properties of each catalog are listed in [PyIceberg's configuration](https://py.iceberg.apache.org/configuration/). [Write to Iceberg Tables](../../how-to/storage-and-tables/iceberg-tables.md) runs a shop through each catalog, from start to end.
 
 === "YAML"
 

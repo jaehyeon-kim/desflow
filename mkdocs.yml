@@ -377,6 +377,9 @@ nav:
           - JSON Schema and Protobuf: how-to/records-and-kafka/json-schema-and-protobuf.md
           - Connect to Secure Kafka: how-to/records-and-kafka/kafka-security.md
           - Write a Connector: how-to/records-and-kafka/write-a-connector.md
+      - Storage and Tables:
+          - Write to Cloud Storage: how-to/storage-and-tables/cloud-storage.md
+          - Write to Iceberg Tables: how-to/storage-and-tables/iceberg-tables.md
       - Analysis:
           - Fit a Distribution: how-to/analysis/fit-a-distribution.md
           - Check Against Theory: how-to/analysis/check-against-theory.md

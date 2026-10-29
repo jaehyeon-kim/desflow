@@ -8,6 +8,7 @@ Each release, newest first: what changed, then under Upgrading what to change in
 - The `kafka` extra no longer installs kafka-python. `KafkaAdminConnector.create_topics` and the topic creation of `KafkaEgress` use aiokafka.
 - JSON Schema and Protobuf are read and written through both schema registries, next to Avro, by `ConfluentJsonSchemaSerializer`, `ConfluentJsonSchemaDeserializer`, `ConfluentProtobufSerializer`, `ConfluentProtobufDeserializer`, `GlueJsonSchemaSerializer`, `GlueJsonSchemaDeserializer`, `GlueProtobufSerializer` and `GlueProtobufDeserializer`. See [JSON Schema](../how-to/records-and-kafka/json-schema-and-protobuf.md#json-schema) and [Protobuf](../how-to/records-and-kafka/json-schema-and-protobuf.md#protobuf).
 - The builder and low-level scripts of the [Kafka, PostgreSQL, Redis and Related Records examples](../how-to/examples/index.md) stop at `EXAMPLE_UNTIL` simulation seconds when that variable is set, and run until Ctrl + C when it is not.
+- A new How-To group, Storage and Tables, has two pages: [Write to Cloud Storage](../how-to/storage-and-tables/cloud-storage.md) writes Parquet and JSON Lines files to S3, Google Cloud Storage or Azure Blob Storage, and [Write to Iceberg Tables](../how-to/storage-and-tables/iceberg-tables.md) appends to a table through a SQLite, REST, PostgreSQL or Glue catalog. Each has YAML, Builder and Low-level forms, tested against the emulators and odctl profiles.
 
 ### Upgrading
 

@@ -1,6 +1,8 @@
 import json
+import runpy
 import queue
 import uuid
+from pathlib import Path
 from uuid import UUID
 
 import boto3
@@ -173,3 +175,75 @@ def test_glue_avro_classes_round_trip_and_a_json_version_is_read(floci):
     )
     json_framed = frame_glue(UUID(created["SchemaVersionId"]), b'{"value":4}')
     assert deserializer.deserialize("json-events", json_framed) == {"value": 4}
+
+
+_PAGE = Path(__file__).resolve().parents[2] / "docs/snippets/guides/iceberg_tables.py"
+
+
+def _page_writes_and_reads(catalog: dict, monkeypatch, tmp_path) -> None:
+    """Runs the Write to Iceberg Tables shop for 10 simulated minutes through
+    `catalog`, into a table of its own, and reads it back with the page's
+    read_events."""
+    from pyiceberg.catalog import load_catalog
+
+    monkeypatch.chdir(tmp_path)  # the page makes its folder iceberg/ here
+    page = runpy.run_path(str(_PAGE))
+    namespace = f"des_test_{uuid.uuid4().hex[:8]}"
+    table = f"{namespace}.events"
+    properties = {key: value for key, value in catalog.items() if key != "name"}
+    store = load_catalog(catalog["name"], **properties)
+    try:
+        page["build_shop"](page["iceberg_sink"](catalog, table)).run(until=600)
+        rows = page["read_events"](catalog, table)
+        assert rows.num_rows > 0
+        assert {"key", "status", "order_id", "amount"} <= set(rows.column_names)
+        assert len(store.load_table(table).metadata.snapshots) == 1
+    finally:
+        for identifier in store.list_tables(namespace):
+            store.drop_table(identifier)
+        store.drop_namespace(namespace)
+
+
+def _page_catalog(name: str, monkeypatch, tmp_path) -> dict:
+    monkeypatch.chdir(tmp_path)
+    return {"name": name, **runpy.run_path(str(_PAGE))["CATALOGS"][name]}
+
+
+@pytest.mark.storage
+def test_the_page_writes_through_the_rest_catalog(
+    iceberg_catalog, monkeypatch, tmp_path
+):
+    """The page's rest mapping reaches the odctl catalog profile as it is."""
+    catalog = _page_catalog("rest", monkeypatch, tmp_path)
+    _page_writes_and_reads(catalog, monkeypatch, tmp_path)
+
+
+@pytest.mark.storage
+def test_the_page_writes_through_the_postgres_catalog(
+    postgres_container, monkeypatch, tmp_path
+):
+    """The page's postgres mapping reaches the odctl postgres profile as it is."""
+    catalog = _page_catalog("postgres", monkeypatch, tmp_path)
+    _page_writes_and_reads(catalog, monkeypatch, tmp_path)
+
+
+@pytest.mark.floci
+def test_the_page_writes_through_the_glue_catalog(floci, monkeypatch, tmp_path):
+    """The page's glue mapping, pointed at Floci, writes and reads back."""
+    bucket = f"desflow-{uuid.uuid4().hex[:8]}"
+    _floci_client("s3", floci).create_bucket(Bucket=bucket)
+    monkeypatch.setenv("ICEBERG_WAREHOUSE", f"s3://{bucket}/")
+    catalog = _page_catalog("glue", monkeypatch, tmp_path)
+    assert catalog["warehouse"] == f"s3://{bucket}/"
+    # Floci in place of AWS: the page leaves endpoints and keys to the AWS settings
+    catalog.update(
+        {
+            "glue.endpoint": floci,
+            "glue.access-key-id": "test",
+            "glue.secret-access-key": "test",
+            "s3.endpoint": floci,
+            "s3.access-key-id": "test",
+            "s3.secret-access-key": "test",
+        }
+    )
+    _page_writes_and_reads(catalog, monkeypatch, tmp_path)
