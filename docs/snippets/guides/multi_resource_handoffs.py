@@ -5,7 +5,7 @@ from desflow import ConsoleEgress, SimulationContext
 logging.basicConfig(level=logging.INFO)
 
 app = (
-    SimulationContext(sim_id="Shop", factor=1.0)
+    SimulationContext(sim_id="Shop", factor=1.0, random_seed=42)
     .add_resource("picker", current_cap=1, max_cap=1)
     .add_resource("bench", current_cap=1, max_cap=1)
     # The picker takes 1 s to carry an order to the bench, and packing takes 4 s
@@ -17,6 +17,7 @@ app = (
 
 
 # --8<-- [start:handoff]
+# --8<-- [start:tasks]
 # The picker carries the order to the bench and stays with it until it is on the
 # bench: keep hands the picker to the next task instead of releasing it
 @app.task(service_id="walking", resource_id="picker", keep=["picker"], next="pack")
@@ -28,6 +29,9 @@ def pick(task_id: int):
 @app.task(service_id="packing", resource_id="bench")
 def pack(task_id: int):
     return {"event_type": "order_packed"}
+
+
+# --8<-- [end:tasks]
 
 
 # --8<-- [end:handoff]

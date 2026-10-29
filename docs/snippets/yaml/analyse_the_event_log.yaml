@@ -1,0 +1,35 @@
+# The Analyse the Event Log guide: one packer, orders about every 2 seconds, events
+# written to Parquet. The files go to analyse_output/, or to the folder in OUT, which
+# run_yaml() in analyse_the_event_log.py sets. Run it with:
+# desflow run analyse_the_event_log.yaml
+# --8<-- [start:run]
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+resources:
+  packers: {current_cap: 1, max_cap: 1}
+
+services:
+  packing: {dist: constant, value: 1.5}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.5, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    # The finished event's value, so every event of a task has a status
+    payload: {status: finished}
+
+egress:
+  # One flat row per event, in files named events_<8 hex digits>.parquet
+  - type: Parquet
+    config:
+      default_path: ${OUT:-analyse_output}/events.parquet
+
+run:
+  until: 120
+# --8<-- [end:run]

@@ -30,12 +30,14 @@ def shop() -> SimulationContext:
     # Shirts of every size on one shelf, each item a mapping such as {"size": "M"}
     app.add_store("shelf", current_cap=1000, max_cap=1000)
     # --8<-- [end:shelf]
+    # --8<-- [start:arrivals]
     for size, rate in SHIRTS.items():
         name = f"shirts_{size.lower()}"
         app.add_arrival(name, dist="exponential", rate=rate, attributes={"size": size})
     for size, rate in ORDERS.items():
         name = f"orders_{size.lower()}"
         app.add_arrival(name, dist="exponential", rate=rate, attributes={"size": size})
+    # --8<-- [end:arrivals]
 
     # The shirt goes on the shelf, as a mapping with its size
     @app.task(put={"store": "shelf"})

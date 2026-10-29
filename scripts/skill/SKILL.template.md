@@ -67,7 +67,7 @@ One run is one sample. To report a result, run a study.
 
 To give a service measured times, `desflow fit <file.csv> --column <name> --lower 0 --out <fit.yaml>` fits every family and writes the best as YAML for `!include`. It needs the `fit` extra.
 
-[Command Line](https://jaehyeon.me/desflow/latest/user-guide/command-line/) uses every command on one shop. Read [Replications](https://jaehyeon.me/desflow/latest/user-guide/replications/), [Experiments](https://jaehyeon.me/desflow/latest/user-guide/experiments/), [Randomness and Seeds](https://jaehyeon.me/desflow/latest/tutorials/randomness-and-seeds/) and [Trusting Results](https://jaehyeon.me/desflow/latest/tutorials/trusting-results/) before choosing the warm-up and the number of replications.
+[Command Line](https://jaehyeon.me/desflow/latest/cli/) uses every command on one shop. Read [Replications](https://jaehyeon.me/desflow/latest/user-guide/results/replications/), [Experiments](https://jaehyeon.me/desflow/latest/user-guide/results/experiments/), [Randomness and Seeds](https://jaehyeon.me/desflow/latest/learn/first-model/randomness-and-seeds/) and [Trusting Results](https://jaehyeon.me/desflow/latest/learn/studies/trusting-results/) before choosing the warm-up and the number of replications.
 
 ## References
 

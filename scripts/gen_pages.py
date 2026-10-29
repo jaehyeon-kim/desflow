@@ -26,7 +26,7 @@ from pathlib import Path
 # this file by its path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from reference_pages.cli import cli_pages, commands  # noqa: E402
+from reference_pages.cli import cli_overview, cli_pages, commands  # noqa: E402
 from reference_pages.compatibility import (  # noqa: E402
     GROUPS,
     compatibility_page,
@@ -49,6 +49,7 @@ from reference_pages.yaml_keys import (  # noqa: E402
 __all__ = [
     "EXAMPLES",
     "GROUPS",
+    "cli_overview",
     "cli_pages",
     "commands",
     "compatibility_page",
@@ -75,7 +76,7 @@ def write() -> None:
         ("reference/distributions.md", distributions_page()),
         ("reference/statistics.md", statistics_page()),
         ("reference/yaml-keys.md", yaml_keys_page()),
-        ("reference/simpy-compatibility.md", compatibility_page()),
+        ("simpy/compatibility.md", compatibility_page()),
         *cli_pages().items(),
     ):
         with mkdocs_gen_files.open(path, "w") as file:

@@ -1,8 +1,12 @@
 import asyncio
+import io
+import json
 import queue
 import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import fastavro
+import httpx
 import orjson
 import pytest
 from pydantic import BaseModel
@@ -46,16 +50,8 @@ def test_extract_dict_helper():
 
 def test_missing_avro_dependencies():
     """Verify that using Avro serializers without the extras raises an explicit ImportError."""
-    # Hide confluent_kafka
-    with patch.dict(
-        sys.modules,
-        {
-            "confluent_kafka": None,
-            "confluent_kafka.schema_registry": None,
-            "confluent_kafka.schema_registry.avro": None,
-            "confluent_kafka.serialization": None,
-        },
-    ):
+    # Hide fastavro and httpx
+    with patch.dict(sys.modules, {"fastavro": None, "httpx": None}):
         with pytest.raises(ImportError, match=r"pip install desflow\[confluent\]"):
             ConfluentAvroSerializer(registry_url="http://mock", schema_str="{}")
 
@@ -97,6 +93,49 @@ def test_avro_serializers_construct_with_extras_installed():
 
     glue = GlueAvroSerializer(registry_name="probe", schema_str=AVRO_SCHEMA)
     assert hasattr(glue, "serialize")
+
+
+def test_glue_serializer_frames_a_record_with_the_registered_schema_version():
+    """The Glue serializer registers the schema, then writes the version id and the Avro."""
+    version_id = "0a1b2c3d-4e5f-6789-abcd-ef0123456789"
+
+    class FakeGlue:
+        """The four Glue calls the schema registry client makes."""
+
+        def __init__(self):
+            self.created: list = []
+
+        def get_schema_by_definition(self, **kwargs):
+            raise RuntimeError("Schema is not found.")
+
+        def create_schema(self, **kwargs):
+            self.created.append(kwargs)
+            return {"SchemaVersionId": version_id}
+
+        def get_schema_version(self, SchemaVersionId):
+            return {
+                "SchemaVersionId": version_id,
+                "Status": "AVAILABLE",
+                "SchemaArn": "arn:aws:glue:us-east-1:000000000000:schema/probe/t-value",
+                "SchemaDefinition": AVRO_SCHEMA,
+                "DataFormat": "AVRO",
+                "VersionNumber": 1,
+            }
+
+    glue = FakeGlue()
+    with patch("boto3.client", return_value=glue):
+        serializer = GlueAvroSerializer(registry_name="probe", schema_str=AVRO_SCHEMA)
+    framed = serializer.serialize("t", {"path_id": "Shop.packers", "value": 3})
+
+    assert glue.created[0]["RegistryId"] == {"RegistryName": "probe"}
+    assert glue.created[0]["SchemaName"] == "t-value"
+    # Version byte 3, compression byte 0 (off), the version id, then the Avro body
+    assert framed[:2] == b"\x03\x00"
+    assert framed[2:18].hex() == version_id.replace("-", "")
+    body = fastavro.schemaless_reader(
+        io.BytesIO(framed[18:]), fastavro.parse_schema(json.loads(AVRO_SCHEMA))
+    )
+    assert body == {"path_id": "Shop.packers", "value": 3}
 
 
 @pytest.mark.asyncio
@@ -328,7 +367,7 @@ async def test_kafka_egress_include_stream_type_with_topic_router(
     assert orjson.loads(call_args.kwargs["value"])["stream_type"] == "event"
 
 
-def test_avro_drops_stream_type_when_schema_omits_it():
+def test_avro_drops_stream_type_when_schema_omits_it(registry_transport):
     """Verify an Avro schema without stream_type silently discards the field.
 
     Avro encodes one field at a time from the registered schema, so switching
@@ -336,20 +375,10 @@ def test_avro_drops_stream_type_when_schema_omits_it():
     send does not fail either. Users need a schema carrying the field, which is why
     the flag docstring states the constraint.
     """
-    registry_client = MagicMock()
-    registered = MagicMock()
-    registered.schema_id = 1
-    registered.guid = None
-    registry_client.register_schema.return_value = 1
-    registry_client.register_schema_full_response.return_value = registered
-
-    with patch(
-        "confluent_kafka.schema_registry.SchemaRegistryClient",
-        return_value=registry_client,
-    ):
-        serializer = ConfluentAvroSerializer(
-            registry_url="http://localhost:65535", schema_str=AVRO_SCHEMA
-        )
+    registry_transport(lambda request: httpx.Response(200, json={"id": 1}))
+    serializer = ConfluentAvroSerializer(
+        registry_url="http://localhost:65535", schema_str=AVRO_SCHEMA
+    )
 
     with_field = serializer.serialize(
         "probe", {"path_id": "A", "value": 1, "stream_type": "telemetry"}
@@ -358,6 +387,10 @@ def test_avro_drops_stream_type_when_schema_omits_it():
 
     assert with_field == without_field
     assert b"telemetry" not in with_field
+    record = fastavro.schemaless_reader(
+        io.BytesIO(with_field[5:]), fastavro.parse_schema(json.loads(AVRO_SCHEMA))
+    )
+    assert record == {"path_id": "A", "value": 1}
 
 
 @pytest.mark.asyncio

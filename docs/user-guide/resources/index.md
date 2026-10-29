@@ -73,42 +73,52 @@ Two whole numbers set the size of a resource, and both may be left out:
 
 Four requests that join while the only unit is busy are served in these orders:
 
-```python title="docs/snippets/pages/resources.py:queue-order"
-def served_order(queue):
-    """Four requests join while the only bench is busy; returns who is served when."""
-    env = DynamicRealtimeEnvironment(factor=0.0)
-    env.registry.register_sim_parameter(
-        SimParameter(
-            sim_id="Shop",
-            resources={"benches": CapacityConfig(current_cap=1, max_cap=1)},
+=== "YAML"
+
+    `queue` sits beside the capacity: `packers: {current_cap: 1, queue: lifo}`.
+
+=== "Builder"
+
+    `app.add_resource("packers", current_cap=1, queue="lifo")`.
+
+=== "Low-level"
+
+    ```python title="docs/snippets/pages/resources.py:queue-order"
+    def served_order(queue):
+        """Four requests join while the only bench is busy; returns who is served when."""
+        env = DynamicRealtimeEnvironment(factor=0.0)
+        env.registry.register_sim_parameter(
+            SimParameter(
+                sim_id="Shop",
+                resources={"benches": CapacityConfig(current_cap=1, max_cap=1)},
+            )
         )
-    )
-    bench = DynamicResource(env, "Shop", "benches", queue=queue)
-    served = []
+        bench = DynamicResource(env, "Shop", "benches", queue=queue)
+        served = []
 
-    def use(name, priority, after=0.0):
-        yield env.timeout(after)
-        # The priority counts only under the priority order
-        with bench.request(priority=priority) as request:
-            yield request
-            served.append(name)
-            yield env.timeout(1.0)
+        def use(name, priority, after=0.0):
+            yield env.timeout(after)
+            # The priority counts only under the priority order
+            with bench.request(priority=priority) as request:
+                yield request
+                served.append(name)
+                yield env.timeout(1.0)
 
-    env.process(use("first", 1))  # takes the bench at once
-    for name, priority in [
-        ("orders-1", 1),
-        ("express-1", 0),
-        ("orders-2", 1),
-        ("express-2", 0),
-    ]:
-        env.process(use(name, priority, after=0.1))  # all join while it is busy
-    env.run(until=10)
-    return served[1:]
+        env.process(use("first", 1))  # takes the bench at once
+        for name, priority in [
+            ("orders-1", 1),
+            ("express-1", 0),
+            ("orders-2", 1),
+            ("express-2", 0),
+        ]:
+            env.process(use(name, priority, after=0.1))  # all join while it is busy
+        env.run(until=10)
+        return served[1:]
 
 
-for queue in ("fifo", "lifo", "priority"):
-    print(f"{queue:<8} {', '.join(served_order(queue))}")
-```
+    for queue in ("fifo", "lifo", "priority"):
+        print(f"{queue:<8} {', '.join(served_order(queue))}")
+    ```
 
 <!-- records: resources-printed -->
 ```text
@@ -133,17 +143,27 @@ A task that is refused **balks**: it leaves without being served. It gives back 
 - A `request` branch that has won its wait and then loses the unit to preemption asks for a unit again. The task balks if the line is full then. It reneges, that is, leaves the line, if its patience runs out while it waits, as for a `resource:` unit.
 - In the low-level API, `request()` raises `QueueFull` (in `desflow.resources.resource`), a `RuntimeError` with that message. Your process catches it as it would catch a balk condition.
 
-A request that reneges or is cancelled leaves the line and makes room for the next. [Refuse to Join](../../tutorials/patience.md#refuse-to-join) shows the other way an order balks, by a condition of its own.
+A request that reneges or is cancelled leaves the line and makes room for the next. [Refuse to Join](../../learn/shop-logic/patience.md#refuse-to-join) shows the other way an order balks, by a condition of its own.
 
 In a blueprint, `queue_limit` sits beside the capacity. `packers` has the default of one unit, and refuses a fourth waiting request:
 
-```yaml title="docs/snippets/yaml/resources_read.yaml:declare"
-resources:
-  # No capacity: one unit. At most 3 requests wait; a fourth is refused.
-  packers: {queue_limit: 3}
-  # No limit: every request is granted at once
-  benches: {current_cap: .inf}
-```
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/resources_read.yaml:declare"
+    resources:
+      # No capacity: one unit. At most 3 requests wait; a fourth is refused.
+      packers: {queue_limit: 3}
+      # No limit: every request is granted at once
+      benches: {current_cap: .inf}
+    ```
+
+=== "Builder"
+
+    `app.add_resource("packers", queue_limit=3)` and `app.add_resource("benches", current_cap=float("inf"))`.
+
+=== "Low-level"
+
+    `DynamicResource(env, "Shop", "packers", queue_limit=3)`.
 
 ### Cancel and Release
 
@@ -219,7 +239,7 @@ A resource counts the units held and the requests waiting. In a condition, `user
 
 ### Registry Paths and Readings
 
-Each resource has two registry paths, `<sim_id>.resources.<name>.current_cap` and `.max_cap`, which a scenario, an ingress message or a process can change. [Live Parameters](../live-parameters.md) explains how. A resource that breaks down adds `<sim_id>.breakdown.<name>.time_to_failure` and `.repair`, its two distributions.
+Each resource has two registry paths, `<sim_id>.resources.<name>.current_cap` and `.max_cap`, which a scenario, an ingress message or a process can change. [Live Parameters](../live-runs-and-connectors/live-parameters.md) explains how. A resource that breaks down adds `<sim_id>.breakdown.<name>.time_to_failure` and `.repair`, its two distributions.
 
 With statistics at the `minimal` level or above, each resource publishes four readings, such as `Shop.stats.resources.packers.utilization`:
 
@@ -228,7 +248,7 @@ With statistics at the `minimal` level or above, each resource publishes four re
 - `queue_length`: the requests waiting.
 - `utilization`: the units in use as a percentage of the capacity, or 0 for a resource with no limit.
 
-A resource that breaks down adds `down`, which is 1 while it is down. [Statistics](../statistics.md) lists what the other levels add, among them `downtime` and `failures`.
+A resource that breaks down adds `down`, which is 1 while it is down. [Statistics](../results/statistics.md) lists what the other levels add, among them `downtime` and `failures`.
 
 ---
 
@@ -242,7 +262,7 @@ Because each step is the one SimPy takes, two events at the same simulation time
 
 A waiting request leaves the queue at once when it is cancelled. A `with` block cancels it when the block is left before the grant, and `request.cancel()` does the same by hand. `packers.release(request)` gives a granted unit back. Cancelling a granted request releases nothing, and releasing a request twice, or one never granted, gives nothing back, as in SimPy. Every release still tries the head of the queue when its release event is processed, as SimPy's does: when a request that reneged was the head, the request behind it may then be granted or preempt a user.
 
-**SimPy and desflow.** SimPy's `Resource` serves requests in the order they arrive, and `PriorityResource` by priority. Both take their capacity when they are created and keep it: `capacity` has no setter, so assigning a new one raises `AttributeError` (SimPy 4.1). desflow builds its own resource, so that the capacity can follow the registry and the queue order can be chosen. The `request()` call and the `with` block are SimPy's, so code written for SimPy works unchanged. [SimPy and desflow](../../des/simpy-and-desflow.md) compares the two.
+**SimPy and desflow.** SimPy's `Resource` serves requests in the order they arrive, and `PriorityResource` by priority. Both take their capacity when they are created and keep it: `capacity` has no setter, so assigning a new one raises `AttributeError` (SimPy 4.1). desflow builds its own resource, so that the capacity can follow the registry and the queue order can be chosen. The `request()` call and the `with` block are SimPy's, so code written for SimPy works unchanged. [SimPy and desflow](../../simpy/index.md) compares the two.
 
 ---
 
@@ -261,15 +281,25 @@ The example below takes three of five packers off the floor while four orders ar
 
 ![Capacity drops from 5 to 2 with 4 units busy: the free unit is gone, two units are owed and are not handed on as tasks finish, and only then does a waiting task start](../../assets/diagrams/resource-shrink.gif)
 
-```python title="docs/snippets/pages/resources.py:shrink"
-def capacity_drop(env):
-    """Takes 3 of 5 packers off the floor at t=5 s. Orders being packed are not stopped."""
-    env.registry.update("Shop.resources.packers.current_cap", 5)
-    yield env.timeout(5.0)
-    env.registry.update("Shop.resources.packers.current_cap", 2)
-    yield env.timeout(0.1)  # the resource applies the change in its own process
-    print(f"capacity {packers.capacity}, in use {packers.in_use}")
-```
+=== "YAML"
+
+    A scenario step makes the same change at a set time: `scenario: [{at: 5, path: Shop.resources.packers.current_cap, value: 2}]`. [Live Parameters](../live-runs-and-connectors/live-parameters.md#script-an-experiment) explains the steps.
+
+=== "Builder"
+
+    `app.add_scenario([{"at": 5, "path": "Shop.resources.packers.current_cap", "value": 2}])` makes the same change at a set time.
+
+=== "Low-level"
+
+    ```python title="docs/snippets/pages/resources.py:shrink"
+    def capacity_drop(env):
+        """Takes 3 of 5 packers off the floor at t=5 s. Orders being packed are not stopped."""
+        env.registry.update("Shop.resources.packers.current_cap", 5)
+        yield env.timeout(5.0)
+        env.registry.update("Shop.resources.packers.current_cap", 2)
+        yield env.timeout(0.1)  # the resource applies the change in its own process
+        print(f"capacity {packers.capacity}, in use {packers.in_use}")
+    ```
 
 Until the owed units finish, `in_use` is above `capacity`, and the `utilization` reading is above 100%.
 
@@ -277,11 +307,11 @@ Until the owed units finish, `in_use` is above `capacity`, and the `utilization`
 
 ## Stability and Limits
 
-- **Utilisation decides waits.** A resource whose load is at or above its capacity has a queue that grows for as long as the run lasts. [Queues and Capacity](../../tutorials/queues-and-capacity.md) shows how to work it out, and [Queueing Basics](../../des/queueing-basics.md#utilisation) explains utilisation.
+- **Utilisation decides waits.** A resource whose load is at or above its capacity has a queue that grows for as long as the run lasts. [Queues and Capacity](../../learn/first-model/queues-and-capacity.md) shows how to work it out, and [Queueing Basics](../../learn/concepts/queueing-basics.md#utilisation) explains utilisation.
 - **Priority needs `queue: priority`.** A task priority on a resource of another order is a load error, while a low-level request's priority is ignored under `fifo` and `lifo`.
 - **Priority can starve.** Under `priority`, a request with a high number is served only when no lower number is waiting. If the low numbers alone keep the resource busy, it is never served.
 - **One order of acquisition.** A model whose tasks acquire two resources in opposite orders is refused. [Several Resources](several-resources.md#several-resources) explains why.
-- **A shrink never stops work.** Lowering `current_cap` lets busy units finish. Work in progress stops only for an interrupt, a preemption or a breakdown: [Interruptions](../../tutorials/interruptions.md), and [Model Breakdowns](../../guides/breakdowns.md) for a machine that fails.
+- **A shrink never stops work.** Lowering `current_cap` lets busy units finish. Work in progress stops only for an interrupt, a preemption or a breakdown: [Interruptions](../../learn/shop-logic/interruptions.md), and [Model Breakdowns](../../how-to/modelling/breakdowns.md) for a machine that fails.
 - **A preempted task queues again.** With `resume` or `restart` it joins the back of its priority among the waiting requests, as a new SimPy request does. The time it waited before counts in its wait.
 
-Amounts and items that tasks take and add, rather than hold, are [Stores and Containers](../stores-and-containers.md).
+Amounts and items that tasks take and add, rather than hold, are [Stores and Containers](../model-parts/stores-and-containers.md).

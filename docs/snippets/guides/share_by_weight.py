@@ -2,22 +2,17 @@
 
 Nine orders arrive at time 0: the first is tier 2, then six of tier 1, then two more
 of tier 2. The first takes the packer and the rest wait. The packer grants the
-waiting orders by weight, three of tier 1 for each of tier 2, in YAML, in the
-builder and in the low-level API. Each function returns the tier of each order in
-the order the packer granted them.
+waiting orders by weight, three of tier 1 for each of tier 2. `builder_form` runs
+the shop with the builder and `yaml_form` runs share_by_weight.yaml, which loads as
+a context; share_by_weight_low_level.py is the low-level API. Each returns the tier
+of each order in the order the packer granted them.
 """
 
 import logging
 import sys
 from pathlib import Path
 
-from desflow import (
-    CapacityConfig,
-    DistributionConfig,
-    DynamicRealtimeEnvironment,
-    SimParameter,
-    SimulationContext,
-)
+from desflow import SimulationContext
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))  # share_by_weight_logic.py is beside the blueprint
@@ -70,32 +65,6 @@ def builder_form():
     return app.get_resource("packers").granted
 
 
-def low_level_form():
-    """The same shop with the environment and the resource."""
-    # --8<-- [start:low-level]
-    env = DynamicRealtimeEnvironment(factor=0.0)
-    env.registry.register_sim_parameter(
-        SimParameter(
-            sim_id="Shop",
-            service={"packing": DistributionConfig(dist="constant", value=1.0)},
-            resources={"packers": CapacityConfig(current_cap=1, max_cap=4)},
-        )
-    )
-    packers = WeightedPackers(env, "Shop", "packers", queue="priority")
-
-    def order(env, tier):
-        # The tier is the priority of the request
-        with packers.request(priority=tier) as request:
-            yield request
-            yield env.timeout(1.0)
-
-    for tier in TIERS:
-        env.process(order(env, tier))
-    # --8<-- [end:low-level]
-    env.run(until=20)
-    return packers.granted
-
-
 if __name__ == "__main__":
-    for form in (yaml_form, builder_form, low_level_form):
+    for form in (yaml_form, builder_form):
         print(f"{form.__name__:15} {form()}")

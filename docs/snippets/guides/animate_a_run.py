@@ -3,7 +3,8 @@
 The script runs the shop of Analyse the Event Log for two minutes, reads its Parquet
 files back as an event log, adds the one column vidigi needs beyond it, and animates
 the run with vidigi 2.0.0's animate_activity_log: one frame for every 2 simulated
-seconds. python animate_a_run.py writes the animation to animate_a_run.html.
+seconds. python animate_a_run.py writes the animation to animate_a_run.html. Every
+form of the shop writes the same events, so `make` animates any of them.
 """
 
 import tempfile
@@ -74,10 +75,17 @@ def animation(log: pd.DataFrame) -> Figure:
 # --8<-- [end:animate]
 
 
-def make(out: Path) -> Figure:
-    """Runs the shop into out and animates it."""
-    run(out)
+# --8<-- [start:make]
+def make(out: Path, run_shop=run) -> Figure:
+    """Runs the shop into out and animates it.
+
+    run_shop is the run of any form: run, run_yaml or the low-level script's run.
+    """
+    run_shop(out)
     return animation(vidigi_log(out))
+
+
+# --8<-- [end:make]
 
 
 if __name__ == "__main__":

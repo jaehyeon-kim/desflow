@@ -42,11 +42,13 @@ HISTORY = timedelta(minutes=float(os.getenv("HISTORY_MINUTES", "10")))
 LIVE_SECONDS = float(os.getenv("LIVE_SECONDS", "60"))
 base_path = os.getenv("DEST_PATH", "data/backfill")
 
+# --8<-- [start:clock]
 GO_LIVE_AT = datetime.now(timezone.utc)
 # Cut to milliseconds, as timestamps are, so a record stamped in the go-live
 # millisecond is live
 GO_LIVE_AT = GO_LIVE_AT.replace(microsecond=GO_LIVE_AT.microsecond // 1000 * 1000)
 LOGICAL_START_TIME = GO_LIVE_AT - HISTORY
+# --8<-- [end:clock]
 
 PARAMS = SimParameter(
     sim_id="Shop",

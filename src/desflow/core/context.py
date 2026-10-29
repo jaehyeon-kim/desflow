@@ -434,8 +434,9 @@ class SimulationContext:
         Raises:
             ValueError: If `when` is a string other than `"labels"`.
 
-        Each provider buffers separately, so memory is the sum of the buffers rather
-        than one. A large lake buffer will dominate that sum.
+        Each provider has its own buffer and its own queue of batches. A record that
+        several providers take is stored once, and stays in memory until the last
+        provider that holds it has written it.
 
         Example:
             ```python

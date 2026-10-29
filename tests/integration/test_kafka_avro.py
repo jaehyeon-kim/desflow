@@ -23,6 +23,8 @@ from desflow.connectors.admin.kafka import KafkaAdminConnector
 from desflow.connectors.egress.kafka import ConfluentAvroSerializer, KafkaEgress
 from desflow.connectors.ingress.kafka import ConfluentAvroDeserializer
 
+pytestmark = [pytest.mark.integration, pytest.mark.services]
+
 TOPIC = "test-avro-events"
 
 # KafkaEgress publishes the whole record minus `stream_type`, so the schema covers
@@ -94,7 +96,6 @@ async def _publish_and_consume_raw(
 
 
 @pytest.mark.asyncio
-@pytest.mark.integration
 async def test_confluent_avro_registers_subject_and_frames_payload(
     kafka_container, schema_registry
 ):
@@ -125,7 +126,6 @@ async def test_confluent_avro_registers_subject_and_frames_payload(
 
 
 @pytest.mark.asyncio
-@pytest.mark.integration
 async def test_confluent_avro_round_trip(kafka_container, schema_registry):
     """A record published through the serializer decodes back to what was sent."""
     KafkaAdminConnector(kafka_container).create_topics(

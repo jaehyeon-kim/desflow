@@ -12,9 +12,10 @@ import pytest
 
 from desflow.connectors.egress.postgres import PostgresEgress
 
+pytestmark = [pytest.mark.integration, pytest.mark.services]
+
 
 @pytest.mark.asyncio
-@pytest.mark.integration
 async def test_labels_are_written_to_jsonb_columns(postgres_container):
     dsn = postgres_container
     conn = await asyncpg.connect(dsn)

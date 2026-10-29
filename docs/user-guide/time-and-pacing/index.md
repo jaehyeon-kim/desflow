@@ -1,6 +1,6 @@
 # Time and Pacing
 
-A run has two clocks of its own, simulation time and logical time. A run can follow the wall clock, ignore it, or ignore it at first and follow it later. This page shows how to read the current time and which parts of the environment run on each thread. [Clocks and Pacing](clocks-and-pacing.md) shows the clock settings, and [Run Length](run-length.md) shows the [warm-up](../../des/output-analysis.md#one-run-starts-empty) and how long a run lasts.
+A run has two clocks of its own, simulation time and logical time. A run can follow the wall clock, ignore it, or ignore it at first and follow it later. This page shows how to read the current time and which parts of the environment run on each thread. [Clocks and Pacing](clocks-and-pacing.md) shows the clock settings, and [Run Length](run-length.md) shows the [warm-up](../../learn/concepts/output-analysis.md#one-run-starts-empty) and how long a run lasts.
 
 ---
 
@@ -41,6 +41,13 @@ The settings are the same on `DynamicRealtimeEnvironment`, on `SimulationContext
 - **Egress thread:** runs the sinks' asyncio code, which drains the queues and writes to Kafka, files or databases, so network waits never stall a simulation step.
 - **Ingress thread:** runs the sources, which put `(path, value)` pairs on a queue.
 
+**Two kinds of queue.** The word queue means two different things in desflow:
+
+![Left: waiting lines in the model. Orders wait in resource.queue, in fifo, lifo or priority order, until they are granted a packer in resource.users; a request past queue_limit raises QueueFull. They are part of the model, and their length and waits are in the records. Right: hand-off queues between threads. The ingress queue has no limit and is applied to the registry every 0.1 simulation seconds; each sink has a buffer on the SimPy thread, then a queue of at most max_queued_batches that the egress thread writes from. They are not part of the model](../../assets/diagrams/two-queues.png)
+
+- **A waiting line in the model** holds entities, such as orders waiting for a packer. A resource keeps its line in `queue`, ordered `fifo`, `lifo` or by `priority`, and a request past its `queue_limit` raises `QueueFull`. Stores and containers have lines of puts and gets that wait. These lines are what a study measures: their lengths and waits are in the records and the statistics.
+- **A hand-off queue** holds data on its way between the threads above. The ingress queue has no limit, and the ingress monitor applies it. Each sink has its own queue of at most `max_queued_batches` batches. When a sink's queue is full, the simulation waits, so a slow sink slows the run instead of building a backlog. When it stays full for `drain_stall_seconds`, the run stops rather than lose records. These queues change how fast the records arrive, never what they hold.
+
 **Processes it starts.** Besides your own processes, the environment starts these, as events of its own that `step()` and `peek()` do not count:
 
 - an ingress monitor, which applies queued changes every 0.1 simulation seconds;
@@ -51,17 +58,15 @@ The settings are the same on `DynamicRealtimeEnvironment`, on `SimulationContext
 
 They share SimPy's one event queue with the model's events, so `run()` processes them in order with the model's events. A script that steps the model never sees them. `advance()` and `finish()` run them in the same way. An environment subclass that overrides `step()` sees every event inside `run()`, desflow's own included, and only the model's events when a script steps outside `run()`.
 
-**Pacing and the switch.** Before each event, the environment checks the logical clock. At the first event at or after `go_live_at`, it sets the factor to 1.0 and moves its two anchors, `env_start` and `real_start`, so that the go-live instant counts as now. Without this move, the first paced event would wait on the wall clock for the whole backfill. The switch happens once, and always sets the factor to 1.0. A `go_live_at` at or before `logical_start_time` paces the whole run, with a warning. A run that ends before its `go_live_at` stays unpaced. A `go_live_at` or `logical_start_time` without an offset is read in the run's time zone, so the two can be compared whichever way each is written.
+[Clocks and Pacing](clocks-and-pacing.md#how-it-works) describes how the pacing switches during a run, and [Run Length](run-length.md#how-it-works) how the model and the run end.
 
-**The end of the model and the end of the run.** The model ends when the clock stops: at `until`, at a `stop`, or when a drain empties the model. The run ends after that, at `close()`, which `run()` calls in a `finally` block. `close()` publishes the last statistics, still stamped at the time the model ended. It then flushes and stops the egress connectors, and then stops the ingress connectors. A sink may take a while to drain its queue, but no record it receives is later than the model's end.
-
-**SimPy and desflow.** SimPy's `RealtimeEnvironment` takes one `factor` for the whole run. With `strict=True`, it raises an error when the model falls behind the wall clock. desflow runs without waiting at `factor: 0`, switches to real time at `go_live_at`, and stamps every record with a logical time. By default it reports falling behind as telemetry, and with `strict=True` it raises, as SimPy's does. [SimPy and desflow](../../des/simpy-and-desflow.md) compares the two.
+**SimPy and desflow.** SimPy's `RealtimeEnvironment` takes one `factor` for the whole run. With `strict=True`, it raises an error when the model falls behind the wall clock. desflow runs without waiting at `factor: 0`, switches to real time at `go_live_at`, and stamps every record with a logical time. By default it reports falling behind as telemetry, and with `strict=True` it raises, as SimPy's does. [SimPy and desflow](../../simpy/index.md) compares the two.
 
 ---
 
 ## Stability and Limits
 
 - **A run with a sink or ingress needs `until`**, or Ctrl+C, as [Run Length](run-length.md#run-length_1) explains.
-- **At `factor: 0`** no timed flush runs, so records leave a buffer when it reaches `batch_size` and at teardown, as [Egress](../egress.md) explains. `LocalIngress` follows the wall clock, so its changes can land after an unpaced run has ended. A scenario follows the simulation clock. No `system.simulation.lag_seconds` is published unless `lag_interval` is set, and it reports 0 while the run is ahead of the wall clock.
+- **At `factor: 0`** no timed flush runs, so records leave a buffer when it reaches `batch_size` and at teardown, as [Egress](../live-runs-and-connectors/egress.md) explains. `LocalIngress` follows the wall clock, so its changes can land after an unpaced run has ended. A scenario follows the simulation clock. No `system.simulation.lag_seconds` is published unless `lag_interval` is set, and it reports 0 while the run is ahead of the wall clock.
 - **`warmup` drops, `go_live_at` routes.** Records before a warm-up are gone. Records before `go_live_at` go to the sinks that take history.
 - **A model slower than the wall clock** falls behind at `factor: 1.0` and does not catch up by skipping events. `lag_seconds` shows by how much.

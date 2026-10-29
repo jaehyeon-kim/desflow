@@ -6,6 +6,8 @@ import asyncpg
 from desflow.connectors.egress.postgres import PostgresEgress
 from desflow.connectors.ingress.postgres import PostgresIngress
 
+pytestmark = [pytest.mark.integration, pytest.mark.services]
+
 
 async def _fetch(dsn, sql):
     conn = await asyncpg.connect(dsn)
@@ -36,7 +38,6 @@ async def _run_egress_until(egress, q, done, timeout=15.0):
 
 
 @pytest.mark.asyncio
-@pytest.mark.integration
 async def test_postgres_ingress_loads_historical_state(postgres_container):
     """
     Tests that PostgresIngress correctly executes its Phase 1 startup
@@ -110,7 +111,6 @@ async def _run_ingress_until(ingress, q, count, timeout=15.0):
 
 
 @pytest.mark.asyncio
-@pytest.mark.integration
 async def test_postgres_ingress_creates_its_table(postgres_container):
     """The table PostgresIngress creates takes rows with path and value."""
     dsn = postgres_container
@@ -133,7 +133,6 @@ async def test_postgres_ingress_creates_its_table(postgres_container):
 
 
 @pytest.mark.asyncio
-@pytest.mark.integration
 async def test_postgres_ingress_old_columns_and_rename(postgres_container, caplog):
     """A table with the old columns logs the rename statements, and running them makes it work."""
     dsn = postgres_container
@@ -177,7 +176,6 @@ async def test_postgres_ingress_old_columns_and_rename(postgres_container, caplo
 
 
 @pytest.mark.asyncio
-@pytest.mark.integration
 async def test_postgres_egress_column_filtering(postgres_container):
     """
     Tests that PostgresEgress successfully filters out extraneous dict keys
@@ -227,7 +225,6 @@ async def test_postgres_egress_column_filtering(postgres_container):
 
 
 @pytest.mark.asyncio
-@pytest.mark.integration
 async def test_postgres_egress_upsert_updates_existing_rows(postgres_container):
     """With upsert_keys, a later record for a key updates the row, and the last one in a flush wins."""
     dsn = postgres_container
@@ -275,7 +272,6 @@ async def test_postgres_egress_upsert_updates_existing_rows(postgres_container):
 
 
 @pytest.mark.asyncio
-@pytest.mark.integration
 async def test_postgres_egress_partial_upsert_keeps_other_columns(postgres_container):
     """A record carrying only the key and status updates the status and leaves the other columns alone."""
     dsn = postgres_container

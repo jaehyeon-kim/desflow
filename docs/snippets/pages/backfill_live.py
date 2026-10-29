@@ -33,6 +33,19 @@ app.add_egress(parquet, when=is_history, batch_size=200_000)
 app.add_egress(kafka, when=is_live, batch_size=500, flush_interval=1.0)
 # --8<-- [end:per-sink]
 
+
+def low_level_sinks(env: DynamicRealtimeEnvironment) -> None:
+    """The same two sinks on the low-level environment, aligned by position."""
+    # --8<-- [start:per-sink-low-level]
+    env.setup_egress(
+        [parquet, kafka],
+        predicates=[is_history, is_live],
+        batch_sizes=[200_000, 500],
+        flush_intervals=[None, 1.0],  # None: the flush_interval of setup_egress
+    )
+    # --8<-- [end:per-sink-low-level]
+
+
 go_live_at = datetime.now(timezone.utc)
 
 env = DynamicRealtimeEnvironment(

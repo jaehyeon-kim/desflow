@@ -1,0 +1,38 @@
+# The Connect to Secure Kafka guide: a shop that publishes its events to a cluster
+# that uses SASL PLAIN, such as Confluent Cloud. Set KAFKA_BOOTSTRAP_SERVERS,
+# KAFKA_API_KEY and KAFKA_API_SECRET, then run it with:
+# desflow run kafka_security.yaml
+# --8<-- [start:shop]
+simulation:
+  sim_id: Shop
+  factor: 1
+  random_seed: 42
+
+resources:
+  packers: {current_cap: 1, max_cap: 1}
+
+services:
+  packing: {dist: constant, value: 1.5}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.5, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+
+egress:
+  - type: Kafka
+    config:
+      bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-pkc-xxxx.us-east-1.aws.confluent.cloud:9092}
+      # Passed as they are to the Kafka client
+      security_protocol: SASL_SSL
+      sasl_mechanism: PLAIN  # or SCRAM-SHA-512
+      sasl_plain_username: ${KAFKA_API_KEY:-<YOUR_API_KEY>}
+      sasl_plain_password: ${KAFKA_API_SECRET:-<YOUR_API_SECRET>}
+
+run:
+  until: 1 min
+# --8<-- [end:shop]

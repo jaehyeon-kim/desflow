@@ -1,7 +1,7 @@
 """The Tune Performance guide: records per second of a model, without its sinks.
 
 python performance_tuning.py prints the records a one-hour run of the shop below
-published, and how many a second.
+published, and how many a second. `blueprint()` measures performance_tuning.yaml.
 """
 
 import asyncio
@@ -73,6 +73,15 @@ def throughput(app: SimulationContext, until: float) -> dict:
 
 
 # --8<-- [end:measure]
+
+
+def blueprint(path: str = "performance_tuning.yaml") -> dict:
+    """The same measure of the blueprint, which loads as a context."""
+    # --8<-- [start:blueprint]
+    app = SimulationContext.from_yaml(path)  # a context, as the builder makes one
+    return throughput(app, until=3600)
+    # --8<-- [end:blueprint]
+
 
 if __name__ == "__main__":
     print(throughput(shop(), until=3600))

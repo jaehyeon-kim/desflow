@@ -1,7 +1,8 @@
 """A page stays small enough to read in one sitting, and a moved section still has a way in.
 
 A page has at most 10 `##` headings and at most 15 headings in all, code blocks left
-out. A page that is longer holds more than one subject, so it becomes a folder with an
+out. The sections that every page of a kind has, such as Key Takeaways, are its frame,
+not its subjects, so they are not counted. A page that is longer holds more than one subject, so it becomes a folder with an
 index page and one page for each subject. A Reference page that lists every key, export
 or field of one subject is exempt, because its length is the subject's length.
 
@@ -22,13 +23,31 @@ MAX_SECTIONS = 10
 MAX_HEADINGS = 15
 
 # Reference pages that list every key, export or field of one subject.
-LISTS_ONE_SUBJECT = {"docs/api.md", "docs/reference/yaml-format.md"}
+LISTS_ONE_SUBJECT = {"docs/reference/api.md"}
 
 # Pages over the limit that this plan does not split. Empty: every page passes.
 KNOWN_BREAKING: dict[str, str] = {}
 
 FENCE = re.compile(r"^```.*?^```", re.S | re.M)
-HEADING = re.compile(r"^(#{2,6}) ", re.M)
+HEADING = re.compile(r"^(#{2,6}) (.+?)\s*$", re.M)
+# The sections test_docs_page_shapes.py requires of a tutorial, concept or How-To
+# page
+SHAPE_SECTIONS = {
+    "What You Will Learn",
+    "What You Add",
+    "What You Get and Why",
+    "Key Takeaways",
+    "Full Files",
+    "Sources",
+    "Before You Start",
+    "Steps",
+    "Check the Result",
+    # The four parts of each idea on a concept page
+    "In the Tutorial",
+    "Why It Matters",
+    "How to Use It",
+    "What the Result Means",
+}
 MOVED_ANCHORS = DOCS / "js" / "moved-anchors.js"
 
 _SCRIPT = ROOT / "scripts" / "gen_pages.py"
@@ -42,12 +61,13 @@ GENERATED = {
     "reference/distributions": gen_pages.distributions_page,
     "reference/statistics": gen_pages.statistics_page,
     "reference/yaml-keys": gen_pages.yaml_keys_page,
-    "reference/simpy-compatibility": gen_pages.compatibility_page,
+    "simpy/compatibility": gen_pages.compatibility_page,
 }
 
 
 def _heading_counts(page):
-    levels = HEADING.findall(FENCE.sub("", page.read_text(encoding="utf-8")))
+    headings = HEADING.findall(FENCE.sub("", page.read_text(encoding="utf-8")))
+    levels = [level for level, title in headings if title not in SHAPE_SECTIONS]
     return levels.count("##"), len(levels)
 
 
@@ -124,7 +144,8 @@ def test_moved_anchors_point_at_real_headings():
     missing = []
     for old_page, anchors in _moved_map().items():
         if (
-            not (DOCS / old_page / "index.md").exists()
+            old_page.rstrip("/") not in GENERATED
+            and not (DOCS / old_page / "index.md").exists()
             and not (DOCS / (old_page.rstrip("/") + ".md")).exists()
         ):
             missing.append(old_page)

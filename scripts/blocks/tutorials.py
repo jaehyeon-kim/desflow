@@ -39,6 +39,26 @@ def queues_explain() -> List[str]:
     return explain("docs/snippets/yaml/queues_and_capacity.yaml")
 
 
+def queueing_explain() -> List[str]:
+    """Queueing Basics: the resource table of `desflow explain` with three packers."""
+    lines = explain("docs/snippets/yaml/queues_and_capacity.yaml", PACKERS="3")
+    start = lines.index("Resources")
+    return lines[start : start + 6]
+
+
+def queueing_verify() -> List[str]:
+    """Queueing Basics: `desflow explain --verify` on the busy hour with exponential packing."""
+    lines = explain(
+        "docs/snippets/yaml/choosing_inputs.yaml",
+        "--verify",
+        "--replications",
+        "10",
+        PACKING="exponential",
+    )
+    start = next(i for i, line in enumerate(lines) if line.startswith("Verify:"))
+    return lines[start : start + 9]
+
+
 def queues_network() -> List[str]:
     """Queues and Capacity: the network of packing and checking, with why neither
     wait is estimated, up to its hints."""
@@ -113,14 +133,17 @@ def _queueing_lines(start: int, end: int) -> Callable[[], List[str]]:
 
 
 BLOCKS: Dict[str, Callable[[], List[str]]] = {
-    "queueing-little": _queueing_lines(0, 3),
-    "queueing-utilisation": _queueing_lines(3, 4),
-    "queueing-formulas": _queueing_lines(4, 8),
-    "queueing-packers": _queueing_lines(8, 10),
-    "queueing-checks": _queueing_lines(10, 14),
-    "queueing-kendall": _queueing_lines(14, 15),
-    "queueing-dm1": _queueing_lines(15, 16),
-    "queueing-flow": _queueing_lines(16, 19),
+    "queueing-utilisation": _queueing_lines(0, 1),
+    "queueing-busy": _queueing_lines(1, 2),
+    "queueing-little": _queueing_lines(2, 5),
+    "queueing-formulas": _queueing_lines(5, 9),
+    "queueing-packers": _queueing_lines(9, 11),
+    "queueing-checks": _queueing_lines(11, 15),
+    "queueing-kendall": _queueing_lines(15, 16),
+    "queueing-dm1": _queueing_lines(16, 17),
+    "queueing-flow": _queueing_lines(17, 20),
+    "queueing-explain": queueing_explain,
+    "queueing-verify": queueing_verify,
     "first-trace": first_trace,
     "first-sample": first_sample,
     "queues-table": queues_table,

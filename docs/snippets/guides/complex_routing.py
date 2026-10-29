@@ -1,39 +1,18 @@
 """The Route Records to Topics guide: a shop whose records go to three Kafka topics.
 
 It needs a Kafka broker on 127.0.0.1:9092: start one with `odctl up kafka-lite`. Run it
-with `python complex_routing.py`; it runs for one minute.
+with `python complex_routing.py`, beside complex_routing_logic.py; it runs for one
+minute.
 """
 
 import logging
-from typing import Any, Dict
 
-from desflow import KafkaAdminConnector, KafkaEgress, SimulationContext
-
-TOPICS = ["shop-events", "shop-telemetry", "system-alarms"]
-
-
-# --8<-- [start:router]
-def custom_kafka_router(data: Dict[str, Any]) -> str:
-    """Picks a topic for each record by its kind and its value."""
-    if data.get("stream_type") == "telemetry":
-        return "shop-telemetry"
-
-    value = data.get("value")
-    if isinstance(value, dict) and (
-        value.get("status") == "packing_failed" or value.get("level") == "ERROR"
-    ):
-        return "system-alarms"
-
-    # Every other event, including a payload that is not a dict.
-    return "shop-events"
-
-
-# --8<-- [end:router]
-
+from complex_routing_logic import create_topics, custom_kafka_router, packed
+from desflow import KafkaEgress, SimulationContext
 
 # --8<-- [start:egress]
 app = (
-    SimulationContext(sim_id="Shop", factor=1.0)
+    SimulationContext(sim_id="Shop", factor=1.0, random_seed=42)
     .add_resource("packers", current_cap=1, max_cap=1)
     .add_egress(
         KafkaEgress(
@@ -52,9 +31,7 @@ app.with_stats("minimal", interval=10)  # readings for shop-telemetry
 
 @app.task(service_id="packing", resource_id="packers")
 def pack_order(task_id: int):
-    if task_id % 10 == 9:  # every tenth order fails, for system-alarms
-        return {"status": "packing_failed"}
-    return {"status": "packed"}
+    return packed(task_id)  # every tenth order fails
 
 
 @app.arrival_loop("orders")
@@ -71,8 +48,6 @@ if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
     )
-    # With a router, KafkaEgress creates no topics, so create them first
-    admin = KafkaAdminConnector(bootstrap_servers="127.0.0.1:9092")
-    admin.create_topics([{"name": topic} for topic in TOPICS])
+    create_topics()  # with a router, KafkaEgress creates no topics
     app.run(until="1 min")
 # --8<-- [end:run]

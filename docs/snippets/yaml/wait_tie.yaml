@@ -1,0 +1,32 @@
+# The Wait for One or All guide: two signals fire at the same instant, 5 seconds
+# after the order starts to wait. The arrivals are replayed from CSV files, which
+# two_at_once_yaml() in wait_for_one_or_all.py writes beside this blueprint.
+# --8<-- [start:tie]
+simulation:
+  sim_id: Shop
+  factor: 0
+
+signals: [boxes, labels]
+
+arrivals:
+  orders: {replay: {path: orders.csv}, spawn: order}
+  box_deliveries: {replay: {path: boxes.csv}, spawn: deliver_boxes}
+  label_deliveries: {replay: {path: labels.csv}, spawn: deliver_labels}
+
+tasks:
+  order:
+    wait:
+      any:
+        boxes: {signal: boxes}
+        labels: {signal: labels}
+    payload: !python wait_for_one_or_all_logic.branches
+  deliver_boxes:
+    signal: boxes
+    payload: {item: boxes}
+  deliver_labels:
+    signal: labels
+    payload: {item: labels}
+
+run:
+  until: 10
+# --8<-- [end:tie]

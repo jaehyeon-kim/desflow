@@ -30,7 +30,7 @@ def distributions_page() -> str:
         "# Distributions",
         "",
         "Every distribution family desflow can draw from, generated from the registry of "
-        "distributions in the code. [Arrivals and Services](../user-guide/arrivals-and-services.md) "
+        "distributions in the code. [Arrivals and Services](../user-guide/model-parts/arrivals-and-services.md) "
         "explains how a draw works, and how each family is seeded and changed live.",
         "",
         "Each family lists its parameters, the rules they must follow, and the registry "

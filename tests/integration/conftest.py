@@ -1,8 +1,11 @@
 import asyncio
+import os
 import shutil
 import subprocess
 import time
+import urllib.error
 import urllib.request
+from pathlib import Path
 
 import pytest
 
@@ -12,27 +15,113 @@ import pytest
 # grant, so RedisIngress could not subscribe (odctl#76).
 ODCTL = "odctl"
 
+# The emulators are single containers that a session fixture starts with
+# `docker run`, with no odctl profile. Each version below was the latest release
+# when it was pinned. To move one, change the tag and run the tests of its group:
+# `pytest tests/integration -m floci`, `-m azure` or `-m gcp`.
+FLOCI_IMAGE = "floci/floci:2.3.0"
+AZURITE_IMAGE = "mcr.microsoft.com/azure-storage/azurite:3.37.0"
+FAKE_GCS_IMAGE = "fsouza/fake-gcs-server:1.56.1"
+
 
 def _run_odctl(*args: str) -> None:
     """Run an odctl command and raise with its output when it fails."""
     subprocess.run([ODCTL, *args], check=True, capture_output=True, text=True)
 
 
+GROUPS = ("services", "storage", "floci", "azure", "gcp")
+
+
+def pytest_collection_modifyitems(items):
+    """Refuse a test here without the `integration` mark and exactly one group mark.
+
+    CI runs one job per group with `-m <group>`, so a test with no group would run
+    in no job, and a test with two groups would run in two. The hook selects tests
+    by their path under this folder, not by the `integration` mark, so a module
+    written with no marks at all is refused as well.
+    """
+    folder = Path(__file__).parent
+    for item in items:
+        if folder not in item.path.parents:
+            continue
+        groups = [group for group in GROUPS if item.get_closest_marker(group)]
+        if item.get_closest_marker("integration") is None or len(groups) != 1:
+            raise pytest.UsageError(
+                f"{item.nodeid} needs the integration mark and exactly one of the "
+                f"marks {', '.join(GROUPS)}; it has {len(groups)} group mark(s) and "
+                f"{'an' if item.get_closest_marker('integration') else 'no'} "
+                "integration mark"
+            )
+
+
+def _unavailable(reason: str) -> None:
+    """Stop a test whose infrastructure is missing.
+
+    Locally the test is skipped. In CI, where GitHub Actions sets `CI` to `true`, it
+    fails, so a job whose infrastructure is missing cannot pass by skipping every
+    test.
+    """
+    if os.environ.get("CI") == "true":
+        pytest.fail(reason)
+    pytest.skip(f"{reason} Skipping integration tests.")
+
+
 @pytest.fixture(scope="session")
 def check_docker():
-    """Verify Docker and odctl are available, skip integration tests if not."""
-    if shutil.which(ODCTL) is None:
-        pytest.skip("odctl is not installed. Skipping integration tests.")
+    """Verify Docker is available, skip integration tests if not (fail in CI)."""
     try:
         subprocess.run(
             ["docker", "version"], check=True, capture_output=True, text=True
         )
     except Exception:
-        pytest.skip("Docker is not available. Skipping integration tests.")
+        _unavailable("Docker is not available.")
 
 
 @pytest.fixture(scope="session")
-def odctl_profile(check_docker):
+def check_odctl(check_docker):
+    """Verify odctl is installed, skip integration tests if not (fail in CI)."""
+    if shutil.which(ODCTL) is None:
+        _unavailable("odctl is not installed.")
+
+
+def _wait_for_http(url: str, name: str, seconds: int = 60) -> None:
+    """Wait until `url` answers with any HTTP status, or fail the test."""
+    for _ in range(seconds):
+        try:
+            urllib.request.urlopen(url, timeout=2)
+            return
+        except urllib.error.HTTPError:
+            return
+        except Exception:
+            time.sleep(1)
+    pytest.fail(f"{name} did not start in time.")
+
+
+def _run_container(image: str, port: int, *arguments: str):
+    """Start `image` with its `port` published on 127.0.0.1, then yield the address.
+
+    The container is removed when it stops, and the stop runs at the end of the
+    session. Address it as 127.0.0.1 rather than localhost, for the reason
+    schema_registry gives.
+    """
+    started = subprocess.run(
+        ["docker", "run", "-d", "--rm", "-p", f"127.0.0.1:{port}:{port}", image]
+        + list(arguments),
+        capture_output=True,
+        text=True,
+    )
+    if started.returncode != 0:
+        pytest.fail(f"Could not start {image}: {started.stderr.strip()}")
+    container_id = started.stdout.strip()
+    try:
+        _wait_for_http(f"http://127.0.0.1:{port}/", image)
+        yield f"127.0.0.1:{port}"
+    finally:
+        subprocess.run(["docker", "stop", "-t", "2", container_id], capture_output=True)
+
+
+@pytest.fixture(scope="session")
+def odctl_profile(check_odctl):
     """
     Bring odctl profiles up on demand and tear down every started profile at the
     end of the session.
@@ -133,7 +222,64 @@ def redis_container(odctl_profile):
 
 
 @pytest.fixture(scope="session")
-def iceberg_catalog(odctl_profile):
+def seaweedfs(odctl_profile):
+    """Starts the odctl `storage` profile and yields SeaweedFS's S3 settings.
+
+    The endpoint, user and password are the ones `odctl explain storage` reports.
+    odctl returns once the health check passes, so the S3 port already answers.
+    """
+    odctl_profile("storage")
+    yield {
+        "endpoint": "http://127.0.0.1:8333",
+        "access_key": "user",
+        "secret_key": "password",
+        "region": "us-east-1",
+    }
+
+
+@pytest.fixture(scope="session")
+def floci(check_docker):
+    """Starts a Floci container, the AWS emulator, and yields its endpoint URL.
+
+    Floci accepts any non-empty credentials.
+    """
+    for address in _run_container(FLOCI_IMAGE, 4566):
+        yield f"http://{address}"
+
+
+@pytest.fixture(scope="session")
+def azurite(check_docker):
+    """Starts an Azurite container, the Azure Blob Storage emulator.
+
+    Yields a `filesystem` mapping for it. The account and key are Azurite's
+    well-known development account, published in Azurite's README and the same on
+    every installation, so the key is not a secret.
+    """
+    for address in _run_container(AZURITE_IMAGE, 10000):
+        yield {
+            "type": "azure",
+            "account_name": "devstoreaccount1",
+            "account_key": (
+                "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/"
+                "K1SZFPTOtr/KBHBeksoGMGw=="
+            ),
+            "blob_storage_authority": address,
+            "blob_storage_scheme": "http",
+        }
+
+
+@pytest.fixture(scope="session")
+def fake_gcs(check_docker):
+    """Starts a fake-gcs-server container, the Google Cloud Storage emulator.
+
+    Yields the address of its HTTP endpoint.
+    """
+    for address in _run_container(FAKE_GCS_IMAGE, 4443, "-scheme", "http"):
+        yield address
+
+
+@pytest.fixture(scope="session")
+def iceberg_catalog(odctl_profile, seaweedfs):
     """Starts the odctl `catalog` profile and yields a pyiceberg REST catalog.
 
     The profile pulls in `deps`, `postgres` and `storage` itself, so the REST
@@ -163,9 +309,9 @@ def iceberg_catalog(odctl_profile):
         **{
             "uri": uri,
             "warehouse": "s3://warehouse/",
-            "s3.endpoint": "http://127.0.0.1:8333",
-            "s3.access-key-id": "user",
-            "s3.secret-access-key": "password",
-            "s3.region": "us-east-1",
+            "s3.endpoint": seaweedfs["endpoint"],
+            "s3.access-key-id": seaweedfs["access_key"],
+            "s3.secret-access-key": seaweedfs["secret_key"],
+            "s3.region": seaweedfs["region"],
         },
     )

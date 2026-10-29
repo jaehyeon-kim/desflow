@@ -151,6 +151,27 @@ def connectors() -> str:
             lines.append(
                 f"| `{name}` | `{module}.{cls}` | {f'`{extra}`' if extra else 'none'} |"
             )
+    from desflow.connectors.egress.storage import _FILESYSTEM_TYPES
+
+    lines += [
+        "",
+        "## Storage",
+        "",
+        "A `Parquet` or `Jsonl` egress writes through a `filesystem` mapping. Its `type` "
+        "is one of the PyArrow classes below, and its other keys are the arguments of "
+        "that class.",
+        "",
+        "| `filesystem` type | PyArrow class |",
+        "|---|---|",
+    ]
+    lines += [f"| `{kind}` | `{cls}` |" for kind, cls in _FILESYSTEM_TYPES.items()]
+    lines += [
+        "",
+        "An `Iceberg` egress writes through a `catalog` mapping of PyIceberg properties. "
+        "Its `type` is `rest` for an Iceberg REST catalog, `sql` for a SQL catalog on "
+        "SQLite or PostgreSQL, or `glue` for AWS Glue, and the `iceberg` extra installs "
+        "all three.",
+    ]
     lines += [
         "",
         "## Avro Serializers",
@@ -163,6 +184,11 @@ def connectors() -> str:
         "Schema Registry | `confluent` |",
         "| `desflow.connectors.egress.kafka.GlueAvroSerializer` | AWS Glue Schema "
         "Registry | `glue` |",
+        "",
+        "`ConfluentAvroSerializer` and `ConfluentAvroDeserializer` take `auth`, "
+        "`verify`, `cert`, `timeout`, `headers`, `proxy` and `max_retries` for a "
+        "secured registry. Each step of a request to the registry times out after 10 seconds by "
+        "default; `timeout=None` waits without a limit.",
     ]
     return "\n".join(lines) + "\n"
 
@@ -191,7 +217,7 @@ def api() -> str:
         "# Python API",
         "",
         "Every name `from desflow import ...` gives, with the first line of its "
-        "docstring. https://jaehyeon.me/desflow/latest/api/ has each one in full.",
+        "docstring. https://jaehyeon.me/desflow/latest/reference/api/ has each one in full.",
         "",
         "| Name | What it is |",
         "|---|---|",

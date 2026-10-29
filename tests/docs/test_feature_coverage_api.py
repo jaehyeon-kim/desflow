@@ -14,16 +14,16 @@ from feature_lists import API, DOCS, LABELLED, PAGES, SKILL
 # names it and reads its fields in a labelled block: the page, and the variable the
 # block reads.
 _RECEIVED = {
-    "FitResult": ("user-guide/input-fitting.md", "result"),
-    "ExperimentResult": ("user-guide/experiments/index.md", "result"),
-    "Replications": ("user-guide/replications.md", "result"),
+    "FitResult": ("user-guide/model-parts/input-fitting.md", "result"),
+    "ExperimentResult": ("user-guide/results/experiments.md", "result"),
+    "Replications": ("user-guide/results/replications.md", "result"),
 }
 # A type the reader can build but the pages do not, each with the reason. It needs
 # only a page that names it.
 _NAMED_ONLY = {
     # run_experiment builds one from a mapping or a file, the two forms the pages
     # teach; the class is named for a script that builds the settings itself.
-    "ExperimentSpec": "user-guide/experiments/index.md",
+    "ExperimentSpec": "user-guide/results/experiments.md",
 }
 
 
@@ -79,7 +79,7 @@ def test_every_public_name_has_an_example_a_reference_and_a_skill_entry(name):
             f"{name}: no labelled Python block on a Learn, How-To, User Guide or "
             "Examples page uses it"
         )
-    api_page = (DOCS / "api.md").read_text(encoding="utf-8")
+    api_page = (DOCS / "reference/api.md").read_text(encoding="utf-8")
     assert re.search(rf"^::: desflow(\.\w+)*\.{name}$", api_page, re.M), name
     api_skill = (SKILL / "references" / "api.md").read_text(encoding="utf-8")
     assert f"`{name}`" in api_skill, f"{name}: not in references/api.md"

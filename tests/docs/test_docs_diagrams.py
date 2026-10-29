@@ -132,7 +132,7 @@ def test_every_tape_is_recorded_by_the_script_and_its_gif_used_on_command_line()
     assert tapes == set(diagrams.TAPES), (
         "List every tape in TAPES in scripts/diagrams.py"
     )
-    command_line = ROOT / "docs" / "user-guide" / "command-line.md"
+    command_line = ROOT / "docs" / "cli" / "index.md"
     missing = [str(gif) for gif in diagrams.TAPES.values() if not gif.exists()]
     unused = [
         gif.name

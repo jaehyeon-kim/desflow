@@ -1,0 +1,29 @@
+# The Tune Performance guide: ten orders a second and 25 packers, with no sink of its
+# own. performance_tuning.py measures it with a counting sink.
+# --8<-- [start:shop]
+simulation:
+  sim_id: Shop
+  factor: 0  # no wall clock to wait for
+  random_seed: 42
+
+resources:
+  packers: {current_cap: 25, max_cap: 25}
+
+services:
+  packing: {dist: normal, mean: 2 s, std: 0.4 s}
+
+arrivals:
+  orders: {dist: exponential, rate: 10, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed}
+
+# minimal: readings every 10 s, not the costlier task statistics
+stats: {level: minimal, interval: 10}
+
+run:
+  until: 1 h
+# --8<-- [end:shop]

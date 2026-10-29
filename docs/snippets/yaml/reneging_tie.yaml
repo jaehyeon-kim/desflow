@@ -1,0 +1,35 @@
+# The Add Reneging and Balking guide: a holder takes the one packer at 0 for 6
+# seconds, and an order arrives while it is held. Both are replayed from CSV files
+# beside this blueprint, which tie_yaml() in reneging_and_balking.py writes:
+# holders.csv with the holder's time, and orders.csv with the order's time and
+# patience.
+# --8<-- [start:tie]
+simulation:
+  sim_id: Shop
+  factor: 0
+
+resources:
+  packers: {current_cap: 1, max_cap: 1}
+
+services:
+  hold: {dist: constant, value: 6}
+  packing: {dist: constant, value: 1}
+
+arrivals:
+  holders: {replay: {path: holders.csv}, spawn: holder}
+  orders: {replay: {path: orders.csv}, spawn: pack}
+
+tasks:
+  holder:
+    service: hold
+    resource: packers
+    payload: {event_type: held}
+  pack:
+    service: packing
+    resource: packers
+    patience: attr.patience  # from the patience column of orders.csv
+    payload: {event_type: order_packed}
+
+run:
+  until: 8
+# --8<-- [end:tie]

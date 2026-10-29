@@ -5,7 +5,7 @@ The API page renders docstrings with mkdocstrings, which hides names that start
 with an underscore. So a public function or method in `src/desflow` with
 parameters needs a docstring with an `Args:` section, a public class needs a
 docstring, and every name `desflow` and `desflow.analysis` export needs a
-`::: <module>.<name>` line in `docs/api.md`.
+`::: <module>.<name>` line in `docs/reference/api.md`.
 """
 
 import ast
@@ -62,7 +62,7 @@ def test_every_public_definition_has_a_docstring_with_its_args():
 
 
 def test_every_exported_name_is_on_the_api_page():
-    text = (ROOT / "docs" / "api.md").read_text(encoding="utf-8")
+    text = (ROOT / "docs" / "reference/api.md").read_text(encoding="utf-8")
     entries = set(re.findall(r"^::: (\S+)$", text, re.M))
     missing = [
         f"{getattr(package, name).__module__}.{name}"

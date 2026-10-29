@@ -4,6 +4,12 @@ A [resource](index.md) can grant its units by a rule of your own. This page show
 
 ---
 
+## What It Is
+
+Some shops grant their units by a rule of their own, such as sharing a packer between customer classes by weight. A custom resource type replaces the rule by which a resource grants its units, and keeps the capacity that follows the registry.
+
+---
+
 ## How to Use It
 
 To change how a resource grants units, subclass `ResourceBase` and name the class in `type`. `ResourceBase` is built on the hooks of SimPy's `BaseResource`, as a subclass of SimPy's `Resource` is. A subclass can change these:
@@ -11,8 +17,6 @@ To change how a resource grants units, subclass `ResourceBase` and name the clas
 - Override `_do_put(request)` to decide when a request is granted, and `_do_get(release)` to decide what a release gives back.
 - Set `PutQueue` to the class of the waiting line. It can be SimPy's `SortedQueue`, written `staticmethod(functools.partial(SortedQueue, maxlen=2))`.
 - Set `request` to `BoundClass(MyRequest)`, for a request class that subclasses `DynamicResourceRequest`, or set `release` the same way, for a release class that subclasses `DynamicRelease`. Both base classes are in `desflow.resources.resource`.
-
-`DynamicResource` is `ResourceBase` with nothing changed. The constructor is `DynamicResource`'s, because the resource reads its capacity from the registry. A subclass that defines `__init__` therefore takes `*args, **kwargs` and passes them on. A `PutQueue` of your own sets its own order and length, so it takes no `queue_limit`. The tests run each of these beside the same SimPy subclass in all three APIs.
 
 This resource keeps how long each request waited:
 
@@ -80,6 +84,12 @@ This resource keeps how long each request waited:
             yield request
             yield env.timeout(2.0)
     ```
+
+---
+
+## How It Works
+
+`DynamicResource` is `ResourceBase` with nothing changed. The constructor is `DynamicResource`'s, because the resource reads its capacity from the registry. A subclass that defines `__init__` therefore takes `*args, **kwargs` and passes them on. A `PutQueue` of your own sets its own order and length, so it takes no `queue_limit`. The tests run each of these beside the same SimPy subclass in all three APIs.
 
 ---
 

@@ -89,11 +89,11 @@ A task with a service and a resource asks for a unit of the resource, holds it f
 
     This is ordinary SimPy: `packers.request()` waits for a unit, `env.timeout` waits the service time, and leaving the `with` block releases the unit. The `env.publish_event` call at each step produces the records.
 
-A task can also take from or add to a store or container (`get`, `put`), rank its requests (`priority`), and name the task that follows it (`next`). [Stores and Containers](../stores-and-containers.md), [Resources](../resources/index.md) and [Task Flow](../task-flow.md) describe each.
+A task can also take from or add to a store or container (`get`, `put`), rank its requests (`priority`), and name the task that follows it (`next`). [Stores and Containers](../model-parts/stores-and-containers.md), [Resources](../resources/index.md) and [Task Flow](../model-parts/task-flow.md) describe each.
 
 ### A Timed Step
 
-A task with a `service` and no `resource` is a **timed step**: work that takes time but needs nothing that can be busy, such as printing a label or waiting for a supplier. It publishes `started` at once, with no `queued` event, waits the sampled time, and publishes its finished event. Its wait is 0. It is SimPy's `env.timeout`: the tests check that it ends at the same simulation time as a plain SimPy timeout in all three APIs ([SimPy Compatibility](../../reference/simpy-compatibility.md)).
+A task with a `service` and no `resource` is a **timed step**: work that takes time but needs nothing that can be busy, such as printing a label or waiting for a supplier. It publishes `started` at once, with no `queued` event, waits the sampled time, and publishes its finished event. Its wait is 0. It is SimPy's `env.timeout`: the tests check that it ends at the same simulation time as a plain SimPy timeout in all three APIs ([SimPy Compatibility](../../simpy/compatibility.md)).
 
 === "YAML"
 
@@ -215,7 +215,7 @@ All five events share the key `orders-1`, so an order can be followed through ev
 
 ![The steps of run(), top to bottom. Check the tasks, call run.before and build the environment. Make the Sampler from random_seed, or from a seed drawn and logged. Switch on statistics and register the parameters. Start ingress, then egress with its warm-up. Build resources, stores and containers, start loops and processes, and call env.run(until). In finally, tear down](../../assets/diagrams/run-sequence.png)
 
-Until `run()` is called nothing exists but the description, and the runtime helpers that [Builder API](../builder-api.md) lists raise `RuntimeError`. Teardown runs in a `finally` block, so the last statistics are published and every sink is flushed even when the run stops with an error or Ctrl+C.
+Until `run()` is called nothing exists but the description, and the runtime helpers that [Builder API](../writing-a-model/builder-api.md) lists raise `RuntimeError`. Teardown runs in a `finally` block, so the last statistics are published and every sink is flushed even when the run stops with an error or Ctrl+C.
 
 ### What `@app.task` Does
 
@@ -232,20 +232,16 @@ Until `run()` is called nothing exists but the description, and the runtime help
 7. It publishes the payload as the finished event, or `failed`, and releases the resource.
 8. It fires its `signal` (or fails it) and sends its `interrupt` action to the tasks it names. It applies `set` to the entity's attributes. Then it starts the next task that its `next` chooses, or its `on_fail` task, as a new instance for the same entity.
 
-A YAML task and its `spawn` make the same task and arrival loop that the builder code above makes. The code that runs these steps is `TaskRun` in `desflow/core/task.py`. In SimPy terms each task run is one process started with `env.process`, and each arrival loop is another. [SimPy and desflow](../../des/simpy-and-desflow.md) describes processes.
+A YAML task and its `spawn` make the same task and arrival loop that the builder code above makes. The code that runs these steps is `TaskRun` in `desflow/core/task.py`. In SimPy terms each task run is one process started with `env.process`, and each arrival loop is another. [SimPy and desflow](../../simpy/index.md) describes processes.
 
-### Processes and the Low-level API
-
-`add_process(func, **kwargs)` starts `func(context, **kwargs)` when the run starts, and a YAML `processes` entry does the same with a `!python` function. Inside it, `context.env` is the `DynamicRealtimeEnvironment`, so a process can do anything a low-level script does: `context.env.timeout`, `context.env.registry.update`, `context.env.publish_event`. A process is how low-level code joins a builder or YAML model.
-
-`context.env.active_process` is the running SimPy process. Its `name` is the task's name, because a task's process is named after the task. Its `target` is the event it waits on now, or None once it has ended. A condition reads the same three values as `process.name`, `process.instance` (the task's instance id, the `instance` field of its records) and `process.target`, a string such as `timeout`, `signal.<name>`, `task.<name>`, `condition`, `resource.<name>`, `get.<name>`, `put.<name>` or `service`. In a task's own expressions they name that task. In an `interrupt` or `running` `where`, they name each instance tested.
+A process outside a task runs as [Processes](processes.md#how-it-works) describes.
 
 ---
 
 ## Stability and Limits
 
 - **Resources are acquired in one order.** A task can hold several resources and hand one to the next task, but tasks that acquire two resources in opposite orders are refused: [Several Resources](../resources/several-resources.md#several-resources).
-- **An interrupt gives back everything.** An interrupted task cancels its waits and releases every unit it holds before it follows its `on_interrupt`, so a resumed task queues again behind the requests already waiting: [Interruptions](../../tutorials/interruptions.md).
+- **An interrupt gives back everything.** An interrupted task cancels its waits and releases every unit it holds before it follows its `on_interrupt`, so a resumed task queues again behind the requests already waiting: [Interruptions](../../learn/shop-logic/interruptions.md).
 - **A finished event is exactly the payload.** It has no `status` or `path_id` unless the payload includes them.
 - **A condition branch checks after every change.** In a model with many waits on conditions and many changes, the work grows in proportion to both.
-- **Runtime helpers need a running simulation.** They raise `RuntimeError` before `run()`, as [Builder API](../builder-api.md) lists. Call them inside a loop, task or process.
+- **Runtime helpers need a running simulation.** They raise `RuntimeError` before `run()`, as [Builder API](../writing-a-model/builder-api.md) lists. Call them inside a loop, task or process.

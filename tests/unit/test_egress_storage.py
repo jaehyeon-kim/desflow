@@ -218,27 +218,127 @@ def test_parse_iso_time_handles_each_kind():
     assert parse_iso_time(5, "timestamp") == 5
 
 
-def test_filesystem_mapping_builds_an_s3_filesystem():
-    """An S3 mapping passes its keys to S3FileSystem; an http endpoint sets the scheme."""
+@pytest.mark.parametrize(
+    ("endpoint", "extra", "host", "scheme"),
+    [
+        ("http://localhost:8333", {}, "localhost:8333", "http"),
+        ("https://storage.example.com", {}, "storage.example.com", "https"),
+        ("http://localhost:8333", {"scheme": "https"}, "localhost:8333", "https"),
+    ],
+    ids=["http", "https", "given-scheme-kept"],
+)
+def test_filesystem_mapping_builds_an_s3_filesystem(endpoint, extra, host, scheme):
+    """An S3 mapping passes its keys to S3FileSystem; the endpoint sets the scheme unless one is given."""
     from desflow.connectors.egress.storage import _build_filesystem
 
     built = _build_filesystem(
         {
             "type": "s3",
-            "endpoint_override": "http://localhost:8333",
+            "endpoint_override": endpoint,
             "access_key": "user",
             "secret_key": "password",
             "region": "us-east-1",
+            **extra,
         },
         fs,
     )
 
     assert isinstance(built, fs.S3FileSystem)
     options = built.__reduce__()[1][0]
-    assert options["endpoint_override"] == "localhost:8333"
-    assert options["scheme"] == "http"
+    assert options["endpoint_override"] == host
+    assert options["scheme"] == scheme
     assert options["access_key"] == "user"
     assert options["region"] == "us-east-1"
+
+
+def test_filesystem_mapping_builds_a_gcs_filesystem():
+    """A GCS mapping splits the endpoint scheme and converts the two values a blueprint gives as a string or a number."""
+    from datetime import datetime, timedelta, timezone
+
+    from desflow.connectors.egress.storage import _build_filesystem
+
+    built = _build_filesystem(
+        {
+            "type": "gcs",
+            "anonymous": True,
+            "endpoint_override": "http://localhost:4443",
+            "retry_time_limit": 30,
+        },
+        fs,
+    )
+    assert isinstance(built, fs.GcsFileSystem)
+    options = built.__reduce__()[1][0]
+    assert options["endpoint_override"] == "localhost:4443"
+    assert options["scheme"] == "http"
+    assert options["retry_time_limit"] == timedelta(seconds=30)
+
+    token = _build_filesystem(
+        {
+            "type": "gcs",
+            "access_token": "token",
+            "credential_token_expiration": "2030-01-01T00:00:00+00:00",
+        },
+        fs,
+    )
+    expiration = token.__reduce__()[1][0]["credential_token_expiration"]
+    assert expiration == datetime(2030, 1, 1, tzinfo=timezone.utc)
+
+    given = datetime(2030, 1, 1, tzinfo=timezone.utc)
+    kept = _build_filesystem(
+        {"type": "gcs", "access_token": "token", "credential_token_expiration": given},
+        fs,
+    )
+    assert kept.__reduce__()[1][0]["credential_token_expiration"] == given
+
+
+@pytest.mark.parametrize(
+    "written",
+    [
+        "2030-01-01T00:00:00+00:00",
+        "2030-01-01T10:00:00+10:00",
+        '"2030-01-01T10:00:00+10:00"',
+    ],
+    ids=["unquoted-utc", "unquoted-offset", "quoted-offset"],
+)
+def test_an_iso_time_in_a_blueprint_reaches_gcs_in_utc(written):
+    """PyArrow ignores an offset, so a time with one is converted to UTC first."""
+    from datetime import datetime, timezone
+
+    import yaml
+
+    from desflow.blueprint.loader import BlueprintLoader
+    from desflow.connectors.egress.storage import _build_filesystem
+
+    mapping = yaml.load(
+        f"type: gcs\naccess_token: token\ncredential_token_expiration: {written}\n",
+        Loader=BlueprintLoader,
+    )
+
+    built = _build_filesystem(mapping, fs)
+    expiration = built.__reduce__()[1][0]["credential_token_expiration"]
+    assert expiration == datetime(2030, 1, 1, tzinfo=timezone.utc)
+
+
+def test_filesystem_mapping_builds_an_azure_filesystem():
+    """An Azure mapping passes its keys as they are, including Azurite's endpoint."""
+    from desflow.connectors.egress.storage import _build_filesystem
+
+    built = _build_filesystem(
+        {
+            "type": "azure",
+            "account_name": "devstoreaccount1",
+            "account_key": "key",
+            "blob_storage_authority": "127.0.0.1:10000",
+            "blob_storage_scheme": "http",
+        },
+        fs,
+    )
+
+    assert isinstance(built, fs.AzureFileSystem)
+    options = built.__reduce__()[1][0]
+    assert options["account_name"] == "devstoreaccount1"
+    assert options["blob_storage_authority"] == "127.0.0.1:10000"
+    assert options["blob_storage_scheme"] == "http"
 
 
 def test_filesystem_defaults_and_objects():
@@ -266,9 +366,10 @@ def test_empty_filesystem_values_are_left_out():
 
 def test_unknown_filesystem_type_is_refused_at_construction():
     """A misspelt type fails when the egress is built, not on the first write."""
-    with pytest.raises(ValueError, match="'gs'"):
+    message = "'gs'.*local, s3, gcs, azure"
+    with pytest.raises(ValueError, match=message):
         ParquetStorageEgress(default_path="x.parquet", filesystem={"type": "gs"})
-    with pytest.raises(ValueError, match="'gs'"):
+    with pytest.raises(ValueError, match=message):
         JsonlStorageEgress(default_path="x.jsonl", filesystem={"type": "gs"})
 
 

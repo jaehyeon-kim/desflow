@@ -1,0 +1,25 @@
+# The Vary Arrivals by Time guide: an order every 10 s, every 5 s from 30 s.
+# Run it with: desflow run time_varying_arrivals.yaml
+# With the step at the end of the run: desflow run time_varying_arrivals.yaml --until 30
+# --8<-- [start:boundary]
+simulation:
+  sim_id: Shop
+  factor: 0
+
+egress:
+  - type: Console
+
+arrivals:
+  orders: {dist: constant, value: 10 s, spawn: arrive}
+
+tasks:
+  # No service and no resource: it publishes its payload as the order arrives
+  arrive:
+    payload: {event_type: order_arrived}
+
+scenario:
+  - {at: 30 s, path: Shop.arrival.orders.value, value: 5}
+
+run:
+  until: 50 s
+# --8<-- [end:boundary]

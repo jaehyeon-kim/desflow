@@ -1,16 +1,18 @@
 """Check Against Theory: a shop the queueing formulas describe, checked against them.
 
-check_against_theory.yaml is one packer with exponential gaps and packing times. The
-script works out its wait by hand, verifies the model against `explain`'s analysis
-from Python, and shows a shop the formulas do not cover, with the reason.
+check_against_theory.yaml, and check_against_theory_shop.py in the builder, are one
+packer with exponential gaps and packing times. The script works out the wait by hand,
+verifies each form against `explain`'s analysis from Python, and shows a shop the
+formulas do not cover, with the reason.
 """
 
 import math
 from pathlib import Path
 
-from desflow import SimulationContext
+from desflow import SimulationContext, load_context
 
 BLUEPRINT = Path(__file__).resolve().parents[1] / "yaml" / "check_against_theory.yaml"
+SHOP = Path(__file__).resolve().parent / "check_against_theory_shop.py"
 
 
 def by_hand(packers: int, rate: float, service: float = 1.0) -> float:
@@ -27,18 +29,37 @@ def by_hand(packers: int, rate: float, service: float = 1.0) -> float:
     # --8<-- [end:by-hand]
 
 
-def verify():
-    """The blueprint's one packer, verified with 10 runs from Python."""
-    # --8<-- [start:verify]
-    app = SimulationContext.from_yaml(BLUEPRINT)
-    explanation = app.analyze(verify=True, replications=10)
+# --8<-- [start:show]
+def show(explanation):
+    """Prints each pair of the verification: the formula's value and the runs'."""
     for c in explanation.verification.comparisons:
         result = "differs" if c.differs else "agrees"
         print(
             f"{c.node} {c.measure}: analysis {c.analytical:.3f}, "
             f"runs {c.measured:.3f} ± {c.half_width:.3f}, {result}"
         )
+
+
+# --8<-- [end:show]
+
+
+def verify():
+    """The blueprint's one packer, verified with 10 runs from Python."""
+    # --8<-- [start:verify]
+    app = SimulationContext.from_yaml(BLUEPRINT)
+    explanation = app.analyze(verify=True, replications=10)  # until from run.until
+    show(explanation)
     # --8<-- [end:verify]
+    return explanation
+
+
+def verify_builder():
+    """The builder file's one packer, verified with 10 runs from Python."""
+    # --8<-- [start:verify-builder]
+    app = load_context(SHOP.parent, SHOP.name)  # a new copy for each run needs a file
+    explanation = app.analyze(verify=True, until=20000, replications=10)
+    show(explanation)
+    # --8<-- [end:verify-builder]
     return explanation
 
 
@@ -61,4 +82,5 @@ if __name__ == "__main__":
     print(f"one packer, an order every 1.33 s (rate 0.75): {by_hand(1, 0.75):.3f} s")
     print(f"two packers at 1.5 orders a second: {by_hand(2, 1.5):.3f} s")
     verify()
+    verify_builder()
     unsupported()
