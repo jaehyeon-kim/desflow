@@ -195,7 +195,7 @@ Run `python cloud_storage.py`, `python cloud_storage_low_level.py` or `desflow r
 STORAGE=s3 STORAGE_BUCKET=my-bucket python cloud_storage.py
 ```
 
-writes them to the bucket `my-bucket` on S3 instead. In every form, `output/parquet` and `output/jsonl` hold one file for each batch, with the same events: the `queued` and `started` events of each order, with `path_id` and `status`, and its finished event, with `order_id` and `amount`. A seeded run writes the same rows in every form.
+writes them to the bucket `my-bucket` on S3 instead. In every form, `output/parquet` and `output/jsonl` hold one file for each batch, with the same events: the `queued` and `started` events of each order, with `path_id` and `status`, and its finished event, with `order_id` and `amount`. A seeded run writes the same events in every form. Only `timestamp` differs, because it is the clock time at the start of the run plus the simulation time.
 
 ---
 

@@ -208,7 +208,7 @@ Run `python iceberg_tables.py`, `python iceberg_tables_low_level.py` or `desflow
 ICEBERG_CATALOG=rest python iceberg_tables.py
 ```
 
-writes through the REST catalog instead. In every form, `shop.events` gains one snapshot, with a row for each event: the `queued` and `started` events of each order, with `path_id` and `status`, and its finished event, with `order_id` and `amount`. A seeded run writes the same rows in every form.
+writes through the REST catalog instead. In every form, `shop.events` gains one snapshot, with a row for each event: the `queued` and `started` events of each order, with `path_id` and `status`, and its finished event, with `order_id` and `amount`. A seeded run writes the same events in every form. Only `timestamp` differs, because it is the clock time at the start of the run plus the simulation time.
 
 ---
 

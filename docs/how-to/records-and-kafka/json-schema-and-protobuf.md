@@ -273,10 +273,11 @@ A consumer of the order topics reads each one with the deserializer of its forma
 from desflow.connectors.ingress.kafka import (
     ConfluentJsonSchemaDeserializer,
     ConfluentProtobufDeserializer,
+    MessageDeserializer,
 )
 
 # A consumer of the order topics reads each one with the deserializer of its format.
-order_readers = {
+order_readers: dict[str, MessageDeserializer] = {
     "orders-json": ConfluentJsonSchemaDeserializer(
         registry_url="http://127.0.0.1:8081"
     ),
@@ -508,10 +509,11 @@ Every form uses the serializers and the router in `json_schema_and_protobuf.py`,
         from desflow.connectors.ingress.kafka import (
             ConfluentJsonSchemaDeserializer,
             ConfluentProtobufDeserializer,
+            MessageDeserializer,
         )
 
         # A consumer of the order topics reads each one with the deserializer of its format.
-        order_readers = {
+        order_readers: dict[str, MessageDeserializer] = {
             "orders-json": ConfluentJsonSchemaDeserializer(
                 registry_url="http://127.0.0.1:8081"
             ),

@@ -110,10 +110,11 @@ egress = KafkaEgress(
 from desflow.connectors.ingress.kafka import (
     ConfluentJsonSchemaDeserializer,
     ConfluentProtobufDeserializer,
+    MessageDeserializer,
 )
 
 # A consumer of the order topics reads each one with the deserializer of its format.
-order_readers = {
+order_readers: dict[str, MessageDeserializer] = {
     "orders-json": ConfluentJsonSchemaDeserializer(
         registry_url="http://127.0.0.1:8081"
     ),

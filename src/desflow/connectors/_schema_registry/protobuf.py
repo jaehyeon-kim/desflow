@@ -145,11 +145,9 @@ def glue_index(descriptor: Descriptor) -> bytes:
     Returns:
         bytes: The index.
     """
-    messages = [
-        message
-        for top in descriptor.file.message_types_by_name.values()
-        for message in _all_messages(top)
-    ]
+    messages: list[Descriptor] = []
+    for top in descriptor.file.message_types_by_name.values():
+        messages.extend(_all_messages(top))
     names = sorted(message.full_name for message in messages)
     return _write_varint(names.index(descriptor.full_name))
 

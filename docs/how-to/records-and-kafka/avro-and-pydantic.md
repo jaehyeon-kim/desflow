@@ -193,7 +193,7 @@ secured_serializer = ConfluentAvroSerializer(
 )
 ```
 
-The JSON Schema and Protobuf classes of [JSON Schema and Protobuf](json-schema-and-protobuf.md) take the same arguments.
+The Confluent JSON Schema and Protobuf classes of [JSON Schema and Protobuf](json-schema-and-protobuf.md) take the same arguments.
 
 A YAML blueprint sets these arguments in the module its `!python` tag loads, as [Call Python from YAML](../tools/yaml-advanced.md#routers-serializers-and-connector-classes) shows.
 
