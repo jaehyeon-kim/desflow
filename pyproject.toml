@@ -204,4 +204,5 @@ markers = [
     "floci: integration tests that start a Floci container (AWS emulator: S3 and Glue)",
     "azure: integration tests that start an Azurite container (Azure Blob Storage emulator)",
     "gcp: integration tests that start a fake-gcs-server container (Google Cloud Storage emulator)",
+    "examples: integration tests that run the examples with an odctl profile against the profile the CI job `service-examples` or the developer started",
 ]

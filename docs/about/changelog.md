@@ -7,6 +7,7 @@ Each release, newest first: what changed, then under Upgrading what to change in
 - `GlueAvroSerializer` and `GlueAvroDeserializer` talk to AWS Glue with desflow's own client and wire format, so the `glue` extra no longer depends on aws-glue-schema-registry. The arguments and the bytes on the topic are the same.
 - The `kafka` extra no longer installs kafka-python. `KafkaAdminConnector.create_topics` and the topic creation of `KafkaEgress` use aiokafka.
 - JSON Schema and Protobuf are read and written through both schema registries, next to Avro, by `ConfluentJsonSchemaSerializer`, `ConfluentJsonSchemaDeserializer`, `ConfluentProtobufSerializer`, `ConfluentProtobufDeserializer`, `GlueJsonSchemaSerializer`, `GlueJsonSchemaDeserializer`, `GlueProtobufSerializer` and `GlueProtobufDeserializer`. See [JSON Schema](../how-to/records-and-kafka/avro-and-pydantic.md#json-schema) and [Protobuf](../how-to/records-and-kafka/avro-and-pydantic.md#protobuf).
+- The builder and low-level scripts of the [Kafka, PostgreSQL, Redis and Related Records examples](../how-to/examples/index.md) stop at `EXAMPLE_UNTIL` simulation seconds when that variable is set, and run until Ctrl + C when it is not.
 
 ### Upgrading
 

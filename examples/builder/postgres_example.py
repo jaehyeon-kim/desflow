@@ -6,9 +6,11 @@ The simulation writes order records to the PostgreSQL table `orders`.
 inserting a row there changes the arrival rate of a running simulation.
 
 Needs a database: `odctl up postgres`. Runs until interrupted with Ctrl + C.
+Set EXAMPLE_UNTIL to a number of simulation seconds to end the run at that time instead.
 """
 
 import logging
+import os
 
 from desflow import PostgresEgress, PostgresIngress, SimulationContext
 
@@ -62,6 +64,11 @@ def order_generator(context):
         # --8<-- [end:records]
 
 
+# The simulation time, in seconds, at which the run ends.
+# When EXAMPLE_UNTIL is not set, the run goes on until Ctrl + C.
+EXAMPLE_UNTIL = float(os.getenv("EXAMPLE_UNTIL") or 0) or None
+
+
 def run():
     logger.info("Starting Builder Postgres Demo. Press Ctrl+C to stop...")
     logger.info(
@@ -69,7 +76,7 @@ def run():
         "value) VALUES ('Shop.arrival.orders.rate', '5.0');"
     )
     try:
-        app.run()
+        app.run(until=EXAMPLE_UNTIL)
     except KeyboardInterrupt:
         logger.info("Simulation interrupted by user.")
 

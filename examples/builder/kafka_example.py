@@ -7,6 +7,7 @@ publishes lifecycle events to `sim-events` and metrics to `sim-telemetry`, with
 Pydantic models that fix the fields and types of the events.
 
 Needs a broker: `odctl up kafka-lite`. Runs until interrupted with Ctrl + C.
+Set EXAMPLE_UNTIL to a number of simulation seconds to end the run at that time instead.
 """
 
 import logging
@@ -42,6 +43,9 @@ class TaskEvent(BaseModel):
 
 
 BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "127.0.0.1:9092")
+# The simulation time, in seconds, at which the run ends.
+# When EXAMPLE_UNTIL is not set, the run goes on until Ctrl + C.
+EXAMPLE_UNTIL = float(os.getenv("EXAMPLE_UNTIL") or 0) or None
 
 # ==========================================
 # 2. Infrastructure Builder
@@ -114,7 +118,7 @@ def run():
     print("  - Listen to 'sim-events' for task lifecycles.")
     print("  - Send to 'sim-config' to update parameters.")
 
-    app.run()  # Starts the clock and orchestrates all connectors
+    app.run(until=EXAMPLE_UNTIL)  # Starts the clock and orchestrates all connectors
 
 
 if __name__ == "__main__":

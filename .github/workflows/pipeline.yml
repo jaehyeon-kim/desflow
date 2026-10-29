@@ -22,7 +22,8 @@ jobs:
   # Stages, each starting only when the one before it passes:
   # 1. checks, in parallel: lint, extras-isolation and core-install;
   # 2. tests, in parallel: unit-test, integration-test (five jobs, one per group),
-  #    blueprint, simpy-range, docs-build, docs-strict-build and regression;
+  #    service-examples (one job per example with a profile), blueprint, simpy-range,
+  #    docs-build, docs-strict-build and regression;
   # 3. docs, on main only, once every test job has passed.
   # The unit, conformance and docs tests run in parallel worker processes
   # (pytest-xdist, -n auto, one worker per CPU).
@@ -331,6 +332,52 @@ jobs:
       #     token: ${{ secrets.CODECOV_TOKEN }}
       #     file: ./coverage.xml
 
+  # One job per example with an odctl profile (`EXAMPLES` in src/desflow/examples.py;
+  # tests/unit/test_service_examples_matrix.py fails when this list differs from it).
+  # Each job starts the example's profile, runs the example's three versions against
+  # it for a set simulation time, and reads their records back from the service.
+  service-examples:
+    needs: [lint, extras-isolation, core-install]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        example: [kafka, iceberg, postgres, redis, backfill-live, related-records]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Fetch Python 3.11
+        run: uv python install 3.11
+
+      # odctl is in the dev dependency group, so `uv run` puts it on PATH.
+      - name: Verify odctl is on PATH
+        run: |
+          uv run --python 3.11 --all-extras python -c "import shutil, sys; path = shutil.which('odctl'); print(path or 'odctl not found on PATH'); sys.exit(0 if path else 1)"
+
+      # The profile is read from EXAMPLES, so it is written down once.
+      - name: Find the profile of the ${{ matrix.example }} example
+        id: profile
+        run: |
+          profile=$(uv run --python 3.11 --all-extras python -c "from desflow.examples import EXAMPLES; print(EXAMPLES['${{ matrix.example }}'].profile)")
+          echo "profile=$profile" >> "$GITHUB_OUTPUT"
+
+      - name: Start the ${{ steps.profile.outputs.profile }} profile
+        run: uv run --python 3.11 --all-extras odctl up ${{ steps.profile.outputs.profile }}
+
+      # CI is set, so a profile that is not listening fails the test. pytest exits
+      # with code 5 when -k selects no test, so a job cannot pass by testing nothing.
+      - name: Run the ${{ matrix.example }} example
+        run: uv run --python 3.11 --all-extras pytest tests/integration/test_service_examples.py -m examples -k ${{ matrix.example }} -ra
+
+      - name: Stop the profile
+        if: always()
+        run: uv run --python 3.11 --all-extras odctl down ${{ steps.profile.outputs.profile }} --volumes
+
   # A plain YAML blueprint runs with the core install alone, as a new user's first
   # command does.
   blueprint:
@@ -441,7 +488,7 @@ jobs:
         run: uv run --all-extras python scripts/regression.py compare "$RUNNER_TEMP/old.json" "$RUNNER_TEMP/new.json" --baseline "$BASELINE"
 
   docs:
-    needs: [unit-test, integration-test, blueprint, simpy-range, docs-build, docs-strict-build, regression]
+    needs: [unit-test, integration-test, service-examples, blueprint, simpy-range, docs-build, docs-strict-build, regression]
     permissions:
       contents: write
       pages: write
