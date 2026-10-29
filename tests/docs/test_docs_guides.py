@@ -469,22 +469,15 @@ def test_orders_round_trip_as_json_schema_and_protobuf(
     as strings, as the page says."""
     pytest.importorskip("jsonschema")
     pytest.importorskip("google.protobuf")
-    from desflow.connectors.ingress.kafka import (
-        ConfluentJsonSchemaDeserializer,
-        ConfluentProtobufDeserializer,
-    )
 
     registry = _Registry()
     registry_transport(registry)
     records, serializers = _run_shop_form(form, tmp_path, monkeypatch)
     assert set(serializers) == {"orders-json", "orders-protobuf"}
 
-    route = _load("json_schema_and_protobuf").order_topic_router
-    shop_record = _load("shop_record_pb2").ShopRecord
-    reader_json = ConfluentJsonSchemaDeserializer("http://127.0.0.1:8081")
-    reader_protobuf = ConfluentProtobufDeserializer(
-        "http://127.0.0.1:8081", shop_record
-    )
+    # The page's read_order decodes each message, as a consumer of the topics would
+    page = _load("json_schema_and_protobuf")
+    route = page.order_topic_router
     assert {"sim-events", "orders-json", "orders-protobuf"} <= {
         route(r) for r in records
     }
@@ -495,20 +488,19 @@ def test_orders_round_trip_as_json_schema_and_protobuf(
         sent = {k: v for k, v in record.items() if k != "stream_type"}
         payload = serializers[topic].serialize(topic, sent)
         if topic == "orders-json":
-            assert reader_json.deserialize(topic, payload) == sent
+            assert page.read_order(topic, payload) == sent
         else:
             as_strings = {
                 **sent,
                 "instance": str(sent["instance"]),
                 "value": {**sent["value"], "order_id": str(sent["value"]["order_id"])},
             }
-            assert reader_protobuf.deserialize(topic, payload) == as_strings
+            assert page.read_order(topic, payload) == as_strings
 
     # The Confluent JSON serializer registers the schema as given
     kinds = {schema["schemaType"] for schema in registry.registered}
     assert kinds == {"JSON", "PROTOBUF"}
-    module = _load("json_schema_and_protobuf")
-    assert registry.registered[0]["schema"] == module.json_schema
+    assert registry.registered[0]["schema"] == page.json_schema
 
 
 def test_glue_serializers_round_trip_the_order_record(monkeypatch):

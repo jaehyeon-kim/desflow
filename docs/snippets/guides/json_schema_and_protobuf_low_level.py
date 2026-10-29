@@ -1,4 +1,4 @@
-"""The Use Avro, JSON Schema and Protobuf guide, low-level API: each packed order publishes
+"""The JSON Schema and Protobuf guide, low-level API: each packed order publishes
 an order record, sent to orders-json as JSON Schema or to orders-protobuf as Protobuf, and
 every other record goes to its topic as JSON.
 

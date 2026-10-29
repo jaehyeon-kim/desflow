@@ -54,7 +54,7 @@ Each connector is attached with `add_ingress` in the builder, passed to `env.set
 
 ### Kafka
 
-`KafkaIngress` consumes a topic and reads each message as a JSON object with `path` and `value`, or through a deserializer of your own, such as Avro, as [Use Avro and Pydantic](../../how-to/records-and-kafka/avro-and-pydantic.md) shows. [Connect to Secure Kafka](../../how-to/records-and-kafka/kafka-security.md) connects it to a secured cluster.
+`KafkaIngress` consumes a topic and reads each message as a JSON object with `path` and `value`, or through a deserializer of your own, such as Avro, JSON Schema or Protobuf, as [Use Avro and Pydantic](../../how-to/records-and-kafka/avro-and-pydantic.md) and [JSON Schema and Protobuf](../../how-to/records-and-kafka/json-schema-and-protobuf.md) show. [Connect to Secure Kafka](../../how-to/records-and-kafka/kafka-security.md) connects it to a secured cluster.
 
 === "YAML"
 

@@ -374,6 +374,7 @@ nav:
       - Records and Kafka:
           - Route Records to Topics: how-to/records-and-kafka/complex-routing.md
           - Use Avro and Pydantic: how-to/records-and-kafka/avro-and-pydantic.md
+          - JSON Schema and Protobuf: how-to/records-and-kafka/json-schema-and-protobuf.md
           - Connect to Secure Kafka: how-to/records-and-kafka/kafka-security.md
           - Write a Connector: how-to/records-and-kafka/write-a-connector.md
       - Analysis:

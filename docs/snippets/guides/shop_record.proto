@@ -1,4 +1,4 @@
-// The record KafkaEgress sends for an order, as the Use Avro, JSON Schema and Protobuf
+// The record KafkaEgress sends for an order, as the JSON Schema and Protobuf
 // guide publishes it. Generate shop_record_pb2.py from it with the command on that page.
 syntax = "proto3";
 

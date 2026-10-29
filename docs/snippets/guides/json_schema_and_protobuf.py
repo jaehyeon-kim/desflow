@@ -1,4 +1,4 @@
-"""The serializers, topic router and shop of the Use Avro, JSON Schema and Protobuf page.
+"""The serializers, router and order readers of the JSON Schema and Protobuf page.
 
 The shop at the end publishes each packed order as JSON Schema or Protobuf and every other
 record as JSON. It needs a Kafka broker and a schema registry: start both with
@@ -104,6 +104,31 @@ egress = KafkaEgress(
     },
 )
 # --8<-- [end:router]
+
+
+# --8<-- [start:read-back]
+from desflow.connectors.ingress.kafka import (
+    ConfluentJsonSchemaDeserializer,
+    ConfluentProtobufDeserializer,
+)
+
+# A consumer of the order topics reads each one with the deserializer of its format.
+order_readers = {
+    "orders-json": ConfluentJsonSchemaDeserializer(
+        registry_url="http://127.0.0.1:8081"
+    ),
+    "orders-protobuf": ConfluentProtobufDeserializer(
+        registry_url="http://127.0.0.1:8081", message_type=ShopRecord
+    ),
+}
+
+
+def read_order(topic: str, payload: bytes) -> dict:
+    """Decodes one message of an order topic into the record that was sent."""
+    return order_readers[topic].deserialize(topic, payload)
+
+
+# --8<-- [end:read-back]
 
 
 # --8<-- [start:shop]

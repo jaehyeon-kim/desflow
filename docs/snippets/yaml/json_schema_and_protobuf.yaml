@@ -1,4 +1,4 @@
-# The Use Avro, JSON Schema and Protobuf guide: each packed order publishes an order record,
+# The JSON Schema and Protobuf guide: each packed order publishes an order record,
 # sent to orders-json as JSON Schema or to orders-protobuf as Protobuf; every other record
 # goes to its topic as JSON. Needs json_schema_and_protobuf.py,
 # json_schema_and_protobuf_logic.py, shop_record.proto and shop_record_pb2.py beside it, and
