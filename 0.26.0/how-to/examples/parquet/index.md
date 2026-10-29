@@ -1,0 +1,551 @@
+# Fast-Forward to Parquet
+
+This example generates a week of a shop's orders at `factor=0.0` and writes them to Parquet files, on the local disk or in S3-compatible storage. [Egress](https://jaehyeon.me/desflow/latest/user-guide/live-runs-and-connectors/egress/#parquet-and-json-lines) shows Google Cloud Storage and Azure Blob Storage. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](https://jaehyeon.me/desflow/latest/user-guide/writing-a-model/index.md) compares the three.
+
+desflow is built for real-time digital twins, but the same model can also run faster than real time. With `factor` set to 0 the clock does not wait for the wall clock, and `logical_start_time` puts the week before now, so the records are stamped as history. Look for the Parquet files the run writes, one per batch, with one row for each lifecycle event.
+
+______________________________________________________________________
+
+## Before You Start
+
+The example needs only desflow, which each Quick Start below installs, and no other service. With `PARQUET_FILESYSTEM=s3` it writes to an object store instead, which needs Docker and the odctl profile `storage`. [Services for the Examples](https://jaehyeon.me/desflow/latest/how-to/examples/#services-for-the-examples) lists the services the other examples need.
+
+______________________________________________________________________
+
+## Steps
+
+### Run It
+
+This example builds the simulation of the builder example in the Builder tab from a YAML blueprint, with no Python. With `factor: 0.0` the clock is detached from the wall clock, so a week of shop orders is written to Parquet as fast as the machine allows.
+
+**Quick Start**
+
+`desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+```bash
+# 1. Install
+uv tool install "desflow[parquet]"
+
+# 2. Download the example
+desflow examples get parquet --api yaml
+cd parquet/yaml
+
+# 3. Find the bottleneck, with no run
+desflow explain parquet.yaml
+
+# 4. Run it
+desflow run parquet.yaml
+```
+
+```bash
+# 1. Install
+pip install "desflow[parquet]"
+
+# 2. Download the example
+desflow examples get parquet --api yaml
+cd parquet/yaml
+
+# 3. Find the bottleneck, with no run
+desflow explain parquet.yaml
+
+# 4. Run it
+desflow run parquet.yaml
+```
+
+**What It Does**
+
+The run writes each batch as a Parquet file of its own, such as `data/events_1a2b3c4d.parquet`, and ends on its own. `default_path` is a file name prefix, not a folder. [Egress](https://jaehyeon.me/desflow/latest/user-guide/live-runs-and-connectors/egress/#parquet-and-json-lines) explains the file names and how to read the files back as one table. A second run adds its files beside the first run's, so delete `data/` before running again, or set `DEST_PATH` to a new folder. On a laptop, one run of a week of simulated time takes about 20 seconds. It writes 725 files with 3.6 million rows in all, one row per lifecycle event. Without a router, the egress drops telemetry and writes each event as one flat row, so the columns are `stream_type`, `sim_ts`, `timestamp`, `key`, `task`, `instance`, `path_id` and `status`. `logical_start_time: -7d` stamps the week as history that ends now.
+
+To write to S3 instead, install `odctl` (`uv tool install "odctl>=1.0,<2"` or `pip install "odctl>=1.0,<2"`), start the object store, and set these variables before the run command. All three versions read the same ones. The files are written under the `odctl-dev/history/` prefix, which you can browse at <http://localhost:8889>.
+
+```bash
+odctl up storage
+# Write the Parquet files to the S3 store that odctl started
+export PARQUET_FILESYSTEM=s3 DEST_PATH=odctl-dev/history S3_ENDPOINT=http://127.0.0.1:8333 \
+  S3_ACCESS_KEY=user S3_SECRET_KEY=password
+```
+
+Stop it with `odctl down storage --volumes` when you are finished.
+
+This version builds the simulation with the builder API (`SimulationContext`) and writes with `ParquetStorageEgress`.
+
+**Quick Start**
+
+`desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+```bash
+# 1. Install
+uv tool install "desflow[parquet]"
+
+# 2. Download the example
+desflow examples get parquet --api builder
+cd parquet/builder
+
+# 3. Run it
+uv run --no-project --with "desflow[parquet]" parquet_example.py
+```
+
+```bash
+# 1. Install
+pip install "desflow[parquet]"
+
+# 2. Download the example
+desflow examples get parquet --api builder
+cd parquet/builder
+
+# 3. Run it
+python parquet_example.py
+```
+
+To write to S3 instead, install `odctl` (`uv tool install "odctl>=1.0,<2"` or `pip install "odctl>=1.0,<2"`), start the object store, and set these variables before the run command. All three versions read the same ones. The files are written under the `odctl-dev/history/` prefix, which you can browse at <http://localhost:8889>.
+
+```bash
+odctl up storage
+# Write the Parquet files to the S3 store that odctl started
+export PARQUET_FILESYSTEM=s3 DEST_PATH=odctl-dev/history S3_ENDPOINT=http://127.0.0.1:8333 \
+  S3_ACCESS_KEY=user S3_SECRET_KEY=password
+```
+
+Stop it with `odctl down storage --volumes` when you are finished.
+
+This version wires the simulation by hand on `DynamicRealtimeEnvironment`, the low-level API, and writes with `ParquetStorageEgress`.
+
+**Quick Start**
+
+`desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+```bash
+# 1. Install
+uv tool install "desflow[parquet]"
+
+# 2. Download the example
+desflow examples get parquet --api low-level
+cd parquet/low-level
+
+# 3. Run it
+uv run --no-project --with "desflow[parquet]" parquet_example.py
+```
+
+```bash
+# 1. Install
+pip install "desflow[parquet]"
+
+# 2. Download the example
+desflow examples get parquet --api low-level
+cd parquet/low-level
+
+# 3. Run it
+python parquet_example.py
+```
+
+To write to S3 instead, install `odctl` (`uv tool install "odctl>=1.0,<2"` or `pip install "odctl>=1.0,<2"`), start the object store, and set these variables before the run command. All three versions read the same ones. The files are written under the `odctl-dev/history/` prefix, which you can browse at <http://localhost:8889>.
+
+```bash
+odctl up storage
+# Write the Parquet files to the S3 store that odctl started
+export PARQUET_FILESYSTEM=s3 DEST_PATH=odctl-dev/history S3_ENDPOINT=http://127.0.0.1:8333 \
+  S3_ACCESS_KEY=user S3_SECRET_KEY=password
+```
+
+Stop it with `odctl down storage --volumes` when you are finished.
+
+______________________________________________________________________
+
+## Check the Result
+
+The three tabs write the same records, which [a test](https://github.com/jaehyeon-kim/desflow/blob/v0.26.0/tests/docs/test_example_twins.py) checks by running each version unpaced. A real run writes them as rows of Parquet files under `data/`. `desflow run parquet.yaml --sample 4 --stdout` prints the first four events as JSON lines instead, and writes no file:
+
+```text
+{"stream_type":"event","sim_ts":0.638,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","status":"queued"}}
+{"stream_type":"event","sim_ts":0.638,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","status":"started"}}
+{"stream_type":"event","sim_ts":0.674,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","status":"queued"}}
+{"stream_type":"event","sim_ts":0.674,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","status":"started"}}
+```
+
+Each event becomes one row of a file, and the two fields of `value`, `path_id` and `status`, become columns of their own.
+
+______________________________________________________________________
+
+## Full Files
+
+Full files
+
+`filesystem` is a mapping. `type` picks the local disk or S3, and the other keys are passed to PyArrow's `S3FileSystem`. A key whose value is empty is left out, so with no variables set the mapping is the local disk.
+
+Files live in the [`examples/yaml/` folder](https://github.com/jaehyeon-kim/desflow/tree/v0.26.0/examples/yaml) of the repository, and the label on each block below is its path there.
+
+```yaml
+# Historical data generation in YAML.
+#
+# The YAML version of parquet_example.py, which --api builder downloads. With factor 0 the
+# clock is detached from the wall clock, so a week of shop orders is written to
+# Parquet as fast as the machine allows. Without a router, each event is written as
+# one flat row and telemetry is left out. Each batch is a file of its own,
+# data/events_<8 hex digits>.parquet.
+#
+# Writes to ./data by default. To write to the odctl storage profile instead (odctl
+# up storage), set PARQUET_FILESYSTEM=s3, DEST_PATH=odctl-dev/history,
+# S3_ENDPOINT=http://127.0.0.1:8333, S3_ACCESS_KEY=user and S3_SECRET_KEY=password.
+# Run it from its folder with: desflow run parquet.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 0.0
+  random_seed: 42
+  # A week before now, so the records are stamped as history.
+  logical_start_time: -7d
+
+egress:
+  - type: Parquet
+    config:
+      default_path: ${DEST_PATH:-data}/events.parquet
+      # Empty values are left out, so with no variables set this is the local disk.
+      filesystem:
+        type: ${PARQUET_FILESYSTEM:-local}
+        endpoint_override: ${S3_ENDPOINT:-}
+        access_key: ${S3_ACCESS_KEY:-}
+        secret_key: ${S3_SECRET_KEY:-}
+
+batching:
+  batch_size: 5000
+  flush_interval: 86400
+
+resources:
+  packers: {current_cap: 4, max_cap: 10}
+
+services:
+  packing: {dist: normal, mean: 2.0, std: 0.2}
+
+arrivals:
+  orders: {dist: exponential, rate: 2.0, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {path_id: Shop.service.packing, status: finished}
+
+run:
+  until: 1 week
+```
+
+This script simulates 7 days of the shop. It flattens the lifecycle events into rows, routes them to one Parquet dataset and writes them as fast as the machine allows.
+
+Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/v0.26.0/examples) of the repository, and the label on the block below is this one's path there.
+
+```python
+"""
+Historical Data Generation Example.
+
+Uses SimulationContext to generate data faster than real time. With
+`factor=0.0` the SimPy clock is detached from the wall clock, so the shop model
+generates a week of historical orders as fast as the machine allows, for example
+as training data for machine learning models. The orders are written to Parquet
+on disk or S3.
+"""
+
+import logging
+import os
+from datetime import datetime, timedelta, timezone
+
+from desflow import ParquetStorageEgress, SimulationContext
+
+# Logging is configured here rather than in a wrapper, because this script is run
+# directly. Without it the run produces no output at all.
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%H:%M:%S",
+)
+
+logger = logging.getLogger(__name__)
+
+
+def create_history_router(base_path: str):
+    """
+    Router Factory: Generates a router function injected with the correct
+    base path, and flattens nested event payloads for Parquet.
+    """
+
+    def history_router(data: dict) -> str | None:
+        if data.get("path_id") == "system.simulation.lag_seconds":
+            return None
+
+        stream_type = data.get("stream_type")
+
+        if stream_type == "telemetry":
+            return None
+
+        # FLATTEN EVENT FOR PARQUET
+        if (
+            stream_type == "event"
+            and "value" in data
+            and isinstance(data["value"], dict)
+        ):
+            nested_value = data.pop("value")
+            data.update(nested_value)
+
+        return f"{base_path}/events.parquet"
+
+    return history_router
+
+
+# ==========================================
+# 1. DUAL-MODE STORAGE CONFIGURATION
+# ==========================================
+# The same variables as yaml/parquet.yaml. Unset, the run writes to data/ on the local
+# disk. PARQUET_FILESYSTEM=s3 with the S3_* variables writes to S3-compatible storage,
+# such as SeaweedFS from `odctl up storage`. The egress builds the filesystem from this
+# mapping and creates the destination folder on its first write; an empty value is
+# left out, so the PyArrow default applies.
+base_path = os.getenv("DEST_PATH", "data")
+filesystem = {
+    "type": os.getenv("PARQUET_FILESYSTEM", "local"),
+    "endpoint_override": os.getenv("S3_ENDPOINT", ""),
+    "access_key": os.getenv("S3_ACCESS_KEY", ""),
+    "secret_key": os.getenv("S3_SECRET_KEY", ""),
+}
+
+
+router = create_history_router(base_path)
+
+# The week of backdating this example exists to demonstrate. It sits at module scope
+# because the builder below needs it, and the builder has to stay at module scope for
+# the decorators further down to attach to it. The low-level version computes the same
+# value inside run(), where it has no such constraint.
+LOGICAL_START_TIME = datetime.now(timezone.utc) - timedelta(days=7)
+
+# ==========================================
+# 2. Infrastructure Builder
+# ==========================================
+app = (
+    SimulationContext(
+        sim_id="Shop",
+        factor=0.0,
+        random_seed=42,
+        # Without this, the example would log that it backdates a week but stamp every
+        # record from the current clock.
+        logical_start_time=LOGICAL_START_TIME,
+    )
+    .add_egress(ParquetStorageEgress(path_router=router, filesystem=filesystem))
+    .with_batching(batch_size=5000, flush_interval=86400)
+    .add_resource("packers", current_cap=4, max_cap=10)
+    .add_service("packing", dist="normal", mean=2.0, std=0.2)
+    .add_arrival("orders", dist="exponential", rate=2.0)
+)
+
+
+# ==========================================
+# 3. Simulation Logic
+# ==========================================
+@app.task(service_id="packing", resource_id="packers")
+def pack_order(task_id: int, context):
+    """
+    Returns the exact flat dictionary expected by the parquet router
+    to represent the 'finished' state of the lifecycle.
+    """
+    return {"path_id": "Shop.service.packing", "status": "finished"}
+
+
+@app.arrival_loop("orders")
+def arrival_generator(context):
+    task_id = 0
+    while True:
+        entity = yield context.wait_for_arrival("orders")
+        context.spawn(pack_order(task_id, context, entity=entity))
+        task_id += 1
+
+
+# ==========================================
+# 4. Execution
+# ==========================================
+def run():
+    """Generates 1 week of shop orders instantly."""
+
+    logger.info(
+        "Generating historical data mimicking start from "
+        f"{LOGICAL_START_TIME.strftime('%Y-%m-%d %H:%M:%S')}"
+    )
+    logger.info("Fast-forwarding (factor=0.0)...")
+
+    # The clock detaches and executes 1 week of operations instantaneously
+    app.run(until="1 week")
+
+    logger.info(f"Data generation complete. Check '{base_path}/' for chunks.")
+
+
+if __name__ == "__main__":
+    run()
+```
+
+This script simulates 7 days of the shop. It flattens the lifecycle events into rows, routes them to one Parquet dataset and writes them as fast as the machine allows.
+
+Scripts live in the [`examples/` folder](https://github.com/jaehyeon-kim/desflow/tree/v0.26.0/examples) of the repository, and the label on the block below is this one's path there.
+
+```python
+"""Historical data generation, low-level API.
+
+The low-level version of `builder/parquet_example.py`. It wires
+`DynamicRealtimeEnvironment`, the registry and the connectors by hand rather than
+through the builder, which shows what `SimulationContext` does for you.
+
+`factor=0.0` detaches the clock from real time, so seven days of shop orders are
+generated as fast as the machine allows and written to Parquet. A router keeps the
+lifecycle events and flattens them into rows. Writes to `data/`, or to S3 with the
+variables `yaml/parquet.yaml` reads: `PARQUET_FILESYSTEM=s3` and `S3_ENDPOINT`,
+`S3_ACCESS_KEY`, `S3_SECRET_KEY`.
+"""
+
+import logging
+import os
+from datetime import datetime, timedelta, timezone
+
+import numpy as np
+
+from desflow import (
+    CapacityConfig,
+    DistributionConfig,
+    DynamicRealtimeEnvironment,
+    DynamicResource,
+    ParquetStorageEgress,
+    Sampler,
+    SimParameter,
+)
+from desflow.utils import time_to_seconds
+
+logging.basicConfig(
+    level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
+)
+logger = logging.getLogger("parquet_example")
+
+
+def create_history_router(base_path: str):
+    """
+    Router Factory: Generates a router function injected with the correct
+    base path, and flattens nested event payloads for Parquet.
+    """
+
+    def history_router(data: dict) -> str | None:
+        if data.get("path_id") == "system.simulation.lag_seconds":
+            return None
+
+        stream_type = data.get("stream_type")
+
+        if stream_type == "telemetry":
+            return None
+
+        # FLATTEN EVENT FOR PARQUET
+        # If it's an event and has a nested 'value' dictionary, flatten it
+        if (
+            stream_type == "event"
+            and "value" in data
+            and isinstance(data["value"], dict)
+        ):
+            # Extract and remove the nested 'value' object
+            nested_value = data.pop("value")
+            # Merge the nested keys (path_id, status) directly into the root dict
+            data.update(nested_value)
+
+        return f"{base_path}/events.parquet"
+
+    return history_router
+
+
+# The shop starts with 4 packers and has room for 10.
+PARAMS = SimParameter(
+    sim_id="Shop",
+    arrival={"orders": DistributionConfig(dist="exponential", rate=2.0)},
+    service={"packing": DistributionConfig(dist="normal", mean=2.0, std=0.2)},
+    resources={"packers": CapacityConfig(current_cap=4, max_cap=10)},
+)
+
+
+def pack_order(env, sampler, packers, key, task_id):
+    """What @app.task does: queued, started, the service time, then finished."""
+    path_id = "Shop.service.packing"
+    env.publish_event(
+        key,
+        {"path_id": path_id, "status": "queued"},
+        task="pack_order",
+        instance=task_id,
+    )
+    with packers.request() as req:
+        yield req
+        env.publish_event(
+            key,
+            {"path_id": path_id, "status": "started"},
+            task="pack_order",
+            instance=task_id,
+        )
+        yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
+        env.publish_event(
+            key,
+            {"path_id": path_id, "status": "finished"},
+            task="pack_order",
+            instance=task_id,
+        )
+
+
+def arrival_generator(env, sampler, packers):
+    gap = env.registry.get_config("Shop.arrival.orders")
+    task_id = 0
+    while True:
+        yield env.timeout(sampler.sample(gap))
+        env.process(pack_order(env, sampler, packers, f"orders-{task_id + 1}", task_id))
+        task_id += 1
+
+
+def run():
+    # ---------------------------------------------------------
+    # 1. DUAL-MODE STORAGE CONFIGURATION
+    # ---------------------------------------------------------
+    # The same variables as yaml/parquet.yaml. Unset, the run writes to data/ on the local
+    # disk. PARQUET_FILESYSTEM=s3 with the S3_* variables writes to S3-compatible storage,
+    # such as SeaweedFS from `odctl up storage`. The egress builds the filesystem from this
+    # mapping and creates the destination folder on its first write; an empty value is
+    # left out, so the PyArrow default applies.
+    base_path = os.getenv("DEST_PATH", "data")
+    filesystem = {
+        "type": os.getenv("PARQUET_FILESYSTEM", "local"),
+        "endpoint_override": os.getenv("S3_ENDPOINT", ""),
+        "access_key": os.getenv("S3_ACCESS_KEY", ""),
+        "secret_key": os.getenv("S3_SECRET_KEY", ""),
+    }
+
+    # ---------------------------------------------------------
+    # 2. SIMULATION SETUP
+    # ---------------------------------------------------------
+    start_time = datetime.now(timezone.utc) - timedelta(days=7)
+    env = DynamicRealtimeEnvironment(factor=0.0, logical_start_time=start_time)
+    env.registry.register_sim_parameter(PARAMS)
+
+    # Initialize Egress with the dynamic router and conditional filesystem
+    router = create_history_router(base_path)
+    egress = ParquetStorageEgress(path_router=router, filesystem=filesystem)
+
+    # batch_size=5000 for compression, flush_interval=86400 (1 day in sim time)
+    env.setup_egress([egress], batch_size=5000, flush_interval=86400)
+
+    packers = DynamicResource(env, "Shop", "packers")
+    sampler = Sampler(rng=np.random.default_rng(42))
+
+    env.process(arrival_generator(env, sampler, packers))
+
+    run_duration_str = "1 week"
+    run_duration_sec = time_to_seconds(run_duration_str)
+
+    logger.info(
+        f"Generating historical data from {start_time.strftime('%Y-%m-%d %H:%M:%S')}"
+    )
+    logger.info("Fast-forwarding (factor=0.0)...")
+
+    try:
+        env.run(until=run_duration_sec)
+    finally:
+        env.teardown()
+        logger.info(f"Data generation complete. Check '{base_path}/' for chunks.")
+
+
+if __name__ == "__main__":
+    run()
+```

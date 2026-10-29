@@ -1,0 +1,149 @@
+# desflow
+
+> Realistic event streams from a SimPy simulation you can steer while it runs, written to Kafka, Redis, PostgreSQL, Parquet, JSONL and Iceberg.
+
+## Home
+
+- [Home](https://jaehyeon.me/desflow/latest/index.md)
+
+## Installation
+
+- [Installation](https://jaehyeon.me/desflow/latest/installation/index.md)
+
+## Learn
+
+- [Learn](https://jaehyeon.me/desflow/latest/learn/index.md)
+- [What Is DES?](https://jaehyeon.me/desflow/latest/learn/what-is-des/index.md)
+- [First Simulation](https://jaehyeon.me/desflow/latest/learn/first-model/first-simulation/index.md)
+- [Queues and Capacity](https://jaehyeon.me/desflow/latest/learn/first-model/queues-and-capacity/index.md)
+- [Randomness and Seeds](https://jaehyeon.me/desflow/latest/learn/first-model/randomness-and-seeds/index.md)
+- [Measuring a Run](https://jaehyeon.me/desflow/latest/learn/first-model/measuring-a-run/index.md)
+- [End Conditions](https://jaehyeon.me/desflow/latest/learn/first-model/end-conditions/index.md)
+- [Choosing Inputs](https://jaehyeon.me/desflow/latest/learn/inputs/choosing-inputs/index.md)
+- [Fitting the Inputs](https://jaehyeon.me/desflow/latest/learn/inputs/fit-the-inputs/index.md)
+- [Changing Demand](https://jaehyeon.me/desflow/latest/learn/inputs/changing-demand/index.md)
+- [Local Replay](https://jaehyeon.me/desflow/latest/learn/inputs/local-replay/index.md)
+- [Stock](https://jaehyeon.me/desflow/latest/learn/shop-logic/stock/index.md)
+- [Priorities](https://jaehyeon.me/desflow/latest/learn/shop-logic/priorities/index.md)
+- [A Flow of Tasks](https://jaehyeon.me/desflow/latest/learn/shop-logic/flow-of-tasks/index.md)
+- [Process Interaction](https://jaehyeon.me/desflow/latest/learn/shop-logic/process-interaction/index.md)
+- [Patience](https://jaehyeon.me/desflow/latest/learn/shop-logic/patience/index.md)
+- [Interruptions](https://jaehyeon.me/desflow/latest/learn/shop-logic/interruptions/index.md)
+- [Competing Resources](https://jaehyeon.me/desflow/latest/learn/shop-logic/competing-resources/index.md)
+- [Filtered Inventory](https://jaehyeon.me/desflow/latest/learn/shop-logic/filtered-inventory/index.md)
+- [Trusting Results](https://jaehyeon.me/desflow/latest/learn/studies/trusting-results/index.md)
+- [Comparing Designs](https://jaehyeon.me/desflow/latest/learn/studies/comparing-designs/index.md)
+- [Parameter Sweeps](https://jaehyeon.me/desflow/latest/learn/studies/parameter-sweeps/index.md)
+- [Checking a Model](https://jaehyeon.me/desflow/latest/learn/studies/checking-a-model/index.md)
+- [Complete Model](https://jaehyeon.me/desflow/latest/learn/studies/complete-model/index.md)
+- [Live Changes](https://jaehyeon.me/desflow/latest/learn/running-live/live-changes/index.md)
+- [Streaming Out](https://jaehyeon.me/desflow/latest/learn/running-live/streaming-out/index.md)
+- [Queueing Basics](https://jaehyeon.me/desflow/latest/learn/concepts/queueing-basics/index.md)
+- [A Simulation Study](https://jaehyeon.me/desflow/latest/learn/concepts/a-simulation-study/index.md)
+- [Checking and Validating](https://jaehyeon.me/desflow/latest/learn/concepts/checking-and-validating/index.md)
+- [Output Analysis](https://jaehyeon.me/desflow/latest/learn/concepts/output-analysis/index.md)
+- [Readiness and Reporting](https://jaehyeon.me/desflow/latest/learn/concepts/readiness-and-reporting/index.md)
+- [Common Mistakes](https://jaehyeon.me/desflow/latest/learn/concepts/common-mistakes/index.md)
+
+## User Guide
+
+- [User Guide](https://jaehyeon.me/desflow/latest/user-guide/index.md)
+- [How desflow Works](https://jaehyeon.me/desflow/latest/user-guide/how-desflow-works/index.md)
+- [Writing a Model](https://jaehyeon.me/desflow/latest/user-guide/writing-a-model/index.md)
+- [YAML Blueprints](https://jaehyeon.me/desflow/latest/user-guide/writing-a-model/blueprints/index.md)
+- [Builder API](https://jaehyeon.me/desflow/latest/user-guide/writing-a-model/builder-api/index.md)
+- [Low-level API](https://jaehyeon.me/desflow/latest/user-guide/writing-a-model/low-level-api/index.md)
+- [Model Parts](https://jaehyeon.me/desflow/latest/user-guide/model-parts/index.md)
+- [Arrivals and Services](https://jaehyeon.me/desflow/latest/user-guide/model-parts/arrivals-and-services/index.md)
+- [Input Fitting](https://jaehyeon.me/desflow/latest/user-guide/model-parts/input-fitting/index.md)
+- [Task Flow](https://jaehyeon.me/desflow/latest/user-guide/model-parts/task-flow/index.md)
+- [Stores and Containers](https://jaehyeon.me/desflow/latest/user-guide/model-parts/stores-and-containers/index.md)
+- [Tasks and Processes: SimulationContext](https://jaehyeon.me/desflow/latest/user-guide/tasks-and-processes/index.md)
+- [Processes](https://jaehyeon.me/desflow/latest/user-guide/tasks-and-processes/processes/index.md)
+- [Signals and Waiting](https://jaehyeon.me/desflow/latest/user-guide/tasks-and-processes/signals-and-waiting/index.md)
+- [Failures](https://jaehyeon.me/desflow/latest/user-guide/tasks-and-processes/failures/index.md)
+- [Resources: DynamicResource](https://jaehyeon.me/desflow/latest/user-guide/resources/index.md)
+- [Priority and Preemption](https://jaehyeon.me/desflow/latest/user-guide/resources/priority-and-preemption/index.md)
+- [Several Resources](https://jaehyeon.me/desflow/latest/user-guide/resources/several-resources/index.md)
+- [Custom Resource Types](https://jaehyeon.me/desflow/latest/user-guide/resources/custom-resource-types/index.md)
+- [Time and Pacing](https://jaehyeon.me/desflow/latest/user-guide/time-and-pacing/index.md)
+- [Clocks and Pacing](https://jaehyeon.me/desflow/latest/user-guide/time-and-pacing/clocks-and-pacing/index.md)
+- [Run Length](https://jaehyeon.me/desflow/latest/user-guide/time-and-pacing/run-length/index.md)
+- [Results](https://jaehyeon.me/desflow/latest/user-guide/results/index.md)
+- [Built-in Statistics](https://jaehyeon.me/desflow/latest/user-guide/results/statistics/index.md)
+- [Replications](https://jaehyeon.me/desflow/latest/user-guide/results/replications/index.md)
+- [Experiments](https://jaehyeon.me/desflow/latest/user-guide/results/experiments/index.md)
+- [Experiment Results](https://jaehyeon.me/desflow/latest/user-guide/results/experiment-results/index.md)
+- [Live Runs and Connectors](https://jaehyeon.me/desflow/latest/user-guide/live-runs-and-connectors/index.md)
+- [Live Parameters](https://jaehyeon.me/desflow/latest/user-guide/live-runs-and-connectors/live-parameters/index.md)
+- [Ingress](https://jaehyeon.me/desflow/latest/user-guide/live-runs-and-connectors/ingress/index.md)
+- [Egress](https://jaehyeon.me/desflow/latest/user-guide/live-runs-and-connectors/egress/index.md)
+
+## Command Line
+
+- [Command Line](https://jaehyeon.me/desflow/latest/cli/index.md)
+- [desflow run](https://jaehyeon.me/desflow/latest/cli/run/index.md)
+- [desflow explain](https://jaehyeon.me/desflow/latest/cli/explain/index.md)
+- [desflow experiment](https://jaehyeon.me/desflow/latest/cli/experiment/index.md)
+- [desflow report](https://jaehyeon.me/desflow/latest/cli/report/index.md)
+- [desflow fit](https://jaehyeon.me/desflow/latest/cli/fit/index.md)
+- [desflow dist](https://jaehyeon.me/desflow/latest/cli/dist/index.md)
+- [desflow schema](https://jaehyeon.me/desflow/latest/cli/schema/index.md)
+- [desflow examples](https://jaehyeon.me/desflow/latest/cli/examples/index.md)
+- [desflow examples list](https://jaehyeon.me/desflow/latest/cli/examples-list/index.md)
+- [desflow examples get](https://jaehyeon.me/desflow/latest/cli/examples-get/index.md)
+
+## How-To
+
+- [How-To](https://jaehyeon.me/desflow/latest/how-to/index.md)
+- [Vary Arrivals by Time](https://jaehyeon.me/desflow/latest/how-to/modelling/time-varying-arrivals/index.md)
+- [Add Reneging and Balking](https://jaehyeon.me/desflow/latest/how-to/modelling/reneging-and-balking/index.md)
+- [Wait for One or All](https://jaehyeon.me/desflow/latest/how-to/modelling/wait-for-one-or-all/index.md)
+- [Hand Off to a Resource](https://jaehyeon.me/desflow/latest/how-to/modelling/multi-resource-handoffs/index.md)
+- [Share Work by Weight](https://jaehyeon.me/desflow/latest/how-to/modelling/share-by-weight/index.md)
+- [Model Breakdowns](https://jaehyeon.me/desflow/latest/how-to/modelling/breakdowns/index.md)
+- [Add Resources Mid-run](https://jaehyeon.me/desflow/latest/how-to/modelling/dynamic-topology/index.md)
+- [Route Records to Topics](https://jaehyeon.me/desflow/latest/how-to/records-and-kafka/complex-routing/index.md)
+- [Use Avro and Pydantic](https://jaehyeon.me/desflow/latest/how-to/records-and-kafka/avro-and-pydantic/index.md)
+- [Connect to Secure Kafka](https://jaehyeon.me/desflow/latest/how-to/records-and-kafka/kafka-security/index.md)
+- [Write a Connector](https://jaehyeon.me/desflow/latest/how-to/records-and-kafka/write-a-connector/index.md)
+- [Fit a Distribution](https://jaehyeon.me/desflow/latest/how-to/analysis/fit-a-distribution/index.md)
+- [Check Against Theory](https://jaehyeon.me/desflow/latest/how-to/analysis/check-against-theory/index.md)
+- [Test a Model](https://jaehyeon.me/desflow/latest/how-to/analysis/test-a-model/index.md)
+- [Analyse the Event Log](https://jaehyeon.me/desflow/latest/how-to/analysis/analyse-the-event-log/index.md)
+- [Animate a Run](https://jaehyeon.me/desflow/latest/how-to/analysis/animate-a-run/index.md)
+- [Call Python from YAML](https://jaehyeon.me/desflow/latest/how-to/tools/yaml-advanced/index.md)
+- [Set Up Your Editor](https://jaehyeon.me/desflow/latest/how-to/tools/set-up-your-editor/index.md)
+- [Use an AI Assistant](https://jaehyeon.me/desflow/latest/how-to/tools/use-an-ai-assistant/index.md)
+- [Tune Performance](https://jaehyeon.me/desflow/latest/how-to/tools/performance-tuning/index.md)
+- [Runnable Examples](https://jaehyeon.me/desflow/latest/how-to/examples/index.md)
+- [Local Simulation](https://jaehyeon.me/desflow/latest/how-to/examples/local/index.md)
+- [Kafka Digital Twin](https://jaehyeon.me/desflow/latest/how-to/examples/kafka/index.md)
+- [Fast-Forward to Parquet](https://jaehyeon.me/desflow/latest/how-to/examples/parquet/index.md)
+- [Fast-Forward to Iceberg](https://jaehyeon.me/desflow/latest/how-to/examples/iceberg/index.md)
+- [PostgreSQL](https://jaehyeon.me/desflow/latest/how-to/examples/postgres/index.md)
+- [Redis](https://jaehyeon.me/desflow/latest/how-to/examples/redis/index.md)
+- [Parquet History, Kafka Live](https://jaehyeon.me/desflow/latest/how-to/examples/backfill-live/index.md)
+- [Related Records](https://jaehyeon.me/desflow/latest/how-to/examples/advanced-postgres-orders/index.md)
+- [Projects Using desflow](https://jaehyeon.me/desflow/latest/how-to/projects/index.md)
+
+## SimPy and desflow
+
+- [SimPy and desflow](https://jaehyeon.me/desflow/latest/simpy/index.md)
+- [Coming from SimPy](https://jaehyeon.me/desflow/latest/simpy/coming-from-simpy/index.md)
+- [SimPy Compatibility](https://jaehyeon.me/desflow/latest/simpy/compatibility/index.md)
+
+## Reference
+
+- [YAML Keys](https://jaehyeon.me/desflow/latest/reference/yaml-keys/index.md)
+- [API Reference](https://jaehyeon.me/desflow/latest/reference/api/index.md)
+- [Distributions](https://jaehyeon.me/desflow/latest/reference/distributions/index.md)
+- [Statistic Names](https://jaehyeon.me/desflow/latest/reference/statistics/index.md)
+- [Records and Telemetry](https://jaehyeon.me/desflow/latest/reference/records-and-telemetry/index.md)
+
+## About
+
+- [Why desflow](https://jaehyeon.me/desflow/latest/about/why-desflow/index.md)
+- [Roadmap](https://jaehyeon.me/desflow/latest/about/roadmap/index.md)
+- [Changelog](https://jaehyeon.me/desflow/latest/about/changelog/index.md)
+
