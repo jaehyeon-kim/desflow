@@ -77,11 +77,12 @@ def _is_bytes_schema(parsed: Any) -> bool:
 
 
 def encode(parsed: Any, record: Any) -> bytes:
-    """Writes a record as Avro binary, with no framing.
+    """Writes a record as Avro binary, with no framing, as confluent-kafka does.
 
     A key that the schema does not declare is dropped without an error, because
     `strict` is off. For a `bytes` schema the value is returned as it is, with no
-    length prefix, and a `str` is encoded as UTF-8, as confluent-kafka does.
+    length prefix, and a `str` is encoded as UTF-8. `encode_standard` is the
+    function for AWS Glue, which writes the length prefix.
 
     Args:
         parsed (Any): A schema from `parse_writer_schema`.
@@ -92,6 +93,22 @@ def encode(parsed: Any, record: Any) -> bytes:
     """
     if _is_bytes_schema(parsed):
         return record if isinstance(record, bytes) else record.encode()
+    return encode_standard(parsed, record)
+
+
+def encode_standard(parsed: Any, record: Any) -> bytes:
+    """Writes a record as Avro binary for every schema, as the Avro specification says.
+
+    A `bytes` schema is written with its length prefix, as aws-glue-schema-registry
+    does. A key that the schema does not declare is dropped without an error.
+
+    Args:
+        parsed (Any): A schema from `parse_writer_schema`.
+        record (Any): The value to write, usually a dict.
+
+    Returns:
+        bytes: The Avro binary encoding of the record.
+    """
     buffer = io.BytesIO()
     fastavro.schemaless_writer(
         buffer, parsed, record, strict=False, strict_allow_default=False
@@ -108,10 +125,27 @@ def decode(parsed: Any, data: bytes | memoryview) -> Any:
 
     Returns:
         Any: The record, a dict for a record schema. For a `bytes` schema, all of
-            `data` as `bytes`, as confluent-kafka reads it.
+            `data` as `bytes`, as confluent-kafka reads it. `decode_standard` is
+            the function for AWS Glue, which reads the length prefix.
     """
     if _is_bytes_schema(parsed):
         return bytes(data)
+    return decode_standard(parsed, data)
+
+
+def decode_standard(parsed: Any, data: bytes | memoryview) -> Any:
+    """Reads one record of Avro binary for every schema, as the Avro specification says.
+
+    A `bytes` schema is read after its length prefix, as aws-glue-schema-registry
+    does.
+
+    Args:
+        parsed (Any): The writer's schema from `parse_writer_schema`.
+        data (bytes | memoryview): The Avro binary, with no framing.
+
+    Returns:
+        Any: The record, a dict for a record schema.
+    """
     return fastavro.schemaless_reader(
         io.BytesIO(data), parsed, parsed, return_record_name=False
     )

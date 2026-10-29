@@ -1,4 +1,6 @@
 import asyncio
+import inspect
+import json
 import logging
 import queue
 import ssl
@@ -15,7 +17,7 @@ from typing import (
 
 import orjson
 from aiokafka import AIOKafkaProducer
-from kafka.admin import KafkaAdminClient
+from aiokafka.admin import AIOKafkaAdminClient
 
 from desflow.connectors.admin.kafka import KafkaAdminConnector
 from desflow.connectors._schema_registry.unset import UNSET
@@ -222,6 +224,9 @@ class GlueAvroSerializer:
         """
         Initializes the AWS Glue Avro serializer.
 
+        The constructor makes no call to Glue. The first `serialize` for a topic finds
+        or registers the schema.
+
         Args:
             registry_name (str): The name of the AWS Glue Schema Registry.
             schema_str (str): The Avro schema defined as a JSON string (typically
@@ -231,49 +236,56 @@ class GlueAvroSerializer:
                 initialization (e.g., `region_name`, `aws_access_key_id`).
 
         Raises:
-            ImportError: If the 'aws-glue-schema-registry' or 'boto3' packages are not installed.
+            ImportError: If the 'boto3' or 'fastavro' package is not installed.
         """
         try:
-            import boto3
-            from aws_schema_registry import (
-                DataAndSchema,
-                KafkaSerializer,
-                SchemaRegistryClient,
+            import boto3  # noqa: F401
+            import fastavro  # noqa: F401
+
+            from desflow.connectors._schema_registry import avro
+            from desflow.connectors._schema_registry.glue_client import (
+                GlueRegistryClient,
+                no_references,
             )
-            from aws_schema_registry.avro import AvroSchema
+            from desflow.connectors._schema_registry.wire import frame_glue
         except ImportError:
             raise ImportError(
-                "The 'aws-glue-schema-registry' and 'boto3' packages are required. "
+                "The 'boto3' and 'fastavro' packages are required. "
                 "Install them using: pip install desflow[glue]"
             )
 
-        # Provide a default region if the user didn't explicitly pass one
-        if "region_name" not in boto3_kwargs:
-            boto3_kwargs["region_name"] = "us-east-1"
-
-        # Pass the kwargs directly into boto3
-        glue_client = boto3.client("glue", **boto3_kwargs)
-
-        registry_client = SchemaRegistryClient(glue_client, registry_name=registry_name)
-        self._schema = AvroSchema(schema_str)
-        # The class is kept so `serialize` needs no second import
-        self._data_and_schema_type = DataAndSchema
-        self.serializer = KafkaSerializer(registry_client)
+        self._client = GlueRegistryClient(registry_name, boto3_kwargs)
+        self._avro = avro
+        self._frame = frame_glue
+        # Glue finds a version by the exact definition string, so the same schema
+        # written with other spacing or key order is the same version.
+        self._definition = json.dumps(json.loads(schema_str))
+        self._parsed = avro.parse_writer_schema(schema_str, (), no_references)
 
     def serialize(self, topic: str, data: Any) -> bytes:
         """
         Serializes the given data into an Avro byte string using AWS Glue.
+
+        The first call for a topic finds or registers the schema under
+        `<topic>-value`, which calls Glue.
 
         Args:
             topic (str): The target Kafka topic.
             data (Any): The payload to serialize (dictionary or Pydantic model).
 
         Returns:
-            bytes: The Avro-encoded byte string.
+            bytes: The Avro-encoded byte string, with the Glue prefix.
+
+        Raises:
+            SchemaRegistryError: If a Glue call fails or the new version does not
+                become available.
         """
         payload = extract_dict(data)
-        return self.serializer.serialize(
-            topic, self._data_and_schema_type(payload, self._schema)
+        version_id = self._client.version_for(
+            f"{topic}-value", self._definition, "AVRO"
+        )
+        return self._frame(
+            version_id, self._avro.encode_standard(self._parsed, payload)
         )
 
 
@@ -404,11 +416,11 @@ class KafkaEgress(BaseEgress):
         because the producer loop that follows retries the connection itself.
         """
         # bootstrap_servers and client_id are set by KafkaAdminConnector itself.
+        accepted = inspect.signature(AIOKafkaAdminClient.__init__).parameters
         admin_settings = {
             key: value
             for key, value in self.producer_config.items()
-            if key in KafkaAdminClient.DEFAULT_CONFIG
-            and key not in ("bootstrap_servers", "client_id")
+            if key in accepted and key not in ("bootstrap_servers", "client_id")
         }
         topics = list(dict.fromkeys([self.event_topic, self.telemetry_topic]))
         try:

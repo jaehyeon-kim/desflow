@@ -1,9 +1,15 @@
 import asyncio
 import json
 import queue
+import types
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from aiokafka.errors import (
+    InvalidReplicationFactorError,
+    NotControllerError,
+    TopicAlreadyExistsError,
+)
 
 from desflow.connectors.admin.kafka import KafkaAdminConnector
 from desflow.connectors.ingress.kafka import KafkaIngress
@@ -86,3 +92,149 @@ async def test_send_config_message_is_read_by_kafka_ingress(MockProducer, MockCo
         pass
 
     assert ingress_queue.get_nowait() == ("Shop.resources.packers.current_cap", 4)
+
+
+class FakeAdminClient:
+    """Stands in for AIOKafkaAdminClient and records what the connector does with it."""
+
+    instances: list = []
+    create_error: Exception | None = None
+    topic_errors: list = []
+    answers: list = []
+
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+        self.events: list = []
+        FakeAdminClient.instances.append(self)
+
+    async def start(self):
+        self.events.append("start")
+
+    async def create_topics(self, new_topics, validate_only=False):
+        self.events.append(("create_topics", new_topics, validate_only))
+        if FakeAdminClient.create_error:
+            raise FakeAdminClient.create_error
+        # aiokafka returns the CreateTopics response and raises no error for a topic.
+        answers = FakeAdminClient.answers
+        return types.SimpleNamespace(
+            topic_errors=answers.pop(0) if answers else FakeAdminClient.topic_errors
+        )
+
+    async def close(self):
+        self.events.append("close")
+
+
+@pytest.fixture
+def fake_admin_client(monkeypatch):
+    FakeAdminClient.instances = []
+    FakeAdminClient.create_error = None
+    FakeAdminClient.topic_errors = []
+    FakeAdminClient.answers = []
+    monkeypatch.setattr(
+        "desflow.connectors.admin.kafka.AIOKafkaAdminClient", FakeAdminClient
+    )
+    return FakeAdminClient
+
+
+def _created(client):
+    ((_, new_topics, validate_only),) = [
+        e for e in client.events if isinstance(e, tuple)
+    ]
+    return [
+        (t.name, t.num_partitions, t.replication_factor) for t in new_topics
+    ], validate_only
+
+
+def test_create_topics_without_a_running_loop(fake_admin_client):
+    admin = KafkaAdminConnector("broker:9092", security_protocol="SSL")
+
+    admin.create_topics(
+        [{"name": "a", "partitions": 3}, {"name": "b", "replication": 2}]
+    )
+
+    (client,) = fake_admin_client.instances
+    assert client.kwargs == {
+        "bootstrap_servers": "broker:9092",
+        "client_id": "sim_admin",
+        "security_protocol": "SSL",
+    }
+    assert _created(client) == ([("a", 3, 1), ("b", 1, 2)], False)
+    assert client.events[0] == "start"
+    assert client.events[-1] == "close"
+
+
+@pytest.mark.asyncio
+async def test_create_topics_inside_a_running_loop(fake_admin_client):
+    KafkaAdminConnector("broker:9092").create_topics([{"name": "a"}])
+
+    (client,) = fake_admin_client.instances
+    assert _created(client)[0] == [("a", 1, 1)]
+
+
+def test_create_topics_ignores_a_topic_that_exists(fake_admin_client):
+    fake_admin_client.topic_errors = [("a", TopicAlreadyExistsError.errno, "exists")]
+
+    KafkaAdminConnector("broker:9092").create_topics([{"name": "a"}])
+
+    assert fake_admin_client.instances[0].events[-1] == "close"
+
+
+def test_create_topics_raises_any_other_topic_error(fake_admin_client):
+    fake_admin_client.topic_errors = [
+        ("a", 0, None),
+        ("b", InvalidReplicationFactorError.errno, "too many"),
+    ]
+
+    with pytest.raises(InvalidReplicationFactorError, match="Topic b: too many"):
+        KafkaAdminConnector("broker:9092").create_topics([{"name": "a"}])
+
+    assert fake_admin_client.instances[0].events[-1] == "close"
+
+
+def test_create_topics_names_a_topic_error_that_has_no_message(fake_admin_client):
+    """CreateTopics response version 0 has no message in a topic entry."""
+    fake_admin_client.topic_errors = [("b", InvalidReplicationFactorError.errno)]
+
+    with pytest.raises(InvalidReplicationFactorError, match="Topic b: no message"):
+        KafkaAdminConnector("broker:9092").create_topics([{"name": "b"}])
+
+
+def test_create_topics_retries_a_not_controller_error_once_with_a_new_client(
+    fake_admin_client,
+):
+    fake_admin_client.answers = [
+        [("a", NotControllerError.errno, "not controller")],
+        [("a", 0, None)],
+    ]
+
+    KafkaAdminConnector("broker:9092").create_topics([{"name": "a"}])
+
+    first, second = fake_admin_client.instances
+    assert first.events[-1] == "close"
+    assert second.events[-1] == "close"
+    assert _created(first) == _created(second)
+
+
+def test_create_topics_raises_a_second_not_controller_error(fake_admin_client):
+    fake_admin_client.topic_errors = [("a", NotControllerError.errno, "not controller")]
+
+    with pytest.raises(NotControllerError, match="Topic a: not controller"):
+        KafkaAdminConnector("broker:9092").create_topics([{"name": "a"}])
+
+    assert len(fake_admin_client.instances) == 2
+
+
+def test_create_topics_closes_the_client_when_it_fails(fake_admin_client):
+    fake_admin_client.create_error = RuntimeError("no broker")
+
+    with pytest.raises(RuntimeError, match="no broker"):
+        KafkaAdminConnector("broker:9092").create_topics([{"name": "a"}])
+
+    assert fake_admin_client.instances[0].events[-1] == "close"
+
+
+def test_create_topics_refuses_a_setting_the_admin_client_lacks():
+    admin = KafkaAdminConnector("broker:9092", ssl_cafile="ca.pem")
+
+    with pytest.raises(TypeError, match="ssl_cafile"):
+        admin.create_topics([{"name": "a"}])

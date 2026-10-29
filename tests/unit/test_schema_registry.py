@@ -6,25 +6,37 @@ zigzag varint (27 is 0x36), a string is its length then UTF-8 ("foo" is 06 66 6f
 and a union writes the index of its branch first (null in ["null","string"] is 00).
 """
 
+import io
 import json
 import ssl
 import types
 import uuid
 
+import botocore.exceptions
 import httpx
 import pytest
 
-from desflow.connectors._schema_registry import confluent_client
+from desflow.connectors._schema_registry import (
+    confluent_client,
+    glue_client,
+    glue_json,
+)
 from desflow.connectors._schema_registry.confluent_client import (
     ConfluentRegistryClient,
     build_ssl_context,
 )
+from desflow.connectors._schema_registry.glue_client import GlueRegistryClient
+from desflow.connectors._schema_registry.wire import frame_glue, unframe_glue
 from desflow.connectors.egress.kafka import (
     ConfluentAvroSerializer,
+    GlueAvroSerializer,
     SchemaRegistryError,
     SerializationError,
 )
-from desflow.connectors.ingress.kafka import ConfluentAvroDeserializer
+from desflow.connectors.ingress.kafka import (
+    ConfluentAvroDeserializer,
+    GlueAvroDeserializer,
+)
 
 PROBE = {
     "type": "record",
@@ -652,3 +664,557 @@ def test_guid_payload_of_17_bytes_has_an_empty_rest():
 
     assert schema_id == uuid.UUID("ab" * 16)
     assert bytes(data) == b""
+
+
+# AWS Glue: bytes on the wire
+#
+# The Glue fixtures were written by aws-glue-schema-registry 1.1.3 (`codec.encode`,
+# `AvroSchema.write`, `JsonSchema.write`), so they are what that library reads. The
+# prefix is the header version 3, the compression byte (0 off, 5 zlib), then the 16
+# bytes of the schema version UUID.
+
+GLUE_VERSION = uuid.UUID("0a1b2c3d-4e5f-6789-abcd-ef0123456789")
+GLUE_RECORD = {"path_id": "Shop.packers", "value": 3}
+GLUE_AVRO_BODY = bytes.fromhex("1853686f702e7061636b65727306")
+# G1: the record as Avro, uncompressed
+G1 = bytes.fromhex("03000a1b2c3d4e5f6789abcdef01234567891853686f702e7061636b65727306")
+# G2: the same body, zlib compressed
+G2 = bytes.fromhex(
+    "03050a1b2c3d4e5f6789abcdef0123456789789c9308cec82fd02b484cce4e2d2a660300239e04d0"
+)
+GLUE_JSON_SCHEMA = {
+    "type": "object",
+    "properties": {"path_id": {"type": "string"}, "value": {"type": "integer"}},
+    "required": ["path_id", "value"],
+}
+# G3: a record of a JSON-format version, as JSON
+G3 = bytes.fromhex(
+    "03000a1b2c3d4e5f6789abcdef0123456789"
+    "7b22706174685f6964223a2253686f702e7061636b657273222c2276616c7565223a337d"
+)
+
+
+def test_glue_fixtures_hold_the_same_body():
+    assert unframe_glue(G1) == (GLUE_VERSION, GLUE_AVRO_BODY)
+    assert unframe_glue(G2) == (GLUE_VERSION, GLUE_AVRO_BODY)
+    assert unframe_glue(G3) == (
+        GLUE_VERSION,
+        json.dumps(GLUE_RECORD, separators=(",", ":")).encode(),
+    )
+    assert frame_glue(GLUE_VERSION, GLUE_AVRO_BODY) == G1
+
+
+@pytest.mark.parametrize(
+    "payload, message",
+    [
+        (G1[:17], "length 18 bytes or more"),
+        (b"\x01" + G1[1:], "Invalid header version byte 1"),
+        (G1[:1] + b"\x01" + G1[2:], "Invalid compression byte 1"),
+        (G2[:18] + b"not zlib", "Cannot decompress"),
+    ],
+)
+def test_glue_payloads_that_cannot_be_read(payload, message):
+    with pytest.raises(SerializationError, match=message):
+        unframe_glue(payload)
+
+
+# AWS Glue: the registry client
+
+
+def client_error(code: str, message: str, status: int = 400):
+    return botocore.exceptions.ClientError(
+        {
+            "Error": {"Code": code, "Message": message},
+            "ResponseMetadata": {"HTTPStatusCode": status},
+        },
+        "GetSchemaByDefinition",
+    )
+
+
+class FakeGlue:
+    """Answers the Glue calls from queues of answers and records every call.
+
+    An answer that is an exception is raised. A call with no queued answer fails the
+    test, so a call the code should not make is found.
+    """
+
+    def __init__(self, **answers):
+        self.answers = {name: list(queue) for name, queue in answers.items()}
+        self.calls: list[tuple[str, dict]] = []
+
+    def __getattr__(self, name):
+        def call(**kwargs):
+            self.calls.append((name, kwargs))
+            queued = self.answers.get(name)
+            if not queued:
+                pytest.fail(f"Unexpected Glue call {name}")
+            answer = queued.pop(0) if len(queued) > 1 else queued[0]
+            if isinstance(answer, Exception):
+                raise answer
+            return answer
+
+        return call
+
+    def names(self) -> list[str]:
+        return [name for name, _ in self.calls]
+
+
+def version_answer(status="AVAILABLE", fmt="AVRO", definition="{}"):
+    return {
+        "SchemaVersionId": str(GLUE_VERSION),
+        "Status": status,
+        "DataFormat": fmt,
+        "SchemaDefinition": definition,
+    }
+
+
+def create_answer(status="AVAILABLE"):
+    """The shape of Glue's CreateSchema response, which names the status differently."""
+    return {"SchemaVersionId": str(GLUE_VERSION), "SchemaVersionStatus": status}
+
+
+VERSION_MISSING = client_error(
+    "EntityNotFoundException", "Schema version is not found.", 404
+)
+SCHEMA_MISSING = client_error("EntityNotFoundException", "Schema is not found.", 404)
+
+
+class GlueClientFactory:
+    """Builds a `GlueRegistryClient` over a FakeGlue and records the `boto3.client` calls."""
+
+    def __init__(self, monkeypatch):
+        self.monkeypatch = monkeypatch
+        self.created: list[tuple[str, dict]] = []
+
+    def __call__(self, glue: FakeGlue, **boto3_kwargs) -> GlueRegistryClient:
+        def fake_client(service, **kwargs):
+            self.created.append((service, kwargs))
+            return glue
+
+        self.monkeypatch.setattr("boto3.client", fake_client)
+        return GlueRegistryClient("probe", boto3_kwargs)
+
+
+@pytest.fixture
+def glue_for(monkeypatch):
+    return GlueClientFactory(monkeypatch)
+
+
+@pytest.fixture
+def glue_sleeps(monkeypatch):
+    sleeps: list[float] = []
+    monkeypatch.setattr(glue_client, "time", types.SimpleNamespace(sleep=sleeps.append))
+    return sleeps
+
+
+def test_glue_client_makes_no_call_and_defaults_the_region(glue_for):
+    glue = FakeGlue()
+
+    glue_for(glue)
+    assert glue_for.created == [("glue", {"region_name": "us-east-1"})]
+    assert glue.calls == []
+
+    glue_for.created.clear()
+    glue_for(glue, region_name="eu-west-1", endpoint_url="http://floci:4566")
+    assert glue_for.created == [
+        ("glue", {"region_name": "eu-west-1", "endpoint_url": "http://floci:4566"})
+    ]
+
+
+def test_glue_client_finds_a_known_definition(glue_for):
+    glue = FakeGlue(get_schema_by_definition=[version_answer()])
+
+    assert glue_for(glue).version_for("t-value", "{}", "AVRO") == GLUE_VERSION
+
+    assert glue.calls == [
+        (
+            "get_schema_by_definition",
+            {
+                "SchemaId": {"SchemaName": "t-value", "RegistryName": "probe"},
+                "SchemaDefinition": "{}",
+            },
+        )
+    ]
+
+
+def test_glue_client_registers_a_new_version_of_a_known_schema(glue_for):
+    glue = FakeGlue(
+        get_schema_by_definition=[VERSION_MISSING],
+        register_schema_version=[version_answer()],
+    )
+
+    assert glue_for(glue).version_for("t-value", "{}", "AVRO") == GLUE_VERSION
+
+    assert glue.calls[1] == (
+        "register_schema_version",
+        {
+            "SchemaId": {"SchemaName": "t-value", "RegistryName": "probe"},
+            "SchemaDefinition": "{}",
+        },
+    )
+
+
+def test_glue_client_creates_a_missing_schema_with_backward_compatibility(glue_for):
+    glue = FakeGlue(
+        get_schema_by_definition=[SCHEMA_MISSING], create_schema=[create_answer()]
+    )
+
+    assert glue_for(glue).version_for("t-value", "{}", "JSON") == GLUE_VERSION
+
+    assert glue.calls[1] == (
+        "create_schema",
+        {
+            "SchemaName": "t-value",
+            "RegistryId": {"RegistryName": "probe"},
+            "DataFormat": "JSON",
+            "Compatibility": "BACKWARD",
+            "Description": "",
+            "Tags": {},
+            "SchemaDefinition": "{}",
+        },
+    )
+
+
+def test_glue_client_registers_a_version_when_another_producer_created_the_schema(
+    glue_for,
+):
+    glue = FakeGlue(
+        get_schema_by_definition=[SCHEMA_MISSING],
+        create_schema=[client_error("AlreadyExistsException", "Schema exists")],
+        register_schema_version=[version_answer()],
+    )
+
+    assert glue_for(glue).version_for("t-value", "{}", "AVRO") == GLUE_VERSION
+
+    assert glue.names() == [
+        "get_schema_by_definition",
+        "create_schema",
+        "register_schema_version",
+    ]
+
+
+@pytest.mark.parametrize("check", [1, 3, 10])
+@pytest.mark.parametrize("path", ["register", "create"])
+def test_glue_client_waits_for_a_pending_version(glue_for, glue_sleeps, check, path):
+    checks = [version_answer("PENDING")] * (check - 1) + [version_answer()]
+    if path == "register":
+        first = {
+            "get_schema_by_definition": [VERSION_MISSING],
+            "register_schema_version": [version_answer("PENDING")],
+        }
+    else:
+        first = {
+            "get_schema_by_definition": [SCHEMA_MISSING],
+            "create_schema": [create_answer("PENDING")],
+        }
+    glue = FakeGlue(**first, get_schema_version=checks)
+
+    assert glue_for(glue).version_for("t-value", "{}", "AVRO") == GLUE_VERSION
+
+    assert glue.names().count("get_schema_version") == check
+    assert glue_sleeps == [3] * check
+
+
+def test_glue_client_gives_up_on_a_version_still_pending_after_ten_checks(
+    glue_for, glue_sleeps
+):
+    glue = FakeGlue(
+        get_schema_by_definition=[VERSION_MISSING],
+        register_schema_version=[version_answer("PENDING")],
+        get_schema_version=[version_answer("PENDING")],
+    )
+
+    with pytest.raises(SchemaRegistryError, match="still PENDING after 10 checks"):
+        glue_for(glue).version_for("t-value", "{}", "AVRO")
+
+    assert glue.names().count("get_schema_version") == 10
+    assert glue_sleeps == [3] * 10
+
+
+@pytest.mark.parametrize("status", ["FAILURE", "DELETING"])
+def test_glue_client_stops_at_once_on_a_status_other_than_pending(
+    glue_for, glue_sleeps, status
+):
+    glue = FakeGlue(
+        get_schema_by_definition=[VERSION_MISSING],
+        register_schema_version=[version_answer("PENDING")],
+        get_schema_version=[version_answer(status)],
+    )
+
+    with pytest.raises(SchemaRegistryError, match=f"is in {status} status"):
+        glue_for(glue).version_for("t-value", "{}", "AVRO")
+
+    assert glue.names().count("get_schema_version") == 1
+
+
+def test_glue_client_refuses_a_found_version_that_is_not_available(glue_for):
+    glue = FakeGlue(get_schema_by_definition=[version_answer("PENDING")])
+
+    with pytest.raises(SchemaRegistryError, match="status is PENDING"):
+        glue_for(glue).version_for("t-value", "{}", "AVRO")
+
+
+def test_glue_client_caches_versions_and_schemas_and_not_failures(glue_for):
+    glue = FakeGlue(
+        get_schema_by_definition=[
+            client_error("InternalServiceException", "x", 500),
+            version_answer(),
+        ],
+        get_schema_version=[version_answer(definition='{"type":"int"}')],
+    )
+    client = glue_for(glue)
+
+    with pytest.raises(SchemaRegistryError):
+        client.version_for("t-value", "{}", "AVRO")
+    assert client.version_for("t-value", "{}", "AVRO") == GLUE_VERSION
+    assert client.version_for("t-value", "{}", "AVRO") == GLUE_VERSION
+    assert glue.names().count("get_schema_by_definition") == 2
+
+    for _ in range(2):
+        assert client.schema_version(GLUE_VERSION) == {
+            "DataFormat": "AVRO",
+            "SchemaDefinition": '{"type":"int"}',
+        }
+    assert glue.names().count("get_schema_version") == 1
+
+
+def test_glue_client_errors_carry_the_status_and_code_of_the_answer(glue_for):
+    original = client_error("AccessDeniedException", "not allowed", 403)
+    client = glue_for(FakeGlue(get_schema_by_definition=[original]))
+
+    with pytest.raises(SchemaRegistryError) as caught:
+        client.version_for("t-value", "{}", "AVRO")
+
+    assert (caught.value.http_status, caught.value.error_code) == (
+        403,
+        "AccessDeniedException",
+    )
+    assert caught.value.__cause__ is original
+
+    client = glue_for(
+        FakeGlue(get_schema_by_definition=[ConnectionError("no endpoint")])
+    )
+    with pytest.raises(SchemaRegistryError, match="no endpoint") as caught:
+        client.version_for("t-value", "{}", "AVRO")
+    assert (caught.value.http_status, caught.value.error_code) == (-1, -1)
+
+
+def test_glue_client_refuses_a_version_that_is_not_available(glue_for):
+    client = glue_for(FakeGlue(get_schema_version=[version_answer("PENDING")]))
+
+    with pytest.raises(SchemaRegistryError, match="status is PENDING"):
+        client.schema_version(GLUE_VERSION)
+
+
+# AWS Glue: the serializer and the deserializer
+
+
+def glue_pair(monkeypatch, glue, schema=None):
+    monkeypatch.setattr("boto3.client", lambda service, **kwargs: glue)
+    return (
+        GlueAvroSerializer("probe", json.dumps(schema or PROBE_GLUE)),
+        GlueAvroDeserializer("probe"),
+    )
+
+
+PROBE_GLUE = {
+    "type": "record",
+    "name": "Probe",
+    "fields": [{"name": "path_id", "type": "string"}, {"name": "value", "type": "int"}],
+}
+
+
+def test_glue_serializer_writes_g1_and_registers_once(monkeypatch):
+    glue = FakeGlue(
+        get_schema_by_definition=[SCHEMA_MISSING, version_answer()],
+        create_schema=[create_answer()],
+    )
+    serializer, deserializer = glue_pair(monkeypatch, glue)
+    assert glue.calls == []
+
+    # A key the schema does not have is dropped, as it is in the other Avro classes
+    first = serializer.serialize("t", {**GLUE_RECORD, "stream_type": "telemetry"})
+    second = serializer.serialize("t", GLUE_RECORD)
+
+    assert first == second == G1
+    assert glue.names() == ["get_schema_by_definition", "create_schema"]
+    assert glue.calls[1][1]["SchemaName"] == "t-value"
+    assert json.loads(glue.calls[1][1]["SchemaDefinition"]) == PROBE_GLUE
+    assert glue.calls[1][1]["DataFormat"] == "AVRO"
+
+
+@pytest.mark.parametrize("payload", [G1, G2])
+def test_glue_deserializer_reads_an_avro_version_framed_or_compressed(
+    monkeypatch, payload
+):
+    glue = FakeGlue(
+        get_schema_version=[version_answer(definition=json.dumps(PROBE_GLUE))]
+    )
+    _, deserializer = glue_pair(monkeypatch, glue)
+
+    assert deserializer.deserialize("t", payload) == GLUE_RECORD
+    assert deserializer.deserialize("t", payload) == GLUE_RECORD
+    assert glue.names() == ["get_schema_version"]
+
+
+def test_glue_deserializer_reads_a_json_version_and_validates_it(monkeypatch):
+    glue = FakeGlue(
+        get_schema_version=[
+            version_answer(fmt="JSON", definition=json.dumps(GLUE_JSON_SCHEMA))
+        ]
+    )
+    _, deserializer = glue_pair(monkeypatch, glue)
+
+    assert deserializer.deserialize("t", G3) == GLUE_RECORD
+    wrong_type = frame_glue(GLUE_VERSION, b'{"path_id":"A","value":"three"}')
+    with pytest.raises(SerializationError, match="does not match the schema"):
+        deserializer.deserialize("t", wrong_type)
+    with pytest.raises(SerializationError, match="not valid JSON"):
+        deserializer.deserialize("t", frame_glue(GLUE_VERSION, b"{"))
+
+
+def _glue_json_reader(monkeypatch, schema):
+    glue = FakeGlue(
+        get_schema_version=[version_answer(fmt="JSON", definition=json.dumps(schema))]
+    )
+    _, deserializer = glue_pair(monkeypatch, glue)
+    return lambda record: deserializer.deserialize(
+        "t", frame_glue(GLUE_VERSION, json.dumps(record).encode())
+    )
+
+
+def test_glue_json_reader_fills_in_the_default_of_a_missing_property(monkeypatch):
+    """aws-glue-schema-registry 1.1.3 compiled the schema with fastjsonschema's
+    defaults, which include `use_default=True`."""
+    read = _glue_json_reader(
+        monkeypatch,
+        {"properties": {"n": {"type": "integer"}, "a": {"default": ["x"]}}},
+    )
+
+    first = read({"n": 1})
+    first["a"].append("changed")
+
+    assert first == {"n": 1, "a": ["x", "changed"]}
+    assert read({"n": 1}) == {"n": 1, "a": ["x"]}
+    assert read({"n": 1, "a": ["y"]}) == {"n": 1, "a": ["y"]}
+
+
+A_DEFAULT = {"a": {"default": 1}}
+
+
+@pytest.mark.parametrize(
+    ("schema", "record"),
+    [
+        pytest.param(
+            {"type": "array", "items": [{"type": "integer"}], "additionalItems": False},
+            [1, 2],
+            id="no $schema is Draft 7",
+        ),
+        pytest.param({"type": "string", "format": "ipv4"}, "999.0.0.1", id="format"),
+    ],
+)
+def test_glue_json_reader_refuses_as_fastjsonschema_does(monkeypatch, schema, record):
+    """aws-glue-schema-registry 1.1.3 with fastjsonschema 2.22.2 refused both records."""
+    read = _glue_json_reader(monkeypatch, schema)
+
+    with pytest.raises(SerializationError, match="does not match the schema"):
+        read(record)
+
+
+def test_glue_json_reader_compiles_a_version_once(monkeypatch):
+    compiled = []
+    compile_schema = glue_json.fastjsonschema.compile
+    monkeypatch.setattr(
+        glue_json.fastjsonschema,
+        "compile",
+        lambda schema: compiled.append(schema) or compile_schema(schema),
+    )
+    read = _glue_json_reader(monkeypatch, {"properties": A_DEFAULT})
+
+    assert read({}) == {"a": 1}
+    assert read({}) == {"a": 1}
+    assert len(compiled) == 1
+
+
+class _Response(io.BytesIO):
+    def info(self):
+        return types.SimpleNamespace(get_content_charset=lambda: None)
+
+
+def test_glue_json_reader_fetches_a_remote_reference_when_it_compiles(monkeypatch):
+    """fastjsonschema fetches a remote `$ref` with `urlopen` while it compiles."""
+    fetched = []
+
+    def urlopen(uri):
+        fetched.append(uri)
+        return _Response(json.dumps({"properties": {"a": {"default": 9}}}).encode())
+
+    monkeypatch.setattr("urllib.request.urlopen", urlopen)
+    read = _glue_json_reader(
+        monkeypatch, {"properties": {"n": {"$ref": "http://x/remote.json"}}}
+    )
+
+    assert read({"n": {}}) == {"n": {"a": 9}}
+    assert read({"n": {}}) == {"n": {"a": 9}}
+    assert fetched == ["http://x/remote.json"]
+
+
+@pytest.mark.parametrize(
+    "definition",
+    [
+        pytest.param('{"type": 5}', id="unknown type"),
+        pytest.param('{"pattern": "("}', id="bad pattern"),
+        pytest.param('{"properties": 3}', id="keyword of the wrong type"),
+        pytest.param('{"$ref": "#/definitions/missing"}', id="missing reference"),
+    ],
+)
+def test_glue_json_validator_refuses_a_schema_it_cannot_compile(definition):
+    with pytest.raises(SerializationError, match="JSON Schema cannot be compiled"):
+        glue_json.validator(definition)
+
+
+def test_glue_json_validator_refuses_a_definition_that_is_not_json():
+    with pytest.raises(SerializationError, match="JSON Schema is not valid JSON"):
+        glue_json.validator("{")
+
+
+@pytest.mark.parametrize(
+    ("definition", "data"),
+    [
+        # 1000 levels, under orjson's limit of 1024; json.dumps cannot write it
+        pytest.param(
+            '{"properties": {"n": {"$ref": "#"}}}',
+            b'{"n":' * 1000 + b"{}" + b"}" * 1000,
+            id="nested too deeply",
+        ),
+        pytest.param('{"multipleOf": 0}', b"5", id="multipleOf 0"),
+    ],
+)
+def test_glue_json_decode_refuses_a_record_it_cannot_check(definition, data):
+    validate = glue_json.validator(definition)
+
+    with pytest.raises(SerializationError, match="cannot be checked against"):
+        glue_json.decode(validate, data)
+
+
+def test_glue_avro_classes_write_and_read_a_bytes_schema_with_its_length_prefix(
+    monkeypatch,
+):
+    """aws-glue-schema-registry 1.1.3 wrote `b"ab"` as 04 61 62, standard Avro."""
+    glue = FakeGlue(
+        get_schema_by_definition=[version_answer()],
+        get_schema_version=[version_answer(definition='"bytes"')],
+    )
+    serializer, deserializer = glue_pair(monkeypatch, glue, "bytes")
+    framed = frame_glue(GLUE_VERSION, bytes.fromhex("046162"))
+
+    assert serializer.serialize("t", b"ab") == framed
+    assert deserializer.deserialize("t", framed) == b"ab"
+
+
+def test_glue_deserializer_refuses_a_format_it_does_not_read(monkeypatch):
+    glue = FakeGlue(get_schema_version=[version_answer(fmt="PROTOBUF")])
+    _, deserializer = glue_pair(monkeypatch, glue)
+
+    with pytest.raises(SerializationError, match="data format PROTOBUF"):
+        deserializer.deserialize("t", G1)

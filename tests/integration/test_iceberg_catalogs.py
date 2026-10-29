@@ -7,7 +7,9 @@ import boto3
 import pytest
 
 from desflow.connectors.egress.iceberg import IcebergStorageEgress
+from desflow.connectors._schema_registry.wire import frame_glue
 from desflow.connectors.egress.kafka import GlueAvroSerializer
+from desflow.connectors.ingress.kafka import GlueAvroDeserializer
 from tests.integration.helpers import drain
 
 pytestmark = pytest.mark.integration
@@ -127,3 +129,47 @@ def test_glue_serializer_registers_the_schema_and_frames_a_record(floci):
     assert framed[:2] == b"\x03\x00"
     version = glue.get_schema_version(SchemaVersionId=str(UUID(bytes=framed[2:18])))
     assert json.loads(version["SchemaDefinition"]) == json.loads(schema)
+
+
+@pytest.mark.floci
+def test_glue_avro_classes_round_trip_and_a_json_version_is_read(floci):
+    """GlueAvroDeserializer reads what GlueAvroSerializer wrote, and a JSON-format version."""
+    registry = f"desflow-{uuid.uuid4().hex[:8]}"
+    schema = json.dumps(
+        {
+            "type": "record",
+            "name": "Probe",
+            "fields": [{"name": "value", "type": "int"}],
+        }
+    )
+    json_schema = json.dumps(
+        {
+            "type": "object",
+            "properties": {"value": {"type": "integer"}},
+            "required": ["value"],
+        }
+    )
+    glue = _floci_client("glue", floci)
+    glue.create_registry(RegistryName=registry)
+    settings = {
+        "endpoint_url": floci,
+        "region_name": "us-east-1",
+        "aws_access_key_id": "test",
+        "aws_secret_access_key": "test",
+    }
+
+    framed = GlueAvroSerializer(registry, schema, **settings).serialize(
+        "events", {"value": 3}
+    )
+    deserializer = GlueAvroDeserializer(registry, **settings)
+    assert deserializer.deserialize("events", framed) == {"value": 3}
+
+    created = glue.create_schema(
+        SchemaName="json-events",
+        RegistryId={"RegistryName": registry},
+        DataFormat="JSON",
+        Compatibility="BACKWARD",
+        SchemaDefinition=json_schema,
+    )
+    json_framed = frame_glue(UUID(created["SchemaVersionId"]), b'{"value":4}')
+    assert deserializer.deserialize("json-events", json_framed) == {"value": 4}

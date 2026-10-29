@@ -99,6 +99,11 @@ jobs:
               )
               GlueAvroSerializer(registry_name="sim-registry", schema_str=schema)
               GlueAvroDeserializer(registry_name="sim-registry")
+
+              # desflow speaks to Glue itself, so the extra brings no Glue client library
+              import importlib.util
+
+              assert importlib.util.find_spec("aws_schema_registry") is None
           - extra: redis
             check: |
               from desflow import RedisEgress, RedisIngress
@@ -155,9 +160,8 @@ jobs:
               import importlib.util
 
               for module in (
-                  "aiokafka", "kafka", "fastavro", "httpx", "aws_schema_registry",
-                  "boto3", "redis", "asyncpg", "pyarrow", "pyiceberg", "scipy",
-                  "matplotlib",
+                  "aiokafka", "fastavro", "fastjsonschema", "httpx", "boto3", "redis",
+                  "asyncpg", "pyarrow", "pyiceberg", "scipy", "matplotlib",
               ):
                   assert importlib.util.find_spec(module), module
     steps:

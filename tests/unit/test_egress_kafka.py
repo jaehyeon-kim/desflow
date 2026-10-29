@@ -3,6 +3,7 @@ import io
 import json
 import queue
 import sys
+import types
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import fastavro
@@ -11,6 +12,7 @@ import orjson
 import pytest
 from pydantic import BaseModel
 
+from desflow.connectors.admin.kafka import KafkaAdminConnector
 from desflow.connectors.egress.base import extract_dict
 from desflow.connectors.egress.kafka import (
     ConfluentAvroSerializer,
@@ -55,18 +57,14 @@ def test_missing_avro_dependencies():
         with pytest.raises(ImportError, match=r"pip install desflow\[confluent\]"):
             ConfluentAvroSerializer(registry_url="http://mock", schema_str="{}")
 
-    # Hide boto3
-    with patch.dict(
-        sys.modules,
-        {
-            "boto3": None,
-            "aws_schema_registry": None,
-            "aws_schema_registry.adapter.kafka": None,
-            "aws_schema_registry.avro": None,
-        },
-    ):
-        with pytest.raises(ImportError, match=r"pip install desflow\[glue\]"):
-            GlueAvroSerializer(registry_name="mock", schema_str="{}")
+    # Hide boto3, then fastavro
+    for hidden in ("boto3", "fastavro"):
+        with patch.dict(sys.modules, {hidden: None}):
+            with pytest.raises(
+                ImportError,
+                match=r"'boto3' and 'fastavro'.*pip install desflow\[glue\]",
+            ):
+                GlueAvroSerializer(registry_name="mock", schema_str="{}")
 
 
 AVRO_SCHEMA = """
@@ -93,49 +91,6 @@ def test_avro_serializers_construct_with_extras_installed():
 
     glue = GlueAvroSerializer(registry_name="probe", schema_str=AVRO_SCHEMA)
     assert hasattr(glue, "serialize")
-
-
-def test_glue_serializer_frames_a_record_with_the_registered_schema_version():
-    """The Glue serializer registers the schema, then writes the version id and the Avro."""
-    version_id = "0a1b2c3d-4e5f-6789-abcd-ef0123456789"
-
-    class FakeGlue:
-        """The four Glue calls the schema registry client makes."""
-
-        def __init__(self):
-            self.created: list = []
-
-        def get_schema_by_definition(self, **kwargs):
-            raise RuntimeError("Schema is not found.")
-
-        def create_schema(self, **kwargs):
-            self.created.append(kwargs)
-            return {"SchemaVersionId": version_id}
-
-        def get_schema_version(self, SchemaVersionId):
-            return {
-                "SchemaVersionId": version_id,
-                "Status": "AVAILABLE",
-                "SchemaArn": "arn:aws:glue:us-east-1:000000000000:schema/probe/t-value",
-                "SchemaDefinition": AVRO_SCHEMA,
-                "DataFormat": "AVRO",
-                "VersionNumber": 1,
-            }
-
-    glue = FakeGlue()
-    with patch("boto3.client", return_value=glue):
-        serializer = GlueAvroSerializer(registry_name="probe", schema_str=AVRO_SCHEMA)
-    framed = serializer.serialize("t", {"path_id": "Shop.packers", "value": 3})
-
-    assert glue.created[0]["RegistryId"] == {"RegistryName": "probe"}
-    assert glue.created[0]["SchemaName"] == "t-value"
-    # Version byte 3, compression byte 0 (off), the version id, then the Avro body
-    assert framed[:2] == b"\x03\x00"
-    assert framed[2:18].hex() == version_id.replace("-", "")
-    body = fastavro.schemaless_reader(
-        io.BytesIO(framed[18:]), fastavro.parse_schema(json.loads(AVRO_SCHEMA))
-    )
-    assert body == {"path_id": "Shop.packers", "value": 3}
 
 
 @pytest.mark.asyncio
@@ -530,6 +485,43 @@ async def test_a_failed_topic_creation_does_not_stop_the_producer(
     await _run_until_started(egress, MockProducer.return_value)
 
     producer.start.assert_called_once()
+
+
+def test_a_topic_error_from_the_broker_is_logged(monkeypatch, caplog):
+    """The real admin connector turns a topic error in the response into a log line."""
+
+    class AdminClient:
+        def __init__(self, **kwargs):
+            pass
+
+        async def start(self):
+            pass
+
+        async def create_topics(self, new_topics, validate_only=False):
+            # CreateTopicsResponse entries: topic, error code, error message
+            error = (new_topics[0].name, 38, "Replication factor is invalid")
+            return types.SimpleNamespace(topic_errors=[error])
+
+        async def close(self):
+            pass
+
+    monkeypatch.setattr(
+        "desflow.connectors.egress.kafka.KafkaAdminConnector", KafkaAdminConnector
+    )
+    monkeypatch.setattr(
+        "desflow.connectors.admin.kafka.AIOKafkaAdminClient", AdminClient
+    )
+
+    KafkaEgress(
+        bootstrap_servers="b:9092", event_topic="ev", telemetry_topic="tm"
+    )._create_topics()
+
+    (message,) = [
+        r.getMessage() for r in caplog.records if "Could not create" in r.getMessage()
+    ]
+    assert "['ev', 'tm']" in message
+    assert "InvalidReplicationFactorError" in message
+    assert "Topic ev: Replication factor is invalid" in message
 
 
 @pytest.mark.asyncio

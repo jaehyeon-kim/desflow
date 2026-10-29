@@ -90,7 +90,7 @@ desflow.blueprint.build.Preview(sample: int | None = None) -> None
 desflow.blueprint.build.Preview.sample: NoneType
 desflow.blueprint.build.build(path: str | pathlib.Path, preview: desflow.blueprint.build.Preview | None = None) -> tuple[desflow.core.context.SimulationContext, desflow.blueprint.models.Run]
 desflow.blueprint.loader.BlueprintError(...)
-desflow.connectors._schema_registry.errors.SchemaRegistryError(http_status: int, error_code: int, message: str)
+desflow.connectors._schema_registry.errors.SchemaRegistryError(http_status: int, error_code: int | str, message: str)
 desflow.connectors._schema_registry.errors.SerializationError(...)
 desflow.connectors.admin.kafka.KafkaAdminConnector(bootstrap_servers: str, max_tasks: int = 100, **kwargs: Any)
 desflow.connectors.admin.kafka.KafkaAdminConnector.collect_data(topics: list[str], auto_offset_reset: str = 'latest')

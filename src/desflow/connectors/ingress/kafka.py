@@ -5,7 +5,8 @@ import queue
 import ssl
 import threading
 from collections.abc import Mapping
-from typing import Any, Dict, Optional, Protocol, Tuple, Union
+from functools import partial
+from typing import Any, Callable, Dict, Optional, Protocol, Tuple, Union
 
 from aiokafka import AIOKafkaConsumer
 
@@ -218,12 +219,16 @@ class GlueAvroDeserializer:
 
     This class converts Avro-encoded byte strings back into Python dictionaries,
     integrating directly with AWS Glue Schema Registry. It resolves schemas dynamically
-    based on the metadata embedded in the AWS Glue message payload.
+    based on the metadata embedded in the AWS Glue message payload. A schema version
+    of the JSON data format is read as JSON and validated against its schema.
     """
 
     def __init__(self, registry_name: str, **boto3_kwargs: Any):
         """
         Initializes the AWS Glue Avro deserializer.
+
+        The constructor makes no call to Glue. The first message with a schema version
+        id fetches that version.
 
         Args:
             registry_name (str): The name of the AWS Glue Schema Registry.
@@ -231,40 +236,81 @@ class GlueAvroDeserializer:
                 initialization (e.g., `region_name`, `aws_access_key_id`).
 
         Raises:
-            ImportError: If the 'aws-glue-schema-registry' or 'boto3' packages are not installed.
+            ImportError: If the 'boto3', 'fastavro' or 'fastjsonschema' package is not
+                installed.
         """
         try:
-            import boto3
-            from aws_schema_registry import SchemaRegistryClient
-            from aws_schema_registry.adapter.kafka import KafkaDeserializer
+            import boto3  # noqa: F401
+            import fastavro  # noqa: F401
+            import fastjsonschema  # noqa: F401
+
+            from desflow.connectors._schema_registry import avro, glue_json
+            from desflow.connectors._schema_registry.glue_client import (
+                GlueRegistryClient,
+                no_references,
+            )
+            from desflow.connectors._schema_registry.wire import unframe_glue
         except ImportError:
             raise ImportError(
-                "The 'aws-glue-schema-registry' and 'boto3' packages are required. "
+                "The 'boto3', 'fastavro' and 'fastjsonschema' packages are required. "
                 "Install them using: pip install desflow[glue]"
             )
 
-        if "region_name" not in boto3_kwargs:
-            boto3_kwargs["region_name"] = "us-east-1"
-
-        glue_client = boto3.client("glue", **boto3_kwargs)
-        registry_client = SchemaRegistryClient(glue_client, registry_name=registry_name)
-
-        self.deserializer = KafkaDeserializer(registry_client)
+        self._client = GlueRegistryClient(registry_name, boto3_kwargs)
+        self._avro = avro
+        self._glue_json = glue_json
+        self._unframe = unframe_glue
+        self._no_references = no_references
+        # A reader for each schema version id, built from the version once.
+        self._readers: Dict[Any, Callable[[bytes], Any]] = {}
+        self._lock = threading.Lock()
 
     def deserialize(self, topic: str, payload: bytes) -> Any:
         """
-        Deserializes an Avro-encoded byte string using AWS Glue.
+        Deserializes an Avro or JSON byte string using AWS Glue.
 
         Args:
             topic (str): The Kafka topic from which the message was consumed.
-            payload (bytes): The Avro-encoded binary payload.
+            payload (bytes): The binary payload with the Glue prefix.
 
         Returns:
-            Any: The raw data dictionary extracted from the AWS DataAndSchema object.
+            Any: The record, a dict for a record or object schema.
+
+        Raises:
+            SerializationError: If the payload has no valid Glue prefix, the schema
+                version is of a data format other than AVRO or JSON, the JSON Schema
+                cannot be compiled, or the data is not JSON, does not match its
+                schema or cannot be checked against it.
+            SchemaRegistryError: If Glue has no available schema version for the id.
         """
-        # AWS returns a DataAndSchema object, we just want the raw data dictionary
-        result = self.deserializer.deserialize(topic, payload)
-        return result.data
+        version_id, data = self._unframe(payload)
+        return self._reader(version_id)(data)
+
+    def _reader(self, version_id: Any) -> Callable[[bytes], Any]:
+        """Returns the function that reads the data of a schema version."""
+        with self._lock:
+            if version_id not in self._readers:
+                version = self._client.schema_version(version_id)
+                data_format = version["DataFormat"]
+                definition = version["SchemaDefinition"]
+                if data_format == "AVRO":
+                    parsed = self._avro.parse_writer_schema(
+                        definition, (), self._no_references
+                    )
+                    self._readers[version_id] = partial(
+                        self._avro.decode_standard, parsed
+                    )
+                elif data_format == "JSON":
+                    validate = self._glue_json.validator(definition)
+                    self._readers[version_id] = partial(
+                        self._glue_json.decode, validate
+                    )
+                else:
+                    raise SerializationError(
+                        f"The schema version is of data format {data_format}, "
+                        "and GlueAvroDeserializer reads AVRO and JSON only"
+                    )
+            return self._readers[version_id]
 
 
 # ==========================================

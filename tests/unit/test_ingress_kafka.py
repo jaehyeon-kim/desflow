@@ -20,18 +20,14 @@ def test_missing_avro_deserializer_dependencies():
         with pytest.raises(ImportError, match=r"pip install desflow\[confluent\]"):
             ConfluentAvroDeserializer(registry_url="http://mock")
 
-    # Hide boto3
-    with patch.dict(
-        sys.modules,
-        {
-            "boto3": None,
-            "aws_schema_registry": None,
-            "aws_schema_registry.adapter.kafka": None,
-            "aws_schema_registry.avro": None,
-        },
-    ):
-        with pytest.raises(ImportError, match=r"pip install desflow\[glue\]"):
-            GlueAvroDeserializer(registry_name="mock")
+    # Hide boto3, then fastavro, then fastjsonschema, which only the deserializer needs
+    for hidden in ("boto3", "fastavro", "fastjsonschema"):
+        with patch.dict(sys.modules, {hidden: None}):
+            with pytest.raises(
+                ImportError,
+                match=r"'boto3', 'fastavro' and 'fastjsonschema'.*pip install desflow\[glue\]",
+            ):
+                GlueAvroDeserializer(registry_name="mock")
 
 
 @pytest.mark.asyncio
@@ -174,3 +170,45 @@ async def test_kafka_ingress_logs_and_skips_bad_messages(MockConsumer, caplog):
     assert len(skipped) == 3
     assert all(m.startswith("Skipped a Kafka ingress message") for m in skipped)
     assert "renamed to path and value in desflow 0.21.0" in skipped[1]
+
+
+@pytest.mark.asyncio
+@patch("desflow.connectors.ingress.kafka.AIOKafkaConsumer")
+async def test_kafka_ingress_skips_a_payload_that_is_not_glue_framed(
+    MockConsumer, caplog
+):
+    """A GlueAvroDeserializer rejects JSON bytes, and the ingress logs and skips them."""
+
+    class FakeConsumer:
+        def __init__(self):
+            self.start = AsyncMock()
+            self.stop = AsyncMock()
+
+        async def __aiter__(self):
+            yield MagicMock(topic="sim-config", value=b'{"path": "A", "value": 1}')
+            await asyncio.sleep(999)
+
+    MockConsumer.return_value = FakeConsumer()
+    ingress_queue = queue.Queue()
+    with patch("boto3.client"):
+        deserializer = GlueAvroDeserializer(registry_name="probe")
+    ingress = KafkaIngress(
+        topic="sim-config",
+        bootstrap_servers="localhost:9092",
+        default_deserializer=deserializer,
+    )
+
+    with caplog.at_level("WARNING", logger="desflow.connectors.ingress.kafka"):
+        task = asyncio.create_task(ingress.run(ingress_queue))
+        await asyncio.sleep(0.1)
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    assert ingress_queue.empty()
+    skipped = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+    assert len(skipped) == 1
+    assert skipped[0].startswith("Skipped a Kafka ingress message")
+    assert "Invalid header version byte" in skipped[0]
