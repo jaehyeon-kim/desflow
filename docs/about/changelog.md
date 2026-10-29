@@ -12,7 +12,8 @@ Each release, newest first: what changed, then under Upgrading what to change in
 - `GlueAvroSerializer` serializes a record. It failed on every record in every release since 0.7.0.
 - The docs are reorganised. Learn holds the tutorial and, after it, the concept pages, each explained from the tutorial's shop. Command Line and SimPy and desflow are sections of their own. The examples are the [Runnable Examples](../how-to/examples/index.md) group of How-To, and its overview page holds [Services for the Examples](../how-to/examples/index.md#services-for-the-examples), the odctl profiles each example needs, which moved from Installation.
 - Model code is shown in YAML, Builder and Low-level tabs on every page except those about one way of writing, such as Builder API. Every How-To script has all three forms, each with a test, except on the two pages about blueprints alone, Call Python from YAML and Set Up Your Editor.
-- The Cheat Sheet and YAML Format pages are removed. [YAML Keys](../reference/yaml-keys.md) is the one list of blueprint keys, and both old addresses lead to it. Old links to a moved section lead to its new place.
+- The Cheat Sheet and YAML Format pages are removed. [YAML Keys](../reference/yaml-keys.md) is the one list of blueprint keys, and both old addresses lead to it.
+- Each page's address follows the sidebar, such as `cli/run/` for `desflow run` and `how-to/modelling/breakdowns/` for Model Breakdowns. Every old address, and every old link to a moved section, leads to the new place.
 
 ### Upgrading
 
