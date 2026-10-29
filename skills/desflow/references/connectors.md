@@ -36,13 +36,19 @@ A `Parquet` or `Jsonl` egress writes through a `filesystem` mapping. Its `type` 
 
 An `Iceberg` egress writes through a `catalog` mapping of PyIceberg properties. Its `type` is `rest` for an Iceberg REST catalog, `sql` for a SQL catalog on SQLite or PostgreSQL, or `glue` for AWS Glue, and the `iceberg` extra installs all three.
 
-## Avro Serializers
+## Serializers and Deserializers
 
-A `KafkaEgress` serializer of a topic, given in Python. Each needs its own extra.
+The serializer of a `KafkaEgress` topic and the deserializer of a `KafkaIngress` topic, given in Python. Each needs its own extra.
 
-| Class | Schema registry | Extra |
-|---|---|---|
-| `desflow.connectors.egress.kafka.ConfluentAvroSerializer` | Confluent Schema Registry | `confluent` |
-| `desflow.connectors.egress.kafka.GlueAvroSerializer` | AWS Glue Schema Registry | `glue` |
+| Format | Schema registry | Extra | Serializer | Deserializer |
+|---|---|---|---|---|
+| Avro | Confluent Schema Registry | `confluent` | `desflow.connectors.egress.kafka.ConfluentAvroSerializer` | `desflow.connectors.ingress.kafka.ConfluentAvroDeserializer` |
+| Avro | AWS Glue Schema Registry | `glue` | `desflow.connectors.egress.kafka.GlueAvroSerializer` | `desflow.connectors.ingress.kafka.GlueAvroDeserializer` |
+| JSON Schema | Confluent Schema Registry | `confluent` | `desflow.connectors.egress.kafka.ConfluentJsonSchemaSerializer` | `desflow.connectors.ingress.kafka.ConfluentJsonSchemaDeserializer` |
+| JSON Schema | AWS Glue Schema Registry | `glue` | `desflow.connectors.egress.kafka.GlueJsonSchemaSerializer` | `desflow.connectors.ingress.kafka.GlueJsonSchemaDeserializer` |
+| Protobuf | Confluent Schema Registry | `confluent` | `desflow.connectors.egress.kafka.ConfluentProtobufSerializer` | `desflow.connectors.ingress.kafka.ConfluentProtobufDeserializer` |
+| Protobuf | AWS Glue Schema Registry | `glue` | `desflow.connectors.egress.kafka.GlueProtobufSerializer` | `desflow.connectors.ingress.kafka.GlueProtobufDeserializer` |
 
-`ConfluentAvroSerializer` and `ConfluentAvroDeserializer` take `auth`, `verify`, `cert`, `timeout`, `headers`, `proxy` and `max_retries` for a secured registry. Each step of a request to the registry times out after 10 seconds by default; `timeout=None` waits without a limit.
+The Confluent classes take `auth`, `verify`, `cert`, `timeout`, `headers`, `proxy` and `max_retries` for a secured registry. Each step of a request to the registry times out after 10 seconds by default; `timeout=None` waits without a limit.
+
+The JSON Schema serializers take the schema as the JSON string `schema_str`. The Protobuf classes take `message_type`, the class that `protoc` generated. `GlueProtobufSerializer` also takes `schema_str`, the text of the `.proto` file. A deserializer returns a 64 bit integer field of a Protobuf message as a string.

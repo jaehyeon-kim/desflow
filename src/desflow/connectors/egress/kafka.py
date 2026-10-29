@@ -4,6 +4,7 @@ import json
 import logging
 import queue
 import ssl
+import threading
 from collections.abc import Mapping
 from typing import (
     Any,
@@ -289,6 +290,424 @@ class GlueAvroSerializer:
         )
 
 
+class ConfluentJsonSchemaSerializer:
+    """
+    Lazy-loaded serializer for Confluent Schema Registry using jsonschema and httpx.
+
+    This class converts simulation data into JSON in the Confluent wire format. It
+    checks each record against the schema, registers the schema under the subject
+    `<topic>-value` on the first record of each topic, and reuses the schema id after
+    that.
+    """
+
+    def __init__(
+        self,
+        registry_url: str,
+        schema_str: str,
+        *,
+        auth: Optional[Tuple[str, str]] = UNSET,
+        verify: Union[bool, str, ssl.SSLContext] = UNSET,
+        cert: Optional[
+            Union[
+                str,
+                Tuple[str, Optional[str]],
+                Tuple[str, Optional[str], Optional[str]],
+            ]
+        ] = UNSET,
+        timeout: Optional[float] = UNSET,
+        headers: Optional[Mapping[str, str]] = UNSET,
+        proxy: Optional[str] = UNSET,
+        max_retries: int = UNSET,
+    ):
+        """
+        Initializes the Confluent JSON Schema serializer. It makes no request to the
+        registry.
+
+        `UNSET` as a default, in the signature or the Default column of the API page,
+        means the argument was not given; each argument's description says its real
+        default.
+
+        Args:
+            registry_url (str): The base URL of the Confluent Schema Registry.
+                Several URLs separated by commas are tried in order.
+            schema_str (str): The JSON Schema as a JSON string. A schema with no
+                `$schema` is checked as Draft 2020-12, as confluent-kafka does.
+            auth (Optional[Tuple[str, str]]): A username and password for basic
+                authentication, for example `("user", "pass")`. The default is None.
+            verify (bool | str | ssl.SSLContext): How to check the registry's
+                certificate: True (the default), False, the path of a CA file or
+                directory, or an SSL context.
+            cert (str | tuple | None): A client certificate file, or a tuple of the
+                certificate file, the key file and the key password. The default is None.
+            timeout (Optional[float]): Seconds each step of a request to the registry
+                (connecting, sending, reading) may take. The default is 10.0. None
+                waits without a limit.
+            headers (Optional[Mapping[str, str]]): Headers sent with every request,
+                for example `{"Authorization": "Bearer <token>"}`. The default is None.
+            proxy (Optional[str]): The URL of a proxy. The default is None.
+            max_retries (int): How many times a request is repeated after a
+                transport error or a status of 408, 429, 500, 502, 503 or 504. The
+                default is 3.
+
+        Raises:
+            ImportError: If the 'jsonschema' or 'httpx' package is not installed.
+            SerializationError: If the schema is not valid JSON or not a valid schema.
+        """
+        try:
+            import httpx  # noqa: F401
+            import jsonschema  # noqa: F401
+
+            from desflow.connectors._schema_registry import json_schema
+            from desflow.connectors._schema_registry.confluent_client import (
+                ConfluentRegistryClient,
+                resolve_legacy_options,
+            )
+            from desflow.connectors._schema_registry.wire import frame_confluent
+        except ImportError:
+            raise ImportError(
+                "The 'jsonschema' and 'httpx' packages are required to use "
+                "ConfluentJsonSchemaSerializer. "
+                "Install them using: pip install desflow[confluent]"
+            )
+
+        options = resolve_legacy_options(
+            {},
+            auth=auth,
+            verify=verify,
+            cert=cert,
+            timeout=timeout,
+            headers=headers,
+            proxy=proxy,
+            max_retries=max_retries,
+        )
+        self._client = ConfluentRegistryClient(registry_url, **options)
+        self._json_schema = json_schema
+        self._frame = frame_confluent
+        self._schema_str = schema_str
+        self._validator = json_schema.validator(json_schema.load(schema_str))
+
+    def serialize(self, topic: str, data: Any) -> bytes:
+        """
+        Serializes the given data into a JSON byte string.
+
+        The first call for a topic registers the schema under `<topic>-value`, which
+        makes a request to the registry.
+
+        Args:
+            topic (str): The target Kafka topic, used for schema subject naming.
+            data (Any): The payload to serialize (dictionary or Pydantic model).
+
+        Returns:
+            bytes: The JSON bytes, with the Confluent prefix.
+
+        Raises:
+            SerializationError: If the record does not match the schema.
+            SchemaRegistryError: If the registry refuses the schema.
+            httpx.TransportError: If no registry URL could be reached.
+        """
+        body = self._json_schema.encode(self._validator, extract_dict(data))
+        schema_id = self._client.register(f"{topic}-value", self._schema_str, "JSON")
+        return self._frame(schema_id, body)
+
+
+class ConfluentProtobufSerializer:
+    """
+    Lazy-loaded serializer for Confluent Schema Registry using protobuf and httpx.
+
+    This class converts simulation data into Protobuf messages in the Confluent wire
+    format. The schema is the file of the message class. On the first record of each
+    topic it registers the files that the schema imports, then the schema under the
+    subject `<topic>-value`, and it reuses the schema id after that.
+    """
+
+    def __init__(
+        self,
+        registry_url: str,
+        message_type: Any,
+        *,
+        auth: Optional[Tuple[str, str]] = UNSET,
+        verify: Union[bool, str, ssl.SSLContext] = UNSET,
+        cert: Optional[
+            Union[
+                str,
+                Tuple[str, Optional[str]],
+                Tuple[str, Optional[str], Optional[str]],
+            ]
+        ] = UNSET,
+        timeout: Optional[float] = UNSET,
+        headers: Optional[Mapping[str, str]] = UNSET,
+        proxy: Optional[str] = UNSET,
+        max_retries: int = UNSET,
+    ):
+        """
+        Initializes the Confluent Protobuf serializer. It makes no request to the
+        registry.
+
+        `UNSET` as a default, in the signature or the Default column of the API page,
+        means the argument was not given; each argument's description says its real
+        default.
+
+        Args:
+            registry_url (str): The base URL of the Confluent Schema Registry.
+                Several URLs separated by commas are tried in order.
+            message_type (type[Message]): The generated Protobuf message class. Its
+                file is registered as the schema.
+            auth (Optional[Tuple[str, str]]): A username and password for basic
+                authentication, for example `("user", "pass")`. The default is None.
+            verify (bool | str | ssl.SSLContext): How to check the registry's
+                certificate: True (the default), False, the path of a CA file or
+                directory, or an SSL context.
+            cert (str | tuple | None): A client certificate file, or a tuple of the
+                certificate file, the key file and the key password. The default is None.
+            timeout (Optional[float]): Seconds each step of a request to the registry
+                (connecting, sending, reading) may take. The default is 10.0. None
+                waits without a limit.
+            headers (Optional[Mapping[str, str]]): Headers sent with every request,
+                for example `{"Authorization": "Bearer <token>"}`. The default is None.
+            proxy (Optional[str]): The URL of a proxy. The default is None.
+            max_retries (int): How many times a request is repeated after a
+                transport error or a status of 408, 429, 500, 502, 503 or 504. The
+                default is 3.
+
+        Raises:
+            ImportError: If the 'protobuf' or 'httpx' package is not installed.
+        """
+        try:
+            import google.protobuf  # noqa: F401
+            import httpx  # noqa: F401
+
+            from desflow.connectors._schema_registry import protobuf
+            from desflow.connectors._schema_registry.confluent_client import (
+                ConfluentRegistryClient,
+                resolve_legacy_options,
+            )
+            from desflow.connectors._schema_registry.wire import frame_confluent
+        except ImportError:
+            raise ImportError(
+                "The 'protobuf' and 'httpx' packages are required to use "
+                "ConfluentProtobufSerializer. "
+                "Install them using: pip install desflow[confluent]"
+            )
+
+        options = resolve_legacy_options(
+            {},
+            auth=auth,
+            verify=verify,
+            cert=cert,
+            timeout=timeout,
+            headers=headers,
+            proxy=proxy,
+            max_retries=max_retries,
+        )
+        self._client = ConfluentRegistryClient(registry_url, **options)
+        self._protobuf = protobuf
+        self._frame = frame_confluent
+        self._message_type = message_type
+        self._schema_str = protobuf.file_descriptor_b64(message_type.DESCRIPTOR.file)
+        self._indexes = protobuf.confluent_indexes(message_type.DESCRIPTOR)
+        # The files the schema imports, registered on the first record.
+        self._references: Optional[list] = None
+        self._lock = threading.Lock()
+
+    def serialize(self, topic: str, data: Any) -> bytes:
+        """
+        Serializes the given data into a Protobuf byte string.
+
+        The first call registers the imported files and, for a topic, the schema under
+        `<topic>-value`, which makes requests to the registry.
+
+        Args:
+            topic (str): The target Kafka topic, used for schema subject naming.
+            data (Any): An instance of the message class, or a dictionary or Pydantic
+                model. A key the schema does not have is dropped.
+
+        Returns:
+            bytes: The Protobuf bytes, with the Confluent prefix and message index.
+
+        Raises:
+            SerializationError: If the record does not fit the message class.
+            SchemaRegistryError: If the registry refuses a schema.
+            httpx.TransportError: If no registry URL could be reached.
+        """
+        body = self._protobuf.encode(self._message_type, extract_dict(data))
+        schema_id = self._client.register(
+            f"{topic}-value", self._schema_str, "PROTOBUF", self._imports()
+        )
+        return self._frame(schema_id, self._indexes + body)
+
+    def _imports(self) -> list:
+        """Registers the imported files once and returns them as references."""
+        with self._lock:
+            if self._references is None:
+                self._references = self._protobuf.register_dependencies(
+                    self._message_type.DESCRIPTOR.file, self._client
+                )
+            return self._references
+
+
+class GlueJsonSchemaSerializer:
+    """
+    Lazy-loaded serializer for AWS Glue Schema Registry using boto3 and fastjsonschema.
+
+    This class converts simulation data into JSON with the AWS Glue prefix. It checks
+    each record against the schema as aws-glue-schema-registry 1.1.3 did, so a
+    missing property that has a `default` is filled in.
+    """
+
+    def __init__(self, registry_name: str, schema_str: str, **boto3_kwargs: Any):
+        """
+        Initializes the AWS Glue JSON Schema serializer.
+
+        The constructor makes no call to Glue. The first `serialize` for a topic finds
+        or registers the schema.
+
+        Args:
+            registry_name (str): The name of the AWS Glue Schema Registry.
+            schema_str (str): The JSON Schema as a JSON string.
+            **boto3_kwargs: Additional arguments passed directly to the `boto3.client`
+                initialization (e.g., `region_name`, `aws_access_key_id`).
+
+        Raises:
+            ImportError: If the 'boto3' or 'fastjsonschema' package is not installed.
+            SerializationError: If the schema is not valid JSON or cannot be compiled.
+        """
+        try:
+            import boto3  # noqa: F401
+            import fastjsonschema  # noqa: F401
+
+            from desflow.connectors._schema_registry import glue_json
+            from desflow.connectors._schema_registry.glue_client import (
+                GlueRegistryClient,
+            )
+            from desflow.connectors._schema_registry.wire import frame_glue
+        except ImportError:
+            raise ImportError(
+                "The 'boto3' and 'fastjsonschema' packages are required. "
+                "Install them using: pip install desflow[glue]"
+            )
+
+        self._client = GlueRegistryClient(registry_name, boto3_kwargs)
+        self._glue_json = glue_json
+        self._frame = frame_glue
+        try:
+            schema = json.loads(schema_str)
+        except ValueError as error:
+            raise SerializationError(
+                f"The JSON Schema is not valid JSON: {error}"
+            ) from error
+        # aws-glue-schema-registry 1.1.3 sent the schema as orjson wrote it.
+        self._definition = orjson.dumps(schema).decode()
+        self._validate = glue_json.validator(self._definition)
+
+    def serialize(self, topic: str, data: Any) -> bytes:
+        """
+        Serializes the given data into a JSON byte string using AWS Glue.
+
+        The first call for a topic finds or registers the schema under
+        `<topic>-value`, which calls Glue.
+
+        Args:
+            topic (str): The target Kafka topic.
+            data (Any): The payload to serialize (dictionary or Pydantic model).
+
+        Returns:
+            bytes: The JSON bytes, with the Glue prefix.
+
+        Raises:
+            SerializationError: If the record does not match the schema.
+            SchemaRegistryError: If a Glue call fails or the new version does not
+                become available.
+        """
+        body = self._glue_json.encode(self._validate, extract_dict(data))
+        version_id = self._client.version_for(
+            f"{topic}-value", self._definition, "JSON"
+        )
+        return self._frame(version_id, body)
+
+
+class GlueProtobufSerializer:
+    """
+    Lazy-loaded serializer for AWS Glue Schema Registry using boto3 and protobuf.
+
+    This class converts simulation data into Protobuf messages with the AWS Glue
+    prefix and message index. Glue stores the schema as `.proto` text, which the
+    caller passes in, because protobuf cannot print it from the message class.
+    """
+
+    def __init__(
+        self,
+        registry_name: str,
+        message_type: Any,
+        schema_str: str,
+        **boto3_kwargs: Any,
+    ):
+        """
+        Initializes the AWS Glue Protobuf serializer.
+
+        The constructor makes no call to Glue. The first `serialize` for a topic finds
+        or registers the schema.
+
+        Args:
+            registry_name (str): The name of the AWS Glue Schema Registry.
+            message_type (type[Message]): The generated Protobuf message class.
+            schema_str (str): The text of the `.proto` file that the class was
+                generated from. It is registered as the schema as it is, so it must
+                declare the same messages, in the same file, as the class.
+            **boto3_kwargs: Additional arguments passed directly to the `boto3.client`
+                initialization (e.g., `region_name`, `aws_access_key_id`).
+
+        Raises:
+            ImportError: If the 'boto3' or 'protobuf' package is not installed.
+        """
+        try:
+            import boto3  # noqa: F401
+            import google.protobuf  # noqa: F401
+
+            from desflow.connectors._schema_registry import protobuf
+            from desflow.connectors._schema_registry.glue_client import (
+                GlueRegistryClient,
+            )
+            from desflow.connectors._schema_registry.wire import frame_glue
+        except ImportError:
+            raise ImportError(
+                "The 'boto3' and 'protobuf' packages are required. "
+                "Install them using: pip install desflow[glue]"
+            )
+
+        self._client = GlueRegistryClient(registry_name, boto3_kwargs)
+        self._protobuf = protobuf
+        self._frame = frame_glue
+        self._message_type = message_type
+        self._definition = schema_str
+        self._index = protobuf.glue_index(message_type.DESCRIPTOR)
+
+    def serialize(self, topic: str, data: Any) -> bytes:
+        """
+        Serializes the given data into a Protobuf byte string using AWS Glue.
+
+        The first call for a topic finds or registers the schema under
+        `<topic>-value`, which calls Glue.
+
+        Args:
+            topic (str): The target Kafka topic.
+            data (Any): An instance of the message class, or a dictionary or Pydantic
+                model. A key the schema does not have is dropped.
+
+        Returns:
+            bytes: The Protobuf bytes, with the Glue prefix and message index.
+
+        Raises:
+            SerializationError: If the record does not fit the message class.
+            SchemaRegistryError: If a Glue call fails or the new version does not
+                become available.
+        """
+        body = self._protobuf.encode(self._message_type, extract_dict(data))
+        version_id = self._client.version_for(
+            f"{topic}-value", self._definition, "PROTOBUF"
+        )
+        return self._frame(version_id, self._index + body)
+
+
 # ==========================================
 # Core Egress Class
 # ==========================================
@@ -386,6 +805,9 @@ class KafkaEgress(BaseEgress):
                 declares it: both `ConfluentAvroSerializer` and `GlueAvroSerializer`
                 encode field by field from the schema, so an undeclared `stream_type`
                 is dropped without an error rather than failing the send.
+                The Protobuf serializers drop it in the same way. The JSON Schema
+                serializers send it, and refuse the record when the schema does not
+                allow other properties.
             **kwargs: Additional overrides for the AIOKafkaProducer configuration.
         """
         self.telemetry_topic = telemetry_topic

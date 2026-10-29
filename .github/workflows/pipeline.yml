@@ -81,6 +81,16 @@ jobs:
               ConfluentAvroSerializer(registry_url="http://localhost:8081", schema_str=schema)
               ConfluentAvroDeserializer(registry_url="http://localhost:8081")
 
+              # The JSON Schema and Protobuf classes need jsonschema and protobuf
+              from desflow.connectors.egress.kafka import ConfluentJsonSchemaSerializer
+              from desflow.connectors.ingress.kafka import ConfluentProtobufDeserializer
+              from google.protobuf import struct_pb2
+
+              ConfluentJsonSchemaSerializer(
+                  registry_url="http://localhost:8081", schema_str='{"type": "object"}'
+              )
+              ConfluentProtobufDeserializer("http://localhost:8081", struct_pb2.Struct)
+
               # desflow writes the wire format itself, so the extra brings no confluent-kafka
               assert importlib.util.find_spec("confluent_kafka") is None
           - extra: glue
@@ -99,6 +109,14 @@ jobs:
               )
               GlueAvroSerializer(registry_name="sim-registry", schema_str=schema)
               GlueAvroDeserializer(registry_name="sim-registry")
+
+              # The JSON Schema and Protobuf classes need fastjsonschema and protobuf
+              from desflow.connectors.egress.kafka import GlueJsonSchemaSerializer
+              from desflow.connectors.ingress.kafka import GlueProtobufDeserializer
+              from google.protobuf import struct_pb2
+
+              GlueJsonSchemaSerializer("sim-registry", '{"type": "object"}')
+              GlueProtobufDeserializer("sim-registry", struct_pb2.Struct)
 
               # desflow speaks to Glue itself, so the extra brings no Glue client library
               import importlib.util
@@ -162,6 +180,7 @@ jobs:
               for module in (
                   "aiokafka", "fastavro", "fastjsonschema", "httpx", "boto3", "redis",
                   "asyncpg", "pyarrow", "pyiceberg", "scipy", "matplotlib",
+                  "jsonschema", "google.protobuf",
               ):
                   assert importlib.util.find_spec(module), module
     steps:

@@ -37,6 +37,7 @@ RUN_BY_OTHER_TESTS = {
     "fit_the_inputs.yaml",
     "flow_of_tasks.yaml",
     "interruptions.yaml",
+    "json_schema_and_protobuf.yaml",
     "kafka_security.yaml",
     "live_changes.yaml",
     "live_changes_live.yaml",

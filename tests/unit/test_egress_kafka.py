@@ -15,6 +15,10 @@ from pydantic import BaseModel
 from desflow.connectors.admin.kafka import KafkaAdminConnector
 from desflow.connectors.egress.base import extract_dict
 from desflow.connectors.egress.kafka import (
+    ConfluentJsonSchemaSerializer,
+    ConfluentProtobufSerializer,
+    GlueJsonSchemaSerializer,
+    GlueProtobufSerializer,
     ConfluentAvroSerializer,
     GlueAvroSerializer,
     KafkaEgress,
@@ -65,6 +69,31 @@ def test_missing_avro_dependencies():
                 match=r"'boto3' and 'fastavro'.*pip install desflow\[glue\]",
             ):
                 GlueAvroSerializer(registry_name="mock", schema_str="{}")
+
+
+@pytest.mark.parametrize(
+    ("hidden", "extra", "build"),
+    [
+        (
+            "jsonschema",
+            "confluent",
+            lambda: ConfluentJsonSchemaSerializer("http://m", "{}"),
+        ),
+        (
+            "google.protobuf",
+            "confluent",
+            lambda: ConfluentProtobufSerializer("http://m", None),
+        ),
+        ("fastjsonschema", "glue", lambda: GlueJsonSchemaSerializer("m", "{}")),
+        ("google.protobuf", "glue", lambda: GlueProtobufSerializer("m", None, "")),
+    ],
+    ids=["confluent json", "confluent protobuf", "glue json", "glue protobuf"],
+)
+def test_missing_schema_format_dependencies(hidden, extra, build):
+    """Each JSON Schema and Protobuf serializer names its extra when a package is missing."""
+    with patch.dict(sys.modules, {hidden: None}):
+        with pytest.raises(ImportError, match=rf"pip install desflow\[{extra}\]"):
+            build()
 
 
 AVRO_SCHEMA = """

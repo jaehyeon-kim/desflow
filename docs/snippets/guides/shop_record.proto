@@ -1,0 +1,20 @@
+// The record KafkaEgress sends for an order, as the Use Avro, JSON Schema and Protobuf
+// guide publishes it. Generate shop_record_pb2.py from it with the command on that page.
+syntax = "proto3";
+
+package com.desflow.shop;
+
+message Order {
+  int64 order_id = 1;
+  double amount = 2;
+}
+
+// `optional` keeps a missing task or instance apart from 0 and "", as null is in JSON.
+message ShopRecord {
+  string key = 1;
+  optional string task = 2;
+  optional int64 instance = 3;
+  double sim_ts = 4;
+  string timestamp = 5;
+  Order value = 6;
+}

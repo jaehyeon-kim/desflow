@@ -1,11 +1,15 @@
-"""The Confluent Schema Registry code: bytes on the wire, REST calls, caches and options.
+"""The Confluent and Glue schema registry code: bytes on the wire, registry calls,
+caches and options.
 
-Every test uses `httpx.MockTransport`, so no registry and no confluent-kafka is needed.
-The byte fixtures follow the Avro 1.12.0 specification, "Binary Encoding": an int is a
-zigzag varint (27 is 0x36), a string is its length then UTF-8 ("foo" is 06 66 6f 6f),
-and a union writes the index of its branch first (null in ["null","string"] is 00).
+Confluent tests use `httpx.MockTransport` and Glue tests a fake boto3 client, so no
+registry is needed. The Avro byte fixtures F1 to F4 follow the Avro 1.12.0
+specification, "Binary Encoding": an int is a zigzag varint (27 is 0x36), a string is
+its length then UTF-8 ("foo" is 06 66 6f 6f), and a union writes the index of its
+branch first (null in ["null","string"] is 00).
 """
 
+import base64
+import datetime
 import io
 import json
 import ssl
@@ -15,11 +19,19 @@ import uuid
 import botocore.exceptions
 import httpx
 import pytest
+from google.protobuf import (
+    descriptor_pb2,
+    descriptor_pool,
+    message_factory,
+    timestamp_pb2,
+)
 
 from desflow.connectors._schema_registry import (
     confluent_client,
     glue_client,
     glue_json,
+    json_schema,
+    protobuf,
 )
 from desflow.connectors._schema_registry.confluent_client import (
     ConfluentRegistryClient,
@@ -29,13 +41,21 @@ from desflow.connectors._schema_registry.glue_client import GlueRegistryClient
 from desflow.connectors._schema_registry.wire import frame_glue, unframe_glue
 from desflow.connectors.egress.kafka import (
     ConfluentAvroSerializer,
+    ConfluentJsonSchemaSerializer,
+    ConfluentProtobufSerializer,
     GlueAvroSerializer,
+    GlueJsonSchemaSerializer,
+    GlueProtobufSerializer,
     SchemaRegistryError,
     SerializationError,
 )
 from desflow.connectors.ingress.kafka import (
     ConfluentAvroDeserializer,
+    ConfluentJsonSchemaDeserializer,
+    ConfluentProtobufDeserializer,
     GlueAvroDeserializer,
+    GlueJsonSchemaDeserializer,
+    GlueProtobufDeserializer,
 )
 
 PROBE = {
@@ -501,8 +521,23 @@ def test_auth_and_url_credentials_are_exclusive():
     [
         lambda **kw: ConfluentAvroSerializer("http://registry:8081", '"string"', **kw),
         lambda **kw: ConfluentAvroDeserializer("http://registry:8081", **kw),
+        lambda **kw: ConfluentJsonSchemaSerializer("http://registry:8081", "{}", **kw),
+        lambda **kw: ConfluentJsonSchemaDeserializer("http://registry:8081", **kw),
+        lambda **kw: ConfluentProtobufSerializer(
+            "http://registry:8081", timestamp_pb2.Timestamp, **kw
+        ),
+        lambda **kw: ConfluentProtobufDeserializer(
+            "http://registry:8081", timestamp_pb2.Timestamp, **kw
+        ),
     ],
-    ids=["serializer", "deserializer"],
+    ids=[
+        "serializer",
+        "deserializer",
+        "json serializer",
+        "json deserializer",
+        "protobuf serializer",
+        "protobuf deserializer",
+    ],
 )
 def test_classes_pass_default_timeout_verify_and_retries_to_the_client(
     monkeypatch, build
@@ -655,6 +690,10 @@ def test_constructors_make_no_request(registry_transport):
 
     ConfluentAvroSerializer("http://registry:8081", json.dumps(PROBE))
     ConfluentAvroDeserializer("http://registry:8081")
+    ConfluentJsonSchemaSerializer("http://registry:8081", json.dumps(JSON_SCHEMA))
+    ConfluentJsonSchemaDeserializer("http://registry:8081")
+    ConfluentProtobufSerializer("http://registry:8081", PROBE_MESSAGE)
+    ConfluentProtobufDeserializer("http://registry:8081", PROBE_MESSAGE)
 
 
 def test_guid_payload_of_17_bytes_has_an_empty_rest():
@@ -1218,3 +1257,597 @@ def test_glue_deserializer_refuses_a_format_it_does_not_read(monkeypatch):
 
     with pytest.raises(SerializationError, match="data format PROTOBUF"):
         deserializer.deserialize("t", G1)
+
+
+# JSON Schema and Protobuf
+#
+# J1 is the JSON record of G3 framed for Confluent. G3 is the same record framed for
+# Glue, and is the Glue fixture of the JSON Schema classes. The Protobuf bytes follow
+# the Protobuf encoding guide: a field is its number and wire type, then the value
+# (field 1, a string, is 0a; field 2, a varint, is 10; 3 is 03). The message index of
+# Confluent is the zigzag varints of the path's length and positions (2 is 04, 1 is
+# 02, 0 is 00), and the path [0] is the single byte 00.
+
+JSON_SCHEMA = GLUE_JSON_SCHEMA
+J1 = bytes.fromhex("00 00 00 00 01") + G3[18:]
+
+
+def proto_file(name, messages, pool=None, dependencies=()):
+    """Builds a .proto file in a descriptor pool without protoc.
+
+    `messages` is a list of `(name, fields, nested messages)`; a field is
+    `(name, number, type name)`, where the type is `string` or `int32`.
+    """
+    pool = pool or descriptor_pool.DescriptorPool()
+    types = {
+        "string": descriptor_pb2.FieldDescriptorProto.TYPE_STRING,
+        "int32": descriptor_pb2.FieldDescriptorProto.TYPE_INT32,
+    }
+
+    def add(container, message_name, fields, nested):
+        message = container.add(name=message_name)
+        for field_name, number, type_name in fields:
+            message.field.add(
+                name=field_name,
+                number=number,
+                type=types[type_name],
+                label=descriptor_pb2.FieldDescriptorProto.LABEL_OPTIONAL,
+            )
+        for child in nested:
+            add(message.nested_type, *child)
+
+    proto = descriptor_pb2.FileDescriptorProto(
+        name=name, package="shop", syntax="proto3", dependency=list(dependencies)
+    )
+    for message in messages:
+        add(proto.message_type, *message)
+    return pool, pool.AddSerializedFile(proto.SerializeToString())
+
+
+def message_class(pool, full_name):
+    return message_factory.GetMessageClass(pool.FindMessageTypeByName(full_name))
+
+
+PROBE_FIELDS = [("path_id", 1, "string"), ("value", 2, "int32")]
+PROBE_POOL, PROBE_FILE = proto_file("probe.proto", [("Probe", PROBE_FIELDS, [])])
+PROBE_MESSAGE = message_class(PROBE_POOL, "shop.Probe")
+# P1: the record as a message, with the index of the first message of the file
+P1_BODY = bytes.fromhex("0a 0c") + b"Shop.packers" + bytes.fromhex("10 03")
+P1 = bytes.fromhex("00 00 00 00 01 00") + P1_BODY
+# P2: a message nested in the second message of its file, so its path is [1, 0]
+NESTED_POOL, NESTED_FILE = proto_file(
+    "nested.proto",
+    [
+        ("First", [], []),
+        ("Second", [], [("Inner", [("name", 1, "string")], [])]),
+    ],
+)
+INNER_MESSAGE = message_class(NESTED_POOL, "shop.Second.Inner")
+P2 = bytes.fromhex("00 00 00 00 02 04 02 00 0a 02") + b"ab"
+
+
+def test_protobuf_fixtures_hold_the_message_the_codec_writes():
+    assert PROBE_MESSAGE(path_id="Shop.packers", value=3).SerializeToString() == P1_BODY
+    assert INNER_MESSAGE(name="ab").SerializeToString() == P2[8:]
+    assert protobuf.confluent_indexes(PROBE_MESSAGE.DESCRIPTOR) == P1[5:6]
+    assert protobuf.confluent_indexes(INNER_MESSAGE.DESCRIPTOR) == P2[5:8]
+
+
+def test_confluent_indexes_are_read_back():
+    assert protobuf.read_confluent_indexes(P1[5:])[0] == [0]
+    path, rest = protobuf.read_confluent_indexes(P2[5:])
+    assert (path, bytes(rest)) == ([1, 0], P2[8:])
+
+
+@pytest.mark.parametrize(
+    "buf",
+    [b"", b"\x04\x02", b"\x80", bytes.fromhex("ff ff ff ff ff ff ff ff ff ff 01")],
+    ids=["empty", "path cut short", "varint cut short", "varint too long"],
+)
+def test_confluent_indexes_that_cannot_be_read(buf):
+    with pytest.raises(SerializationError, match="message index"):
+        protobuf.read_confluent_indexes(buf)
+
+
+def test_confluent_index_length_is_limited():
+    # a path length of 100001, as a zigzag varint
+    with pytest.raises(SerializationError, match="Invalid message index length"):
+        protobuf.read_confluent_indexes(bytes.fromhex("c2 b5 0c"))
+
+
+def test_glue_indexes_follow_the_sorted_full_names_of_the_java_library():
+    """The order of AWS Glue Schema Registry v2.0.1 `MessageIndexFinderTest`.
+
+    Messages are declared here in reverse order, so the sort and not the order of
+    declaration gives the index.
+    """
+    expected = [
+        "A",
+        "A.B",
+        "A.B.C",
+        "A.B.C.J",
+        "A.B.C.J.K",
+        "A.B.C.X",
+        "A.B.C.X.D",
+        "A.B.C.X.D.F",
+        "A.B.C.X.D.F.M",
+        "A.B.C.X.D.G",
+        "A.B.C.X.L",
+        "A.I",
+        "A.X",
+        "N",
+        "O",
+        "O.A",
+    ]
+
+    def children(parent):
+        depth = 0 if parent is None else parent.count(".") + 1
+        names = [
+            name
+            for name in expected
+            if name.count(".") == depth
+            and (parent is None or name.startswith(parent + "."))
+        ]
+        return [
+            (name.rsplit(".", 1)[-1], [], children(name)) for name in reversed(names)
+        ]
+
+    pool, _ = proto_file("complex.proto", children(None))
+    for index, name in enumerate(expected):
+        descriptor = pool.FindMessageTypeByName(f"shop.{name}")
+        assert protobuf.glue_index(descriptor) == bytes([index]), name
+
+
+def test_glue_index_is_an_unsigned_varint():
+    assert protobuf.read_glue_index(bytes.fromhex("ac 02 0a")) == (300, b"\x0a")
+    with pytest.raises(SerializationError, match="message index"):
+        protobuf.read_glue_index(b"\xac")
+
+
+# Confluent JSON Schema
+
+
+def test_confluent_json_serializer_writes_j1_and_registers_the_schema(
+    registry_transport,
+):
+    registry = FakeRegistry(
+        {("POST", "/subjects/probe-value/versions"): (200, {"id": 1})}
+    )
+    registry_transport(registry)
+    schema_str = json.dumps(JSON_SCHEMA, indent=1)
+    serializer = ConfluentJsonSchemaSerializer("http://registry:8081", schema_str)
+
+    # A key the schema does not forbid is written, as it is on the wire of any producer
+    first = serializer.serialize("probe", {**GLUE_RECORD, "extra": True})
+    second = serializer.serialize("probe", GLUE_RECORD)
+
+    assert second == J1
+    assert json.loads(first[5:]) == {**GLUE_RECORD, "extra": True}
+    assert json.loads(registry.requests[0].content) == {
+        "schema": schema_str,
+        "schemaType": "JSON",
+        "references": [],
+    }
+    assert len(registry.requests) == 1
+
+
+def test_confluent_json_deserializer_reads_j1(registry_transport):
+    registry_transport(
+        FakeRegistry(
+            {("GET", "/schemas/ids/1"): schema_answer(JSON_SCHEMA, schemaType="JSON")}
+        )
+    )
+    deserializer = ConfluentJsonSchemaDeserializer("http://registry:8081")
+
+    assert deserializer.deserialize("probe", J1) == GLUE_RECORD
+
+
+def test_confluent_json_checks_records_on_both_sides(registry_transport):
+    registry_transport(
+        FakeRegistry(
+            {
+                ("POST", "/subjects/probe-value/versions"): (200, {"id": 1}),
+                ("GET", "/schemas/ids/1"): schema_answer(
+                    JSON_SCHEMA, schemaType="JSON"
+                ),
+            }
+        )
+    )
+    serializer = ConfluentJsonSchemaSerializer(
+        "http://registry:8081", json.dumps(JSON_SCHEMA)
+    )
+    deserializer = ConfluentJsonSchemaDeserializer("http://registry:8081")
+    wrong_type = {"path_id": "A", "value": "three"}
+
+    with pytest.raises(SerializationError, match="does not match the schema"):
+        serializer.serialize("probe", wrong_type)
+    with pytest.raises(SerializationError, match="does not match the schema"):
+        deserializer.deserialize("probe", J1[:5] + json.dumps(wrong_type).encode())
+    with pytest.raises(SerializationError, match="not valid JSON"):
+        deserializer.deserialize("probe", J1[:5] + b"{")
+
+
+def test_confluent_json_serializer_checks_the_wire_form_of_a_value():
+    schema = {"type": "object", "properties": {"at": {"type": "string"}}}
+    validator = json_schema.validator(schema)
+
+    # orjson writes a datetime as a string, and the string is what is checked
+    assert json_schema.encode(validator, {"at": datetime.datetime(2026, 1, 2)}) == (
+        b'{"at":"2026-01-02T00:00:00"}'
+    )
+
+
+@pytest.mark.parametrize(
+    ("schema", "message"),
+    [
+        ("{", "not valid JSON"),
+        ("[]", "must be a JSON object"),
+        ('{"type": 5}', "valid"),
+    ],
+    ids=["not JSON", "not an object", "not a schema"],
+)
+def test_confluent_json_serializer_refuses_a_schema_it_cannot_use(schema, message):
+    with pytest.raises(SerializationError, match=message):
+        ConfluentJsonSchemaSerializer("http://registry:8081", schema)
+
+
+def test_confluent_json_references_are_fetched_once_and_resolved(registry_transport):
+    address = {
+        "type": "object",
+        "properties": {"city": {"type": "string"}},
+        "required": ["city"],
+    }
+    order = {
+        "type": "object",
+        "properties": {"ship_to": {"$ref": "address.json"}},
+    }
+    reference = {"name": "address.json", "subject": "address-value", "version": 2}
+    registry = FakeRegistry(
+        {
+            ("GET", "/schemas/ids/5"): schema_answer(
+                order, schemaType="JSON", references=[reference]
+            ),
+            ("GET", "/subjects/address-value/versions/2"): schema_answer(
+                address, schemaType="JSON"
+            ),
+        }
+    )
+    registry_transport(registry)
+    deserializer = ConfluentJsonSchemaDeserializer("http://registry:8081")
+    header = bytes.fromhex("00 00 00 00 05")
+
+    assert deserializer.deserialize("orders", header + b'{"ship_to":{"city":"Perth"}}')
+    with pytest.raises(SerializationError, match="does not match the schema"):
+        deserializer.deserialize("orders", header + b'{"ship_to":{}}')
+    assert registry.paths("GET") == [
+        "/schemas/ids/5",
+        "/subjects/address-value/versions/2",
+    ]
+
+
+def test_json_reference_that_is_not_in_the_registry_is_not_fetched():
+    validator = json_schema.validator({"$ref": "https://example.invalid/a.json"})
+
+    with pytest.raises(SerializationError, match="cannot be checked"):
+        json_schema.decode(validator, b"{}")
+
+
+# Confluent Protobuf
+
+
+def test_confluent_protobuf_serializer_writes_p1_and_registers_the_file(
+    registry_transport,
+):
+    registry = FakeRegistry(
+        {("POST", "/subjects/probe-value/versions"): (200, {"id": 1})}
+    )
+    registry_transport(registry)
+    serializer = ConfluentProtobufSerializer("http://registry:8081", PROBE_MESSAGE)
+
+    # A key the schema does not have is dropped; a message instance is written as it is
+    from_dict = serializer.serialize("probe", {**GLUE_RECORD, "stream_type": "event"})
+    from_message = serializer.serialize("probe", PROBE_MESSAGE(**GLUE_RECORD))
+
+    assert from_dict == from_message == P1
+    body = json.loads(registry.requests[0].content)
+    assert body["schemaType"] == "PROTOBUF"
+    assert body["references"] == []
+    registered = descriptor_pb2.FileDescriptorProto.FromString(
+        base64.b64decode(body["schema"])
+    )
+    assert registered.name == "probe.proto"
+    assert len(registry.requests) == 1
+
+
+def test_confluent_protobuf_deserializer_reads_p1_and_p2(registry_transport):
+    registry_transport(
+        FakeRegistry(
+            {
+                ("GET", "/schemas/ids/1"): schema_answer(
+                    PROBE_GLUE, schemaType="PROTOBUF"
+                ),
+                ("GET", "/schemas/ids/2"): schema_answer(
+                    PROBE_GLUE, schemaType="PROTOBUF"
+                ),
+            }
+        )
+    )
+
+    assert ConfluentProtobufDeserializer(
+        "http://registry:8081", PROBE_MESSAGE
+    ).deserialize("probe", P1) == {"path_id": "Shop.packers", "value": 3}
+    assert ConfluentProtobufDeserializer(
+        "http://registry:8081", INNER_MESSAGE
+    ).deserialize("nested", P2) == {"name": "ab"}
+
+
+def test_confluent_protobuf_record_that_does_not_fit_is_refused(registry_transport):
+    registry_transport(
+        FakeRegistry(
+            {
+                ("POST", "/subjects/probe-value/versions"): (200, {"id": 1}),
+                ("GET", "/schemas/ids/1"): schema_answer(
+                    PROBE_GLUE, schemaType="PROTOBUF"
+                ),
+            }
+        )
+    )
+    serializer = ConfluentProtobufSerializer("http://registry:8081", PROBE_MESSAGE)
+    deserializer = ConfluentProtobufDeserializer("http://registry:8081", PROBE_MESSAGE)
+
+    with pytest.raises(SerializationError, match="does not fit Probe"):
+        serializer.serialize("probe", {"value": "three"})
+    with pytest.raises(SerializationError, match="Expected a Probe or a dict"):
+        serializer.serialize("probe", INNER_MESSAGE(name="ab"))
+    # field 2 is a varint, and the data ends in the middle of its value
+    with pytest.raises(SerializationError, match="not a Probe message"):
+        deserializer.deserialize("probe", P1[:6] + bytes.fromhex("10 ff"))
+
+
+@pytest.mark.parametrize(
+    ("own", "other", "build"),
+    [
+        (
+            "JSON",
+            "AVRO",
+            lambda: ConfluentJsonSchemaDeserializer("http://registry:8081"),
+        ),
+        (
+            "PROTOBUF",
+            "JSON",
+            lambda: ConfluentProtobufDeserializer(
+                "http://registry:8081", PROBE_MESSAGE
+            ),
+        ),
+    ],
+    ids=["json", "protobuf"],
+)
+def test_confluent_format_deserializers_refuse_another_type_and_read_rules(
+    registry_transport, own, other, build
+):
+    rule_set = {"domainRules": [{"name": "check", "mode": "READ"}]}
+    registry_transport(
+        FakeRegistry(
+            {
+                ("GET", "/schemas/ids/1"): schema_answer(JSON_SCHEMA, schemaType=other),
+                ("GET", "/schemas/ids/2"): schema_answer(
+                    JSON_SCHEMA, schemaType=own, ruleSet=rule_set
+                ),
+            }
+        )
+    )
+    deserializer = build()
+
+    with pytest.raises(SerializationError, match=f"reads {own} only"):
+        deserializer.deserialize("t", bytes.fromhex("00 00 00 00 01 00 00"))
+    with pytest.raises(SerializationError, match="check"):
+        deserializer.deserialize("t", bytes.fromhex("00 00 00 00 02 00 00"))
+
+
+def test_protobuf_dependencies_are_registered_before_the_file_that_imports_them(
+    registry_transport,
+):
+    pool = descriptor_pool.DescriptorPool()
+    pool.AddSerializedFile(timestamp_pb2.DESCRIPTOR.serialized_pb)
+    proto_file("base.proto", [("Base", [], [])], pool)
+    proto_file("middle.proto", [("Middle", [], [])], pool, ["base.proto"])
+    _, top = proto_file(
+        "top.proto",
+        [("Top", [], [])],
+        pool,
+        ["middle.proto", "google/protobuf/timestamp.proto"],
+    )
+    registry = FakeRegistry(
+        {
+            ("POST", "/subjects/base.proto/versions"): (200, {"id": 10}),
+            ("POST", "/subjects/base.proto?normalize=false"): (200, {"version": 3}),
+            ("POST", "/subjects/middle.proto/versions"): (200, {"id": 11}),
+            ("POST", "/subjects/middle.proto?normalize=false"): (200, {"version": 4}),
+            ("POST", "/subjects/t-value/versions"): (200, {"id": 12}),
+        }
+    )
+    registry_transport(registry)
+    serializer = ConfluentProtobufSerializer(
+        "http://registry:8081", message_class(pool, "shop.Top")
+    )
+
+    serializer.serialize("t", {})
+    serializer.serialize("t", {})
+
+    assert registry.paths() == [
+        "/subjects/base.proto/versions",
+        "/subjects/base.proto?normalize=false",
+        "/subjects/middle.proto/versions",
+        "/subjects/middle.proto?normalize=false",
+        "/subjects/t-value/versions",
+    ]
+    middle, top_request = (registry.requests[2], registry.requests[4])
+    assert json.loads(middle.content)["references"] == [
+        {"name": "base.proto", "subject": "base.proto", "version": 3}
+    ]
+    assert json.loads(top_request.content)["references"] == [
+        {"name": "middle.proto", "subject": "middle.proto", "version": 4}
+    ]
+    assert top.name == "top.proto"
+
+
+def test_lookup_posts_the_schema_once_and_returns_the_version():
+    registry = FakeRegistry(
+        {
+            ("POST", "/subjects/a%2Fb?normalize=false"): [
+                (404, {"error_code": 40403, "message": "Schema not found"}),
+                (200, {"subject": "a/b", "id": 7, "version": 5, "schema": "x"}),
+            ]
+        }
+    )
+    client = client_for(registry)
+
+    with pytest.raises(SchemaRegistryError) as failure:
+        client.lookup("a/b", "x", "PROTOBUF")
+    assert failure.value.error_code == 40403
+    # the failure was not cached, and the answer is
+    assert client.lookup("a/b", "x", "PROTOBUF") == 5
+    assert client.lookup("a/b", "x", "PROTOBUF") == 5
+
+    assert len(registry.requests) == 2
+    assert json.loads(registry.requests[1].content) == {
+        "schema": "x",
+        "schemaType": "PROTOBUF",
+        "references": [],
+    }
+
+
+# AWS Glue JSON Schema and Protobuf
+
+
+def glue_formats(monkeypatch, glue, *builders):
+    monkeypatch.setattr("boto3.client", lambda service, **kwargs: glue)
+    return [build() for build in builders]
+
+
+def test_glue_json_serializer_writes_g3_and_registers_the_definition(monkeypatch):
+    glue = FakeGlue(
+        get_schema_by_definition=[SCHEMA_MISSING, version_answer(fmt="JSON")],
+        create_schema=[create_answer()],
+    )
+    [serializer] = glue_formats(
+        monkeypatch,
+        glue,
+        lambda: GlueJsonSchemaSerializer("probe", json.dumps(JSON_SCHEMA, indent=2)),
+    )
+    assert glue.calls == []
+
+    record = dict(GLUE_RECORD)
+    first = serializer.serialize("t", record)
+    second = serializer.serialize("t", GLUE_RECORD)
+
+    assert first == second == G3
+    assert record == GLUE_RECORD
+    assert glue.names() == ["get_schema_by_definition", "create_schema"]
+    created = glue.calls[1][1]
+    assert created["DataFormat"] == "JSON"
+    assert created["SchemaName"] == "t-value"
+    # the definition is what aws-glue-schema-registry 1.1.3 sent: orjson's compact JSON
+    assert created["SchemaDefinition"] == json.dumps(JSON_SCHEMA, separators=(",", ":"))
+
+
+def test_glue_json_serializer_fills_a_default_and_refuses_a_wrong_record(monkeypatch):
+    schema = {
+        "type": "object",
+        "properties": {"n": {"type": "integer"}, "unit": {"default": "kg"}},
+    }
+    glue = FakeGlue(get_schema_by_definition=[version_answer(fmt="JSON")])
+    [serializer] = glue_formats(
+        monkeypatch, glue, lambda: GlueJsonSchemaSerializer("probe", json.dumps(schema))
+    )
+
+    assert json.loads(serializer.serialize("t", {"n": 1})[18:]) == {
+        "n": 1,
+        "unit": "kg",
+    }
+    calls = len(glue.calls)
+    with pytest.raises(SerializationError, match="does not match the schema"):
+        serializer.serialize("t", {"n": "one"})
+    assert len(glue.calls) == calls
+
+
+def test_glue_json_serializer_refuses_a_schema_that_is_not_json(monkeypatch):
+    glue = FakeGlue()
+    with pytest.raises(SerializationError, match="The JSON Schema is not valid JSON"):
+        glue_formats(monkeypatch, glue, lambda: GlueJsonSchemaSerializer("probe", "{x"))
+    assert glue.calls == []
+
+
+def test_glue_json_deserializer_reads_g3_and_refuses_another_format(monkeypatch):
+    glue = FakeGlue(
+        get_schema_version=[
+            version_answer(fmt="JSON", definition=json.dumps(JSON_SCHEMA)),
+        ]
+    )
+    [deserializer] = glue_formats(
+        monkeypatch, glue, lambda: GlueJsonSchemaDeserializer("probe")
+    )
+
+    assert deserializer.deserialize("t", G3) == GLUE_RECORD
+    assert deserializer.deserialize("t", G3) == GLUE_RECORD
+    assert glue.names() == ["get_schema_version"]
+    wrong_type = frame_glue(GLUE_VERSION, b'{"path_id":"A","value":"three"}')
+    with pytest.raises(SerializationError, match="does not match the schema"):
+        deserializer.deserialize("t", wrong_type)
+
+    other = FakeGlue(get_schema_version=[version_answer(fmt="AVRO")])
+    [avro_only] = glue_formats(
+        monkeypatch, other, lambda: GlueJsonSchemaDeserializer("probe")
+    )
+    with pytest.raises(SerializationError, match="data format AVRO"):
+        avro_only.deserialize("t", G1)
+
+
+PROBE_PROTO = (
+    'syntax = "proto3";\npackage shop;\nmessage Probe { string path_id = 1; }\n'
+)
+# GP: a message nested in the second message of its file. Sorted by full name the
+# messages are Second, Second.Inner and First, so Inner has the index 2.
+GP = frame_glue(GLUE_VERSION, bytes.fromhex("02 0a 02") + b"ab")
+
+
+def test_glue_protobuf_serializer_writes_gp_and_registers_the_proto_text(monkeypatch):
+    glue = FakeGlue(
+        get_schema_by_definition=[SCHEMA_MISSING, version_answer(fmt="PROTOBUF")],
+        create_schema=[create_answer()],
+    )
+    [serializer] = glue_formats(
+        monkeypatch,
+        glue,
+        lambda: GlueProtobufSerializer("probe", INNER_MESSAGE, PROBE_PROTO),
+    )
+    assert glue.calls == []
+
+    assert serializer.serialize("t", {"name": "ab", "stream_type": "event"}) == GP
+    assert serializer.serialize("t", INNER_MESSAGE(name="ab")) == GP
+
+    created = glue.calls[1][1]
+    assert created["DataFormat"] == "PROTOBUF"
+    assert created["SchemaDefinition"] == PROBE_PROTO
+    assert glue.names() == ["get_schema_by_definition", "create_schema"]
+
+
+def test_glue_protobuf_deserializer_reads_gp_and_refuses_another_format(monkeypatch):
+    glue = FakeGlue(
+        get_schema_version=[version_answer(fmt="PROTOBUF", definition=PROBE_PROTO)]
+    )
+    [deserializer] = glue_formats(
+        monkeypatch, glue, lambda: GlueProtobufDeserializer("probe", INNER_MESSAGE)
+    )
+    assert glue.calls == []
+
+    assert deserializer.deserialize("t", GP) == {"name": "ab"}
+    assert deserializer.deserialize("t", GP) == {"name": "ab"}
+    assert glue.names() == ["get_schema_version"]
+
+    other = FakeGlue(get_schema_version=[version_answer(fmt="JSON")])
+    [json_only] = glue_formats(
+        monkeypatch, other, lambda: GlueProtobufDeserializer("probe", INNER_MESSAGE)
+    )
+    with pytest.raises(SerializationError, match="data format JSON"):
+        json_only.deserialize("t", GP)

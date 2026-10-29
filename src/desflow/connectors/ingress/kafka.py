@@ -313,6 +313,463 @@ class GlueAvroDeserializer:
             return self._readers[version_id]
 
 
+class ConfluentJsonSchemaDeserializer:
+    """
+    Lazy-loaded deserializer for Confluent Schema Registry using jsonschema and httpx.
+
+    This class converts JSON in the Confluent wire format back into Python
+    dictionaries. It fetches the writer schema from the registry using the schema id
+    (or GUID) in the message's prefix, once for each id, and checks each record
+    against it.
+    """
+
+    def __init__(
+        self,
+        registry_url: str,
+        *,
+        auth: Optional[Tuple[str, str]] = UNSET,
+        verify: Union[bool, str, ssl.SSLContext] = UNSET,
+        cert: Optional[
+            Union[
+                str,
+                Tuple[str, Optional[str]],
+                Tuple[str, Optional[str], Optional[str]],
+            ]
+        ] = UNSET,
+        timeout: Optional[float] = UNSET,
+        headers: Optional[Mapping[str, str]] = UNSET,
+        proxy: Optional[str] = UNSET,
+        max_retries: int = UNSET,
+    ):
+        """
+        Initializes the Confluent JSON Schema deserializer. It makes no request to the
+        registry.
+
+        `UNSET` as a default, in the signature or the Default column of the API page,
+        means the argument was not given; each argument's description says its real
+        default.
+
+        Args:
+            registry_url (str): The base URL of the Confluent Schema Registry.
+                Several URLs separated by commas are tried in order.
+            auth (Optional[Tuple[str, str]]): A username and password for basic
+                authentication, for example `("user", "pass")`. The default is None.
+            verify (bool | str | ssl.SSLContext): How to check the registry's
+                certificate: True (the default), False, the path of a CA file or
+                directory, or an SSL context.
+            cert (str | tuple | None): A client certificate file, or a tuple of the
+                certificate file, the key file and the key password. The default is None.
+            timeout (Optional[float]): Seconds each step of a request to the registry
+                (connecting, sending, reading) may take. The default is 10.0. None
+                waits without a limit.
+            headers (Optional[Mapping[str, str]]): Headers sent with every request,
+                for example `{"Authorization": "Bearer <token>"}`. The default is None.
+            proxy (Optional[str]): The URL of a proxy. The default is None.
+            max_retries (int): How many times a request is repeated after a
+                transport error or a status of 408, 429, 500, 502, 503 or 504. The
+                default is 3.
+
+        Raises:
+            ImportError: If the 'jsonschema' or 'httpx' package is not installed.
+        """
+        try:
+            import httpx  # noqa: F401
+            import jsonschema  # noqa: F401
+
+            from desflow.connectors._schema_registry import json_schema
+            from desflow.connectors._schema_registry.confluent_client import (
+                ConfluentRegistryClient,
+                resolve_legacy_options,
+            )
+            from desflow.connectors._schema_registry.rules import refuse_rules
+            from desflow.connectors._schema_registry.wire import unframe_confluent
+        except ImportError:
+            raise ImportError(
+                "The 'jsonschema' and 'httpx' packages are required to use "
+                "ConfluentJsonSchemaDeserializer. "
+                "Install them using: pip install desflow[confluent]"
+            )
+
+        options = resolve_legacy_options(
+            {},
+            auth=auth,
+            verify=verify,
+            cert=cert,
+            timeout=timeout,
+            headers=headers,
+            proxy=proxy,
+            max_retries=max_retries,
+        )
+        self._client = ConfluentRegistryClient(registry_url, **options)
+        self._json_schema = json_schema
+        self._refuse_rules = refuse_rules
+        self._unframe = unframe_confluent
+        # A validator for each schema id or GUID, built from the schema once.
+        self._validators: Dict[Any, Any] = {}
+        self._lock = threading.Lock()
+
+    def deserialize(self, topic: str, payload: bytes) -> Any:
+        """
+        Deserializes a JSON byte string with the Confluent prefix.
+
+        The first message with a schema id makes a request to the registry for the
+        writer schema.
+
+        Args:
+            topic (str): The Kafka topic from which the message was consumed.
+            payload (bytes): The JSON payload with the Confluent prefix.
+
+        Returns:
+            Any: The record, a dict for an object schema.
+
+        Raises:
+            SerializationError: If the payload has no valid prefix, the writer schema
+                is not JSON Schema or has Data Contract read rules, or the data is
+                not JSON or does not match the schema.
+            SchemaRegistryError: If the registry has no schema for the id.
+            httpx.TransportError: If no registry URL could be reached.
+        """
+        schema_id, data = self._unframe(payload)
+        return self._json_schema.decode(self._validator(schema_id), data)
+
+    def _validator(self, schema_id: Any) -> Any:
+        """Returns the validator of an id or GUID, fetching the schema once."""
+        with self._lock:
+            if schema_id not in self._validators:
+                if isinstance(schema_id, int):
+                    response = self._client.schema_by_id(schema_id)
+                else:
+                    response = self._client.schema_by_guid(str(schema_id))
+                if response["schemaType"] != "JSON":
+                    raise SerializationError(
+                        f"The schema is of type {response['schemaType']}, "
+                        "and ConfluentJsonSchemaDeserializer reads JSON only"
+                    )
+                self._refuse_rules(response)
+                registry = self._json_schema.resolve_references(
+                    response.get("references") or [], self._client.subject_version
+                )
+                self._validators[schema_id] = self._json_schema.validator(
+                    self._json_schema.load(response["schema"]), registry
+                )
+            return self._validators[schema_id]
+
+
+class ConfluentProtobufDeserializer:
+    """
+    Lazy-loaded deserializer for Confluent Schema Registry using protobuf and httpx.
+
+    This class converts Protobuf messages in the Confluent wire format back into
+    Python dictionaries. It reads each message as the class it is given, and skips
+    the message index. It fetches the writer schema only to check its type and rules,
+    once for each id.
+    """
+
+    def __init__(
+        self,
+        registry_url: str,
+        message_type: Any,
+        *,
+        auth: Optional[Tuple[str, str]] = UNSET,
+        verify: Union[bool, str, ssl.SSLContext] = UNSET,
+        cert: Optional[
+            Union[
+                str,
+                Tuple[str, Optional[str]],
+                Tuple[str, Optional[str], Optional[str]],
+            ]
+        ] = UNSET,
+        timeout: Optional[float] = UNSET,
+        headers: Optional[Mapping[str, str]] = UNSET,
+        proxy: Optional[str] = UNSET,
+        max_retries: int = UNSET,
+    ):
+        """
+        Initializes the Confluent Protobuf deserializer. It makes no request to the
+        registry.
+
+        `UNSET` as a default, in the signature or the Default column of the API page,
+        means the argument was not given; each argument's description says its real
+        default.
+
+        Args:
+            registry_url (str): The base URL of the Confluent Schema Registry.
+                Several URLs separated by commas are tried in order.
+            message_type (type[Message]): The generated Protobuf message class that
+                every message is read as.
+            auth (Optional[Tuple[str, str]]): A username and password for basic
+                authentication, for example `("user", "pass")`. The default is None.
+            verify (bool | str | ssl.SSLContext): How to check the registry's
+                certificate: True (the default), False, the path of a CA file or
+                directory, or an SSL context.
+            cert (str | tuple | None): A client certificate file, or a tuple of the
+                certificate file, the key file and the key password. The default is None.
+            timeout (Optional[float]): Seconds each step of a request to the registry
+                (connecting, sending, reading) may take. The default is 10.0. None
+                waits without a limit.
+            headers (Optional[Mapping[str, str]]): Headers sent with every request,
+                for example `{"Authorization": "Bearer <token>"}`. The default is None.
+            proxy (Optional[str]): The URL of a proxy. The default is None.
+            max_retries (int): How many times a request is repeated after a
+                transport error or a status of 408, 429, 500, 502, 503 or 504. The
+                default is 3.
+
+        Raises:
+            ImportError: If the 'protobuf' or 'httpx' package is not installed.
+        """
+        try:
+            import google.protobuf  # noqa: F401
+            import httpx  # noqa: F401
+
+            from desflow.connectors._schema_registry import protobuf
+            from desflow.connectors._schema_registry.confluent_client import (
+                ConfluentRegistryClient,
+                resolve_legacy_options,
+            )
+            from desflow.connectors._schema_registry.rules import refuse_rules
+            from desflow.connectors._schema_registry.wire import unframe_confluent
+        except ImportError:
+            raise ImportError(
+                "The 'protobuf' and 'httpx' packages are required to use "
+                "ConfluentProtobufDeserializer. "
+                "Install them using: pip install desflow[confluent]"
+            )
+
+        options = resolve_legacy_options(
+            {},
+            auth=auth,
+            verify=verify,
+            cert=cert,
+            timeout=timeout,
+            headers=headers,
+            proxy=proxy,
+            max_retries=max_retries,
+        )
+        self._client = ConfluentRegistryClient(registry_url, **options)
+        self._protobuf = protobuf
+        self._refuse_rules = refuse_rules
+        self._unframe = unframe_confluent
+        self._message_type = message_type
+        # The schema ids and GUIDs whose type and rules were checked.
+        self._checked: set = set()
+        self._lock = threading.Lock()
+
+    def deserialize(self, topic: str, payload: bytes) -> Any:
+        """
+        Deserializes a Protobuf byte string with the Confluent prefix.
+
+        The first message with a schema id makes a request to the registry for the
+        writer schema.
+
+        Args:
+            topic (str): The Kafka topic from which the message was consumed.
+            payload (bytes): The Protobuf payload with the Confluent prefix and the
+                message index.
+
+        Returns:
+            Any: The record as a dict, with the field names of the schema. A 64 bit
+                integer field is a string.
+
+        Raises:
+            SerializationError: If the payload has no valid prefix or index, the
+                writer schema is not Protobuf or has Data Contract read rules, or the
+                data is not a message of the class.
+            SchemaRegistryError: If the registry has no schema for the id.
+            httpx.TransportError: If no registry URL could be reached.
+        """
+        schema_id, data = self._unframe(payload)
+        self._check(schema_id)
+        _, message = self._protobuf.read_confluent_indexes(data)
+        return self._protobuf.decode(self._message_type, message)
+
+    def _check(self, schema_id: Any) -> None:
+        """Fetches the schema of an id or GUID once and refuses what is not Protobuf."""
+        with self._lock:
+            if schema_id not in self._checked:
+                if isinstance(schema_id, int):
+                    response = self._client.schema_by_id(schema_id)
+                else:
+                    response = self._client.schema_by_guid(str(schema_id))
+                if response["schemaType"] != "PROTOBUF":
+                    raise SerializationError(
+                        f"The schema is of type {response['schemaType']}, "
+                        "and ConfluentProtobufDeserializer reads PROTOBUF only"
+                    )
+                self._refuse_rules(response)
+                self._checked.add(schema_id)
+
+
+class GlueJsonSchemaDeserializer:
+    """
+    Lazy-loaded deserializer for AWS Glue Schema Registry using boto3 and fastjsonschema.
+
+    This class converts JSON with the AWS Glue prefix back into Python dictionaries.
+    It fetches the schema version named in the prefix, once for each id, and checks
+    each record against it as aws-glue-schema-registry 1.1.3 did, which fills in a
+    missing property that has a `default`.
+    """
+
+    def __init__(self, registry_name: str, **boto3_kwargs: Any):
+        """
+        Initializes the AWS Glue JSON Schema deserializer.
+
+        The constructor makes no call to Glue. The first message with a schema version
+        id fetches that version.
+
+        Args:
+            registry_name (str): The name of the AWS Glue Schema Registry.
+            **boto3_kwargs: Additional arguments passed directly to the `boto3.client`
+                initialization (e.g., `region_name`, `aws_access_key_id`).
+
+        Raises:
+            ImportError: If the 'boto3' or 'fastjsonschema' package is not installed.
+        """
+        try:
+            import boto3  # noqa: F401
+            import fastjsonschema  # noqa: F401
+
+            from desflow.connectors._schema_registry import glue_json
+            from desflow.connectors._schema_registry.glue_client import (
+                GlueRegistryClient,
+            )
+            from desflow.connectors._schema_registry.wire import unframe_glue
+        except ImportError:
+            raise ImportError(
+                "The 'boto3' and 'fastjsonschema' packages are required. "
+                "Install them using: pip install desflow[glue]"
+            )
+
+        self._client = GlueRegistryClient(registry_name, boto3_kwargs)
+        self._glue_json = glue_json
+        self._unframe = unframe_glue
+        # A compiled schema for each schema version id, built from the version once.
+        self._validators: Dict[Any, Any] = {}
+        self._lock = threading.Lock()
+
+    def deserialize(self, topic: str, payload: bytes) -> Any:
+        """
+        Deserializes a JSON byte string using AWS Glue.
+
+        Args:
+            topic (str): The Kafka topic from which the message was consumed.
+            payload (bytes): The JSON payload with the Glue prefix.
+
+        Returns:
+            Any: The record, a dict for an object schema.
+
+        Raises:
+            SerializationError: If the payload has no valid Glue prefix, the schema
+                version is of a data format other than JSON, the JSON Schema cannot
+                be compiled, or the data is not JSON, does not match the schema or
+                cannot be checked against it.
+            SchemaRegistryError: If Glue has no available schema version for the id.
+        """
+        version_id, data = self._unframe(payload)
+        return self._glue_json.decode(self._validator(version_id), data)
+
+    def _validator(self, version_id: Any) -> Any:
+        """Returns the compiled schema of a version, fetching and compiling it once."""
+        with self._lock:
+            if version_id not in self._validators:
+                version = self._client.schema_version(version_id)
+                if version["DataFormat"] != "JSON":
+                    raise SerializationError(
+                        f"The schema version is of data format {version['DataFormat']}, "
+                        "and GlueJsonSchemaDeserializer reads JSON only"
+                    )
+                self._validators[version_id] = self._glue_json.validator(
+                    version["SchemaDefinition"]
+                )
+            return self._validators[version_id]
+
+
+class GlueProtobufDeserializer:
+    """
+    Lazy-loaded deserializer for AWS Glue Schema Registry using boto3 and protobuf.
+
+    This class converts Protobuf messages with the AWS Glue prefix back into Python
+    dictionaries. It reads each message as the class it is given, and skips the
+    message index. It fetches the schema version only to check its data format, once
+    for each id.
+    """
+
+    def __init__(self, registry_name: str, message_type: Any, **boto3_kwargs: Any):
+        """
+        Initializes the AWS Glue Protobuf deserializer.
+
+        The constructor makes no call to Glue. The first message with a schema version
+        id fetches that version.
+
+        Args:
+            registry_name (str): The name of the AWS Glue Schema Registry.
+            message_type (type[Message]): The generated Protobuf message class that
+                every message is read as.
+            **boto3_kwargs: Additional arguments passed directly to the `boto3.client`
+                initialization (e.g., `region_name`, `aws_access_key_id`).
+
+        Raises:
+            ImportError: If the 'boto3' or 'protobuf' package is not installed.
+        """
+        try:
+            import boto3  # noqa: F401
+            import google.protobuf  # noqa: F401
+
+            from desflow.connectors._schema_registry import protobuf
+            from desflow.connectors._schema_registry.glue_client import (
+                GlueRegistryClient,
+            )
+            from desflow.connectors._schema_registry.wire import unframe_glue
+        except ImportError:
+            raise ImportError(
+                "The 'boto3' and 'protobuf' packages are required. "
+                "Install them using: pip install desflow[glue]"
+            )
+
+        self._client = GlueRegistryClient(registry_name, boto3_kwargs)
+        self._protobuf = protobuf
+        self._unframe = unframe_glue
+        self._message_type = message_type
+        # The schema version ids whose data format was checked.
+        self._checked: set = set()
+        self._lock = threading.Lock()
+
+    def deserialize(self, topic: str, payload: bytes) -> Any:
+        """
+        Deserializes a Protobuf byte string using AWS Glue.
+
+        Args:
+            topic (str): The Kafka topic from which the message was consumed.
+            payload (bytes): The Protobuf payload with the Glue prefix and the message
+                index.
+
+        Returns:
+            Any: The record as a dict, with the field names of the schema. A 64 bit
+                integer field is a string.
+
+        Raises:
+            SerializationError: If the payload has no valid Glue prefix or index, the
+                schema version is of a data format other than PROTOBUF, or the data
+                is not a message of the class.
+            SchemaRegistryError: If Glue has no available schema version for the id.
+        """
+        version_id, data = self._unframe(payload)
+        self._check(version_id)
+        _, message = self._protobuf.read_glue_index(data)
+        return self._protobuf.decode(self._message_type, message)
+
+    def _check(self, version_id: Any) -> None:
+        """Fetches a schema version once and refuses one that is not Protobuf."""
+        with self._lock:
+            if version_id not in self._checked:
+                version = self._client.schema_version(version_id)
+                if version["DataFormat"] != "PROTOBUF":
+                    raise SerializationError(
+                        f"The schema version is of data format {version['DataFormat']}, "
+                        "and GlueProtobufDeserializer reads PROTOBUF only"
+                    )
+                self._checked.add(version_id)
+
+
 # ==========================================
 # Core Ingress Class
 # ==========================================
@@ -323,8 +780,9 @@ class KafkaIngress(BaseIngress):
     Resilient Kafka consumer for dynamic simulation configuration updates.
 
     This connector subscribes to a specified Kafka topic and decodes incoming
-    messages into state updates for the SimulationRegistry. It supports pluggable
-    deserialization (Avro/JSON) while remaining 100% backward compatible.
+    messages into state updates for the SimulationRegistry. It reads JSON by default.
+    `default_deserializer` or `topic_deserializers` sets another deserializer, such as
+    Avro, JSON Schema or Protobuf.
 
     The expected resulting dictionary format must contain a 'path' string
     and a non-null 'value' of any serializable type. A message that cannot be

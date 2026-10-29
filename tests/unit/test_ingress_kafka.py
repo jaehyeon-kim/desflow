@@ -7,6 +7,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from desflow.connectors.ingress.kafka import (
+    ConfluentJsonSchemaDeserializer,
+    ConfluentProtobufDeserializer,
+    GlueJsonSchemaDeserializer,
+    GlueProtobufDeserializer,
     ConfluentAvroDeserializer,
     GlueAvroDeserializer,
     KafkaIngress,
@@ -28,6 +32,31 @@ def test_missing_avro_deserializer_dependencies():
                 match=r"'boto3', 'fastavro' and 'fastjsonschema'.*pip install desflow\[glue\]",
             ):
                 GlueAvroDeserializer(registry_name="mock")
+
+
+@pytest.mark.parametrize(
+    ("hidden", "extra", "build"),
+    [
+        (
+            "jsonschema",
+            "confluent",
+            lambda: ConfluentJsonSchemaDeserializer("http://m"),
+        ),
+        (
+            "google.protobuf",
+            "confluent",
+            lambda: ConfluentProtobufDeserializer("http://m", None),
+        ),
+        ("fastjsonschema", "glue", lambda: GlueJsonSchemaDeserializer("m")),
+        ("google.protobuf", "glue", lambda: GlueProtobufDeserializer("m", None)),
+    ],
+    ids=["confluent json", "confluent protobuf", "glue json", "glue protobuf"],
+)
+def test_missing_schema_format_dependencies(hidden, extra, build):
+    """Each JSON Schema and Protobuf deserializer names its extra when a package is missing."""
+    with patch.dict(sys.modules, {hidden: None}):
+        with pytest.raises(ImportError, match=rf"pip install desflow\[{extra}\]"):
+            build()
 
 
 @pytest.mark.asyncio

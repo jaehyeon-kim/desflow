@@ -45,6 +45,35 @@ def validator(definition: str) -> Callable[[Any], Any]:
         ) from error
 
 
+def encode(validate: Callable[[Any], Any], data: Any) -> bytes:
+    """Checks a record against the schema and writes it as JSON, as 1.1.3's `write` did.
+
+    1.1.3 validated the record and wrote it with orjson, so the bytes hold the
+    defaults that fastjsonschema filled. The record is copied through JSON first, so
+    the caller's dict is not changed and a value orjson writes as a string, such as
+    a datetime, is checked as that string.
+
+    Args:
+        validate (Callable[[Any], Any]): A function from `validator`.
+        data (Any): The record.
+
+    Returns:
+        bytes: The JSON bytes, with no framing.
+
+    Raises:
+        SerializationError: If the record cannot be written as JSON, does not match
+            the schema, or cannot be checked against it.
+    """
+    try:
+        record = orjson.loads(orjson.dumps(data))
+    except TypeError as error:
+        raise SerializationError(
+            f"The record cannot be written as JSON: {error}"
+        ) from error
+    _validate(validate, record)
+    return orjson.dumps(record)
+
+
 def decode(validate: Callable[[Any], Any], data: bytes | memoryview) -> Any:
     """Reads one JSON record and validates it, as 1.1.3's `JsonSchema.read` did.
 
@@ -64,6 +93,12 @@ def decode(validate: Callable[[Any], Any], data: bytes | memoryview) -> Any:
         record = orjson.loads(data)
     except orjson.JSONDecodeError as error:
         raise SerializationError(f"The data is not valid JSON: {error}") from error
+    _validate(validate, record)
+    return record
+
+
+def _validate(validate: Callable[[Any], Any], record: Any) -> None:
+    """Runs the compiled function and turns every failure into a SerializationError."""
     try:
         validate(record)
     except fastjsonschema.JsonSchemaValueException as error:
@@ -77,4 +112,3 @@ def decode(validate: Callable[[Any], Any], data: bytes | memoryview) -> Any:
         raise SerializationError(
             f"The record cannot be checked against the schema: {error!r}"
         ) from error
-    return record

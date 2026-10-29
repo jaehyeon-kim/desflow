@@ -125,9 +125,10 @@ def distributions() -> str:
 def connectors() -> str:
     """`references/connectors.md`: each short name, its class and its extra.
 
-    The Avro serializer table is written here by hand, because the registry and the
-    extra of each class are not in the code; `test_skill.py` checks that it names
-    every `*AvroSerializer` class of `desflow.connectors.egress.kafka`.
+    The serializer table is written here by hand, because the registry and the extra
+    of each class are not in the code; `test_skill.py` checks that it names every
+    Confluent and Glue serializer of `desflow.connectors.egress.kafka` and every
+    Confluent and Glue deserializer of `desflow.connectors.ingress.kafka`.
     """
     from desflow.blueprint.build import EGRESS_TYPES, INGRESS_TYPES
 
@@ -174,21 +175,44 @@ def connectors() -> str:
     ]
     lines += [
         "",
-        "## Avro Serializers",
+        "## Serializers and Deserializers",
         "",
-        "A `KafkaEgress` serializer of a topic, given in Python. Each needs its own extra.",
+        "The serializer of a `KafkaEgress` topic and the deserializer of a `KafkaIngress` "
+        "topic, given in Python. Each needs its own extra.",
         "",
-        "| Class | Schema registry | Extra |",
-        "|---|---|---|",
-        "| `desflow.connectors.egress.kafka.ConfluentAvroSerializer` | Confluent "
-        "Schema Registry | `confluent` |",
-        "| `desflow.connectors.egress.kafka.GlueAvroSerializer` | AWS Glue Schema "
-        "Registry | `glue` |",
+        "| Format | Schema registry | Extra | Serializer | Deserializer |",
+        "|---|---|---|---|---|",
+    ]
+    for fmt, registry, extra, stem in (
+        ("Avro", "Confluent Schema Registry", "confluent", "ConfluentAvro"),
+        ("Avro", "AWS Glue Schema Registry", "glue", "GlueAvro"),
+        (
+            "JSON Schema",
+            "Confluent Schema Registry",
+            "confluent",
+            "ConfluentJsonSchema",
+        ),
+        ("JSON Schema", "AWS Glue Schema Registry", "glue", "GlueJsonSchema"),
+        ("Protobuf", "Confluent Schema Registry", "confluent", "ConfluentProtobuf"),
+        ("Protobuf", "AWS Glue Schema Registry", "glue", "GlueProtobuf"),
+    ):
+        lines.append(
+            f"| {fmt} | {registry} | `{extra}` "
+            f"| `desflow.connectors.egress.kafka.{stem}Serializer` "
+            f"| `desflow.connectors.ingress.kafka.{stem}Deserializer` |"
+        )
+    lines += [
         "",
-        "`ConfluentAvroSerializer` and `ConfluentAvroDeserializer` take `auth`, "
-        "`verify`, `cert`, `timeout`, `headers`, `proxy` and `max_retries` for a "
-        "secured registry. Each step of a request to the registry times out after 10 seconds by "
-        "default; `timeout=None` waits without a limit.",
+        "The Confluent classes take `auth`, `verify`, `cert`, `timeout`, `headers`, "
+        "`proxy` and `max_retries` for a secured registry. Each step of a request to "
+        "the registry times out after 10 seconds by default; `timeout=None` waits "
+        "without a limit.",
+        "",
+        "The JSON Schema serializers take the schema as the JSON string `schema_str`. "
+        "The Protobuf classes take `message_type`, the class that `protoc` generated. "
+        "`GlueProtobufSerializer` also takes `schema_str`, the text of the `.proto` "
+        "file. A deserializer returns a 64 bit integer field of a Protobuf message as "
+        "a string.",
     ]
     return "\n".join(lines) + "\n"
 

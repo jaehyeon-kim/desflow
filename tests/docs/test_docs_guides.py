@@ -390,6 +390,194 @@ def test_secured_registry_serializer_sends_its_credentials(registry_transport):
     assert payload[:5] == b"\x00\x00\x00\x00\x01"
 
 
+class _Registry:
+    """A schema registry that keeps every schema registered and serves it back by id."""
+
+    def __init__(self):
+        self.registered = []
+
+    def __call__(self, request):
+        import httpx
+
+        if request.method == "POST":
+            self.registered.append(json.loads(request.content))
+            return httpx.Response(200, json={"id": len(self.registered)})
+        schema_id = int(request.url.path.rsplit("/", 1)[1])
+        return httpx.Response(200, json=self.registered[schema_id - 1])
+
+
+_SHOP_MODULES = (
+    "json_schema_and_protobuf",
+    "json_schema_and_protobuf_logic",
+    "json_schema_and_protobuf_low_level",
+)
+
+
+def _run_shop_form(form, tmp_path, monkeypatch):
+    """Runs one form of the JSON Schema and Protobuf shop for 30 simulated seconds.
+
+    Returns the records it publishes and the serializers its egress holds by topic.
+    """
+    from desflow import SimulationContext
+
+    # A reader puts the files in one folder; the blueprint's !python tags import from
+    # it, and here there is no broker to create the topics on
+    for source in (
+        GUIDES / "json_schema_and_protobuf.py",
+        GUIDES / "json_schema_and_protobuf_low_level.py",
+        GUIDES / "shop_record.proto",
+        GUIDES / "shop_record_pb2.py",
+        ROOT / "docs" / "snippets" / "yaml" / "json_schema_and_protobuf.yaml",
+        ROOT / "docs" / "snippets" / "yaml" / "json_schema_and_protobuf_logic.py",
+    ):
+        shutil.copy(source, tmp_path)
+    monkeypatch.syspath_prepend(str(tmp_path))
+    for name in _SHOP_MODULES:
+        monkeypatch.delitem(sys.modules, name, raising=False)
+    try:
+        if form == "builder":
+            module = _load_from(tmp_path, "json_schema_and_protobuf")
+            return _captured(module.app, until=30), module.egress.topic_serializers
+        if form == "yaml":
+            import json_schema_and_protobuf_logic
+
+            monkeypatch.setattr(
+                json_schema_and_protobuf_logic, "create_topics", lambda: None
+            )
+            app = SimulationContext.from_yaml(
+                tmp_path / "json_schema_and_protobuf.yaml"
+            )
+            serializers = app._egress_providers[0].topic_serializers
+            return _captured(app, until=30), serializers
+        module = _load_from(tmp_path, "json_schema_and_protobuf_low_level")
+        capture = _Capture()
+        env = module.shop([capture], 0.0)
+        env.run(until=30)
+        env.teardown()
+        return capture.records, module.egress.topic_serializers
+    finally:
+        for name in _SHOP_MODULES:
+            sys.modules.pop(name, None)
+
+
+@pytest.mark.parametrize("form", ["builder", "yaml", "low-level"])
+def test_orders_round_trip_as_json_schema_and_protobuf(
+    form, tmp_path, monkeypatch, registry_transport
+):
+    """Each form sends the orders to orders-json and orders-protobuf; both formats
+    read back what was sent, and the 64 bit integers of a Protobuf record come back
+    as strings, as the page says."""
+    pytest.importorskip("jsonschema")
+    pytest.importorskip("google.protobuf")
+    from desflow.connectors.ingress.kafka import (
+        ConfluentJsonSchemaDeserializer,
+        ConfluentProtobufDeserializer,
+    )
+
+    registry = _Registry()
+    registry_transport(registry)
+    records, serializers = _run_shop_form(form, tmp_path, monkeypatch)
+    assert set(serializers) == {"orders-json", "orders-protobuf"}
+
+    route = _load("json_schema_and_protobuf").order_topic_router
+    shop_record = _load("shop_record_pb2").ShopRecord
+    reader_json = ConfluentJsonSchemaDeserializer("http://127.0.0.1:8081")
+    reader_protobuf = ConfluentProtobufDeserializer(
+        "http://127.0.0.1:8081", shop_record
+    )
+    assert {"sim-events", "orders-json", "orders-protobuf"} <= {
+        route(r) for r in records
+    }
+    for record in records:
+        topic = route(record)
+        if topic not in serializers:
+            continue
+        sent = {k: v for k, v in record.items() if k != "stream_type"}
+        payload = serializers[topic].serialize(topic, sent)
+        if topic == "orders-json":
+            assert reader_json.deserialize(topic, payload) == sent
+        else:
+            as_strings = {
+                **sent,
+                "instance": str(sent["instance"]),
+                "value": {**sent["value"], "order_id": str(sent["value"]["order_id"])},
+            }
+            assert reader_protobuf.deserialize(topic, payload) == as_strings
+
+    # The Confluent JSON serializer registers the schema as given
+    kinds = {schema["schemaType"] for schema in registry.registered}
+    assert kinds == {"JSON", "PROTOBUF"}
+    module = _load("json_schema_and_protobuf")
+    assert registry.registered[0]["schema"] == module.json_schema
+
+
+def test_glue_serializers_round_trip_the_order_record(monkeypatch):
+    """The Glue serializers of the page take the same record, and the Protobuf one is
+    given the text of shop_record.proto as its schema."""
+    pytest.importorskip("boto3")
+    pytest.importorskip("fastjsonschema")
+    pytest.importorskip("google.protobuf")
+    from desflow.connectors.ingress.kafka import (
+        GlueJsonSchemaDeserializer,
+        GlueProtobufDeserializer,
+    )
+
+    class _Glue:
+        """Registers each definition once and serves its versions back."""
+
+        def __init__(self):
+            self.definitions = {}
+
+        def get_schema_by_definition(self, SchemaId, SchemaDefinition):
+            version = f"00000000-0000-0000-0000-{len(self.definitions):012d}"
+            self.definitions.setdefault(version, SchemaDefinition)
+            return {"SchemaVersionId": version, "Status": "AVAILABLE"}
+
+        def get_schema_version(self, SchemaVersionId):
+            definition = self.definitions[SchemaVersionId]
+            return {
+                "SchemaVersionId": SchemaVersionId,
+                "Status": "AVAILABLE",
+                "DataFormat": "JSON" if definition.startswith("{") else "PROTOBUF",
+                "SchemaDefinition": definition,
+            }
+
+    glue = _Glue()
+    monkeypatch.setattr("boto3.client", lambda service, **kwargs: glue)
+    module = _load("json_schema_and_protobuf")
+    glue_json, glue_protobuf = module.glue_serializers()
+    record = {
+        "key": "orders-1",
+        "task": "pack_order",
+        "instance": 0,
+        "sim_ts": 1.5,
+        "timestamp": "2026-01-01T00:00:00Z",
+        "value": {"order_id": 0, "amount": 19.99},
+    }
+
+    json_payload = glue_json.serialize("orders-json", record)
+    protobuf_payload = glue_protobuf.serialize("orders-protobuf", record)
+
+    assert GlueJsonSchemaDeserializer("shop").deserialize("o", json_payload) == record
+    read = GlueProtobufDeserializer("shop", module.ShopRecord).deserialize(
+        "o", protobuf_payload
+    )
+    assert read["value"] == {"order_id": "0", "amount": 19.99}
+    assert (GUIDES / "shop_record.proto").read_text() in glue.definitions.values()
+
+
+def test_shop_record_module_declares_the_fields_of_the_proto_file():
+    """shop_record_pb2.py is generated from shop_record.proto; a field the file changed
+    and the module did not shows up here."""
+    pytest.importorskip("google.protobuf")
+    text = (GUIDES / "shop_record.proto").read_text()
+    shop_record = _load("shop_record_pb2").ShopRecord
+    assert shop_record.DESCRIPTOR.full_name == "com.desflow.shop.ShopRecord"
+    for message in shop_record.DESCRIPTOR.file.message_types_by_name.values():
+        for field in message.fields:
+            assert f"{field.name} = {field.number};" in text
+
+
 def test_reneging_and_balking_ties_and_balance():
     """At a tie, the order scheduled later is served and the one scheduled first
     reneges, as the page says, in every form; and every order of the patience
