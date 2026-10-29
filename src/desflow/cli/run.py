@@ -8,7 +8,14 @@ from typing import Annotated, Any, List, Optional
 
 import typer
 
-from desflow.utils import time_to_seconds
+from desflow.cli._common import (
+    LOG_DATEFMT,
+    LOG_FORMAT,
+    fail,
+    parse_until,
+    refuse,
+    setup_logging,
+)
 
 logger = logging.getLogger("desflow.cli")
 
@@ -64,19 +71,6 @@ def _run_options(until: Optional[str], drain: bool) -> str:
     """The options given that change the run, as a repeat command needs them."""
     options = f" --until {shlex.quote(until)}" if until is not None else ""
     return options + (" --drain" if drain else "")
-
-
-def _parse_until(value: Optional[str]) -> Optional[float]:
-    if value is None:
-        return None
-    try:
-        return float(value)
-    except ValueError:
-        pass
-    try:
-        return time_to_seconds(value)
-    except ValueError as exc:
-        raise typer.BadParameter(str(exc)) from None
 
 
 # Each command is private: typer shows its docstring as the help text, so it
@@ -172,37 +166,20 @@ def _run(
     from desflow.blueprint.loader import BlueprintError
     from desflow.loading import load_context
 
-    stop_at = _parse_until(until)
+    stop_at = parse_until(until)
     preview = Preview(sample) if sample is not None or stdout else None
     if preview is not None and replications is not None:
-        typer.echo(
-            "Error: --sample and --stdout print one run; leave out --replications",
-            err=True,
-        )
-        raise typer.Exit(code=2)
+        refuse("--sample and --stdout print one run; leave out --replications")
     if file.suffix == ".py":
-        typer.echo(
-            "Error: desflow run takes a YAML blueprint; run a Python file with "
-            "python FILE",
-            err=True,
-        )
-        raise typer.Exit(code=2)
+        refuse("desflow run takes a YAML blueprint; run a Python file with python FILE")
 
     root = logging.getLogger()
     before = list(root.handlers)
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        datefmt="%H:%M:%S",
-    )
+    setup_logging(logging.INFO)
     # Only the handler basicConfig added, so a handler set up by the caller is kept
     for handler in root.handlers:
         if handler not in before:
-            handler.setFormatter(
-                _RecordFormatter(
-                    "%(asctime)s [%(levelname)s] %(name)s: %(message)s", "%H:%M:%S"
-                )
-            )
+            handler.setFormatter(_RecordFormatter(LOG_FORMAT, LOG_DATEFMT))
     if replications is not None:
         # Each replication would log its build and teardown; the sinks still log
         logging.getLogger("desflow.core").setLevel(logging.WARNING)
@@ -210,8 +187,7 @@ def _run(
     try:
         context = load_context(file.parent, file.name, preview)
     except BlueprintError as exc:
-        typer.echo(f"Error: {exc}", err=True)
-        raise typer.Exit(code=1) from None
+        fail(str(exc))
 
     if seed is not None:
         context.random_seed = seed
@@ -238,8 +214,7 @@ def _run(
         # A run value refused before the run starts, such as --drain without an
         # until, is reported as a blueprint error is; an error inside the run keeps
         # its traceback
-        typer.echo(f"Error: {exc}", err=True)
-        raise typer.Exit(code=1) from None
+        fail(str(exc))
     try:
         context.finish()
     except KeyboardInterrupt:
@@ -284,8 +259,7 @@ def _replicate(
             drain=True if drain else None,
         )
     except ValueError as exc:
-        typer.echo(f"Error: {exc}", err=True)
-        raise typer.Exit(code=1) from None
+        fail(str(exc))
     typer.echo(result.summary_text())
     typer.echo(f"\nSeed {seed}; replication seeds: {', '.join(map(str, result.seeds))}")
     typer.echo(

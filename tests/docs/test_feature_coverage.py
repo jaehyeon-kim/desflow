@@ -72,7 +72,7 @@ def test_every_connector_has_an_example_a_reference_a_skill_and_a_readme_line(
 
 @pytest.mark.parametrize("extra", extras())
 def test_every_extra_has_an_example_a_reference_a_skill_and_a_readme_line(extra):
-    from desflow.blueprint.examples import EXAMPLES
+    from desflow.examples import EXAMPLES
 
     pages = "\n".join(page.read_text(encoding="utf-8") for page in PAGES)
     installed = re.search(rf"desflow\[[a-z,]*\b{extra}\b[a-z,]*\]", pages)

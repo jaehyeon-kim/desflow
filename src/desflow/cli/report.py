@@ -5,6 +5,8 @@ from typing import Annotated
 
 import typer
 
+from desflow.cli._common import refuse
+
 
 # The examples --help prints after the options, as odctl's help does
 _EPILOG = """
@@ -40,6 +42,5 @@ def _report(
     try:
         path = write_report(folder)
     except FileNotFoundError as exc:
-        typer.echo(f"Error: {exc}", err=True)
-        raise typer.Exit(code=2) from None
+        refuse(str(exc))
     typer.echo(f"Wrote {path}")

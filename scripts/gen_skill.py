@@ -231,7 +231,7 @@ def api() -> str:
 
 def apis() -> str:
     """`references/apis.md`: the `local` example in the three ways to write it."""
-    from desflow.blueprint.examples import EXAMPLES
+    from desflow.examples import EXAMPLES
 
     example = EXAMPLES["local"]
     lines = [

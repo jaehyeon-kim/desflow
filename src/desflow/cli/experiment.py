@@ -6,6 +6,8 @@ from typing import Annotated, Optional
 
 import typer
 
+from desflow.cli._common import refuse, setup_logging
+
 
 # The examples --help prints after the options, as odctl's help does
 _EPILOG = """
@@ -52,16 +54,11 @@ def _experiment(
     from desflow.analysis.runner import run_experiment
     from desflow.blueprint.loader import BlueprintError
 
-    logging.basicConfig(
-        level=logging.WARNING,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        datefmt="%H:%M:%S",
-    )
+    setup_logging(logging.WARNING)
     try:
         result = run_experiment(file, raise_on_failure=False, output=output)
     except (BlueprintError, ValueError) as exc:
-        typer.echo(f"Error: {exc}", err=True)
-        raise typer.Exit(code=2) from None
+        refuse(str(exc))
     typer.echo(f"Wrote the artifacts and report.md to {result.output}")
     for row in result.checks:
         state = "passed" if row["passed"] else "FAILED"
