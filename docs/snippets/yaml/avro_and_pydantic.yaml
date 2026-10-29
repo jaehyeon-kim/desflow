@@ -1,0 +1,42 @@
+# The Use Avro and Pydantic guide: each packed order publishes a prediction, sent to
+# ml-predictions as Avro; every other record goes to its topic as JSON. Needs
+# avro_and_pydantic.py and avro_and_pydantic_logic.py beside it, and a Kafka broker
+# with a schema registry: odctl up kafka-lite. Run it with:
+# desflow run avro_and_pydantic.yaml
+# --8<-- [start:shop]
+simulation:
+  sim_id: Shop
+  factor: 1
+  random_seed: 42
+
+resources:
+  packers: {current_cap: 1, max_cap: 1}
+
+services:
+  packing: {dist: constant, value: 1.5}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.5, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    # The finished event is a prediction for the order, published as the model
+    payload: !python avro_and_pydantic_logic.prediction
+
+egress:
+  # Predictions as Avro, the rest as JSON
+  - type: Kafka
+    config:
+      bootstrap_servers: 127.0.0.1:9092
+      topic_router: !python avro_and_pydantic.ml_topic_router
+      topic_serializers:
+        ml-predictions: !python avro_and_pydantic.generated_serializer
+
+run:
+  until: 1 min
+  before:
+    # With a router, KafkaEgress creates no topics, so create them first
+    - !python avro_and_pydantic_logic.create_topics
+# --8<-- [end:shop]

@@ -3,14 +3,22 @@
 Each check runs the shop and compares a reading with the formula the page states. Every
 number the page states is asserted here: a measured one against the value printed on the
 page, a formula one against its closed form, so a wrong number on the page fails this test.
-The shop packs orders with `packers` packers; a service time averages 1.5 seconds. Every run
-is unpaced, and the whole file takes a few seconds.
+Utilisation is worked out for the busy hour of the Queues and Capacity tutorial, and
+Little's law is read from the Measuring a Run tutorial, run from its builder file and its
+low-level file. The other checks use `shop`, which packs orders with `packers` packers; a
+service time averages 1.5 seconds. Every run is unpaced, and the whole file takes a few
+seconds.
 """
 
+import logging
 import math
+import sys
 from pathlib import Path
 
 from desflow import SimulationContext, replicate
+
+# The tutorial files, so that this file runs the tutorial's own model
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tutorials"))
 
 SERVICE = 1.5  # mean seconds to pack one order
 
@@ -51,37 +59,60 @@ def constant(mean: float) -> dict:
 # --8<-- [end:shop]
 
 
-# --8<-- [start:little]
-UNTIL = 20_000  # seconds, long enough that the start and end of the run hardly count
+# --8<-- [start:analyze]
+def utilisation_before_the_run():
+    """The packers of the Queues and Capacity shop, as `desflow explain` works them out."""
+    from queues_and_capacity import shop
+
+    packers = shop(3).analyze().resources[0]  # the busy hour with three packers
+    return packers.rate, packers.service_mean, packers.servers, packers.utilization
 
 
-def little():
-    """One run of the busy hour with 3 packers; returns L, lambda and W for the queue and the shop."""
-    app = shop(exponential(1 / 1.8), constant(SERVICE), packers=3)
-    app.run(until=UNTIL)
-    r = app.env.stats.readings()
-    arrival_rate = r["Shop.stats.flows.orders.started"] / UNTIL
-    in_queue = r["Shop.stats.resources.packers.queue_length_avg"]
-    in_service = 3 * r["Shop.stats.resources.packers.utilization_avg"] / 100
-    wait = r["Shop.stats.tasks.pack_order.wait_mean"]
-    service = r["Shop.stats.tasks.pack_order.service_mean"]
-    return arrival_rate, (in_queue, wait), (in_queue + in_service, wait + service)
+# --8<-- [end:analyze]
 
 
-# --8<-- [end:little]
+# --8<-- [start:littles-law]
+def littles_law(readings: dict, seconds: float):
+    """The arrival rate, then L and lambda x W for the queue and for the whole shop."""
+    rate = readings["Shop.stats.flows.orders.finished"] / seconds
+    in_queue = readings["Shop.stats.resources.packers.queue_length_avg"]
+    packers = readings["Shop.stats.resources.packers.capacity"]
+    in_service = (
+        packers * readings["Shop.stats.resources.packers.utilization_avg"] / 100
+    )
+    wait = readings["Shop.stats.tasks.pack_order.wait_mean"]
+    service = readings["Shop.stats.tasks.pack_order.service_mean"]
+    return (
+        rate,
+        (in_queue, rate * wait),
+        (in_queue + in_service, rate * (wait + service)),
+    )
 
 
-# --8<-- [start:utilisation]
-def utilisation():
-    """One run of the busy hour; returns utilisation from the formula and as measured."""
-    app = shop(exponential(1 / 1.8), constant(SERVICE), packers=3)
-    app.run(until=UNTIL)
-    r = app.env.stats.readings()
-    rate = r["Shop.stats.flows.orders.started"] / UNTIL
-    return rate * SERVICE / 3, r["Shop.stats.resources.packers.utilization_avg"] / 100
+# --8<-- [end:littles-law]
 
 
-# --8<-- [end:utilisation]
+def builder_readings():
+    """The statistics at the end of the Measuring a Run hour, from its builder file."""
+    sys.modules.pop("measuring_a_run", None)  # a new model each time; a run uses one up
+    # --8<-- [start:builder]
+    from measuring_a_run import app
+
+    app.run(until="1 h")
+    readings = app.env.stats.readings()
+    # --8<-- [end:builder]
+    return readings
+
+
+def low_level_readings():
+    """The statistics at the end of the same hour, from its low-level file."""
+    # --8<-- [start:low-level]
+    from measuring_a_run_low_level import run
+
+    env = run()
+    readings = env.stats.readings()
+    # --8<-- [end:low-level]
+    return readings
 
 
 # --8<-- [start:theory]
@@ -145,22 +176,44 @@ def check(
 
 
 if __name__ == "__main__":
-    rate, queue, system = little()
-    print(f"arrival rate {rate:.3f} orders per second")
-    assert abs(rate - 1.782) < 0.0005
-    for name, (count, time), shown in (
-        ("queue", queue, (3.417, 3.417)),
-        ("shop", system, (6.089, 6.090)),
-    ):
-        print(f"{name}: L {count:.3f}, lambda x W {rate * time:.3f}")
-        assert abs(count - rate * time) < 0.01 * count, name
-        assert abs(count - shown[0]) < 0.0006 and abs(rate * time - shown[1]) < 0.0006
+    # Before the run: utilisation from the blueprint's rates, as desflow explain gives it
+    rate, service, units, rho = utilisation_before_the_run()
+    print(
+        f"packers: rate {rate:.1f}, mean service {service:.1f} s, units {units}, utilisation {rho:.1f}"
+    )
+    assert (units, round(rate, 6), round(service, 6), round(rho, 6)) == (
+        3,
+        1.8,
+        1.5,
+        0.9,
+    )
 
-    # --8<-- [start:utilisation-check]
-    formula, measured = utilisation()
-    print(f"utilisation {formula:.3f} from the formula, {measured:.3f} measured")
-    assert abs(formula - 0.891) < 0.0005 and abs(measured - formula) < 0.005
-    # --8<-- [end:utilisation-check]
+    # The tutorial prints every record; this page needs only its final statistics
+    logging.disable(logging.INFO)
+    try:
+        readings = builder_readings()
+        assert low_level_readings() == readings  # the two files run the same hour
+    finally:
+        logging.disable(logging.NOTSET)
+
+    # After the run: the measured utilisation, and the same formula with the run's figures
+    rate, queue, system = littles_law(readings, 3600)
+    measured = readings["Shop.stats.resources.packers.utilization_avg"] / 100
+    formula = rate * readings["Shop.stats.tasks.pack_order.service_mean"] / 3
+    print(
+        f"utilisation {measured:.3f} measured, {formula:.3f} from the run's rate and service"
+    )
+    assert abs(measured - 0.866) < 0.0005 and abs(formula - measured) < 0.001
+
+    print(f"arrival rate {rate:.3f} orders a second")
+    assert abs(rate - 1.736) < 0.0005
+    for name, (count, product), shown in (
+        ("queue", queue, (2.406, 2.399)),
+        ("shop", system, (5.003, 4.995)),
+    ):
+        print(f"{name}: L {count:.3f}, lambda x W {product:.3f}")
+        assert abs(count - product) < 0.01 * count, name
+        assert abs(count - shown[0]) < 0.0006 and abs(product - shown[1]) < 0.0006
 
     # --8<-- [start:formulas]
     for rho, exponential_wait in ((0.5, 1.5), (0.75, 4.5), (0.9, 13.5), (0.95, 28.5)):
@@ -239,11 +292,13 @@ if __name__ == "__main__":
     checker = flow_rate * 0.4  # one checker, 0.4 seconds an order on average
     print(f"rate into packing and into checking: {flow_rate:.3f} orders a second")
     print(f"utilisation: packers {packers:.3f}, checker {checker:.3f}")
-    # desflow explain works out the same figures from the blueprint
-    network = Path(__file__).parents[1] / "yaml" / "queues_network.yaml"
-    explanation = SimulationContext.from_yaml(str(network)).analyze()
-    print(f"desflow explain names the bottleneck: {explanation.bottleneck}")
     # --8<-- [end:flow]
+    # --8<-- [start:flow-explain]
+    from queues_and_capacity import network
+
+    explanation = network().analyze()
+    print(f"desflow explain names the bottleneck: {explanation.bottleneck}")
+    # --8<-- [end:flow-explain]
     by_name = {r.name: r for r in explanation.resources}
     assert abs(flow_rate - 1.778) < 0.0005
     assert abs(packers - 0.667) < 0.0005 and abs(checker - 0.711) < 0.0005

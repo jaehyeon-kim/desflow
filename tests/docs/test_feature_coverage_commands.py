@@ -12,7 +12,7 @@ _BASH = re.compile(r"^```bash\n(.*?)\n```$", re.S | re.M)
 
 def _run_lines():
     """The command lines of the Command Line page, each split into words."""
-    page = (DOCS / "user-guide" / "command-line.md").read_text(encoding="utf-8")
+    page = (DOCS / "cli" / "index.md").read_text(encoding="utf-8")
     return [
         line.split()
         for block in _BASH.findall(page)
@@ -34,7 +34,7 @@ def _path_of(words):
 @pytest.mark.parametrize("command", sorted(COMMANDS))
 def test_every_command_and_option_runs_on_the_command_line_page(command):
     lines = [words for words in _run_lines() if _path_of(words) == command]
-    assert lines, f"{command}: no command line on docs/user-guide/command-line.md"
+    assert lines, f"{command}: no command line on docs/cli/index.md"
     used = {word.split("=")[0] for words in lines for word in words}
     missing = [name for name in COMMANDS[command] if name not in used]
     assert not missing, f"{command}: no command line uses {missing}"
@@ -42,11 +42,12 @@ def test_every_command_and_option_runs_on_the_command_line_page(command):
 
 @pytest.mark.parametrize("command", sorted(COMMANDS))
 def test_every_command_has_a_reference_a_skill_line_and_a_readme_line(command):
-    pages = gen_pages().cli_pages()
-    name = "-".join(command.split(" ")[1:]) or "index"
-    assert f"reference/cli/{name}.md" in pages
     if command == "desflow":
+        # Its help is on the Command Line page, which test_gen_pages.py checks
+        assert "Usage: desflow [OPTIONS]" in gen_pages().cli_overview()
         return
+    name = "-".join(command.split(" ")[1:])
+    assert f"cli/{name}.md" in gen_pages().cli_pages()
     assert f"`{command}" in SKILL_TEXT, f"{command}: not in the skill"
     top = " ".join(command.split(" ")[:2])
     assert f"`{top}`" in README, f"{top}: not in the README"
@@ -68,7 +69,15 @@ def test_every_option_is_in_the_skill():
 
 
 # The sections whose pages use a command where its output answers the page's question
-_TEACHING = ("tutorials", "user-guide", "guides", "examples")
+_TEACHING = (
+    "learn/first-model",
+    "learn/inputs",
+    "learn/shop-logic",
+    "learn/studies",
+    "learn/running-live",
+    "user-guide",
+    "how-to",
+)
 
 
 @pytest.mark.parametrize("command", sorted(c for c in COMMANDS if c != "desflow"))
@@ -80,7 +89,7 @@ def test_every_command_is_used_beyond_the_command_line_page(command):
         page
         for section in _TEACHING
         for page in (DOCS / section).rglob("*.md")
-        if page.name != "command-line.md"
+        if page != DOCS / "cli" / "index.md"
         and used.search(page.read_text(encoding="utf-8"))
     ]
     assert pages, f"{command}: used only on the Command Line page"

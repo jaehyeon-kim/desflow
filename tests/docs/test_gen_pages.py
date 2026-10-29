@@ -58,6 +58,11 @@ def test_yaml_keys_page_lists_every_key():
     assert "\n\n".join(gen_pages.paragraphs("a\nb\n\nc")) == "a b\n\nc"
 
 
+def test_command_line_page_holds_the_current_command_list():
+    page = (ROOT / "docs" / "cli" / "index.md").read_text(encoding="utf-8")
+    assert gen_pages.cli_overview() in page, "copy cli_overview() into What It Is"
+
+
 def test_every_command_has_a_cli_page_and_every_page_names_a_command():
     from typer.main import get_command
 
@@ -70,24 +75,21 @@ def test_every_command_has_a_cli_page_and_every_page_names_a_command():
 
     commands = set(paths(get_command(app), "desflow"))
     pages = gen_pages.cli_pages()
-    named = {
-        page.split("\n")[0].removeprefix("# ")
-        for path, page in pages.items()
-        if path != "reference/cli/index.md"
-    }
+    named = {page.split("\n")[0].removeprefix("# ") for page in pages.values()}
     assert named | {"desflow"} == commands
-    assert len(pages) == len(commands)
+    assert len(pages) == len(commands) - 1
     for path, page in pages.items():
-        usage = "desflow" if path.endswith("index.md") else page.split("\n")[0][2:]
-        assert f"Usage: {usage} [OPTIONS]" in page, path
+        command = page.split("\n")[0].removeprefix("# ")
+        assert f"Usage: {command} [OPTIONS]" in page, path
         assert "object at 0x" not in page, path
-    index = pages["reference/cli/index.md"]
+    overview = gen_pages.cli_overview()
+    assert "Usage: desflow [OPTIONS]" in overview
     for command in commands - {"desflow"}:
-        assert f"[`{command}`]" in index
+        assert f"[`{command}`]" in overview
     # Every CLI page links the section of the Command Line page that uses it
     # The strict build checks each anchor, so only the link is checked here
     for path, page in pages.items():
-        assert re.search(r"user-guide/command-line\.md(?:#[a-z-]+)?\)", page), path
+        assert re.search(r"\]\(index\.md(?:#[a-z-]+)?\)", page), path
 
 
 ROOT = _SCRIPT.parents[1]

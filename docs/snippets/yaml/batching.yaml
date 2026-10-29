@@ -3,9 +3,12 @@
 simulation:
   sim_id: Shop
   factor: 0
+  # --8<-- [start:go-live]
+  # A day of history at factor 0, then 1 simulated second per real second from now;
   # when: history and when: live split the records at this instant
   logical_start_time: -1d
   go_live_at: now
+  # --8<-- [end:go-live]
 
 # Defaults for every egress, the arguments of with_batching
 batching:
@@ -14,6 +17,7 @@ batching:
   max_queued_batches: 2000
   drain_stall_seconds: 30
 
+# --8<-- [start:egress]
 egress:
   # Small and often for this sink; the other uses the defaults
   - type: Console
@@ -22,6 +26,7 @@ egress:
   # Only the records stamped before go_live_at
   - type: Console
     when: history
+# --8<-- [end:egress]
 
 resources:
   packers: {current_cap: 1, max_cap: 1}

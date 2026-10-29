@@ -18,7 +18,7 @@ from desflow.blueprint import examples
 from desflow.cli import app
 
 ROOT = Path(__file__).resolve().parents[2]
-PAGE = ROOT / "docs" / "user-guide" / "command-line.md"
+PAGE = ROOT / "docs" / "cli" / "index.md"
 _BASH = re.compile(r"^```bash\n(.*?)\n```$", re.S | re.M)
 
 

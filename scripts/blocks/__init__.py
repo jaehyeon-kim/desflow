@@ -14,6 +14,7 @@ from . import (
     guides,
     inputs,
     tutorial_runs,
+    tutorial_yaml,
     tutorials,
     user_guide,
     user_guide_runs,
@@ -27,6 +28,7 @@ BLOCKS: Dict[str, Callable[[], List[str]]] = {
     **user_guide_runs.BLOCKS,
     **tutorials.BLOCKS,
     **tutorial_runs.BLOCKS,
+    **tutorial_yaml.BLOCKS,
     **inputs.BLOCKS,
     **flows.BLOCKS,
 }

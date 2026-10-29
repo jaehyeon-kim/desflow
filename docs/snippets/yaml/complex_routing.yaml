@@ -1,0 +1,43 @@
+# The Route Records to Topics guide: a shop whose records go to three Kafka topics.
+# Needs a broker on 127.0.0.1:9092 (odctl up kafka-lite). Run it with
+# desflow run complex_routing.yaml, beside complex_routing_logic.py
+simulation:
+  sim_id: Shop
+  factor: 1
+  random_seed: 42
+
+# --8<-- [start:egress]
+egress:
+  - type: Kafka
+    config:
+      bootstrap_servers: 127.0.0.1:9092
+      topic_router: !python complex_routing_logic.custom_kafka_router
+# --8<-- [end:egress]
+
+# --8<-- [start:shop]
+resources:
+  packers: {current_cap: 1, max_cap: 1}
+
+services:
+  packing: {dist: constant, value: 1.5 s}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.5, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    # Called as packed(task_id, context): every tenth order fails
+    payload: !python complex_routing_logic.packed
+
+stats: {level: minimal, interval: 10}  # readings for shop-telemetry
+# --8<-- [end:shop]
+
+# --8<-- [start:run]
+run:
+  until: 1 min
+  # With a router, KafkaEgress creates no topics, so create them first
+  before:
+    - !python complex_routing_logic.create_topics
+# --8<-- [end:run]

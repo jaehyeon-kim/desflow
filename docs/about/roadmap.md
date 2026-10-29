@@ -89,6 +89,13 @@ The server ships after 1.0, as 1.x releases installed with the `server` extra.
 
 ## Released
 
+??? note "0.25.0: desflow explain"
+
+    - **desflow explain:** `desflow explain` shows a simulation as a graph, marks each resource OK, congested or unstable (its queue grows without limit), names the bottleneck and suggests changes. [#47](https://github.com/jaehyeon-kim/desflow/issues/47)
+    - **Commands:** `desflow dist` converts between a distribution's parameters and its mean and standard deviation. `desflow run --sample` prints a few records from a blueprint, and `--stdout` sends every record except the `system.simulation.lag_seconds` readings to the standard output as JSON lines in place of the real sinks.
+    - **Library:** `load_context` loads a simulation folder from Python. Builder arrivals can name the task they start.
+    - **Docs:** a generated reference page for the `desflow` command, and in Learn, Complete Model, the `explain` section of Checking a Model and Check Against Theory. [#60](https://github.com/jaehyeon-kim/desflow/issues/60)
+
 ??? note "0.24.0: Blueprint schema and AI skill"
 
     - **Blueprint schema and AI skill:** a JSON Schema for blueprints, shipped in the package and on the docs site, so editors complete keys and flag mistakes as you type, with a YAML Keys reference page generated from it. A skill that teaches an AI assistant to write and check blueprints. [#41](https://github.com/jaehyeon-kim/desflow/issues/41)
@@ -104,8 +111,8 @@ The server ships after 1.0, as 1.x releases installed with the `server` extra.
 
     - **Native core parity:** the operations on the SimPy Compatibility page work natively in YAML, the builder and the low-level API, and each is checked against SimPy. They include signals, interrupts, tasks needing several resources, filtered store gets, stopping and stepping a run, and customers who give up on a queue or never join it. [#64](https://github.com/jaehyeon-kim/desflow/issues/64)
     - **Breakdowns, changing demand and replay:** a resource that fails and is repaired, a schedule of times at which an arrival rate or a capacity changes, and arrivals read from a local CSV or Parquet file. [#65](https://github.com/jaehyeon-kim/desflow/issues/65)
-    - **Replications:** run a model with many seeds and get each statistic with a [95% interval](../des/output-analysis.md#interval-and-half-width), so a result is never read from one run. [#59](https://github.com/jaehyeon-kim/desflow/issues/59)
-    - **Experiments:** compare designs and sweep parameters over [replications](../des/output-analysis.md#replications), fail an experiment when a result breaks a limit, fit a distribution to measured data, and write a Markdown report, all on one machine. [#66](https://github.com/jaehyeon-kim/desflow/issues/66)
+    - **Replications:** run a model with many seeds and get each statistic with a [95% interval](../learn/concepts/output-analysis.md#interval-and-half-width), so a result is never read from one run. [#59](https://github.com/jaehyeon-kim/desflow/issues/59)
+    - **Experiments:** compare designs and sweep parameters over [replications](../learn/concepts/output-analysis.md#replications), fail an experiment when a result breaks a limit, fit a distribution to measured data, and write a Markdown report, all on one machine. [#66](https://github.com/jaehyeon-kim/desflow/issues/66)
     - **Speed:** faster runs that publish the same records. [#24](https://github.com/jaehyeon-kim/desflow/issues/24)
     - **Record contract:** every record field documented with its type and format, payload keys such as `__table__` reserved for desflow, a `timezone` setting for timestamps, and no `lag_seconds` from a run at full speed. [#51](https://github.com/jaehyeon-kim/desflow/issues/51)
     - **Learn section:** the shop tutorial extends one shop model page by page and answers a question with a number on each page. It has 20 pages, and the new pages cover replications, comparing designs, sweeps, fitting, patience, interruptions, end conditions and more. [#60](https://github.com/jaehyeon-kim/desflow/issues/60)
@@ -116,7 +123,7 @@ The server ships after 1.0, as 1.x releases installed with the `server` extra.
     - **Ingress messages:** every ingress connector, Kafka, Redis and PostgreSQL, takes a parameter change as `path` and `value`, the names a scenario step already uses. [#51](https://github.com/jaehyeon-kim/desflow/issues/51)
     - **Stores, containers and priority:** tasks take items from stores and amounts from containers, and a resource serves its queue oldest first, newest first or by task priority. [#43](https://github.com/jaehyeon-kim/desflow/issues/43)
     - **Flows:** routing between tasks by a condition or by probability, entity state that an order keeps from task to task, and delays without a resource. [#44](https://github.com/jaehyeon-kim/desflow/issues/44)
-    - **Statistics and ground truth:** wait and service times, throughput, [utilisation](../des/queueing-basics.md#utilisation) and queue length as telemetry, with a [warm-up](../des/output-analysis.md#one-run-starts-empty) period; and ground-truth records of what a scenario changed, so a detector or an agent can be scored against them. [#45](https://github.com/jaehyeon-kim/desflow/issues/45)
+    - **Statistics and ground truth:** wait and service times, throughput, [utilisation](../learn/concepts/queueing-basics.md#utilisation) and queue length as telemetry, with a [warm-up](../learn/concepts/output-analysis.md#one-run-starts-empty) period; and ground-truth records of what a scenario changed, so a detector or an agent can be scored against them. [#45](https://github.com/jaehyeon-kim/desflow/issues/45)
 
 ??? note "0.20.0: Rename to desflow"
 

@@ -1,7 +1,7 @@
 """Write the public API snapshot that tests/unit/test_public_api.py compares with.
 
 The public API is every name a user can reach from the docs or the package: the names
-in `desflow.__all__`, every `:::` path on the API page (`docs/api.md`), and every name
+in `desflow.__all__`, every `:::` path on the API page (`docs/reference/api.md`), and every name
 a script under `examples/` or `docs/snippets/` imports from desflow. For each one the
 snapshot holds its signature, and for a class the signature of each public member that
 a desflow class defines. A name that is another path to the same object is one line
@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterator, List
 
 ROOT = Path(__file__).resolve().parents[1]
-API_PAGE = ROOT / "docs" / "api.md"
+API_PAGE = ROOT / "docs" / "reference/api.md"
 SNAPSHOT = ROOT / "tests" / "unit" / "public_api.txt"
 HEADER = "# Written by scripts/public_api.py. Do not edit by hand."
 CLI_HEADER = "[cli]"

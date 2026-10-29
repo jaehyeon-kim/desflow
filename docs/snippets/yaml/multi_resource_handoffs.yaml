@@ -1,0 +1,42 @@
+# The Hand Off to a Resource guide: a picker carries each order to the packing bench
+# and stays with it until the bench is free.
+# Run it with: desflow run multi_resource_handoffs.yaml
+simulation:
+  sim_id: Shop
+  factor: 1
+  random_seed: 42
+
+egress:
+  - type: Console
+
+resources:
+  picker: {current_cap: 1, max_cap: 1}
+  bench: {current_cap: 1, max_cap: 1}
+
+services:
+  # The picker takes 1 s to carry an order to the bench, and packing takes 4 s
+  walking: {dist: constant, value: 1 s}
+  packing: {dist: constant, value: 4 s}
+
+arrivals:
+  orders: {dist: exponential, rate: 1.0, spawn: pick}
+
+tasks:
+  # --8<-- [start:tasks]
+  # The picker carries the order to the bench and stays with it until it is on the
+  # bench: keep hands the picker to the next task instead of releasing it
+  pick:
+    service: walking
+    resource: picker
+    keep: [picker]
+    payload: {event_type: order_picked}
+    next: pack
+  # pack gives the picker back as soon as it publishes started
+  pack:
+    service: packing
+    resource: bench
+    payload: {event_type: order_packed}
+  # --8<-- [end:tasks]
+
+run:
+  until: 30 s

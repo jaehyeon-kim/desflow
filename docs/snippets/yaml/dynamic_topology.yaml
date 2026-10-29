@@ -1,0 +1,21 @@
+# The Add Resources Mid-run guide: a supervisor adds gift wrappers at 12 seconds.
+# Run it with: desflow run dynamic_topology.yaml, beside dynamic_topology_logic.py
+# --8<-- [start:shop]
+simulation:
+  sim_id: Shop
+  factor: 1
+  strict: false
+
+egress:
+  - type: Console
+
+resources:
+  packers: {current_cap: 1, max_cap: 5}
+
+processes:
+  # Called as supervisor(context); it adds the wrappers during the run
+  - function: !python dynamic_topology_logic.supervisor
+
+run:
+  until: 20 s
+# --8<-- [end:shop]

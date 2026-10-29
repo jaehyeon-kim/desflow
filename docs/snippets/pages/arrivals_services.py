@@ -25,6 +25,23 @@ app.add_arrival("orders", dist="exponential", rate=0.5, spawn="pack")
 
 app.add_service("packing", dist="normal", mean=3.0, std=0.5)  # 3 s, give or take 0.5 s
 
+# --8<-- [start:builder-families]
+# A hard minimum, a time to failure, a histogram of data, and weighted values
+app.add_service("labelling", dist="truncated_normal", mean=1.0, std=1.0, low=0.2)
+app.add_service("station_failure", dist="weibull", shape=1.5, scale=600)
+app.add_service(
+    "measured_packing", dist="empirical", edges=[1, 2, 3, 4], counts=[5, 3, 2]
+)
+app.add_service("scanning", dist="empirical", values=[0.5, 2], weights=[4, 1])
+# --8<-- [end:builder-families]
+
+# --8<-- [start:builder-weighted-arrival]
+# A gap of 1 s three times in four, and 5 s otherwise
+app.add_arrival(
+    "batches", dist="empirical", values=[1, 5], weights=[3, 1], spawn="pack"
+)
+# --8<-- [end:builder-weighted-arrival]
+
 
 @app.task(service_id="packing", resource_id="packers")
 def pack(task_id: int):

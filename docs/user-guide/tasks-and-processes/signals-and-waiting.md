@@ -2,13 +2,21 @@
 
 A [task](index.md) can wait for signals, conditions and child flows, start other flows and run actions when an event happens. This page shows each.
 
+The tutorial page [Process Interaction](../../learn/shop-logic/process-interaction.md) teaches these features step by step.
+
+---
+
+## What It Is
+
+In a shop, work often depends on other work. An order waits until its parts are picked, a courier leaves once an order is packed, and a guard is told when an alarm round ends. desflow models this with four tools: a wait that a task makes before it asks for its resource, signals that tasks fire, flows that a task starts without waiting for them, and actions that run when an event happens.
+
 ---
 
 ## How to Use It
 
 ### Wait, Signals and Child Flows
 
-A task can wait for something before it queues for its resource: its `wait`. A wait has one branch, or a group of several named branches: `any`, `all` or `at_least`. A branch can itself be a group, so waits nest. An empty `any` or `all` succeeds at once. In SimPy, `AnyOf` waits for the first event and `AllOf` for every event, and a `Condition` with a count rule does what `at_least` does. [Wait for One or All](../../guides/wait-for-one-or-all.md) shows the groups. A leaf branch is one of:
+A task can wait for something before it queues for its resource: its `wait`. A wait has one branch, or a group of several named branches: `any`, `all` or `at_least`. A branch can itself be a group, so waits nest. An empty `any` or `all` succeeds at once. In SimPy, `AnyOf` waits for the first event and `AllOf` for every event, and a `Condition` with a count rule does what `at_least` does. [Wait for One or All](../../how-to/modelling/wait-for-one-or-all.md) shows the groups. A leaf branch is one of:
 
 | Branch | Waits for | Its value |
 |---|---|---|
@@ -23,13 +31,23 @@ A task can wait for something before it queues for its resource: its `wait`. A w
 
 A `running` branch waits for tasks already running. Here an order waits for the delivery it started, unless the delivery has already left with the van:
 
-```yaml title="docs/snippets/yaml/wait_groups.yaml:running"
-# Wait for the delivery this order started, unless it has left with the van
-wait:
-  running:
-    task: deliver
-    where: process.target != 'service'
-```
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/wait_groups.yaml:running"
+    # Wait for the delivery this order started, unless it has left with the van
+    wait:
+      running:
+        task: deliver
+        where: process.target != 'service'
+    ```
+
+=== "Builder"
+
+    `@app.task(wait=...)` takes the same mapping as a dict: `wait={"running": {"task": "deliver", "where": "process.target != 'service'"}}`.
+
+=== "Low-level"
+
+    A low-level process waits for another by yielding it, as SimPy's `yield process` does.
 
 A single branch is named after its signal, task or resource, or `timeout`, `condition`, `get` or `put`. After the wait, each branch has three values:
 
@@ -209,8 +227,6 @@ A task fires a signal with `signal: name` when it finishes, with its payload as 
 
     The low-level API is plain SimPy here: a child is `env.process(...)`, its value is what it returns, and `env.any_of` and `env.all_of` wait for the first or for every event. `Signal(env, name)` is the named event the builder and YAML use. `env.watch_changes(check)` calls `check` after every change a condition can read. `env.watch_changes(check, queues=True)` also calls it after a change in the number of puts or gets waiting at a store or container.
 
-The task publishes `queued` when its wait starts, so the wait counts in its wait statistics. Its `patience` covers the wait as well as its resource and its `get`. When an `any` wait ends, its losing signal, timeout and condition branches are dropped. Its losing child flows keep running, as SimPy leaves processes running. [Wait for One or All](../../guides/wait-for-one-or-all.md) shows ties and failures. A wait for signals, tasks and times holds no resource. Waiting for all of several such things reserves nothing: the task asks for its resource only after the wait.
-
 ### One-Shot Signals
 
 A signal written as a mapping with `once: true` (builder `add_signal(name, once=True)`) fires once, as SimPy's `Event` does. It does not re-arm, so a task that waits for it after it has fired resumes at once. A second firing is refused. A plain signal keeps re-arming after each firing, so a waiter that starts later waits for the next. A closing-time signal is a one-shot: `signals: {closing: {once: true}}`.
@@ -229,12 +245,22 @@ A spawned task cannot share its name with an arrival, because their flow statist
 
 A task's `interrupt` runs when the task finishes, as a `spawn` does. Here the task that closes the shop interrupts each order still being checked, and starts a sweep 2 seconds later:
 
-```yaml title="docs/snippets/yaml/task_endings.yaml:task-actions"
-# When the shop closes: stop each order still being checked, and start a sweep
-# 2 seconds later
-interrupt: {task: check, where: "process.target == 'service'", cause: closing}
-spawn: {task: sweep, after: 2 s}
-```
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/task_endings.yaml:task-actions"
+    # When the shop closes: stop each order still being checked, and start a sweep
+    # 2 seconds later
+    interrupt: {task: check, where: "process.target == 'service'", cause: closing}
+    spawn: {task: sweep, after: 2 s}
+    ```
+
+=== "Builder"
+
+    `@app.task(interrupt=..., spawn=...)` takes the same two mappings as dicts.
+
+=== "Low-level"
+
+    A low-level process calls `process.interrupt(cause)` on each process it stops, and starts the sweep with `env.process` after a timeout of 2 seconds.
 
 ### Be Told When a Flow Ends
 
@@ -249,29 +275,55 @@ An `on:` list runs actions when a signal fires or a task ends, before any waiter
 - `interrupt: {task, where, cause}` interrupts running instances, as a task's `interrupt` does.
 - `path` with `value` sets a registry value, as a scenario step does.
 
-A drain waits for a task's `on:` actions and for the `on:` actions of signals its tasks fire, so a final task that fires a signal with `on:` actions leaves only after they have run.
-
 The same closing task with an `on:` list: it stops the packing by hand, makes the orders come every 6 seconds, and fires a one-shot `reminder` with a value 5 seconds later:
 
-```yaml title="docs/snippets/yaml/task_endings.yaml:on-actions"
-# However the task ends: stop the packing by hand, make the orders come every
-# 6 seconds, and remind the couriers 5 seconds later
-on:
-  - interrupt: {task: pack_by_hand, cause: closing}
-  - {path: Shop.arrival.orders.value, value: 6}
-  - fire: {signal: reminder, value: last parcels, after: 5 s}
-```
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/task_endings.yaml:on-actions"
+    # However the task ends: stop the packing by hand, make the orders come every
+    # 6 seconds, and remind the couriers 5 seconds later
+    on:
+      - interrupt: {task: pack_by_hand, cause: closing}
+      - {path: Shop.arrival.orders.value, value: 6}
+      - fire: {signal: reminder, value: last parcels, after: 5 s}
+    ```
+
+=== "Builder"
+
+    `@app.task(on=[...])` takes the same list of mappings.
+
+=== "Low-level"
+
+    A low-level model adds a callback to the event, as SimPy's `event.callbacks` runs one when the event fires.
 
 A one-shot `closing` signal with an `on:` action that fires `last_call` before the other events at closing time:
 
-```yaml title="docs/snippets/yaml/task_endings.yaml:urgent"
-closing:
-  once: true
-  on:
-    # Tell the couriers before anything else that happens at closing time
-    - fire: {signal: last_call, urgent: true}
-last_call: {once: true}
-```
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/task_endings.yaml:urgent"
+    closing:
+      once: true
+      on:
+        # Tell the couriers before anything else that happens at closing time
+        - fire: {signal: last_call, urgent: true}
+    last_call: {once: true}
+    ```
+
+=== "Builder"
+
+    `app.add_signal("closing", once=True, on=[{"fire": {"signal": "last_call", "urgent": True}}])` declares the same signal, and `app.add_signal("last_call", once=True)` the other.
+
+=== "Low-level"
+
+    A low-level model schedules the event with SimPy's `URGENT` priority, `env.schedule(event, URGENT)`.
+
+---
+
+## How It Works
+
+The task publishes `queued` when its wait starts, so the wait counts in its wait statistics. Its `patience` covers the wait as well as its resource and its `get`. When an `any` wait ends, its losing signal, timeout and condition branches are dropped. Its losing child flows keep running, as SimPy leaves processes running. [Wait for One or All](../../how-to/modelling/wait-for-one-or-all.md) shows ties and failures. A wait for signals, tasks and times holds no resource. Waiting for all of several such things reserves nothing: the task asks for its resource only after the wait.
+
+A drain waits for a task's `on:` actions and for the `on:` actions of signals its tasks fire, so a final task that fires a signal with `on:` actions leaves only after they have run.
 
 ---
 
@@ -291,48 +343,109 @@ The `process-events` example combines the event features of this page:
 
 The arrival gaps are set so that each of these happens once. It needs no Docker service and ends on its own after 12 simulation seconds.
 
-```yaml title="examples/yaml/process_events.yaml:events"
-signals:
-  # A plain signal re-arms; the one-shot closing fires once and spawns a sweep
-  ready: {}
-  closing:
-    once: true
-    on:
-      - spawn: {task: sweep, after: 1 s}
+=== "YAML"
 
-arrivals:
-  orders: {dist: constant, value: 6, spawn: pack}
-  shippers: {dist: constant, value: 7, spawn: ship}
-  closers: {dist: constant, value: 9, spawn: close}
-  guards: {dist: constant, value: 8, spawn: guard}
+    ```yaml title="examples/yaml/process_events.yaml:events"
+    signals:
+      # A plain signal re-arms; the one-shot closing fires once and spawns a sweep
+      ready: {}
+      closing:
+        once: true
+        on:
+          - spawn: {task: sweep, after: 1 s}
 
-tasks:
-  # A packed order fires ready from its own finished payload; a shipper reads it
-  pack:
-    service: packing
-    payload: {event_type: order_packed}
-    on:
-      - fire: {signal: ready, from: pack}
-  ship:
-    wait: {signal: ready}
-    payload: {event_type: order_shipped}
-  # Fires the one-shot closing when the shop closes
-  close:
-    signal: closing
-    payload: {event_type: shop_closed}
-  sweep:
-    service: sweeping
-    payload: {event_type: floor_swept}
-  # The guard starts an alarm round and is interrupted when it ends
-  guard:
-    service: guarding
-    subscribe: {task: alarm}
-    on_interrupt: abandon
-    payload: {event_type: shift_done}
-  alarm:
-    service: alarming
-    payload: {event_type: alarm_rang}
-```
+    arrivals:
+      orders: {dist: constant, value: 6, spawn: pack}
+      shippers: {dist: constant, value: 7, spawn: ship}
+      closers: {dist: constant, value: 9, spawn: close}
+      guards: {dist: constant, value: 8, spawn: guard}
+
+    tasks:
+      # A packed order fires ready from its own finished payload; a shipper reads it
+      pack:
+        service: packing
+        payload: {event_type: order_packed}
+        on:
+          - fire: {signal: ready, from: pack}
+      ship:
+        wait: {signal: ready}
+        payload: {event_type: order_shipped}
+      # Fires the one-shot closing when the shop closes
+      close:
+        signal: closing
+        payload: {event_type: shop_closed}
+      sweep:
+        service: sweeping
+        payload: {event_type: floor_swept}
+      # The guard starts an alarm round and is interrupted when it ends
+      guard:
+        service: guarding
+        subscribe: {task: alarm}
+        on_interrupt: abandon
+        payload: {event_type: shift_done}
+      alarm:
+        service: alarming
+        payload: {event_type: alarm_rang}
+    ```
+
+=== "Builder"
+
+    ```python title="examples/builder/process_events_example.py:events"
+    app = (
+        SimulationContext(sim_id="Shop", factor=0, random_seed=42)
+        .add_egress(ConsoleEgress())
+        .add_service("packing", dist="constant", value=2)
+        .add_service("alarming", dist="constant", value=2)
+        .add_service("sweeping", dist="constant", value=1)
+        .add_service("guarding", dist="constant", value=100)
+        # A plain signal re-arms; the one-shot closing fires once and spawns a sweep
+        .add_signal("ready")
+        .add_signal("closing", once=True, on=[{"spawn": {"task": "sweep", "after": 1}}])
+        .add_arrival("orders", dist="constant", value=6)
+        .add_arrival("shippers", dist="constant", value=7)
+        .add_arrival("closers", dist="constant", value=9)
+        .add_arrival("guards", dist="constant", value=8)
+    )
+
+
+    # A packed order fires ready from its own finished payload; a shipper reads it
+    @app.task(service_id="packing", on=[{"fire": {"signal": "ready", "from": "pack"}}])
+    def pack(task_id):
+        return {"event_type": "order_packed"}
+
+
+    @app.task(wait={"signal": "ready"})
+    def ship(task_id):
+        return {"event_type": "order_shipped"}
+
+
+    # Fires the one-shot closing when the shop closes
+    @app.task(signal="closing")
+    def close(task_id):
+        return {"event_type": "shop_closed"}
+
+
+    @app.task(service_id="sweeping")
+    def sweep(task_id):
+        return {"event_type": "floor_swept"}
+
+
+    # The guard starts an alarm round and is interrupted when it ends
+    @app.task(service_id="guarding", subscribe={"task": "alarm"}, on_interrupt="abandon")
+    def guard(task_id):
+        return {"event_type": "shift_done"}
+
+
+    @app.task(service_id="alarming")
+    def alarm(task_id):
+        return {"event_type": "alarm_rang"}
+    ```
+
+=== "Low-level"
+
+    The low-level version uses plain SimPy for each of these: a `Signal`, an interrupt handled by `env.any_of`, and `simpy.util.start_delayed`. The whole file is in the Low-level tab of the Quick Start below.
+
+Run the example in the form you use:
 
 === "YAML"
 

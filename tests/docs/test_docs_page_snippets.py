@@ -53,3 +53,39 @@ def test_storage_backends_make_their_filesystems(monkeypatch, tmp_path):
     ]
 
     assert classes == [fs.GcsFileSystem, fs.AzureFileSystem]
+
+
+class _Idle:
+    """A sink that takes its batches and keeps nothing."""
+
+    async def run(self, egress_queue):
+        import asyncio
+
+        try:
+            while True:
+                await asyncio.sleep(0.01)
+        except asyncio.CancelledError:
+            pass
+
+
+def test_backfill_live_sinks_batch_alike_in_every_form():
+    """The backfill-live page gives each sink its own batching; the blueprint, the
+    builder and the low-level environment end with the same settings."""
+    from desflow import DynamicRealtimeEnvironment, SimulationContext
+
+    module = runpy.run_path(str(ROOT / "docs/snippets/pages/backfill_live.py"))
+    blueprint = SimulationContext.from_yaml(
+        ROOT / "docs/snippets/yaml_build/backfill_live_per_sink.yaml"
+    )
+    for app in (module["app"], blueprint):
+        assert app._egress_batch_sizes == [200_000, 500]
+        assert app._egress_flush_intervals == [None, 1.0]
+    env = DynamicRealtimeEnvironment(factor=0.0)
+    # The sinks are stand-ins, so no broker is needed
+    module["low_level_sinks"].__globals__.update(parquet=_Idle(), kafka=_Idle())
+    module["low_level_sinks"](env)
+    try:
+        assert env.egress_batch_sizes == [200_000, 500]
+        assert env.egress_flush_intervals == [1.0, 1.0]  # None takes the default
+    finally:
+        env.teardown()

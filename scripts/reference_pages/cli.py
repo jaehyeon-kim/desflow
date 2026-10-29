@@ -54,15 +54,16 @@ _CLI_SECTIONS = {
 }
 
 
-def cli_pages() -> Dict[str, str]:
-    """The CLI pages: `reference/cli/<command>.md` for each command and
-    sub-command, and `reference/cli/index.md` for `desflow`, as Markdown."""
+def cli_overview() -> str:
+    """The list of commands and the help of `desflow`, as the Command Line page shows
+    them under What It Is. The page holds a copy, which `test_gen_pages.py` compares
+    with this.
+    """
     from typer.main import get_command
 
     from desflow.cli import app
 
     found = list(commands(get_command(app), "desflow"))
-    pages: Dict[str, str] = {}
     rows = []
     for path, text in found[1:]:
         name = "-".join(path.split(" ")[1:])
@@ -70,14 +71,43 @@ def cli_pages() -> Dict[str, str]:
         # A summary such as <dest>/<name>/ would read as HTML tags in a table
         cell = " ".join(summary.split()).replace("<", "&lt;").replace(">", "&gt;")
         rows.append(f"| [`{path}`]({name}.md) | {cell} |")
-        pages[f"reference/cli/{name}.md"] = "\n".join(
+    help_lines = [f"    {line}".rstrip() for line in found[0][1].split("\n")]
+    return "\n".join(
+        [
+            "| Command | What it does |",
+            "|---|---|",
+            *rows,
+            "",
+            '??? example "The help of `desflow`"',
+            "",
+            "    ```text",
+            *help_lines,
+            "    ```",
+        ]
+    )
+
+
+def cli_pages() -> Dict[str, str]:
+    """The CLI pages: `cli/<command>.md` for each command and
+    sub-command, as Markdown. The help of `desflow` itself is on the Command Line
+    page, from `cli_overview`."""
+    from typer.main import get_command
+
+    from desflow.cli import app
+
+    found = list(commands(get_command(app), "desflow"))
+    pages: Dict[str, str] = {}
+    for path, text in found[1:]:
+        name = "-".join(path.split(" ")[1:])
+        pages[f"cli/{name}.md"] = "\n".join(
             [
                 f"# {path}",
                 "",
                 f"The help of `{path}`, generated from the command's code. "
-                "[CLI](index.md) lists every command, and "
-                f"[Command Line](../../user-guide/command-line.md#{_CLI_SECTIONS[name]}) "
-                "uses this one on the shop.",
+                f"[Command Line](index.md#{_CLI_SECTIONS[name]}) "
+                "uses this one on the shop, and its "
+                "[What It Is](index.md#what-it-is) "
+                "lists every command.",
                 "",
                 "```text",
                 text,
@@ -85,23 +115,4 @@ def cli_pages() -> Dict[str, str]:
                 "",
             ]
         )
-    pages["reference/cli/index.md"] = "\n".join(
-        [
-            "# CLI",
-            "",
-            "The `desflow` command and each of its commands, generated from their "
-            "code, so each page shows the help the installed release prints. "
-            "[Command Line](../../user-guide/command-line.md) uses every command "
-            "on the shop. [Cheat Sheet](../cheat-sheet.md) shows the commands in use.",
-            "",
-            "| Command | What it does |",
-            "|---|---|",
-            *rows,
-            "",
-            "```text",
-            found[0][1],
-            "```",
-            "",
-        ]
-    )
     return pages

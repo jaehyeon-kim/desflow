@@ -4,11 +4,17 @@ A task can hold more than one [resource](index.md) at once. This page shows how,
 
 ---
 
+## What It Is
+
+Some work needs more than one resource at a time: an order needs a picker and a bench, and a patient needs a doctor and a room. A task can hold several resources at once, or keep a unit and hand it to the next task of its flow.
+
+---
+
 ## How to Use It
 
 A task can hold several resources at once: `resource: [picker, bench]` asks for a picker, then, while it holds the picker, for the bench. The task is served once it holds all of them, and it releases all of them when it finishes. While it waits for the bench, it holds the picker. The units are granted one at a time, never together, so a task can hold some of its resources while it waits for the rest. `patience` covers the whole acquisition, and an interrupt gives back every unit held.
 
-A task can also hand a unit to the next task of its flow with `keep`: the next task holds it from the start and gives it back once it publishes `started`. An order can therefore keep the picker until it is on the packing bench. The `competing-resources` example does both:
+A task can also hand a unit to the next task of its flow with `keep`: the next task holds it from the start and gives it back once it publishes `started`. An order can therefore keep the picker until it is on the packing bench, as [Hand Off to a Resource](../../how-to/modelling/multi-resource-handoffs.md) shows step by step. The `competing-resources` example does both:
 
 === "YAML"
 
@@ -109,7 +115,11 @@ A task can also hand a unit to the next task of its flow with `keep`: the next t
 
     In the low-level API several resources are nested requests, and a handoff is a request released by the next process.
 
-**One order of acquisition.** Two tasks that acquire the same two resources in opposite orders can each hold one and wait for ever for the other. desflow refuses such a model when it is built, and names both tasks. Every task must acquire shared resources in one order. The rule also covers `keep` handoffs and the `request` branches of a wait ([Wait for a Unit, an Item or Room](../../guides/wait-for-one-or-all.md#wait-for-a-unit-an-item-or-room)). [Competing Resources](../../tutorials/competing-resources.md) shows what a partial holding costs.
+---
+
+## How It Works
+
+**One order of acquisition.** Two tasks that acquire the same two resources in opposite orders can each hold one and wait for ever for the other. desflow refuses such a model when it is built, and names both tasks. Every task must acquire shared resources in one order. The rule also covers `keep` handoffs and the `request` branches of a wait ([Wait for a Unit, an Item or Room](../../how-to/modelling/wait-for-one-or-all.md#wait-for-a-unit-an-item-or-room)). [Competing Resources](../../learn/shop-logic/competing-resources.md) shows what a partial holding costs.
 
 ---
 
@@ -122,6 +132,8 @@ The limits of this page are listed with those of the whole section, in [Stabilit
 ## Example: Competing Resources
 
 In the `competing-resources` example, orders keep the picker until they are on the bench, and gifts hold the picker and the bench together. It needs no Docker service and ends on its own after 120 simulation seconds.
+
+The tutorial page [Competing Resources](../../learn/shop-logic/competing-resources.md) teaches these features step by step.
 
 === "YAML"
 

@@ -93,8 +93,9 @@ def yaml_keys_page() -> str:
         "# YAML Keys",
         "",
         "Every key a blueprint file takes, generated from the JSON Schema that ships "
-        "with desflow. [YAML Format](yaml-format.md) explains how a file is read. "
-        "[Set Up Your Editor](../guides/set-up-your-editor.md) shows how to have "
+        "with desflow. [YAML Blueprints](../user-guide/writing-a-model/blueprints.md) explains how a "
+        "file is read. "
+        "[Set Up Your Editor](../how-to/tools/set-up-your-editor.md) shows how to have "
         "your editor complete and check these keys as you type.",
         "",
         "Each section below is a top-level key. A table lists the keys that an entry "

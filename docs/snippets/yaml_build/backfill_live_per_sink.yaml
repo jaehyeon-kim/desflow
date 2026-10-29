@@ -1,0 +1,20 @@
+# The backfill-live example page: each sink with its own batching. tests/docs only
+# builds this file, because its Kafka sink needs a broker.
+simulation:
+  sim_id: Shop
+  factor: 0.0
+  logical_start_time: -7d
+  go_live_at: now
+
+egress:
+  # --8<-- [start:per-sink]
+  - type: Parquet
+    config: {default_path: data/backfill/events.parquet}
+    when: history
+    batch_size: 200000
+  - type: Kafka
+    config: {bootstrap_servers: 127.0.0.1:9092}
+    when: live
+    batch_size: 500
+    flush_interval: 1.0
+  # --8<-- [end:per-sink]

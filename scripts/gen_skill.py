@@ -217,7 +217,7 @@ def api() -> str:
         "# Python API",
         "",
         "Every name `from desflow import ...` gives, with the first line of its "
-        "docstring. https://jaehyeon.me/desflow/latest/api/ has each one in full.",
+        "docstring. https://jaehyeon.me/desflow/latest/reference/api/ has each one in full.",
         "",
         "| Name | What it is |",
         "|---|---|",

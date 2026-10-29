@@ -1,6 +1,6 @@
 """The tutorial pages' code runs, in every tab, and gives the answer each page states.
 
-Each page of Tutorial: the Shop shows sections of three files: a blueprint under
+Each page of the shop tutorial shows sections of three files: a blueprint under
 docs/snippets/yaml/, a builder script and a low-level script under
 docs/snippets/tutorials/. test_docs_match_examples.py keeps the copies equal to them.
 This runs all three unpaced and checks the number the page gives as its answer, so a

@@ -56,8 +56,12 @@ def test_every_connector_has_an_example_a_reference_a_skill_and_a_readme_line(
     kind, name
 ):
     assert re.search(rf"type: {name}\b", YAML_CODE), f"{kind} {name}: no example"
-    yaml_format = (DOCS / "reference" / "yaml-format.md").read_text(encoding="utf-8")
-    assert f"`{name}`" in yaml_format, f"{kind} {name}: not on YAML Format"
+    page = (DOCS / "user-guide" / "live-runs-and-connectors" / f"{kind}.md").read_text(
+        encoding="utf-8"
+    )
+    assert f"| `{name}` |" in page, (
+        f"{kind} {name}: not in the type column of {kind}.md"
+    )
     connectors = (SKILL / "references" / "connectors.md").read_text(encoding="utf-8")
     assert f"| `{name}` |" in connectors
     assert _README_NAMES.get(name, name) in README, f"{name}: not in the README"
@@ -75,7 +79,7 @@ def test_every_extra_has_an_example_a_reference_a_skill_and_a_readme_line(extra)
     assert installed or any(extra in e.extras for e in EXAMPLES.values()), (
         f"{extra}: no page installs it and no example needs it"
     )
-    getting_started = (DOCS / "getting-started.md").read_text(encoding="utf-8")
+    getting_started = (DOCS / "installation.md").read_text(encoding="utf-8")
     assert f"| `{extra}` |" in getting_started, f"{extra}: not on Installation"
     assert f"| `{extra}` |" in README, f"{extra}: not in the README"
     if extra != "all":  # all installs every other extra, so it has no feature

@@ -2,7 +2,9 @@
 
 The shop at the end publishes predictions as Avro and every other record as JSON. It
 needs a Kafka broker and a schema registry: start both with `odctl up kafka-lite`, then
-run `python avro_and_pydantic.py`.
+run `python avro_and_pydantic.py`. avro_and_pydantic.yaml and
+avro_and_pydantic_low_level.py are the same shop in YAML and the low-level API, and use
+the models, router and serializer of this file.
 """
 
 # Each section carries its own imports, as the page shows it.
@@ -156,12 +158,20 @@ app = (
     .add_arrival("orders", dist="exponential", rate=0.5)
     .add_egress(egress)  # predictions as Avro, the rest as JSON
 )
+# --8<-- [end:shop]
 
 
+# --8<-- [start:task]
 @app.task(service_id="packing", resource_id="packers")
 def pack_order(task_id: int, entity):
     # The finished event is a prediction for the order, published as the model
     return MLPrediction(task_id=entity.key, confidence=0.9)
+
+
+# --8<-- [end:task]
+
+
+# --8<-- [start:run]
 
 
 @app.arrival_loop("orders")
@@ -180,4 +190,4 @@ if __name__ == "__main__":
     topics = ["sim-events", "sim-telemetry", "ml-predictions"]
     admin.create_topics([{"name": topic} for topic in topics])
     app.run(until="1 min")
-# --8<-- [end:shop]
+# --8<-- [end:run]

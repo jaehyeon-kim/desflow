@@ -1,6 +1,12 @@
 # Run Length
 
-This page shows how a run starts and ends, described in [Time and Pacing](index.md): the [warm-up](../../des/output-analysis.md#one-run-starts-empty), the initial time, the run length, stopping early, draining, stepping and running in segments.
+This page shows how a run starts and ends, described in [Time and Pacing](index.md): the [warm-up](../../learn/concepts/output-analysis.md#one-run-starts-empty), the initial time, the run length, stopping early, draining, stepping and running in segments.
+
+---
+
+## What It Is
+
+A study decides how long to watch the shop: a working day that ends at closing time, or a long run that leaves out its empty start. These settings decide when a run starts measuring, when it stops, and what happens to the orders still in the shop at the end.
 
 ---
 
@@ -30,7 +36,7 @@ This page shows how a run starts and ends, described in [Time and Pacing](index.
 
     The warm-up is an argument of the sinks, because it is the sinks that leave records out: `env.setup_egress(sinks, warmup=600)`. A run with no sink has no records to leave out. When the warm-up is set through the builder, the statistics are also reset at it.
 
-The warm-up drops early records. `go_live_at` drops nothing, and only decides which sink gets each record. [Trusting Results](../../tutorials/trusting-results.md) shows how to choose a warm-up length.
+The warm-up drops early records. `go_live_at` drops nothing, and only decides which sink gets each record. [Trusting Results](../../learn/studies/trusting-results.md) shows how to choose a warm-up length.
 
 ### Initial Time
 
@@ -66,7 +72,7 @@ The warm-up drops early records. `go_live_at` drops nothing, and only decides wh
 
 With `initial_time: 8 h`, a step at `30 min` applies at 8.5 hours, and a warm-up of `10 min` ends at 8 hours 10 minutes.
 
-The state the run starts with holds from the initial time, before the first arrival: a resource's `current_cap`, a container's `level`, a store's `items` and an arrival's `attributes`. The tests check each against plain SimPy ([SimPy Compatibility](../../reference/simpy-compatibility.md)).
+The state the run starts with holds from the initial time, before the first arrival: a resource's `current_cap`, a container's `level`, a store's `items` and an arrival's `attributes`. The tests check each against plain SimPy ([SimPy Compatibility](../../simpy/compatibility.md)).
 
 ### Run Length
 
@@ -74,31 +80,55 @@ The state the run starts with holds from the initial time, before the first arri
 
 `desflow run FILE --until TIME` overrides `run.until` for one run, without editing the file: `desflow run shop.yaml --until "10 min"` runs `shop.yaml` for 10 simulation minutes, whatever its `run.until` says.
 
-```python title="docs/snippets/pages/pacing.py:run-length"
-app.add_resource("packers", current_cap=1, max_cap=1)
-app.run(until="1 week")  # 604,800 simulation seconds; a number is seconds too
-```
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/environment.yaml:run-length"
+    run:
+      # A duration, such as 1 week, or a number of seconds
+      until: ${RUN_FOR:-1 hour}
+    ```
+
+=== "Builder"
+
+    ```python title="docs/snippets/pages/pacing.py:run-length"
+    app.add_resource("packers", current_cap=1, max_cap=1)
+    app.run(until="1 week")  # 604,800 simulation seconds; a number is seconds too
+    ```
+
+=== "Low-level"
+
+    `env.run(until=604800)` takes seconds only, as SimPy's `run` does.
 
 The run stops at `until` before any event due at exactly that time, as SimPy's `run(until=...)` does: an order due at the horizon never arrives, and a task due to finish there stays unfinished. Statistics published at teardown read the model at `until`.
 
-Events due at the same time run by priority, and then in the order they were scheduled (SimPy 4.1.2, `core.py`: `schedule` and `run`; `URGENT` and `NORMAL` in `events.py`). `run(until=...)` schedules its stop at urgent priority, so the stop comes before the ordinary events due at that time. How a scenario step or a change from an ingress connector ranks among them is in [Live Parameters](../live-parameters.md#script-an-experiment). Here two orders are packed at 5 seconds, and one is due at the horizon of 10 seconds:
+Events due at the same time run by priority, and then in the order they were scheduled (SimPy 4.1.2, `core.py`: `schedule` and `run`; `URGENT` and `NORMAL` in `events.py`). `run(until=...)` schedules its stop at urgent priority, so the stop comes before the ordinary events due at that time. How a scenario step or a change from an ingress connector ranks among them is in [Live Parameters](../live-runs-and-connectors/live-parameters.md#script-an-experiment). Here two orders are packed at 5 seconds, and one is due at the horizon of 10 seconds:
 
-```python title="docs/snippets/pages/pacing.py:same-time"
-ties = DynamicRealtimeEnvironment(factor=0.0)
-packed = []
+=== "YAML"
+
+    The order of events due at the same time belongs to the environment, so it is the same in every form. The Low-level tab shows it with three processes on one environment.
+
+=== "Builder"
+
+    The order of events due at the same time belongs to the environment, so it is the same in every form. The Low-level tab shows it with three processes on one environment.
+
+=== "Low-level"
+
+    ```python title="docs/snippets/pages/pacing.py:same-time"
+    ties = DynamicRealtimeEnvironment(factor=0.0)
+    packed = []
 
 
-def pack(name, seconds):
-    yield ties.timeout(seconds)
-    packed.append(name)
+    def pack(name, seconds):
+        yield ties.timeout(seconds)
+        packed.append(name)
 
 
-ties.process(pack("first", 5))
-ties.process(pack("second", 5))  # due at the same time: runs after "first"
-ties.process(pack("at the horizon", 10))
-ties.run(until=10)
-print(packed)  # ['first', 'second']: nothing due at 10 runs
-```
+    ties.process(pack("first", 5))
+    ties.process(pack("second", 5))  # due at the same time: runs after "first"
+    ties.process(pack("at the horizon", 10))
+    ties.run(until=10)
+    print(packed)  # ['first', 'second']: nothing due at 10 runs
+    ```
 
 Without `until`, SimPy runs until no events remain, and a run with an arrival never runs out of events. Neither does any run with a sink or an ingress connector, even when its own work is done. The environment's own processes repeat for as long as the run lasts. Give such a run an `until`, a `stop` or a drain, or stop it with Ctrl+C.
 
@@ -178,7 +208,7 @@ A fixed horizon cuts the run at `until` with orders still in the shop. A **drain
 
     The low-level API writes a drain as SimPy does: interrupt the source process, then run until all the admitted processes end.
 
-With statistics at `basic` or above, `flows.<arrival>.started`, `finished` and `in_system` say how many entities entered, left and are still in the model. From `minimal`, `tasks.<task>.in_progress` says how many instances of each task are queued or being served. [End Conditions](../../tutorials/end-conditions.md) compares a fixed horizon with a drain.
+With statistics at `basic` or above, `flows.<arrival>.started`, `finished` and `in_system` say how many entities entered, left and are still in the model. From `minimal`, `tasks.<task>.in_progress` says how many instances of each task are queued or being served. [End Conditions](../../learn/first-model/end-conditions.md) compares a fixed horizon with a drain.
 
 ### Step and Peek
 
@@ -197,19 +227,29 @@ Both count only the model's events, so a script steps the model as it would in S
 
 `close()` ends the run where it is. A context from `from_yaml` steps the same way:
 
-```python title="docs/snippets/pages/pacing.py:step"
-def every_ten(context):
-    while True:
-        yield context.env.timeout(10)
+=== "YAML"
+
+    `SimulationContext.from_yaml("shop.yaml")` returns a context with the same `start()`, `peek()`, `step()` and `close()`, as the Builder tab shows.
+
+=== "Builder"
+
+    ```python title="docs/snippets/pages/pacing.py:step"
+    def every_ten(context):
+        while True:
+            yield context.env.timeout(10)
 
 
-stepped = SimulationContext(sim_id="Shop", factor=0.0).add_process(every_ten)
-stepped.start()  # builds everything run() builds; the clock is still at 0
-while stepped.peek() < 30:  # the time of the next event
-    stepped.step()  # processes the next model event, after desflow's own events due before it
-print(f"stopped before {stepped.peek()} at {stepped.env.now}")
-stepped.close()  # the teardown run() does at its end
-```
+    stepped = SimulationContext(sim_id="Shop", factor=0.0).add_process(every_ten)
+    stepped.start()  # builds everything run() builds; the clock is still at 0
+    while stepped.peek() < 30:  # the time of the next event
+        stepped.step()  # processes the next model event, after desflow's own events due before it
+    print(f"stopped before {stepped.peek()} at {stepped.env.now}")
+    stepped.close()  # the teardown run() does at its end
+    ```
+
+=== "Low-level"
+
+    `env.peek()` and `env.step()` on a `DynamicRealtimeEnvironment` skip desflow's own events in the same way, and `env.run(until=...)` runs on from where the steps stopped.
 
 It prints `stopped before 30 at 20`. Stepping does not stop at `until`: compare `peek()` with the time you want to stop at.
 
@@ -217,19 +257,29 @@ It prints `stopped before 30 at 20`. Stepping does not stop at `until`: compare 
 
 `advance(until)` runs a started run up to a time and returns with the run still open, so a script can read the model, change it with `context.env`, or wait, then run the next segment. `finish()` runs on to the end, as it does after `start()`:
 
-```python title="docs/snippets/pages/pacing.py:segments"
-def pulse(context):
-    while True:
-        yield context.env.timeout(10)
+=== "YAML"
+
+    A context from `SimulationContext.from_yaml("shop.yaml")` has the same `start()`, `advance()` and `finish()`, as the Builder tab shows.
+
+=== "Builder"
+
+    ```python title="docs/snippets/pages/pacing.py:segments"
+    def pulse(context):
+        while True:
+            yield context.env.timeout(10)
 
 
-segmented = SimulationContext(sim_id="Shop", factor=0.0).add_process(pulse)
-segmented.start(until=60)
-segmented.advance(25)  # runs the model to 25; the events at 25 wait for the next call
-segmented.advance("40 s")  # a duration is seconds from the start, not from now
-print(f"paused at {segmented.env.now}")
-segmented.finish()  # on to start()'s until, 60, and closes
-```
+    segmented = SimulationContext(sim_id="Shop", factor=0.0).add_process(pulse)
+    segmented.start(until=60)
+    segmented.advance(25)  # runs the model to 25; the events at 25 wait for the next call
+    segmented.advance("40 s")  # a duration is seconds from the start, not from now
+    print(f"paused at {segmented.env.now}")
+    segmented.finish()  # on to start()'s until, 60, and closes
+    ```
+
+=== "Low-level"
+
+    Call `env.run(until=...)` again for each segment, as in SimPy. The records are the same as those of one run.
 
 It prints `paused at 40.0`. A run in segments gives the same records as one `run()`, the telemetry and statistics included, because nothing is flushed at a segment boundary. The same holds for a script that calls `env.run(until=...)` again on a low-level environment, as in SimPy. A few rules:
 
@@ -238,6 +288,12 @@ It prints `paused at 40.0`. A run in segments gives the same records as one `run
 - `until` may be an event, such as `context.signal("gate").wait()`: the run stops where the event fires and returns its value, and the next `advance()` goes on, as SimPy's `env.run(until=event)` does.
 - The event that ends a segment stays in the queue: `peek()` gives the segment's time and `step()` processes it.
 - `advance()` does not move the wall-clock anchor. A paced run that waited between segments is behind when it goes on, so call `env.resume_pacing()` first.
+
+---
+
+## How It Works
+
+**The end of the model and the end of the run.** The model ends when the clock stops: at `until`, at a `stop`, or when a drain empties the model. The run ends after that, at `close()`, which `run()` calls in a `finally` block. `close()` publishes the last statistics, still stamped at the time the model ended. It then flushes and stops the egress connectors, and then stops the ingress connectors. A sink may take a while to drain its queue, but no record it receives is later than the model's end.
 
 ---
 
@@ -250,6 +306,8 @@ The limits of this page are listed with those of the whole section, in [Stabilit
 ## Example: End Conditions
 
 The `end-conditions` example shows a drain after closing time, a stop when the boxes run out, and the counts of orders still in the shop. It needs no Docker service and ends on its own.
+
+The tutorial page [End Conditions](../../learn/first-model/end-conditions.md) teaches these features step by step.
 
 === "YAML"
 

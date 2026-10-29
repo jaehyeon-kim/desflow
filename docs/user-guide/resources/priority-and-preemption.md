@@ -4,6 +4,12 @@ This page covers three features of a [resource](index.md). Task priority ranks t
 
 ---
 
+## What It Is
+
+In a shop, some work cannot wait its turn. An express order goes before regular ones, an urgent job takes a packer from a routine one, and a machine breaks down and must be repaired. Priority orders the waiting line, preemption lets an urgent task take a unit that is in use, and a breakdown takes a resource out of service for a time.
+
+---
+
 ## How to Use It
 
 ### Task Priority
@@ -15,8 +21,6 @@ Under `queue: priority`, waiting requests are served by priority, not in the ord
 - in the builder, a function of the task id and the entity's attributes.
 
 A priority cannot read the task's own payload, because the payload does not exist yet when the request joins the queue.
-
-SimPy ranks a request by `(priority, time, not preempt)`. So among requests with equal priorities made at the same time, a request that may preempt goes before one with `preempt: false`. The tests check it, ties included, in all three APIs ([SimPy Compatibility](../../reference/simpy-compatibility.md)).
 
 === "YAML"
 
@@ -57,7 +61,7 @@ SimPy ranks a request by `(priority, time, not preempt)`. So among requests with
 
     A low-level process passes the priority to the request: `packers.request(priority=entity.attributes["tier"])`, as the queue-order example above does. A request with no priority has priority 0. A resource whose queue is `fifo` or `lifo` ignores it.
 
-A `priority` on a task whose resource does not have `queue: priority` is refused when the blueprint loads, or when `run()` starts. [Priorities](../../tutorials/priorities.md) shows what priority does to waits.
+A `priority` on a task whose resource does not have `queue: priority` is refused when the blueprint loads, or when `run()` starts. [Priorities](../../learn/shop-logic/priorities.md) shows what priority does to waits.
 
 ### Preemption
 
@@ -65,11 +69,7 @@ On a resource with `preempt: true`, which needs `queue: priority`, a request doe
 
 ![express-1, priority 1, takes the unit of orders-2, the regular order of priority 2 that asked last; orders-1, which asked first, keeps its unit; orders-2 publishes preempted and follows its on_interrupt: resume, restart or abandon](../../assets/diagrams/preemption.png)
 
-??? note "SimPy's exact rule"
-
-    SimPy sorts the tasks holding a unit by `(priority, request time, may not preempt)`. The task that sorts last loses its unit, but only when it also sorts after the new request. A task with the same priority asked earlier than the new request, so it sorts before it and keeps its unit. The one exception is a task with the same priority that asked at the same moment, with `preempt: false`: it sorts after a request that may preempt, and loses its unit.
-
-The preempted task publishes `preempted` with the resource's name, the key of the entity that took the unit (`preempted_by`) and the time the task was granted the unit (`usage_since`). It then follows its `on_interrupt`, as it would for an interrupt ([Interruptions](../../tutorials/interruptions.md)). The `interruptions` example lets express orders preempt regular ones:
+The preempted task publishes `preempted` with the resource's name, the key of the entity that took the unit (`preempted_by`) and the time the task was granted the unit (`usage_since`). It then follows its `on_interrupt`, as it would for an interrupt ([Interruptions](../../learn/shop-logic/interruptions.md)). The `interruptions` example lets express orders preempt regular ones:
 
 === "YAML"
 
@@ -175,15 +175,25 @@ The preempted task publishes `preempted` with the resource's name, the key of th
 
 A gift order with `preempt: false` is served before any regular order that waits. But it waits for the packer to be free, rather than take it from a regular order being packed:
 
-```yaml title="docs/snippets/yaml/preemption.yaml:no-preempt"
-pack_gift:
-  service: packing
-  resource: packers
-  # Served before any regular order that waits, but waits for the packer to be free
-  priority: 0
-  preempt: false
-  payload: {event_type: gift_packed}
-```
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/preemption.yaml:no-preempt"
+    pack_gift:
+      service: packing
+      resource: packers
+      # Served before any regular order that waits, but waits for the packer to be free
+      priority: 0
+      preempt: false
+      payload: {event_type: gift_packed}
+    ```
+
+=== "Builder"
+
+    `@app.task(..., priority=0, preempt=False)` sets the same on a builder task.
+
+=== "Low-level"
+
+    `request(priority=0, preempt=False)` asks for a unit without taking one from a lower-priority order.
 
 ### Breakdowns
 
@@ -237,7 +247,17 @@ A `breakdown` makes a resource fail at random and be repaired. `time_to_failure`
 
     Start `run_breakdowns(env, station, sampler, work="interrupt")` as a SimPy process beside the arrivals. `station.fail()` and `station.repair()` put a resource down and back by hand.
 
-`work` says what happens to the tasks being served. Under `interrupt`, the default, each task is interrupted with the cause `breakdown` and follows its `on_interrupt`. Under `finish`, the tasks finish their work. Each failure and repair publishes an event keyed by the resource's name, with `status` `down` or `repaired` and `reason: failure`. [Model Breakdowns](../../guides/breakdowns.md) checks the downtime of the example, and [Interruptions](../../tutorials/interruptions.md) explains `on_interrupt`.
+`work` says what happens to the tasks being served. Under `interrupt`, the default, each task is interrupted with the cause `breakdown` and follows its `on_interrupt`. Under `finish`, the tasks finish their work. Each failure and repair publishes an event keyed by the resource's name, with `status` `down` or `repaired` and `reason: failure`. [Model Breakdowns](../../how-to/modelling/breakdowns.md) checks the downtime of the example, and [Interruptions](../../learn/shop-logic/interruptions.md) explains `on_interrupt`.
+
+---
+
+## How It Works
+
+SimPy ranks a request by `(priority, time, not preempt)`. So among requests with equal priorities made at the same time, a request that may preempt goes before one with `preempt: false`. The tests check it, ties included, in all three APIs ([SimPy Compatibility](../../simpy/compatibility.md)).
+
+??? note "SimPy's exact rule"
+
+    SimPy sorts the tasks holding a unit by `(priority, request time, may not preempt)`. The task that sorts last loses its unit, but only when it also sorts after the new request. A task with the same priority asked earlier than the new request, so it sorts before it and keeps its unit. The one exception is a task with the same priority that asked at the same moment, with `preempt: false`: it sorts after a request that may preempt, and loses its unit.
 
 ---
 
@@ -250,6 +270,8 @@ The limits of this page are listed with those of the whole section, in [Stabilit
 ## Example: Interruptions
 
 In the `interruptions` example, express orders preempt regular ones, and a fire drill at 60 seconds interrupts the order being packed. Each interrupted order resumes with the packing time it had left. It needs no Docker service and ends on its own after 120 simulation seconds.
+
+The tutorial page [Interruptions](../../learn/shop-logic/interruptions.md) teaches these features step by step.
 
 === "YAML"
 

@@ -94,7 +94,7 @@ def compatibility_page() -> str:
         "The low-level API is SimPy with a few classes added, so most SimPy features "
         "work in it; "
         "[SimPy and desflow]"
-        "(../des/simpy-and-desflow.md) explains how the two fit together. Where "
+        "(index.md) explains how the two fit together. Where "
         "desflow differs from SimPy on purpose, the difference is listed under the "
         "table.",
         "",

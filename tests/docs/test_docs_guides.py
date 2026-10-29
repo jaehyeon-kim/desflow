@@ -77,8 +77,14 @@ def test_breakdowns_downtime_matches_the_events():
     """The station of the breakdowns example fails five times and is down 52.5 s of
     300; eight orders are interrupted and all eight resume, as the page says."""
     module = _load("breakdowns")
-    outcome = module.availability(str(ROOT / "examples" / "yaml" / "breakdowns.yaml"))
-    assert outcome == {
+    examples = ROOT / "examples"
+    outcomes = [
+        module.yaml_form(str(examples / "yaml" / "breakdowns.yaml")),
+        module.builder_form(str(examples / "builder" / "breakdowns_example.py")),
+        module.low_level_form(str(examples / "low-level" / "breakdowns_example.py")),
+    ]
+    assert outcomes[0] == outcomes[1] == outcomes[2]
+    assert outcomes[0] == {
         "periods": [
             (84.6, 98.5),
             (150.1, 157.3),
@@ -97,9 +103,21 @@ def test_breakdowns_downtime_matches_the_events():
 def test_time_varying_arrivals_boundaries():
     """The gap drawn at the step's time uses the new value; a step at until never
     applies."""
-    module = _load("time_varying_arrivals")
-    assert module.arrivals(50) == ([10.0, 20.0, 30.0, 35.0, 40.0, 45.0], 5.0)
-    assert module.arrivals(30) == ([10.0, 20.0], 10.0)
+    from desflow import SimulationContext
+
+    for module in (
+        _load("time_varying_arrivals"),
+        _load("time_varying_arrivals_low_level"),
+    ):
+        assert module.arrivals(50) == ([10.0, 20.0, 30.0, 35.0, 40.0, 45.0], 5.0)
+        assert module.arrivals(30) == ([10.0, 20.0], 10.0)
+    blueprint = ROOT / "docs" / "snippets" / "yaml" / "time_varying_arrivals.yaml"
+    for until, times in (
+        (50, [10.0, 20.0, 30.0, 35.0, 40.0, 45.0]),
+        (30, [10.0, 20.0]),
+    ):
+        events = _event_rows(_captured(SimulationContext.from_yaml(blueprint), until))
+        assert [row[0] for row in events] == times
 
 
 def test_handoff_holds_the_picker_until_the_bench_is_free(caplog):
@@ -147,6 +165,32 @@ def test_handoff_holds_the_picker_until_the_bench_is_free(caplog):
             on_bench = None
 
 
+def _event_rows(records):
+    """(sim_ts, key, task, instance, value) of every event, in order."""
+    return [
+        (r["sim_ts"], r["key"], r["task"], r["instance"], r["value"])
+        for r in records
+        if r.get("stream_type") == "event"
+    ]
+
+
+def test_handoff_forms_publish_the_same_events():
+    """The YAML, builder and low-level handoffs publish the same events at the same
+    times, with seed 42."""
+    from desflow import SimulationContext
+
+    blueprint = ROOT / "docs" / "snippets" / "yaml" / "multi_resource_handoffs.yaml"
+    yaml_events = _event_rows(_captured(SimulationContext.from_yaml(blueprint), 30))
+    builder_events = _event_rows(_captured(_load("multi_resource_handoffs").app, 30))
+    capture = _Capture()
+    _load("multi_resource_handoffs_low_level").run(30, 0.0, [capture])
+    low_level_events = _event_rows(capture.records)
+    assert builder_events and any(
+        row[4].get("event_type") == "order_packed" for row in builder_events
+    )
+    assert yaml_events == builder_events == low_level_events
+
+
 def test_supervisor_adds_the_wrappers_mid_run(caplog):
     module = _load("dynamic_topology")
     with caplog.at_level(logging.INFO, logger="desflow"):
@@ -161,9 +205,48 @@ def test_supervisor_adds_the_wrappers_mid_run(caplog):
     assert "packers" in started and "wrappers" in started
 
 
-def test_router_sends_each_record_to_its_topic():
-    module = _load("complex_routing")
-    route = module.custom_kafka_router
+def test_supervisor_adds_the_wrappers_in_every_form(tmp_path, monkeypatch, caplog):
+    """The blueprint and the builder run the same supervisor as a process, and publish
+    the events the low-level script publishes."""
+    from desflow import SimulationContext
+
+    # A reader copies the page's files into one folder and runs them there
+    for source in (
+        GUIDES / "dynamic_topology_builder.py",
+        ROOT / "docs" / "snippets" / "yaml" / "dynamic_topology.yaml",
+        ROOT / "docs" / "snippets" / "yaml" / "dynamic_topology_logic.py",
+    ):
+        shutil.copy(source, tmp_path)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.syspath_prepend(str(tmp_path))
+    with caplog.at_level(logging.INFO, logger="desflow"):
+        _load("dynamic_topology").run(until=20, factor=0.0)
+    low_level = _events(caplog)
+    yaml_app = SimulationContext.from_yaml(tmp_path / "dynamic_topology.yaml")
+    builder_app = _load_from(tmp_path, "dynamic_topology_builder").app
+    for app in (yaml_app, builder_app):
+        events = [(r[1], r[4]) for r in _event_rows(_captured(app, 20))]
+        assert events == low_level
+    assert ("supervisor", {"status": "wrappers_added", "capacity": 2}) in low_level
+
+
+def test_router_sends_each_record_to_its_topic(tmp_path, monkeypatch):
+    """The router picks each record's topic; the three forms send the same events, to
+    all three topics, and only failed orders to the alarms."""
+    from desflow import SimulationContext
+
+    # A reader copies the page's files into one folder and runs them there
+    for source in (
+        GUIDES / "complex_routing.py",
+        GUIDES / "complex_routing_low_level.py",
+        ROOT / "docs" / "snippets" / "yaml" / "complex_routing.yaml",
+        ROOT / "docs" / "snippets" / "yaml" / "complex_routing_logic.py",
+    ):
+        shutil.copy(source, tmp_path)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.syspath_prepend(str(tmp_path))
+    logic = _load_from(tmp_path, "complex_routing_logic")
+    route = logic.custom_kafka_router
     telemetry = {"stream_type": "telemetry", "path_id": "Shop.packers.in_use"}
     assert route({**telemetry, "value": 1}) == "shop-telemetry"
     event = {"stream_type": "event", "key": "orders-1"}
@@ -172,26 +255,69 @@ def test_router_sends_each_record_to_its_topic():
     assert route({**event, "value": {"status": "finished"}}) == "shop-events"
     assert route({**event, "value": "a plain string"}) == "shop-events"
 
-    # The shop sends records to all three topics, and only failed orders to alarms.
-    records = _captured(module.app, until=120)
-    assert {route(r) for r in records} == set(module.TOPICS)
-    alarms = [r for r in records if route(r) == "system-alarms"]
-    assert alarms and all(r["instance"] % 10 == 9 for r in alarms)
+    # The blueprint creates its topics in run.before; here there is no broker
+    import complex_routing_logic
+
+    monkeypatch.setattr(complex_routing_logic, "create_topics", lambda: None)
+    yaml_records = _captured(
+        SimulationContext.from_yaml(tmp_path / "complex_routing.yaml"), 120
+    )
+    builder_records = _captured(_load_from(tmp_path, "complex_routing").app, 120)
+    capture = _Capture()
+    _load_from(tmp_path, "complex_routing_low_level").run(120, 0.0, [capture])
+    low_level_records = capture.records
+    for records in (yaml_records, builder_records, low_level_records):
+        assert {route(r) for r in records} == set(logic.TOPICS)
+        alarms = [r for r in records if route(r) == "system-alarms"]
+        assert alarms and all(r["instance"] % 10 == 9 for r in alarms)
+    assert (
+        _event_rows(yaml_records)
+        == _event_rows(builder_records)
+        == _event_rows(low_level_records)
+    )
 
 
-def test_secure_egress_passes_its_settings_to_the_client():
+def test_secure_egress_passes_its_settings_to_the_client(monkeypatch):
+    """The SASL settings reach the client in the builder and the blueprint, and the
+    three forms publish the same events."""
+    from desflow import SimulationContext
+
+    for name in ("KAFKA_BOOTSTRAP_SERVERS", "KAFKA_API_KEY", "KAFKA_API_SECRET"):
+        monkeypatch.delenv(name, raising=False)
     module = _load("kafka_security")
-    config = module.egress.producer_config
-    assert config["security_protocol"] == "SASL_SSL"
-    assert config["sasl_plain_username"] == "<YOUR_API_KEY>"
-    assert module.egress.topic_router is None  # so it creates its own topics
+    blueprint = SimulationContext.from_yaml(
+        ROOT / "docs" / "snippets" / "yaml" / "kafka_security.yaml"
+    )
+    for egress in (module.egress, blueprint._egress_providers[0]):
+        config = egress.producer_config
+        assert config["security_protocol"] == "SASL_SSL"
+        assert config["sasl_plain_username"] == "<YOUR_API_KEY>"
+        assert egress.topic_router is None  # so it creates its own topics
 
     records = _captured(module.app, until=30)
     assert any(r.get("value") == {"event_type": "order_packed"} for r in records)
+    sys.path.insert(0, str(GUIDES))  # the low-level script imports the egress
+    try:
+        low_level = _load("kafka_security_low_level")
+    finally:
+        sys.path.remove(str(GUIDES))
+    capture = _Capture()
+    env = low_level.shop([capture], 0.0)
+    env.run(until=30)
+    env.teardown()
+    assert (
+        _event_rows(_captured(blueprint, until=30))
+        == _event_rows(records)
+        == _event_rows(capture.records)
+    )
 
 
-def test_predictions_fit_the_avro_schema():
+def test_predictions_fit_the_avro_schema(tmp_path, monkeypatch):
+    """The generated schema describes the record KafkaEgress sends, and the
+    predictions of the builder, YAML and low-level forms fit it."""
     fastavro = pytest.importorskip("fastavro")
+    from desflow import SimulationContext
+
     module = _load("avro_and_pydantic")
     schema = json.loads(module.schema_string)
     assert [f["name"] for f in schema["fields"]] == [
@@ -203,15 +329,36 @@ def test_predictions_fit_the_avro_schema():
         "value",
     ]
 
-    records = _captured(module.app, until=30)
+    # A reader puts the files in one folder; the blueprint's !python tags import
+    # from it, and here there is no broker to create the topics on
+    for source in (
+        GUIDES / "avro_and_pydantic.py",
+        GUIDES / "avro_and_pydantic_low_level.py",
+        ROOT / "docs" / "snippets" / "yaml" / "avro_and_pydantic.yaml",
+        ROOT / "docs" / "snippets" / "yaml" / "avro_and_pydantic_logic.py",
+    ):
+        shutil.copy(source, tmp_path)
+    monkeypatch.syspath_prepend(str(tmp_path))
+    import avro_and_pydantic_logic
+
+    monkeypatch.setattr(avro_and_pydantic_logic, "create_topics", lambda: None)
+    yaml_records = _captured(
+        SimulationContext.from_yaml(tmp_path / "avro_and_pydantic.yaml"), 30
+    )
+    capture = _Capture()
+    env = _load_from(tmp_path, "avro_and_pydantic_low_level").shop([capture], 0.0)
+    env.run(until=30)
+    env.teardown()
+
     route = module.ml_topic_router
-    predictions = [r for r in records if route(r) == "ml-predictions"]
-    assert predictions
-    assert {"ml-predictions", "sim-events"} <= {route(r) for r in records}
     parsed = fastavro.parse_schema(schema)
-    for record in predictions:
-        sent = {k: v for k, v in record.items() if k != "stream_type"}
-        assert fastavro.validate(sent, parsed)
+    for records in (_captured(module.app, until=30), yaml_records, capture.records):
+        predictions = [r for r in records if route(r) == "ml-predictions"]
+        assert predictions
+        assert {"ml-predictions", "sim-events"} <= {route(r) for r in records}
+        for record in predictions:
+            sent = {k: v for k, v in record.items() if k != "stream_type"}
+            assert fastavro.validate(sent, parsed)
 
 
 def test_secured_registry_serializer_sends_its_credentials(registry_transport):
@@ -245,53 +392,97 @@ def test_secured_registry_serializer_sends_its_credentials(registry_transport):
 
 def test_reneging_and_balking_ties_and_balance():
     """At a tie, the order scheduled later is served and the one scheduled first
-    reneges, as the page says; and every order of the patience example is packed,
-    reneged, balked or still in the shop."""
+    reneges, as the page says, in every form; and every order of the patience
+    example is packed, reneged, balked or still in the shop, in every form."""
     module = _load("reneging_and_balking")
-    assert module.tie(3, 3) == "served"
-    assert module.tie(0, 6) == "reneged"
-    outcome = module.balance(str(ROOT / "examples" / "yaml" / "patience.yaml"))
-    assert outcome == {"order_packed": 49, "balked": 17, "reneged": 7, "started": 1}
+    blueprint = str(ROOT / "docs" / "snippets" / "yaml" / "reneging_tie.yaml")
+    for tie in (
+        module.tie,
+        lambda at, patience: module.tie_yaml(at, patience, blueprint),
+        module.tie_low_level,
+    ):
+        assert tie(3, 3) == "served"
+        assert tie(0, 6) == "reneged"
+    examples = ROOT / "examples"
+    for outcome in (
+        module.yaml_form(str(examples / "yaml" / "patience.yaml")),
+        module.builder_form(str(examples / "builder" / "patience_example.py")),
+        module.low_level_form(str(examples / "low-level" / "patience_example.py")),
+    ):
+        assert outcome == {
+            "order_packed": 49,
+            "balked": 17,
+            "reneged": 7,
+            "started": 1,
+        }
 
 
 def test_wait_for_one_or_all_first_ties_and_failure():
     """The first branch wins; two signals at one instant are both done; a failed
-    branch of an all fails the order at once while the child flow runs on."""
+    branch of an all fails the order at once while the child flow runs on. The
+    builder, YAML and low-level forms agree."""
     module = _load("wait_for_one_or_all")
-    assert module.first(10) == {"stock": True, "limit": False}
-    assert module.first(50) == {"stock": False, "limit": True}
-    assert module.two_at_once() == {"boxes": True, "labels": True}
-    assert module.all_with_a_failure() == [
-        (0.0, "order", "queued"),
-        (2.0, "order", "failed"),
-        (4.0, "inspect", "finished"),
+    low_level = _load("wait_for_one_or_all_low_level")
+    yaml = ROOT / "docs" / "snippets" / "yaml"
+    forms = [
+        (module.first, module.two_at_once, module.all_with_a_failure),
+        (
+            lambda gap: module.first_yaml(gap, yaml / "wait_first.yaml"),
+            lambda: module.two_at_once_yaml(yaml / "wait_tie.yaml"),
+            lambda: module.all_with_a_failure_yaml(yaml / "wait_all.yaml"),
+        ),
+        (low_level.first, low_level.two_at_once, low_level.all_with_a_failure),
     ]
+    for first, two_at_once, all_with_a_failure in forms:
+        assert first(10) == {"stock": True, "limit": False}
+        assert first(50) == {"stock": False, "limit": True}
+        assert two_at_once() == {"boxes": True, "labels": True}
+        assert all_with_a_failure() == [
+            (0.0, "order", "queued"),
+            (2.0, "order", "failed"),
+            (4.0, "inspect", "finished"),
+        ]
 
 
 def test_wait_for_one_or_all_example_packs_and_refunds():
     """The page's example: each restock waits for all of its delivery (10 s) and its
     stock count (20 s), so it comes 20 s after each delivery starts, at 80 s to 560 s;
-    27 orders are packed after a restock and 35 are refunded at the limit."""
-    assert _load("wait_for_one_or_all_example").outcome() == {
+    27 orders are packed after a restock and 35 are refunded at the limit, in every
+    form."""
+    expected = {
         "pack": 27,
         "refund": 35,
         "restocked_at": [80.0 + 60 * n for n in range(9)],
     }
+    assert _load("wait_for_one_or_all_example").outcome() == expected
+    blueprint = ROOT / "docs" / "snippets" / "yaml" / "wait_for_one_or_all_example.yaml"
+    assert _load("wait_for_one_or_all").example_yaml(str(blueprint)) == expected
+    assert _load("wait_for_one_or_all_example_low_level").outcome() == expected
 
 
 def test_performance_tuning_counts_the_records():
     """An hour of the shop publishes 108,688 records at factor 0: no lag readings,
     which would add 3,600, and a rate above 0."""
     module = _load("performance_tuning")
-    outcome = module.throughput(module.shop(), until=3600)
-    assert outcome["records"] == 108_688
-    assert outcome["per_second"] > 0
+    blueprint = ROOT / "docs" / "snippets" / "yaml" / "performance_tuning.yaml"
+    sys.path.insert(0, str(GUIDES))  # the low-level script imports Count from it
+    try:
+        low_level = _load("performance_tuning_low_level")
+    finally:
+        sys.path.remove(str(GUIDES))
+    for outcome in (
+        module.blueprint(str(blueprint)),
+        module.throughput(module.shop(), until=3600),
+        low_level.throughput(until=3600),
+    ):
+        assert outcome["records"] == 108_688
+        assert outcome["per_second"] > 0
 
 
 def test_fit_a_distribution_gaps(tmp_path, capsys):
     """The exponential fits the 299 gaps best, at 0.364 a second; 5 zero gaps skip
     gamma, weibull and lognormal; the file it writes is the one the blueprint
-    includes; and one packer packs 1,302 orders in the hour, in YAML and Python."""
+    includes; and one packer packs 1,302 orders in the hour, in every form."""
     pytest.importorskip("scipy")
     from desflow import SimulationContext
 
@@ -318,14 +509,20 @@ def test_fit_a_distribution_gaps(tmp_path, capsys):
     yaml_app.run()
     for run in (app, yaml_app):
         assert run.env.stats.readings()["Shop.stats.flows.orders.finished"] == 1302
+    sys.path.insert(0, str(GUIDES))  # the low-level script imports fit from it
+    try:
+        low_level = _load("fit_a_distribution_low_level")
+    finally:
+        sys.path.remove(str(GUIDES))
+    assert low_level.run(result) == 1302
 
 
 def test_test_a_model_tests_pass_and_the_saved_results_are_current(
     tmp_path, monkeypatch
 ):
     """The three kinds of test pass; the waits fall from 2.055 s with one packer to
-    0.111 s with two and 0.016 s with three; and saving the results writes the file
-    the back test reads."""
+    0.111 s with two and 0.016 s with three; saving the results writes the file the
+    back test reads; and the YAML and low-level forms give the same results."""
     module = _load("test_a_model")
     module.test_more_packers_shorten_the_wait()
     module.test_results_match_the_saved_run()
@@ -342,12 +539,29 @@ def test_test_a_model_tests_pass_and_the_saved_results_are_current(
     assert (tmp_path / "saved.json").read_text() == (
         GUIDES / "test_a_model_saved.json"
     ).read_text()
+    # The YAML and low-level files run the same tests against the same saved results
+    for source in (
+        GUIDES / "test_a_model_yaml.py",
+        GUIDES / "test_a_model_low_level.py",
+        GUIDES / "test_a_model_saved.json",
+        ROOT / "docs" / "snippets" / "yaml" / "test_a_model.yaml",
+    ):
+        shutil.copy(source, tmp_path)
+    for form in (
+        _load_from(tmp_path, "test_a_model_yaml"),
+        _load_from(tmp_path, "test_a_model_low_level"),
+    ):
+        form.test_more_packers_shorten_the_wait()
+        form.test_results_match_the_saved_run()
+        for packers, wait in ((1, 2.055375), (2, 0.110574), (3, 0.016206)):
+            assert form.results(packers=packers)["wait_mean"] == wait
 
 
 def test_analyse_the_event_log_waits_and_throughput(tmp_path):
     """Two minutes of one packer write 191 event rows, which become 318 log rows for
     64 orders; 63 leave the shop, the mean wait is 1.250 s and 31.5 orders leave each
-    minute; every start is the later of the arrival and the last start plus 1.5 s."""
+    minute; every start is the later of the arrival and the last start plus 1.5 s;
+    and the YAML and low-level forms write the same events."""
     module = _load("analyse_the_event_log")
     module.run(tmp_path)
     events = module.read_events(tmp_path)
@@ -377,19 +591,56 @@ def test_analyse_the_event_log_waits_and_throughput(tmp_path):
     # The log is sorted by time
     times = log["time"].to_pylist()
     assert times == sorted(times)
+    # The YAML and low-level forms write the same events
+    sys.path.insert(0, str(GUIDES))  # the low-level script imports from the module
+    try:
+        low_level = _load("analyse_the_event_log_low_level")
+    finally:
+        sys.path.remove(str(GUIDES))
+    blueprint = ROOT / "docs" / "snippets" / "yaml" / "analyse_the_event_log.yaml"
+    module.run(tmp_path / "builder")
+    module.run_yaml(tmp_path / "yaml", str(blueprint))
+    low_level.run(tmp_path / "low_level")
+
+    def rows(out):
+        return sorted(
+            (row["sim_ts"], row["key"], row["task"], row["status"])
+            for row in module.read_events(out).to_pylist()
+        )
+
+    builder = rows(tmp_path / "builder")
+    assert len(builder) == 191
+    assert rows(tmp_path / "yaml") == rows(tmp_path / "low_level") == builder
 
 
 def test_animate_a_run_frames_and_entities(tmp_path):
     """The animation of the two-minute run has 61 frames, one for every 2 seconds
-    from 0 to 120, and draws the 64 orders of Analyse the Event Log."""
+    from 0 to 120, and draws the 64 orders of Analyse the Event Log, in every form."""
     import vidigi  # noqa: F401  (a missing dev dependency fails the test)
 
     module = _load("animate_a_run")
-    figure = module.make(tmp_path)
+    figure = module.make(tmp_path / "builder")
     assert len(figure.frames) == 61
     assert [frame.name for frame in figure.frames][:3] == ["0", "2", "4"]
     assert figure.frames[-1].name == "120"
-    assert module.vidigi_log(tmp_path)["entity_id"].nunique() == 64
+    assert module.vidigi_log(tmp_path / "builder")["entity_id"].nunique() == 64
+    # The YAML and low-level runs give the same animation
+    analyse = _load("analyse_the_event_log")
+    sys.path.insert(0, str(GUIDES))  # the low-level script imports from analyse
+    try:
+        low_level = _load("analyse_the_event_log_low_level")
+    finally:
+        sys.path.remove(str(GUIDES))
+    blueprint = str(ROOT / "docs" / "snippets" / "yaml" / "analyse_the_event_log.yaml")
+    for out, run_shop in (
+        (tmp_path / "yaml", lambda out: analyse.run_yaml(out, blueprint)),
+        (tmp_path / "low_level", low_level.run),
+    ):
+        other = module.make(out, run_shop)
+        assert [frame.name for frame in other.frames] == [
+            frame.name for frame in figure.frames
+        ]
+        assert module.vidigi_log(out).equals(module.vidigi_log(tmp_path / "builder"))
 
 
 def test_share_by_weight_grants_by_finish_tag_in_every_form(tmp_path, monkeypatch):
@@ -409,16 +660,18 @@ def test_share_by_weight_grants_by_finish_tag_in_every_form(tmp_path, monkeypatc
     # A reader copies the page's files into one folder and runs the script there
     for source in (
         GUIDES / "share_by_weight.py",
+        GUIDES / "share_by_weight_low_level.py",
         *(ROOT / "docs" / "snippets" / "yaml").glob("share_by_weight*"),
     ):
         shutil.copy(source, tmp_path)
     monkeypatch.chdir(tmp_path)
     module = _load_from(tmp_path, "share_by_weight")
+    low_level = _load_from(tmp_path, "share_by_weight_low_level")
     by_hand = [2, 1, 1, 1, 2, 1, 1, 1, 2]
     fifo = [2, 1, 1, 1, 1, 1, 1, 2, 2]
     assert module.TIERS == fifo  # the orders arrive in the first in, first out order
     assert by_hand != fifo
-    for form in (module.yaml_form, module.builder_form, module.low_level_form):
+    for form in (module.yaml_form, module.builder_form, low_level.low_level_form):
         assert form() == by_hand
 
 
@@ -454,10 +707,28 @@ def test_check_against_theory_agrees_with_the_formulas(capsys, monkeypatch):
     assert two.wait == pytest.approx(module.by_hand(2, 1.5), abs=1e-9)
     explanation = module.verify()
     assert [c.differs for c in explanation.verification.comparisons] == [False] * 4
+    shop = _load("check_against_theory_shop").app.analyze().resources[0]
+    assert shop.wait == pytest.approx(module.by_hand(1, 0.75), abs=1e-9)
+    # The builder file is the same model, so its runs give the same measures
+    builder = module.verify_builder()
+    assert [
+        (c.measure, c.measured, c.half_width) for c in builder.verification.comparisons
+    ] == [
+        (c.measure, c.measured, c.half_width)
+        for c in explanation.verification.comparisons
+    ]
+    reason = "no closed formula for c > 1 with non-exponential times; run --verify to measure it"
     unsupported = module.unsupported()
     assert (unsupported.utilization, unsupported.wait) == (0.75, None)
-    assert unsupported.wait_reason == (
-        "no closed formula for c > 1 with non-exponential times; run --verify to measure it"
+    assert unsupported.wait_reason == reason
+    constant = (
+        ROOT / "docs" / "snippets" / "yaml" / "check_against_theory_constant.yaml"
+    )
+    from_yaml = SimulationContext.from_yaml(constant).analyze().resources[0]
+    assert (from_yaml.utilization, from_yaml.wait, from_yaml.wait_reason) == (
+        0.75,
+        None,
+        reason,
     )
     capsys.readouterr()
 
@@ -472,14 +743,16 @@ def test_write_a_connector_applies_the_change_and_writes_the_events(
     # A reader copies the page's files into one folder and runs the script there
     for source in (
         GUIDES / "write_a_connector.py",
+        GUIDES / "write_a_connector_low_level.py",
         ROOT / "docs" / "snippets" / "yaml" / "write_a_connector.yaml",
         ROOT / "docs" / "snippets" / "yaml" / "write_a_connector_logic.py",
     ):
         shutil.copy(source, tmp_path)
     monkeypatch.chdir(tmp_path)
     module = _load_from(tmp_path, "write_a_connector")
+    low_level = _load_from(tmp_path, "write_a_connector_low_level")
     written = []
-    for form in (module.yaml_form, module.builder_form, module.low_level_form):
+    for form in (module.yaml_form, module.builder_form, low_level.low_level_form):
         capacity, rows = form()
         written.append(rows)
         assert capacity == 2

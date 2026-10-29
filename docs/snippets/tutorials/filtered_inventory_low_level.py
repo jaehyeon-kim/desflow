@@ -32,6 +32,7 @@ PATIENCE = 600  # a customer cancels an order not filled within 10 minutes
 
 PARAMS = SimParameter(
     sim_id="Shop",
+    # --8<-- [start:arrivals]
     arrival={
         **{
             f"shirts_{s.lower()}": DistributionConfig(dist="exponential", rate=r)
@@ -42,6 +43,7 @@ PARAMS = SimParameter(
             for s, r in ORDERS.items()
         },
     },
+    # --8<-- [end:arrivals]
     # --8<-- [start:shelf]
     # Shirts of every size on one shelf, each item a mapping such as {"size": "M"}
     stores={"shelf": CapacityConfig(current_cap=1000, max_cap=1000)},

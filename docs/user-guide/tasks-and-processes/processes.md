@@ -4,6 +4,12 @@ A process runs alongside the [tasks](index.md). This page shows how to write one
 
 ---
 
+## What It Is
+
+A process is anything in the shop that runs over time but is not one entity's work: a break for the packers, a drift in a parameter, a delivery schedule. An arrival starts one task per entity, while a process starts once, when the run starts, and runs alongside the tasks.
+
+---
+
 ## How to Use It
 
 ### A Process
@@ -55,6 +61,14 @@ Setting `current_cap` to 0 stops new work but not the work in progress: [Resourc
 
 ---
 
+## How It Works
+
+`add_process(func, **kwargs)` starts `func(context, **kwargs)` when the run starts, and a YAML `processes` entry does the same with a `!python` function. Inside it, `context.env` is the `DynamicRealtimeEnvironment`, so a process can do anything a low-level script does: `context.env.timeout`, `context.env.registry.update`, `context.env.publish_event`. A process is how low-level code joins a builder or YAML model.
+
+`context.env.active_process` is the running SimPy process. Its `name` is the task's name, because a task's process is named after the task. Its `target` is the event it waits on now, or None once it has ended. A condition reads the same three values as `process.name`, `process.instance` (the task's instance id, the `instance` field of its records) and `process.target`, a string such as `timeout`, `signal.<name>`, `task.<name>`, `condition`, `resource.<name>`, `get.<name>`, `put.<name>` or `service`. In a task's own expressions they name that task. In an `interrupt` or `running` `where`, they name each instance tested.
+
+---
+
 ## Stability and Limits
 
 The limits of this page are listed with those of the whole section, in [Stability and Limits](index.md#stability-and-limits) on the Tasks and Processes page.
@@ -64,6 +78,8 @@ The limits of this page are listed with those of the whole section, in [Stabilit
 ## Example: Process Interaction
 
 The `process-interaction` example combines a child flow, a failure that `on_fail` handles, and orders that wait for a courier's signal or a time limit. It needs no Docker service and ends on its own after 300 simulation seconds.
+
+The tutorial page [Process Interaction](../../learn/shop-logic/process-interaction.md) teaches these features step by step.
 
 === "YAML"
 

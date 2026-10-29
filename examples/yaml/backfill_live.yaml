@@ -14,10 +14,13 @@ simulation:
   # Unpaced to begin with, so the history costs no real time.
   factor: 0.0
   random_seed: 42
+  # --8<-- [start:clock]
   logical_start_time: -10m
   # From here the same run is paced at one simulated second per real second.
   go_live_at: now
+  # --8<-- [end:clock]
 
+# --8<-- [start:split]
 egress:
   - type: Parquet
     config:
@@ -31,6 +34,7 @@ egress:
       bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:-127.0.0.1:9092}
     # Records stamped at or after go_live_at.
     when: live
+# --8<-- [end:split]
 
 # Only batch_size decides when the history is flushed. The interval flush starts at
 # go-live, so the live tail also flushes every 10 seconds.

@@ -20,6 +20,7 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 
+# --8<-- [start:events]
 app = (
     SimulationContext(sim_id="Shop", factor=0, random_seed=42)
     .add_egress(ConsoleEgress())
@@ -68,6 +69,9 @@ def guard(task_id):
 @app.task(service_id="alarming")
 def alarm(task_id):
     return {"event_type": "alarm_rang"}
+
+
+# --8<-- [end:events]
 
 
 def spawn_loop(arrival, task, name):

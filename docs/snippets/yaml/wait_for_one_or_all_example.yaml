@@ -1,0 +1,49 @@
+# The Wait for One or All guide: a shop where orders wait for a restock or a time
+# limit, as wait_for_one_or_all_example.py builds it. Run it with:
+# desflow run wait_for_one_or_all_example.yaml
+simulation:
+  sim_id: Shop
+  factor: 0
+  random_seed: 42
+
+signals: [restocked]
+
+arrivals:
+  orders: {dist: exponential, rate: 0.1, spawn: order}
+  deliveries: {dist: constant, value: 60, spawn: restock}
+
+services:
+  counting: {dist: constant, value: 20}
+
+tasks:
+  # Each order waits for the next restock or 30 seconds, whichever comes first
+  order:
+    wait:
+      any:
+        stock: {signal: restocked}
+        limit: {timeout: 30}
+    payload: {event_type: waited}
+    next:
+      when: [{condition: wait.stock.done, task: pack}]
+      default: refund
+  pack:
+    payload: {event_type: packed}
+  refund:
+    payload: {event_type: refunded}
+  # A restock waits for its delivery, 10 seconds, and a stock count, a child flow
+  # of 20 seconds; when both are done it finishes and fires restocked
+  restock:
+    wait:
+      all:
+        delivery: {timeout: 10}
+        count: {task: count_stock}
+    signal: restocked
+    payload: {event_type: restocked}
+  count_stock:
+    service: counting
+    payload: {event_type: counted}
+
+stats: basic
+
+run:
+  until: 10 min

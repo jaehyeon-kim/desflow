@@ -1,0 +1,37 @@
+# The Wait for One or All guide: an order waits for a restock and an inspection, a
+# child flow of 4 seconds. The restock at 2 seconds is broken, so it fails. The
+# arrivals are replayed from CSV files, which all_with_a_failure_yaml() in
+# wait_for_one_or_all.py writes beside this blueprint.
+# --8<-- [start:all]
+simulation:
+  sim_id: Shop
+  factor: 0
+
+signals: [restocked]
+
+services:
+  inspecting: {dist: constant, value: 4}
+
+arrivals:
+  orders: {replay: {path: orders.csv}, spawn: order}
+  restocks: {replay: {path: restocks.csv}, spawn: restock}
+
+tasks:
+  order:
+    wait:
+      all:
+        stock: {signal: restocked}
+        check: {task: inspect}
+    payload: {event_type: resumed}
+  inspect:
+    service: inspecting
+    payload: {event_type: inspected}
+  restock:
+    signal: restocked
+    fail: attr.broken == 1  # from the broken column of restocks.csv
+    fail_reason: broken delivery
+    payload: {boxes: 6}
+
+run:
+  until: 10
+# --8<-- [end:all]

@@ -22,7 +22,9 @@ UNTIL = 100_000
 
 def _blueprints():
     """Every model file: experiment and fit specs have no `simulation` key, and a
-    `*_error.yaml` blueprint fails to load on purpose, to show the error."""
+    `*_error.yaml` blueprint fails to load on purpose, to show the error. A blueprint
+    with `run.before` hooks creates Kafka topics, so it needs a broker; its guide test
+    runs it with the hook replaced."""
     files = sorted((ROOT / "examples" / "yaml").rglob("*.yaml"))
     files += sorted((ROOT / "docs" / "snippets" / "yaml").glob("*.yaml"))
     return [
@@ -30,6 +32,7 @@ def _blueprints():
         for f in files
         if any(line.startswith("simulation:") for line in f.read_text().splitlines())
         and not f.name.endswith("_error.yaml")
+        and not any(line.startswith("  before:") for line in f.read_text().splitlines())
     ]
 
 

@@ -2,10 +2,14 @@
 # Run it with: SIM_FACTOR=1 desflow run environment.yaml
 simulation:
   sim_id: ${SIM_ID:-Shop}
+  # --8<-- [start:factor]
   # An unquoted value is read after the replacement, so this is the number 0
   factor: ${SIM_FACTOR:-0}
+  # --8<-- [end:factor]
+  # --8<-- [start:logical-start]
   # Read against the moment the file is loaded: a day of history up to now
   logical_start_time: -1d
+  # --8<-- [end:logical-start]
   # --8<-- [start:timezone]
   # Under simulation: timestamps written in Melbourne time, with its offset; the
   # start and now are read in it. UTC by default
@@ -30,5 +34,8 @@ resources:
   # turns the text into a number
   packers: {current_cap: "${PACKERS:-2}", max_cap: 5}
 
+# --8<-- [start:run-length]
 run:
+  # A duration, such as 1 week, or a number of seconds
   until: ${RUN_FOR:-1 hour}
+# --8<-- [end:run-length]

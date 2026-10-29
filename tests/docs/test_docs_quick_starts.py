@@ -16,33 +16,33 @@ from desflow.blueprint.examples import EXAMPLES, Example
 
 ROOT = Path(__file__).resolve().parents[2]
 PAGES = {
-    "local": "docs/examples/local.md",
-    "kafka": "docs/examples/kafka.md",
-    "parquet": "docs/examples/parquet.md",
-    "iceberg": "docs/examples/iceberg.md",
-    "postgres": "docs/examples/postgres.md",
-    "redis": "docs/examples/redis.md",
-    "backfill-live": "docs/examples/backfill-live.md",
-    "related-records": "docs/examples/advanced-postgres-orders.md",
+    "local": "docs/how-to/examples/local.md",
+    "kafka": "docs/how-to/examples/kafka.md",
+    "parquet": "docs/how-to/examples/parquet.md",
+    "iceberg": "docs/how-to/examples/iceberg.md",
+    "postgres": "docs/how-to/examples/postgres.md",
+    "redis": "docs/how-to/examples/redis.md",
+    "backfill-live": "docs/how-to/examples/backfill-live.md",
+    "related-records": "docs/how-to/examples/advanced-postgres-orders.md",
     # The shop examples of step 1 are shown on the User Guide page of their area.
-    "stock": "docs/user-guide/stores-and-containers.md",
-    "flow": "docs/user-guide/task-flow.md",
-    "measuring": "docs/user-guide/statistics.md",
+    "stock": "docs/user-guide/model-parts/stores-and-containers.md",
+    "flow": "docs/user-guide/model-parts/task-flow.md",
+    "measuring": "docs/user-guide/results/statistics.md",
     # The 0.22.0 examples are shown on the page that teaches their feature.
-    "patience": "docs/guides/reneging-and-balking.md",
-    "filtered-inventory": "docs/user-guide/stores-and-containers.md",
+    "patience": "docs/how-to/modelling/reneging-and-balking.md",
+    "filtered-inventory": "docs/user-guide/model-parts/stores-and-containers.md",
     "process-interaction": "docs/user-guide/tasks-and-processes/processes.md",
     "process-events": "docs/user-guide/tasks-and-processes/signals-and-waiting.md",
-    "fuel-dock": "docs/user-guide/stores-and-containers.md",
+    "fuel-dock": "docs/user-guide/model-parts/stores-and-containers.md",
     "interruptions": "docs/user-guide/resources/priority-and-preemption.md",
     "competing-resources": "docs/user-guide/resources/several-resources.md",
     "end-conditions": "docs/user-guide/time-and-pacing/run-length.md",
-    "breakdowns": "docs/guides/breakdowns.md",
-    "changing-demand": "docs/guides/time-varying-arrivals.md",
-    "local-replay": "docs/user-guide/arrivals-and-services.md",
-    "replications": "docs/user-guide/replications.md",
-    "experiment": "docs/user-guide/experiments/index.md",
-    "fitting": "docs/user-guide/input-fitting.md",
+    "breakdowns": "docs/how-to/modelling/breakdowns.md",
+    "changing-demand": "docs/how-to/modelling/time-varying-arrivals.md",
+    "local-replay": "docs/user-guide/model-parts/arrivals-and-services.md",
+    "replications": "docs/user-guide/results/replications.md",
+    "experiment": "docs/user-guide/results/experiments.md",
+    "fitting": "docs/user-guide/model-parts/input-fitting.md",
 }
 TABS = {"yaml": "YAML", "builder": "Builder", "low-level": "Low-level"}
 ODCTL = '"odctl>=1.0,<2"'
@@ -181,7 +181,7 @@ def test_example_page_quick_starts_follow_the_template(name):
 
 
 def test_getting_started_uses_the_template():
-    text = (ROOT / "docs" / "getting-started.md").read_text(encoding="utf-8")
+    text = (ROOT / "docs" / "installation.md").read_text(encoding="utf-8")
     for api, title in TABS.items():
         assert quick_start(EXAMPLES["local"], api) in _tab(text, title), title
 
