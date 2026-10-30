@@ -5549,14 +5549,9 @@
 <div class="nt-timeline-before"></div>
 <div class="nt-timeline-items">
 <div class="nt-timeline-item now">
-<p class="nt-timeline-title">0.27.0: Schema registry formats</p>
-<p class="nt-timeline-content">JSON Schema and Protobuf serializers and deserializers for the Confluent and Glue schema registries, next to Avro. desflow writes the Glue wire format itself and no longer depends on <code>aws-glue-schema-registry</code>, so the <code>kafka</code> extra also drops kafka-python and creates topics through aiokafka. <a href="https://github.com/jaehyeon-kim/desflow/issues/82">#82</a></p>
-<div class="nt-timeline-dot now bigger"><span class="icon"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M8 5.14v14l11-7z"/></svg></span></span></div>
-</div>
-<div class="nt-timeline-item planned">
 <p class="nt-timeline-title">0.28.0: Library hooks for the server</p>
-<p class="nt-timeline-content">Parameter changes that report who made them and why: <code>change</code> returns a <code>ParamChange</code> or raises <code>ParamRejected</code>, an <code>on_change</code> list of callbacks receives each accepted change, and <code>registry_paths()</code> lists the paths a simulation will have without running it. The server after 1.0 then adds to the library without changing it. <code>FileIngress</code> changes parameters during a run when you edit a local file, with no broker. <a href="https://github.com/jaehyeon-kim/desflow/issues/70">#70</a> <a href="https://github.com/jaehyeon-kim/desflow/issues/86">#86</a></p>
-<div class="nt-timeline-dot planned bigger"><span class="icon"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 20a8 8 0 0 0 8-8 8 8 0 0 0-8-8 8 8 0 0 0-8 8 8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10 10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67-.75 1.23L11 13V7z"/></svg></span></span></div>
+<p class="nt-timeline-content">Parameter changes that report who made them and why: <code>change</code> returns a <code>ParamChange</code> or raises <code>ParamRejected</code>, an <code>on_change</code> list of callbacks receives each accepted change, and <code>registry_paths()</code> lists the paths a simulation will have without running it. The server after 1.0 then adds to the library without changing it. <code>FileIngress</code> changes parameters during a run when you edit a local file, with no broker. A scenario step whose value the registry refuses, such as an exponential rate of 0, stops the load of a blueprint instead of being logged and ignored. The AI skill teaches an assistant to draft a model from a description of a process. <a href="https://github.com/jaehyeon-kim/desflow/issues/70">#70</a> <a href="https://github.com/jaehyeon-kim/desflow/issues/86">#86</a> <a href="https://github.com/jaehyeon-kim/desflow/issues/93">#93</a> <a href="https://github.com/jaehyeon-kim/desflow/issues/94">#94</a></p>
+<div class="nt-timeline-dot now bigger"><span class="icon"><span class="twemoji"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M8 5.14v14l11-7z"/></svg></span></span></div>
 </div>
 <div class="nt-timeline-item planned">
 <p class="nt-timeline-title">0.29.0: Reserved gen key, SimPy's examples and record contract freeze</p>
@@ -5629,6 +5624,14 @@
 <li><strong>How-To:</strong> generating data at scale, and testing pipelines with simulated data.</li>
 </ul>
 <h2 id="released">Released</h2>
+<details class="note">
+<summary>0.27.0: Schema registry formats</summary>
+<ul>
+<li><strong>JSON Schema and Protobuf:</strong> serializers and deserializers for both formats, through the Confluent and Glue schema registries, next to Avro. <a href="https://github.com/jaehyeon-kim/desflow/issues/82">#82</a></li>
+<li><strong>Glue wire format:</strong> desflow writes and reads it itself, so the <code>glue</code> extra no longer installs aws-glue-schema-registry.</li>
+<li><strong>Kafka:</strong> the <code>kafka</code> extra no longer installs kafka-python, and topics are created through aiokafka.</li>
+</ul>
+</details>
 <details class="note">
 <summary>0.26.0: Storage, schema registry code and Python 3.15</summary>
 <ul>
