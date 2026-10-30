@@ -18,6 +18,10 @@ app = (
 print(app.compile_parameters())
 # --8<-- [end:compile]
 
+# --8<-- [start:paths]
+print(app.registry_paths())
+# --8<-- [end:paths]
+
 
 # --8<-- [start:telemetry]
 # The packers' capacity, in use, queue and utilization every 2 seconds

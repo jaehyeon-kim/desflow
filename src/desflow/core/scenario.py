@@ -66,7 +66,8 @@ def run_scenario(
     given. A step's `at` counts from when this process starts, the start of the run
     when it is started with the model, so it does not depend on `initial_time`.
 
-    A step with a `path` and `value` updates the registry; one with a `record`
+    A step with a `path` and `value` updates the registry, and each `on_change`
+    callback receives the change with the source `"scenario"`; one with a `record`
     publishes a ground-truth record of the change (`env.publish_label`); one with an
     `interrupt`, `{task, where, cause}`, calls `interrupt(task, where=..., cause=...)`,
     which the builder and YAML pass as `context.interrupt`.
@@ -97,6 +98,7 @@ def run_scenario(
             record=step.get("record"),
             interrupt=interrupt,
             action=step.get("interrupt"),
+            source="scenario",
         )
 
 
@@ -107,6 +109,7 @@ def apply_step(
     record: Optional[Mapping[str, Any]] = None,
     interrupt: Optional[Callable[..., Any]] = None,
     action: Optional[Mapping[str, Any]] = None,
+    source: Optional[str] = None,
 ) -> None:
     """Applies one change: a registry `path` and `value`, a ground-truth `record`,
     and an `interrupt` action. Shared by `run_scenario` and an `on:` list's actions,
@@ -119,11 +122,14 @@ def apply_step(
         record: A ground-truth record to publish, or None.
         interrupt: The function an `action` calls, as `run_scenario` takes it.
         action: An `{task, where, cause}` interrupt, or None.
+        source: Where the registry change came from, as `ParamChange.source` records
+            it; `run_scenario` passes `"scenario"`, and a model's own `on:` action
+            passes none.
     """
     old = new = None
     if path is not None:
         old = env.registry.get(path).value
-        env.registry.update(path, value)
+        env.registry.update(path, value, source=source)
         new = env.registry.get(path).value
     if record is not None:
         env.publish_label(record, path=path, old=old, new=new)

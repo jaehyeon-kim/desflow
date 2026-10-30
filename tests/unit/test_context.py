@@ -1320,3 +1320,167 @@ def test_replay_spawn():
         (1.0, "orders-1", {"task_id": 0}),
         (2.5, "orders-2", {"task_id": 1}),
     ]
+
+
+def _wait_for_ingress_item(env):
+    """Waits, for at most 2 wall-clock seconds, until an ingress item is queued."""
+    import time
+
+    deadline = time.monotonic() + 2
+    while env.ingress_queue.qsize() < 1:
+        assert time.monotonic() < deadline, "the ingress item never arrived"
+        time.sleep(0.005)
+
+
+def _app_with_speed():
+    app = SimulationContext("Shop", factor=0.0)
+    app.add_variable("speed", 1)
+    changes: list = []
+    app.on_change.append(changes.append)
+    return app, changes
+
+
+def test_builder_ingress_change_carries_its_source():
+    """The builder reports a connector's change as source "ingress", with its class."""
+    from desflow import LocalIngress
+
+    app, changes = _app_with_speed()
+    app.add_ingress(LocalIngress([(0.0, "Shop.variables.speed", 4)]))
+    env = app.start(until=1)
+    _wait_for_ingress_item(env)
+    app.finish()
+
+    assert [(c.path, c.new, c.source, c.actor) for c in changes] == [
+        ("Shop.variables.speed", 4, "ingress", "LocalIngress")
+    ]
+
+
+def test_builder_scenario_step_has_the_scenario_source():
+    """A scenario step is reported as source "scenario"."""
+    app, changes = _app_with_speed()
+    app.add_step(2, path="Shop.variables.speed", value=3)
+    app.run(until=5)
+
+    assert [(c.old, c.new, c.source, c.at) for c in changes] == [(1, 3, "scenario", 2)]
+
+
+def test_an_on_action_change_has_no_source():
+    """A change from an `on:` action is the model's own, so its source is None."""
+    app, changes = _app_with_speed()
+    app.add_arrival("orders", dist="constant", value=1)
+
+    @app.task(on=[{"path": "Shop.variables.speed", "value": 7}], name="courier")
+    def courier(task_id):
+        return {}
+
+    @app.arrival_loop("orders")
+    def loop(context):
+        entity = yield context.wait_for_arrival("orders")
+        context.spawn(courier(context.next_instance("courier"), entity=entity))
+        yield context.env.event()
+
+    app.run(until=3)
+
+    assert [(c.new, c.source, c.actor) for c in changes][:1] == [(7, None, None)]
+
+
+def test_start_describes_its_overrides():
+    """`start()` gives each override's change the source, actor and reason it is given."""
+    app, changes = _app_with_speed()
+    app.add_variable("mode", "slow")
+    app.start(
+        until=1,
+        overrides={"Shop.variables.speed": 5, "Shop.variables.mode": "fast"},
+        source="user",
+        actor="alice",
+        reason="test",
+    )
+    app.finish()
+
+    assert [(c.path, c.new, c.source, c.actor, c.reason, c.at) for c in changes] == [
+        ("Shop.variables.speed", 5, "user", "alice", "test", 0),
+        ("Shop.variables.mode", "fast", "user", "alice", "test", 0),
+    ]
+
+
+def test_every_run_of_a_context_calls_its_callbacks():
+    """Two runs of one context call the callback in both; a callback added after
+    `start()` waits for the next run."""
+    app, changes = _app_with_speed()
+    late: list = []
+
+    app.start(until=1, overrides={"Shop.variables.speed": 2})
+    app.on_change.append(late.append)
+    app.finish()
+    assert [c.new for c in changes] == [2]
+    assert late == []
+
+    app.start(until=1, overrides={"Shop.variables.speed": 3})
+    app.finish()
+    assert [c.new for c in changes] == [2, 3]
+    assert [c.new for c in late] == [3]
+
+
+def test_low_level_scenario_changes_have_the_scenario_source():
+    """The low-level `run_scenario` reports its steps as source "scenario"."""
+    from desflow import DynamicRealtimeEnvironment, SimParameter
+    from desflow.core.scenario import run_scenario
+
+    env = DynamicRealtimeEnvironment(factor=0.0)
+    env.registry.register_sim_parameter(SimParameter(sim_id="Shop", variables={"x": 0}))
+    changes: list = []
+    env.registry.on_change.append(changes.append)
+    env.process(run_scenario(env, [{"at": 2, "path": "Shop.variables.x", "value": 9}]))
+    env.run(until=5)
+
+    assert [(c.new, c.source, c.at) for c in changes] == [(9, "scenario", 2)]
+
+
+def _shop_with_ingress():
+    from desflow import LocalIngress
+
+    app = SimulationContext("Shop", factor=0.0)
+    app.add_resource("packers", current_cap=2, max_cap=5)
+    app.add_container("tank", current_cap=10.0, max_cap=20.0)
+    app.add_service("packing", dist="normal", mean=5.0, std=1.0)
+    app.add_arrival("orders", dist="exponential", rate=0.5)
+    app.add_variable("speed", 1)
+    app.add_ingress(LocalIngress([]))
+    return app
+
+
+def test_registry_paths_are_the_paths_and_values_of_a_run():
+    """`registry_paths()` equals what the run's registry holds, and starts no thread."""
+    import threading
+
+    app = _shop_with_ingress()
+    threads = threading.active_count()
+
+    paths = app.registry_paths()
+
+    assert threading.active_count() == threads
+    assert app.started is False
+    env = app.start(until=1)
+    try:
+        registry = env.registry
+        assert paths == {p: registry.get(p).value for p in registry.paths()}
+        assert list(paths) == registry.paths()
+    finally:
+        app.finish()
+
+
+def test_registry_paths_of_a_refused_model_raise_an_ordinary_exception():
+    """A model the registry refuses raises its error, not `SystemExit`, and starts no thread."""
+    import threading
+
+    app = _shop_with_ingress()
+    config = app._resources_config["packers"]
+    config.current_cap, config.max_cap = None, 0.5
+    threads = threading.active_count()
+
+    with pytest.raises(Exception, match="max_cap 0.5 and no current_cap") as raised:
+        app.registry_paths()
+
+    assert isinstance(raised.value, ValueError)
+    assert not isinstance(raised.value, SystemExit)
+    assert threading.active_count() == threads

@@ -241,6 +241,16 @@ A task's flow is built from the classes below. The signals and failures here are
       heading_level: 3
 
 <!-- prettier-ignore -->
+::: desflow.core.registry.ParamChange
+    options:
+      heading_level: 3
+
+<!-- prettier-ignore -->
+::: desflow.core.registry.ParamRejected
+    options:
+      heading_level: 3
+
+<!-- prettier-ignore -->
 ::: desflow.models.params.SimParameter
     options:
       heading_level: 3

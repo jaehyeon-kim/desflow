@@ -11,7 +11,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 
-import simpy
 from pydantic import ValidationError
 
 from desflow.blueprint.loader import BlueprintError, SourceMap, read_document
@@ -23,7 +22,6 @@ from desflow.core.flow import Wait
 from desflow.core.task import check_acquisition_order
 from desflow.core.context import SimulationContext
 from desflow.core.environment import in_zone, resolve_zone
-from desflow.core.registry import SimulationRegistry
 from desflow.utils import suggestion
 
 # Short connector names, mapped to the module, the class and the extra that installs
@@ -928,8 +926,7 @@ def _check_scenario(
     if not blueprint.scenario:
         return
 
-    registry = SimulationRegistry(simpy.Environment())
-    registry.register_sim_parameter(context.compile_parameters())
+    registry = context._scratch_registry()
 
     for index, step in enumerate(blueprint.scenario):
         if step.path is None:
@@ -958,8 +955,7 @@ def _check_registry_reads(
     blueprint: Blueprint, context: SimulationContext, source: SourceMap
 ) -> None:
     """Checks every `registry["<path>"]` an expression reads against the registry."""
-    registry = SimulationRegistry(simpy.Environment())
-    registry.register_sim_parameter(context.compile_parameters())
+    registry = context._scratch_registry()
     for name, task in blueprint.tasks.items():
         for expression, location in _expressions(name, task):
             for path in expression.references["registry"]:

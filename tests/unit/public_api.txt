@@ -23,6 +23,8 @@ desflow.KafkaIngress = desflow.connectors.ingress.kafka.KafkaIngress
 desflow.LabelPayload = desflow.models.schemas.LabelPayload
 desflow.LocalIngress = desflow.connectors.ingress.local.LocalIngress
 desflow.LowLevelModel = desflow.analysis.models.LowLevelModel
+desflow.ParamChange = desflow.core.registry.ParamChange
+desflow.ParamRejected = desflow.core.registry.ParamRejected
 desflow.ParquetStorageEgress = desflow.connectors.egress.storage.ParquetStorageEgress
 desflow.PostgresEgress = desflow.connectors.egress.postgres.PostgresEgress
 desflow.PostgresIngress = desflow.connectors.ingress.postgres.PostgresIngress
@@ -191,10 +193,11 @@ desflow.core.context.SimulationContext.interrupt(task: str, where: str | desflow
 desflow.core.context.SimulationContext.next_instance(task: str) -> int
 desflow.core.context.SimulationContext.peek() -> float
 desflow.core.context.SimulationContext.publish(metric_name: str, value: Any) -> None
+desflow.core.context.SimulationContext.registry_paths() -> dict[str, Any]
 desflow.core.context.SimulationContext.run(until: Any = None, stop: Any = None, drain: Any = None, on_unhandled_failure: str | None = None) -> Any
 desflow.core.context.SimulationContext.signal(name: str) -> desflow.core.signals.Signal
 desflow.core.context.SimulationContext.spawn(process: Any, delay: float | None = None) -> simpy.events.Process
-desflow.core.context.SimulationContext.start(until: Any = None, stop: Any = None, drain: Any = None, *, seed: int | None = None, overrides: collections.abc.Mapping[str, Any] | None = None, stats: str | None = None, egress: bool = True, ingress: bool = True, run_settings: bool = True, on_unhandled_failure: str | None = None) -> desflow.core.environment.DynamicRealtimeEnvironment
+desflow.core.context.SimulationContext.start(until: Any = None, stop: Any = None, drain: Any = None, *, seed: int | None = None, overrides: collections.abc.Mapping[str, Any] | None = None, stats: str | None = None, egress: bool = True, ingress: bool = True, run_settings: bool = True, on_unhandled_failure: str | None = None, source: str | None = None, actor: str | None = None, reason: str | None = None) -> desflow.core.environment.DynamicRealtimeEnvironment
 desflow.core.context.SimulationContext.step() -> None
 desflow.core.context.SimulationContext.stop_arrivals() -> None
 desflow.core.context.SimulationContext.subscribe(event: Any) -> None
@@ -241,7 +244,14 @@ desflow.core.flow.Transfer.filter_for(scope: desflow.core.expressions.Scope) -> 
 desflow.core.flow.Transfer.of(spec: Transfer | collections.abc.Mapping[str, Any]) -> Transfer
 desflow.core.flow.Transfer.priority_for(task_id: Any, upstream: desflow.models.flow.Upstream | None, scope: desflow.core.expressions.Scope) -> Any
 desflow.core.flow.Transfer.target: property
+desflow.core.registry.ParamChange(*, path: str, old: Any, new: Any, requested: Any, at: float, source: str | None = None, actor: str | None = None, reason: str | None = None) -> None
+desflow.core.registry.ParamChange.actor: NoneType
+desflow.core.registry.ParamChange.changed: property
+desflow.core.registry.ParamChange.reason: NoneType
+desflow.core.registry.ParamChange.source: NoneType
+desflow.core.registry.ParamRejected(path: str, value: Any, reason: str)
 desflow.core.registry.SimulationRegistry(env: simpy.core.Environment)
+desflow.core.registry.SimulationRegistry.change(path: str, value: Any, *, source: str | None = None, actor: str | None = None, reason: str | None = None) -> desflow.core.registry.ParamChange
 desflow.core.registry.SimulationRegistry.configs() -> dict[str, Any]
 desflow.core.registry.SimulationRegistry.get(path: str) -> desflow.core.registry.DynamicValue
 desflow.core.registry.SimulationRegistry.get_config(path: str) -> Any
@@ -250,8 +260,8 @@ desflow.core.registry.SimulationRegistry.register_container(sim_id: str, name: s
 desflow.core.registry.SimulationRegistry.register_resource(sim_id: str, name: str, cap_config: desflow.models.params.CapacityConfig)
 desflow.core.registry.SimulationRegistry.register_sim_parameter(param: desflow.models.params.SimParameter)
 desflow.core.registry.SimulationRegistry.register_store(sim_id: str, name: str, cap_config: desflow.models.params.CapacityConfig)
-desflow.core.registry.SimulationRegistry.set_exactly(path: str, value: Any) -> None
-desflow.core.registry.SimulationRegistry.update(path: str, new_value: Any)
+desflow.core.registry.SimulationRegistry.set_exactly(path: str, value: Any, *, source: str | None = None, actor: str | None = None, reason: str | None = None) -> None
+desflow.core.registry.SimulationRegistry.update(path: str, new_value: Any, *, source: str | None = None, actor: str | None = None, reason: str | None = None) -> None
 desflow.core.replay.read_trace(source: str | pathlib.Path | collections.abc.Iterable[collections.abc.Mapping[str, Any]], time: str = 'time', unit: str = 's', fields: str | collections.abc.Sequence[str] = 'all', on_invalid: str = 'error', start: datetime.datetime | None = None, initial_time: float = 0.0) -> list[desflow.core.replay.Row]
 desflow.core.sampler.Sampler(rng: numpy.random.Generator | None = None, *, seed: int | None = None)
 desflow.core.sampler.Sampler.generator(name: str) -> numpy.random.Generator | None

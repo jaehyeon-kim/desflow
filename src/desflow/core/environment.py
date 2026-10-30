@@ -150,6 +150,34 @@ class RegistryMixIn:
         self.registry = SimulationRegistry(self)  # type: ignore[arg-type]
 
 
+class _SourceQueue:
+    """The queue one ingress provider puts on: it adds the provider's class name.
+
+    Every item goes on the one shared queue as `(path, value, actor)`, so the
+    monitor keeps one arrival order across providers and tells the registry who
+    sent each change. Every other attribute is the shared queue's own.
+    """
+
+    def __init__(self, shared: "queue.Queue[Any]", actor: str):
+        self._shared = shared
+        self._actor = actor
+
+    def put(self, item: Any, block: bool = True, timeout: Optional[float] = None):
+        """Puts `item` with the actor added, as `queue.Queue.put` does."""
+        self._shared.put((*item, self._actor), block, timeout)
+
+    def put_nowait(self, item: Any):
+        """Puts `item` with the actor added, as `queue.Queue.put_nowait` does."""
+        self._shared.put_nowait((*item, self._actor))
+
+    def __getattr__(self, name: str) -> Any:
+        # A copy or an unpickled object has no `_shared` yet, so asking for it here
+        # would call this method again without end.
+        if name == "_shared":
+            raise AttributeError(name)
+        return getattr(self._shared, name)
+
+
 class IngressMixIn:
     """
     Handles background I/O for Ingress (Incoming updates).
@@ -185,7 +213,9 @@ class IngressMixIn:
 
         # Keep a list of the running tasks
         tasks = [
-            loop.create_task(provider.run(self.ingress_queue))
+            loop.create_task(
+                provider.run(_SourceQueue(self.ingress_queue, type(provider).__name__))
+            )
             for provider in self.ingress_providers
         ]
         for provider, task in zip(self.ingress_providers, tasks):
@@ -208,9 +238,12 @@ class IngressMixIn:
         while True:
             while True:
                 try:
-                    path, value = self.ingress_queue.get_nowait()
+                    path, value, *rest = self.ingress_queue.get_nowait()
+                    actor = rest[0] if rest else None
                     logger.debug(f"Ingress update received: {path} = {value}")
-                    self.registry.update(path, value)  # type: ignore[attr-defined]
+                    self.registry.update(  # type: ignore[attr-defined]
+                        path, value, source="ingress", actor=actor
+                    )
                 except queue.Empty:
                     break  # Queue is empty, exit the inner loop
             yield self.internal_timeout(0.1)  # type: ignore[attr-defined]

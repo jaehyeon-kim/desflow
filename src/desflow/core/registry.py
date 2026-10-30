@@ -1,6 +1,7 @@
 import copy
 import logging
 import math
+from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
 from simpy import Environment
@@ -28,6 +29,71 @@ def _infinite_capacity(path: str, value: Any) -> bool:
         except ValueError:
             return False
     return isinstance(value, float) and math.isinf(value) and value > 0
+
+
+@dataclass(frozen=True, kw_only=True)
+class ParamChange:
+    """
+    One accepted change to a registry path.
+
+    `SimulationRegistry.change` returns it, and each `on_change` callback receives it.
+    It is frozen, so a callback cannot alter what the next callback receives.
+
+    Attributes:
+        path (str): The dot-notation path that changed, such as
+            `Shop.resources.packers.current_cap`.
+        old (Any): The value before the change.
+        new (Any): The value stored, after any cast or clamp.
+        requested (Any): The value the caller asked for.
+        at (float): The simulation time at which the change was applied.
+        source (Optional[str]): Where the change came from, such as `"ingress"` or
+            `"scenario"`. None for a change the model makes itself.
+        actor (Optional[str]): Who made the change, such as the ingress connector's
+            class name.
+        reason (Optional[str]): Why the caller made the change.
+    """
+
+    path: str
+    old: Any
+    new: Any
+    requested: Any
+    at: float
+    source: Optional[str] = None
+    actor: Optional[str] = None
+    reason: Optional[str] = None
+
+    @property
+    def changed(self) -> bool:
+        """Whether the stored value differs from the value before the change."""
+        return self.old != self.new
+
+
+class ParamRejected(ValueError):
+    """
+    Raised by `SimulationRegistry.change` when the registry refuses a value.
+
+    It is a `ValueError`, so a caller that catches `ValueError` also catches it.
+    `str(exc)` is the reason.
+
+    Attributes:
+        path (str): The path the caller asked to change.
+        value (Any): The value the registry refused.
+        reason (str): Why the registry refused it.
+    """
+
+    def __init__(self, path: str, value: Any, reason: str):
+        # `args` holds all three, because SimPy rebuilds an exception that ends a
+        # process as `type(exc)(*exc.args)`, and unpickling rebuilds it the same way.
+        super().__init__(path, value, reason)
+        self.path = path
+        self.value = value
+        self.reason = reason
+        # The log level and line `update` writes for this refusal
+        self._level = logging.ERROR
+        self._log = reason
+
+    def __str__(self) -> str:
+        return self.reason
 
 
 class DynamicValue:
@@ -100,12 +166,16 @@ class SimulationRegistry:
 
     Attributes:
         env (Environment): The active SimPy environment.
+        on_change (List[Callable[[ParamChange], None]]): Callbacks that receive a
+            `ParamChange` for every accepted change, in the order they were added.
     """
 
     def __init__(self, env: Environment):
         self.env = env
         self._values: Dict[str, DynamicValue] = {}
         self._configs: Dict[str, Any] = {}
+        # Called with a `ParamChange` for every accepted change, in the order added
+        self.on_change: List[Callable[[ParamChange], None]] = []
 
     def get(self, path: str) -> DynamicValue:
         """
@@ -164,7 +234,48 @@ class SimulationRegistry:
         """
         return dict(self._configs)
 
-    def update(self, path: str, new_value: Any):
+    def change(
+        self,
+        path: str,
+        value: Any,
+        *,
+        source: Optional[str] = None,
+        actor: Optional[str] = None,
+        reason: Optional[str] = None,
+    ) -> ParamChange:
+        """
+        Changes a value as `update` does, and reports what happened.
+
+        The checks are the ones `update` runs. Where `update` logs a refusal and goes
+        on, `change` raises `ParamRejected`, for a caller that must know. A value that
+        is cast or clamped is accepted, and `ParamChange.new` shows the value stored.
+        Every `on_change` callback receives the change before `change` returns.
+
+        Args:
+            path (str): The dot-notation path to change.
+            value (Any): The new value.
+            source (Optional[str]): Where the change came from, such as `"ingress"`.
+            actor (Optional[str]): Who made the change.
+            reason (Optional[str]): Why the change was made.
+
+        Returns:
+            ParamChange: The old value, the value stored and the time of the change.
+
+        Raises:
+            ParamRejected: If the path does not exist, the value cannot be converted
+                to the stored type, or a distribution parameter is out of its range.
+        """
+        return self._apply(path, value, source, actor, reason)
+
+    def update(
+        self,
+        path: str,
+        new_value: Any,
+        *,
+        source: Optional[str] = None,
+        actor: Optional[str] = None,
+        reason: Optional[str] = None,
+    ) -> None:
         """
         Update a value safely and synchronize its parent configuration object.
 
@@ -181,112 +292,205 @@ class SimulationRegistry:
         with a warning log line, also when a lower `max_cap` arrives, and so is a
         container `level` outside `[0, current_cap]`. A path the model does not have,
         such as a parameter the distribution's family does not take, is refused with a
-        warning log line.
+        warning log line. `update` never raises for a refused value; `change` does, and
+        returns what was applied.
 
         Args:
             path (str): The dot-notation path to update.
             new_value (Any): The new value to apply.
+            source (Optional[str]): Where the change came from, such as `"ingress"`.
+            actor (Optional[str]): Who made the change.
+            reason (Optional[str]): Why the change was made.
         """
-        if path in self._values:
-            current_val = self._values[path].value
-            validated_value = new_value
+        try:
+            self._apply(path, new_value, source, actor, reason)
+        except ParamRejected as exc:
+            logger.log(exc._level, exc._log)
 
-            # Type Validation & Casting
-            if current_val is not None and _infinite_capacity(path, new_value):
-                # No limit: inf, or the text "inf", on a capacity path of any type
-                validated_value = math.inf
-            elif current_val is not None:
-                expected_type = type(current_val)
-                # If types don't match, attempt a safe cast (e.g., "5" -> 5)
-                if not isinstance(new_value, expected_type):
-                    try:
-                        validated_value = expected_type(new_value)
-                        logger.debug(
-                            f"Cast '{new_value}' to {expected_type.__name__} for '{path}'"
-                        )
-                    except (ValueError, TypeError, OverflowError):
-                        logger.error(
-                            f"Type mismatch for '{path}'. Expected {expected_type.__name__}, "
-                            f"got {type(new_value).__name__} with value '{new_value}'. Update ignored."
-                        )
-                        return  # Exit early to prevent crashing the simulation
+    def _apply(
+        self,
+        path: str,
+        new_value: Any,
+        source: Optional[str],
+        actor: Optional[str],
+        reason: Optional[str],
+    ) -> ParamChange:
+        """Applies one change for `change` and `update`, and calls the callbacks.
 
-            # A store holds a whole number of items, so a fraction is rounded down
-            # here too, and the registry and the store hold the same number
-            if (
-                ".stores." in path
-                and path.endswith((".current_cap", ".max_cap"))
-                and isinstance(validated_value, (int, float))
-                and not isinstance(validated_value, bool)
-                and math.isfinite(validated_value)
-            ):
-                validated_value = int(validated_value)
+        Raises:
+            ParamRejected: For the three refusals, carrying the level and the text
+                that `update` logs.
+        """
+        if path not in self._values:
+            rejected = ParamRejected(
+                path,
+                new_value,
+                f"'{path}' is not a registry path" + suggestion(path, self._values),
+            )
+            rejected._level = logging.WARNING
+            rejected._log = f"Attempted to update non-existent path: {path}"
+            raise rejected
 
-            parent_path, attr = path.rsplit(".", 1) if "." in path else (path, "")
-            parent_obj = self._configs.get(parent_path)
+        current_val = self._values[path].value
+        validated_value = new_value
+        changes: List[ParamChange] = []
 
-            # Check a distribution parameter with the same rules as at load
-            if isinstance(parent_obj, DistributionConfig):
-                candidate = copy.copy(parent_obj)
-                setattr(candidate, attr, validated_value)
+        # Type Validation & Casting
+        if current_val is not None and _infinite_capacity(path, new_value):
+            # No limit: inf, or the text "inf", on a capacity path of any type
+            validated_value = math.inf
+        elif current_val is not None:
+            expected_type = type(current_val)
+            # If types don't match, attempt a safe cast (e.g., "5" -> 5)
+            if not isinstance(new_value, expected_type):
                 try:
-                    check_distribution(candidate)
-                except ValueError as exc:
-                    logger.error(f"Invalid value for '{path}': {exc}. Update ignored.")
-                    return
-
-            # Keep a container level within [0, current_cap], what the container holds
-            if (
-                isinstance(parent_obj, CapacityConfig)
-                and attr == "level"
-                and validated_value is not None
-            ):
-                cap = self._values[f"{parent_path}.current_cap"].value
-                clamped = type(validated_value)(min(max(validated_value, 0), cap))
-                if clamped != validated_value:
-                    logger.warning(
-                        f"level {validated_value} for '{path}' is outside "
-                        f"[0, current_cap {cap}]. Stored as {clamped}."
+                    validated_value = expected_type(new_value)
+                    logger.debug(
+                        f"Cast '{new_value}' to {expected_type.__name__} for '{path}'"
                     )
-                    validated_value = clamped
-
-            # Keep current_cap within [0, max_cap], the range the resource uses
-            if isinstance(parent_obj, CapacityConfig) and attr == "current_cap":
-                max_cap = self._values[f"{parent_path}.max_cap"].value
-                clamped = type(validated_value)(min(max(validated_value, 0), max_cap))
-                if clamped != validated_value:
-                    logger.warning(
-                        f"current_cap {validated_value} for '{path}' is outside "
-                        f"[0, max_cap {max_cap}]. Stored as {clamped}."
+                except (ValueError, TypeError, OverflowError):
+                    rejected = ParamRejected(
+                        path,
+                        new_value,
+                        f"'{path}' holds a {expected_type.__name__}, and "
+                        f"{new_value!r} cannot be converted to one",
                     )
-                    validated_value = clamped
+                    rejected._log = (
+                        f"Type mismatch for '{path}'. Expected {expected_type.__name__}, "
+                        f"got {type(new_value).__name__} with value '{new_value}'. Update ignored."
+                    )
+                    raise rejected
 
-            # A lower max_cap clamps current_cap first, so no reader sees it above
-            if (
-                isinstance(parent_obj, CapacityConfig)
-                and attr == "max_cap"
-                and validated_value is not None
-            ):
-                self._clamp_current_cap(parent_path, parent_obj, validated_value)
+        # A store holds a whole number of items, so a fraction is rounded down
+        # here too, and the registry and the store hold the same number
+        if (
+            ".stores." in path
+            and path.endswith((".current_cap", ".max_cap"))
+            and isinstance(validated_value, (int, float))
+            and not isinstance(validated_value, bool)
+            and math.isfinite(validated_value)
+        ):
+            validated_value = int(validated_value)
 
-            # Update the DynamicValue (triggers SimPy events)
-            self._values[path].update(validated_value)
+        parent_path, attr = path.rsplit(".", 1) if "." in path else (path, "")
+        parent_obj = self._configs.get(parent_path)
 
-            # Synchronize the attribute on the original config object
-            # Check if the parent is a dictionary (like `variables`)
-            if isinstance(parent_obj, dict):
-                parent_obj[attr] = validated_value
-            elif parent_obj is not None:
-                setattr(parent_obj, attr, validated_value)
+        # Check a distribution parameter with the same rules as at load
+        if isinstance(parent_obj, DistributionConfig):
+            candidate = copy.copy(parent_obj)
+            setattr(candidate, attr, validated_value)
+            try:
+                check_distribution(candidate)
+            except ValueError as exc:
+                rejected = ParamRejected(
+                    path, new_value, f"invalid value for '{path}': {exc}"
+                )
+                rejected._log = f"Invalid value for '{path}': {exc}. Update ignored."
+                raise rejected from exc
 
-            # Waits on a shared condition check it again after every change
-            notify = getattr(self.env, "notify_change", None)
-            if notify is not None:
-                notify()
-        else:
-            logger.warning(f"Attempted to update non-existent path: {path}")
+        # Keep a container level within [0, current_cap], what the container holds
+        if (
+            isinstance(parent_obj, CapacityConfig)
+            and attr == "level"
+            and validated_value is not None
+        ):
+            cap = self._values[f"{parent_path}.current_cap"].value
+            clamped = type(validated_value)(min(max(validated_value, 0), cap))
+            if clamped != validated_value:
+                logger.warning(
+                    f"level {validated_value} for '{path}' is outside "
+                    f"[0, current_cap {cap}]. Stored as {clamped}."
+                )
+                validated_value = clamped
 
-    def set_exactly(self, path: str, value: Any) -> None:
+        # Keep current_cap within [0, max_cap], the range the resource uses
+        if isinstance(parent_obj, CapacityConfig) and attr == "current_cap":
+            max_cap = self._values[f"{parent_path}.max_cap"].value
+            clamped = type(validated_value)(min(max(validated_value, 0), max_cap))
+            if clamped != validated_value:
+                logger.warning(
+                    f"current_cap {validated_value} for '{path}' is outside "
+                    f"[0, max_cap {max_cap}]. Stored as {clamped}."
+                )
+                validated_value = clamped
+
+        # A lower max_cap clamps current_cap first, so no reader sees it above
+        if (
+            isinstance(parent_obj, CapacityConfig)
+            and attr == "max_cap"
+            and validated_value is not None
+        ):
+            lowered = self._clamp_current_cap(parent_path, parent_obj, validated_value)
+            if lowered is not None:
+                sibling = f"{parent_path}.current_cap"
+                stored = self._values[sibling].value
+                changes.append(
+                    ParamChange(
+                        path=sibling,
+                        old=lowered,
+                        new=stored,
+                        requested=stored,
+                        at=self.env.now,
+                        source=source,
+                        actor=actor,
+                        reason=reason,
+                    )
+                )
+
+        # Update the DynamicValue (triggers SimPy events)
+        self._values[path].update(validated_value)
+
+        # Synchronize the attribute on the original config object
+        # Check if the parent is a dictionary (like `variables`)
+        if isinstance(parent_obj, dict):
+            parent_obj[attr] = validated_value
+        elif parent_obj is not None:
+            setattr(parent_obj, attr, validated_value)
+
+        # Waits on a shared condition check it again after every change
+        notify = getattr(self.env, "notify_change", None)
+        if notify is not None:
+            notify()
+
+        change = ParamChange(
+            path=path,
+            old=current_val,
+            new=validated_value,
+            requested=new_value,
+            at=self.env.now,
+            source=source,
+            actor=actor,
+            reason=reason,
+        )
+        changes.append(change)
+        for accepted in changes:
+            self._call_on_change(accepted)
+        return change
+
+    def _call_on_change(self, change: ParamChange) -> None:
+        """Calls each `on_change` callback with `change`, in the order added.
+
+        The loop runs over a copy, so a callback that adds or removes a callback
+        affects only the next change. A callback that raises is logged, and the next
+        one still runs, because the value is already stored.
+        """
+        for callback in list(self.on_change):
+            try:
+                callback(change)
+            except Exception:
+                logger.exception(
+                    f"on_change callback {callback!r} failed for '{change.path}'"
+                )
+
+    def set_exactly(
+        self,
+        path: str,
+        value: Any,
+        *,
+        source: Optional[str] = None,
+        actor: Optional[str] = None,
+        reason: Optional[str] = None,
+    ) -> None:
         """
         Sets a path to exactly `value`, raising where `update` would log and go on.
 
@@ -297,6 +501,9 @@ class SimulationRegistry:
         Args:
             path (str): The dot-notation path.
             value (Any): The value it must hold.
+            source (Optional[str]): Where the change came from; see `change`.
+            actor (Optional[str]): Who made the change.
+            reason (Optional[str]): Why the change was made.
 
         Raises:
             ValueError: If the path does not exist, or the registry refuses, casts to
@@ -316,7 +523,7 @@ class SimulationRegistry:
                     f"'{path}' cannot be set to {value!r}: '{sibling}' is "
                     f"{current!r}; set current_cap first, to {value!r} or less"
                 )
-        self.update(path, value)
+        self.update(path, value, source=source, actor=actor, reason=reason)
         kept = self._values[path].value
         if kept != value:
             raise ValueError(
@@ -325,12 +532,16 @@ class SimulationRegistry:
 
     def _clamp_current_cap(
         self, parent_path: str, config: CapacityConfig, max_cap: Any
-    ) -> None:
-        """Lowers a stored `current_cap` above a new `max_cap` to it, with a warning."""
+    ) -> Optional[Any]:
+        """Lowers a stored `current_cap` above a new `max_cap` to it, with a warning.
+
+        Returns:
+            The `current_cap` before it was lowered, or None if it was not above.
+        """
         path = f"{parent_path}.current_cap"
         current = self._values[path].value
         if current is None or current <= max_cap:
-            return
+            return None
         clamped = type(current)(max_cap)
         logger.warning(
             f"current_cap {current} for '{path}' is above the new max_cap {max_cap}. "
@@ -338,6 +549,7 @@ class SimulationRegistry:
         )
         self._values[path].update(clamped)
         config.current_cap = clamped
+        return current
 
     def register_sim_parameter(self, param: SimParameter):
         """

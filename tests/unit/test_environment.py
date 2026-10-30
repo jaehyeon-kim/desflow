@@ -1125,3 +1125,102 @@ def test_factor_0_steps_without_the_wall_clock_and_gives_the_same_records():
     fast = run(DynamicRealtimeEnvironment.step)
     assert fast
     assert fast == run(RealtimeEnvironment.step)
+
+
+def test_ingress_monitor_applies_items_in_arrival_order():
+    """Items put on the one ingress queue are applied in the order they arrived."""
+    from desflow.models.params import SimParameter
+
+    env = DynamicRealtimeEnvironment(factor=0.0)
+    env.registry.register_sim_parameter(SimParameter(sim_id="Shop", variables={"x": 0}))
+    applied: list = []
+    update = env.registry.update
+
+    def recording_update(path, value, *args, **kwargs):
+        applied.append((path, value))
+        return update(path, value, *args, **kwargs)
+
+    env.registry.update = recording_update  # type: ignore[method-assign]
+    env.setup_ingress([])
+    try:
+        env.ingress_queue.put(("Shop.variables.x", 1))
+        env.ingress_queue.put(("Shop.variables.x", 2))
+        env.run(until=0.2)
+    finally:
+        env.teardown_ingress()
+
+    assert env.registry.get("Shop.variables.x").value == 2
+    assert applied == [("Shop.variables.x", 1), ("Shop.variables.x", 2)]
+
+
+def _wait_for_ingress_items(env, count):
+    """Waits, for at most 2 wall-clock seconds, until `count` items are queued."""
+    deadline = time.monotonic() + 2
+    while env.ingress_queue.qsize() < count:
+        assert time.monotonic() < deadline, "the ingress items never arrived"
+        time.sleep(0.005)
+
+
+def _env_with_variable():
+    """A factor 0 environment that has `Shop.variables.x` and a list of its changes."""
+    from desflow.models.params import SimParameter
+
+    env = DynamicRealtimeEnvironment(factor=0.0)
+    env.registry.register_sim_parameter(SimParameter(sim_id="Shop", variables={"x": 0}))
+    changes: list = []
+    env.registry.on_change.append(changes.append)
+    return env, changes
+
+
+def test_ingress_changes_carry_their_source_and_connector():
+    """A change from an ingress connector has source "ingress" and the class as actor."""
+    from desflow import LocalIngress
+
+    env, changes = _env_with_variable()
+    env.setup_ingress([LocalIngress([(0.0, "Shop.variables.x", 5)])])
+    try:
+        _wait_for_ingress_items(env, 1)
+        env.run(until=0.2)
+    finally:
+        env.teardown_ingress()
+
+    assert [(c.path, c.new, c.source, c.actor) for c in changes] == [
+        ("Shop.variables.x", 5, "ingress", "LocalIngress")
+    ]
+
+
+def test_ingress_keeps_one_order_across_providers():
+    """Two providers share one arrival order, and `put_nowait` carries the actor too."""
+    from desflow import LocalIngress
+    from desflow.connectors.ingress.base import BaseIngress
+
+    class Late(BaseIngress):
+        async def run(self, ingress_queue):
+            while ingress_queue.qsize() < 1:
+                await asyncio.sleep(0.005)
+            ingress_queue.put_nowait(("Shop.variables.x", 2))
+
+    env, changes = _env_with_variable()
+    env.setup_ingress([Late(), LocalIngress([(0.0, "Shop.variables.x", 1)])])
+    try:
+        _wait_for_ingress_items(env, 2)
+        env.run(until=0.2)
+    finally:
+        env.teardown_ingress()
+
+    assert [(c.new, c.actor) for c in changes] == [(1, "LocalIngress"), (2, "Late")]
+    assert env.registry.get("Shop.variables.x").value == 2
+
+
+def test_a_source_queue_can_be_copied():
+    """A copy has no shared queue until `__init__` runs, and asking for it must
+    raise AttributeError instead of calling `__getattr__` without end."""
+    import copy
+
+    from desflow.core.environment import _SourceQueue
+
+    shared: "queue.Queue[tuple]" = queue.Queue()
+    copied = copy.copy(_SourceQueue(shared, actor="LocalIngress"))
+    copied.put(("Shop.variables.x", 1))
+
+    assert shared.get_nowait() == ("Shop.variables.x", 1, "LocalIngress")

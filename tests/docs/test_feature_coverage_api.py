@@ -17,6 +17,7 @@ _RECEIVED = {
     "FitResult": ("user-guide/model-parts/input-fitting.md", "result"),
     "ExperimentResult": ("user-guide/results/experiments.md", "result"),
     "Replications": ("user-guide/results/replications.md", "result"),
+    "ParamChange": ("user-guide/live-runs-and-connectors/live-parameters.md", "change"),
 }
 # A type the reader can build but the pages do not, each with the reason. It needs
 # only a page that names it.

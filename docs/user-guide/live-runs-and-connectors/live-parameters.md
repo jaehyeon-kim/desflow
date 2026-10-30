@@ -32,7 +32,7 @@ A path is the `sim_id`, the kind of parameter, its name and the field:
 
 === "YAML"
 
-    A blueprint's paths follow from the names it declares, as the table above shows. To list them, load it with `SimulationContext.from_yaml` and call `compile_parameters()`, as the Builder tab does.
+    A blueprint's paths follow from the names it declares, as the table above shows. To list them with their starting values, load it with `SimulationContext.from_yaml` and call `registry_paths()` on the context it returns, as the Builder tab does.
 
 === "Builder"
 
@@ -40,6 +40,12 @@ A path is the `sim_id`, the kind of parameter, its name and the field:
 
     ```python title="docs/snippets/pages/live_parameters.py:compile"
     print(app.compile_parameters())
+    ```
+
+    `registry_paths()` returns the paths a run will register with their starting values, in the order a run registers them. It runs no model code and starts no connector. A capacity with no limit has the value `math.inf`, which JSON cannot hold, so convert it before you write JSON:
+
+    ```python title="docs/snippets/pages/live_parameters.py:paths"
+    print(app.registry_paths())
     ```
 
 === "Low-level"
@@ -76,7 +82,7 @@ Each source of a change suits a different job and lands at a different moment:
 | a scenario: YAML `scenario`, builder `add_scenario`, low-level `run_scenario` | an experiment that must repeat exactly | the exact simulation time given |
 | `LocalIngress` | a local run with changes after set wall-clock delays | a wall-clock delay from the start |
 | `KafkaIngress`, `RedisIngress`, `PostgresIngress` | an operator or another program steering a running model | when the message arrives |
-| a process calling `env.registry.update` | a change that depends on the state of the simulation | when the process makes it |
+| a process calling `env.registry.update` or `env.registry.change` | a change that depends on the state of the simulation | when the process makes it |
 
 ![A YAML scenario lands at the exact simulation time, LocalIngress after a wall-clock delay, the Kafka, Redis and PostgreSQL connectors when a message arrives, and a process when it runs](../../assets/diagrams/change-sources.png)
 
@@ -99,6 +105,76 @@ Each source of a change suits a different job and lands at a different moment:
     env.registry.update("Shop.resources.lath.current_cap", 3)  # no such path: ignored
     env.registry.update("Shop.service.packing.rate", 2.0)  # normal has no rate: ignored
     env.registry.update("Shop.containers.stock.level", 150)  # stored as 100, the capacity
+    ```
+
+### Know Whether a Change Was Refused
+
+`update` logs a refused value and goes on, so its caller cannot tell whether the value landed. `registry.change(path, value)` runs the same checks and returns a `ParamChange` for an accepted value. For a refused value it raises `ParamRejected`, a `ValueError` whose `path`, `value` and `reason` say what the registry refused. A value that the registry converts or clamps is accepted, and `new` shows the value it stored.
+
+A `ParamChange` has these fields:
+
+- `path`: the path that changed.
+- `old`: the value before the change.
+- `new`: the value stored.
+- `requested`: the value asked for.
+- `at`: the simulation time of the change.
+- `source`, `actor` and `reason`: who made the change and why, which `change` takes as keywords.
+
+Its `changed` property is True when `new` differs from `old`.
+
+=== "YAML"
+
+    A blueprint's process function, listed under `processes`, calls the same `registry.change` on `context.env.registry`, as [Processes](../tasks-and-processes/processes.md#a-process) shows for `update`.
+
+=== "Builder"
+
+    A builder process calls the same `registry.change` on `context.env.registry`, as [Processes](../tasks-and-processes/processes.md#a-process) shows for `update`.
+
+=== "Low-level"
+
+    ```python title="docs/snippets/pages/registry.py:change"
+    change = env.registry.change(
+        "Shop.resources.packers.current_cap",
+        4,
+        source="user",
+        actor="alice",
+        reason="two packers are on leave",
+    )
+    print(change.old, change.new, change.changed)  # 5 4 True
+    try:
+        env.registry.change("Shop.service.packing.std", -1.0)
+    except ParamRejected as exc:
+        # invalid value for 'Shop.service.packing.std': normal std must be 0 or more ...
+        print(exc.reason)
+    ```
+
+### Follow Every Change
+
+`on_change` is a list of callbacks. The registry calls each one with the `ParamChange` of every accepted change, in the order they were added, after it has stored the value. A change that leaves the value as it was is reported too, with `changed` False. A lower `max_cap` that lowers the `current_cap` beside it gives two changes, the `current_cap` first. A callback that raises is logged, and the other callbacks still run.
+
+The `source` and `actor` of a change say where it came from:
+
+- An ingress connector's change has the source `"ingress"` and the connector's class name as actor, such as `LocalIngress`.
+- A scenario step has the source `"scenario"`.
+- The overrides of `start()` have the `source`, `actor` and `reason` that `start()` takes.
+- A change that a process or an `on:` action makes has no source unless the process passes one.
+
+=== "YAML"
+
+    The context that `SimulationContext.from_yaml` returns takes the callbacks on `context.on_change`.
+
+=== "Builder"
+
+    `app.on_change` takes the same callbacks for every run `start()` builds, as [Builder API](../writing-a-model/builder-api.md#run-it) says.
+
+=== "Low-level"
+
+    ```python title="docs/snippets/pages/registry.py:on_change"
+    changes: list = []
+    env.registry.on_change.append(changes.append)  # called with every accepted change
+    env.registry.update("Shop.resources.packers.current_cap", 3, source="user")
+    # Shop.resources.packers.current_cap 4 3
+    print(changes[0].path, changes[0].old, changes[0].new)
     ```
 
 ### Script an Experiment
@@ -213,16 +289,17 @@ In Python, `env.publish_label(label, path=..., old=..., new=...)` publishes one,
 
 **Registration.** `run()`, or `register_sim_parameter` in the low-level API, flattens the `SimParameter` into the registry. The registry holds one `DynamicValue` per path, with the value and a change signal. Beside them, it keeps the configuration objects that the paths belong to, such as each `DistributionConfig`.
 
-**An update.** `registry.update(path, value)` applies one change. The checks run in order, and an accepted value reaches the parts that read it:
+**An update.** `registry.update(path, value)` and `registry.change(path, value)` apply one change by the same checks. `update` logs a refused value, and `change` raises `ParamRejected`. The checks run in order, and an accepted value reaches the parts that read it:
 
-![An update from an ingress connector, a scenario or a process passes the checks in order, then the registry stores the value and updates the parameter's config; the sampler, the resources, stores and containers, and waiting processes follow](../../assets/diagrams/registry-update.png)
+![An update from an ingress connector, a scenario or a process passes the checks in order, then the registry stores the value and updates the parameter's config; the sampler, the resources, stores and containers, waiting processes and the on_change callbacks follow](../../assets/diagrams/registry-update.png)
 
 - A path that does not exist is logged as a warning, and the update is ignored.
 - A value of another type is converted to the type the path holds, so the string `"5"` sent to an integer path becomes 5. Python's conversion is used, so 2.5 sent to an integer path becomes 2. A value that cannot be converted is logged as an error and ignored.
 - A distribution parameter is checked on a copy of its configuration, by the rules used at build. One out of range is logged as an error, and the old value stays.
 - A `current_cap` outside 0 to `max_cap`, or a container `level` outside 0 to `current_cap`, is stored clamped to that range, with a warning. A lower `max_cap` clamps the stored `current_cap` the same way.
-- A value equal to the current one changes nothing.
+- A value equal to the current one gives no change signal.
 - Otherwise the value is stored, and the attribute of the configuration object is set too, found by splitting the path at its last dot: `Shop.service.packing.mean` sets `mean` on the object at `Shop.service.packing`. The `Sampler` reads that object at every draw, so it sees the new value.
+- Then each `on_change` callback receives the change, in the order they were added; a callback that raises is logged and the others still run.
 
 **Change Signal.** Each value has a SimPy `Store` with one slot as its signal. An update puts a token in it if it is empty, and `wait_for_change()` waits for that token. The slot holds one token, so several changes before a waiter wakes give one signal, and only one waiting process takes it. Resources, stores and containers already wait on their own paths, and a token that your process takes does not reach them. Wait only on paths that nothing else waits on, such as variables:
 
@@ -290,7 +367,7 @@ The reading at 30 seconds still shows 1. The resource applies a change within th
 
 ## Stability and Limits
 
-- **An unknown path is a warning, not an error,** for an ingress message or a process. Only a scenario is checked when it loads.
+- **An unknown path is a warning, not an error,** for an ingress message or a process that calls `update`; `change` raises `ParamRejected`. Only a scenario is checked when it loads.
 - **A family is fixed.** There is no path that turns a `normal` into an `exponential`. That is a new model.
 - **Several changes, one signal.** A process waiting on a path wakes once for several changes made before it runs, and reads the latest value.
 - **Ingress lands on the wall clock.** A message's change lands at whatever simulation time the run has reached when it arrives. A change that must happen at an exact simulation time needs a scenario step.

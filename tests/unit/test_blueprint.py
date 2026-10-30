@@ -2,6 +2,7 @@
 
 import json
 import textwrap
+import time
 from datetime import datetime
 
 import pytest
@@ -1335,3 +1336,66 @@ def test_on_stays_a_string_key_in_an_included_task_or_section_file(tmp_path):
     path.write_text("signals:\n  closing: !include {file: signal.yaml, on: []}\n")
     data, _ = read_document(path)
     assert data["signals"]["closing"] == {"once": True, "on": []}
+
+
+def test_from_yaml_context_reports_the_source_of_each_change(tmp_path):
+    """A YAML model takes callbacks on the context `from_yaml` returns."""
+    path = write(
+        tmp_path,
+        MINIMAL
+        + """\
+scenario:
+  - {at: 2, path: Shop.resources.packers.current_cap, value: 3}
+ingress:
+  - type: Local
+    config:
+      schedule:
+        - [0.0, Shop.resources.packers.max_cap, 4]
+""",
+    )
+    app = SimulationContext.from_yaml(path)
+    changes: list = []
+    app.on_change.append(changes.append)
+    env = app.start()
+    deadline = time.monotonic() + 2
+    while env.ingress_queue.qsize() < 1:
+        assert time.monotonic() < deadline, "the ingress item never arrived"
+        time.sleep(0.005)
+    app.finish()
+
+    assert sorted((c.source, c.actor, c.path) for c in changes) == [
+        ("ingress", "LocalIngress", "Shop.resources.packers.max_cap"),
+        ("scenario", None, "Shop.resources.packers.current_cap"),
+    ]
+
+
+def test_registry_paths_of_a_yaml_model_match_its_run(tmp_path):
+    """`registry_paths()` of a YAML model equals the registry of its run."""
+    app = SimulationContext.from_yaml(write(tmp_path, MINIMAL))
+
+    paths = app.registry_paths()
+
+    env = app.start()
+    try:
+        assert paths == {p: env.registry.get(p).value for p in env.registry.paths()}
+    finally:
+        app.finish()
+
+
+def test_load_context_of_a_builder_file_gives_the_paths_of_its_yaml_twin(tmp_path):
+    """`load_context(folder, "main.py").registry_paths()` matches the YAML twin's."""
+    import shutil
+    from pathlib import Path
+
+    from desflow.loading import load_context
+
+    examples = Path(__file__).resolve().parents[2] / "examples"
+    shutil.copy(examples / "builder" / "local_example.py", tmp_path / "main.py")
+
+    from_builder = load_context(tmp_path, "main.py").registry_paths()
+    from_yaml = SimulationContext.from_yaml(
+        examples / "yaml" / "local.yaml"
+    ).registry_paths()
+
+    assert from_builder == from_yaml
+    assert from_builder

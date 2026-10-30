@@ -45,7 +45,7 @@ from desflow.connectors.ingress.local import LocalIngress
 from desflow.core.context import SimulationContext
 from desflow.core.environment import DynamicRealtimeEnvironment
 from desflow.core.flow import Router, Transfer
-from desflow.core.registry import SimulationRegistry
+from desflow.core.registry import ParamChange, ParamRejected, SimulationRegistry
 from desflow.core.sampler import Sampler
 from desflow.core.signals import Signal, SignalFailed
 from desflow.core.task import TaskFailed
@@ -88,6 +88,8 @@ __all__ = [
     "TaskFailed",
     "SimulationContext",
     "load_context",
+    "ParamChange",
+    "ParamRejected",
     "SimulationRegistry",
     "DynamicResource",
     "ResourceBase",
