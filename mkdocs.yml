@@ -254,6 +254,9 @@ extra:
 # missing page already does.
 validation:
   anchors: warn
+  nav:
+    omitted_files: warn
+    not_found: warn
 
 # Files the documentation shows and the tests build. They are not pages.
 exclude_docs: |
