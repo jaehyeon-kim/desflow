@@ -414,6 +414,11 @@ The builder and YAML start these SimPy processes and readers for you. Low-level 
       heading_level: 3
 
 <!-- prettier-ignore -->
+::: desflow.connectors.ingress.file.FileIngress
+    options:
+      heading_level: 3
+
+<!-- prettier-ignore -->
 ::: desflow.connectors.ingress.kafka.KafkaIngress
     options:
       heading_level: 3

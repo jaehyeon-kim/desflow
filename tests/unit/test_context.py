@@ -1355,6 +1355,23 @@ def test_builder_ingress_change_carries_its_source():
     ]
 
 
+def test_builder_file_ingress_change_carries_its_source(tmp_path):
+    """The builder reports a file's change as source "ingress", with FileIngress."""
+    from desflow import FileIngress
+
+    path = tmp_path / "params.yaml"
+    path.write_text("Shop.variables.speed: 4\n")
+    app, changes = _app_with_speed()
+    app.add_ingress(FileIngress(path, poll=0.05))
+    env = app.start(until=1)
+    _wait_for_ingress_item(env)
+    app.finish()
+
+    assert [(c.path, c.new, c.source, c.actor) for c in changes] == [
+        ("Shop.variables.speed", 4, "ingress", "FileIngress")
+    ]
+
+
 def test_builder_scenario_step_has_the_scenario_source():
     """A scenario step is reported as source "scenario"."""
     app, changes = _app_with_speed()
@@ -1382,6 +1399,110 @@ def test_an_on_action_change_has_no_source():
     app.run(until=3)
 
     assert [(c.new, c.source, c.actor) for c in changes][:1] == [(7, None, None)]
+
+
+def test_an_on_action_with_a_refused_value_is_logged_and_the_run_goes_on(caplog):
+    """Only a scenario step is refused; an `on:` action keeps `update`."""
+    app = SimulationContext("Shop", factor=0.0)
+    app.add_arrival("orders", dist="exponential", rate=1.0)
+
+    @app.task(on=[{"path": "Shop.arrival.orders.rate", "value": 0}], name="courier")
+    def courier(task_id):
+        return {}
+
+    @app.arrival_loop("orders")
+    def loop(context):
+        entity = yield context.wait_for_arrival("orders")
+        context.spawn(courier(context.next_instance("courier"), entity=entity))
+        yield context.env.event()
+
+    with caplog.at_level("ERROR"):
+        app.run(until=10)
+
+    assert "Invalid value for 'Shop.arrival.orders.rate'" in caplog.text
+    assert "Update ignored." in caplog.text
+    assert app.env.now == 10
+
+
+def test_a_builder_scenario_value_the_registry_refuses_stops_start():
+    """`start()` refuses a refused value before the clock or any connector starts."""
+    import threading
+
+    from desflow import LocalIngress
+
+    app = SimulationContext("Shop", factor=0.0)
+    app.add_arrival("orders", dist="exponential", rate=1.0)
+    app.add_ingress(LocalIngress([]))
+    app.add_step(5, path="Shop.arrival.orders.rate", value=0)
+    threads = threading.active_count()
+
+    with pytest.raises(ValueError) as error:
+        app.start(until=10)
+
+    message = str(error.value)
+    assert message.startswith("scenario step at 5 s sets 'Shop.arrival.orders.rate': ")
+    assert "exponential rate must be greater than 0" in message
+    assert threading.active_count() == threads
+
+
+def test_a_builder_scenario_is_checked_with_the_overrides_of_start():
+    """An override can make a later step's value invalid, and `start()` refuses it
+    before the clock starts, not at the step's time."""
+    app = SimulationContext("Shop", factor=0.0)
+    app.add_arrival("orders", dist="uniform", low=1.0, high=5.0)
+    app.add_step(5, path="Shop.arrival.orders.high", value=3.0)
+
+    with pytest.raises(ValueError) as error:
+        app.start(until=10, overrides={"Shop.arrival.orders.low": 4.0})
+
+    message = str(error.value)
+    assert message.startswith("scenario step at 5 s sets 'Shop.arrival.orders.high': ")
+    assert "low 4.0, high 3.0" in message
+
+    # Without the override the same scenario starts and runs to its end
+    app.run(until=10)
+    assert app.env.now == 10
+
+
+def test_a_builder_scenario_check_leaves_the_starting_values():
+    """The check applies the steps to a copy, so the model keeps its own values."""
+    app = SimulationContext("Shop", factor=0.0)
+    app.add_arrival("orders", dist="exponential", rate=1.0)
+    app.add_step(5, path="Shop.arrival.orders.rate", value=3)
+
+    app.start(until=1)
+    try:
+        assert app.env.registry.get("Shop.arrival.orders.rate").value == 1.0
+    finally:
+        app.finish()
+
+
+def test_low_level_run_scenario_raises_for_a_refused_value():
+    """A refused step stops a low-level run at its time with `ParamRejected`."""
+    from desflow import (
+        DistributionConfig,
+        DynamicRealtimeEnvironment,
+        ParamRejected,
+        SimParameter,
+    )
+    from desflow.core.scenario import run_scenario
+
+    env = DynamicRealtimeEnvironment(factor=0.0)
+    env.registry.register_sim_parameter(
+        SimParameter(
+            sim_id="Shop",
+            arrival={"orders": DistributionConfig(dist="exponential", rate=1.0)},
+        )
+    )
+    env.process(
+        run_scenario(env, [{"at": 5, "path": "Shop.arrival.orders.rate", "value": 0}])
+    )
+
+    with pytest.raises(ParamRejected) as error:
+        env.run(until=10)
+
+    assert env.now == 5
+    assert error.value.path == "Shop.arrival.orders.rate"
 
 
 def test_start_describes_its_overrides():

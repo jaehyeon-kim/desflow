@@ -212,6 +212,13 @@ EXAMPLES: Dict[str, Example] = {
             shared=["local_replay_orders.csv"],
         ),
         Example(
+            "file",
+            "File Steering",
+            "changes the packers' capacity when you edit params.yaml, with no container",
+            _three("file.yaml", "file_example.py"),
+            shared=["params.yaml"],
+        ),
+        Example(
             "replications",
             "Replications",
             "one hour of the shop run 20 times, with the mean and interval of each statistic",

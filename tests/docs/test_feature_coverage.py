@@ -48,7 +48,12 @@ def test_every_blueprint_key_has_an_example_a_reference_and_a_skill_entry(model,
 
 
 # The name a reader knows each connector by, as the README writes it
-_README_NAMES = {"Postgres": "PostgreSQL", "Jsonl": "JSONL", "Local": "local schedule"}
+_README_NAMES = {
+    "Postgres": "PostgreSQL",
+    "Jsonl": "JSONL",
+    "Local": "local schedule",
+    "File": "a file you edit",
+}
 
 
 @pytest.mark.parametrize("kind,name", connectors())

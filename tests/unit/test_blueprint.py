@@ -636,6 +636,14 @@ def test_scenario_applies_on_simulation_time_at_factor_0(tmp_path):
             "{at: 5, path: Shop.resources.packers.current_cap, value: many}",
             "holds a int",
         ),
+        (
+            "{at: 5, path: Shop.arrival.standard.rate, value: 0}",
+            "exponential rate must be greater than 0",
+        ),
+        (
+            "{at: 5, path: Shop.service.packing.std, value: -1}",
+            "normal std must be 0 or more",
+        ),
     ],
 )
 def test_scenario_paths_are_checked_before_the_run(tmp_path, step, fragment):
@@ -646,6 +654,43 @@ def test_scenario_paths_are_checked_before_the_run(tmp_path, step, fragment):
     message = str(error.value)
     assert message.startswith(f"{path}:20:"), message
     assert fragment in message
+
+
+def test_a_scenario_value_valid_only_after_an_earlier_step_loads(tmp_path):
+    """Steps are checked in the order the run applies them, as written at equal times."""
+    text = (
+        MINIMAL.replace(
+            "packing: {dist: normal, mean: 3.0, std: 0.5}",
+            "packing: {dist: uniform, low: 1, high: 2}",
+        )
+        + "scenario:\n"
+        "  - {at: 5, path: Shop.service.packing.low, value: 3}\n"
+        "  - {at: 5, path: Shop.service.packing.high, value: 6}\n"
+    )
+    # low 3 is above the current high 2 until the second step raises it
+    with pytest.raises(BlueprintError):
+        SimulationContext.from_yaml(write(tmp_path, text))
+    ordered = text.replace(
+        "at: 5, path: Shop.service.packing.low", "at: 6, path: Shop.service.packing.low"
+    )
+    app = SimulationContext.from_yaml(write(tmp_path, ordered))
+    app.run(until=30)
+
+    registry = app.env.registry
+    assert (
+        registry.get_config("Shop.service.packing").low,
+        registry.get_config("Shop.service.packing").high,
+    ) == (3, 6)
+
+
+def test_checking_the_scenario_leaves_the_starting_values(tmp_path):
+    """The load check applies the steps to a copy, not to the model's own parameters."""
+    text = (
+        MINIMAL + "scenario:\n  - {at: 5, path: Shop.arrival.standard.rate, value: 9}\n"
+    )
+    app = SimulationContext.from_yaml(write(tmp_path, text))
+
+    assert app.compile_parameters().arrival["standard"].rate == 1.0
 
 
 def test_scenario_at_must_be_a_time(tmp_path):
@@ -1366,6 +1411,36 @@ ingress:
     assert sorted((c.source, c.actor, c.path) for c in changes) == [
         ("ingress", "LocalIngress", "Shop.resources.packers.max_cap"),
         ("scenario", None, "Shop.resources.packers.current_cap"),
+    ]
+
+
+def test_from_yaml_file_ingress_reports_its_source(tmp_path):
+    """`type: File` loads and its change has source "ingress" and actor FileIngress."""
+    params = tmp_path / "params.yaml"
+    params.write_text("Shop.resources.packers.max_cap: 4\n")
+    path = write(
+        tmp_path,
+        MINIMAL
+        + f"""\
+ingress:
+  - type: File
+    config:
+      path: {params}
+      poll: 0.05
+""",
+    )
+    app = SimulationContext.from_yaml(path)
+    changes: list = []
+    app.on_change.append(changes.append)
+    env = app.start()
+    deadline = time.monotonic() + 2
+    while env.ingress_queue.qsize() < 1:
+        assert time.monotonic() < deadline, "the ingress item never arrived"
+        time.sleep(0.005)
+    app.finish()
+
+    assert [(c.source, c.actor, c.path) for c in changes] == [
+        ("ingress", "FileIngress", "Shop.resources.packers.max_cap")
     ]
 
 

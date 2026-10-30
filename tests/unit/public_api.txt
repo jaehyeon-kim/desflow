@@ -14,6 +14,7 @@ desflow.Entity = desflow.models.flow.Entity
 desflow.EventPayload = desflow.models.schemas.EventPayload
 desflow.ExperimentResult = desflow.analysis.results.ExperimentResult
 desflow.ExperimentSpec = desflow.analysis.spec.ExperimentSpec
+desflow.FileIngress = desflow.connectors.ingress.file.FileIngress
 desflow.FitResult = desflow.analysis.fit.FitResult
 desflow.IcebergStorageEgress = desflow.connectors.egress.iceberg.IcebergStorageEgress
 desflow.JsonlStorageEgress = desflow.connectors.egress.storage.JsonlStorageEgress
@@ -137,6 +138,8 @@ desflow.connectors.egress.storage.ParquetStorageEgress.run(egress_queue: queue.Q
 desflow.connectors.ingress.base.BaseIngress()
 desflow.connectors.ingress.base.BaseIngress.run(ingress_queue: queue.Queue) -> None
 desflow.connectors.ingress.base.parse_change(data: Any) -> tuple[str, Any]
+desflow.connectors.ingress.file.FileIngress(path: str | pathlib.Path, poll: float = 1.0)
+desflow.connectors.ingress.file.FileIngress.run(ingress_queue: queue.Queue) -> None
 desflow.connectors.ingress.kafka.ConfluentAvroDeserializer(registry_url: str, *, auth: tuple[str, str] | None = <not given>, verify: bool | str | ssl.SSLContext = <not given>, cert: str | tuple[str, str | None] | tuple[str, str | None, str | None] | None = <not given>, timeout: float | None = <not given>, headers: collections.abc.Mapping[str, str] | None = <not given>, proxy: str | None = <not given>, max_retries: int = <not given>, **registry_kwargs: Any)
 desflow.connectors.ingress.kafka.ConfluentAvroDeserializer.deserialize(topic: str, payload: bytes) -> Any
 desflow.connectors.ingress.kafka.ConfluentJsonSchemaDeserializer(registry_url: str, *, auth: tuple[str, str] | None = <not given>, verify: bool | str | ssl.SSLContext = <not given>, cert: str | tuple[str, str | None] | tuple[str, str | None, str | None] | None = <not given>, timeout: float | None = <not given>, headers: collections.abc.Mapping[str, str] | None = <not given>, proxy: str | None = <not given>, max_retries: int = <not given>)

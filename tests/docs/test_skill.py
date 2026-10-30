@@ -93,6 +93,16 @@ def test_skill_teaches_a_study():
         assert word in study
 
 
+def test_skill_teaches_a_description():
+    skill = (SKILL / "SKILL.md").read_text(encoding="utf-8")
+    assert "## Draft a model from a description" in skill
+    section = (
+        skill.split("## Draft a model from a description")[1].split("\n## ")[0].lower()
+    )
+    for word in ("assumed", "stages", "ask", "load", "attempts"):
+        assert word in section
+
+
 def test_skill_reference_links_exist():
     for page in SKILL.rglob("*.md"):
         for target in re.findall(

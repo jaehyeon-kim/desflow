@@ -8,7 +8,7 @@ Every parameter of a run can change while the run goes on: an arrival rate, a nu
 
 Every run has one `SimulationRegistry`, at `env.registry`. It maps dot-notation paths, such as `Shop.resources.packers.current_cap`, to the values the simulation reads. A scenario, an ingress connector or a process changes a parameter by updating its path, and the simulation follows the change without restarting. Changing a parameter takes three steps:
 
-![Find the registry path, send the new value from a scenario, LocalIngress, Kafka, Redis or PostgreSQL, and see it in the telemetry](../../assets/diagrams/live-change-steps.png)
+![Find the registry path, send the new value from a scenario, LocalIngress, FileIngress, Kafka, Redis or PostgreSQL, and see it in the telemetry](../../assets/diagrams/live-change-steps.png)
 
 The tutorial page [Live Changes](../../learn/running-live/live-changes.md) teaches these features step by step.
 
@@ -81,10 +81,11 @@ Each source of a change suits a different job and lands at a different moment:
 |---|---|---|
 | a scenario: YAML `scenario`, builder `add_scenario`, low-level `run_scenario` | an experiment that must repeat exactly | the exact simulation time given |
 | `LocalIngress` | a local run with changes after set wall-clock delays | a wall-clock delay from the start |
+| `FileIngress` | a local run steered by editing a file | within one poll of the save |
 | `KafkaIngress`, `RedisIngress`, `PostgresIngress` | an operator or another program steering a running model | when the message arrives |
 | a process calling `env.registry.update` or `env.registry.change` | a change that depends on the state of the simulation | when the process makes it |
 
-![A YAML scenario lands at the exact simulation time, LocalIngress after a wall-clock delay, the Kafka, Redis and PostgreSQL connectors when a message arrives, and a process when it runs](../../assets/diagrams/change-sources.png)
+![A YAML scenario lands at the exact simulation time, LocalIngress after a wall-clock delay, FileIngress when you save a file, the Kafka, Redis and PostgreSQL connectors when a message arrives, and a process when it runs](../../assets/diagrams/change-sources.png)
 
 [Ingress](ingress.md) gives the message each connector reads. A process changes a value directly:
 
@@ -239,7 +240,7 @@ A scenario is not a connector. It is a SimPy process that waits on the simulatio
 - A step applies before every other event at its time, so an arrival gap drawn at that moment uses the new value.
 - Steps at the same time apply in the order written.
 - A step at or after `until` never applies.
-- Every path of a blueprint's scenario is checked against the model's registry when the file loads, so a misspelt path stops the load with its line. The builder checks its paths when the run starts.
+- A scenario's paths and values are checked before the run, as [Stability and Limits](#stability-and-limits) says.
 
 `LocalIngress` waits on the wall clock instead, and an unknown path is only logged when it is due. A scenario and an ingress connector can run together, so a scripted baseline can run while an operator changes values over Kafka. When both change the same path, the later write wins.
 
@@ -367,7 +368,8 @@ The reading at 30 seconds still shows 1. The resource applies a change within th
 
 ## Stability and Limits
 
-- **An unknown path is a warning, not an error,** for an ingress message or a process that calls `update`; `change` raises `ParamRejected`. Only a scenario is checked when it loads.
+- **An unknown path is a warning, not an error,** for an ingress message or a process that calls `update`; `change` raises `ParamRejected`. Only a scenario's paths and values are checked when it loads.
+- **A scenario's values are checked before the run.** Every path and value of a blueprint's scenario is checked against the model's registry when the file loads, so a misspelt path or a refused value stops the load with its line. `start()` checks them again with its overrides, and that is where a builder model's scenario is checked. A run still stops with `ParamRejected` at a step's time when an ingress message, an `on:` action or a process has changed a related value before the step, because the check cannot know those values. A low-level `run_scenario` checks nothing in advance, so it raises `ParamRejected` whenever it reaches a refused value.
 - **A family is fixed.** There is no path that turns a `normal` into an `exponential`. That is a new model.
 - **Several changes, one signal.** A process waiting on a path wakes once for several changes made before it runs, and reads the latest value.
 - **Ingress lands on the wall clock.** A message's change lands at whatever simulation time the run has reached when it arrives. A change that must happen at an exact simulation time needs a scenario step.

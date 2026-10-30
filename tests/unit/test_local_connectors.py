@@ -5,6 +5,7 @@ import queue
 import pytest
 
 from desflow.connectors.egress.local import ConsoleEgress
+from desflow.connectors.ingress.file import FileIngress
 from desflow.connectors.ingress.local import LocalIngress
 
 
@@ -109,3 +110,152 @@ async def test_console_json_writes_one_line_per_record_at_any_log_level(capsys):
 def test_console_refuses_an_unknown_format():
     with pytest.raises(ValueError, match="format must be log or json, got 'csv'"):
         ConsoleEgress(format="csv")  # type: ignore[arg-type]
+
+
+async def _watch(ingress, steps):
+    """Runs `ingress` on a plain queue while `steps` edits the file, then stops it."""
+    ingress_queue = queue.Queue()
+    task = asyncio.create_task(ingress.run(ingress_queue))
+    await asyncio.sleep(0.05)
+    await steps(ingress_queue)
+    task.cancel()
+    await task
+    return ingress_queue
+
+
+def _drain(ingress_queue):
+    items = []
+    while not ingress_queue.empty():
+        items.append(ingress_queue.get_nowait())
+    return items
+
+
+def _write(path, text, mtime):
+    """Writes the file and sets a modification time that differs from the last one."""
+    import os
+
+    path.write_text(text)
+    os.utime(path, ns=(mtime, mtime))
+
+
+@pytest.mark.asyncio
+async def test_file_ingress_applies_the_first_read_and_each_edit(tmp_path):
+    """The file at the start counts as a first read; a changed value is applied again."""
+    path = tmp_path / "params.yaml"
+    _write(path, "Shop.a: 1\nShop.b: 2\n", 1_000_000_000)
+    ingress = FileIngress(path, poll=0.01)
+
+    async def steps(ingress_queue):
+        assert _drain(ingress_queue) == [("Shop.a", 1), ("Shop.b", 2)]
+        _write(path, "Shop.a: 5\nShop.b: 2\n", 2_000_000_000)
+        await asyncio.sleep(0.05)
+        assert _drain(ingress_queue) == [("Shop.a", 5)]
+
+    await _watch(ingress, steps)
+
+
+@pytest.mark.asyncio
+async def test_file_ingress_puts_nothing_for_a_save_with_no_change(tmp_path):
+    path = tmp_path / "params.yaml"
+    _write(path, "Shop.a: 1\n", 1_000_000_000)
+
+    async def steps(ingress_queue):
+        _drain(ingress_queue)
+        _write(path, "Shop.a: 1\n", 2_000_000_000)
+        await asyncio.sleep(0.05)
+        assert _drain(ingress_queue) == []
+
+    await _watch(FileIngress(path, poll=0.01), steps)
+
+
+@pytest.mark.asyncio
+async def test_file_ingress_puts_nothing_for_a_removed_entry(tmp_path):
+    path = tmp_path / "params.yaml"
+    _write(path, "Shop.a: 1\nShop.b: 2\n", 1_000_000_000)
+
+    async def steps(ingress_queue):
+        _drain(ingress_queue)
+        _write(path, "Shop.a: 1\n", 2_000_000_000)
+        await asyncio.sleep(0.05)
+        assert _drain(ingress_queue) == []
+
+    await _watch(FileIngress(path, poll=0.01), steps)
+
+
+@pytest.mark.asyncio
+async def test_file_ingress_waits_for_a_file_created_after_it_starts(tmp_path, caplog):
+    caplog.set_level(logging.DEBUG)
+    path = tmp_path / "params.yaml"
+
+    async def steps(ingress_queue):
+        await asyncio.sleep(0.05)
+        assert _drain(ingress_queue) == []
+        _write(path, "Shop.a: 3\n", 1_000_000_000)
+        await asyncio.sleep(0.05)
+        assert _drain(ingress_queue) == [("Shop.a", 3)]
+
+    await _watch(FileIngress(path, poll=0.01), steps)
+    assert not [r for r in caplog.records if r.name.endswith("ingress.file")]
+
+
+@pytest.mark.asyncio
+async def test_file_ingress_waits_through_an_empty_save_without_a_warning(
+    tmp_path, caplog
+):
+    """An editor can leave the file empty for a moment while it saves; that is no
+    read, so the same values afterwards are not applied again."""
+    caplog.set_level(logging.DEBUG)
+    path = tmp_path / "params.yaml"
+    _write(path, "Shop.a: 1\n", 1_000_000_000)
+
+    async def steps(ingress_queue):
+        _drain(ingress_queue)
+        _write(path, "", 2_000_000_000)
+        await asyncio.sleep(0.05)
+        _write(path, "Shop.a: 1\n", 3_000_000_000)
+        await asyncio.sleep(0.05)
+        assert _drain(ingress_queue) == []
+
+    await _watch(FileIngress(path, poll=0.01), steps)
+    assert not [r for r in caplog.records if r.name.endswith("ingress.file")]
+
+
+@pytest.mark.asyncio
+async def test_file_ingress_skips_an_invalid_file_and_compares_with_the_last_valid_read(
+    tmp_path, caplog
+):
+    caplog.set_level(logging.WARNING)
+    path = tmp_path / "params.yaml"
+    _write(path, "Shop.a: 1\n", 1_000_000_000)
+
+    async def steps(ingress_queue):
+        _drain(ingress_queue)
+        _write(path, "Shop.a: [1\n", 2_000_000_000)
+        await asyncio.sleep(0.05)
+        _write(path, "- 1\n- 2\n", 3_000_000_000)
+        await asyncio.sleep(0.05)
+        assert _drain(ingress_queue) == []
+        # The same value as the last valid read is not applied again
+        _write(path, "Shop.a: 1\nShop.b: 4\n", 4_000_000_000)
+        await asyncio.sleep(0.05)
+        assert _drain(ingress_queue) == [("Shop.b", 4)]
+
+    await _watch(FileIngress(path, poll=0.01), steps)
+    lines = [r.getMessage() for r in caplog.records]
+    assert len(lines) == 2
+    assert all(f"Skipped the ingress file {path}" in line for line in lines)
+    assert "expected a mapping of paths to values, got list" in lines[1]
+
+
+@pytest.mark.asyncio
+async def test_file_ingress_skips_a_null_value_with_a_warning(tmp_path, caplog):
+    caplog.set_level(logging.WARNING)
+    path = tmp_path / "params.yaml"
+    _write(path, "Shop.a:\nShop.b: 2\n", 1_000_000_000)
+
+    async def steps(ingress_queue):
+        assert _drain(ingress_queue) == [("Shop.b", 2)]
+
+    await _watch(FileIngress(path, poll=0.01), steps)
+    assert caplog.text.count("Skipped an entry of the ingress file") == 1
+    assert "non-null value" in caplog.text

@@ -41,6 +41,7 @@ from importlib.metadata import PackageNotFoundError, version
 # Core & Local Components (Always Available)
 # ---------------------------------------------------------
 from desflow.connectors.egress.local import ConsoleEgress
+from desflow.connectors.ingress.file import FileIngress
 from desflow.connectors.ingress.local import LocalIngress
 from desflow.core.context import SimulationContext
 from desflow.core.environment import DynamicRealtimeEnvironment
@@ -110,6 +111,7 @@ __all__ = [
     "Router",
     "Transfer",
     "LocalIngress",
+    "FileIngress",
     "ConsoleEgress",
     "EventPayload",
     "TelemetryPayload",

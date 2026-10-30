@@ -19,6 +19,7 @@ from desflow.config import LABELS
 from desflow.connectors.egress.local import ConsoleEgress
 from desflow.core.expressions import Expression
 from desflow.core.flow import Wait
+from desflow.core.registry import ParamRejected
 from desflow.core.task import check_acquisition_order
 from desflow.core.context import SimulationContext
 from desflow.core.environment import in_zone, resolve_zone
@@ -50,6 +51,7 @@ EGRESS_TYPES: Dict[str, Tuple[str, str, str]] = {
 }
 INGRESS_TYPES: Dict[str, Tuple[str, str, str]] = {
     "Local": ("desflow.connectors.ingress.local", "LocalIngress", ""),
+    "File": ("desflow.connectors.ingress.file", "FileIngress", ""),
     "Kafka": ("desflow.connectors.ingress.kafka", "KafkaIngress", "kafka"),
     "Postgres": (
         "desflow.connectors.ingress.postgres",
@@ -917,18 +919,24 @@ def _build_context(
 def _check_scenario(
     blueprint: Blueprint, context: SimulationContext, source: SourceMap
 ) -> None:
-    """Checks every scenario path against the registry the run will build.
+    """Checks every scenario path and value against the registry the run will build.
 
     The parameters are registered into a scratch registry with the same code the run
-    uses, so a path is accepted exactly when `registry.update` would find it. Without
-    this a misspelt path is only logged as a warning, at the moment it is due.
+    uses, so a path is accepted exactly when `registry.update` would find it. Each
+    value is then applied with `registry.change`, in the order the run applies the
+    steps, so the load refuses exactly what the run would refuse and ignore. The
+    scratch registry holds a copy of the parameters, so the model keeps its own
+    starting values. Without this a misspelt path or a refused value is only logged,
+    at the moment it is due.
     """
     if not blueprint.scenario:
         return
 
-    registry = context._scratch_registry()
+    registry = context._scratch_registry(isolated=True)
 
-    for index, step in enumerate(blueprint.scenario):
+    # sorted is stable, so steps at equal times keep the order they are written in
+    steps = sorted(enumerate(blueprint.scenario), key=lambda item: item[1].at)
+    for index, step in steps:
         if step.path is None:
             continue
         try:
@@ -949,6 +957,10 @@ def _check_scenario(
                     f"'{step.path}' holds a {type(current).__name__}, and "
                     f"{step.value!r} cannot be converted to one",
                 ) from None
+        try:
+            registry.change(step.path, step.value)
+        except ParamRejected as exc:
+            raise source.error(("scenario", index, "value"), exc.reason) from None
 
 
 def _check_registry_reads(

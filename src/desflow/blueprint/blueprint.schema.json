@@ -714,6 +714,7 @@
             {
               "enum": [
                 "Local",
+                "File",
                 "Kafka",
                 "Postgres",
                 "Redis"

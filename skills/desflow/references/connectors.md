@@ -7,6 +7,7 @@ The short names a connector `type` takes in `ingress` and `egress`. A name is wr
 | Short name | Class | Extra |
 |---|---|---|
 | `Local` | `desflow.connectors.ingress.local.LocalIngress` | none |
+| `File` | `desflow.connectors.ingress.file.FileIngress` | none |
 | `Kafka` | `desflow.connectors.ingress.kafka.KafkaIngress` | `kafka` |
 | `Postgres` | `desflow.connectors.ingress.postgres.PostgresIngress` | `postgres` |
 | `Redis` | `desflow.connectors.ingress.redis.RedisIngress` | `redis` |

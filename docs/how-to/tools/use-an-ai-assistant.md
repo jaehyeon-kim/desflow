@@ -6,6 +6,7 @@ The skill is a folder, `skills/desflow/`, in the Agent Skills format that Claude
 
 - pick a way to write the model;
 - write and run a blueprint;
+- draft a model from a description of a process;
 - check a model before a long run;
 - run a study with a seed, a [warm-up](../../learn/concepts/output-analysis.md#one-run-starts-empty) and [replications](../../learn/concepts/output-analysis.md#replications), compare designs and fit measured times.
 
@@ -41,6 +42,102 @@ gh skill install jaehyeon-kim/desflow desflow --agent claude-code --scope user
 ```
 
 `--scope user` installs for every project, in your home folder. `--scope project`, the default, installs for the current project, inside its git repository, so run it from that repository. Another assistant takes its own `--agent` value, listed in `gh skill install --help`. Without `--agent`, `gh` asks which assistant to install for. When it cannot ask, it installs for GitHub Copilot. At project scope, Copilot uses `.agents/skills`, a folder several other assistants also read. `gh` installs the latest release. `desflow@v<version>` in place of `desflow` pins one, with `<version>` the release you installed.
+
+### Draft from a Description
+
+When you describe a process in words and have no model yet, the skill tells the assistant to follow these steps. You can follow the same steps by hand:
+
+1. Start from the nearest example: `desflow examples list`, then `desflow examples get <name> --api yaml`.
+2. Build in stages, and run the file after each stage: the arrivals, then the tasks and their order, then the resources, then the service times, then the working hours.
+3. Ask for the numbers the description does not give, such as the spread of each time, the share of each branch, the working hours and who does each task, before assuming them.
+4. Mark every assumed number with a comment that says `assumed:`. The assistant lists the assumed numbers first in its reply, because you must confirm them.
+5. Check the load by hand when `desflow explain` gives no estimate, as it does for a model with scenario steps. The work for one case, times the arrival rate, must fit inside the capacity of the working hours.
+6. Close an arrival outside working hours with a first task that routes on a variable the scenario sets. A scenario step that sets an exponential rate to 0 is refused when the file loads.
+7. Stop after three failed attempts at the same error, and read the file and the error yourself.
+
+The repair desk is the worked example these steps were written from. The description is: "A laptop repair desk takes in about 30 laptops a day between 09:00 and 17:00. A technician diagnoses each one in about 20 minutes. Most need a part, which arrives in 1 to 3 days. Repair takes about an hour, then a test. About 1 in 10 fails the test and goes back to repair. There are 3 technicians."
+
+The description does not give the spread of each time, the share that needs a part, how long a test takes, who tests, or the technicians' hours. The blueprint assumes them, and each assumption is marked in a comment:
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml/repair_desk.yaml"
+    # Drafted from a description of a laptop repair desk. Each value says where it came
+    # from: "said" means the description gives it, and "assumed" means the user has not
+    # confirmed it.
+    # Run it with: desflow run repair_desk.yaml
+    simulation:
+      sim_id: Repairs
+      factor: 0
+      random_seed: 42
+
+    variables:
+      desk_open: 0  # 1 from 09:00 to 17:00, set by the scenario
+
+    resources:
+      technicians: {current_cap: 0, max_cap: 3}  # said: 3 technicians; assumed: they work 09:00 to 17:00
+
+    services:
+      diagnosing: {dist: lognormal, mean: 20 min, std: 10 min}  # said: about 20 minutes; assumed: the spread
+      waiting_for_part: {dist: uniform, low: 1 day, high: 3 days}  # said: 1 to 3 days
+      repairing: {dist: lognormal, mean: 1 hour, std: 30 min}  # said: about an hour; assumed: the spread
+      testing: {dist: triangular, low: 10 min, mode: 15 min, high: 30 min}  # assumed: not described
+
+    arrivals:
+      # said: about 30 a day between 09:00 and 17:00, one every 16 minutes on average while open.
+      # Arrivals run all day at that rate, and check_open drops those that come while the desk is closed.
+      laptops: {dist: exponential, rate: 0.0010417, spawn: check_open}
+
+    tasks:
+      check_open:
+        payload: {event_type: checked_open}
+        next:
+          when: [{condition: 'registry["Repairs.variables.desk_open"] == 1', task: diagnose}]
+      diagnose:
+        payload: {event_type: diagnosed}
+        service: diagnosing
+        resource: technicians
+        next:
+          weights: {order_part: 8, repair: 2}  # said: most need a part; assumed: 8 in 10
+      order_part:
+        payload: {event_type: part_arrived}
+        service: waiting_for_part  # a timed step: no resource is held while the part is on its way
+        next: repair
+      repair:
+        payload: {event_type: repaired}
+        service: repairing
+        resource: technicians
+        next: test
+      test:
+        payload: {event_type: tested}
+        service: testing
+        resource: technicians  # assumed: a technician tests
+        next:
+          weights: {done: 9, repair: 1}  # said: about 1 in 10 fails and goes back to repair
+      done:
+        payload: {event_type: returned}
+
+    scenario:  # the desk opens at 09:00 and closes at 17:00 on the first day
+      - {at: 32400, path: Repairs.variables.desk_open, value: 1}
+      - {at: 32400, path: Repairs.resources.technicians.current_cap, value: 3}
+      - {at: 61200, path: Repairs.variables.desk_open, value: 0}
+      - {at: 61200, path: Repairs.resources.technicians.current_cap, value: 0}
+
+    run:
+      until: 1 day
+    ```
+
+=== "Builder"
+
+    The skill drafts a blueprint, so the drafted model is the YAML tab. [Builder API](../../user-guide/writing-a-model/builder-api.md) shows the same model parts in Python.
+
+=== "Low-level"
+
+    The skill drafts a blueprint, so the drafted model is the YAML tab. [Low-level API](../../user-guide/writing-a-model/low-level-api.md) shows the same model parts in SimPy code.
+
+The arrivals run all day at the open rate, because a rate of 0 is refused, and `check_open` ends the laptops that arrive while the desk is closed.
+
+The load check follows from the means and the shares. A laptop needs about 107 technician-minutes: 20 to diagnose, 66.7 to repair (60 minutes, done 1 / 0.9 times on average because of the retests) and 20.4 to test. 30 laptops a day need about 53.5 technician-hours. 3 technicians for 8 hours give 24 hours, so the described desk cannot keep up. The assistant reports this before you read the records, and asks whether the numbers or the technicians are wrong.
 
 ### Other Ways to Teach an Assistant
 

@@ -1189,6 +1189,25 @@ def test_ingress_changes_carry_their_source_and_connector():
     ]
 
 
+def test_file_ingress_changes_carry_their_source_and_connector(tmp_path):
+    """A change read from a file has source "ingress" and FileIngress as actor."""
+    from desflow import FileIngress
+
+    path = tmp_path / "params.yaml"
+    path.write_text("Shop.variables.x: 7\n")
+    env, changes = _env_with_variable()
+    env.setup_ingress([FileIngress(path, poll=0.05)])
+    try:
+        _wait_for_ingress_items(env, 1)
+        env.run(until=0.2)
+    finally:
+        env.teardown_ingress()
+
+    assert [(c.path, c.new, c.source, c.actor) for c in changes] == [
+        ("Shop.variables.x", 7, "ingress", "FileIngress")
+    ]
+
+
 def test_ingress_keeps_one_order_across_providers():
     """Two providers share one arrival order, and `put_nowait` carries the actor too."""
     from desflow import LocalIngress

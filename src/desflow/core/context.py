@@ -1,3 +1,4 @@
+import copy
 import functools
 import inspect
 import itertools
@@ -37,7 +38,7 @@ from desflow.core.expressions import Expression
 from desflow.core.flow import NextSpec, Router, Transfer, Wait, make_scope
 from desflow.core.signals import Signal
 from desflow.core.task import TaskRun, TaskSpec, check_acquisition_order
-from desflow.core.registry import ParamChange, SimulationRegistry
+from desflow.core.registry import ParamChange, ParamRejected, SimulationRegistry
 from desflow.core.sampler import Sampler
 from desflow.models.flow import Entity, Upstream
 from desflow.core.breakdowns import run_breakdowns
@@ -2047,15 +2048,24 @@ class SimulationContext:
             variables=self._variables_config,
         )
 
-    def _scratch_registry(self) -> SimulationRegistry:
+    def _scratch_registry(self, isolated: bool = False) -> SimulationRegistry:
         """Builds a registry with the paths a run registers, on a plain SimPy clock.
 
         The load checks and `registry_paths` call it, so they cannot build the
         registry two ways. Registration fills defaults on the shared config objects,
         as a run does.
+
+        Args:
+            isolated: Register a deep copy of the parameters instead. A check that
+                applies values with `change` needs this, because a change is stored
+                in the config object, and the model's own starting values must not
+                move.
         """
         registry = SimulationRegistry(simpy.Environment())
-        registry.register_sim_parameter(self.compile_parameters())
+        parameters = self.compile_parameters()
+        registry.register_sim_parameter(
+            copy.deepcopy(parameters) if isolated else parameters
+        )
         return registry
 
     def registry_paths(self) -> Dict[str, Any]:
@@ -2413,7 +2423,7 @@ class SimulationContext:
                 f"stats must be one of {', '.join(STATS_LEVELS)}, got {stats!r}"
             )
         _check_end(until, stop, drain, self._signal_names)
-        self._check_tasks()
+        self._check_tasks(overrides)
         for setup in self._before_run:
             setup()
         # A run started and not closed is closed first, so its connectors stop
@@ -2923,12 +2933,26 @@ class SimulationContext:
 
         self._ended = self._tracked | self._copied | has_on
 
-    def _check_tasks(self) -> None:
-        """Checks what each task names, before the clock or any connector starts."""
+    def _check_tasks(self, overrides: Optional[Mapping[str, Any]] = None) -> None:
+        """Checks what each task names, before the clock or any connector starts.
+
+        Args:
+            overrides: The values `start()` applies before the clock starts. The
+                scenario is checked against them, as the run will apply it.
+        """
         self._build_end_sets()
         if self._scenario_steps:
-            known = self._scratch_registry()
-            for step in self._scenario_steps:
+            known = self._scratch_registry(isolated=True)
+            for path, value in (overrides or {}).items():
+                try:
+                    known.change(path, value)
+                except ParamRejected:
+                    # A refused override is reported by the run's own
+                    # set_exactly, with its own message; change logs nothing here
+                    pass
+            # In the order run_scenario applies them, so a value that is valid only
+            # after an earlier step loads as it runs
+            for step in sorted(self._scenario_steps, key=lambda step: step["at"]):
                 if step.get("path") is not None:
                     try:
                         known.get(step["path"])
@@ -2937,6 +2961,13 @@ class SimulationContext:
                             f"scenario step at {step['at']:g} s sets '{step['path']}', "
                             f"which is not a registry path"
                             + suggestion(step["path"], known.paths())
+                        ) from None
+                    try:
+                        known.change(step["path"], step["value"])
+                    except ParamRejected as exc:
+                        raise ValueError(
+                            f"scenario step at {step['at']:g} s sets "
+                            f"'{step['path']}': {exc.reason}"
                         ) from None
                 action = step.get("interrupt")
                 if action is not None and action["task"] not in self._tasks:

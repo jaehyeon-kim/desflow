@@ -1,14 +1,14 @@
 # Ingress
 
-An ingress connector brings parameter changes into a running simulation from outside: from Kafka, Redis, PostgreSQL or a local schedule. This page shows each connector, the message it reads, how to send one, and when the change lands.
+An ingress connector brings parameter changes into a running simulation from outside: from a file you edit, Kafka, Redis, PostgreSQL or a local schedule. This page shows each connector, the message it reads, how to send one, and when the change lands.
 
 ---
 
 ## What It Is
 
-An ingress connector listens to a source while the run goes on. Every message it reads is one change: a registry `path` and its new `value`, the same two names a scenario step uses. The change reaches the registry, and the simulation follows it, as [Live Parameters](live-parameters.md) describes. Four ingress connectors bring changes in. The seven connectors described on [Egress](egress.md) write records out:
+An ingress connector listens to a source while the run goes on. Every message it reads is one change: a registry `path` and its new `value`, the same two names a scenario step uses. The change reaches the registry, and the simulation follows it, as [Live Parameters](live-parameters.md) describes. Five ingress connectors bring changes in. The seven connectors described on [Egress](egress.md) write records out:
 
-![Parameter changes from outside reach the registry through LocalIngress, KafkaIngress, RedisIngress or PostgresIngress; records from tasks and processes leave through ConsoleEgress, KafkaEgress, ParquetStorageEgress, JsonlStorageEgress, RedisEgress, PostgresEgress or IcebergStorageEgress](../../assets/diagrams/connectors-overview.png)
+![Parameter changes from outside reach the registry through LocalIngress, FileIngress, KafkaIngress, RedisIngress or PostgresIngress; records from tasks and processes leave through ConsoleEgress, KafkaEgress, ParquetStorageEgress, JsonlStorageEgress, RedisEgress, PostgresEgress or IcebergStorageEgress](../../assets/diagrams/connectors-overview.png)
 
 The tutorial page [Live Changes](../../learn/running-live/live-changes.md) teaches these features step by step.
 
@@ -21,6 +21,7 @@ Each connector is attached with `add_ingress` in the builder, passed to `env.set
 | Connector | `type` | Source | Message | Extra |
 |---|---|---|---|---|
 | `LocalIngress` | `Local` | a schedule in the code | `(delay in wall-clock seconds, path, value)` | none |
+| `FileIngress` | `File` | a YAML file you edit | `path: value` lines | none |
 | `KafkaIngress` | `Kafka` | a topic | a JSON object `{"path": ..., "value": ...}` | `kafka` |
 | `RedisIngress` | `Redis` | a Pub/Sub channel | the same JSON object | `redis` |
 | `PostgresIngress` | `Postgres` | a table, polled | a row with the columns `path` and `value`, the value as JSON text | `postgres` |
@@ -51,6 +52,42 @@ Each connector is attached with `add_ingress` in the builder, passed to `env.set
 === "Low-level"
 
     The low-level API passes the same `LocalIngress` to `env.setup_ingress`, in its list of connectors, as [Low-level API](../writing-a-model/low-level-api.md#attach-the-connectors) shows.
+
+### File
+
+`FileIngress` watches a local YAML file of `path: value` lines and applies a line when you edit it. It needs no service and no extra, so it is the quickest way to change a parameter while a local run goes. It checks the file's modification time every `poll` wall-clock seconds, 1 by default, and reads the file only when the time has changed.
+
+An entry is applied when it first appears or when its value differs from the last valid read. The file as it stands when the run starts counts as a first read, so the entries in it apply at the start. A save that changes no value applies nothing. An entry you remove changes nothing, and the model keeps the value it has. A file that does not exist yet is waited for.
+
+=== "YAML"
+
+    ```yaml title="docs/snippets/yaml_build/connectors.yaml:file-ingress"
+    # Applies an entry of params.yaml when it first appears or its value changes
+    - type: File
+      config:
+        path: params.yaml
+        poll: 1.0
+    ```
+
+=== "Builder"
+
+    ```python title="docs/snippets/pages/connectors.py:file-ingress"
+    # Applies an entry of params.yaml when it first appears or its value changes
+    app.add_ingress(FileIngress("params.yaml", poll=1.0))
+    ```
+
+=== "Low-level"
+
+    The low-level API passes the same `FileIngress` to `env.setup_ingress`, in its list of connectors, as [Low-level API](../writing-a-model/low-level-api.md#attach-the-connectors) shows.
+
+The file holds one registry path on each line, with its new value:
+
+```text
+Shop.resources.packers.current_cap: 3
+Shop.arrival.orders.rate: 0.5
+```
+
+A relative `path` is relative to the folder the run starts in.
 
 ### Kafka
 
@@ -265,5 +302,132 @@ A connector is a class with one method, `async run(queue)`, so a source desflow 
     ALTER TABLE simulation_params RENAME COLUMN param_value TO value;
     ```
 
-- **`LocalIngress` follows the wall clock,** so at `factor: 0` an unpaced run can end before its first change.
+- **An invalid file is skipped.** An empty file, which an editor can leave for a moment while it saves, is skipped with no log line. A file that is not valid YAML, or is not a mapping, is logged as one WARNING line that names the file and the parser's error, and nothing from that read is applied. The next valid read is compared with the last valid one. An entry with an empty path or a null value is logged as one WARNING line and skipped, as for the other connectors.
+- **`LocalIngress` follows the wall clock,** so at `factor: 0` an unpaced run can end before its first change. `FileIngress` does too.
 - **Ingress needs an `until`.** The ingress monitor repeats for as long as the run lasts, so a run with ingress needs `until` or Ctrl+C, as [Run Length](../time-and-pacing/run-length.md#run-length_1) explains.
+
+---
+
+## Example: File Steering
+
+The `file` example has a shop with one packer and more orders than one packer can pack. A `File` connector reads `params.yaml`, whose one line sets the packers' capacity. Change the 1 to 5 while the run goes and save the file. The statistics, published every 2 seconds, show the capacity change and the queue shrink. It needs no Docker service and ends on its own after 60 seconds of real time. Each tab shows how the example attaches the connector, then how to download and run it.
+
+=== "YAML"
+
+    ```yaml title="examples/yaml/file.yaml:file-ingress"
+    ingress:
+      # A relative path is relative to the folder the command runs in
+      - type: File
+        config:
+          path: ../params.yaml
+    ```
+
+    **Quick Start**
+
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+    === "uv"
+
+        ```bash
+        # 1. Install
+        uv tool install desflow
+
+        # 2. Download the example
+        desflow examples get file --api yaml
+        cd file/yaml
+
+        # 3. Run it
+        desflow run file.yaml
+        ```
+
+    === "pip"
+
+        ```bash
+        # 1. Install
+        pip install desflow
+
+        # 2. Download the example
+        desflow examples get file --api yaml
+        cd file/yaml
+
+        # 3. Run it
+        desflow run file.yaml
+        ```
+
+=== "Builder"
+
+    ```python title="examples/builder/file_example.py:file-ingress"
+    # Applies an entry of the file when it first appears or its value changes
+    .add_ingress(FileIngress(PARAMS_FILE))
+    ```
+
+    **Quick Start**
+
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+    === "uv"
+
+        ```bash
+        # 1. Install
+        uv tool install desflow
+
+        # 2. Download the example
+        desflow examples get file --api builder
+        cd file/builder
+
+        # 3. Run it
+        uv run --no-project --with desflow file_example.py
+        ```
+
+    === "pip"
+
+        ```bash
+        # 1. Install
+        pip install desflow
+
+        # 2. Download the example
+        desflow examples get file --api builder
+        cd file/builder
+
+        # 3. Run it
+        python file_example.py
+        ```
+
+=== "Low-level"
+
+    ```python title="examples/low-level/file_example.py:file-ingress"
+    # Applies an entry of the file when it first appears or its value changes
+    env.setup_ingress([FileIngress(PARAMS_FILE)])
+    ```
+
+    **Quick Start**
+
+    `desflow examples get` downloads the example at the release you install, into a folder of its own. Pick uv or pip:
+
+    === "uv"
+
+        ```bash
+        # 1. Install
+        uv tool install desflow
+
+        # 2. Download the example
+        desflow examples get file --api low-level
+        cd file/low-level
+
+        # 3. Run it
+        uv run --no-project --with desflow file_example.py
+        ```
+
+    === "pip"
+
+        ```bash
+        # 1. Install
+        pip install desflow
+
+        # 2. Download the example
+        desflow examples get file --api low-level
+        cd file/low-level
+
+        # 3. Run it
+        python file_example.py
+        ```

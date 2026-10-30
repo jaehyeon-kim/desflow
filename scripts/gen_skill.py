@@ -52,7 +52,7 @@ SECTIONS: Dict[str, str] = {
     "telemetry": "Custom readings published at a fixed interval.",
     "processes": "Python functions that run beside the tasks, named with `!python`.",
     "scenario": "Changes to a parameter at set times in the run, and records of what was true then.",
-    "ingress": "Where parameter changes come in from: Local, Kafka, Postgres or Redis.",
+    "ingress": "Where parameter changes come in from: Local, File, Kafka, Postgres or Redis.",
     "egress": "Where records go out to: Console, Kafka, Parquet, Jsonl, Iceberg, Postgres or Redis.",
     "batching": "How records are grouped before they are sent.",
     "stats": "Which built-in statistics are published, and how often.",

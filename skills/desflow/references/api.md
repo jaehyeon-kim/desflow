@@ -19,6 +19,7 @@ Every name `from desflow import ...` gives, with the first line of its docstring
 | `EventPayload` | Schema for high-volume discrete simulation events. |
 | `ExperimentResult` | What an experiment found, as `run_experiment` returns it and its artifacts hold it. |
 | `ExperimentSpec` | A whole experiment file, or the same settings given in Python. |
+| `FileIngress` | Ingress provider that applies the entries of a local YAML file when you edit it. |
 | `FitResult` | The outcome of fitting one column: every candidate, the best and the data. |
 | `IcebergStorageEgress` | Apache Iceberg table writer for lakehouse ingestion patterns. |
 | `JsonlStorageEgress` | High-throughput JSONL batch writer for local file systems or object storage. |

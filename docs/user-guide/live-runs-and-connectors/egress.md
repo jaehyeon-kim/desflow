@@ -8,7 +8,7 @@ An egress connector, or sink, writes the records a run publishes: to the console
 
 A run publishes three kinds of record: **events**, such as a task's `queued`, `started` and finished; **telemetry**, single values such as the statistics; and **labels**, the ground-truth records of what a scenario changed. Every sink receives every event and every telemetry record, unless its `when` says otherwise. Labels go only to sinks that ask for them. [Records and Telemetry](../../reference/records-and-telemetry.md) shows each record's shape and what each sink writes.
 
-![Parameter changes from outside reach the registry through LocalIngress, KafkaIngress, RedisIngress or PostgresIngress; records from tasks and processes leave through ConsoleEgress, KafkaEgress, ParquetStorageEgress, JsonlStorageEgress, RedisEgress, PostgresEgress or IcebergStorageEgress](../../assets/diagrams/connectors-overview.png)
+![Parameter changes from outside reach the registry through LocalIngress, FileIngress, KafkaIngress, RedisIngress or PostgresIngress; records from tasks and processes leave through ConsoleEgress, KafkaEgress, ParquetStorageEgress, JsonlStorageEgress, RedisEgress, PostgresEgress or IcebergStorageEgress](../../assets/diagrams/connectors-overview.png)
 
 The tutorial page [Streaming Out](../../learn/running-live/streaming-out.md) teaches these features step by step.
 
