@@ -1057,7 +1057,7 @@ pydantic = [
 
 [[package]]
 name = "desflow"
-version = "0.27.0"
+version = "0.28.0"
 source = { editable = "." }
 dependencies = [
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },

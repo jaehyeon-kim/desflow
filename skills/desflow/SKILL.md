@@ -2,9 +2,9 @@
 name: desflow
 description: Write, check and run desflow discrete-event simulation models in YAML, the builder API or the low-level API. Use when a task mentions desflow, a blueprint, or a SimPy model that streams records.
 license: MIT
-compatibility: desflow 0.27.0 or later, Python 3.11 or later, the `desflow` command installed
+compatibility: desflow 0.28.0 or later, Python 3.11 or later, the `desflow` command installed
 metadata:
-  desflow-version: "0.27.0"
+  desflow-version: "0.28.0"
 ---
 
 # desflow
@@ -30,6 +30,18 @@ A blueprint can also call Python with `!python module.attribute`, so a model rar
 
 `desflow schema` prints the same JSON Schema as `assets/blueprint.schema.json`, for the installed version.
 
+## Draft a model from a description
+
+Use these steps when the user describes a process in words and has no model yet.
+
+1. Start from the nearest example: `desflow examples list`, then `desflow examples get <name> --api yaml`.
+2. Build in stages, and run the file after each stage: the arrivals, then the tasks and their order, then the resources, then the service times, then the working hours.
+3. Ask the user for the numbers the description does not give, before assuming them: the spread of each time, the share of each branch, the working hours, and who does each task.
+4. Mark every number you had to assume with a comment that says `assumed:` and what was assumed. Put the assumed numbers first in your reply, because the user must confirm them.
+5. Check the load by hand when `desflow explain` gives no estimate, as it does for a model with scenario steps. The work for one case is the sum of its task times, counting a branch by its share and a rework loop by how often it repeats. That work, times the arrival rate, must fit inside the capacity of the working hours. If it does not, the queue grows without limit, and the user should hear that before anything runs.
+6. To close an arrival outside working hours, do not set its exponential rate to 0, because a scenario step with that value is refused when the file loads. Let the arrival run all day at the open rate, and make the first task route on a variable that the scenario sets: `next: {when: [{condition: 'registry["Shop.variables.open"] == 1', task: first_task}]}`. An arrival that comes while the desk is closed ends there.
+7. Stop after three failed attempts at the same error, and show the user the file and the error.
+
 ## Check a model before a long run
 
 1. See the first records with `desflow run <file> --sample 10`. It prints the first 10 events as JSON lines, unpaced, with no ingress and no real sinks, so a model that writes to Kafka or a database needs no service.
@@ -54,7 +66,7 @@ To give a service a measured mean and standard deviation, `desflow dist <family>
 | `telemetry` | Custom readings published at a fixed interval. |
 | `processes` | Python functions that run beside the tasks, named with `!python`. |
 | `scenario` | Changes to a parameter at set times in the run, and records of what was true then. |
-| `ingress` | Where parameter changes come in from: Local, Kafka, Postgres or Redis. |
+| `ingress` | Where parameter changes come in from: Local, File, Kafka, Postgres or Redis. |
 | `egress` | Where records go out to: Console, Kafka, Parquet, Jsonl, Iceberg, Postgres or Redis. |
 | `batching` | How records are grouped before they are sent. |
 | `stats` | Which built-in statistics are published, and how often. |

@@ -141,6 +141,8 @@ if __name__ == "__main__":
     app.run(until="2 min")
 ```
 
+`app.on_change` takes callbacks that receive every parameter change of each run `start()` builds, as [Follow Every Change](../live-runs-and-connectors/live-parameters.md#follow-every-change) shows.
+
 `ConsoleEgress` writes each batch of records in one INFO log call, one line per record, so the script switches logging on before it runs. Only the first line of a batch carries the logging format's prefix, such as the time and the level. The other lines are bare. The first events of the run:
 
 <!-- records: builder-first -->

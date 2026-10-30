@@ -10,6 +10,7 @@ from pyiceberg.catalog.rest import RestCatalog
 
 from desflow import (
     ConsoleEgress,
+    FileIngress,
     IcebergStorageEgress,
     JsonlStorageEgress,
     KafkaEgress,
@@ -31,6 +32,11 @@ app.add_ingress(
     LocalIngress(schedule=[(10.0, "Shop.resources.packers.current_cap", 3)])
 )
 # --8<-- [end:local-ingress]
+
+# --8<-- [start:file-ingress]
+# Applies an entry of params.yaml when it first appears or its value changes
+app.add_ingress(FileIngress("params.yaml", poll=1.0))
+# --8<-- [end:file-ingress]
 
 # --8<-- [start:kafka-ingress]
 # Reads {"path": ..., "value": ...} messages from the sim-config topic

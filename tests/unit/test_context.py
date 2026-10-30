@@ -1320,3 +1320,288 @@ def test_replay_spawn():
         (1.0, "orders-1", {"task_id": 0}),
         (2.5, "orders-2", {"task_id": 1}),
     ]
+
+
+def _wait_for_ingress_item(env):
+    """Waits, for at most 2 wall-clock seconds, until an ingress item is queued."""
+    import time
+
+    deadline = time.monotonic() + 2
+    while env.ingress_queue.qsize() < 1:
+        assert time.monotonic() < deadline, "the ingress item never arrived"
+        time.sleep(0.005)
+
+
+def _app_with_speed():
+    app = SimulationContext("Shop", factor=0.0)
+    app.add_variable("speed", 1)
+    changes: list = []
+    app.on_change.append(changes.append)
+    return app, changes
+
+
+def test_builder_ingress_change_carries_its_source():
+    """The builder reports a connector's change as source "ingress", with its class."""
+    from desflow import LocalIngress
+
+    app, changes = _app_with_speed()
+    app.add_ingress(LocalIngress([(0.0, "Shop.variables.speed", 4)]))
+    env = app.start(until=1)
+    _wait_for_ingress_item(env)
+    app.finish()
+
+    assert [(c.path, c.new, c.source, c.actor) for c in changes] == [
+        ("Shop.variables.speed", 4, "ingress", "LocalIngress")
+    ]
+
+
+def test_builder_file_ingress_change_carries_its_source(tmp_path):
+    """The builder reports a file's change as source "ingress", with FileIngress."""
+    from desflow import FileIngress
+
+    path = tmp_path / "params.yaml"
+    path.write_text("Shop.variables.speed: 4\n")
+    app, changes = _app_with_speed()
+    app.add_ingress(FileIngress(path, poll=0.05))
+    env = app.start(until=1)
+    _wait_for_ingress_item(env)
+    app.finish()
+
+    assert [(c.path, c.new, c.source, c.actor) for c in changes] == [
+        ("Shop.variables.speed", 4, "ingress", "FileIngress")
+    ]
+
+
+def test_builder_scenario_step_has_the_scenario_source():
+    """A scenario step is reported as source "scenario"."""
+    app, changes = _app_with_speed()
+    app.add_step(2, path="Shop.variables.speed", value=3)
+    app.run(until=5)
+
+    assert [(c.old, c.new, c.source, c.at) for c in changes] == [(1, 3, "scenario", 2)]
+
+
+def test_an_on_action_change_has_no_source():
+    """A change from an `on:` action is the model's own, so its source is None."""
+    app, changes = _app_with_speed()
+    app.add_arrival("orders", dist="constant", value=1)
+
+    @app.task(on=[{"path": "Shop.variables.speed", "value": 7}], name="courier")
+    def courier(task_id):
+        return {}
+
+    @app.arrival_loop("orders")
+    def loop(context):
+        entity = yield context.wait_for_arrival("orders")
+        context.spawn(courier(context.next_instance("courier"), entity=entity))
+        yield context.env.event()
+
+    app.run(until=3)
+
+    assert [(c.new, c.source, c.actor) for c in changes][:1] == [(7, None, None)]
+
+
+def test_an_on_action_with_a_refused_value_is_logged_and_the_run_goes_on(caplog):
+    """Only a scenario step is refused; an `on:` action keeps `update`."""
+    app = SimulationContext("Shop", factor=0.0)
+    app.add_arrival("orders", dist="exponential", rate=1.0)
+
+    @app.task(on=[{"path": "Shop.arrival.orders.rate", "value": 0}], name="courier")
+    def courier(task_id):
+        return {}
+
+    @app.arrival_loop("orders")
+    def loop(context):
+        entity = yield context.wait_for_arrival("orders")
+        context.spawn(courier(context.next_instance("courier"), entity=entity))
+        yield context.env.event()
+
+    with caplog.at_level("ERROR"):
+        app.run(until=10)
+
+    assert "Invalid value for 'Shop.arrival.orders.rate'" in caplog.text
+    assert "Update ignored." in caplog.text
+    assert app.env.now == 10
+
+
+def test_a_builder_scenario_value_the_registry_refuses_stops_start():
+    """`start()` refuses a refused value before the clock or any connector starts."""
+    import threading
+
+    from desflow import LocalIngress
+
+    app = SimulationContext("Shop", factor=0.0)
+    app.add_arrival("orders", dist="exponential", rate=1.0)
+    app.add_ingress(LocalIngress([]))
+    app.add_step(5, path="Shop.arrival.orders.rate", value=0)
+    threads = threading.active_count()
+
+    with pytest.raises(ValueError) as error:
+        app.start(until=10)
+
+    message = str(error.value)
+    assert message.startswith("scenario step at 5 s sets 'Shop.arrival.orders.rate': ")
+    assert "exponential rate must be greater than 0" in message
+    assert threading.active_count() == threads
+
+
+def test_a_builder_scenario_is_checked_with_the_overrides_of_start():
+    """An override can make a later step's value invalid, and `start()` refuses it
+    before the clock starts, not at the step's time."""
+    app = SimulationContext("Shop", factor=0.0)
+    app.add_arrival("orders", dist="uniform", low=1.0, high=5.0)
+    app.add_step(5, path="Shop.arrival.orders.high", value=3.0)
+
+    with pytest.raises(ValueError) as error:
+        app.start(until=10, overrides={"Shop.arrival.orders.low": 4.0})
+
+    message = str(error.value)
+    assert message.startswith("scenario step at 5 s sets 'Shop.arrival.orders.high': ")
+    assert "low 4.0, high 3.0" in message
+
+    # Without the override the same scenario starts and runs to its end
+    app.run(until=10)
+    assert app.env.now == 10
+
+
+def test_a_builder_scenario_check_leaves_the_starting_values():
+    """The check applies the steps to a copy, so the model keeps its own values."""
+    app = SimulationContext("Shop", factor=0.0)
+    app.add_arrival("orders", dist="exponential", rate=1.0)
+    app.add_step(5, path="Shop.arrival.orders.rate", value=3)
+
+    app.start(until=1)
+    try:
+        assert app.env.registry.get("Shop.arrival.orders.rate").value == 1.0
+    finally:
+        app.finish()
+
+
+def test_low_level_run_scenario_raises_for_a_refused_value():
+    """A refused step stops a low-level run at its time with `ParamRejected`."""
+    from desflow import (
+        DistributionConfig,
+        DynamicRealtimeEnvironment,
+        ParamRejected,
+        SimParameter,
+    )
+    from desflow.core.scenario import run_scenario
+
+    env = DynamicRealtimeEnvironment(factor=0.0)
+    env.registry.register_sim_parameter(
+        SimParameter(
+            sim_id="Shop",
+            arrival={"orders": DistributionConfig(dist="exponential", rate=1.0)},
+        )
+    )
+    env.process(
+        run_scenario(env, [{"at": 5, "path": "Shop.arrival.orders.rate", "value": 0}])
+    )
+
+    with pytest.raises(ParamRejected) as error:
+        env.run(until=10)
+
+    assert env.now == 5
+    assert error.value.path == "Shop.arrival.orders.rate"
+
+
+def test_start_describes_its_overrides():
+    """`start()` gives each override's change the source, actor and reason it is given."""
+    app, changes = _app_with_speed()
+    app.add_variable("mode", "slow")
+    app.start(
+        until=1,
+        overrides={"Shop.variables.speed": 5, "Shop.variables.mode": "fast"},
+        source="user",
+        actor="alice",
+        reason="test",
+    )
+    app.finish()
+
+    assert [(c.path, c.new, c.source, c.actor, c.reason, c.at) for c in changes] == [
+        ("Shop.variables.speed", 5, "user", "alice", "test", 0),
+        ("Shop.variables.mode", "fast", "user", "alice", "test", 0),
+    ]
+
+
+def test_every_run_of_a_context_calls_its_callbacks():
+    """Two runs of one context call the callback in both; a callback added after
+    `start()` waits for the next run."""
+    app, changes = _app_with_speed()
+    late: list = []
+
+    app.start(until=1, overrides={"Shop.variables.speed": 2})
+    app.on_change.append(late.append)
+    app.finish()
+    assert [c.new for c in changes] == [2]
+    assert late == []
+
+    app.start(until=1, overrides={"Shop.variables.speed": 3})
+    app.finish()
+    assert [c.new for c in changes] == [2, 3]
+    assert [c.new for c in late] == [3]
+
+
+def test_low_level_scenario_changes_have_the_scenario_source():
+    """The low-level `run_scenario` reports its steps as source "scenario"."""
+    from desflow import DynamicRealtimeEnvironment, SimParameter
+    from desflow.core.scenario import run_scenario
+
+    env = DynamicRealtimeEnvironment(factor=0.0)
+    env.registry.register_sim_parameter(SimParameter(sim_id="Shop", variables={"x": 0}))
+    changes: list = []
+    env.registry.on_change.append(changes.append)
+    env.process(run_scenario(env, [{"at": 2, "path": "Shop.variables.x", "value": 9}]))
+    env.run(until=5)
+
+    assert [(c.new, c.source, c.at) for c in changes] == [(9, "scenario", 2)]
+
+
+def _shop_with_ingress():
+    from desflow import LocalIngress
+
+    app = SimulationContext("Shop", factor=0.0)
+    app.add_resource("packers", current_cap=2, max_cap=5)
+    app.add_container("tank", current_cap=10.0, max_cap=20.0)
+    app.add_service("packing", dist="normal", mean=5.0, std=1.0)
+    app.add_arrival("orders", dist="exponential", rate=0.5)
+    app.add_variable("speed", 1)
+    app.add_ingress(LocalIngress([]))
+    return app
+
+
+def test_registry_paths_are_the_paths_and_values_of_a_run():
+    """`registry_paths()` equals what the run's registry holds, and starts no thread."""
+    import threading
+
+    app = _shop_with_ingress()
+    threads = threading.active_count()
+
+    paths = app.registry_paths()
+
+    assert threading.active_count() == threads
+    assert app.started is False
+    env = app.start(until=1)
+    try:
+        registry = env.registry
+        assert paths == {p: registry.get(p).value for p in registry.paths()}
+        assert list(paths) == registry.paths()
+    finally:
+        app.finish()
+
+
+def test_registry_paths_of_a_refused_model_raise_an_ordinary_exception():
+    """A model the registry refuses raises its error, not `SystemExit`, and starts no thread."""
+    import threading
+
+    app = _shop_with_ingress()
+    config = app._resources_config["packers"]
+    config.current_cap, config.max_cap = None, 0.5
+    threads = threading.active_count()
+
+    with pytest.raises(Exception, match="max_cap 0.5 and no current_cap") as raised:
+        app.registry_paths()
+
+    assert isinstance(raised.value, ValueError)
+    assert not isinstance(raised.value, SystemExit)
+    assert threading.active_count() == threads

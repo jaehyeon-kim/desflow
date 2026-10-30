@@ -7,7 +7,7 @@ A live run changes its parameters while it runs and sends its records out as the
 ## What It Is
 
 - **Live parameters** sit in the registry under named paths, such as `Shop.service.packing.mean`. An arrival rate, a number of packers or a stock level can change while the run goes on.
-- **Ingress** connectors bring those changes in from outside: from Kafka, Redis, PostgreSQL or a local schedule.
+- **Ingress** connectors bring those changes in from outside: from a file you edit, Kafka, Redis, PostgreSQL or a local schedule.
 - **Egress** connectors, or sinks, write the records the run publishes: to the console, Kafka, Redis, PostgreSQL, Parquet or JSON Lines files, or Iceberg tables.
 
 ---

@@ -19,6 +19,7 @@ Every name `from desflow import ...` gives, with the first line of its docstring
 | `EventPayload` | Schema for high-volume discrete simulation events. |
 | `ExperimentResult` | What an experiment found, as `run_experiment` returns it and its artifacts hold it. |
 | `ExperimentSpec` | A whole experiment file, or the same settings given in Python. |
+| `FileIngress` | Ingress provider that applies the entries of a local YAML file when you edit it. |
 | `FitResult` | The outcome of fitting one column: every candidate, the best and the data. |
 | `IcebergStorageEgress` | Apache Iceberg table writer for lakehouse ingestion patterns. |
 | `JsonlStorageEgress` | High-throughput JSONL batch writer for local file systems or object storage. |
@@ -28,6 +29,8 @@ Every name `from desflow import ...` gives, with the first line of its docstring
 | `LabelPayload` | Schema for ground-truth records: what a scenario step changed, and why. |
 | `LocalIngress` | Ingress provider for deterministic, time-scheduled parameter updates. |
 | `LowLevelModel` | A model written with the low-level API, for `replicate` and `run_experiment`. |
+| `ParamChange` | One accepted change to a registry path. |
+| `ParamRejected` | Raised by `SimulationRegistry.change` when the registry refuses a value. |
 | `ParquetStorageEgress` | Columnar Parquet writer for local disks or object storage. |
 | `PostgresEgress` | Asynchronous egress provider for persisting simulation data to PostgreSQL. |
 | `PostgresIngress` | Asynchronous ingress provider for polling updates from a PostgreSQL database. |

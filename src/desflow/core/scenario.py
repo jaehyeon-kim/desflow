@@ -66,7 +66,8 @@ def run_scenario(
     given. A step's `at` counts from when this process starts, the start of the run
     when it is started with the model, so it does not depend on `initial_time`.
 
-    A step with a `path` and `value` updates the registry; one with a `record`
+    A step with a `path` and `value` changes the registry, and each `on_change`
+    callback receives the change with the source `"scenario"`; one with a `record`
     publishes a ground-truth record of the change (`env.publish_label`); one with an
     `interrupt`, `{task, where, cause}`, calls `interrupt(task, where=..., cause=...)`,
     which the builder and YAML pass as `context.interrupt`.
@@ -77,6 +78,14 @@ def run_scenario(
         until: The run's end, a reading of the clock; steps due at or after it are
             dropped, as an event due at exactly `until` does not run.
         interrupt: What an `interrupt` step calls; such steps need it.
+
+    Raises:
+        ParamRejected: When the run reaches a step whose value the registry refuses,
+            such as an exponential rate of 0. It stops the run, as any exception in
+            a process does. The builder and a blueprint check the values with the
+            run's overrides before the clock starts, so their runs reach it only
+            when an ingress message, an `on:` action or a process has changed a
+            related value before the step.
     """
     ordered: List[dict] = sorted(
         (check_step(step) for step in steps), key=lambda step: step["at"]
@@ -97,6 +106,8 @@ def run_scenario(
             record=step.get("record"),
             interrupt=interrupt,
             action=step.get("interrupt"),
+            source="scenario",
+            refuse=True,
         )
 
 
@@ -107,6 +118,8 @@ def apply_step(
     record: Optional[Mapping[str, Any]] = None,
     interrupt: Optional[Callable[..., Any]] = None,
     action: Optional[Mapping[str, Any]] = None,
+    source: Optional[str] = None,
+    refuse: bool = False,
 ) -> None:
     """Applies one change: a registry `path` and `value`, a ground-truth `record`,
     and an `interrupt` action. Shared by `run_scenario` and an `on:` list's actions,
@@ -119,11 +132,23 @@ def apply_step(
         record: A ground-truth record to publish, or None.
         interrupt: The function an `action` calls, as `run_scenario` takes it.
         action: An `{task, where, cause}` interrupt, or None.
+        source: Where the registry change came from, as `ParamChange.source` records
+            it; `run_scenario` passes `"scenario"`, and a model's own `on:` action
+            passes none.
+        refuse: Raise `ParamRejected` for a value the registry refuses, instead of
+            logging it and going on. `run_scenario` passes True, so a refused step
+            stops the run at its time; an `on:` action keeps the default.
+
+    Raises:
+        ParamRejected: If `refuse` is True and the registry refuses the value.
     """
     old = new = None
     if path is not None:
         old = env.registry.get(path).value
-        env.registry.update(path, value)
+        if refuse:
+            env.registry.change(path, value, source=source)
+        else:
+            env.registry.update(path, value, source=source)
         new = env.registry.get(path).value
     if record is not None:
         env.publish_label(record, path=path, old=old, new=new)

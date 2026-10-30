@@ -40,6 +40,7 @@ PAGES = {
     "breakdowns": "docs/how-to/modelling/breakdowns.md",
     "changing-demand": "docs/how-to/modelling/time-varying-arrivals.md",
     "local-replay": "docs/user-guide/model-parts/arrivals-and-services.md",
+    "file": "docs/user-guide/live-runs-and-connectors/ingress.md",
     "replications": "docs/user-guide/results/replications.md",
     "experiment": "docs/user-guide/results/experiments.md",
     "fitting": "docs/user-guide/model-parts/input-fitting.md",

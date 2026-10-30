@@ -1,0 +1,48 @@
+# File steering: change the packers' capacity by editing a file, in YAML.
+#
+# The YAML version of file_example.py, which --api builder downloads. This simulation
+# models a shop packing orders, and orders arrive faster than one packer can pack
+# them. The File connector reads ../params.yaml, whose one line sets the capacity.
+# Open that file in an editor while the run goes, change the 1 to 5 and save it. The
+# packers' capacity and queue_length, which the statistics publish every 2 seconds,
+# show the effect within about a second.
+#
+# Needs no containers. The run goes in real time and ends after 60 seconds.
+# Run it from its folder with: desflow run file.yaml
+
+simulation:
+  sim_id: Shop
+  factor: 1.0
+  random_seed: 42
+
+egress:
+  - type: Console
+
+# --8<-- [start:file-ingress]
+ingress:
+  # A relative path is relative to the folder the command runs in
+  - type: File
+    config:
+      path: ../params.yaml
+# --8<-- [end:file-ingress]
+
+resources:
+  packers: {current_cap: 1, max_cap: 5}
+
+services:
+  packing: {dist: normal, mean: 3.0, std: 0.5}
+
+arrivals:
+  orders: {dist: exponential, rate: 1.0, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    payload: {event_type: order_packed, shipping: standard}
+    id_field: order_id
+
+stats: {level: minimal, interval: 2}
+
+run:
+  until: 60

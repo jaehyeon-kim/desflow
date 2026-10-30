@@ -1,0 +1,63 @@
+# Drafted from a description of a laptop repair desk. Each value says where it came
+# from: "said" means the description gives it, and "assumed" means the user has not
+# confirmed it.
+# Run it with: desflow run repair_desk.yaml
+simulation:
+  sim_id: Repairs
+  factor: 0
+  random_seed: 42
+
+variables:
+  desk_open: 0  # 1 from 09:00 to 17:00, set by the scenario
+
+resources:
+  technicians: {current_cap: 0, max_cap: 3}  # said: 3 technicians; assumed: they work 09:00 to 17:00
+
+services:
+  diagnosing: {dist: lognormal, mean: 20 min, std: 10 min}  # said: about 20 minutes; assumed: the spread
+  waiting_for_part: {dist: uniform, low: 1 day, high: 3 days}  # said: 1 to 3 days
+  repairing: {dist: lognormal, mean: 1 hour, std: 30 min}  # said: about an hour; assumed: the spread
+  testing: {dist: triangular, low: 10 min, mode: 15 min, high: 30 min}  # assumed: not described
+
+arrivals:
+  # said: about 30 a day between 09:00 and 17:00, one every 16 minutes on average while open.
+  # Arrivals run all day at that rate, and check_open drops those that come while the desk is closed.
+  laptops: {dist: exponential, rate: 0.0010417, spawn: check_open}
+
+tasks:
+  check_open:
+    payload: {event_type: checked_open}
+    next:
+      when: [{condition: 'registry["Repairs.variables.desk_open"] == 1', task: diagnose}]
+  diagnose:
+    payload: {event_type: diagnosed}
+    service: diagnosing
+    resource: technicians
+    next:
+      weights: {order_part: 8, repair: 2}  # said: most need a part; assumed: 8 in 10
+  order_part:
+    payload: {event_type: part_arrived}
+    service: waiting_for_part  # a timed step: no resource is held while the part is on its way
+    next: repair
+  repair:
+    payload: {event_type: repaired}
+    service: repairing
+    resource: technicians
+    next: test
+  test:
+    payload: {event_type: tested}
+    service: testing
+    resource: technicians  # assumed: a technician tests
+    next:
+      weights: {done: 9, repair: 1}  # said: about 1 in 10 fails and goes back to repair
+  done:
+    payload: {event_type: returned}
+
+scenario:  # the desk opens at 09:00 and closes at 17:00 on the first day
+  - {at: 32400, path: Repairs.variables.desk_open, value: 1}
+  - {at: 32400, path: Repairs.resources.technicians.current_cap, value: 3}
+  - {at: 61200, path: Repairs.variables.desk_open, value: 0}
+  - {at: 61200, path: Repairs.resources.technicians.current_cap, value: 0}
+
+run:
+  until: 1 day

@@ -10,7 +10,7 @@
         <mxCell id="c1" value="find the path&lt;br&gt;&lt;font style='font-size:12px'&gt;Shop.resources.packers.current_cap&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=3;" vertex="1" parent="1">
           <mxGeometry x="0.0" y="50.0" width="560" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="c2" value="send the value&lt;br&gt;&lt;font style='font-size:12px'&gt;from a scenario, LocalIngress, Kafka, Redis or PostgreSQL&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;" vertex="1" parent="1">
+        <mxCell id="c2" value="send the value&lt;br&gt;&lt;font style='font-size:12px'&gt;from a scenario, LocalIngress, FileIngress, Kafka, Redis or PostgreSQL&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;" vertex="1" parent="1">
           <mxGeometry x="0.0" y="160.0" width="560" height="60" as="geometry" />
         </mxCell>
         <mxCell id="c3" value="see it in the telemetry&lt;br&gt;&lt;font style='font-size:12px'&gt;[TEL] {..., 'path_id': 'Shop.stats.resources.packers.capacity', 'value': 3}&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=2;" vertex="1" parent="1">

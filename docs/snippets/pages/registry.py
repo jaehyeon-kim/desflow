@@ -10,6 +10,7 @@ from desflow import (
     DistributionConfig,
     DynamicRealtimeEnvironment,
     DynamicResource,
+    ParamRejected,
     SimParameter,
 )
 
@@ -45,6 +46,30 @@ env.registry.update("Shop.service.packing.rate", 2.0)  # normal has no rate: ign
 env.registry.update("Shop.containers.stock.level", 150)  # stored as 100, the capacity
 # --8<-- [end:update]
 
+# --8<-- [start:change]
+change = env.registry.change(
+    "Shop.resources.packers.current_cap",
+    4,
+    source="user",
+    actor="alice",
+    reason="two packers are on leave",
+)
+print(change.old, change.new, change.changed)  # 5 4 True
+try:
+    env.registry.change("Shop.service.packing.std", -1.0)
+except ParamRejected as exc:
+    # invalid value for 'Shop.service.packing.std': normal std must be 0 or more ...
+    print(exc.reason)
+# --8<-- [end:change]
+
+# --8<-- [start:on_change]
+changes: list = []
+env.registry.on_change.append(changes.append)  # called with every accepted change
+env.registry.update("Shop.resources.packers.current_cap", 3, source="user")
+# Shop.resources.packers.current_cap 4 3
+print(changes[0].path, changes[0].old, changes[0].new)
+# --8<-- [end:on_change]
+
 # --8<-- [start:follow]
 packing = env.registry.get_config("Shop.service.packing")
 print(packing.mean)  # 3.0: the Sampler reads this object on its next draw
@@ -78,6 +103,11 @@ if __name__ == "__main__":
         env.run(until=10.0)
     finally:
         env.teardown()
-    assert env.registry.get("Shop.resources.packers.current_cap").value == 5
+    assert env.registry.get("Shop.resources.packers.current_cap").value == 3
     assert env.registry.get("Shop.service.packing.std").value == 0.5
     assert env.registry.get("Shop.containers.stock.level").value == 100
+    assert [(c.path, c.new, c.source) for c in changes] == [
+        ("Shop.resources.packers.current_cap", 3, "user"),
+        ("Shop.service.packing.mean", 4.0, None),
+        ("Shop.variables.conveyor_speed", 2.0, None),
+    ]

@@ -13,7 +13,10 @@ ROOT = Path(__file__).resolve().parents[2]
 _ROADMAP = (ROOT / "docs" / "about" / "roadmap.md").read_text()
 _VERSION = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
 _PLANNED, _RELEASED = _ROADMAP.split("\n## Released\n", 1)
-_ENTRIES = re.findall(r"^- title: '([^']*)'\n((?:  .*\n)+)", _PLANNED, re.MULTILINE)
+# A YAML single-quoted title writes a quote as two, as in 'SimPy''s examples'
+_ENTRIES = re.findall(
+    r"^- title: '((?:[^']|'')*)'\n((?:  .*\n)+)", _PLANNED, re.MULTILINE
+)
 
 
 def _version(text: str) -> tuple[int, ...] | None:

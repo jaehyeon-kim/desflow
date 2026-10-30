@@ -41,11 +41,12 @@ from importlib.metadata import PackageNotFoundError, version
 # Core & Local Components (Always Available)
 # ---------------------------------------------------------
 from desflow.connectors.egress.local import ConsoleEgress
+from desflow.connectors.ingress.file import FileIngress
 from desflow.connectors.ingress.local import LocalIngress
 from desflow.core.context import SimulationContext
 from desflow.core.environment import DynamicRealtimeEnvironment
 from desflow.core.flow import Router, Transfer
-from desflow.core.registry import SimulationRegistry
+from desflow.core.registry import ParamChange, ParamRejected, SimulationRegistry
 from desflow.core.sampler import Sampler
 from desflow.core.signals import Signal, SignalFailed
 from desflow.core.task import TaskFailed
@@ -88,6 +89,8 @@ __all__ = [
     "TaskFailed",
     "SimulationContext",
     "load_context",
+    "ParamChange",
+    "ParamRejected",
     "SimulationRegistry",
     "DynamicResource",
     "ResourceBase",
@@ -108,6 +111,7 @@ __all__ = [
     "Router",
     "Transfer",
     "LocalIngress",
+    "FileIngress",
     "ConsoleEgress",
     "EventPayload",
     "TelemetryPayload",

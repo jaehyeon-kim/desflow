@@ -1,3 +1,4 @@
+import copy
 import functools
 import inspect
 import itertools
@@ -37,7 +38,7 @@ from desflow.core.expressions import Expression
 from desflow.core.flow import NextSpec, Router, Transfer, Wait, make_scope
 from desflow.core.signals import Signal
 from desflow.core.task import TaskRun, TaskSpec, check_acquisition_order
-from desflow.core.registry import SimulationRegistry
+from desflow.core.registry import ParamChange, ParamRejected, SimulationRegistry
 from desflow.core.sampler import Sampler
 from desflow.models.flow import Entity, Upstream
 from desflow.core.breakdowns import run_breakdowns
@@ -126,6 +127,12 @@ class SimulationContext:
             logs it and uses it; read it afterwards from `sampler.seed`.
         sampler (Optional[Sampler]): The centralized Random Number Generator engine.
             Accessible to user-defined raw generators only after `.run()` is called.
+        on_change (List[Callable[[ParamChange], None]]): Callbacks that receive a
+            `ParamChange` for every accepted registry change. Each `start()` copies
+            the list into the registry of the run it builds, so a callback added
+            after `start()` reaches the next run; for the current run, add it to
+            `env.registry.on_change`. A YAML model takes callbacks on the context
+            `from_yaml` returns.
     """
 
     def __init__(
@@ -284,6 +291,9 @@ class SimulationContext:
 
         # Runtime State (Post-Compilation)
         self._env: Optional[DynamicRealtimeEnvironment] = None
+        # Called with a `ParamChange` for every accepted registry change of a run;
+        # start() copies them into that run's registry
+        self.on_change: List[Callable[[ParamChange], None]] = []
         # True once start() has built and started everything, so a caller can tell
         # a value refused before the run from an error inside it
         self.started = False
@@ -2038,6 +2048,48 @@ class SimulationContext:
             variables=self._variables_config,
         )
 
+    def _scratch_registry(self, isolated: bool = False) -> SimulationRegistry:
+        """Builds a registry with the paths a run registers, on a plain SimPy clock.
+
+        The load checks and `registry_paths` call it, so they cannot build the
+        registry two ways. Registration fills defaults on the shared config objects,
+        as a run does.
+
+        Args:
+            isolated: Register a deep copy of the parameters instead. A check that
+                applies values with `change` needs this, because a change is stored
+                in the config object, and the model's own starting values must not
+                move.
+        """
+        registry = SimulationRegistry(simpy.Environment())
+        parameters = self.compile_parameters()
+        registry.register_sim_parameter(
+            copy.deepcopy(parameters) if isolated else parameters
+        )
+        return registry
+
+    def registry_paths(self) -> Dict[str, Any]:
+        """
+        Returns the registry paths a run will have, with their starting values.
+
+        It builds the registry the way a run does, runs no model code and starts no
+        connector or thread. A server's inspector uses it to list the paths a live
+        change can set.
+
+        A capacity with no limit has the value `math.inf`, which JSON cannot hold,
+        so a caller that writes JSON converts it.
+
+        Returns:
+            Dict[str, Any]: Each path, such as `Shop.resources.packers.current_cap`,
+                with its starting value, in the order a run registers them.
+
+        Raises:
+            ValueError: If the registry refuses the model's parameters, as a run
+                would at its start.
+        """
+        registry = self._scratch_registry()
+        return {path: registry.get(path).value for path in registry.paths()}
+
     def analyze(
         self,
         verify: bool = False,
@@ -2293,6 +2345,9 @@ class SimulationContext:
         ingress: bool = True,
         run_settings: bool = True,
         on_unhandled_failure: Optional[str] = None,
+        source: Optional[str] = None,
+        actor: Optional[str] = None,
+        reason: Optional[str] = None,
     ) -> DynamicRealtimeEnvironment:
         """
         Builds and starts everything `run()` does before the clock moves.
@@ -2327,6 +2382,10 @@ class SimulationContext:
             run_settings: False leaves out a blueprint's `run.until`, `run.stop`
                 and `run.drain`, for a run whose clock never moves, such as the
                 one that sends replications' summary to the sinks.
+            source: How the `ParamChange` of each override describes it: where it
+                came from, such as `"user"`.
+            actor: How the `ParamChange` of each override describes it: who made it.
+            reason: How the `ParamChange` of each override describes it: why.
 
         Returns:
             DynamicRealtimeEnvironment: The environment, also `context.env`.
@@ -2364,7 +2423,7 @@ class SimulationContext:
                 f"stats must be one of {', '.join(STATS_LEVELS)}, got {stats!r}"
             )
         _check_end(until, stop, drain, self._signal_names)
-        self._check_tasks()
+        self._check_tasks(overrides)
         for setup in self._before_run:
             setup()
         # A run started and not closed is closed first, so its connectors stop
@@ -2384,7 +2443,17 @@ class SimulationContext:
         logger.info(f"Building SimulationContext for '{self.sim_id}'...")
         try:
             return self._build(
-                until, stop, drain, seed, overrides, stats, egress, ingress
+                until,
+                stop,
+                drain,
+                seed,
+                overrides,
+                stats,
+                egress,
+                ingress,
+                source,
+                actor,
+                reason,
             )
         except BaseException:
             # The connectors may have started their threads; stop them, as run()
@@ -2403,6 +2472,9 @@ class SimulationContext:
         stats: Optional[str],
         egress: bool,
         ingress: bool,
+        source: Optional[str],
+        actor: Optional[str],
+        reason: Optional[str],
     ) -> DynamicRealtimeEnvironment:
         """The part of `start()` after the checks: builds and starts the run."""
 
@@ -2417,6 +2489,8 @@ class SimulationContext:
             env_kwargs["timezone"] = self.timezone
         env_kwargs["on_unhandled_failure"] = self._on_unhandled_failure
         self._env = self.environment(**env_kwargs)
+        # The callbacks of this run, in place before the overrides are applied
+        self._env.registry.on_change.extend(self.on_change)
 
         # One random sequence per distribution, all from the run's seed
         if seed is None:
@@ -2467,7 +2541,9 @@ class SimulationContext:
         # Compile Master Parameter Object
         self._env.registry.register_sim_parameter(self.compile_parameters())
         for path, value in (overrides or {}).items():
-            self._env.registry.set_exactly(path, value)
+            self._env.registry.set_exactly(
+                path, value, source=source, actor=actor, reason=reason
+            )
 
         # Connect External Infrastructure
         if self._ingress_providers and ingress:
@@ -2857,13 +2933,26 @@ class SimulationContext:
 
         self._ended = self._tracked | self._copied | has_on
 
-    def _check_tasks(self) -> None:
-        """Checks what each task names, before the clock or any connector starts."""
+    def _check_tasks(self, overrides: Optional[Mapping[str, Any]] = None) -> None:
+        """Checks what each task names, before the clock or any connector starts.
+
+        Args:
+            overrides: The values `start()` applies before the clock starts. The
+                scenario is checked against them, as the run will apply it.
+        """
         self._build_end_sets()
         if self._scenario_steps:
-            known = SimulationRegistry(simpy.Environment())
-            known.register_sim_parameter(self.compile_parameters())
-            for step in self._scenario_steps:
+            known = self._scratch_registry(isolated=True)
+            for path, value in (overrides or {}).items():
+                try:
+                    known.change(path, value)
+                except ParamRejected:
+                    # A refused override is reported by the run's own
+                    # set_exactly, with its own message; change logs nothing here
+                    pass
+            # In the order run_scenario applies them, so a value that is valid only
+            # after an earlier step loads as it runs
+            for step in sorted(self._scenario_steps, key=lambda step: step["at"]):
                 if step.get("path") is not None:
                     try:
                         known.get(step["path"])
@@ -2872,6 +2961,13 @@ class SimulationContext:
                             f"scenario step at {step['at']:g} s sets '{step['path']}', "
                             f"which is not a registry path"
                             + suggestion(step["path"], known.paths())
+                        ) from None
+                    try:
+                        known.change(step["path"], step["value"])
+                    except ParamRejected as exc:
+                        raise ValueError(
+                            f"scenario step at {step['at']:g} s sets "
+                            f"'{step['path']}': {exc.reason}"
                         ) from None
                 action = step.get("interrupt")
                 if action is not None and action["task"] not in self._tasks:
@@ -3078,8 +3174,7 @@ class SimulationContext:
                 for path in expression.references["registry"]:
                     if registry is None:
                         # The paths the run will register, built by the same code
-                        registry = SimulationRegistry(simpy.Environment())
-                        registry.register_sim_parameter(self.compile_parameters())
+                        registry = self._scratch_registry()
                     try:
                         registry.get(path)
                     except KeyError:

@@ -246,6 +246,7 @@ EXAMPLE_CASES = [
     ("breakdowns", "breakdowns.yaml", None, 300, _every_minute),
     ("changing_demand", "changing_demand.yaml", None, 300, _every_minute_typical),
     ("local_replay", "local_replay.yaml", None, 120, _built),
+    ("file", "file.yaml", None, 60, _tasks_and_stats(2.0)),
     ("replications", "replications.yaml", None, 1200, _typical),
     ("experiment", "experiment_shop.yaml", None, 600, _built),
     ("fitting", "fitting.yaml", "scipy", 1200, _typical),
