@@ -1,0 +1,6043 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Realistic event streams from a SimPy simulation you can steer while it runs, written to Kafka, Redis, PostgreSQL, Parquet, JSONL and Iceberg.">
+      
+      
+      
+        <link rel="canonical" href="https://jaehyeon.me/desflow/latest/about/changelog/">
+      
+      
+        <link rel="prev" href="../roadmap/">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/favicon.png">
+      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.0">
+    
+    
+      
+        <title>Changelog - desflow</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../css/neoteroi-mkdocs.css">
+    
+      <link rel="stylesheet" href="../../css/roadmap.css">
+    
+      <link rel="stylesheet" href="../../css/tables.css">
+    
+      <link rel="stylesheet" href="../../css/code-lines.css">
+    
+      <link rel="stylesheet" href="../../css/external-links.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+  
+
+
+  
+  
+
+<script id="__analytics">function __md_analytics(){function e(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],e("js",new Date),e("config","G-076N8WCGWZ"),document.addEventListener("DOMContentLoaded",(function(){document.forms.search&&document.forms.search.query.addEventListener("blur",(function(){this.value&&e("event","search",{search_term:this.value})}));document$.subscribe((function(){var t=document.forms.feedback;if(void 0!==t)for(var a of t.querySelectorAll("[type=submit]"))a.addEventListener("click",(function(a){a.preventDefault();var n=document.location.pathname,d=this.getAttribute("data-md-value");e("event","feedback",{page:n,data:d}),t.firstElementChild.disabled=!0;var r=t.querySelector(".md-feedback__note [data-md-value='"+d+"']");r&&(r.hidden=!1)})),t.hidden=!1})),location$.subscribe((function(t){e("config","G-076N8WCGWZ",{page_path:t.pathname})}))}));var t=document.createElement("script");t.async=!0,t.src="https://www.googletagmanager.com/gtag/js?id=G-076N8WCGWZ",document.getElementById("__analytics").insertAdjacentElement("afterEnd",t)}</script>
+  
+    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
+  
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="light-blue">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#changelog" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
+      
+  <img src="../../assets/favicon.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            desflow
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Changelog
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="light-blue"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="light-blue"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/jaehyeon-kim/desflow" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    desflow
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
+      
+  <img src="../../assets/favicon.png" alt="logo">
+
+    </a>
+    desflow
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/jaehyeon-kim/desflow" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    desflow
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../learn/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Learn
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Learn
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../learn/what-is-des/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Is DES?
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial: A First Model
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tutorial: A First Model
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../learn/first-model/first-simulation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    First Simulation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../learn/first-model/queues-and-capacity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Queues and Capacity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../learn/first-model/randomness-and-seeds/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Randomness and Seeds
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../learn/first-model/measuring-a-run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Measuring a Run
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../learn/first-model/end-conditions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    End Conditions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial: Inputs
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tutorial: Inputs
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../learn/inputs/choosing-inputs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choosing Inputs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../learn/inputs/fit-the-inputs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fitting the Inputs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../learn/inputs/changing-demand/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changing Demand
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../learn/inputs/local-replay/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local Replay
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_5" id="__nav_3_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial: Shop Logic
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tutorial: Shop Logic
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../learn/shop-logic/stock/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stock
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../learn/shop-logic/priorities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Priorities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../learn/shop-logic/flow-of-tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A Flow of Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../learn/shop-logic/process-interaction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Process Interaction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../learn/shop-logic/patience/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Patience
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../learn/shop-logic/interruptions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interruptions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../learn/shop-logic/competing-resources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Competing Resources
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../learn/shop-logic/filtered-inventory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Filtered Inventory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial: Studies
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tutorial: Studies
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../learn/studies/trusting-results/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trusting Results
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../learn/studies/comparing-designs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Comparing Designs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../learn/studies/parameter-sweeps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Parameter Sweeps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../learn/studies/checking-a-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Checking a Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../learn/studies/complete-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Complete Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_7" id="__nav_3_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial: Running Live
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tutorial: Running Live
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../learn/running-live/live-changes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Live Changes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../learn/running-live/streaming-out/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Streaming Out
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_8" id="__nav_3_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Simulation Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Simulation Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../learn/concepts/queueing-basics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Queueing Basics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../learn/concepts/a-simulation-study/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A Simulation Study
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../learn/concepts/checking-and-validating/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Checking and Validating
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../learn/concepts/output-analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Output Analysis
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../learn/concepts/readiness-and-reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Readiness and Reporting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../learn/concepts/common-mistakes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Common Mistakes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../user-guide/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/how-desflow-works/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How desflow Works
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../user-guide/writing-a-model/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing a Model
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4_3" id="__nav_4_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Writing a Model
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/writing-a-model/blueprints/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    YAML Blueprints
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/writing-a-model/builder-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Builder API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/writing-a-model/low-level-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Low-level API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../user-guide/model-parts/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Model Parts
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4_4" id="__nav_4_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Model Parts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/model-parts/arrivals-and-services/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Arrivals and Services
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/model-parts/input-fitting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Input Fitting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/model-parts/task-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Task Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/model-parts/stores-and-containers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stores and Containers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_5" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../user-guide/tasks-and-processes/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tasks and Processes
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4_5" id="__nav_4_5_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tasks and Processes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/tasks-and-processes/processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Processes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/tasks-and-processes/signals-and-waiting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Signals and Waiting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/tasks-and-processes/failures/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Failures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../user-guide/resources/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Resources
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4_6" id="__nav_4_6_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Resources
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/resources/priority-and-preemption/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Priority and Preemption
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/resources/several-resources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Several Resources
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/resources/custom-resource-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Resource Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_7" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../user-guide/time-and-pacing/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Time and Pacing
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4_7" id="__nav_4_7_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Time and Pacing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/time-and-pacing/clocks-and-pacing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clocks and Pacing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/time-and-pacing/run-length/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run Length
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_8" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../user-guide/results/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Results
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4_8" id="__nav_4_8_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Results
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/results/statistics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Built-in Statistics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/results/replications/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Replications
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/results/experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/results/experiment-results/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiment Results
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_9" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../user-guide/live-runs-and-connectors/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Live Runs and Connectors
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4_9" id="__nav_4_9_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Live Runs and Connectors
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/live-runs-and-connectors/live-parameters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Live Parameters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/live-runs-and-connectors/ingress/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ingress
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/live-runs-and-connectors/egress/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Egress
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../cli/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Command Line
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Command Line
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cli/run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    desflow run
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cli/explain/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    desflow explain
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cli/experiment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    desflow experiment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cli/report/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    desflow report
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cli/fit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    desflow fit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cli/dist/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    desflow dist
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cli/schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    desflow schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cli/examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    desflow examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cli/examples-list/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    desflow examples list
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cli/examples-get/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    desflow examples get
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../how-to/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How-To
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6" id="__nav_6_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    How-To
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_2" id="__nav_6_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modelling
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Modelling
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/modelling/time-varying-arrivals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Vary Arrivals by Time
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/modelling/reneging-and-balking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Add Reneging and Balking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/modelling/wait-for-one-or-all/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Wait for One or All
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/modelling/multi-resource-handoffs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hand Off to a Resource
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/modelling/share-by-weight/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Share Work by Weight
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/modelling/breakdowns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Model Breakdowns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/modelling/dynamic-topology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Add Resources Mid-run
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_3" id="__nav_6_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Records and Kafka
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Records and Kafka
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/records-and-kafka/complex-routing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Route Records to Topics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/records-and-kafka/avro-and-pydantic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Use Avro and Pydantic
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/records-and-kafka/json-schema-and-protobuf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    JSON Schema and Protobuf
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/records-and-kafka/kafka-security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Connect to Secure Kafka
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/records-and-kafka/write-a-connector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Write a Connector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_4" id="__nav_6_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Storage and Tables
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Storage and Tables
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/storage-and-tables/cloud-storage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Write to Cloud Storage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/storage-and-tables/iceberg-tables/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Write to Iceberg Tables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_5" id="__nav_6_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Analysis
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Analysis
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/analysis/fit-a-distribution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fit a Distribution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/analysis/check-against-theory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Check Against Theory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/analysis/test-a-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test a Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/analysis/analyse-the-event-log/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Analyse the Event Log
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/analysis/animate-a-run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Animate a Run
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_6" id="__nav_6_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tools
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/tools/yaml-advanced/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Call Python from YAML
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/tools/set-up-your-editor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Set Up Your Editor
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/tools/use-an-ai-assistant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Use an AI Assistant
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/tools/performance-tuning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tune Performance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_7" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../how-to/examples/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Runnable Examples
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6_7" id="__nav_6_7_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Runnable Examples
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/examples/local/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local Simulation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/examples/kafka/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kafka Digital Twin
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/examples/parquet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fast-Forward to Parquet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/examples/iceberg/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fast-Forward to Iceberg
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/examples/postgres/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PostgreSQL
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/examples/redis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Redis
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/examples/backfill-live/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Parquet History, Kafka Live
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/examples/advanced-postgres-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Related Records
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../how-to/projects/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Projects Using desflow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../simpy/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SimPy and desflow
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_7" id="__nav_7_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    SimPy and desflow
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../simpy/coming-from-simpy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Coming from SimPy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../simpy/compatibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SimPy Compatibility
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/yaml-keys/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    YAML Keys
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/distributions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Distributions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/statistics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Statistic Names
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/records-and-telemetry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Records and Telemetry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    About
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    About
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../why-desflow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why desflow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#version-0270" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Version 0.27.0
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Version 0.27.0">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#upgrading" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upgrading
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#version-0260" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Version 0.26.0
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Version 0.26.0">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#upgrading_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upgrading
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#version-0250" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Version 0.25.0
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Version 0.25.0">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#upgrading_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upgrading
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#version-0240" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Version 0.24.0
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Version 0.24.0">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#upgrading_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upgrading
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#version-0230" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Version 0.23.0
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Version 0.23.0">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#upgrading_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upgrading
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#version-0220" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Version 0.22.0
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Version 0.22.0">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#upgrading_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upgrading
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#version-0210" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Version 0.21.0
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Version 0.21.0">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#upgrading_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upgrading
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#version-0200" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Version 0.20.0
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Version 0.20.0">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#upgrading_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upgrading
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#version-0270" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Version 0.27.0
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Version 0.27.0">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#upgrading" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upgrading
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#version-0260" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Version 0.26.0
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Version 0.26.0">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#upgrading_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upgrading
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#version-0250" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Version 0.25.0
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Version 0.25.0">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#upgrading_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upgrading
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#version-0240" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Version 0.24.0
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Version 0.24.0">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#upgrading_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upgrading
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#version-0230" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Version 0.23.0
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Version 0.23.0">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#upgrading_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upgrading
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#version-0220" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Version 0.22.0
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Version 0.22.0">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#upgrading_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upgrading
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#version-0210" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Version 0.21.0
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Version 0.21.0">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#upgrading_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upgrading
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#version-0200" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Version 0.20.0
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Version 0.20.0">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#upgrading_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upgrading
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="changelog">Changelog</h1>
+<p>Each release, newest first: what changed, then under Upgrading what to change in code, commands or installs that use the previous release.</p>
+<h2 id="version-0270">Version 0.27.0</h2>
+<ul>
+<li><code>GlueAvroSerializer</code> and <code>GlueAvroDeserializer</code> talk to AWS Glue with desflow's own client and wire format, so the <code>glue</code> extra no longer depends on aws-glue-schema-registry. The arguments and the bytes on the topic are the same.</li>
+<li>The <code>kafka</code> extra no longer installs kafka-python. <code>KafkaAdminConnector.create_topics</code> and the topic creation of <code>KafkaEgress</code> use aiokafka.</li>
+<li>JSON Schema and Protobuf are read and written through both schema registries, next to Avro, by <code>ConfluentJsonSchemaSerializer</code>, <code>ConfluentJsonSchemaDeserializer</code>, <code>ConfluentProtobufSerializer</code>, <code>ConfluentProtobufDeserializer</code>, <code>GlueJsonSchemaSerializer</code>, <code>GlueJsonSchemaDeserializer</code>, <code>GlueProtobufSerializer</code> and <code>GlueProtobufDeserializer</code>. See <a href="../../how-to/records-and-kafka/json-schema-and-protobuf/#json-schema">JSON Schema</a> and <a href="../../how-to/records-and-kafka/json-schema-and-protobuf/#protobuf">Protobuf</a>.</li>
+<li>The builder and low-level scripts of the <a href="../../how-to/examples/">Kafka, PostgreSQL, Redis and Related Records examples</a> stop at <code>EXAMPLE_UNTIL</code> simulation seconds when that variable is set, and run until Ctrl + C when it is not.</li>
+<li>A new How-To group, Storage and Tables, has two pages: <a href="../../how-to/storage-and-tables/cloud-storage/">Write to Cloud Storage</a> writes Parquet and JSON Lines files to S3, Google Cloud Storage or Azure Blob Storage, and <a href="../../how-to/storage-and-tables/iceberg-tables/">Write to Iceberg Tables</a> appends to a table through a SQLite, REST, PostgreSQL or Glue catalog. Each has YAML, Builder and Low-level forms.</li>
+</ul>
+<h3 id="upgrading">Upgrading</h3>
+<ul>
+<li>The <code>glue</code> extra no longer installs <code>aws-glue-schema-registry</code>. Code that imports <code>aws_schema_registry</code> itself must add it to its own dependencies.</li>
+<li>Glue schema registration waits up to 30 seconds (10 checks, 3 seconds apart) for a new schema version to become available. aws-glue-schema-registry 1.1.3 waited 3 seconds once and then checked 10 times with no wait between checks.</li>
+<li>Glue registry and framing failures raise desflow's <code>SchemaRegistryError</code> and <code>SerializationError</code>, importable from <code>desflow.connectors.egress.kafka</code> and <code>desflow.connectors.ingress.kafka</code>, not <code>aws_schema_registry.SchemaRegistryException</code>.</li>
+<li><code>GlueAvroDeserializer</code> compiles a JSON schema version with fastjsonschema, as aws-glue-schema-registry 1.1.3 did, and the <code>glue</code> extra needs fastjsonschema 2.22.1 or later, where 1.1.3 accepted any 2.x release from 2.15. A JSON schema version that fastjsonschema cannot compile, or a record that is not JSON, does not match the schema or cannot be checked against it, raises <code>SerializationError</code>, where 1.1.3 raised the exception of fastjsonschema, orjson or Python, or its own <code>ValidationError</code>.</li>
+<li>The <code>confluent</code> extra also installs <code>jsonschema</code> and <code>protobuf</code>, and the <code>glue</code> extra also installs <code>protobuf</code>.</li>
+<li>The <code>kafka</code> extra no longer installs kafka-python. <code>KafkaAdminConnector</code> takes aiokafka's admin settings, so a kafka-python-only setting such as <code>ssl_cafile</code> is refused: pass <code>ssl_context</code>. A kafka-python token provider is refused too: pass <code>KafkaAdminConnector</code> the aiokafka provider that <code>KafkaEgress</code> takes, as <a href="../../how-to/records-and-kafka/kafka-security/#aws-msk-iam">AWS MSK (IAM)</a> shows. Code that imports <code>kafka</code> itself installs kafka-python separately. <code>KafkaAdminConnector.create_topics</code> raises the <code>aiokafka.errors</code> class for a broker error, such as <code>aiokafka.errors.InvalidReplicationFactorError</code>, where it raised the <code>kafka.errors</code> class: catch <code>aiokafka.errors.KafkaError</code> instead.</li>
+</ul>
+<h2 id="version-0260">Version 0.26.0</h2>
+<ul>
+<li>The <code>confluent</code> extra no longer installs confluent-kafka. desflow writes and reads the Confluent Schema Registry wire format itself with httpx and fastavro, so the extra no longer depends on a package without Python 3.15 support. The bytes on the topic are the same.</li>
+<li><code>ConfluentAvroSerializer</code> and <code>ConfluentAvroDeserializer</code> take named arguments for a secured registry: <code>auth</code>, <code>verify</code>, <code>cert</code>, <code>timeout</code>, <code>headers</code>, <code>proxy</code> and <code>max_retries</code>. See <a href="../../how-to/records-and-kafka/avro-and-pydantic/#registry-connection">Registry Connection</a>.</li>
+<li>A Parquet or JSON Lines egress writes to Google Cloud Storage and Azure Blob Storage, from a <code>filesystem</code> mapping with <code>type: gcs</code> or <code>type: azure</code>, in YAML, the builder and the low-level API. See <a href="../../user-guide/live-runs-and-connectors/egress/#parquet-and-json-lines">Parquet and JSON Lines</a>.</li>
+<li>An Iceberg egress writes through a SQL catalog on SQLite or PostgreSQL and through a Glue catalog, and the <code>iceberg</code> extra installs what they need. See <a href="../../user-guide/live-runs-and-connectors/egress/#iceberg">Iceberg</a>.</li>
+<li>Python 3.15 is supported. On 3.15 the <code>kafka</code>, <code>confluent</code> and <code>glue</code> extras build aiokafka, and the <code>iceberg</code> extra builds pyiceberg and zstandard, from source, which needs a C compiler. See <a href="../../installation/#install-the-package">Installation</a>.</li>
+<li><code>GlueAvroSerializer</code> serializes a record. It failed on every record in every release since 0.7.0.</li>
+<li>The docs are reorganised. Learn holds the tutorial and, after it, the concept pages, each explained from the tutorial's shop. Command Line and SimPy and desflow are sections of their own. The examples are the <a href="../../how-to/examples/">Runnable Examples</a> group of How-To, and its overview page holds <a href="../../how-to/examples/#services-for-the-examples">Services for the Examples</a>, the odctl profiles each example needs, which moved from Installation.</li>
+<li>Model code is shown in YAML, Builder and Low-level tabs on every page except those about one way of writing, such as Builder API. Every How-To script has all three forms, each with a test, except on the two pages about blueprints alone, Call Python from YAML and Set Up Your Editor.</li>
+<li>The Cheat Sheet and YAML Format pages are removed. <a href="../../reference/yaml-keys/">YAML Keys</a> is the one list of blueprint keys, and both old addresses lead to it.</li>
+<li>Each page's address follows the sidebar, such as <code>cli/run/</code> for <code>desflow run</code> and <code>how-to/modelling/breakdowns/</code> for Model Breakdowns. Every old address, and every old link to a moved section, leads to the new place.</li>
+</ul>
+<h3 id="upgrading_1">Upgrading</h3>
+<ul>
+<li><code>pip install "desflow[confluent]"</code> no longer installs confluent-kafka. Code that imports <code>confluent_kafka</code> itself installs it separately.</li>
+<li>The <code>confluent</code> and <code>glue</code> extras no longer install dataclasses-avroschema, which desflow's own code does not use. Code that builds its schema with <code>AvroBaseModel</code> installs it with <code>pip install "dataclasses-avroschema[pydantic]"</code>.</li>
+<li>The confluent-kafka keys passed as <code>**registry_kwargs</code>, such as <code>basic.auth.user.info</code>, still work with a <code>FutureWarning</code> and are removed in 0.30.0. Use <code>auth=</code>, <code>verify=</code>, <code>cert=</code>, <code>timeout=</code>, <code>proxy=</code>, <code>headers=</code> and <code>max_retries=</code> instead. OAuth bearer sources other than <code>STATIC_TOKEN</code> are refused: pass the token in <code>headers=</code>. <code>retries.wait.ms</code>, <code>retries.max.wait.ms</code> and <code>url</code> are refused: set <code>max_retries=</code> and pass the URL as <code>registry_url</code>. <code>cache.capacity</code> and <code>cache.latest.ttl.sec</code> are ignored.</li>
+<li>Registry and framing errors are <code>SchemaRegistryError</code> and <code>SerializationError</code>, importable from <code>desflow.connectors.egress.kafka</code> or <code>desflow.connectors.ingress.kafka</code>, not confluent-kafka's classes.</li>
+<li>The subject is always <code>&lt;topic&gt;-value</code>. confluent-kafka 2.14.0 and later first asked the registry for a topic association, so on a registry with associations defined it could use another subject.</li>
+<li>The deserializer looks up a writer schema by its id alone. confluent-kafka 2.11.0 and later also sent the subject, which makes the registry search every schema context, so a schema registered only in a context other than the default one is no longer found.</li>
+<li>A writer schema with enabled Data Contract read rules (domain or encoding) is refused, including a rule with <code>onFailure: NONE</code>, which confluent-kafka skipped.</li>
+<li>A connection error to the registry is retried up to <code>max_retries</code> times (3 by default), with a random wait of up to 1, 2 and 4 seconds; it failed at once before.</li>
+<li>Each step of a request to the registry (connecting, sending, reading) times out after 10 seconds. It never timed out before. Pass <code>timeout=None</code> for the old behaviour.</li>
+<li>The <code>parquet</code> extra requires pyarrow 16.0.0 or later. It was 14.0.0. Azure Blob Storage needs <code>AzureFileSystem</code>, which pyarrow has from 16.0.0. On Windows, PyPI's pyarrow wheels include it from 24.0.0.</li>
+</ul>
+<h2 id="version-0250">Version 0.25.0</h2>
+<ul>
+<li><code>desflow explain FILE</code> shows a model as a graph from its arrivals to its exits, without running it. For each resource it gives the utilisation, the status and, where the queueing formulas apply, the waits. It also names the bottleneck and the capacity that brings utilisation to a target. Where a formula does not apply, it says why. <code>--json</code> prints the same result as JSON, which is experimental through 1.x. See <a href="../../learn/first-model/queues-and-capacity/#explain-the-load">Explain the Load</a>.</li>
+<li><code>desflow explain --verify</code> also runs the model unpaced, once or with <code>--replications N</code>, and compares its statistics with the formulas. <code>context.analyze()</code> gives the same result in Python. See <a href="../../how-to/analysis/check-against-theory/">Check Against Theory</a>.</li>
+<li><code>desflow dist</code> lists the distribution families, shows one family's parameters, rules and syntax, and converts its parameters to a mean and standard deviation and back, such as <code>desflow dist gamma --mean 1.5 --std 0.4832</code>. See <a href="../../learn/inputs/choosing-inputs/#measured-times">Measured Times</a>.</li>
+<li><code>desflow run FILE --sample N</code> prints the first <code>N</code> events as JSON lines, unpaced, with no ingress and no real sinks. <code>desflow run FILE --stdout</code> runs the model as usual but prints its records as JSON lines instead of sending them to the file's sinks. It prints every record except the <code>system.simulation.lag_seconds</code> readings. In Python, <code>build</code>, <code>SimulationContext.from_yaml</code> and <code>load_context</code> take <code>preview=Preview(sample=N)</code> for <code>--sample</code> and <code>preview=Preview()</code> for <code>--stdout</code>, with <code>Preview</code> from <code>desflow.blueprint.build</code>. See <a href="../../user-guide/writing-a-model/blueprints/#preview-the-records">Preview the Records</a>.</li>
+<li><code>ConsoleEgress(format="json")</code>, and <code>type: Console</code> with <code>config: {format: json}</code> in YAML, write each record to stdout as one JSON line, while the log stays on stderr. See <a href="../../user-guide/live-runs-and-connectors/egress/#console">Console</a>.</li>
+<li><code>load_context(folder, entry)</code>, exported from <code>desflow</code>, loads a YAML blueprint or a builder Python file from a local folder or from object storage, such as <code>s3://</code>. See <a href="../../reference/api/#loading-a-model">Loading a Model</a>.</li>
+<li><code>add_arrival(..., spawn="task")</code> and <code>add_arrival_replay(..., spawn="task")</code> start the named task for each arrival, as <code>spawn</code> does in YAML, so a builder model needs no <code>@app.arrival_loop</code> for it. See <a href="../../user-guide/writing-a-model/builder-api/#start-them-from-arrivals">Start Them from Arrivals</a>.</li>
+<li><code>Router.probabilities</code> gives the share of finished instances each next task receives, where the routing rules fix it. See <a href="../../reference/api/#task-flow">Task Flow</a>.</li>
+<li>The Reference section gains one CLI page for each command, generated from the command's help.</li>
+<li>The CLI code moves to <code>desflow.cli</code>. <code>desflow.blueprint.cli</code> re-exports <code>app</code> and <code>ddes</code> for dynamic-des 0.20.0's <code>ddes</code> command, until the release that removes <code>ddes</code>.</li>
+<li>The skill for AI assistants gains <code>references/cli.md</code>, the help of every command, and <code>references/api.md</code>, every name <code>desflow</code> exports. Its study steps use <code>desflow experiment</code> and <code>desflow fit</code>. See <a href="../../how-to/tools/use-an-ai-assistant/">Use an AI Assistant</a>.</li>
+<li><code>desflow run</code> prints a Console sink's records as they are, one line each, as the pages show them. Before, the log's time, level and logger name started the first record of each batch. See <a href="../../user-guide/live-runs-and-connectors/egress/#console">Console</a>.</li>
+<li>When a blueprint or the builder gives a resource, store or container a <code>current_cap</code> above its <code>max_cap</code>, the model now lowers it to <code>max_cap</code> with a warning when it is built, as a live update does. <code>desflow explain</code> then analyses the capacity the run uses. Before, the run lowered it silently, and <code>explain</code> used the larger value.</li>
+<li>The examples, snippets and pages address the odctl services as <code>127.0.0.1</code>, such as <code>127.0.0.1:9092</code>, not <code>localhost</code>. odctl 1.1.0 and later publish every port on <code>127.0.0.1</code> only. On macOS <code>localhost</code> resolves to <code>::1</code> first, so the Kafka clients could not connect. See <a href="../../how-to/examples/#services-for-the-examples">Services for the Examples</a>.</li>
+<li>When the installed release's tag is not published yet, <code>desflow examples get</code> says so and suggests <code>--ref main</code>, instead of saying the example was added after this release.</li>
+<li><code>desflow examples get --dest DIR</code> prints the run command with <code>DIR</code> in its path. It printed the path without <code>DIR</code>.</li>
+<li><code>desflow</code> on its own lists the commands grouped by task, as odctl does. Its help, and the <code>--help</code> of each command, end with examples. See <a href="../../cli/">Command Line</a>.</li>
+<li><code>desflow examples list</code> lists the examples, as <code>desflow examples</code> on its own still does. <code>desflow examples get</code> also prints the <code>desflow explain</code> command of an example whose bottleneck it names. See <a href="../../how-to/examples/">Example Projects</a>.</li>
+<li>The docs gain the tutorial <a href="../../learn/studies/complete-model/">Complete Model</a>, a whole study from observed data to a recommendation. They also gain the How-To page <a href="../../how-to/analysis/check-against-theory/">Check Against Theory</a> and the User Guide page <a href="../../cli/">Command Line</a>, which uses every command and option on one shop. Every page is rewritten for a first-time reader. Each term of theory is explained in one section, and other pages link to it. The How-To pages are grouped into Modelling, Data and Kafka, and Tools and Workflow. Each page ends with links to the previous and next pages. The tutorials, the User Guide, the How-To pages and the example Quick Starts use each command where its output answers the page's question, such as <code>desflow explain</code> on Priorities and End Conditions and <code>desflow run --stdout</code> on Patience. Links to files in the repository open the files of the release.</li>
+<li>The sidebar is regrouped. The User Guide has four groups, Writing a Model, Model Parts, Results, and Live Runs and Connectors, then Command Line. The How-To pages are in four groups and are named for their task, such as <a href="../../how-to/modelling/breakdowns/">Model Breakdowns</a>. The User Guide and How-To sections each open on a page that says what the section is for, and the Examples section is named Example Projects. <a href="../../simpy/coming-from-simpy/">Coming from SimPy</a> moves to Learn, after SimPy and desflow, and gains the two tables that end SimPy and desflow before: what desflow changes, and the form of each SimPy construct in desflow. Every page keeps its address.</li>
+</ul>
+<h3 id="upgrading_2">Upgrading</h3>
+<ul>
+<li><code>desflow run FILE.py</code> exits 2 with <code>Error: desflow run takes a YAML blueprint; run a Python file with python FILE</code>. In 0.24.0 it exited 1 with a YAML parse error. Run a builder file with <code>python FILE.py</code>.</li>
+<li><code>desflow fit</code> and <code>FitResult.text()</code> label the KS columns <code>KS stat</code> and <code>KS p (approx.)</code>, where 0.24.0 printed <code>KS</code> and <code>p (approx.)</code>. The two columns are 8 and 14 characters wide, not 7 and 11. A script that reads the table by column position reads the new widths.</li>
+<li>A tool that read the time and level before a Console record of <code>desflow run</code> reads the record alone. Every other change is an addition or a fix.</li>
+</ul>
+<h2 id="version-0240">Version 0.24.0</h2>
+<ul>
+<li>A JSON Schema of a blueprint ships in the package and on the site. An editor with the Red Hat YAML extension completes keys and marks a misspelt key or a value of the wrong kind as you type. See <a href="../../how-to/tools/set-up-your-editor/">Set Up Your Editor</a>.</li>
+<li><code>desflow schema</code> prints the schema.</li>
+<li><a href="../../reference/yaml-keys/">YAML Keys</a> lists every key of a blueprint with its type and default, generated from the schema.</li>
+<li>A skill for AI coding assistants, <code>skills/desflow/</code>, teaches them to write, check and run blueprints, and to run a study with a seed, a warm-up and replications. It installs by copying the folder or with <code>gh skill install</code>. See <a href="../../how-to/tools/use-an-ai-assistant/">Use an AI Assistant</a>.</li>
+<li><code>resource.queue.items</code>, which 0.23.0 deprecated, is removed. See Upgrading.</li>
+<li>The Learn section gains <a href="../../learn/concepts/a-simulation-study/">A Simulation Study</a>, <a href="../../learn/concepts/checking-and-validating/">Checking and Validating</a>, <a href="../../learn/concepts/queueing-basics/">Queueing Basics</a>, <a href="../../learn/concepts/output-analysis/">Output Analysis</a>, <a href="../../simpy/coming-from-simpy/">Coming from SimPy</a>, <a href="../../learn/concepts/common-mistakes/">Common Mistakes</a> and <a href="../../learn/concepts/readiness-and-reporting/">Readiness and Reporting</a>, with the tutorials <a href="../../learn/studies/checking-a-model/">Checking a Model</a>, <a href="../../learn/running-live/live-changes/">Live Changes</a> and <a href="../../learn/running-live/streaming-out/">Streaming Out</a>.</li>
+<li>The How-To section gains <a href="../../how-to/analysis/test-a-model/">Test a Model</a>, <a href="../../how-to/analysis/analyse-the-event-log/">Analyse the Event Log</a>, <a href="../../how-to/analysis/animate-a-run/">Animate a Run</a> and <a href="../../how-to/modelling/share-by-weight/">Share by Weight</a>, which shares one resource between classes by weight.</li>
+<li><a href="../../user-guide/time-and-pacing/run-length/">Run Length</a> states the order of events due at the same time.</li>
+<li><a href="../why-desflow/">Why desflow</a> says what the library is for.</li>
+<li>The JSONL file sink's progress line every 10 batches names it <code>JSONL Writer</code>. It said <code>Parquet Writer</code>.</li>
+</ul>
+<h3 id="upgrading_3">Upgrading</h3>
+<ul>
+<li><code>resource.queue.items</code> is removed, as the 0.23.0 Upgrading section announced. <code>resource.queue</code> is the list of waiting requests in service order, and <code>[request for _rank, request in resource.queue.items]</code> becomes <code>list(resource.queue)</code>. Every other change is an addition or a fix.</li>
+</ul>
+<h2 id="version-0230">Version 0.23.0</h2>
+<ul>
+<li>A <code>wait</code> nests <code>any</code>, <code>all</code> and <code>at_least</code> to any depth, and <code>at_least: n</code> with <code>of:</code> is done when <code>n</code> of its branches are, as SimPy's <code>Condition</code> with a count rule. An empty <code>any</code> or <code>all</code> succeeds at once. A <code>request</code>, <code>get</code> or <code>put</code> can be a branch, a won request holds its unit through the service, and a losing branch is cancelled. Request branches count in the order of acquisition, and the requests of one <code>all</code> are made together. See <a href="../../how-to/modelling/wait-for-one-or-all/#nest-any-and-all">Wait for One or All</a>.</li>
+<li>A <code>timeout</code> branch can carry a value that the waiter receives, and a <code>running</code> branch waits until the running instances of a task on the waiter's entity, and the entities it spawned, all end. See <a href="../../user-guide/tasks-and-processes/signals-and-waiting/#wait-signals-and-child-flows">Signals and Waiting</a>.</li>
+<li><code>process.name</code>, <code>process.instance</code> and <code>process.target</code> in a condition or an expression read the running task, as SimPy's active process, and <code>t</code>, the simulation clock, is now checked against SimPy's <code>env.now</code>. See <a href="../../user-guide/time-and-pacing/#read-the-current-time">Read the Current Time</a> and <a href="../../user-guide/tasks-and-processes/processes/#how-it-works">Processes and the Low-level API</a>.</li>
+<li><code>spawn</code> on a task starts a task as a new entity without waiting for it, keyed <code>&lt;task&gt;-n</code> with the spawning entity's key in <code>attr.parent</code>, and <code>after</code> starts it later, as SimPy's <code>start_delayed</code>. <code>subscribe</code> interrupts a task when an event happens, as SimPy's <code>subscribe_at</code>. See <a href="../../user-guide/tasks-and-processes/signals-and-waiting/#start-a-flow-without-waiting">Signals and Waiting</a>.</li>
+<li><code>signals: {closing: {once: true}}</code> (<code>add_signal(name, once=True)</code>, <code>Signal(env, name, once=True)</code>) is a signal that triggers once, as SimPy's <code>Event</code> does: a wait after the firing resumes at once and a second firing is refused. See <a href="../../user-guide/tasks-and-processes/signals-and-waiting/#one-shot-signals">One-Shot Signals</a>.</li>
+<li><code>on:</code> on a task or a signal runs actions when it fires or ends: fire a signal with a value, or copy another outcome with <code>from</code>, spawn a flow, interrupt a task, or set a value. A <code>fire</code> on a one-shot signal takes <code>urgent</code> and <code>after</code>, and <code>env.schedule(event, priority, delay)</code> schedules a low-level event. See <a href="../../user-guide/tasks-and-processes/signals-and-waiting/#actions-when-an-event-happens">Actions When an Event Happens</a>.</li>
+<li><code>run.on_unhandled_failure: stop</code> ends the run with the error when a task, child flow or one-shot signal fails and nobody handles it, as SimPy does; <code>continue</code>, the default, keeps the run going as before. See <a href="../../user-guide/tasks-and-processes/failures/#failures">Failures</a>.</li>
+<li>The <code>process-events</code> example shows a one-shot signal, a spawn after a delay, a subscribe and an <code>on:</code> action. See <a href="../../user-guide/tasks-and-processes/signals-and-waiting/#example-process-events">Process Events</a>.</li>
+<li><code>advance(until)</code> runs a started builder or YAML run to a time or an event and returns with the run open, <code>finish()</code> runs on to the end, and <code>resume_pacing()</code> paces again after a pause. A run in segments writes the same records as one run. See <a href="../../user-guide/time-and-pacing/run-length/#run-in-segments">Run in Segments</a>.</li>
+<li><code>simulation.environment: !python module.Class</code> (<code>SimulationContext(environment=Class)</code>) runs the model on a subclass of <code>DynamicRealtimeEnvironment</code>, so an override of <code>step</code> or <code>schedule</code> sees its events. See <a href="../../user-guide/writing-a-model/blueprints/#run-on-your-own-environment">Run on Your Own Environment</a>.</li>
+<li><code>simulation.strict: true</code> in YAML and <code>SimulationContext(strict=True)</code> in the builder raise <code>RuntimeError</code> when a paced run falls more than <code>factor</code> seconds behind, as the low-level <code>strict</code> does; both default to False. See <a href="../../user-guide/time-and-pacing/clocks-and-pacing/#strict-pacing">Strict Pacing</a>.</li>
+<li><code>sync()</code> on the environment resets the wall-clock anchor, as SimPy's does, so <code>strict</code> stops counting the time before it. See <a href="../../user-guide/time-and-pacing/clocks-and-pacing/#strict-pacing">Strict Pacing</a>.</li>
+<li>A resource may leave its capacity out: <code>current_cap</code> is then 1 and <code>max_cap</code> is <code>current_cap</code>, so <code>resources: {packers: {}}</code> and <code>add_resource("packers")</code> declare one unit, and a <code>DynamicResource</code> with no registry entry registers itself with one unit, as <code>simpy.Resource(env)</code> has. <code>current_cap: .inf</code> (<code>float("inf")</code>) is a resource with no limit; it publishes <code>capacity</code> as <code>null</code> and a <code>utilization</code> of 0. A store or container may leave its capacity out too, and then has no limit, as <code>simpy.Store(env)</code> and <code>simpy.Container(env)</code> have: <code>stores: {parcels: {}}</code>, <code>add_store("parcels")</code>, <code>DynamicStore(env, "Shop", "parcels")</code>. A <code>max_cap</code> alone gives the <code>current_cap</code>, and <code>current_cap: .inf</code> also means no limit. A store or container with no limit publishes <code>capacity</code> as <code>null</code>. Before, leaving a capacity out was refused in every API, and a store with an infinite capacity failed in all three. See <a href="../../user-guide/resources/#declare-a-resource">Resources</a> and <a href="../../user-guide/model-parts/stores-and-containers/#declare-them">Stores and Containers</a>.</li>
+<li><code>users.&lt;resource&gt;</code> and <code>queue.&lt;resource&gt;</code> in a condition read how many units are held and how many requests wait, and <code>get_resource(name).count</code>, <code>.users</code> and <code>.queue</code> read them in code. A granted request has <code>usage_since</code>, and a release is an event, <code>DynamicRelease</code>, that holds its request. See <a href="../../user-guide/resources/#read-the-queue-and-users">Resources</a>.</li>
+<li><code>queue_limit</code> on a resource refuses a request made while that many wait, as SimPy's <code>SortedQueue(maxlen)</code>: a task balks and publishes <code>balked</code> with the resource, a <code>request</code> branch of a <code>wait</code> fails the wait, and the low-level <code>request()</code> raises <code>QueueFull</code>, a <code>RuntimeError</code>. See <a href="../../user-guide/resources/#queue-limit">Queue Limit</a>.</li>
+<li><code>ResourceBase</code> is the class <code>DynamicResource</code> is built on, with SimPy's hooks: subclass it, override <code>_do_put</code> or <code>_do_get</code>, set <code>PutQueue</code> or the <code>request</code> and <code>release</code> classes, and name the class with <code>type: !python module.Class</code> or <code>add_resource(..., type=Class)</code>. See <a href="../../user-guide/resources/custom-resource-types/#custom-resource-types">Custom Resource Types</a>.</li>
+<li><code>StoreBase</code> and <code>ContainerBase</code> are the classes <code>DynamicStore</code> and <code>DynamicContainer</code> are built on, with SimPy's hooks: subclass one, override <code>_do_put</code> or <code>_do_get</code>, set <code>PutQueue</code> or <code>GetQueue</code>, or bind <code>put</code> and <code>get</code> to event classes of your own, and name the class with <code>type: !python module.Class</code> or <code>add_store(..., type=Class)</code> and <code>add_container(..., type=Class)</code>. See <a href="../../user-guide/model-parts/stores-and-containers/#custom-store-and-container-types">Stores and Containers</a>.</li>
+<li><code>putters.&lt;name&gt;</code> and <code>getters.&lt;name&gt;</code> in a condition read how many puts and gets wait at a store or container, and <code>count(&lt;store&gt;)</code>, <code>items(&lt;store&gt;)</code>, <code>in</code> and <code>not in</code> read what a store holds. A condition that reads one of them is checked again when a put or get joins or leaves a queue. See <a href="../../user-guide/model-parts/stores-and-containers/#registry-paths-readings-and-conditions">Stores and Containers</a>.</li>
+<li><code>wait: false</code> on a task's <code>put</code> or <code>get</code> (<code>"wait": False</code> in the builder) makes the request and goes on without waiting for it, as a SimPy <code>put</code> that is not yielded. See <a href="../../user-guide/model-parts/stores-and-containers/#take-and-add">Stores and Containers</a>.</li>
+<li>A store priority in YAML is kept as given, so a list, a mapping, null or a date is accepted, as in the builder. Before, only a number or an expression was, and the others were refused at load. The priorities in one store must still be orderable against each other. See <a href="../../user-guide/model-parts/stores-and-containers/#start-with-items-and-serve-by-priority">Stores and Containers</a>.</li>
+<li>The <code>fuel-dock</code> example shows a store type of your own, a put that is not waited for and a wait on <code>putters.</code>. See <a href="../../user-guide/model-parts/stores-and-containers/#example-fuel-dock">Fuel Dock</a>.</li>
+<li>A YAML experiment file whose check sets <code>on: mean</code> or <code>on: interval</code>, the documented key, now loads. In 0.22.0 YAML read the key as <code>True</code> and the load failed with "Keys should be strings".</li>
+<li>A task that balks with <code>balk:</code> now gives back the units it kept from the task before it with <code>keep</code>; in 0.22.0 such a unit was held for ever.</li>
+<li>Raising a store's capacity to a finite value granted only one waiting put; it now grants every put that fits, as raising a resource's capacity grants every request. A rise to no limit already did, and 0.22.0 has the defect.</li>
+<li>The User Guide pages Resources, Tasks and Processes, Time and Pacing, and Experiments are split into one page per topic. A link to a section that moved, such as <code>user-guide/resources/#breakdowns</code>, opens the page that holds it now.</li>
+<li>Every SimPy 4.1.2 feature on the SimPy Compatibility page is now native in all three APIs or a difference kept by design, so the page has no Not Yet section. A later SimPy release's features are made native in the desflow release that moves to it.</li>
+<li>A run that ends at a statistics interval time published every value twice at that time in 0.22.0. It now publishes each value once at that time, plus the values that changed after the interval's reading, so the last value of each statistic is the state at the end. This applies when the run ended there on a <code>stop</code> condition, on an event given to <code>run(until=)</code>, at the end of a drain, or with <code>close()</code> after <code>step()</code> had reached that time.</li>
+</ul>
+<h3 id="upgrading_4">Upgrading</h3>
+<ul>
+<li>A task's SimPy process is named after the task, not <code>run</code>. The process of a task in a root flow ends with the instance's finished payload as its value, also when it hands on to the next task; it was <code>None</code>. It is still <code>None</code> when the instance balks, reneges or is abandoned, and when it fails under <code>on_unhandled_failure: continue</code>; under <code>stop</code> a root task that fails with no <code>on_fail</code> raises <code>TaskFailed</code>. A child flow's process still ends with the flow's last payload.</li>
+<li>Tasks without a <code>priority</code> on a <code>queue: priority</code> resource, and <code>DynamicResource.request()</code> called without a priority, rank 0, not 1, as SimPy's default. A task with no priority now goes ahead of one with priority 1.</li>
+<li>A <code>preempted</code> event carries <code>preempted_by</code>, the key of the entity that took the unit, and <code>usage_since</code>, the time the preempted task was granted it. Storage sinks gain two columns.</li>
+<li><code>resource.queue</code> is a list of the waiting requests in service order, where <code>resource.queue.items</code> held <code>(rank, request)</code> pairs. <code>queue.items</code> still works with a <code>FutureWarning</code> and is removed in 0.24.0.</li>
+<li>A store priority keeps the value it is given: a priority whose expression gives a numeric string, such as <code>attr.priority</code> set to <code>'10'</code>, now compares as text (a literal <code>10</code> or <code>'10'</code> in a blueprint is still a number), and priorities of mixed types raise <code>TypeError</code> at the put instead of <code>ValueError</code>. A <code>True</code> priority, which the builder refused and YAML cast to <code>1.0</code>, is kept as <code>True</code>, with the same service order.</li>
+<li><code>putters_waiting</code> and <code>getters_waiting</code> on <code>DynamicStore</code> and <code>DynamicContainer</code>, and <code>queue</code> on <code>DynamicResource</code>, no longer count a put, get or request that is being granted, which SimPy still holds in its queue during the grant. A <code>watch_changes</code> callback called during a grant read 1 in 0.22.0 and reads 0, also for a request granted at once.</li>
+<li><code>add_resource</code> and <code>add_store</code> refuse a fractional <code>current_cap</code> or <code>max_cap</code>, as YAML does; 0.22.0 rounded it down.</li>
+<li>The low-level <code>strict</code> default is True, as SimPy's: a paced run more than <code>factor</code> seconds behind raises <code>RuntimeError</code>. Pass <code>strict=False</code> for live runs with sinks, as the low-level examples now do. The builder and YAML (<code>simulation.strict</code>) default to False. <code>strict</code> is never checked at <code>factor</code> 0, including before <code>go_live_at</code>. See <a href="../../user-guide/time-and-pacing/clocks-and-pacing/#strict-pacing">Strict Pacing</a>.</li>
+<li><code>step()</code> and <code>peek()</code> count only the model's events, not desflow's statistics, flush, lag, ingress and watcher processes: <code>peek()</code> skips them and <code>step()</code> runs the ones due before the model's event in the same call, so a script steps a model as it would in SimPy. <code>run()</code> still processes every event. A script that counted statistics readings as steps counts fewer. See <a href="../../user-guide/time-and-pacing/run-length/#step-and-peek">Run Length</a>.</li>
+<li><code>run()</code> and <code>finish()</code> return the value of the event that stopped the run, as SimPy's <code>env.run(until=event)</code> does; they returned <code>None</code>. A <code>stop</code> on a signal that fails now raises <code>SignalFailed</code> after the run closes, where a re-arming signal's failure used to end the run with no error; <code>desflow run</code> exits with an error. See <a href="../../user-guide/time-and-pacing/run-length/#stop-early">Run Length</a>.</li>
+</ul>
+<h2 id="version-0220">Version 0.22.0</h2>
+<p>The low-level API is SimPy, with desflow's own resources, stores and containers, so SimPy code runs there. The SimPy Compatibility page lists every modelling feature of SimPy 4.1.2 with its status in each API: 48 are native in YAML, the builder and the low-level API and checked against plain SimPy, 48 are not yet, which 0.23.0 makes native, as the <a href="../roadmap/">Roadmap</a> says, and 2 are differences kept by design.</p>
+<ul>
+<li>A <a href="../../simpy/compatibility/">SimPy Compatibility</a> page lists every SimPy 4.1.2 modelling feature with its status in each API, its forms and the tests that compare it with SimPy.</li>
+<li>Patience and balking: a task's <code>patience</code> takes a duration such as <code>30 s</code>, and orders that leave or refuse to join are counted as <code>tasks.&lt;task&gt;.reneged</code> and <code>.balked</code>. See <a href="../../learn/shop-logic/patience/">Patience</a> and <a href="../../how-to/modelling/reneging-and-balking/">Reneging and Balking</a>.</li>
+<li>A store can start with items: <code>stores.&lt;name&gt;.items</code>, <code>add_store(..., items=[...])</code> and <code>DynamicStore(..., items=[...])</code>; a priority store takes <code>[priority, item]</code> pairs. <code>initial_time</code> takes a duration such as <code>8 h</code>. See <a href="../../user-guide/model-parts/stores-and-containers/#start-with-items-and-serve-by-priority">Stores and Containers</a> and <a href="../../user-guide/time-and-pacing/run-length/#initial-time">Run Length</a>.</li>
+<li>A store <code>get</code> can take a <code>filter</code>, such as <code>item.area == attr.area</code>, and <code>patience</code> covers the wait for a <code>get</code> as well as for a resource; <code>item_field</code> adds the item a YAML get took to the payload. See <a href="../../user-guide/model-parts/stores-and-containers/#pick-an-item-or-give-up-waiting">Stores and Containers</a> and <a href="../../learn/shop-logic/filtered-inventory/">Filtered Inventory</a>.</li>
+<li>Tasks interact as SimPy processes do: <code>signals</code> that tasks fire and wait for, a <code>wait</code> for one or all of signals, child flows, timeouts and conditions, and <code>fail</code>, <code>fail_reason</code> and <code>on_fail</code> for a task that fails. <code>context.spawn</code> returns the process it starts, and <code>context.call</code> starts a child flow. See <a href="../../learn/shop-logic/process-interaction/">Process Interaction</a>, <a href="../../user-guide/tasks-and-processes/signals-and-waiting/#wait-signals-and-child-flows">Signals and Waiting</a> and <a href="../../how-to/modelling/wait-for-one-or-all/">Wait for One or All</a>.</li>
+<li>Interrupts and preemption: an <code>interrupt</code> on a task or scenario step, or <code>context.interrupt</code>, interrupts running task instances; <code>on_interrupt: resume</code>, <code>restart</code> or <code>abandon</code> says what each does; <code>preempt: true</code> on a priority resource lets a lower priority value take a busy unit. See <a href="../../learn/shop-logic/interruptions/">Interruptions</a> and <a href="../../user-guide/resources/priority-and-preemption/#preemption">Priority and Preemption</a>.</li>
+<li>A task can hold several resources, <code>resource: [picker, bench]</code>, acquired in that order, and hand a unit to the next task with <code>keep</code>; a model that acquires resources in opposite orders is refused. See <a href="../../learn/shop-logic/competing-resources/">Competing Resources</a> and <a href="../../user-guide/resources/several-resources/#several-resources">Several Resources</a>.</li>
+<li>End conditions: <code>run.stop</code> ends a run at a signal or a condition, and <code>run.drain</code> (or <code>desflow run --drain</code>) stops the arrivals at <code>until</code> and finishes the entities already in the model; <code>start()</code>, <code>step()</code>, <code>peek()</code> and <code>close()</code> step a builder or YAML run one event at a time, and <code>finish()</code> runs a started run on to its end. The statistics count <code>flows.&lt;arrival&gt;.started</code> and <code>in_system</code>, and <code>tasks.&lt;task&gt;.in_progress</code>. See <a href="../../learn/first-model/end-conditions/">End Conditions</a> and <a href="../../user-guide/time-and-pacing/run-length/#stop-early">Run Length</a>.</li>
+<li>A low-level request can be cancelled with <code>request.cancel()</code> and given back with <code>resource.release(request)</code>, as in SimPy. See <a href="../../user-guide/resources/#how-it-works">Resources</a>.</li>
+<li>Breakdowns: <code>resources.&lt;name&gt;.breakdown</code>, <code>add_breakdown</code> and <code>run_breakdowns</code> make a resource fail at random and be repaired, interrupting the work it was doing or letting it finish; each failure and repair publishes <code>down</code> and <code>repaired</code>, and the statistics count <code>resources.&lt;name&gt;.down</code>, <code>downtime</code> and <code>failures</code>. The Preemptive Breakdowns guide becomes <a href="../../how-to/modelling/breakdowns/">Breakdowns</a>. See also <a href="../../user-guide/resources/priority-and-preemption/#breakdowns">Priority and Preemption</a>.</li>
+<li>Schedules in every API: the builder's <code>add_scenario</code> and <code>add_step</code>, and the low-level <code>run_scenario</code>, take the same steps as a blueprint's <code>scenario</code>. See <a href="../../how-to/modelling/time-varying-arrivals/">Time-varying Arrivals</a> and <a href="../../learn/inputs/changing-demand/">Changing Demand</a>.</li>
+<li>Replay: an arrival's <code>replay</code>, <code>add_arrival_replay</code> and the low-level <code>read_trace</code> take arrivals from the rows of a CSV or Parquet file, or a list of dicts, at their recorded times, with the row's fields as attributes. See <a href="../../learn/inputs/local-replay/">Local Replay</a> and <a href="../../user-guide/model-parts/arrivals-and-services/#replay">Arrivals and Services</a>.</li>
+<li>Faster runs at <code>factor: 0</code>: SimPy's own step processes each event, a record's timestamp is formatted once per second of the clock, and <code>ConsoleEgress</code> logs a batch with one call. A low-level workload runs 1.14 times faster than in 0.21.0, and printing every record costs about a seventh of what it did. See <a href="../../how-to/tools/performance-tuning/">Performance Tuning</a>, whose measurements <code>benchmarks/throughput.py</code> repeats.</li>
+<li><code>simulation.lag_interval</code> and <code>SimulationContext(lag_interval=)</code> set how often <code>system.simulation.lag_seconds</code> is published. See <a href="../../user-guide/time-and-pacing/clocks-and-pacing/#lag">Clocks and Pacing</a>.</li>
+<li>The record contract: <a href="../../reference/records-and-telemetry/">Records and Telemetry</a> gives every field its type, and a docs test fails when the page and the payload models differ. <code>simulation.timezone</code>, <code>SimulationContext(timezone=)</code> and <code>DynamicRealtimeEnvironment(timezone=)</code> name the zone timestamps are written in, and <a href="../../user-guide/results/statistics/#which-entities-a-count-covers">Statistics</a> defines which entities each count covers.</li>
+<li>Replications: <code>desflow run FILE --replications N</code> and <code>desflow.replicate</code> run a model with seeds spawned from one seed, ending each replication at <code>until</code>, a <code>stop</code> or the end of a <code>drain</code>, and give each statistic's mean and 95% half-width; the model's sinks receive the result once, as <code>&lt;sim_id&gt;.stats.&lt;measure&gt;.replication.&lt;i&gt;</code>, <code>.mean</code>, <code>.half_width</code> and <code>.n</code>. See <a href="../../user-guide/results/replications/">Replications</a> and <a href="../../learn/studies/trusting-results/">Trusting Results</a>.</li>
+<li>Experiments: <code>desflow experiment</code> and <code>desflow.run_experiment</code> compare designs with paired replications and sweeps, ending each run at <code>until</code>, a <code>stop</code> or the end of a <code>drain</code>, apply checks that fail the command, compare with observed values, and write CSV and JSON results and a <code>report.md</code>; <code>desflow report</code> builds the report again. See <a href="../../user-guide/results/experiments/">Experiments</a>, <a href="../../learn/studies/comparing-designs/">Comparing Designs</a> and <a href="../../learn/studies/parameter-sweeps/">Parameter Sweeps</a>.</li>
+<li>Input fitting: <code>desflow fit</code> and <code>desflow.fit_column</code> fit a column of measured times to every distribution family, with diagnostics and a plot, and write settings a blueprint loads with the new <code>!include</code> tag. See <a href="../../user-guide/model-parts/input-fitting/">Input Fitting</a>, <a href="../../learn/inputs/fit-the-inputs/">Fit the Inputs</a> and <a href="../../how-to/analysis/fit-a-distribution/">Fit a Distribution</a>.</li>
+<li>An unknown key in a blueprint or an experiment file names the closest key that place takes, such as "did you mean 'patience'?", and a misspelt name of a resource, task, signal or path names the closest one; the errors this release adds say how to fix them.</li>
+<li>Easier to start: the <a href="../../">Home</a> page has a "Where to Start" table, the Cheat Sheet gives the common YAML keys and builder calls side by side, and every tutorial and How-To page gives its level: Basics, Intermediate or Advanced.</li>
+</ul>
+<h3 id="upgrading_5">Upgrading</h3>
+<ul>
+<li>desflow needs SimPy 4.1.2 or later, where it accepted 4.0.0, and pydantic 2.6.0 or later, where it accepted 2.0.0, with which desflow 0.22.0 does not import. The conformance tests check desflow against SimPy 4.1.2, which chooses the user to preempt differently from 4.1.1 on equal keys; SimPy 4.0 also imports <code>pkg_resources</code>, which a new Python environment does not have.</li>
+<li>A store or container built with a capacity of 0 now works, as a resource does, and holds nothing until its capacity rises; SimPy's <code>ValueError</code> stopped it before.</li>
+<li>A <code>priority</code> on a store <code>get</code> is refused; priority orders a <code>put</code> into a priority store.</li>
+<li>Resources grant units with the same events as SimPy's <code>Resource</code>, so requests at the same simulation time are granted in SimPy's order, which can change seeded output where such ties occur.</li>
+<li><code>patience</code> now covers a task's whole wait, its <code>wait</code>, its resource and its <code>get</code>, where it covered only the resource, so a task can renege while it waits for stock. It counts waiting time only, so a preempted task that queues again goes on with the time it has left. A task with <code>patience</code> needs a resource, a <code>get</code> or a <code>wait</code>.</li>
+<li>A store without priority is now a SimPy <code>FilterStore</code>, so a <code>get</code> can take a filter. While no waiting <code>get</code> has a filter, it grants gets as <code>simpy.Store</code> does, one waiting <code>get</code> each time it is triggered, as before; while a filtered <code>get</code> waits, it looks at every waiting <code>get</code> each time, as <code>FilterStore</code> does, so gets at the same instant can be granted in another order.</li>
+<li>A builder task whose function raises, or a YAML task whose <code>!python</code> payload function raises, now fails the task, publishing <code>failed</code> with the error as its reason and ending the entity's flow, instead of stopping the run.</li>
+<li><code>DynamicResource.pool</code> and <code>DynamicResourceRequest.cancelled</code> are gone: the resource grants units as SimPy's <code>Resource</code> does. Call <code>request.cancel()</code> to leave the queue; <code>resource.queue.items</code> holds <code>(rank, request)</code> pairs, where it held <code>PriorityItem</code>s. A request that gives up, by <code>cancel()</code> or by reneging, now leaves the queue at once, so <code>len(resource.queue.items)</code> and the <code>queue_length</code> and <code>queue_length_avg</code> statistics no longer count it.</li>
+<li>The built-in statistics publish new names: <code>tasks.&lt;task&gt;.in_progress</code> from <code>minimal</code>, and <code>flows.&lt;arrival&gt;.started</code> and <code>in_system</code> from <code>basic</code>. A low-level process that calls <code>env.stats.task_queued</code>, <code>task_started</code> and <code>task_finished</code> publishes <code>in_progress</code> too, and one that calls <code>flow_started</code> publishes the flow counts.</li>
+<li>Events with the statuses <code>balked</code>, <code>reneged</code>, <code>failed</code>, <code>interrupted</code>, <code>preempted</code> and <code>resumed</code>, and a resource's <code>down</code> and <code>repaired</code> events, keyed by its name, reach the sinks, so a consumer that filters on <code>status</code> should expect them.</li>
+<li>A scenario step now applies before every other event at its time, as SimPy applies its own <code>until</code>, so an arrival at the step's time draws its next gap from the new value; seeded runs whose steps fall on the time of another event can give other numbers.</li>
+<li>At <code>factor: 0</code>, <code>system.simulation.lag_seconds</code> is no longer published unless <code>lag_interval</code> (low-level <code>lag_monitor_interval</code>) is set; a run that goes live publishes it from the go-live instant. At a <code>factor</code> above 0 it is published every simulation second, as before.</li>
+<li><code>ConsoleEgress</code> logs each batch with one call, one line per record, so the logging format's prefix starts each batch rather than each line. Code that reads the console log record by record splits each message into lines.</li>
+<li>At <code>factor: 0</code>, with no <code>go_live_at</code> still to come, each event is processed by SimPy's own step and <code>strict=True</code> is not checked, as there is no wall clock to fall behind; while a <code>go_live_at</code> is pending, the real-time step runs as before.</li>
+<li>Every <code>timestamp</code> now carries a time zone offset, such as <code>2026-10-03T12:00:00.000+10:00</code>, so a consumer that parses it must accept <code>+HH:MM</code>, and a sink column without a zone, such as a PostgreSQL <code>timestamp</code>, now gets the UTC wall time. By default timestamps are in UTC, <code>+00:00</code>, where they were in the machine's local time with no offset; set <code>timezone</code> to an IANA name to write them in a zone. A <code>logical_start_time</code> or <code>go_live_at</code> without an offset, <code>now</code> and the default start are read in <code>timezone</code>, else in the zone of <code>logical_start_time</code>, else in UTC, not in local time: for a start or go-live of now, pass <code>datetime.now(timezone.utc)</code>, not <code>datetime.now()</code>, whose local wall time would be read in that zone and be off by the difference. <code>env.start_datetime</code> always has a time zone. A start and a go-live, one with an offset and one without, no longer fail. The clock runs in UTC, so a daylight-saving change no longer adds or drops simulation time.</li>
+<li>A Parquet file now has a column for every key of any row in its batch, where the first row's keys alone were written and later keys were lost; a key that first appears in a later batch adds a column to the later files, and an integer column that later gets a float becomes a double. An Iceberg table not named in <code>schemas</code> gains such a key as an optional column. A batch a Parquet or Iceberg sink cannot write is logged at ERROR, where it stopped the sink with no error.</li>
+<li>A container's starting level keeps its type in YAML, the builder and the low-level API, so <code>level: 1</code>, <code>level=1</code> or <code>init=1</code> gives a level of 1, as SimPy does, where it gave 1.0.</li>
+<li>A payload key that starts and ends with two underscores, such as <code>__table__</code>, is reserved: Kafka, Parquet, JSON Lines, Iceberg and the console drop it, with a warning, where they wrote it as data. Rename such a key, such as <code>__source__</code> to <code>source</code>, to keep it. PostgreSQL and Redis still route by <code>__table__</code> and <code>__stream__</code>. Routers, such as a Kafka <code>topic_router</code> or a storage <code>path_router</code>, no longer see the dropped keys; PostgreSQL and Redis still write any other such key as data.</li>
+<li>Fitting needs the new <code>fit</code> extra, which installs scipy and matplotlib: <code>pip install "desflow[fit]"</code>. The <code>all</code> extra includes it, so <code>desflow[all]</code> now installs both.</li>
+<li>The <code>glue</code> extra needs boto3 1.26.0 and aws-glue-schema-registry 1.0.0 or later, and the <code>glue</code> and <code>confluent</code> extras need dataclasses-avroschema 0.65.7 or later; an environment with older releases upgrades them.</li>
+</ul>
+<h2 id="version-0210">Version 0.21.0</h2>
+<p>The simulation model grows: more distributions, stores and containers that tasks use, flows of tasks, built-in statistics and ground-truth labels. The docs gain a Learn section with a tutorial, the Shop, and a User Guide with one page per part of the library.</p>
+<ul>
+<li>Five new distributions, <code>uniform</code>, <code>triangular</code>, <code>gamma</code>, <code>weibull</code> and <code>empirical</code>, and, in YAML, durations such as <code>5 min</code> for every time-valued parameter. The builder's distribution parameters take numbers in seconds, and its <code>warmup</code> and <code>run(until=)</code> also take durations; the low-level API takes numbers in seconds. See <a href="../../user-guide/model-parts/arrivals-and-services/">Arrivals and Services</a> and <a href="../../reference/distributions/">Distributions</a>.</li>
+<li>Each distribution draws from a random stream of its own, so adding an arrival leaves the other draws unchanged. A run without a seed draws one and logs it, and <code>desflow run --seed N</code> repeats it. See <a href="../../learn/first-model/randomness-and-seeds/">Randomness and Seeds</a>.</li>
+<li>Stores and containers that tasks take from and add to, with <code>get</code> and <code>put</code>; a container's <code>level</code> is a live path. See <a href="../../user-guide/model-parts/stores-and-containers/">Stores and Containers</a>.</li>
+<li>A queue order per resource, <code>fifo</code>, <code>lifo</code> or <code>priority</code>, and a <code>priority</code> per task. See <a href="../../user-guide/resources/">Resources</a>.</li>
+<li>Flows of tasks: <code>next</code> by name, condition or weights, entity attributes with <code>attributes</code> and <code>set</code>, and timed steps with a service and no resource. A builder arrival loop takes a task's instance id from <code>context.next_instance(task)</code>, the counter <code>next</code> uses too. See <a href="../../user-guide/model-parts/task-flow/">Task Flow</a>.</li>
+<li>Built-in statistics at five levels, <code>stats: none</code> to <code>stats: all</code>, and a <code>warmup</code> that leaves the start of a run out. See <a href="../../user-guide/results/statistics/">Statistics</a>.</li>
+<li>Ground-truth labels: a scenario step's <code>record</code> publishes what it changed to <code>when: labels</code> sinks only. See <a href="../../user-guide/live-runs-and-connectors/live-parameters/#record-what-a-change-was-for">Live Parameters</a>.</li>
+<li>Every ingress connector reads <code>path</code> and <code>value</code>, and a bad message is logged and skipped. See <a href="../../user-guide/live-runs-and-connectors/ingress/">Ingress</a>.</li>
+</ul>
+<h3 id="upgrading_6">Upgrading</h3>
+<ul>
+<li>Python 3.11 or later is needed.</li>
+<li>Ingress messages use <code>path</code> and <code>value</code>: Kafka's <code>path_id</code> and Redis's <code>param_path</code> and <code>param_value</code> are renamed, and a Kafka message, or a PostgreSQL ingress row, with a null <code>value</code> is now refused. Call <code>send_config(topic, path=..., value=...)</code> where it was called with <code>path_id=</code>.</li>
+<li>For each table the PostgreSQL ingress reads, <code>simulation_params</code> by default, rename the columns: <code>ALTER TABLE simulation_params RENAME COLUMN param_path TO path;</code> and <code>ALTER TABLE simulation_params RENAME COLUMN param_value TO value;</code></li>
+<li>An event's key is now the entity's key, the arrival name and a counter from 1 (<code>orders-1</code>), not <code>task-&lt;task id&gt;</code>, and every event has two new fields after <code>key</code>: <code>task</code> and <code>instance</code>. PostgreSQL rows gain <code>task</code> and <code>instance</code> columns where the table has them. See <a href="../../reference/records-and-telemetry/">Records and Telemetry</a>.</li>
+<li><code>telemetry</code> entries in a blueprint no longer take <code>publish</code>. Use <code>stats: minimal</code>, which publishes the same readings as <code>Shop.stats.resources.&lt;name&gt;.&lt;reading&gt;</code>, and <code>function</code> for readings of your own.</li>
+<li>Seeded runs give other numbers than before, because each distribution has its own random stream, and requests of equal priority are now served first in, first out.</li>
+<li>A distribution parameter the family does not take, such as <code>rate</code> on a <code>normal</code>, is now refused at build. The builder's distribution parameters are keyword-only: write <code>add_service("packing", "normal", mean=3)</code>.</li>
+<li>Under the default <code>fifo</code> queue a request's <code>priority</code> is ignored. Add the resource with <code>queue="priority"</code> (YAML <code>queue: priority</code>; low-level <code>DynamicResource(env, sim_id, name, queue="priority")</code>) to rank requests; a task <code>priority</code> on another order is refused.</li>
+<li><code>context.wait_for_arrival</code> now yields the new <code>Entity</code>. Pass it to the task as <code>entity=</code>, or the task starts an entity of its own keyed by the task's name.</li>
+<li>A container's <code>current_cap</code> is its capacity, its largest amount; a model that used it as a level moves to <code>level</code>. <code>DynamicContainer(init=None)</code> now starts at the registry's level, 0 unless the <code>ContainerConfig</code> gives one.</li>
+</ul>
+<h2 id="version-0200">Version 0.20.0</h2>
+<p>The package dynamic-des is renamed desflow. The classes, the YAML format, the records and the extras are the same as in 0.19.0.</p>
+<h3 id="upgrading_7">Upgrading</h3>
+<ul>
+<li>Install <code>desflow</code> instead of <code>dynamic-des</code>, with the same extras: <code>pip install desflow</code>, <code>uv add desflow</code>, or for example <code>pip install "desflow[kafka]"</code>. The last dynamic-des release, 0.20.0, installs desflow with the same extras. To install desflow beside dynamic-des 0.19.0 instead, uninstall dynamic-des first: with pip, uninstalling it afterwards also removes <code>dynamic_des</code> and <code>ddes</code>, and <code>pip install --force-reinstall --no-deps desflow</code> puts them back.</li>
+<li>Import <code>desflow</code> instead of <code>dynamic_des</code>, for example <code>from desflow import SimulationContext</code>.</li>
+<li>Run the <code>desflow</code> command instead of <code>ddes</code>, for example <code>desflow run shop.yaml</code> or <code>desflow examples</code>.</li>
+<li><code>import dynamic_des</code> still works in this release. It shows a <code>FutureWarning</code> and gives the desflow modules, submodules such as <code>dynamic_des.connectors.egress.kafka</code> included. The <code>ddes</code> command still works too: it prints a warning and runs <code>desflow</code>. Both are removed in 0.30.0.</li>
+<li>The docs are at <a href="https://jaehyeon.me/desflow/">jaehyeon.me/desflow</a>, and the repository is <a href="https://github.com/jaehyeon-kim/desflow">jaehyeon-kim/desflow</a> on GitHub.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../roadmap/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Roadmap">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Roadmap
+              </div>
+            </div>
+          </a>
+        
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.tabs.link", "content.code.copy", "content.code.select", "navigation.indexes", "navigation.footer"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      
+        <script src="../../js/code-lines.js"></script>
+      
+        <script src="../../js/moved-anchors.js"></script>
+      
+        <script src="../../js/external-links.js"></script>
+      
+    
+  </body>
+</html>
