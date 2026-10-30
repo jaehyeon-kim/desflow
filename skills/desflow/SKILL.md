@@ -2,9 +2,9 @@
 name: desflow
 description: Write, check and run desflow discrete-event simulation models in YAML, the builder API or the low-level API. Use when a task mentions desflow, a blueprint, or a SimPy model that streams records.
 license: MIT
-compatibility: desflow 0.27.0 or later, Python 3.11 or later, the `desflow` command installed
+compatibility: desflow 0.28.0 or later, Python 3.11 or later, the `desflow` command installed
 metadata:
-  desflow-version: "0.27.0"
+  desflow-version: "0.28.0"
 ---
 
 # desflow

@@ -2,6 +2,19 @@
 
 Each release, newest first: what changed, then under Upgrading what to change in code, commands or installs that use the previous release.
 
+## Version 0.28.0
+
+- `SimulationRegistry.change` sets a value and returns a `ParamChange` that says what was stored, or raises `ParamRejected` when the registry refuses it. See [Know Whether a Change Was Refused](../user-guide/live-runs-and-connectors/live-parameters.md#know-whether-a-change-was-refused).
+- `on_change`, on the registry and on `SimulationContext`, is a list of callbacks that receive a `ParamChange` for every accepted change, with its source: an ingress connector and its class, a scenario step, or the overrides of `start()`. See [Follow Every Change](../user-guide/live-runs-and-connectors/live-parameters.md#follow-every-change).
+- `update`, `set_exactly` and `start()` take `source`, `actor` and `reason`, which each `ParamChange` carries.
+- `SimulationContext.registry_paths()` returns the paths and starting values of a run without running it. See [Find the Path](../user-guide/live-runs-and-connectors/live-parameters.md#find-the-path).
+- `FileIngress`, `type: File` in YAML, changes parameters during a run when you edit a local YAML file, with no service. See [File](../user-guide/live-runs-and-connectors/ingress.md#file) and the [File Steering example](../user-guide/live-runs-and-connectors/ingress.md#example-file-steering).
+- The AI skill and [Use an AI Assistant](../how-to/tools/use-an-ai-assistant.md#draft-from-a-description) teach how to draft a model from a description of a process.
+
+### Upgrading
+
+- A scenario step whose value the registry refuses, such as an exponential rate of 0, now stops the load of a blueprint with its line, and `start()` of a builder model. `start()` checks the scenario with its overrides, so an override or an experiment design that makes a later step's value invalid also stops the start. A run stops with `ParamRejected` at a step's time when an ingress message, an `on:` action or a process has made the step's value invalid, and a low-level `run_scenario` raises it for any refused value. Before 0.28.0 the value was logged and ignored, and the run went on. Values sent by ingress connectors and `on:` actions are still logged and ignored. See [Stability and Limits](../user-guide/live-runs-and-connectors/live-parameters.md#stability-and-limits).
+
 ## Version 0.27.0
 
 - `GlueAvroSerializer` and `GlueAvroDeserializer` talk to AWS Glue with desflow's own client and wire format, so the `glue` extra no longer depends on aws-glue-schema-registry. The arguments and the bytes on the topic are the same.

@@ -5,14 +5,10 @@ Releases come in the order shown, without dates: a release ships when it is read
 ## Before 1.0
 
 ::timeline::
-- title: '0.28.0: Library hooks for the server'
-  content: 'Parameter changes that report who made them and why: `change` returns a `ParamChange` or raises `ParamRejected`, an `on_change` list of callbacks receives each accepted change, and `registry_paths()` lists the paths a simulation will have without running it. The server after 1.0 then adds to the library without changing it. `FileIngress` changes parameters during a run when you edit a local file, with no broker. A scenario step whose value the registry refuses, such as an exponential rate of 0, stops the load of a blueprint instead of being logged and ignored. The AI skill teaches an assistant to draft a model from a description of a process. [#70](https://github.com/jaehyeon-kim/desflow/issues/70) [#86](https://github.com/jaehyeon-kim/desflow/issues/86) [#93](https://github.com/jaehyeon-kim/desflow/issues/93) [#94](https://github.com/jaehyeon-kim/desflow/issues/94)'
-  icon: ':material-play:'
-  key: now
 - title: '0.29.0: Reserved gen key, SimPy''s examples and record contract freeze'
   content: 'After 1.0, a `gen` key marks a generated value. To keep the key free, a blueprint refuses a mapping with a `gen` key in any of these places: a payload, a scenario value, a `record` field, an action or timeout value, a task''s `set` or an arrival''s `attributes`. The Pydantic floor rises to 2.6.1. The seven examples of the SimPy docs, such as Bank Renege and Machine Shop, are written in YAML, the builder and the low-level API, each beside SimPy''s own. Every record field is checked, then the format is marked frozen: no 1.x release removes a field, renames it or changes its type. [#53](https://github.com/jaehyeon-kim/desflow/issues/53), [#95](https://github.com/jaehyeon-kim/desflow/issues/95), [#51](https://github.com/jaehyeon-kim/desflow/issues/51)'
-  icon: ':material-clock-outline:'
-  key: planned
+  icon: ':material-play:'
+  key: now
 - title: '0.30.0: Preparation for 1.0'
   content: 'The names kept for compatibility are removed, with the removals listed in Upgrading to 1.0. The docs gain a Compatibility Policy page and a warning on the docs of older versions. This release changes no format, so 1.0.0 follows a release with no format change. [#84](https://github.com/jaehyeon-kim/desflow/issues/84), [#54](https://github.com/jaehyeon-kim/desflow/issues/54)'
   icon: ':material-clock-outline:'
@@ -80,6 +76,13 @@ The server ships after 1.0, as 1.x releases installed with the `server` extra.
 - **How-To:** generating data at scale, and testing pipelines with simulated data.
 
 ## Released
+
+??? note "0.28.0: Library hooks for the server"
+
+    - **Parameter changes that report back:** `change` returns a `ParamChange` or raises `ParamRejected`, `on_change` callbacks receive every accepted change with its source, and `registry_paths()` lists the paths a simulation will have without running it. [#70](https://github.com/jaehyeon-kim/desflow/issues/70)
+    - **File ingress:** `FileIngress` changes parameters during a run when you edit a local file, with no broker. [#86](https://github.com/jaehyeon-kim/desflow/issues/86)
+    - **Scenario values checked:** a scenario step whose value the registry refuses stops the load or the start, instead of being logged and ignored. [#93](https://github.com/jaehyeon-kim/desflow/issues/93)
+    - **Drafting from a description:** the AI skill teaches an assistant to draft a model from a description of a process. [#94](https://github.com/jaehyeon-kim/desflow/issues/94)
 
 ??? note "0.27.0: Schema registry formats"
 
