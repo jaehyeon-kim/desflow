@@ -338,9 +338,11 @@ The fields of `value` and the `timestamp` fill the columns of `orders`. The task
         inserting a row there changes the arrival rate of a running simulation.
 
         Needs a database: `odctl up postgres`. Runs until interrupted with Ctrl + C.
+        Set EXAMPLE_UNTIL to a number of simulation seconds to end the run at that time instead.
         """
 
         import logging
+        import os
 
         from desflow import PostgresEgress, PostgresIngress, SimulationContext
 
@@ -390,6 +392,11 @@ The fields of `value` and the `timestamp` fill the columns of `orders`. The task
                 task_id += 1
 
 
+        # The simulation time, in seconds, at which the run ends.
+        # When EXAMPLE_UNTIL is not set, the run goes on until Ctrl + C.
+        EXAMPLE_UNTIL = float(os.getenv("EXAMPLE_UNTIL") or 0) or None
+
+
         def run():
             logger.info("Starting Builder Postgres Demo. Press Ctrl+C to stop...")
             logger.info(
@@ -397,7 +404,7 @@ The fields of `value` and the `timestamp` fill the columns of `orders`. The task
                 "value) VALUES ('Shop.arrival.orders.rate', '5.0');"
             )
             try:
-                app.run()
+                app.run(until=EXAMPLE_UNTIL)
             except KeyboardInterrupt:
                 logger.info("Simulation interrupted by user.")
 
@@ -421,9 +428,11 @@ The fields of `value` and the `timestamp` fill the columns of `orders`. The task
         and `PostgresIngress` creates `simulation_params` and polls it for parameter updates.
 
         Needs a database: `odctl up postgres`. Runs until interrupted with Ctrl + C.
+        Set EXAMPLE_UNTIL to a number of simulation seconds to end the run at that time instead.
         """
 
         import logging
+        import os
 
         import numpy as np
 
@@ -480,6 +489,11 @@ The fields of `value` and the `timestamp` fill the columns of `orders`. The task
                 task_id += 1
 
 
+        # The simulation time, in seconds, at which the run ends.
+        # When EXAMPLE_UNTIL is not set, the run goes on until Ctrl + C.
+        EXAMPLE_UNTIL = float(os.getenv("EXAMPLE_UNTIL") or 0) or None
+
+
         def run():
             env = DynamicRealtimeEnvironment(factor=1.0, strict=False)
             env.registry.register_sim_parameter(PARAMS)
@@ -499,7 +513,7 @@ The fields of `value` and the `timestamp` fill the columns of `orders`. The task
             )
 
             try:
-                env.run()
+                env.run(until=EXAMPLE_UNTIL)
             except KeyboardInterrupt:
                 logger.info("Simulation interrupted by user.")
             finally:

@@ -390,6 +390,186 @@ def test_secured_registry_serializer_sends_its_credentials(registry_transport):
     assert payload[:5] == b"\x00\x00\x00\x00\x01"
 
 
+class _Registry:
+    """A schema registry that keeps every schema registered and serves it back by id."""
+
+    def __init__(self):
+        self.registered = []
+
+    def __call__(self, request):
+        import httpx
+
+        if request.method == "POST":
+            self.registered.append(json.loads(request.content))
+            return httpx.Response(200, json={"id": len(self.registered)})
+        schema_id = int(request.url.path.rsplit("/", 1)[1])
+        return httpx.Response(200, json=self.registered[schema_id - 1])
+
+
+_SHOP_MODULES = (
+    "json_schema_and_protobuf",
+    "json_schema_and_protobuf_logic",
+    "json_schema_and_protobuf_low_level",
+)
+
+
+def _run_shop_form(form, tmp_path, monkeypatch):
+    """Runs one form of the JSON Schema and Protobuf shop for 30 simulated seconds.
+
+    Returns the records it publishes and the serializers its egress holds by topic.
+    """
+    from desflow import SimulationContext
+
+    # A reader puts the files in one folder; the blueprint's !python tags import from
+    # it, and here there is no broker to create the topics on
+    for source in (
+        GUIDES / "json_schema_and_protobuf.py",
+        GUIDES / "json_schema_and_protobuf_low_level.py",
+        GUIDES / "shop_record.proto",
+        GUIDES / "shop_record_pb2.py",
+        ROOT / "docs" / "snippets" / "yaml" / "json_schema_and_protobuf.yaml",
+        ROOT / "docs" / "snippets" / "yaml" / "json_schema_and_protobuf_logic.py",
+    ):
+        shutil.copy(source, tmp_path)
+    monkeypatch.syspath_prepend(str(tmp_path))
+    for name in _SHOP_MODULES:
+        monkeypatch.delitem(sys.modules, name, raising=False)
+    try:
+        if form == "builder":
+            module = _load_from(tmp_path, "json_schema_and_protobuf")
+            return _captured(module.app, until=30), module.egress.topic_serializers
+        if form == "yaml":
+            import json_schema_and_protobuf_logic
+
+            monkeypatch.setattr(
+                json_schema_and_protobuf_logic, "create_topics", lambda: None
+            )
+            app = SimulationContext.from_yaml(
+                tmp_path / "json_schema_and_protobuf.yaml"
+            )
+            serializers = app._egress_providers[0].topic_serializers
+            return _captured(app, until=30), serializers
+        module = _load_from(tmp_path, "json_schema_and_protobuf_low_level")
+        capture = _Capture()
+        env = module.shop([capture], 0.0)
+        env.run(until=30)
+        env.teardown()
+        return capture.records, module.egress.topic_serializers
+    finally:
+        for name in _SHOP_MODULES:
+            sys.modules.pop(name, None)
+
+
+@pytest.mark.parametrize("form", ["builder", "yaml", "low-level"])
+def test_orders_round_trip_as_json_schema_and_protobuf(
+    form, tmp_path, monkeypatch, registry_transport
+):
+    """Each form sends the orders to orders-json and orders-protobuf; both formats
+    read back what was sent, and the 64 bit integers of a Protobuf record come back
+    as strings, as the page says."""
+    pytest.importorskip("jsonschema")
+    pytest.importorskip("google.protobuf")
+
+    registry = _Registry()
+    registry_transport(registry)
+    records, serializers = _run_shop_form(form, tmp_path, monkeypatch)
+    assert set(serializers) == {"orders-json", "orders-protobuf"}
+
+    # The page's read_order decodes each message, as a consumer of the topics would
+    page = _load("json_schema_and_protobuf")
+    route = page.order_topic_router
+    assert {"sim-events", "orders-json", "orders-protobuf"} <= {
+        route(r) for r in records
+    }
+    for record in records:
+        topic = route(record)
+        if topic not in serializers:
+            continue
+        sent = {k: v for k, v in record.items() if k != "stream_type"}
+        payload = serializers[topic].serialize(topic, sent)
+        if topic == "orders-json":
+            assert page.read_order(topic, payload) == sent
+        else:
+            as_strings = {
+                **sent,
+                "instance": str(sent["instance"]),
+                "value": {**sent["value"], "order_id": str(sent["value"]["order_id"])},
+            }
+            assert page.read_order(topic, payload) == as_strings
+
+    # The Confluent JSON serializer registers the schema as given
+    kinds = {schema["schemaType"] for schema in registry.registered}
+    assert kinds == {"JSON", "PROTOBUF"}
+    assert registry.registered[0]["schema"] == page.json_schema
+
+
+def test_glue_serializers_round_trip_the_order_record(monkeypatch):
+    """The Glue serializers of the page take the same record, and the Protobuf one is
+    given the text of shop_record.proto as its schema."""
+    pytest.importorskip("boto3")
+    pytest.importorskip("fastjsonschema")
+    pytest.importorskip("google.protobuf")
+    from desflow.connectors.ingress.kafka import (
+        GlueJsonSchemaDeserializer,
+        GlueProtobufDeserializer,
+    )
+
+    class _Glue:
+        """Registers each definition once and serves its versions back."""
+
+        def __init__(self):
+            self.definitions = {}
+
+        def get_schema_by_definition(self, SchemaId, SchemaDefinition):
+            version = f"00000000-0000-0000-0000-{len(self.definitions):012d}"
+            self.definitions.setdefault(version, SchemaDefinition)
+            return {"SchemaVersionId": version, "Status": "AVAILABLE"}
+
+        def get_schema_version(self, SchemaVersionId):
+            definition = self.definitions[SchemaVersionId]
+            return {
+                "SchemaVersionId": SchemaVersionId,
+                "Status": "AVAILABLE",
+                "DataFormat": "JSON" if definition.startswith("{") else "PROTOBUF",
+                "SchemaDefinition": definition,
+            }
+
+    glue = _Glue()
+    monkeypatch.setattr("boto3.client", lambda service, **kwargs: glue)
+    module = _load("json_schema_and_protobuf")
+    glue_json, glue_protobuf = module.glue_serializers()
+    record = {
+        "key": "orders-1",
+        "task": "pack_order",
+        "instance": 0,
+        "sim_ts": 1.5,
+        "timestamp": "2026-01-01T00:00:00Z",
+        "value": {"order_id": 0, "amount": 19.99},
+    }
+
+    json_payload = glue_json.serialize("orders-json", record)
+    protobuf_payload = glue_protobuf.serialize("orders-protobuf", record)
+
+    assert GlueJsonSchemaDeserializer("shop").deserialize("o", json_payload) == record
+    read = GlueProtobufDeserializer("shop", module.ShopRecord).deserialize(
+        "o", protobuf_payload
+    )
+    assert read["value"] == {"order_id": "0", "amount": 19.99}
+    assert (GUIDES / "shop_record.proto").read_text() in glue.definitions.values()
+
+
+def test_shop_record_module_declares_the_fields_of_the_proto_file():
+    """shop_record_pb2.py is generated from shop_record.proto; a field the file changed
+    and the module did not shows up here."""
+    pytest.importorskip("google.protobuf")
+    text = (GUIDES / "shop_record.proto").read_text()
+    shop_record = _load("shop_record_pb2").ShopRecord
+    assert shop_record.DESCRIPTOR.full_name == "com.desflow.shop.ShopRecord"
+    for message in shop_record.DESCRIPTOR.file.message_types_by_name.values():
+        for field in message.fields:
+            assert f"{field.name} = {field.number};" in text
+
+
 def test_reneging_and_balking_ties_and_balance():
     """At a tie, the order scheduled later is served and the one scheduled first
     reneges, as the page says, in every form; and every order of the patience
@@ -766,3 +946,181 @@ def test_write_a_connector_applies_the_change_and_writes_the_events(
             ("19.0", "started"),
         ]
     assert written[0] == written[1] == written[2]
+
+
+_STORAGE_MODULES = ("cloud_storage", "cloud_storage_logic", "cloud_storage_low_level")
+
+
+def _run_storage_form(form, tmp_path, monkeypatch):
+    """Runs one form of the Write to Cloud Storage shop on the local disk, in tmp_path.
+
+    Returns the Parquet and the JSON Lines tables, read back with the page's
+    read_events.
+    """
+    from pyarrow import fs
+
+    from desflow import SimulationContext
+
+    for source in (
+        GUIDES / "cloud_storage.py",
+        GUIDES / "cloud_storage_low_level.py",
+        ROOT / "docs" / "snippets" / "yaml" / "cloud_storage.yaml",
+        ROOT / "docs" / "snippets" / "yaml" / "cloud_storage_logic.py",
+    ):
+        shutil.copy(source, tmp_path)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("STORAGE", "local")
+    monkeypatch.setenv("STORAGE_BUCKET", "output")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    for name in _STORAGE_MODULES:
+        monkeypatch.delitem(sys.modules, name, raising=False)
+    try:
+        if form == "builder":
+            module = _load_from(tmp_path, "cloud_storage")
+            module.app.run(until=600)
+        elif form == "yaml":
+            SimulationContext.from_yaml(tmp_path / "cloud_storage.yaml").run(until=600)
+            module = sys.modules["cloud_storage"]
+        else:
+            low_level = _load_from(tmp_path, "cloud_storage_low_level")
+            env = low_level.shop(low_level.sinks)
+            env.run(until=600)
+            env.teardown()
+            module = sys.modules["cloud_storage"]
+        store = fs.LocalFileSystem()
+        folder = str(tmp_path / "output")
+        return (
+            module.read_events(store, f"{folder}/parquet"),
+            module.read_events(store, f"{folder}/jsonl", format="json"),
+        )
+    finally:
+        for name in _STORAGE_MODULES:
+            sys.modules.pop(name, None)
+
+
+@pytest.mark.parametrize("form", ["builder", "yaml", "low-level"])
+def test_cloud_storage_shop_writes_the_same_events_as_parquet_and_jsonl(
+    form, tmp_path, monkeypatch
+):
+    """Each form writes every event to both folders, and read_events reads them back:
+    queued, started and finished events, the finished ones with the order record."""
+    parquet, jsonl = _run_storage_form(form, tmp_path, monkeypatch)
+    assert parquet.num_rows == jsonl.num_rows > 0
+    rows = parquet.to_pylist()
+    assert {row["status"] for row in rows} == {"queued", "started", None}
+    finished = [row for row in rows if row["status"] is None]
+    assert finished and all(row["amount"] == 19.99 for row in finished)
+    assert {row["key"] for row in rows} == {row["key"] for row in jsonl.to_pylist()}
+
+
+def test_cloud_storage_forms_write_the_same_rows(tmp_path, monkeypatch):
+    """The seeded shop gives the same rows in YAML, Builder and Low-level."""
+    rows = []
+    for form in ("builder", "yaml", "low-level"):
+        folder = tmp_path / form
+        folder.mkdir()
+        parquet, _ = _run_storage_form(form, folder, monkeypatch)
+        columns = ["sim_ts", "key", "status", "order_id"]
+        rows.append(sorted(parquet.select(columns).to_pylist(), key=str))
+    assert rows[0] == rows[1] == rows[2]
+
+
+def test_cloud_storage_stores_make_their_filesystems(monkeypatch):
+    """Each mapping of the page builds the PyArrow class of its store."""
+    from pyarrow import fs
+
+    from desflow.connectors.egress.storage import _build_filesystem
+
+    monkeypatch.setenv("AZURE_STORAGE_ACCOUNT", "myaccount")
+    sys.modules.pop("cloud_storage", None)
+    try:
+        stores = _load("cloud_storage").STORES
+    finally:
+        sys.modules.pop("cloud_storage", None)
+    classes = {name: type(_build_filesystem(m, fs)) for name, m in stores.items()}
+    assert classes == {
+        "local": fs.LocalFileSystem,
+        "s3": fs.S3FileSystem,
+        "gcs": fs.GcsFileSystem,
+        "azure": fs.AzureFileSystem,
+    }
+
+
+_ICEBERG_MODULES = (
+    "iceberg_tables",
+    "iceberg_tables_logic",
+    "iceberg_tables_low_level",
+)
+
+
+def _run_iceberg_form(form, tmp_path, monkeypatch):
+    """Runs one form of the Write to Iceberg Tables shop on the SQLite catalog, in
+    tmp_path, and returns the rows of shop.events, read back with the page's
+    read_events."""
+    from desflow import SimulationContext
+
+    for source in (
+        GUIDES / "iceberg_tables.py",
+        GUIDES / "iceberg_tables_low_level.py",
+        ROOT / "docs" / "snippets" / "yaml" / "iceberg_tables.yaml",
+        ROOT / "docs" / "snippets" / "yaml" / "iceberg_tables_logic.py",
+    ):
+        shutil.copy(source, tmp_path)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("ICEBERG_CATALOG", raising=False)
+    monkeypatch.syspath_prepend(str(tmp_path))
+    for name in _ICEBERG_MODULES:
+        monkeypatch.delitem(sys.modules, name, raising=False)
+    try:
+        if form == "builder":
+            module = _load_from(tmp_path, "iceberg_tables")
+            module.app.run(until=600)
+        elif form == "yaml":
+            SimulationContext.from_yaml(tmp_path / "iceberg_tables.yaml").run(until=600)
+            module = sys.modules["iceberg_tables"]
+        else:
+            low_level = _load_from(tmp_path, "iceberg_tables_low_level")
+            env = low_level.shop(low_level.sink)
+            env.run(until=600)
+            env.teardown()
+            module = sys.modules["iceberg_tables"]
+        assert (
+            module.catalog["uri"]
+            == f"sqlite:///{tmp_path.resolve()}/iceberg/catalog.db"
+        )
+        return module.read_events(module.catalog)
+    finally:
+        for name in _ICEBERG_MODULES:
+            sys.modules.pop(name, None)
+
+
+def test_iceberg_shop_writes_the_same_rows_in_every_form(tmp_path, monkeypatch):
+    """Each form appends every event to shop.events in one commit, and the seeded shop
+    gives the same rows in YAML, Builder and Low-level."""
+    rows = []
+    for form in ("builder", "yaml", "low-level"):
+        folder = tmp_path / form
+        folder.mkdir()
+        table = _run_iceberg_form(form, folder, monkeypatch)
+        assert table.num_rows > 0
+        columns = ["sim_ts", "key", "status", "order_id", "amount"]
+        rows.append(sorted(table.select(columns).to_pylist(), key=str))
+    assert rows[0] == rows[1] == rows[2]
+    statuses = {row["status"] for row in rows[0]}
+    assert statuses == {"queued", "started", None}
+    assert all(row["amount"] == 19.99 for row in rows[0] if row["status"] is None)
+
+
+def test_iceberg_catalogs_name_their_types(monkeypatch, tmp_path):
+    """Each catalog of the page is the PyIceberg type its comment names, and
+    ICEBERG_CATALOG picks one, with its name."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("ICEBERG_CATALOG", "glue")
+    sys.modules.pop("iceberg_tables", None)
+    try:
+        module = _load("iceberg_tables")
+    finally:
+        sys.modules.pop("iceberg_tables", None)
+    types = {name: c["type"] for name, c in module.CATALOGS.items()}
+    assert types == {"sqlite": "sql", "rest": "rest", "postgres": "sql", "glue": "glue"}
+    assert module.catalog == {"name": "glue", **module.CATALOGS["glue"]}

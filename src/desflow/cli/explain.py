@@ -6,7 +6,7 @@ from typing import Annotated, Optional
 
 import typer
 
-from desflow.cli.run import _parse_until
+from desflow.cli._common import fail, parse_until, refuse, setup_logging
 
 
 # The examples --help prints after the options, as odctl's help does
@@ -30,19 +30,6 @@ def register(app: typer.Typer) -> None:
         app: The `desflow` Typer app.
     """
     app.command("explain", rich_help_panel="Run and Check", epilog=_EPILOG)(_explain)
-
-
-def _refuse(message: str) -> None:
-    """Exits 2, as for a usage error: a missing file, a file with no context,
-    options that do not go together, or an end at or before the warm-up's end."""
-    typer.echo(f"Error: {message}", err=True)
-    raise typer.Exit(code=2)
-
-
-def _invalid(message: str) -> None:
-    """Exits 1, as `desflow run` does for an invalid blueprint."""
-    typer.echo(f"Error: {message}", err=True)
-    raise typer.Exit(code=1)
 
 
 def _explain(
@@ -108,36 +95,30 @@ def _explain(
     from desflow.loading import load_context
 
     if not 0 < target <= 10:
-        _refuse(f"--target must be above 0 and at most 10, got {target:g}")
+        refuse(f"--target must be above 0 and at most 10, got {target:g}")
     if not verify and (
         until is not None or seed is not None or replications is not None
     ):
-        _refuse("--until, --seed and --replications apply to --verify; add --verify")
-    stop_at = _parse_until(until)
+        refuse("--until, --seed and --replications apply to --verify; add --verify")
+    stop_at = parse_until(until)
     folder, _, entry = source.rpartition("/")
     if "://" not in source:
         path = Path(source)
         if not path.is_file():
-            _refuse(f"no file {source}")
+            refuse(f"no file {source}")
         folder, entry = str(path.parent), path.name
     # A warning while loading, such as a capacity clamped to max_cap, is shown on
     # stderr; the explanation stays alone on stdout
-    logging.basicConfig(
-        level=logging.WARNING,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        datefmt="%H:%M:%S",
-    )
+    setup_logging(logging.WARNING)
     try:
         context = load_context(folder, entry)
     except BlueprintError as exc:
-        _invalid(str(exc))
+        fail(str(exc))
     except ValueError as exc:
         # A Python file with no SimulationContext, such as a low-level script
-        _refuse(str(exc))
+        refuse(str(exc))
     if verify and stop_at is None and context._default_until is None:
-        _refuse(
-            "--verify needs an end time: pass --until, or set run.until in the file"
-        )
+        refuse("--verify needs an end time: pass --until, or set run.until in the file")
     if verify:
         from desflow.analysis.models import seconds
         from desflow.explain.verify import window_error
@@ -145,14 +126,14 @@ def _explain(
         end = seconds(stop_at if stop_at is not None else context._default_until)
         start = context.initial_time + (context.warmup or 0.0)
         if end is not None and end <= start:
-            _refuse(window_error(end, start, "--verify"))
+            refuse(window_error(end, start, "--verify"))
     try:
         explanation = context.analyze(
             verify, until=stop_at, seed=seed, replications=replications, target=target
         )
     except ValueError as exc:
         # A value the verifying run refuses, as desflow run reports it
-        _invalid(str(exc))
+        fail(str(exc))
     typer.echo(
         to_json(explanation) if as_json else render_terminal(explanation), nl=as_json
     )

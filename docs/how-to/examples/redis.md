@@ -302,9 +302,11 @@ This command leaves out the `__stream__` key that names the stream, because only
         message to that channel changes the arrival rate of a running simulation.
 
         Needs Valkey: `odctl up valkey`. Runs until interrupted with Ctrl + C.
+        Set EXAMPLE_UNTIL to a number of simulation seconds to end the run at that time instead.
         """
 
         import logging
+        import os
 
         from desflow import RedisEgress, RedisIngress, SimulationContext
 
@@ -342,6 +344,11 @@ This command leaves out the `__stream__` key that names the stream, because only
                 task_id += 1
 
 
+        # The simulation time, in seconds, at which the run ends.
+        # When EXAMPLE_UNTIL is not set, the run goes on until Ctrl + C.
+        EXAMPLE_UNTIL = float(os.getenv("EXAMPLE_UNTIL") or 0) or None
+
+
         def run():
             logger.info("Starting Builder Redis Demo. Press Ctrl+C to stop...")
             logger.info(
@@ -350,7 +357,7 @@ This command leaves out the `__stream__` key that names the stream, because only
                 '\'{"path": "Shop.arrival.orders.rate", "value": 10.0}\''
             )
             try:
-                app.run()
+                app.run(until=EXAMPLE_UNTIL)
             except KeyboardInterrupt:
                 logger.info("Simulation interrupted by user.")
 
@@ -373,9 +380,11 @@ This command leaves out the `__stream__` key that names the stream, because only
         `simulation_params` channel.
 
         Needs Valkey: `odctl up valkey`. Runs until interrupted with Ctrl + C.
+        Set EXAMPLE_UNTIL to a number of simulation seconds to end the run at that time instead.
         """
 
         import logging
+        import os
 
         import numpy as np
 
@@ -419,6 +428,11 @@ This command leaves out the `__stream__` key that names the stream, because only
                 task_id += 1
 
 
+        # The simulation time, in seconds, at which the run ends.
+        # When EXAMPLE_UNTIL is not set, the run goes on until Ctrl + C.
+        EXAMPLE_UNTIL = float(os.getenv("EXAMPLE_UNTIL") or 0) or None
+
+
         def run():
             env = DynamicRealtimeEnvironment(factor=1.0, strict=False)
             env.registry.register_sim_parameter(PARAMS)
@@ -436,7 +450,7 @@ This command leaves out the `__stream__` key that names the stream, because only
             )
 
             try:
-                env.run()
+                env.run(until=EXAMPLE_UNTIL)
             except KeyboardInterrupt:
                 logger.info("Simulation interrupted by user.")
             finally:

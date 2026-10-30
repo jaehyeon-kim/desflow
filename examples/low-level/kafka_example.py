@@ -5,6 +5,7 @@ the environment, registry and connectors wired by hand. Like the builder version
 creates its topics first with `KafkaAdminConnector`.
 
 Needs a broker: `odctl up kafka-lite`. Runs until interrupted with Ctrl + C.
+Set EXAMPLE_UNTIL to a number of simulation seconds to end the run at that time instead.
 """
 
 import logging
@@ -32,6 +33,9 @@ logging.basicConfig(
 logger = logging.getLogger("kafka_example")
 
 BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "127.0.0.1:9092")
+# The simulation time, in seconds, at which the run ends.
+# When EXAMPLE_UNTIL is not set, the run goes on until Ctrl + C.
+EXAMPLE_UNTIL = float(os.getenv("EXAMPLE_UNTIL") or 0) or None
 
 
 # ==========================================
@@ -158,7 +162,7 @@ def run():
     print("  - Send to 'sim-config' to update parameters.")
 
     try:
-        env.run()
+        env.run(until=EXAMPLE_UNTIL)
     except KeyboardInterrupt:
         logger.info("Simulation interrupted by user.")
     finally:

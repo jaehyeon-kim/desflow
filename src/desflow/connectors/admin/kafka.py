@@ -1,10 +1,12 @@
+import asyncio
 import json
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, DefaultDict, Dict, List
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
-from kafka.admin import KafkaAdminClient, NewTopic
-from kafka.errors import TopicAlreadyExistsError
+from aiokafka.admin import AIOKafkaAdminClient, NewTopic
+from aiokafka.errors import NotControllerError, TopicAlreadyExistsError, for_code
 
 
 class KafkaAdminConnector:
@@ -12,9 +14,8 @@ class KafkaAdminConnector:
     Unified Kafka Admin and Monitoring Connector.
 
     This connector acts as a management layer for the simulation's Kafka
-    infrastructure. It handles synchronous administrative tasks (topic creation)
-    using `kafka-python` and asynchronous data operations (sending config,
-    collecting telemetry/events) using `aiokafka`.
+    infrastructure. It creates topics, sends config and collects telemetry and
+    events, all with `aiokafka`; `create_topics` is a synchronous method.
 
     It maintains an internal state of simulation vitals and task lifecycles
     by consuming from the simulation's egress topics.
@@ -53,19 +54,25 @@ class KafkaAdminConnector:
 
         This is a synchronous call to ensure that all necessary infrastructure
         (config, telemetry, and event topics) is ready before the simulation
-        environment starts.
+        environment starts. It runs the asynchronous admin client to completion. When
+        the calling thread already runs an event loop, it does so in a worker
+        thread. A topic that already exists is ignored. A topic error that says the
+        broker is not the controller is retried once with a new client. Any other
+        error that the broker reports for a topic is raised.
 
         Args:
             topics_config: A list of topic configurations.
                 Each dict should contain 'name', and optionally 'partitions'
                 and 'replication'.
-        """
-        admin_client = KafkaAdminClient(
-            bootstrap_servers=self.bootstrap_servers,
-            client_id="sim_admin",
-            **self.kwargs,
-        )
 
+        Raises:
+            TypeError: If a setting passed to the connector is not one of
+                `AIOKafkaAdminClient`'s, such as the kafka-python setting
+                `ssl_cafile`. Pass `ssl_context` instead.
+            KafkaError: If the broker reports an error for a topic, such as an
+                invalid replication factor. The error is the `aiokafka.errors`
+                class for the error code. A topic that exists is not an error.
+        """
         new_topics = [
             NewTopic(
                 name=cfg["name"],
@@ -74,13 +81,46 @@ class KafkaAdminConnector:
             )
             for cfg in topics_config
         ]
-
         try:
-            admin_client.create_topics(new_topics=new_topics, validate_only=False)
-        except TopicAlreadyExistsError:
-            pass
+            asyncio.get_running_loop()
+        except RuntimeError:
+            asyncio.run(self._create_topics(new_topics))
+            return
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            executor.submit(asyncio.run, self._create_topics(new_topics)).result()
+
+    async def _create_topics(self, new_topics: List[NewTopic]):
+        """Creates the topics, once more with a new client after a NOT_CONTROLLER error."""
+        topic_errors = await self._request_topics(new_topics)
+        if any(error[1] == NotControllerError.errno for error in topic_errors):
+            # kafka-python refreshed the controller and sent the request again. A new
+            # client fetches fresh metadata, which names the current controller.
+            topic_errors = await self._request_topics(new_topics)
+        for topic_error in topic_errors:
+            topic, error_code = topic_error[0], topic_error[1]
+            if error_code not in (0, TopicAlreadyExistsError.errno):
+                message = topic_error[2] if len(topic_error) > 2 else None
+                raise for_code(error_code)(f"Topic {topic}: {message or 'no message'}")
+
+    async def _request_topics(self, new_topics: List[NewTopic]) -> List[Any]:
+        """Sends one CreateTopics request with an admin client that lives for this call."""
+        admin_client = AIOKafkaAdminClient(
+            bootstrap_servers=self.bootstrap_servers,
+            client_id="sim_admin",
+            **self.kwargs,
+        )
+        try:
+            await admin_client.start()
+            response = await admin_client.create_topics(
+                new_topics=new_topics, validate_only=False
+            )
+            # aiokafka returns the broker's answer and raises no error for a topic.
+            # In every CreateTopics response version an entry of `topic_errors`
+            # starts with the topic and its error code, and from version 1 it ends
+            # with the broker's message.
+            return list(response.topic_errors)
         finally:
-            admin_client.close()
+            await admin_client.close()
 
     async def send_config(self, topic: str, path: str, value: Any):
         """

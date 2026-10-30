@@ -1,7 +1,7 @@
 """Every example's Quick Start is the same template, filled from the example list.
 
 `quick_start` builds the Quick Start of one example in one way of writing it, from
-`desflow.blueprint.examples.EXAMPLES`: the files `desflow examples get` downloads, the
+`desflow.examples.EXAMPLES`: the files `desflow examples get` downloads, the
 odctl profile, the extras, the blueprint `desflow explain` reads, and how the run ends. Every example page, and Getting
 Started, must show exactly that text in each tab, so the steps, their names and their
 numbers are the same everywhere.
@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from desflow.blueprint.examples import EXAMPLES, Example
+from desflow.examples import EXAMPLES, Example
 
 ROOT = Path(__file__).resolve().parents[2]
 PAGES = {

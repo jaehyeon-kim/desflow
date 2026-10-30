@@ -2,6 +2,23 @@
 
 Each release, newest first: what changed, then under Upgrading what to change in code, commands or installs that use the previous release.
 
+## Version 0.27.0
+
+- `GlueAvroSerializer` and `GlueAvroDeserializer` talk to AWS Glue with desflow's own client and wire format, so the `glue` extra no longer depends on aws-glue-schema-registry. The arguments and the bytes on the topic are the same.
+- The `kafka` extra no longer installs kafka-python. `KafkaAdminConnector.create_topics` and the topic creation of `KafkaEgress` use aiokafka.
+- JSON Schema and Protobuf are read and written through both schema registries, next to Avro, by `ConfluentJsonSchemaSerializer`, `ConfluentJsonSchemaDeserializer`, `ConfluentProtobufSerializer`, `ConfluentProtobufDeserializer`, `GlueJsonSchemaSerializer`, `GlueJsonSchemaDeserializer`, `GlueProtobufSerializer` and `GlueProtobufDeserializer`. See [JSON Schema](../how-to/records-and-kafka/json-schema-and-protobuf.md#json-schema) and [Protobuf](../how-to/records-and-kafka/json-schema-and-protobuf.md#protobuf).
+- The builder and low-level scripts of the [Kafka, PostgreSQL, Redis and Related Records examples](../how-to/examples/index.md) stop at `EXAMPLE_UNTIL` simulation seconds when that variable is set, and run until Ctrl + C when it is not.
+- A new How-To group, Storage and Tables, has two pages: [Write to Cloud Storage](../how-to/storage-and-tables/cloud-storage.md) writes Parquet and JSON Lines files to S3, Google Cloud Storage or Azure Blob Storage, and [Write to Iceberg Tables](../how-to/storage-and-tables/iceberg-tables.md) appends to a table through a SQLite, REST, PostgreSQL or Glue catalog. Each has YAML, Builder and Low-level forms.
+
+### Upgrading
+
+- The `glue` extra no longer installs `aws-glue-schema-registry`. Code that imports `aws_schema_registry` itself must add it to its own dependencies.
+- Glue schema registration waits up to 30 seconds (10 checks, 3 seconds apart) for a new schema version to become available. aws-glue-schema-registry 1.1.3 waited 3 seconds once and then checked 10 times with no wait between checks.
+- Glue registry and framing failures raise desflow's `SchemaRegistryError` and `SerializationError`, importable from `desflow.connectors.egress.kafka` and `desflow.connectors.ingress.kafka`, not `aws_schema_registry.SchemaRegistryException`.
+- `GlueAvroDeserializer` compiles a JSON schema version with fastjsonschema, as aws-glue-schema-registry 1.1.3 did, and the `glue` extra needs fastjsonschema 2.22.1 or later, where 1.1.3 accepted any 2.x release from 2.15. A JSON schema version that fastjsonschema cannot compile, or a record that is not JSON, does not match the schema or cannot be checked against it, raises `SerializationError`, where 1.1.3 raised the exception of fastjsonschema, orjson or Python, or its own `ValidationError`.
+- The `confluent` extra also installs `jsonschema` and `protobuf`, and the `glue` extra also installs `protobuf`.
+- The `kafka` extra no longer installs kafka-python. `KafkaAdminConnector` takes aiokafka's admin settings, so a kafka-python-only setting such as `ssl_cafile` is refused: pass `ssl_context`. A kafka-python token provider is refused too: pass `KafkaAdminConnector` the aiokafka provider that `KafkaEgress` takes, as [AWS MSK (IAM)](../how-to/records-and-kafka/kafka-security.md#aws-msk-iam) shows. Code that imports `kafka` itself installs kafka-python separately. `KafkaAdminConnector.create_topics` raises the `aiokafka.errors` class for a broker error, such as `aiokafka.errors.InvalidReplicationFactorError`, where it raised the `kafka.errors` class: catch `aiokafka.errors.KafkaError` instead.
+
 ## Version 0.26.0
 
 - The `confluent` extra no longer installs confluent-kafka. desflow writes and reads the Confluent Schema Registry wire format itself with httpx and fastavro, so the extra no longer depends on a package without Python 3.15 support. The bytes on the topic are the same.

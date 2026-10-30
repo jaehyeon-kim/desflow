@@ -17,6 +17,7 @@ from desflow import SimulationContext
 from desflow.explain.pairs import pairs
 
 ROOT = Path(__file__).resolve().parents[2]
+GUIDES = ROOT / "docs" / "snippets" / "guides"
 UNTIL = 100_000
 
 
@@ -37,7 +38,9 @@ def _blueprints():
 
 
 @pytest.mark.parametrize("path", _blueprints(), ids=lambda p: str(p.relative_to(ROOT)))
-def test_verify_finds_no_difference(path):
+def test_verify_finds_no_difference(path, monkeypatch):
+    # Some snippet blueprints name a module of their How-To page, in guides/
+    monkeypatch.syspath_prepend(str(GUIDES))
     context = SimulationContext.from_yaml(path)
     found = pairs(context.analyze(), 1.0)
     assert all(p.analytical is not None or p.reason for p in found)

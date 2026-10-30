@@ -1,6 +1,6 @@
 # Fast-Forward to Iceberg
 
-This example generates a day of a shop's orders at `factor=0.0` and appends them to an Apache Iceberg table through an Iceberg REST catalog. [Egress](../../user-guide/live-runs-and-connectors/egress.md#iceberg) shows the other catalogs. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../../user-guide/writing-a-model/index.md) compares the three.
+This example generates a day of a shop's orders at `factor=0.0` and appends them to an Apache Iceberg table through an Iceberg REST catalog. [Write to Iceberg Tables](../storage-and-tables/iceberg-tables.md) shows the other catalogs. Each tab shows the example written one way: as a YAML blueprint, with the builder API, or with the low-level API. [Ways to write a simulation](../../user-guide/writing-a-model/index.md) compares the three.
 
 `ParquetStorageEgress` writes files and leaves registering them as a table to you. `IcebergStorageEgress` appends into an Iceberg table instead, so one run ends with a table another engine can query. Look for the day's events as rows of `simulation.events`, and for the few snapshots that hold them.
 

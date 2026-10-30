@@ -8,9 +8,11 @@ only the records whose `__table__` key names its table. Each creates its table a
 start.
 
 Needs a database: odctl up postgres. Runs until interrupted with Ctrl + C.
+Set EXAMPLE_UNTIL to a number of simulation seconds to end the run at that time instead.
 """
 
 import logging
+import os
 
 from desflow import PostgresEgress, PostgresIngress, SimulationContext
 
@@ -96,5 +98,9 @@ app = (
     .add_process(order_generator, arrival="orders", max_items=5)
 )
 
+# The simulation time, in seconds, at which the run ends.
+# When EXAMPLE_UNTIL is not set, the run goes on until Ctrl + C.
+EXAMPLE_UNTIL = float(os.getenv("EXAMPLE_UNTIL") or 0) or None
+
 if __name__ == "__main__":
-    app.run()
+    app.run(until=EXAMPLE_UNTIL)

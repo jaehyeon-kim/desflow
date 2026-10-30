@@ -6,6 +6,8 @@ from typing import Annotated, Optional
 
 import typer
 
+from desflow.cli._common import fail
+
 _examples_app = typer.Typer(
     help="List the examples, or download one at the version you have installed.",
     invoke_without_command=True,
@@ -60,7 +62,7 @@ def _examples(ctx: typer.Context) -> None:
 @_examples_app.command("list", epilog=_LIST_EPILOG)
 def _examples_list() -> None:
     """List the examples, with what each shows and what it needs."""
-    from desflow.blueprint.examples import EXAMPLES
+    from desflow.examples import EXAMPLES
 
     width = max(len(name) for name in EXAMPLES)
     for example in EXAMPLES.values():
@@ -93,7 +95,7 @@ def _examples_get(
 ) -> None:
     """Download an example into <dest>/<name>/<api>/, at the installed release."""
     from desflow import __version__
-    from desflow.blueprint.examples import (
+    from desflow.examples import (
         APIS,
         EXAMPLES,
         download,
@@ -113,8 +115,7 @@ def _examples_get(
     try:
         written = download(example, apis, dest, ref, force=force)
     except (FileExistsError, RuntimeError) as exc:
-        typer.echo(f"Error: {exc}", err=True)
-        raise typer.Exit(1) from None
+        fail(str(exc))
     for path in written:
         typer.echo(f"wrote {path}")
     typer.echo("")

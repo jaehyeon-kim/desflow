@@ -29,8 +29,8 @@ Connectors and input fitting are optional extras. For example, `uv add "desflow[
 | Extra | Adds |
 |---|---|
 | `kafka` | Kafka ingress and egress |
-| `confluent` | Avro with the Confluent Schema Registry (includes `kafka`) |
-| `glue` | Avro with the AWS Glue Schema Registry (includes `kafka`) |
+| `confluent` | Avro, JSON Schema and Protobuf with the Confluent Schema Registry (includes `kafka`) |
+| `glue` | Avro, JSON Schema and Protobuf with the AWS Glue Schema Registry (includes `kafka`) |
 | `redis` | Redis ingress and egress |
 | `postgres` | PostgreSQL ingress and egress |
 | `parquet` | Parquet and JSONL files on local disk, S3-compatible storage, Google Cloud Storage or Azure Blob Storage |

@@ -120,7 +120,7 @@ async def _drain(egress, records):
 
 def test_every_example_is_plain_yaml():
     """Only the advanced examples reference Python."""
-    from desflow.blueprint.examples import EXAMPLES as LISTED
+    from desflow.examples import EXAMPLES as LISTED
 
     plain = sorted(EXAMPLES.glob("*.yaml"))
     # Every example's blueprint outside advanced/ is here, and nothing else

@@ -447,6 +447,26 @@ The builder and YAML start these SimPy processes and readers for you. Low-level 
     options:
       heading_level: 3
 
+<!-- prettier-ignore -->
+::: desflow.connectors.ingress.kafka.ConfluentJsonSchemaDeserializer
+    options:
+      heading_level: 3
+
+<!-- prettier-ignore -->
+::: desflow.connectors.ingress.kafka.ConfluentProtobufDeserializer
+    options:
+      heading_level: 3
+
+<!-- prettier-ignore -->
+::: desflow.connectors.ingress.kafka.GlueJsonSchemaDeserializer
+    options:
+      heading_level: 3
+
+<!-- prettier-ignore -->
+::: desflow.connectors.ingress.kafka.GlueProtobufDeserializer
+    options:
+      heading_level: 3
+
 ## Connectors (Egress)
 
 <!-- prettier-ignore -->
@@ -510,6 +530,26 @@ The builder and YAML start these SimPy processes and readers for you. Low-level 
 
 <!-- prettier-ignore -->
 ::: desflow.connectors.egress.kafka.GlueAvroSerializer
+    options:
+      heading_level: 3
+
+<!-- prettier-ignore -->
+::: desflow.connectors.egress.kafka.ConfluentJsonSchemaSerializer
+    options:
+      heading_level: 3
+
+<!-- prettier-ignore -->
+::: desflow.connectors.egress.kafka.ConfluentProtobufSerializer
+    options:
+      heading_level: 3
+
+<!-- prettier-ignore -->
+::: desflow.connectors.egress.kafka.GlueJsonSchemaSerializer
+    options:
+      heading_level: 3
+
+<!-- prettier-ignore -->
+::: desflow.connectors.egress.kafka.GlueProtobufSerializer
     options:
       heading_level: 3
 

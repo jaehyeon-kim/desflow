@@ -274,7 +274,8 @@ def _exit_codes(function: Any) -> List[int]:
     """0, and every code the command raises: `typer.Exit` or a usage error.
 
     The raise statements are read from the command's function and, once each, from
-    every function of the same module that it calls, directly or through another.
+    every function of the same module or of `desflow.cli._common` that it calls,
+    directly or through another.
     """
     codes = {0}
     pending = [function]
@@ -288,9 +289,9 @@ def _exit_codes(function: Any) -> List[int]:
         for node in ast.walk(tree):
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
                 called = current.__globals__.get(node.func.id)
-                if (
-                    inspect.isfunction(called)
-                    and called.__module__ == function.__module__
+                if inspect.isfunction(called) and called.__module__ in (
+                    function.__module__,
+                    "desflow.cli._common",
                 ):
                     pending.append(called)
             if not (isinstance(node, ast.Raise) and isinstance(node.exc, ast.Call)):

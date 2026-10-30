@@ -5,14 +5,10 @@ Releases come in the order shown, without dates: a release ships when it is read
 ## Before 1.0
 
 ::timeline::
-- title: '0.26.0: Storage, schema registry code and Python 3.15'
-  content: 'Parquet and JSONL on Google Cloud Storage and Azure Blob Storage, and Iceberg through SQL catalogs on SQLite or PostgreSQL and the Glue catalog. The Confluent schema registry client moves into desflow, so the `confluent` extra no longer installs confluent-kafka. Python 3.15 is supported. `GlueAvroSerializer` serializes a record. [#32](https://github.com/jaehyeon-kim/desflow/issues/32), [#83](https://github.com/jaehyeon-kim/desflow/issues/83), [#40](https://github.com/jaehyeon-kim/desflow/issues/40), [#85](https://github.com/jaehyeon-kim/desflow/issues/85)'
-  icon: ':material-play:'
-  key: now
 - title: '0.27.0: Schema registry formats'
   content: 'JSON Schema and Protobuf serializers and deserializers for the Confluent and Glue schema registries, next to Avro. desflow writes the Glue wire format itself and no longer depends on `aws-glue-schema-registry`, so the `kafka` extra also drops kafka-python and creates topics through aiokafka. [#82](https://github.com/jaehyeon-kim/desflow/issues/82)'
-  icon: ':material-clock-outline:'
-  key: planned
+  icon: ':material-play:'
+  key: now
 - title: '0.28.0: Library hooks for the server'
   content: 'Parameter changes that report who made them and why: `change` returns a `ParamChange` or raises `ParamRejected`, an `on_change` list of callbacks receives each accepted change, and `registry_paths()` lists the paths a simulation will have without running it. The server after 1.0 then adds to the library without changing it. `FileIngress` changes parameters during a run when you edit a local file, with no broker. [#70](https://github.com/jaehyeon-kim/desflow/issues/70) [#86](https://github.com/jaehyeon-kim/desflow/issues/86)'
   icon: ':material-clock-outline:'
@@ -88,6 +84,14 @@ The server ships after 1.0, as 1.x releases installed with the `server` extra.
 - **How-To:** generating data at scale, and testing pipelines with simulated data.
 
 ## Released
+
+??? note "0.26.0: Storage, schema registry code and Python 3.15"
+
+    - **Storage:** Parquet and JSON Lines files on Google Cloud Storage and Azure Blob Storage, and Iceberg tables through SQL catalogs on SQLite or PostgreSQL and the Glue catalog. [#32](https://github.com/jaehyeon-kim/desflow/issues/32)
+    - **Schema registry code:** the Confluent schema registry client moves into desflow, so the `confluent` extra no longer installs confluent-kafka. [#83](https://github.com/jaehyeon-kim/desflow/issues/83)
+    - **Python 3.15** is supported. [#40](https://github.com/jaehyeon-kim/desflow/issues/40)
+    - **Fix:** `GlueAvroSerializer` serializes a record. [#85](https://github.com/jaehyeon-kim/desflow/issues/85)
+    - **Docs:** page addresses follow the sidebar, and each page kind has one shape.
 
 ??? note "0.25.0: desflow explain"
 

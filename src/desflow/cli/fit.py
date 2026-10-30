@@ -5,6 +5,8 @@ from typing import Annotated, Optional
 
 import typer
 
+from desflow.cli._common import refuse
+
 
 # The examples --help prints after the options, as odctl's help does
 _EPILOG = """
@@ -108,8 +110,7 @@ def _fit(
             drop_invalid=drop_invalid,
         )
     except (ValueError, ImportError) as exc:
-        typer.echo(f"Error: {exc}", err=True)
-        raise typer.Exit(code=2) from None
+        refuse(str(exc))
     typer.echo(result.text())
     if result.best is None:
         raise typer.Exit(code=1)

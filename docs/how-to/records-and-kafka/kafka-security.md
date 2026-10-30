@@ -1,6 +1,6 @@
 # Connect to Secure Kafka
 
-The Kafka connectors pass any keyword argument they do not use themselves to the Kafka client underneath, so SASL, mTLS, OAuth and AWS IAM work without code of your own. `KafkaIngress` and `KafkaEgress` use `aiokafka`. `KafkaAdminConnector` uses `kafka-python` for `create_topics` and `aiokafka` for `send_config` and `collect_data`, so its arguments must suit the library each method uses.
+The Kafka connectors pass any keyword argument they do not use themselves to the Kafka client underneath, so SASL, mTLS, OAuth and AWS IAM work without code of your own. The connectors use `aiokafka`. `KafkaAdminConnector` passes its settings to the `aiokafka` client of each method: the admin client for `create_topics`, the producer for `send_config` and the consumer for `collect_data`. Each setting must be one that client takes.
 
 ---
 
@@ -32,7 +32,7 @@ With no `topic_router`, `KafkaEgress` creates `sim-events` and `sim-telemetry` w
 
 ### On-Premise Cluster (mTLS)
 
-For a cluster that requires mutual TLS, build an SSL context from your certificate files. `aiokafka` takes only `ssl_context`, not the certificate paths, and `kafka-python` accepts the same context, so one context serves every connector.
+For a cluster that requires mutual TLS, build an SSL context from your certificate files. `aiokafka` takes only `ssl_context`, not the certificate paths, so one context serves every connector.
 
 ```python title="docs/snippets/guides/kafka_security.py:mtls"
 from aiokafka.helpers import create_ssl_context
@@ -57,27 +57,19 @@ ingress = KafkaIngress(
 
 Amazon MSK with IAM access control uses `sasl_mechanism="OAUTHBEARER"` with a token provider. The token comes from the `aws-msk-iam-sasl-signer-python` package, which you install yourself.
 
-Each library checks the provider's type. `aiokafka` requires a subclass of `aiokafka.abc.AbstractTokenProvider` with an `async` `token()`. `kafka-python` requires a subclass of `kafka.sasl.oauth.AbstractTokenProvider` with a plain `token()`. One object cannot be both, so the connectors that use `aiokafka` get one provider, and `create_topics` gets the other.
+`aiokafka` requires a subclass of `aiokafka.abc.AbstractTokenProvider` with an `async` `token()`. One provider serves every connector.
 
 ```python title="docs/snippets/guides/kafka_security.py:msk"
-from aiokafka.abc import AbstractTokenProvider as AsyncTokenProvider
+from aiokafka.abc import AbstractTokenProvider
 from aws_msk_iam_sasl_signer import MSKAuthTokenProvider
-from kafka.sasl.oauth import AbstractTokenProvider as SyncTokenProvider
 
 from desflow import KafkaAdminConnector, KafkaEgress
 
-def msk_token() -> str:
-    # Uses the AWS credentials of your environment, or the EC2 or EKS role
-    token, _ = MSKAuthTokenProvider.generate_auth_token("us-east-1")
-    return token
-
-class AsyncMSKTokenProvider(AsyncTokenProvider):
+class MSKTokenProvider(AbstractTokenProvider):
     async def token(self):
-        return msk_token()
-
-class SyncMSKTokenProvider(SyncTokenProvider):
-    def token(self):
-        return msk_token()
+        # Uses the AWS credentials of your environment, or the EC2 or EKS role
+        token, _ = MSKAuthTokenProvider.generate_auth_token("us-east-1")
+        return token
 
 msk = dict(
     bootstrap_servers="b-1.my-msk.amazonaws.com:9098",
@@ -85,13 +77,12 @@ msk = dict(
     sasl_mechanism="OAUTHBEARER",
 )
 
-# KafkaIngress and KafkaEgress use aiokafka
+# KafkaIngress, KafkaEgress and KafkaAdminConnector all use aiokafka
 egress = KafkaEgress(
-    **msk, topic_router=my_router, sasl_oauth_token_provider=AsyncMSKTokenProvider()
+    **msk, topic_router=my_router, sasl_oauth_token_provider=MSKTokenProvider()
 )
 
-# create_topics uses kafka-python
-admin = KafkaAdminConnector(**msk, sasl_oauth_token_provider=SyncMSKTokenProvider())
+admin = KafkaAdminConnector(**msk, sasl_oauth_token_provider=MSKTokenProvider())
 admin.create_topics([{"name": "sim-events", "partitions": 3}])
 ```
 
@@ -322,24 +313,16 @@ The low-level script imports the egress of `kafka_security.py`, so keep the two 
 
 
         def msk_connectors():
-            from aiokafka.abc import AbstractTokenProvider as AsyncTokenProvider
+            from aiokafka.abc import AbstractTokenProvider
             from aws_msk_iam_sasl_signer import MSKAuthTokenProvider
-            from kafka.sasl.oauth import AbstractTokenProvider as SyncTokenProvider
 
             from desflow import KafkaAdminConnector, KafkaEgress
 
-            def msk_token() -> str:
-                # Uses the AWS credentials of your environment, or the EC2 or EKS role
-                token, _ = MSKAuthTokenProvider.generate_auth_token("us-east-1")
-                return token
-
-            class AsyncMSKTokenProvider(AsyncTokenProvider):
+            class MSKTokenProvider(AbstractTokenProvider):
                 async def token(self):
-                    return msk_token()
-
-            class SyncMSKTokenProvider(SyncTokenProvider):
-                def token(self):
-                    return msk_token()
+                    # Uses the AWS credentials of your environment, or the EC2 or EKS role
+                    token, _ = MSKAuthTokenProvider.generate_auth_token("us-east-1")
+                    return token
 
             msk = dict(
                 bootstrap_servers="b-1.my-msk.amazonaws.com:9098",
@@ -347,13 +330,12 @@ The low-level script imports the egress of `kafka_security.py`, so keep the two 
                 sasl_mechanism="OAUTHBEARER",
             )
 
-            # KafkaIngress and KafkaEgress use aiokafka
+            # KafkaIngress, KafkaEgress and KafkaAdminConnector all use aiokafka
             egress = KafkaEgress(
-                **msk, topic_router=my_router, sasl_oauth_token_provider=AsyncMSKTokenProvider()
+                **msk, topic_router=my_router, sasl_oauth_token_provider=MSKTokenProvider()
             )
 
-            # create_topics uses kafka-python
-            admin = KafkaAdminConnector(**msk, sasl_oauth_token_provider=SyncMSKTokenProvider())
+            admin = KafkaAdminConnector(**msk, sasl_oauth_token_provider=MSKTokenProvider())
             admin.create_topics([{"name": "sim-events", "partitions": 3}])
             return egress, admin
 

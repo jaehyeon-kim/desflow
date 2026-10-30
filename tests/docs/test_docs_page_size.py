@@ -22,8 +22,9 @@ DOCS = ROOT / "docs"
 MAX_SECTIONS = 10
 MAX_HEADINGS = 15
 
-# Reference pages that list every key, export or field of one subject.
-LISTS_ONE_SUBJECT = {"docs/reference/api.md"}
+# Pages that list every item of one subject: the API reference lists every export,
+# and the Changelog every release, two headings each.
+LISTS_ONE_SUBJECT = {"docs/reference/api.md", "docs/about/changelog.md"}
 
 # Pages over the limit that this plan does not split. Empty: every page passes.
 KNOWN_BREAKING: dict[str, str] = {}

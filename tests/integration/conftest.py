@@ -1,6 +1,7 @@
 import asyncio
 import os
 import shutil
+import socket
 import subprocess
 import time
 import urllib.error
@@ -29,7 +30,7 @@ def _run_odctl(*args: str) -> None:
     subprocess.run([ODCTL, *args], check=True, capture_output=True, text=True)
 
 
-GROUPS = ("services", "storage", "floci", "azure", "gcp")
+GROUPS = ("services", "storage", "floci", "azure", "gcp", "examples")
 
 
 def pytest_collection_modifyitems(items):
@@ -121,6 +122,58 @@ def _run_container(image: str, port: int, *arguments: str):
 
 
 @pytest.fixture(scope="session")
+def profile_running():
+    """Returns a function that stops a test when a profile is not ready.
+
+    The `service-examples` job starts the odctl profile itself, so its tests start
+    nothing. Locally the test is skipped when the profile is down, and in CI it fails.
+    odctl waits for the health checks of postgres and valkey, but catalog and the
+    Kafka brokers have none, so `odctl up` returns before their servers answer. For
+    those two, an open port is followed by up to 60 seconds of waiting for the server.
+    """
+
+    def ready(profile: str, port: int) -> bool:
+        if profile == "catalog":
+            url = f"http://127.0.0.1:{port}/v1/config"
+            with urllib.request.urlopen(url, timeout=2) as response:
+                return response.status == 200
+        if profile.startswith("kafka"):
+            from aiokafka.admin import AIOKafkaAdminClient
+
+            async def start() -> None:
+                admin = AIOKafkaAdminClient(
+                    bootstrap_servers=f"127.0.0.1:{port}", request_timeout_ms=2000
+                )
+                try:
+                    await admin.start()
+                finally:
+                    await admin.close()
+
+            asyncio.run(start())
+        return True
+
+    def check(profile: str, port: int) -> None:
+        try:
+            socket.create_connection(("127.0.0.1", port), timeout=2).close()
+        except OSError:
+            _unavailable(
+                f"The odctl {profile} profile is not listening on port {port}. "
+                f"Start it with `odctl up {profile}`."
+            )
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline:
+            try:
+                if ready(profile, port):
+                    return
+            except Exception:
+                pass
+            time.sleep(1)
+        _unavailable(f"The odctl {profile} profile did not answer within 60 seconds.")
+
+    return check
+
+
+@pytest.fixture(scope="session")
 def odctl_profile(check_odctl):
     """
     Bring odctl profiles up on demand and tear down every started profile at the
@@ -172,15 +225,16 @@ def postgres_container(odctl_profile):
 
 
 @pytest.fixture(scope="session")
-def kafka_container(odctl_profile):
+def kafka_container(odctl_profile, profile_running):
     """Starts the odctl `kafka-lite` profile and yields its bootstrap servers."""
     odctl_profile("kafka-lite")
 
     # 127.0.0.1, not localhost, for the reason schema_registry gives
     bootstrap_servers = "127.0.0.1:9092"
 
-    # odctl waits for the broker health check before returning, so the listener
-    # is already accepting connections here.
+    # The kafka-lite broker has no health check, so `odctl up` returns before it
+    # answers; wait for it as the service examples do
+    profile_running("kafka-lite", 9092)
     yield bootstrap_servers
 
 
@@ -189,8 +243,8 @@ def schema_registry(kafka_container):
     """Yields the Karapace URL from the odctl `kafka-lite` profile.
 
     `kafka-lite` carries Karapace on 8081 next to the broker, so no second profile
-    is needed. odctl returns once the broker health check passes, which says nothing
-    about Karapace, so poll the registry itself before handing the URL over.
+    is needed. Karapace has no health check either, so `odctl up` returns before it
+    answers: poll the registry itself before handing the URL over.
 
     Address it as 127.0.0.1 rather than localhost. Karapace binds IPv4 only, while
     localhost resolves to ::1 first on macOS, so every request is reset before it

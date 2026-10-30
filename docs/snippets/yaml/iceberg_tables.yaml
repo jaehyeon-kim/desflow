@@ -1,0 +1,38 @@
+# The Write to Iceberg Tables guide: the shop appends an hour of orders to the Iceberg
+# table shop.events, as fast as the machine allows. ICEBERG_CATALOG picks the catalog
+# (sqlite, the default, rest, postgres or glue). Needs iceberg_tables.py and
+# iceberg_tables_logic.py beside it. Run it with: desflow run iceberg_tables.yaml
+simulation:
+  sim_id: Shop
+  factor: 0.0
+  random_seed: 42
+
+resources:
+  packers: {current_cap: 1, max_cap: 1}
+
+services:
+  packing: {dist: constant, value: 1.5}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.5, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    # The finished event is the order record
+    payload: !python iceberg_tables_logic.order_record
+
+# --8<-- [start:egress]
+egress:
+  # Every event as a row of shop.events, which the sink creates from the first batch
+  - type: Iceberg
+    config:
+      default_table: shop.events
+      catalog: !python iceberg_tables.catalog
+    # One commit per flush, so the sink gets a large batch of its own
+    batch_size: 200000
+# --8<-- [end:egress]
+
+run:
+  until: 1 hour

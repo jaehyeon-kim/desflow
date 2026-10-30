@@ -6,9 +6,11 @@ named by each record's `__stream__` key, and `RedisIngress` subscribes to the
 `simulation_params` channel.
 
 Needs Valkey: `odctl up valkey`. Runs until interrupted with Ctrl + C.
+Set EXAMPLE_UNTIL to a number of simulation seconds to end the run at that time instead.
 """
 
 import logging
+import os
 
 import numpy as np
 
@@ -52,6 +54,11 @@ def order_generator(env, sampler):
         task_id += 1
 
 
+# The simulation time, in seconds, at which the run ends.
+# When EXAMPLE_UNTIL is not set, the run goes on until Ctrl + C.
+EXAMPLE_UNTIL = float(os.getenv("EXAMPLE_UNTIL") or 0) or None
+
+
 def run():
     env = DynamicRealtimeEnvironment(factor=1.0, strict=False)
     env.registry.register_sim_parameter(PARAMS)
@@ -69,7 +76,7 @@ def run():
     )
 
     try:
-        env.run()
+        env.run(until=EXAMPLE_UNTIL)
     except KeyboardInterrupt:
         logger.info("Simulation interrupted by user.")
     finally:

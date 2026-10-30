@@ -14,7 +14,7 @@ from unittest import mock
 
 from typer.testing import CliRunner
 
-from desflow.blueprint import examples
+from desflow import examples
 from desflow.cli import app
 
 ROOT = Path(__file__).resolve().parents[2]

@@ -92,7 +92,7 @@ def in_folder(folder: Path, *arguments: str) -> List[str]:
     """
     from typer.testing import CliRunner
 
-    from desflow.blueprint import examples
+    from desflow import examples
     from desflow.cli import app
 
     def fetch(url: str) -> bytes:

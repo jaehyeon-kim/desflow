@@ -5,6 +5,8 @@ from typing import Annotated, Any, Dict, Optional
 
 import typer
 
+from desflow.cli._common import fail
+
 # The options that take a family's parameters, in the order the help lists them
 _OPTIONS = ("rate", "mean", "std", "low", "value", "high", "mode", "shape", "scale")
 
@@ -90,8 +92,7 @@ def _dist(
     converting = "mean" not in chosen.parameters and ({"mean", "std"} & set(given))
     if converting:
         if chosen.from_moments is None:
-            typer.echo(f"Error: {family}: {chosen.no_formula}", err=True)
-            raise typer.Exit(code=1)
+            fail(f"{family}: {chosen.no_formula}")
         others = sorted(set(given) - {"mean", "std"})
         if others or len(given) != 2:
             raise typer.BadParameter(

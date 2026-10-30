@@ -7,9 +7,11 @@ registry and the connectors by hand. With the same seed it publishes the same or
 as the other two.
 
 Needs a database: odctl up postgres. Runs until interrupted with Ctrl + C.
+Set EXAMPLE_UNTIL to a number of simulation seconds to end the run at that time instead.
 """
 
 import logging
+import os
 
 import numpy as np
 
@@ -99,6 +101,11 @@ def order_generator(env, sampler: Sampler, max_items: int):
         order_id += 1
 
 
+# The simulation time, in seconds, at which the run ends.
+# When EXAMPLE_UNTIL is not set, the run goes on until Ctrl + C.
+EXAMPLE_UNTIL = float(os.getenv("EXAMPLE_UNTIL") or 0) or None
+
+
 def run(until=None, factor=1.0):
     env = DynamicRealtimeEnvironment(factor=factor, strict=False)
     env.registry.register_sim_parameter(PARAMS)
@@ -118,4 +125,4 @@ def run(until=None, factor=1.0):
 
 
 if __name__ == "__main__":
-    run()
+    run(until=EXAMPLE_UNTIL)

@@ -320,9 +320,11 @@ This command leaves out the `__table__` key that picks each record's table, beca
         start.
 
         Needs a database: odctl up postgres. Runs until interrupted with Ctrl + C.
+        Set EXAMPLE_UNTIL to a number of simulation seconds to end the run at that time instead.
         """
 
         import logging
+        import os
 
         from desflow import PostgresEgress, PostgresIngress, SimulationContext
 
@@ -408,8 +410,12 @@ This command leaves out the `__table__` key that picks each record's table, beca
             .add_process(order_generator, arrival="orders", max_items=5)
         )
 
+        # The simulation time, in seconds, at which the run ends.
+        # When EXAMPLE_UNTIL is not set, the run goes on until Ctrl + C.
+        EXAMPLE_UNTIL = float(os.getenv("EXAMPLE_UNTIL") or 0) or None
+
         if __name__ == "__main__":
-            app.run()
+            app.run(until=EXAMPLE_UNTIL)
         ```
 
     === "Low-level"
@@ -424,9 +430,11 @@ This command leaves out the `__table__` key that picks each record's table, beca
         as the other two.
 
         Needs a database: odctl up postgres. Runs until interrupted with Ctrl + C.
+        Set EXAMPLE_UNTIL to a number of simulation seconds to end the run at that time instead.
         """
 
         import logging
+        import os
 
         import numpy as np
 
@@ -516,6 +524,11 @@ This command leaves out the `__table__` key that picks each record's table, beca
                 order_id += 1
 
 
+        # The simulation time, in seconds, at which the run ends.
+        # When EXAMPLE_UNTIL is not set, the run goes on until Ctrl + C.
+        EXAMPLE_UNTIL = float(os.getenv("EXAMPLE_UNTIL") or 0) or None
+
+
         def run(until=None, factor=1.0):
             env = DynamicRealtimeEnvironment(factor=factor, strict=False)
             env.registry.register_sim_parameter(PARAMS)
@@ -535,5 +548,5 @@ This command leaves out the `__table__` key that picks each record's table, beca
 
 
         if __name__ == "__main__":
-            run()
+            run(until=EXAMPLE_UNTIL)
         ```

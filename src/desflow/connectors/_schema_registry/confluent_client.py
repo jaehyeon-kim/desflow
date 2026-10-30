@@ -160,6 +160,7 @@ class ConfluentRegistryClient:
         )
         self._lock = threading.Lock()
         self._ids: dict[tuple[str, str, str, str], int] = {}
+        self._lookups: dict[tuple[str, str, str, str], int] = {}
         self._by_id: dict[int, dict[str, Any]] = {}
         self._by_guid: dict[str, dict[str, Any]] = {}
         self._versions: dict[tuple[str, int], dict[str, Any]] = {}
@@ -229,6 +230,52 @@ class ConfluentRegistryClient:
                 )
                 self._ids[key] = response["id"]
             return self._ids[key]
+
+    def lookup(
+        self,
+        subject: str,
+        schema_str: str,
+        schema_type: str,
+        references: Sequence[Mapping[str, Any]] = (),
+    ) -> int:
+        """Finds the version of a subject that holds a schema, without registering it.
+
+        The call is made once for each subject, schema type, schema and references.
+        A failed call is not cached, so the next call repeats it.
+
+        Args:
+            subject (str): The subject.
+            schema_str (str): The schema as a string.
+            schema_type (str): The format, such as `PROTOBUF`.
+            references (Sequence[Mapping[str, Any]]): Schemas this one refers to,
+                each with `name`, `subject` and `version`.
+
+        Returns:
+            int: The version of the subject that holds the schema.
+
+        Raises:
+            SchemaRegistryError: If the registry answers with an error status, for
+                example 404 when the subject has no such schema.
+            httpx.TransportError: If no registry URL could be reached.
+        """
+        key = (
+            subject,
+            schema_type,
+            schema_str,
+            json.dumps(list(references), sort_keys=True),
+        )
+        with self._lock:
+            if key not in self._lookups:
+                body = {
+                    "schema": schema_str,
+                    "schemaType": schema_type,
+                    "references": list(references),
+                }
+                response = self._request(
+                    "POST", f"subjects/{quote(subject, safe='')}?normalize=false", body
+                )
+                self._lookups[key] = response["version"]
+            return self._lookups[key]
 
     def schema_by_id(self, schema_id: int) -> dict[str, Any]:
         """Fetches a schema by its id.
