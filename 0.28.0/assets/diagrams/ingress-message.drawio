@@ -1,0 +1,46 @@
+<mxfile>
+  <diagram name="ingress-message" id="ingress-message">
+    <mxGraphModel grid="0" page="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="How a Kafka message changes a live value" style="text;html=1;align=center;verticalAlign=middle;whiteSpace=wrap;fontFamily=Comic Sans MS;fontSize=16;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="0" y="0" width="750" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="c1" value="Kafka topic sim-config&lt;br&gt;&lt;font style='font-size:12px'&gt;{&amp;quot;path&amp;quot;: &amp;quot;Shop.arrival.orders.rate&amp;quot;, &amp;quot;value&amp;quot;: 1.5}&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="175.0" y="50.0" width="400" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="c2" value="ingress thread" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=none;strokeColor=#9673a6;strokeWidth=2;dashed=1;verticalAlign=top;align=left;spacingLeft=12;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="0.0" y="160.0" width="750" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="c3" value="KafkaIngress&lt;br&gt;&lt;font style='font-size:12px'&gt;decodes the message and reads path and value;&lt;br&gt;a bad message is a WARNING line, and skipped&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="175.0" y="200.0" width="400" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="c4" value="ingress queue&lt;br&gt;&lt;font style='font-size:12px'&gt;(path, value) pairs&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="175.0" y="340.0" width="400" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="c5" value="SimPy thread" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=none;strokeColor=#6c8ebf;strokeWidth=2;dashed=1;verticalAlign=top;align=left;spacingLeft=12;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="0.0" y="430.0" width="750" height="240" as="geometry" />
+        </mxCell>
+        <mxCell id="c6" value="ingress monitor&lt;br&gt;&lt;font style='font-size:12px'&gt;every 0.1 simulation seconds, applies all that is queued&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="175.0" y="470.0" width="400" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="c7" value="registry.update(path, value)" style="rounded=1;whiteSpace=wrap;html=1;sketch=1;curveFitting=1;jiggle=2;fontFamily=Comic Sans MS;fontSize=14;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=3;" vertex="1" parent="1">
+          <mxGeometry x="175.0" y="590.0" width="400" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="c8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;sketch=1;html=1;strokeWidth=3;endArrow=block;strokeColor=#666666;fontFamily=Comic Sans MS;fontSize=13;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="c1" target="c3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c9" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;sketch=1;html=1;strokeWidth=3;endArrow=block;strokeColor=#9673a6;fontFamily=Comic Sans MS;fontSize=13;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="c3" target="c4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c10" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;sketch=1;html=1;strokeWidth=3;endArrow=block;strokeColor=#d6b656;fontFamily=Comic Sans MS;fontSize=13;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="c4" target="c6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="c11" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;sketch=1;html=1;strokeWidth=3;endArrow=block;strokeColor=#6c8ebf;fontFamily=Comic Sans MS;fontSize=13;labelBackgroundColor=#ffffff;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="c6" target="c7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

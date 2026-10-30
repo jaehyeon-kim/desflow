@@ -1,0 +1,13 @@
+/* An arrow of one fixed size after a link in the page text that opens in a new tab, which
+   js/external-links.js sets. Links that hold an image get no arrow. */
+.md-typeset a[target="_blank"]:not(:has(img))::after {
+  content: "";
+  display: inline-block;
+  width: 0.6rem;
+  height: 0.6rem;
+  margin-left: 0.15em;
+  vertical-align: baseline;
+  background-color: currentColor;
+  -webkit-mask: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14 3h7v7h-2V6.41l-9.29 9.3-1.42-1.42 9.3-9.29H14V3zM5 5h6v2H7v10h10v-4h2v6H5V5z"/></svg>') no-repeat center / contain;
+  mask: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14 3h7v7h-2V6.41l-9.29 9.3-1.42-1.42 9.3-9.29H14V3zM5 5h6v2H7v10h10v-4h2v6H5V5z"/></svg>') no-repeat center / contain;
+}

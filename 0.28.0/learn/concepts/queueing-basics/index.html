@@ -1,0 +1,7019 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Realistic event streams from a SimPy simulation you can steer while it runs, written to Kafka, Redis, PostgreSQL, Parquet, JSONL and Iceberg.">
+      
+      
+      
+        <link rel="canonical" href="https://jaehyeon.me/desflow/latest/learn/concepts/queueing-basics/">
+      
+      
+        <link rel="prev" href="../../running-live/streaming-out/">
+      
+      
+        <link rel="next" href="../a-simulation-study/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/favicon.png">
+      <meta name="generator" content="mkdocs-ProperDocs 1.6.7, mkdocs-material-9.8.0">
+    
+    
+      
+        <title>Queueing Basics - desflow</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../../../css/neoteroi-mkdocs.css">
+    
+      <link rel="stylesheet" href="../../../css/roadmap.css">
+    
+      <link rel="stylesheet" href="../../../css/tables.css">
+    
+      <link rel="stylesheet" href="../../../css/code-lines.css">
+    
+      <link rel="stylesheet" href="../../../css/external-links.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+  
+
+
+  
+  
+
+<script id="__analytics">function __md_analytics(){function e(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],e("js",new Date),e("config","G-076N8WCGWZ"),document.addEventListener("DOMContentLoaded",(function(){document.forms.search&&document.forms.search.query.addEventListener("blur",(function(){this.value&&e("event","search",{search_term:this.value})}));document$.subscribe((function(){var t=document.forms.feedback;if(void 0!==t)for(var a of t.querySelectorAll("[type=submit]"))a.addEventListener("click",(function(a){a.preventDefault();var n=document.location.pathname,d=this.getAttribute("data-md-value");e("event","feedback",{page:n,data:d}),t.firstElementChild.disabled=!0;var r=t.querySelector(".md-feedback__note [data-md-value='"+d+"']");r&&(r.hidden=!1)})),t.hidden=!1})),location$.subscribe((function(t){e("config","G-076N8WCGWZ",{page_path:t.pathname})}))}));var t=document.createElement("script");t.async=!0,t.src="https://www.googletagmanager.com/gtag/js?id=G-076N8WCGWZ",document.getElementById("__analytics").insertAdjacentElement("afterEnd",t)}</script>
+  
+    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
+  
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="light-blue">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#queueing-basics" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="desflow" class="md-header__button md-logo" aria-label="desflow" data-md-component="logo">
+      
+  <img src="../../../assets/favicon.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            desflow
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Queueing Basics
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="light-blue"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="light-blue"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/jaehyeon-kim/desflow" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    desflow
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="desflow" class="md-nav__button md-logo" aria-label="desflow" data-md-component="logo">
+      
+  <img src="../../../assets/favicon.png" alt="logo">
+
+    </a>
+    desflow
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/jaehyeon-kim/desflow" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    desflow
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Learn
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Learn
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../what-is-des/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Is DES?
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_3" id="__nav_3_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial: A First Model
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tutorial: A First Model
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../first-model/first-simulation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    First Simulation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../first-model/queues-and-capacity/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Queues and Capacity
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../first-model/randomness-and-seeds/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Randomness and Seeds
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../first-model/measuring-a-run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Measuring a Run
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../first-model/end-conditions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    End Conditions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_4" id="__nav_3_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial: Inputs
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tutorial: Inputs
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../inputs/choosing-inputs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Choosing Inputs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../inputs/fit-the-inputs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fitting the Inputs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../inputs/changing-demand/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changing Demand
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../inputs/local-replay/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local Replay
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_5" id="__nav_3_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial: Shop Logic
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tutorial: Shop Logic
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../shop-logic/stock/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stock
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../shop-logic/priorities/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Priorities
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../shop-logic/flow-of-tasks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A Flow of Tasks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../shop-logic/process-interaction/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Process Interaction
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../shop-logic/patience/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Patience
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../shop-logic/interruptions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interruptions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../shop-logic/competing-resources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Competing Resources
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../shop-logic/filtered-inventory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Filtered Inventory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_6" id="__nav_3_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial: Studies
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tutorial: Studies
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../studies/trusting-results/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trusting Results
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../studies/comparing-designs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Comparing Designs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../studies/parameter-sweeps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Parameter Sweeps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../studies/checking-a-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Checking a Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../studies/complete-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Complete Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_3_7" id="__nav_3_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorial: Running Live
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tutorial: Running Live
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../running-live/live-changes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Live Changes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../running-live/streaming-out/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Streaming Out
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3_8" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3_8" id="__nav_3_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Simulation Concepts
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_3_8_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Simulation Concepts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Queueing Basics
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Queueing Basics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-you-will-learn" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What You Will Learn
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#kendalls-notation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Kendall's Notation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Kendall&#39;s Notation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#in-the-tutorial" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In the Tutorial
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-it-matters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why It Matters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-to-use-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to Use It
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-result-means" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the Result Means
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#utilisation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Utilisation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Utilisation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#in-the-tutorial_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In the Tutorial
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-it-matters_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why It Matters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-to-use-it_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to Use It
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-result-means_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the Result Means
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#littles-law" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Little's Law
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Little&#39;s Law">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#in-the-tutorial_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In the Tutorial
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-it-matters_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why It Matters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-to-use-it_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to Use It
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-result-means_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the Result Means
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#waits-near-full-use" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Waits Near Full Use
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Waits Near Full Use">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#in-the-tutorial_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In the Tutorial
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-it-matters_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why It Matters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-to-use-it_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to Use It
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-result-means_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the Result Means
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#several-packers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Several Packers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Several Packers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#in-the-tutorial_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In the Tutorial
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-it-matters_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why It Matters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-to-use-it_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to Use It
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-result-means_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the Result Means
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#variation-lengthens-waits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Variation Lengthens Waits
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Variation Lengthens Waits">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#in-the-tutorial_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In the Tutorial
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-it-matters_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why It Matters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-to-use-it_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to Use It
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-result-means_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the Result Means
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flow-balance-and-the-bottleneck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flow Balance and the Bottleneck
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Flow Balance and the Bottleneck">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#in-the-tutorial_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In the Tutorial
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-it-matters_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why It Matters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-to-use-it_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to Use It
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-result-means_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the Result Means
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#check-a-formula-against-the-shop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Check a Formula Against the Shop
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Check a Formula Against the Shop">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#in-the-tutorial_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In the Tutorial
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-it-matters_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why It Matters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-to-use-it_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to Use It
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-result-means_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the Result Means
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-takeaways" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Takeaways
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sources
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../a-simulation-study/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    A Simulation Study
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../checking-and-validating/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Checking and Validating
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../output-analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Output Analysis
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../readiness-and-reporting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Readiness and Reporting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../common-mistakes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Common Mistakes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../user-guide/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/how-desflow-works/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How desflow Works
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../user-guide/writing-a-model/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Writing a Model
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4_3" id="__nav_4_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Writing a Model
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/writing-a-model/blueprints/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    YAML Blueprints
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/writing-a-model/builder-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Builder API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/writing-a-model/low-level-api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Low-level API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../user-guide/model-parts/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Model Parts
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4_4" id="__nav_4_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Model Parts
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/model-parts/arrivals-and-services/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Arrivals and Services
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/model-parts/input-fitting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Input Fitting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/model-parts/task-flow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Task Flow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/model-parts/stores-and-containers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stores and Containers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_5" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../user-guide/tasks-and-processes/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tasks and Processes
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4_5" id="__nav_4_5_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tasks and Processes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/tasks-and-processes/processes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Processes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/tasks-and-processes/signals-and-waiting/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Signals and Waiting
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/tasks-and-processes/failures/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Failures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../user-guide/resources/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Resources
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4_6" id="__nav_4_6_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Resources
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/resources/priority-and-preemption/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Priority and Preemption
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/resources/several-resources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Several Resources
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/resources/custom-resource-types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Custom Resource Types
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_7" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../user-guide/time-and-pacing/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Time and Pacing
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4_7" id="__nav_4_7_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Time and Pacing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/time-and-pacing/clocks-and-pacing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Clocks and Pacing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/time-and-pacing/run-length/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run Length
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_8" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../user-guide/results/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Results
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4_8" id="__nav_4_8_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Results
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/results/statistics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Built-in Statistics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/results/replications/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Replications
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/results/experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/results/experiment-results/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Experiment Results
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_9" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../user-guide/live-runs-and-connectors/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Live Runs and Connectors
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4_9" id="__nav_4_9_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Live Runs and Connectors
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/live-runs-and-connectors/live-parameters/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Live Parameters
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/live-runs-and-connectors/ingress/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ingress
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../user-guide/live-runs-and-connectors/egress/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Egress
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../cli/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Command Line
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_5" id="__nav_5_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Command Line
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../cli/run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    desflow run
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../cli/explain/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    desflow explain
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../cli/experiment/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    desflow experiment
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../cli/report/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    desflow report
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../cli/fit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    desflow fit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../cli/dist/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    desflow dist
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../cli/schema/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    desflow schema
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../cli/examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    desflow examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../cli/examples-list/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    desflow examples list
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../cli/examples-get/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    desflow examples get
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../how-to/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    How-To
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6" id="__nav_6_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    How-To
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_2" id="__nav_6_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Modelling
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Modelling
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to/modelling/time-varying-arrivals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Vary Arrivals by Time
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to/modelling/reneging-and-balking/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Add Reneging and Balking
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to/modelling/wait-for-one-or-all/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Wait for One or All
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to/modelling/multi-resource-handoffs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Hand Off to a Resource
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to/modelling/share-by-weight/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Share Work by Weight
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to/modelling/breakdowns/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Model Breakdowns
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to/modelling/dynamic-topology/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Add Resources Mid-run
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_3" id="__nav_6_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Records and Kafka
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Records and Kafka
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to/records-and-kafka/complex-routing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Route Records to Topics
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to/records-and-kafka/avro-and-pydantic/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Use Avro and Pydantic
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to/records-and-kafka/json-schema-and-protobuf/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    JSON Schema and Protobuf
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to/records-and-kafka/kafka-security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Connect to Secure Kafka
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to/records-and-kafka/write-a-connector/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Write a Connector
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_4" id="__nav_6_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Storage and Tables
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Storage and Tables
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to/storage-and-tables/cloud-storage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Write to Cloud Storage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to/storage-and-tables/iceberg-tables/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Write to Iceberg Tables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_5" id="__nav_6_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Analysis
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Analysis
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to/analysis/fit-a-distribution/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fit a Distribution
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to/analysis/check-against-theory/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Check Against Theory
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to/analysis/test-a-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Test a Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to/analysis/analyse-the-event-log/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Analyse the Event Log
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to/analysis/animate-a-run/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Animate a Run
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6_6" id="__nav_6_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tools
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tools
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to/tools/yaml-advanced/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Call Python from YAML
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to/tools/set-up-your-editor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Set Up Your Editor
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to/tools/use-an-ai-assistant/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Use an AI Assistant
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to/tools/performance-tuning/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tune Performance
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6_7" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../how-to/examples/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Runnable Examples
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_6_7" id="__nav_6_7_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_6_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Runnable Examples
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to/examples/local/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Local Simulation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to/examples/kafka/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Kafka Digital Twin
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to/examples/parquet/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fast-Forward to Parquet
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to/examples/iceberg/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Fast-Forward to Iceberg
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to/examples/postgres/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    PostgreSQL
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to/examples/redis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Redis
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to/examples/backfill-live/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Parquet History, Kafka Live
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to/examples/advanced-postgres-orders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Related Records
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../how-to/projects/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Projects Using desflow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../../simpy/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SimPy and desflow
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_7" id="__nav_7_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    SimPy and desflow
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../simpy/coming-from-simpy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Coming from SimPy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../simpy/compatibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SimPy Compatibility
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/yaml-keys/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    YAML Keys
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/distributions/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Distributions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/statistics/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Statistic Names
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/records-and-telemetry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Records and Telemetry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    About
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    About
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../about/why-desflow/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Why desflow
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../about/roadmap/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../about/changelog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Changelog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-you-will-learn" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What You Will Learn
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#kendalls-notation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Kendall's Notation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Kendall&#39;s Notation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#in-the-tutorial" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In the Tutorial
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-it-matters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why It Matters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-to-use-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to Use It
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-result-means" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the Result Means
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#utilisation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Utilisation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Utilisation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#in-the-tutorial_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In the Tutorial
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-it-matters_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why It Matters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-to-use-it_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to Use It
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-result-means_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the Result Means
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#littles-law" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Little's Law
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Little&#39;s Law">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#in-the-tutorial_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In the Tutorial
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-it-matters_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why It Matters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-to-use-it_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to Use It
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-result-means_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the Result Means
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#waits-near-full-use" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Waits Near Full Use
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Waits Near Full Use">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#in-the-tutorial_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In the Tutorial
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-it-matters_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why It Matters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-to-use-it_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to Use It
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-result-means_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the Result Means
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#several-packers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Several Packers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Several Packers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#in-the-tutorial_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In the Tutorial
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-it-matters_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why It Matters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-to-use-it_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to Use It
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-result-means_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the Result Means
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#variation-lengthens-waits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Variation Lengthens Waits
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Variation Lengthens Waits">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#in-the-tutorial_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In the Tutorial
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-it-matters_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why It Matters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-to-use-it_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to Use It
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-result-means_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the Result Means
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#flow-balance-and-the-bottleneck" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Flow Balance and the Bottleneck
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Flow Balance and the Bottleneck">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#in-the-tutorial_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In the Tutorial
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-it-matters_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why It Matters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-to-use-it_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to Use It
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-result-means_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the Result Means
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#check-a-formula-against-the-shop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Check a Formula Against the Shop
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Check a Formula Against the Shop">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#in-the-tutorial_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        In the Tutorial
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-it-matters_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why It Matters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-to-use-it_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to Use It
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-result-means_7" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the Result Means
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-takeaways" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Takeaways
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sources
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="queueing-basics">Queueing Basics</h1>
+<p>A queue forms when orders arrive faster than the packers can pack them, even for a short time. How long an order waits depends on more than the averages. This page explains the few results of queueing theory that a simulation study uses. Each one is explained with the packing shop of the <a href="../../first-model/first-simulation/">tutorial</a> and checked against a run of it. The numbers on this page come from <a href="https://github.com/jaehyeon-kim/desflow/blob/v0.28.0/docs/snippets/pages/queueing_basics.py">queueing_basics.py</a>, which asserts every one of them.</p>
+<hr />
+<h2 id="what-you-will-learn">What You Will Learn</h2>
+<ul>
+<li>how to write the shop as a queueing model, such as M/D/3;</li>
+<li>how to work out utilisation, and why the queue settles only below 1;</li>
+<li>what Little's law says, why it holds, and how to check a run's statistics with it;</li>
+<li>why waits grow fast near full use, and less with several packers;</li>
+<li>how the spread of the gaps and the packing times lengthens waits;</li>
+<li>how to find the bottleneck of a network of tasks;</li>
+<li>how to check a formula against runs of the shop.</li>
+</ul>
+<hr />
+<h2 id="kendalls-notation">Kendall's Notation</h2>
+<h3 id="in-the-tutorial">In the Tutorial</h3>
+<p>A queueing model has three parts: the arrivals, the queue, and the servers that serve them. In the shop, the arrivals are the orders, the queue is the line in front of the packers, and the servers are the packers. In desflow a server is one unit of a resource, so the <code>packers</code> resource with <code>current_cap: 3</code> has three servers. The diagram shows the three things a model must say: how far apart orders arrive, how long a packer takes, and how many packers there are.</p>
+<p><img alt="The parts of a queueing model: orders arrive with gaps between them, wait in a queue, and are served by c packers, here three; M/D/3 means exponential gaps, constant service times and three packers" src="../../../assets/diagrams/queue-parts.png" /></p>
+<p><strong>Kendall's notation</strong> writes these three things as arrivals/service/servers. The letter <code>c</code> stands for the number of servers. The busy hour of <a href="../../first-model/queues-and-capacity/">Queues and Capacity</a> is M/D/3: exponential gaps between orders, a constant packing time of 1.5 seconds, and three packers. Each letter names a distribution:</p>
+<ul>
+<li><code>M</code> is an exponential distribution. Gaps between orders placed independently of each other are exponential, and such arrivals are called a <strong>Poisson</strong> flow.</li>
+<li><code>D</code> is a constant time, the same for every order.</li>
+<li><code>G</code> is any distribution. <a href="../../first-model/measuring-a-run/">Measuring a Run</a> packs with 40 measured times, so its shop is M/G/3.</li>
+</ul>
+<p>So M/M/1 has exponential gaps, exponential service times and one server. M/D/1 has constant service times instead, and D/M/1 has constant gaps and exponential service times. When a model leaves out the further terms, they have their defaults: the queue has room for any number of orders, the orders come from an unlimited population, and they are served in the order they arrive.</p>
+<h3 id="why-it-matters">Why It Matters</h3>
+<p>Each formula on this page holds for some models and not others. The notation says which one applies. A wait worked out with the M/M/3 formula for an M/D/3 shop is about twice too long, as <a href="#check-a-formula-against-the-shop">Check a Formula Against the Shop</a> measures.</p>
+<h3 id="how-to-use-it">How to Use It</h3>
+<p>Write the letters for the model before you use a formula: what the gaps are, what the packing times are, and how many units the resource has. <code>desflow explain</code> does the same for each resource. It names the formula it used, or says why none applies. For the busy hour of Queues and Capacity, an M/D/3 shop, it reports "no closed formula for c &gt; 1 with non-exponential times", as the output under <a href="#utilisation">Utilisation</a> shows.</p>
+<h3 id="what-the-result-means">What the Result Means</h3>
+<p>A model with a letter <code>G</code>, or with several servers and a letter other than <code>M</code>, has no exact formula for its wait. The run of the shop is then the only measure of the wait, and a formula gives at best an approximation to check it against.</p>
+<hr />
+<h2 id="utilisation">Utilisation</h2>
+<h3 id="in-the-tutorial_1">In the Tutorial</h3>
+<p><strong>Utilisation</strong> is the share of time a server is busy. In the busy hour of Queues and Capacity, orders arrive at 1.8 a second and each takes 1.5 seconds to pack. That is 1.8 × 1.5 = 2.7 seconds of packing arriving every second. Three packers share it, so each is busy 2.7 ÷ 3 = 0.9 of the time, or 90%.</p>
+<p>In general, utilisation is the arrival rate times the mean service time, divided by the number of servers. Formulas and the <code>desflow explain</code> tables write it with these symbols:</p>
+<ul>
+<li>λ (lambda) is the arrival rate, 1.8 orders a second.</li>
+<li>μ (mu) is the service rate of one server, one over the mean service time: 1 ÷ 1.5 = 0.667 orders a second.</li>
+<li>c is the number of servers, 3.</li>
+<li>ρ (rho) is the utilisation: ρ = λ ÷ (c × μ) = 1.8 ÷ (3 × 0.667) = 0.9.</li>
+</ul>
+<h3 id="why-it-matters_1">Why It Matters</h3>
+<p>Utilisation decides whether the queue settles at all. There are three cases:</p>
+<ul>
+<li>Below 1, the packers have spare time on average. The queue grows and shrinks, and its average length settles.</li>
+<li>At exactly 1, the packers have no spare time. The queue does not settle, and it drifts longer over time. The one exception is constant gaps with constant packing times, where each order arrives just as a packer becomes free.</li>
+<li>Above 1, orders arrive faster than the packers can pack them. The queue grows without limit in every case.</li>
+</ul>
+<p>Queues and Capacity runs the busy hour with 1 to 4 packers. One packer (utilisation 2.7) and two (1.35) leave mean waits of 1127.21 and 426.31 seconds, and the waits keep growing with the length of the run. Three packers (0.9) give 1.27 seconds and four (0.675) give 0.20 seconds.</p>
+<h3 id="how-to-use-it_1">How to Use It</h3>
+<p>Work out utilisation for each resource before you run the model. <code>desflow explain</code> does it from the model, without running it:</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="1:3"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><input id="__tabbed_1_3" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">YAML</label><label for="__tabbed_1_2">Builder</label><label for="__tabbed_1_3">Low-level</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1"></a><span class="nv">PACKERS</span><span class="o">=</span><span class="m">3</span><span class="w"> </span>desflow<span class="w"> </span>explain<span class="w"> </span>queues_and_capacity.yaml
+</span></code></pre></div></td></tr></table></div>
+<p><!-- records: queueing-explain -->
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-1-1">1</a></span>
+<span class="normal"><a href="#__codelineno-1-2">2</a></span>
+<span class="normal"><a href="#__codelineno-1-3">3</a></span>
+<span class="normal"><a href="#__codelineno-1-4">4</a></span>
+<span class="normal"><a href="#__codelineno-1-5">5</a></span>
+<span class="normal"><a href="#__codelineno-1-6">6</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1"></a>Resources
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2"></a>+--------------------------------------------------------+
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3"></a>| resource |   λ |      μ | c |   ρ | Wq | L | status    |
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4"></a>|----------+-----+--------+---+-----+----+---+-----------|
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5"></a>| packers  | 1.8 | 0.6667 | 3 | 0.9 |  - | - | CONGESTED |
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6"></a>+--------------------------------------------------------+
+</span></code></pre></div></td></tr></table></div></p>
+</div>
+<div class="tabbed-block">
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/pages/queueing_basics.py:analyze</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-2-1">1</a></span>
+<span class="normal"><a href="#__codelineno-2-2">2</a></span>
+<span class="normal"><a href="#__codelineno-2-3">3</a></span>
+<span class="normal"><a href="#__codelineno-2-4">4</a></span>
+<span class="normal"><a href="#__codelineno-2-5">5</a></span>
+<span class="normal"><a href="#__codelineno-2-6">6</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">utilisation_before_the_run</span><span class="p">():</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2"></a><span class="w">    </span><span class="sd">"""The packers of the Queues and Capacity shop, as `desflow explain` works them out."""</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3"></a>    <span class="kn">from</span><span class="w"> </span><span class="nn">queues_and_capacity</span><span class="w"> </span><span class="kn">import</span> <span class="n">shop</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4"></a>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5"></a>    <span class="n">packers</span> <span class="o">=</span> <span class="n">shop</span><span class="p">(</span><span class="mi">3</span><span class="p">)</span><span class="o">.</span><span class="n">analyze</span><span class="p">()</span><span class="o">.</span><span class="n">resources</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>  <span class="c1"># the busy hour with three packers</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6"></a>    <span class="k">return</span> <span class="n">packers</span><span class="o">.</span><span class="n">rate</span><span class="p">,</span> <span class="n">packers</span><span class="o">.</span><span class="n">service_mean</span><span class="p">,</span> <span class="n">packers</span><span class="o">.</span><span class="n">servers</span><span class="p">,</span> <span class="n">packers</span><span class="o">.</span><span class="n">utilization</span>
+</span></code></pre></div></td></tr></table></div>
+<p><!-- records: queueing-utilisation -->
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-3-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1"></a>packers: rate 1.8, mean service 1.5 s, units 3, utilisation 0.9
+</span></code></pre></div></td></tr></table></div></p>
+</div>
+<div class="tabbed-block">
+<p><code>desflow explain</code> and <code>analyze()</code> do not support low-level models, because a low-level model makes its links between arrivals, tasks and resources in SimPy code as it runs. Work out ρ by hand, or explain the <a href="../../first-model/queues-and-capacity/#explain-the-load">YAML or builder form</a> of the model.</p>
+</div>
+</div>
+</div>
+<p>The status column is <code>OK</code> below 0.85, <code>CONGESTED</code> from 0.85 and <code>UNSTABLE</code> from 1.</p>
+<h3 id="what-the-result-means_1">What the Result Means</h3>
+<p>A utilisation of 1 or above means the design needs more capacity, and no run length gives a stable answer. A utilisation below 1 means the queue settles, but not that the wait is short: <a href="#waits-near-full-use">Waits Near Full Use</a> shows how long it can be at 0.9.</p>
+<p>A run measures utilisation too, as <code>utilization_avg</code>, a percentage. Measuring a Run's busy hour measured 86.56%, below the 0.9 of the formula. The formula with that run's own figures gives the same share: 6,250 orders finished in 3,600 seconds is 1.736 a second, and its packing times averaged 1.4954 seconds, so 1.736 × 1.4954 ÷ 3 = 0.865. That hour's random gaps were a little longer than the mean of 1 ÷ 1.8 seconds:</p>
+<!-- records: queueing-busy -->
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-4-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1"></a>utilisation 0.866 measured, 0.865 from the run's rate and service
+</span></code></pre></div></td></tr></table></div>
+<hr />
+<h2 id="littles-law">Little's Law</h2>
+<h3 id="in-the-tutorial_2">In the Tutorial</h3>
+<p><strong>Little's law</strong> says that, in a system that settles, the average number of orders in it equals the arrival rate times the average time an order spends in it: L = λ × W. It needs no assumption about the gaps, the packing times or the order of service. It holds for the queue alone, for the packers alone, and for the whole shop.</p>
+<p>In the busy hour of <a href="../../first-model/measuring-a-run/">Measuring a Run</a>, 6,250 orders finished in 3,600 seconds, so λ = 1.736 orders a second. The mean wait was 1.3817 seconds, so λ × W = 1.736 × 1.3817 = 2.399. The time-weighted average queue length was 2.406 orders. The two figures agree.</p>
+<h3 id="why-it-matters_2">Why It Matters</h3>
+<p>The law holds because both sides count the same total. Add up, over the hour, the seconds each order spent in the queue. Counted second by second, the total is the number waiting at each moment, added over 3,600 seconds: L × 3,600. Counted order by order, it is the number of orders times their mean wait: λ × 3,600 × W. The two totals are equal, so L = λ × W.</p>
+<p>desflow measures the queue length, the arrival count and the wait separately. If they do not agree, one of them is wrong. That makes the law the first check on a model's statistics, before any result is trusted.</p>
+<h3 id="how-to-use-it_2">How to Use It</h3>
+<p>Read the five statistics at the end of a run, and compare L with λ × W for the queue and for the whole shop. The number in the whole shop is the queue plus the orders being packed, and the orders being packed are the three packers times their utilisation. This function does the arithmetic on the readings of any run of the shop:</p>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/pages/queueing_basics.py:littles-law</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-5-1"> 1</a></span>
+<span class="normal"><a href="#__codelineno-5-2"> 2</a></span>
+<span class="normal"><a href="#__codelineno-5-3"> 3</a></span>
+<span class="normal"><a href="#__codelineno-5-4"> 4</a></span>
+<span class="normal"><a href="#__codelineno-5-5"> 5</a></span>
+<span class="normal"><a href="#__codelineno-5-6"> 6</a></span>
+<span class="normal"><a href="#__codelineno-5-7"> 7</a></span>
+<span class="normal"><a href="#__codelineno-5-8"> 8</a></span>
+<span class="normal"><a href="#__codelineno-5-9"> 9</a></span>
+<span class="normal"><a href="#__codelineno-5-10">10</a></span>
+<span class="normal"><a href="#__codelineno-5-11">11</a></span>
+<span class="normal"><a href="#__codelineno-5-12">12</a></span>
+<span class="normal"><a href="#__codelineno-5-13">13</a></span>
+<span class="normal"><a href="#__codelineno-5-14">14</a></span>
+<span class="normal"><a href="#__codelineno-5-15">15</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">littles_law</span><span class="p">(</span><span class="n">readings</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">seconds</span><span class="p">:</span> <span class="nb">float</span><span class="p">):</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2"></a><span class="w">    </span><span class="sd">"""The arrival rate, then L and lambda x W for the queue and for the whole shop."""</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3"></a>    <span class="n">rate</span> <span class="o">=</span> <span class="n">readings</span><span class="p">[</span><span class="s2">"Shop.stats.flows.orders.finished"</span><span class="p">]</span> <span class="o">/</span> <span class="n">seconds</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4"></a>    <span class="n">in_queue</span> <span class="o">=</span> <span class="n">readings</span><span class="p">[</span><span class="s2">"Shop.stats.resources.packers.queue_length_avg"</span><span class="p">]</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5"></a>    <span class="n">packers</span> <span class="o">=</span> <span class="n">readings</span><span class="p">[</span><span class="s2">"Shop.stats.resources.packers.capacity"</span><span class="p">]</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6"></a>    <span class="n">in_service</span> <span class="o">=</span> <span class="p">(</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7"></a>        <span class="n">packers</span> <span class="o">*</span> <span class="n">readings</span><span class="p">[</span><span class="s2">"Shop.stats.resources.packers.utilization_avg"</span><span class="p">]</span> <span class="o">/</span> <span class="mi">100</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8"></a>    <span class="p">)</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9"></a>    <span class="n">wait</span> <span class="o">=</span> <span class="n">readings</span><span class="p">[</span><span class="s2">"Shop.stats.tasks.pack_order.wait_mean"</span><span class="p">]</span>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10"></a>    <span class="n">service</span> <span class="o">=</span> <span class="n">readings</span><span class="p">[</span><span class="s2">"Shop.stats.tasks.pack_order.service_mean"</span><span class="p">]</span>
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11"></a>    <span class="k">return</span> <span class="p">(</span>
+</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12"></a>        <span class="n">rate</span><span class="p">,</span>
+</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13"></a>        <span class="p">(</span><span class="n">in_queue</span><span class="p">,</span> <span class="n">rate</span> <span class="o">*</span> <span class="n">wait</span><span class="p">),</span>
+</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14"></a>        <span class="p">(</span><span class="n">in_queue</span> <span class="o">+</span> <span class="n">in_service</span><span class="p">,</span> <span class="n">rate</span> <span class="o">*</span> <span class="p">(</span><span class="n">wait</span> <span class="o">+</span> <span class="n">service</span><span class="p">)),</span>
+</span><span id="__span-5-15"><a id="__codelineno-5-15" name="__codelineno-5-15"></a>    <span class="p">)</span>
+</span></code></pre></div></td></tr></table></div>
+<p>Each tab runs the Measuring a Run hour and reads its statistics:</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="2:3"><input checked="checked" id="__tabbed_2_1" name="__tabbed_2" type="radio" /><input id="__tabbed_2_2" name="__tabbed_2" type="radio" /><input id="__tabbed_2_3" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="__tabbed_2_1">YAML</label><label for="__tabbed_2_2">Builder</label><label for="__tabbed_2_3">Low-level</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-6-1">1</a></span>
+<span class="normal"><a href="#__codelineno-6-2">2</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1"></a><span class="c1"># Utilisation, queue length, mean wait and packing time, and orders finished</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2"></a>desflow<span class="w"> </span>run<span class="w"> </span>measuring_a_run.yaml<span class="w"> </span>--stdout<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-E<span class="w"> </span><span class="s1">'utilization_avg"|queue_length_avg"|(wait|service)_mean"|orders\.finished"'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>tail<span class="w"> </span>-5
+</span></code></pre></div></td></tr></table></div>
+<p><!-- records: littles-yaml -->
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-7-1">1</a></span>
+<span class="normal"><a href="#__codelineno-7-2">2</a></span>
+<span class="normal"><a href="#__codelineno-7-3">3</a></span>
+<span class="normal"><a href="#__codelineno-7-4">4</a></span>
+<span class="normal"><a href="#__codelineno-7-5">5</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1"></a>{"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.utilization_avg","value":86.56336659179189}
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2"></a>{"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length_avg","value":2.405756864104584}
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3"></a>{"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":1.3816663590146558}
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4"></a>{"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.service_mean","value":1.4953759999999972}
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5"></a>{"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.flows.orders.finished","value":6250}
+</span></code></pre></div></td></tr></table></div></p>
+<p>Put these five values into the arithmetic of <code>littles_law</code>, with 3 packers and 3,600 seconds.</p>
+</div>
+<div class="tabbed-block">
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/pages/queueing_basics.py:builder</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-8-1">1</a></span>
+<span class="normal"><a href="#__codelineno-8-2">2</a></span>
+<span class="normal"><a href="#__codelineno-8-3">3</a></span>
+<span class="normal"><a href="#__codelineno-8-4">4</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">measuring_a_run</span><span class="w"> </span><span class="kn">import</span> <span class="n">app</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2"></a>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3"></a><span class="n">app</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">until</span><span class="o">=</span><span class="s2">"1 h"</span><span class="p">)</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4"></a><span class="n">readings</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">readings</span><span class="p">()</span>
+</span></code></pre></div></td></tr></table></div>
+<p>Then <code>littles_law(readings, 3600)</code>.</p>
+</div>
+<div class="tabbed-block">
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/pages/queueing_basics.py:low-level</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-9-1">1</a></span>
+<span class="normal"><a href="#__codelineno-9-2">2</a></span>
+<span class="normal"><a href="#__codelineno-9-3">3</a></span>
+<span class="normal"><a href="#__codelineno-9-4">4</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">measuring_a_run_low_level</span><span class="w"> </span><span class="kn">import</span> <span class="n">run</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2"></a>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3"></a><span class="n">env</span> <span class="o">=</span> <span class="n">run</span><span class="p">()</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4"></a><span class="n">readings</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">readings</span><span class="p">()</span>
+</span></code></pre></div></td></tr></table></div>
+<p>Then <code>littles_law(readings, 3600)</code>.</p>
+</div>
+</div>
+</div>
+<p>All three give the same figures:</p>
+<!-- records: queueing-little -->
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-10-1">1</a></span>
+<span class="normal"><a href="#__codelineno-10-2">2</a></span>
+<span class="normal"><a href="#__codelineno-10-3">3</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1"></a>arrival rate 1.736 orders a second
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2"></a>queue: L 2.406, lambda x W 2.399
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3"></a>shop: L 5.003, lambda x W 4.995
+</span></code></pre></div></td></tr></table></div>
+<h3 id="what-the-result-means_2">What the Result Means</h3>
+<p>The queue gives 2.406 against 2.399, and the whole shop 5.003 against 4.995. Both agree within 0.3%. The small difference comes from the 11 orders still in the shop when the hour ended: their time counts in L, but their wait is not yet in W. In a long run of a settled shop, a difference of more than a few percent means a statistic is wrong, for example a task that keeps its packer after it finishes. <a href="../checking-and-validating/">Checking and Validating</a> uses the law as one of its checks.</p>
+<hr />
+<h2 id="waits-near-full-use">Waits Near Full Use</h2>
+<h3 id="in-the-tutorial_3">In the Tutorial</h3>
+<p><a href="../../studies/parameter-sweeps/">Parameter Sweeps</a> runs the busy hour with three packers and the measured packing times at four arrival rates, 20 replications each. At 1.6 orders a second (utilisation 0.8) the mean wait is 0.97 seconds. At 1.8 (utilisation 0.9) it is 2.48 seconds. At 1.9 (utilisation 0.95) it is 5.55 seconds. A rise of 6% in the rate more than doubles the wait.</p>
+<h3 id="why-it-matters_3">Why It Matters</h3>
+<p>For one server with exponential gaps and service times (M/M/1), the mean wait in the queue has a closed form: utilisation ÷ (1 − utilisation) × the mean service time. With constant service times (M/D/1) it is exactly half. The first part, utilisation ÷ (1 − utilisation), grows faster and faster as utilisation nears 1: it is 1 at 0.5, 9 at 0.9 and 19 at 0.95. The bars show this for one packer with a mean packing time of 1.5 seconds:</p>
+<p><img alt="Mean wait in the queue for one packer with mean service 1.5 s, from the formulas: at utilisation 0.5, 1.5 s with exponential service and 0.75 s with constant service; at 0.75, 4.5 and 2.25 s; at 0.9, 13.5 and 6.75 s; at 0.95, 28.5 and 14.25 s" src="../../../assets/diagrams/wait-vs-utilization.png" /></p>
+<p>So a design that only keeps utilisation below 1 is not enough. A shop that is stable can still make orders wait a long time, and a small change in demand changes the wait a great deal.</p>
+<h3 id="how-to-use-it_3">How to Use It</h3>
+<p>The formulas are short enough to compute. These functions are the ones the rest of the page uses:</p>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/pages/queueing_basics.py:theory</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-11-1"> 1</a></span>
+<span class="normal"><a href="#__codelineno-11-2"> 2</a></span>
+<span class="normal"><a href="#__codelineno-11-3"> 3</a></span>
+<span class="normal"><a href="#__codelineno-11-4"> 4</a></span>
+<span class="normal"><a href="#__codelineno-11-5"> 5</a></span>
+<span class="normal"><a href="#__codelineno-11-6"> 6</a></span>
+<span class="normal"><a href="#__codelineno-11-7"> 7</a></span>
+<span class="normal"><a href="#__codelineno-11-8"> 8</a></span>
+<span class="normal"><a href="#__codelineno-11-9"> 9</a></span>
+<span class="normal"><a href="#__codelineno-11-10">10</a></span>
+<span class="normal"><a href="#__codelineno-11-11">11</a></span>
+<span class="normal"><a href="#__codelineno-11-12">12</a></span>
+<span class="normal"><a href="#__codelineno-11-13">13</a></span>
+<span class="normal"><a href="#__codelineno-11-14">14</a></span>
+<span class="normal"><a href="#__codelineno-11-15">15</a></span>
+<span class="normal"><a href="#__codelineno-11-16">16</a></span>
+<span class="normal"><a href="#__codelineno-11-17">17</a></span>
+<span class="normal"><a href="#__codelineno-11-18">18</a></span>
+<span class="normal"><a href="#__codelineno-11-19">19</a></span>
+<span class="normal"><a href="#__codelineno-11-20">20</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">mm1_wait</span><span class="p">(</span><span class="n">utilisation</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2"></a><span class="w">    </span><span class="sd">"""Mean wait in the queue of an M/M/1 queue: utilisation / (1 - utilisation) x service."""</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3"></a>    <span class="k">return</span> <span class="n">utilisation</span> <span class="o">/</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">utilisation</span><span class="p">)</span> <span class="o">*</span> <span class="n">SERVICE</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4"></a>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5"></a>
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6"></a><span class="k">def</span><span class="w"> </span><span class="nf">erlang_c</span><span class="p">(</span><span class="n">units</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">load</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7"></a><span class="w">    </span><span class="sd">"""The share of arrivals that find all `units` busy, for a load in packers' worth of work."""</span>
+</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8"></a>    <span class="n">last</span> <span class="o">=</span> <span class="n">load</span><span class="o">**</span><span class="n">units</span> <span class="o">/</span> <span class="n">math</span><span class="o">.</span><span class="n">factorial</span><span class="p">(</span><span class="n">units</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">load</span> <span class="o">/</span> <span class="n">units</span><span class="p">)</span>
+</span><span id="__span-11-9"><a id="__codelineno-11-9" name="__codelineno-11-9"></a>    <span class="k">return</span> <span class="n">last</span> <span class="o">/</span> <span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="n">load</span><span class="o">**</span><span class="n">k</span> <span class="o">/</span> <span class="n">math</span><span class="o">.</span><span class="n">factorial</span><span class="p">(</span><span class="n">k</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">units</span><span class="p">))</span> <span class="o">+</span> <span class="n">last</span><span class="p">)</span>
+</span><span id="__span-11-10"><a id="__codelineno-11-10" name="__codelineno-11-10"></a>
+</span><span id="__span-11-11"><a id="__codelineno-11-11" name="__codelineno-11-11"></a>
+</span><span id="__span-11-12"><a id="__codelineno-11-12" name="__codelineno-11-12"></a><span class="k">def</span><span class="w"> </span><span class="nf">mmc_wait</span><span class="p">(</span><span class="n">units</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">arrival_rate</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+</span><span id="__span-11-13"><a id="__codelineno-11-13" name="__codelineno-11-13"></a><span class="w">    </span><span class="sd">"""Mean wait in the queue of an M/M/c queue: Erlang C divided by (c / service - lambda)."""</span>
+</span><span id="__span-11-14"><a id="__codelineno-11-14" name="__codelineno-11-14"></a>    <span class="k">return</span> <span class="n">erlang_c</span><span class="p">(</span><span class="n">units</span><span class="p">,</span> <span class="n">arrival_rate</span> <span class="o">*</span> <span class="n">SERVICE</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">units</span> <span class="o">/</span> <span class="n">SERVICE</span> <span class="o">-</span> <span class="n">arrival_rate</span><span class="p">)</span>
+</span><span id="__span-11-15"><a id="__codelineno-11-15" name="__codelineno-11-15"></a>
+</span><span id="__span-11-16"><a id="__codelineno-11-16" name="__codelineno-11-16"></a>
+</span><span id="__span-11-17"><a id="__codelineno-11-17" name="__codelineno-11-17"></a><span class="k">def</span><span class="w"> </span><span class="nf">kingman_wait</span><span class="p">(</span><span class="n">utilisation</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">arrival_cv</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">service_cv</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+</span><span id="__span-11-18"><a id="__codelineno-11-18" name="__codelineno-11-18"></a><span class="w">    </span><span class="sd">"""Kingman's formula for the mean wait in a one-server queue."""</span>
+</span><span id="__span-11-19"><a id="__codelineno-11-19" name="__codelineno-11-19"></a>    <span class="n">variability</span> <span class="o">=</span> <span class="p">(</span><span class="n">arrival_cv</span><span class="o">**</span><span class="mi">2</span> <span class="o">+</span> <span class="n">service_cv</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span>
+</span><span id="__span-11-20"><a id="__codelineno-11-20" name="__codelineno-11-20"></a>    <span class="k">return</span> <span class="n">utilisation</span> <span class="o">/</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">utilisation</span><span class="p">)</span> <span class="o">*</span> <span class="n">variability</span> <span class="o">*</span> <span class="n">SERVICE</span>
+</span></code></pre></div></td></tr></table></div>
+<!-- records: queueing-formulas -->
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-12-1">1</a></span>
+<span class="normal"><a href="#__codelineno-12-2">2</a></span>
+<span class="normal"><a href="#__codelineno-12-3">3</a></span>
+<span class="normal"><a href="#__codelineno-12-4">4</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1"></a>utilisation 0.5: mean wait M/M/1  1.50 s, M/D/1  0.75 s
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2"></a>utilisation 0.75: mean wait M/M/1  4.50 s, M/D/1  2.25 s
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3"></a>utilisation 0.9: mean wait M/M/1 13.50 s, M/D/1  6.75 s
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4"></a>utilisation 0.95: mean wait M/M/1 28.50 s, M/D/1 14.25 s
+</span></code></pre></div></td></tr></table></div>
+<p><code>desflow explain</code> gives the same figure for a one-packer model: for the shop of First Simulation, M/D/1 at utilisation 0.75, its <code>Wq</code> column reads 2.25 seconds.</p>
+<h3 id="what-the-result-means_3">What the Result Means</h3>
+<p>Near full use, the wait depends strongly on the exact arrival rate. Before trusting a wait at a utilisation of 0.9 or more, check how good the estimate of the rate is, as Parameter Sweeps does. A run near full use also needs to be long before its mean wait settles, as <a href="../output-analysis/">Output Analysis</a> explains.</p>
+<hr />
+<h2 id="several-packers">Several Packers</h2>
+<h3 id="in-the-tutorial_4">In the Tutorial</h3>
+<p>The busy hour has three packers with constant packing at utilisation 0.9. Ten long runs of it give a mean wait of 2.05 seconds, as <a href="#check-a-formula-against-the-shop">Check a Formula Against the Shop</a> shows. One packer with constant packing at the same utilisation would make orders wait 6.75 seconds on average, by the M/D/1 formula above. Three packers sharing one queue wait far less at the same utilisation.</p>
+<h3 id="why-it-matters_4">Why It Matters</h3>
+<p>With several packers sharing one queue, an order waits only when every packer is busy. For exponential gaps and service times (M/M/c), the share of orders that find every packer busy is the <strong>Erlang C</strong> formula. The mean wait in the queue is that share divided by (c ÷ the mean service time − the arrival rate). The <code>erlang_c</code> and <code>mmc_wait</code> functions above compute it.</p>
+<h3 id="how-to-use-it_4">How to Use It</h3>
+<p>Compare designs at the same utilisation with the formulas. With a mean packing time of 1.5 seconds, one packer at utilisation 0.8 gives a mean wait of 6 seconds. Three packers at utilisation 0.8 give about 1.6 seconds:</p>
+<!-- records: queueing-packers -->
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-13-1">1</a></span>
+<span class="normal"><a href="#__codelineno-13-2">2</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1"></a>one packer at utilisation 0.8: mean wait 6.0 s
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2"></a>three packers at utilisation 0.8: mean wait 1.62 s
+</span></code></pre></div></td></tr></table></div>
+<h3 id="what-the-result-means_4">What the Result Means</h3>
+<p>Pooling packers into one queue shortens the wait at the same load. A design question such as "one fast packer or three slower ones" needs the wait, not only the utilisation. The formula covers exponential times only, so the shop's own runs answer it for other times.</p>
+<hr />
+<h2 id="variation-lengthens-waits">Variation Lengthens Waits</h2>
+<h3 id="in-the-tutorial_5">In the Tutorial</h3>
+<p><a href="../../inputs/choosing-inputs/">Choosing Inputs</a> runs the busy hour with four candidate packing times, all with a mean of 1.5 seconds. The mean waits are 1.27 seconds with constant times, 1.28 with triangular, 1.35 with the measured times and 2.37 with exponential. The same mean with a wider spread gives a longer wait.</p>
+<h3 id="why-it-matters_5">Why It Matters</h3>
+<p><strong>Kingman's formula</strong> gives an approximate mean wait for one server with any distributions. It measures the spread of each input by its <strong>coefficient of variation</strong>, the standard deviation divided by the mean, called variation for short. The variation is 1 for an exponential distribution and 0 for a constant one. The mean wait is the product of three parts:</p>
+<ul>
+<li>utilisation ÷ (1 − utilisation), which grows quickly as utilisation nears 1;</li>
+<li>(arrival variation² + service variation²) ÷ 2, the effect of the spread;</li>
+<li>the mean service time.</li>
+</ul>
+<p>With exponential gaps (variation 1) and constant service (variation 0), the middle part is 0.5. The formula then gives half the M/M/1 wait, which is the M/D/1 result above. Variation in the gaps counts as much as variation in the packing times. When both variations are 0, the formula gives no wait at all.</p>
+<h3 id="how-to-use-it_5">How to Use It</h3>
+<p>The <code>kingman_wait</code> function above computes it. Use it to judge how much the choice of an input distribution matters before you fit one. Choosing Inputs shows how to compare the candidates by running each.</p>
+<h3 id="what-the-result-means_5">What the Result Means</h3>
+<p>A model whose inputs are replaced by their averages has no variation, so it shows no queue while utilisation is below 1. Its waits are too short. <a href="../common-mistakes/">Common Mistakes</a> lists this among the errors that distort a result.</p>
+<hr />
+<h2 id="flow-balance-and-the-bottleneck">Flow Balance and the Bottleneck</h2>
+<h3 id="in-the-tutorial_6">In the Tutorial</h3>
+<p><a href="../../first-model/queues-and-capacity/#networks-and-bottlenecks">Queues and Capacity</a> adds a checker to the shop. Orders arrive at 1.6 a second, every packed order is checked, and a tenth of the checked orders go back to packing. Four packers take 1.5 seconds an order, and one checker takes 0.4 seconds on average.</p>
+<h3 id="why-it-matters_6">Why It Matters</h3>
+<p>In a network of tasks, work reaches a task in two ways: as new work, and as work routed to it from other tasks. The rate into a task is the sum of the two. This is <strong>flow balance</strong>. For packing, the rate is 1.6 + 0.1 × the rate into packing. Solving for it gives 1.6 ÷ (1 − 0.1) = 1.6 ÷ 0.9 = 1.778 orders a second. Every packed order goes to the checker, so the checker receives the same 1.778.</p>
+<p>Each resource's utilisation follows from its rate. The four packers have 1.778 × 1.5 ÷ 4 = 0.667. The checker has 1.778 × 0.4 = 0.711. The resource with the highest utilisation is the <strong>bottleneck</strong>, here the checker. It is the first to reach full use when demand grows, and adding units anywhere else does not raise the most the shop can handle.</p>
+<h3 id="how-to-use-it_6">How to Use It</h3>
+<p>Work out the rate into each task, then each resource's utilisation:</p>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/pages/queueing_basics.py:flow</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-14-1">1</a></span>
+<span class="normal"><a href="#__codelineno-14-2">2</a></span>
+<span class="normal"><a href="#__codelineno-14-3">3</a></span>
+<span class="normal"><a href="#__codelineno-14-4">4</a></span>
+<span class="normal"><a href="#__codelineno-14-5">5</a></span>
+<span class="normal"><a href="#__codelineno-14-6">6</a></span>
+<span class="normal"><a href="#__codelineno-14-7">7</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1"></a><span class="c1"># Orders arrive at 1.6 a second, and a tenth of the checked orders go back to packing,</span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2"></a><span class="c1"># so the rate into packing solves: rate = 1.6 + 0.1 x rate.</span>
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3"></a><span class="n">flow_rate</span> <span class="o">=</span> <span class="mf">1.6</span> <span class="o">/</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="mf">0.1</span><span class="p">)</span>
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4"></a><span class="n">packers</span> <span class="o">=</span> <span class="n">flow_rate</span> <span class="o">*</span> <span class="mf">1.5</span> <span class="o">/</span> <span class="mi">4</span>  <span class="c1"># four packers, 1.5 seconds an order</span>
+</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5"></a><span class="n">checker</span> <span class="o">=</span> <span class="n">flow_rate</span> <span class="o">*</span> <span class="mf">0.4</span>  <span class="c1"># one checker, 0.4 seconds an order on average</span>
+</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"rate into packing and into checking: </span><span class="si">{</span><span class="n">flow_rate</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2"> orders a second"</span><span class="p">)</span>
+</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"utilisation: packers </span><span class="si">{</span><span class="n">packers</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">, checker </span><span class="si">{</span><span class="n">checker</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</span></code></pre></div></td></tr></table></div>
+<p><code>desflow explain</code> does the same from the model and names the bottleneck:</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="3:3"><input checked="checked" id="__tabbed_3_1" name="__tabbed_3" type="radio" /><input id="__tabbed_3_2" name="__tabbed_3" type="radio" /><input id="__tabbed_3_3" name="__tabbed_3" type="radio" /><div class="tabbed-labels"><label for="__tabbed_3_1">YAML</label><label for="__tabbed_3_2">Builder</label><label for="__tabbed_3_3">Low-level</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-15-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1"></a>desflow<span class="w"> </span>explain<span class="w"> </span>queues_network.yaml
+</span></code></pre></div></td></tr></table></div>
+<p>It ends its resource tables with <code>Bottleneck: checkers</code>.</p>
+</div>
+<div class="tabbed-block">
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/pages/queueing_basics.py:flow-explain</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-16-1">1</a></span>
+<span class="normal"><a href="#__codelineno-16-2">2</a></span>
+<span class="normal"><a href="#__codelineno-16-3">3</a></span>
+<span class="normal"><a href="#__codelineno-16-4">4</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">queues_and_capacity</span><span class="w"> </span><span class="kn">import</span> <span class="n">network</span>
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2"></a>
+</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3"></a><span class="n">explanation</span> <span class="o">=</span> <span class="n">network</span><span class="p">()</span><span class="o">.</span><span class="n">analyze</span><span class="p">()</span>
+</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4"></a><span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"desflow explain names the bottleneck: </span><span class="si">{</span><span class="n">explanation</span><span class="o">.</span><span class="n">bottleneck</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</span></code></pre></div></td></tr></table></div>
+</div>
+<div class="tabbed-block">
+<p><code>desflow explain</code> does not support low-level models. Explain the <a href="../../first-model/queues-and-capacity/#networks-and-bottlenecks">YAML or builder form</a> of the network.</p>
+</div>
+</div>
+</div>
+<!-- records: queueing-flow -->
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-17-1">1</a></span>
+<span class="normal"><a href="#__codelineno-17-2">2</a></span>
+<span class="normal"><a href="#__codelineno-17-3">3</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1"></a>rate into packing and into checking: 1.778 orders a second
+</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2"></a>utilisation: packers 0.667, checker 0.711
+</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3"></a>desflow explain names the bottleneck: checkers
+</span></code></pre></div></td></tr></table></div>
+<h3 id="what-the-result-means_6">What the Result Means</h3>
+<p>Add capacity at the bottleneck first. Here a second checker lowers the checker's utilisation to 0.356, while a fifth packer leaves the checker at 0.711 and the shop no faster. Rework raises the load on every task it passes through, so a model without it underestimates every utilisation.</p>
+<hr />
+<h2 id="check-a-formula-against-the-shop">Check a Formula Against the Shop</h2>
+<h3 id="in-the-tutorial_7">In the Tutorial</h3>
+<p>The busy hour with exponential packing times is M/M/3 at utilisation 0.9. The Erlang C formula gives a mean wait of 4.083 seconds. Ten one-hour runs of the shop measure 4.784 ± 1.301 seconds, so the formula lies within the interval of the runs.</p>
+<h3 id="why-it-matters_7">Why It Matters</h3>
+<p>A formula and a run that agree check each other. The formula shows that the model is built as intended, and the runs show that the formula applies. A model that disagrees with a formula on a case the formula covers has a fault in its logic or its statistics.</p>
+<h3 id="how-to-use-it_7">How to Use It</h3>
+<div class="tabbed-set tabbed-alternate" data-tabs="4:3"><input checked="checked" id="__tabbed_4_1" name="__tabbed_4" type="radio" /><input id="__tabbed_4_2" name="__tabbed_4" type="radio" /><input id="__tabbed_4_3" name="__tabbed_4" type="radio" /><div class="tabbed-labels"><label for="__tabbed_4_1">YAML</label><label for="__tabbed_4_2">Builder</label><label for="__tabbed_4_3">Low-level</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<p><code>desflow explain --verify</code> runs the model and compares each measure with the analysis:</p>
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-18-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1"></a><span class="nv">PACKING</span><span class="o">=</span>exponential<span class="w"> </span>desflow<span class="w"> </span>explain<span class="w"> </span>choosing_inputs.yaml<span class="w"> </span>--verify<span class="w"> </span>--replications<span class="w"> </span><span class="m">10</span>
+</span></code></pre></div></td></tr></table></div>
+<p><!-- records: queueing-verify -->
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-19-1">1</a></span>
+<span class="normal"><a href="#__codelineno-19-2">2</a></span>
+<span class="normal"><a href="#__codelineno-19-3">3</a></span>
+<span class="normal"><a href="#__codelineno-19-4">4</a></span>
+<span class="normal"><a href="#__codelineno-19-5">5</a></span>
+<span class="normal"><a href="#__codelineno-19-6">6</a></span>
+<span class="normal"><a href="#__codelineno-19-7">7</a></span>
+<span class="normal"><a href="#__codelineno-19-8">8</a></span>
+<span class="normal"><a href="#__codelineno-19-9">9</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1"></a>Verify: 10 runs to 3600 s, seed 42
+</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2"></a>+---------------------------------------------------------------------+
+</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3"></a>| node       | measure      | analysis | measured |        ± | result |
+</span><span id="__span-19-4"><a id="__codelineno-19-4" name="__codelineno-19-4"></a>|------------+--------------+----------+----------+----------+--------|
+</span><span id="__span-19-5"><a id="__codelineno-19-5" name="__codelineno-19-5"></a>| packers    | utilization  |      0.9 |   0.9066 | 0.008966 | agrees |
+</span><span id="__span-19-6"><a id="__codelineno-19-6" name="__codelineno-19-6"></a>| packers    | queue_length |    7.349 |    8.659 |    2.396 | agrees |
+</span><span id="__span-19-7"><a id="__codelineno-19-7" name="__codelineno-19-7"></a>| pack_order | wait         |    4.083 |    4.784 |    1.301 | agrees |
+</span><span id="__span-19-8"><a id="__codelineno-19-8" name="__codelineno-19-8"></a>| orders     | throughput   |      1.8 |    1.805 |  0.01634 | agrees |
+</span><span id="__span-19-9"><a id="__codelineno-19-9" name="__codelineno-19-9"></a>+---------------------------------------------------------------------+
+</span></code></pre></div></td></tr></table></div></p>
+</div>
+<div class="tabbed-block">
+<p>This shop takes the gaps and the packing times as exponential or constant by choice:</p>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/pages/queueing_basics.py:shop</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-20-1"> 1</a></span>
+<span class="normal"><a href="#__codelineno-20-2"> 2</a></span>
+<span class="normal"><a href="#__codelineno-20-3"> 3</a></span>
+<span class="normal"><a href="#__codelineno-20-4"> 4</a></span>
+<span class="normal"><a href="#__codelineno-20-5"> 5</a></span>
+<span class="normal"><a href="#__codelineno-20-6"> 6</a></span>
+<span class="normal"><a href="#__codelineno-20-7"> 7</a></span>
+<span class="normal"><a href="#__codelineno-20-8"> 8</a></span>
+<span class="normal"><a href="#__codelineno-20-9"> 9</a></span>
+<span class="normal"><a href="#__codelineno-20-10">10</a></span>
+<span class="normal"><a href="#__codelineno-20-11">11</a></span>
+<span class="normal"><a href="#__codelineno-20-12">12</a></span>
+<span class="normal"><a href="#__codelineno-20-13">13</a></span>
+<span class="normal"><a href="#__codelineno-20-14">14</a></span>
+<span class="normal"><a href="#__codelineno-20-15">15</a></span>
+<span class="normal"><a href="#__codelineno-20-16">16</a></span>
+<span class="normal"><a href="#__codelineno-20-17">17</a></span>
+<span class="normal"><a href="#__codelineno-20-18">18</a></span>
+<span class="normal"><a href="#__codelineno-20-19">19</a></span>
+<span class="normal"><a href="#__codelineno-20-20">20</a></span>
+<span class="normal"><a href="#__codelineno-20-21">21</a></span>
+<span class="normal"><a href="#__codelineno-20-22">22</a></span>
+<span class="normal"><a href="#__codelineno-20-23">23</a></span>
+<span class="normal"><a href="#__codelineno-20-24">24</a></span>
+<span class="normal"><a href="#__codelineno-20-25">25</a></span>
+<span class="normal"><a href="#__codelineno-20-26">26</a></span>
+<span class="normal"><a href="#__codelineno-20-27">27</a></span>
+<span class="normal"><a href="#__codelineno-20-28">28</a></span>
+<span class="normal"><a href="#__codelineno-20-29">29</a></span>
+<span class="normal"><a href="#__codelineno-20-30">30</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">shop</span><span class="p">(</span><span class="n">arrival</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">service</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">packers</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SimulationContext</span><span class="p">:</span>
+</span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2"></a><span class="w">    </span><span class="sd">"""The shop with the given arrival gaps and packing times, and `packers` packers."""</span>
+</span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3"></a>    <span class="n">app</span> <span class="o">=</span> <span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_id</span><span class="o">=</span><span class="s2">"Shop"</span><span class="p">,</span> <span class="n">factor</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">random_seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
+</span><span id="__span-20-4"><a id="__codelineno-20-4" name="__codelineno-20-4"></a>    <span class="n">app</span><span class="o">.</span><span class="n">add_arrival</span><span class="p">(</span><span class="s2">"orders"</span><span class="p">,</span> <span class="o">**</span><span class="n">arrival</span><span class="p">)</span>
+</span><span id="__span-20-5"><a id="__codelineno-20-5" name="__codelineno-20-5"></a>    <span class="n">app</span><span class="o">.</span><span class="n">add_service</span><span class="p">(</span><span class="s2">"packing"</span><span class="p">,</span> <span class="o">**</span><span class="n">service</span><span class="p">)</span>
+</span><span id="__span-20-6"><a id="__codelineno-20-6" name="__codelineno-20-6"></a>    <span class="n">app</span><span class="o">.</span><span class="n">add_resource</span><span class="p">(</span><span class="s2">"packers"</span><span class="p">,</span> <span class="n">current_cap</span><span class="o">=</span><span class="n">packers</span><span class="p">,</span> <span class="n">max_cap</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+</span><span id="__span-20-7"><a id="__codelineno-20-7" name="__codelineno-20-7"></a>    <span class="n">app</span><span class="o">.</span><span class="n">with_stats</span><span class="p">(</span><span class="s2">"typical"</span><span class="p">,</span> <span class="n">interval</span><span class="o">=</span><span class="mi">3600</span><span class="p">)</span>
+</span><span id="__span-20-8"><a id="__codelineno-20-8" name="__codelineno-20-8"></a>
+</span><span id="__span-20-9"><a id="__codelineno-20-9" name="__codelineno-20-9"></a>    <span class="nd">@app</span><span class="o">.</span><span class="n">task</span><span class="p">(</span><span class="n">service_id</span><span class="o">=</span><span class="s2">"packing"</span><span class="p">,</span> <span class="n">resource_id</span><span class="o">=</span><span class="s2">"packers"</span><span class="p">)</span>
+</span><span id="__span-20-10"><a id="__codelineno-20-10" name="__codelineno-20-10"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">pack_order</span><span class="p">(</span><span class="n">task_id</span><span class="p">):</span>
+</span><span id="__span-20-11"><a id="__codelineno-20-11" name="__codelineno-20-11"></a>        <span class="k">return</span> <span class="p">{</span><span class="s2">"event_type"</span><span class="p">:</span> <span class="s2">"order_packed"</span><span class="p">}</span>
+</span><span id="__span-20-12"><a id="__codelineno-20-12" name="__codelineno-20-12"></a>
+</span><span id="__span-20-13"><a id="__codelineno-20-13" name="__codelineno-20-13"></a>    <span class="nd">@app</span><span class="o">.</span><span class="n">arrival_loop</span><span class="p">(</span><span class="s2">"orders"</span><span class="p">)</span>
+</span><span id="__span-20-14"><a id="__codelineno-20-14" name="__codelineno-20-14"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">order_generator</span><span class="p">(</span><span class="n">context</span><span class="p">):</span>
+</span><span id="__span-20-15"><a id="__codelineno-20-15" name="__codelineno-20-15"></a>        <span class="n">task_id</span> <span class="o">=</span> <span class="mi">0</span>
+</span><span id="__span-20-16"><a id="__codelineno-20-16" name="__codelineno-20-16"></a>        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+</span><span id="__span-20-17"><a id="__codelineno-20-17" name="__codelineno-20-17"></a>            <span class="n">order</span> <span class="o">=</span> <span class="k">yield</span> <span class="n">context</span><span class="o">.</span><span class="n">wait_for_arrival</span><span class="p">(</span><span class="s2">"orders"</span><span class="p">)</span>
+</span><span id="__span-20-18"><a id="__codelineno-20-18" name="__codelineno-20-18"></a>            <span class="n">context</span><span class="o">.</span><span class="n">spawn</span><span class="p">(</span><span class="n">pack_order</span><span class="p">(</span><span class="n">task_id</span><span class="p">,</span> <span class="n">entity</span><span class="o">=</span><span class="n">order</span><span class="p">))</span>
+</span><span id="__span-20-19"><a id="__codelineno-20-19" name="__codelineno-20-19"></a>            <span class="n">task_id</span> <span class="o">+=</span> <span class="mi">1</span>
+</span><span id="__span-20-20"><a id="__codelineno-20-20" name="__codelineno-20-20"></a>
+</span><span id="__span-20-21"><a id="__codelineno-20-21" name="__codelineno-20-21"></a>    <span class="k">return</span> <span class="n">app</span>
+</span><span id="__span-20-22"><a id="__codelineno-20-22" name="__codelineno-20-22"></a>
+</span><span id="__span-20-23"><a id="__codelineno-20-23" name="__codelineno-20-23"></a>
+</span><span id="__span-20-24"><a id="__codelineno-20-24" name="__codelineno-20-24"></a><span class="c1"># Exponential gaps and times are the M of Kendall's notation, constant ones the D</span>
+</span><span id="__span-20-25"><a id="__codelineno-20-25" name="__codelineno-20-25"></a><span class="k">def</span><span class="w"> </span><span class="nf">exponential</span><span class="p">(</span><span class="n">mean</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+</span><span id="__span-20-26"><a id="__codelineno-20-26" name="__codelineno-20-26"></a>    <span class="k">return</span> <span class="p">{</span><span class="s2">"dist"</span><span class="p">:</span> <span class="s2">"exponential"</span><span class="p">,</span> <span class="s2">"rate"</span><span class="p">:</span> <span class="mi">1</span> <span class="o">/</span> <span class="n">mean</span><span class="p">}</span>
+</span><span id="__span-20-27"><a id="__codelineno-20-27" name="__codelineno-20-27"></a>
+</span><span id="__span-20-28"><a id="__codelineno-20-28" name="__codelineno-20-28"></a>
+</span><span id="__span-20-29"><a id="__codelineno-20-29" name="__codelineno-20-29"></a><span class="k">def</span><span class="w"> </span><span class="nf">constant</span><span class="p">(</span><span class="n">mean</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+</span><span id="__span-20-30"><a id="__codelineno-20-30" name="__codelineno-20-30"></a>    <span class="k">return</span> <span class="p">{</span><span class="s2">"dist"</span><span class="p">:</span> <span class="s2">"constant"</span><span class="p">,</span> <span class="s2">"value"</span><span class="p">:</span> <span class="n">mean</span><span class="p">}</span>
+</span></code></pre></div></td></tr></table></div>
+<p>This function runs ten <a href="../output-analysis/#replications">replications</a>, each leaving out its first 2,000 seconds, and returns the mean wait with its 95% <a href="../output-analysis/#interval-and-half-width">half-width</a>:</p>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/pages/queueing_basics.py:measure</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-21-1"> 1</a></span>
+<span class="normal"><a href="#__codelineno-21-2"> 2</a></span>
+<span class="normal"><a href="#__codelineno-21-3"> 3</a></span>
+<span class="normal"><a href="#__codelineno-21-4"> 4</a></span>
+<span class="normal"><a href="#__codelineno-21-5"> 5</a></span>
+<span class="normal"><a href="#__codelineno-21-6"> 6</a></span>
+<span class="normal"><a href="#__codelineno-21-7"> 7</a></span>
+<span class="normal"><a href="#__codelineno-21-8"> 8</a></span>
+<span class="normal"><a href="#__codelineno-21-9"> 9</a></span>
+<span class="normal"><a href="#__codelineno-21-10">10</a></span>
+<span class="normal"><a href="#__codelineno-21-11">11</a></span>
+<span class="normal"><a href="#__codelineno-21-12">12</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">measured_wait</span><span class="p">(</span><span class="n">arrival</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">service</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span> <span class="n">packers</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">until</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+</span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2"></a><span class="w">    </span><span class="sd">"""Mean wait over 10 runs, with its 95% half-width; each run leaves out its first 2,000 s."""</span>
+</span><span id="__span-21-3"><a id="__codelineno-21-3" name="__codelineno-21-3"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">replicate</span><span class="p">(</span>
+</span><span id="__span-21-4"><a id="__codelineno-21-4" name="__codelineno-21-4"></a>        <span class="k">lambda</span><span class="p">:</span> <span class="n">shop</span><span class="p">(</span><span class="n">arrival</span><span class="p">,</span> <span class="n">service</span><span class="p">,</span> <span class="n">packers</span><span class="p">),</span>
+</span><span id="__span-21-5"><a id="__codelineno-21-5" name="__codelineno-21-5"></a>        <span class="mi">10</span><span class="p">,</span>
+</span><span id="__span-21-6"><a id="__codelineno-21-6" name="__codelineno-21-6"></a>        <span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">,</span>
+</span><span id="__span-21-7"><a id="__codelineno-21-7" name="__codelineno-21-7"></a>        <span class="n">until</span><span class="o">=</span><span class="n">until</span><span class="p">,</span>
+</span><span id="__span-21-8"><a id="__codelineno-21-8" name="__codelineno-21-8"></a>        <span class="n">warmup</span><span class="o">=</span><span class="mi">2000</span><span class="p">,</span>
+</span><span id="__span-21-9"><a id="__codelineno-21-9" name="__codelineno-21-9"></a>        <span class="n">measures</span><span class="o">=</span><span class="p">[</span><span class="s2">"tasks.pack_order.wait_mean"</span><span class="p">],</span>
+</span><span id="__span-21-10"><a id="__codelineno-21-10" name="__codelineno-21-10"></a>    <span class="p">)</span>
+</span><span id="__span-21-11"><a id="__codelineno-21-11" name="__codelineno-21-11"></a>    <span class="n">row</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">summary</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</span><span id="__span-21-12"><a id="__codelineno-21-12" name="__codelineno-21-12"></a>    <span class="k">return</span> <span class="n">row</span><span class="p">[</span><span class="s2">"mean"</span><span class="p">],</span> <span class="n">row</span><span class="p">[</span><span class="s2">"half_width"</span><span class="p">]</span>
+</span></code></pre></div></td></tr></table></div>
+</div>
+<div class="tabbed-block">
+<p><code>--verify</code> does not support low-level models. <code>replicate</code> runs a <code>LowLevelModel</code> the same way, as <a href="../../../user-guide/results/replications/">Replications</a> shows, and its mean and half-width compare with a formula as in the Builder tab.</p>
+</div>
+</div>
+</div>
+<p>The Builder tab's checks compare each formula with the runs, and pass when the formula lies within the interval:</p>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/pages/queueing_basics.py:checks</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-22-1"> 1</a></span>
+<span class="normal"><a href="#__codelineno-22-2"> 2</a></span>
+<span class="normal"><a href="#__codelineno-22-3"> 3</a></span>
+<span class="normal"><a href="#__codelineno-22-4"> 4</a></span>
+<span class="normal"><a href="#__codelineno-22-5"> 5</a></span>
+<span class="normal"><a href="#__codelineno-22-6"> 6</a></span>
+<span class="normal"><a href="#__codelineno-22-7"> 7</a></span>
+<span class="normal"><a href="#__codelineno-22-8"> 8</a></span>
+<span class="normal"><a href="#__codelineno-22-9"> 9</a></span>
+<span class="normal"><a href="#__codelineno-22-10">10</a></span>
+<span class="normal"><a href="#__codelineno-22-11">11</a></span>
+<span class="normal"><a href="#__codelineno-22-12">12</a></span>
+<span class="normal"><a href="#__codelineno-22-13">13</a></span>
+<span class="normal"><a href="#__codelineno-22-14">14</a></span>
+<span class="normal"><a href="#__codelineno-22-15">15</a></span>
+<span class="normal"><a href="#__codelineno-22-16">16</a></span>
+<span class="normal"><a href="#__codelineno-22-17">17</a></span>
+<span class="normal"><a href="#__codelineno-22-18">18</a></span>
+<span class="normal"><a href="#__codelineno-22-19">19</a></span>
+<span class="normal"><a href="#__codelineno-22-20">20</a></span>
+<span class="normal"><a href="#__codelineno-22-21">21</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1"></a><span class="k">for</span> <span class="n">rho</span><span class="p">,</span> <span class="n">figures</span> <span class="ow">in</span> <span class="p">((</span><span class="mf">0.5</span><span class="p">,</span> <span class="p">(</span><span class="mf">1.50</span><span class="p">,</span> <span class="mf">1.47</span><span class="p">,</span> <span class="mf">0.06</span><span class="p">)),</span> <span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="p">(</span><span class="mf">4.50</span><span class="p">,</span> <span class="mf">4.46</span><span class="p">,</span> <span class="mf">0.33</span><span class="p">))):</span>
+</span><span id="__span-22-2"><a id="__codelineno-22-2" name="__codelineno-22-2"></a>    <span class="n">arrival</span> <span class="o">=</span> <span class="n">exponential</span><span class="p">(</span><span class="n">SERVICE</span> <span class="o">/</span> <span class="n">rho</span><span class="p">)</span>
+</span><span id="__span-22-3"><a id="__codelineno-22-3" name="__codelineno-22-3"></a>    <span class="n">check</span><span class="p">(</span>
+</span><span id="__span-22-4"><a id="__codelineno-22-4" name="__codelineno-22-4"></a>        <span class="sa">f</span><span class="s2">"M/M/1 at utilisation </span><span class="si">{</span><span class="n">rho</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+</span><span id="__span-22-5"><a id="__codelineno-22-5" name="__codelineno-22-5"></a>        <span class="n">mm1_wait</span><span class="p">(</span><span class="n">rho</span><span class="p">),</span>
+</span><span id="__span-22-6"><a id="__codelineno-22-6" name="__codelineno-22-6"></a>        <span class="n">measured_wait</span><span class="p">(</span><span class="n">arrival</span><span class="p">,</span> <span class="n">exponential</span><span class="p">(</span><span class="n">SERVICE</span><span class="p">),</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">20_000</span><span class="p">),</span>
+</span><span id="__span-22-7"><a id="__codelineno-22-7" name="__codelineno-22-7"></a>        <span class="n">figures</span><span class="p">,</span>
+</span><span id="__span-22-8"><a id="__codelineno-22-8" name="__codelineno-22-8"></a>    <span class="p">)</span>
+</span><span id="__span-22-9"><a id="__codelineno-22-9" name="__codelineno-22-9"></a><span class="n">check</span><span class="p">(</span>
+</span><span id="__span-22-10"><a id="__codelineno-22-10" name="__codelineno-22-10"></a>    <span class="s2">"M/M/3 at utilisation 0.8"</span><span class="p">,</span>
+</span><span id="__span-22-11"><a id="__codelineno-22-11" name="__codelineno-22-11"></a>    <span class="n">mmc_wait</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mf">1.6</span><span class="p">),</span>
+</span><span id="__span-22-12"><a id="__codelineno-22-12" name="__codelineno-22-12"></a>    <span class="n">measured_wait</span><span class="p">(</span><span class="n">exponential</span><span class="p">(</span><span class="mi">1</span> <span class="o">/</span> <span class="mf">1.6</span><span class="p">),</span> <span class="n">exponential</span><span class="p">(</span><span class="n">SERVICE</span><span class="p">),</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">30_000</span><span class="p">),</span>
+</span><span id="__span-22-13"><a id="__codelineno-22-13" name="__codelineno-22-13"></a>    <span class="p">(</span><span class="mf">1.62</span><span class="p">,</span> <span class="mf">1.64</span><span class="p">,</span> <span class="mf">0.06</span><span class="p">),</span>
+</span><span id="__span-22-14"><a id="__codelineno-22-14" name="__codelineno-22-14"></a><span class="p">)</span>
+</span><span id="__span-22-15"><a id="__codelineno-22-15" name="__codelineno-22-15"></a><span class="n">arrival</span> <span class="o">=</span> <span class="n">exponential</span><span class="p">(</span><span class="n">SERVICE</span> <span class="o">/</span> <span class="mf">0.75</span><span class="p">)</span>
+</span><span id="__span-22-16"><a id="__codelineno-22-16" name="__codelineno-22-16"></a><span class="n">check</span><span class="p">(</span>
+</span><span id="__span-22-17"><a id="__codelineno-22-17" name="__codelineno-22-17"></a>    <span class="s2">"M/D/1 at utilisation 0.75, Kingman"</span><span class="p">,</span>
+</span><span id="__span-22-18"><a id="__codelineno-22-18" name="__codelineno-22-18"></a>    <span class="n">kingman_wait</span><span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>
+</span><span id="__span-22-19"><a id="__codelineno-22-19" name="__codelineno-22-19"></a>    <span class="n">measured_wait</span><span class="p">(</span><span class="n">arrival</span><span class="p">,</span> <span class="n">constant</span><span class="p">(</span><span class="n">SERVICE</span><span class="p">),</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">20_000</span><span class="p">),</span>
+</span><span id="__span-22-20"><a id="__codelineno-22-20" name="__codelineno-22-20"></a>    <span class="p">(</span><span class="mf">2.25</span><span class="p">,</span> <span class="mf">2.23</span><span class="p">,</span> <span class="mf">0.14</span><span class="p">),</span>
+</span><span id="__span-22-21"><a id="__codelineno-22-21" name="__codelineno-22-21"></a><span class="p">)</span>
+</span></code></pre></div></td></tr></table></div>
+<!-- records: queueing-checks -->
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-23-1">1</a></span>
+<span class="normal"><a href="#__codelineno-23-2">2</a></span>
+<span class="normal"><a href="#__codelineno-23-3">3</a></span>
+<span class="normal"><a href="#__codelineno-23-4">4</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1"></a>M/M/1 at utilisation 0.5: formula 1.50 s, mean of 10 runs 1.47 ± 0.06 s
+</span><span id="__span-23-2"><a id="__codelineno-23-2" name="__codelineno-23-2"></a>M/M/1 at utilisation 0.75: formula 4.50 s, mean of 10 runs 4.46 ± 0.33 s
+</span><span id="__span-23-3"><a id="__codelineno-23-3" name="__codelineno-23-3"></a>M/M/3 at utilisation 0.8: formula 1.62 s, mean of 10 runs 1.64 ± 0.06 s
+</span><span id="__span-23-4"><a id="__codelineno-23-4" name="__codelineno-23-4"></a>M/D/1 at utilisation 0.75, Kingman: formula 2.25 s, mean of 10 runs 2.23 ± 0.14 s
+</span></code></pre></div></td></tr></table></div>
+<p>The busy hour itself is M/D/3, which has no exact formula. For one packer, constant service halves the M/M/1 wait. This check compares the M/D/3 runs with half the M/M/3 wait, as an approximation:</p>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/pages/queueing_basics.py:kendall</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-24-1">1</a></span>
+<span class="normal"><a href="#__codelineno-24-2">2</a></span>
+<span class="normal"><a href="#__codelineno-24-3">3</a></span>
+<span class="normal"><a href="#__codelineno-24-4">4</a></span>
+<span class="normal"><a href="#__codelineno-24-5">5</a></span>
+<span class="normal"><a href="#__codelineno-24-6">6</a></span>
+<span class="normal"><a href="#__codelineno-24-7">7</a></span>
+<span class="normal"><a href="#__codelineno-24-8">8</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-24-1"><a id="__codelineno-24-1" name="__codelineno-24-1"></a><span class="c1"># The busy hour is M/D/3: exponential gaps (M), constant service (D), three packers.</span>
+</span><span id="__span-24-2"><a id="__codelineno-24-2" name="__codelineno-24-2"></a><span class="c1"># The runs are compared with half the M/M/3 wait at this load.</span>
+</span><span id="__span-24-3"><a id="__codelineno-24-3" name="__codelineno-24-3"></a><span class="n">check</span><span class="p">(</span>
+</span><span id="__span-24-4"><a id="__codelineno-24-4" name="__codelineno-24-4"></a>    <span class="s2">"M/D/3 at utilisation 0.9, half the M/M/3 wait"</span><span class="p">,</span>
+</span><span id="__span-24-5"><a id="__codelineno-24-5" name="__codelineno-24-5"></a>    <span class="n">mmc_wait</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span> <span class="mf">1.8</span><span class="p">)</span> <span class="o">/</span> <span class="mi">2</span><span class="p">,</span>
+</span><span id="__span-24-6"><a id="__codelineno-24-6" name="__codelineno-24-6"></a>    <span class="n">measured_wait</span><span class="p">(</span><span class="n">exponential</span><span class="p">(</span><span class="mi">1</span> <span class="o">/</span> <span class="mf">1.8</span><span class="p">),</span> <span class="n">constant</span><span class="p">(</span><span class="n">SERVICE</span><span class="p">),</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">20_000</span><span class="p">),</span>
+</span><span id="__span-24-7"><a id="__codelineno-24-7" name="__codelineno-24-7"></a>    <span class="p">(</span><span class="mf">2.04</span><span class="p">,</span> <span class="mf">2.05</span><span class="p">,</span> <span class="mf">0.13</span><span class="p">),</span>
+</span><span id="__span-24-8"><a id="__codelineno-24-8" name="__codelineno-24-8"></a><span class="p">)</span>
+</span></code></pre></div></td></tr></table></div>
+<!-- records: queueing-kendall -->
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-25-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-25-1"><a id="__codelineno-25-1" name="__codelineno-25-1"></a>M/D/3 at utilisation 0.9, half the M/M/3 wait: formula 2.04 s, mean of 10 runs 2.05 ± 0.13 s
+</span></code></pre></div></td></tr></table></div>
+<p>These are <a href="../../first-model/first-simulation/#busy-hour-figures">10 runs of 20,000 seconds</a>, each without its first 2,000 seconds, not one-hour runs.</p>
+<p>Kingman's formula is an approximation, and this check shows where it is not exact. Constant gaps of 2 seconds with exponential service (D/M/1) at utilisation 0.75:</p>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/pages/queueing_basics.py:dm1</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-26-1">1</a></span>
+<span class="normal"><a href="#__codelineno-26-2">2</a></span>
+<span class="normal"><a href="#__codelineno-26-3">3</a></span>
+<span class="normal"><a href="#__codelineno-26-4">4</a></span>
+<span class="normal"><a href="#__codelineno-26-5">5</a></span>
+<span class="normal"><a href="#__codelineno-26-6">6</a></span>
+<span class="normal"><a href="#__codelineno-26-7">7</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-26-1"><a id="__codelineno-26-1" name="__codelineno-26-1"></a><span class="n">mean</span><span class="p">,</span> <span class="n">half_width</span> <span class="o">=</span> <span class="n">measured_wait</span><span class="p">(</span>
+</span><span id="__span-26-2"><a id="__codelineno-26-2" name="__codelineno-26-2"></a>    <span class="n">constant</span><span class="p">(</span><span class="n">SERVICE</span> <span class="o">/</span> <span class="mf">0.75</span><span class="p">),</span> <span class="n">exponential</span><span class="p">(</span><span class="n">SERVICE</span><span class="p">),</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">20_000</span>
+</span><span id="__span-26-3"><a id="__codelineno-26-3" name="__codelineno-26-3"></a><span class="p">)</span>
+</span><span id="__span-26-4"><a id="__codelineno-26-4" name="__codelineno-26-4"></a><span class="n">kingman</span> <span class="o">=</span> <span class="n">kingman_wait</span><span class="p">(</span><span class="mf">0.75</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+</span><span id="__span-26-5"><a id="__codelineno-26-5" name="__codelineno-26-5"></a><span class="nb">print</span><span class="p">(</span>
+</span><span id="__span-26-6"><a id="__codelineno-26-6" name="__codelineno-26-6"></a>    <span class="sa">f</span><span class="s2">"D/M/1 at utilisation 0.75: Kingman </span><span class="si">{</span><span class="n">kingman</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> s, mean of 10 runs </span><span class="si">{</span><span class="n">mean</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> ± </span><span class="si">{</span><span class="n">half_width</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> s"</span>
+</span><span id="__span-26-7"><a id="__codelineno-26-7" name="__codelineno-26-7"></a><span class="p">)</span>
+</span></code></pre></div></td></tr></table></div>
+<!-- records: queueing-dm1 -->
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-27-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-27-1"><a id="__codelineno-27-1" name="__codelineno-27-1"></a>D/M/1 at utilisation 0.75: Kingman 2.25 s, mean of 10 runs 1.78 ± 0.09 s
+</span></code></pre></div></td></tr></table></div>
+<h3 id="what-the-result-means_7">What the Result Means</h3>
+<p>Where a formula is exact, as for M/M/1 and M/M/c, it lies within the interval of the runs. Half the M/M/3 wait is close for the M/D/3 busy hour. Kingman's formula lies outside the interval for D/M/1: it is accurate near full use and for the cases above, and a rough guide elsewhere. A check that fails on a case the formula covers points to a fault in the model. A check that fails outside the formula's cases says only that the formula does not apply.</p>
+<hr />
+<h2 id="key-takeaways">Key Takeaways</h2>
+<ul>
+<li>Write the model in Kendall's notation first, to know which formulas apply.</li>
+<li>Work out utilisation for every resource before a run. At 1 or above, the answer is more capacity.</li>
+<li>Check a run's statistics with Little's law before trusting any result.</li>
+<li>Expect long waits near full use, and longer ones when gaps or packing times vary.</li>
+<li>Find the bottleneck with flow balance, and add capacity there first.</li>
+<li>Check the model against a formula on the cases the formula covers. The simulation answers the cases it cannot: several resources, priorities, breakdowns and changing demand.</li>
+</ul>
+<hr />
+<h2 id="sources">Sources</h2>
+<ul>
+<li>Wikipedia: <a href="https://en.wikipedia.org/wiki/Kendall%27s_notation">Kendall's notation</a>, <a href="https://en.wikipedia.org/wiki/Little%27s_law">Little's law</a>, <a href="https://en.wikipedia.org/wiki/Kingman%27s_formula">Kingman's formula</a>, the <a href="https://en.wikipedia.org/wiki/Erlang_(unit)#Erlang_C_formula">Erlang C formula</a> and the <a href="https://en.wikipedia.org/wiki/Jackson_network">Jackson network</a>.</li>
+<li>The explanations and the checks are our own.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../../running-live/streaming-out/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Streaming Out">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Streaming Out
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../a-simulation-study/" class="md-footer__link md-footer__link--next" aria-label="Next: A Simulation Study">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                A Simulation Study
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M4 11v2h12l-5.5 5.5 1.42 1.42L19.84 12l-7.92-7.92L10.5 5.5 16 11z"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["content.tabs.link", "content.code.copy", "content.code.select", "navigation.indexes", "navigation.footer"], "search": "../../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"provider": "mike"}}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.c21346df.min.js"></script>
+      
+        <script src="../../../js/code-lines.js"></script>
+      
+        <script src="../../../js/moved-anchors.js"></script>
+      
+        <script src="../../../js/external-links.js"></script>
+      
+    
+  </body>
+</html>
