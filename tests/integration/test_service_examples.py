@@ -413,12 +413,15 @@ def test_the_parquet_page_s3_read_back_prints_the_stated_answer(
     example = EXAMPLES["parquet"]
     profile_running("storage", 8333)
     # The count covers the whole folder, so an earlier run must not be in it
-    fs.S3FileSystem(
+    store = fs.S3FileSystem(
         endpoint_override="127.0.0.1:8333",
         scheme="http",
         access_key="user",
         secret_key="password",
-    ).delete_dir_contents("odctl-dev/history", missing_dir_ok=True)
+    )
+    # A fresh store has no bucket yet, and the run creates it
+    if store.get_file_info("odctl-dev").type != fs.FileType.NotFound:
+        store.delete_dir_contents("odctl-dev/history", missing_dir_ok=True)
     env = {
         **os.environ,
         "PARQUET_FILESYSTEM": "s3",
