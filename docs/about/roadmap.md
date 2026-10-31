@@ -5,12 +5,28 @@ Releases come in the order shown, without dates: a release ships when it is read
 ## Before 1.0
 
 ::timeline::
-- title: '0.29.0: Reserved gen key, SimPy''s examples and record contract freeze'
-  content: 'After 1.0, a `gen` key marks a generated value. To keep the key free, a blueprint refuses a mapping with a `gen` key in any of these places: a payload, a scenario value, a `record` field, an action or timeout value, a task''s `set` or an arrival''s `attributes`. The Pydantic floor rises to 2.6.1. The seven examples of the SimPy docs, such as Bank Renege and Machine Shop, are written in YAML, the builder and the low-level API, each beside SimPy''s own. Every record field is checked, then the format is marked frozen: no 1.x release removes a field, renames it or changes its type. [#53](https://github.com/jaehyeon-kim/desflow/issues/53), [#95](https://github.com/jaehyeon-kim/desflow/issues/95), [#51](https://github.com/jaehyeon-kim/desflow/issues/51)'
+- title: '0.30.0: Run and time rules'
+  content: 'A run ends when no event is left, as in SimPy, `strict` and `on_unhandled_failure` default to SimPy''s values, and a time or a count that you write as an integer stays an integer. Each change that alters records is listed under Upgrading. [#105](https://github.com/jaehyeon-kim/desflow/issues/105)'
   icon: ':material-play:'
   key: now
-- title: '0.30.0: Preparation for 1.0'
-  content: 'The names kept for compatibility are removed, with the removals listed in Upgrading to 1.0. The docs gain a Compatibility Policy page and a warning on the docs of older versions. This release changes no format, so 1.0.0 follows a release with no format change. [#84](https://github.com/jaehyeon-kim/desflow/issues/84), [#54](https://github.com/jaehyeon-kim/desflow/issues/54)'
+- title: '0.31.0: Resources, waits and interrupts'
+  content: 'The remaining places where a resource, a wait or an interrupt gives other results than SimPy at a tie are fixed. [#105](https://github.com/jaehyeon-kim/desflow/issues/105)'
+  icon: ':material-clock-outline:'
+  key: planned
+- title: '0.32.0: More SimPy forms and a preview loop'
+  content: 'The Low-level stores and containers gain SimPy''s queue attributes, a Builder filter can be written by parameter name, and `--var`, `--watch`, `desflow check` and `desflow test` are added. [#104](https://github.com/jaehyeon-kim/desflow/issues/104)'
+  icon: ':material-clock-outline:'
+  key: planned
+- title: '0.33.0 to 0.40.0: YAML with no Python'
+  content: 'Each release adds keys for what still needs `!python`: generated values, computed times and arrivals, names and lists, relationships between records, holding resources, interrupts and failures, breakdowns and batches, and computed sets and events.'
+  icon: ':material-clock-outline:'
+  key: planned
+- title: '0.41.0: Preparation for 1.0'
+  content: 'Every SimPy feature is written in YAML, the builder and the low-level API without `!python`, SimPy''s seven examples are ported, the record contract is frozen, and the names kept for compatibility are removed. [#95](https://github.com/jaehyeon-kim/desflow/issues/95) [#51](https://github.com/jaehyeon-kim/desflow/issues/51) [#84](https://github.com/jaehyeon-kim/desflow/issues/84)'
+  icon: ':material-clock-outline:'
+  key: planned
+- title: '0.42.0: Last check before 1.0'
+  content: 'This release changes no format or record. The docs gain their final structure, and every page is checked. [#54](https://github.com/jaehyeon-kim/desflow/issues/54)'
   icon: ':material-clock-outline:'
   key: planned
 - title: '1.0.0: Stable'
@@ -21,7 +37,7 @@ Releases come in the order shown, without dates: a release ships when it is read
 
 ## What 1.0 means
 
-From 1.0, the YAML blueprint format, the `desflow` command, the public Python API (`SimulationContext`, `DynamicRealtimeEnvironment` and the connectors) and the published record format stay compatible across every 1.x release. The package status moves from Beta to Production/Stable. The names kept for compatibility, `dynamic_des`, `ddes` and the old registry settings, are removed in 0.30.0, and Upgrading to 1.0 lists each.
+From 1.0, the YAML blueprint format, the `desflow` command, the public Python API (`SimulationContext`, `DynamicRealtimeEnvironment` and the connectors) and the published record format stay compatible across every 1.x release. The package status moves from Beta to Production/Stable. The names kept for compatibility, `dynamic_des`, `ddes` and the old registry settings, are removed in 0.41.0, and Upgrading to 1.0 lists each.
 
 ## After 1.0
 
@@ -76,6 +92,13 @@ The server ships after 1.0, as 1.x releases installed with the `server` extra.
 - **How-To:** generating data at scale, and testing pipelines with simulated data.
 
 ## Released
+
+??? note "0.29.0: SimPy's scheduling and a compatibility page"
+
+    - **Scheduling like SimPy:** a task with one `wait` branch, the task after `next`, the actions of `on:` and a resumed job go on in the same simulation step as SimPy's process, so records at one instant can change order. Upgrading lists each change. [#105](https://github.com/jaehyeon-kim/desflow/issues/105)
+    - **SimPy Compatibility:** the page shows each SimPy feature in YAML, Builder and Low-level with its status, and the gaps that remain.
+    - **SimPy behaviour in YAML:** Call Python from YAML shows how to write, with `!python`, the SimPy behaviour that the keys do not give yet.
+    - **Removal date:** the old registry keys, the `dynamic_des` import name and the `ddes` command are removed in 0.41.0, not 0.30.0.
 
 ??? note "0.28.0: Library hooks for the server"
 
