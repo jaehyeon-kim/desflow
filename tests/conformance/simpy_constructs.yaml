@@ -1,0 +1,311 @@
+# The SimPy constructs and the gaps on the SimPy Compatibility page.
+# scripts/reference_pages/compatibility.py reads this file and register.yaml, and
+# tests/docs/test_gen_pages.py checks both.
+#
+# constructs: one row of the page per SimPy 4.1.2 feature, in SimPy's order of areas.
+#   id: the inventory id that register.yaml rows list under `inventory`; the row takes
+#     its YAML, Builder and Low-level forms, its checks and its page from that entry
+#   area: the section of the page
+#   simpy: the construct as SimPy names it
+#   gaps: ids from `gaps`, for a construct where a key or the engine does not give
+#     SimPy's behaviour. A construct with no gap shows the status of its register row
+# gaps: what differs from SimPy for the gap ids, which issue #105 tracks.
+#   text: one sentence saying what differs
+#   form: where the page links the SimPy process that gives SimPy's behaviour in
+#     YAML (`computed`, `held`, `arrivals` or `sub-process`, the forms on Call Python
+#     from YAML), or omitted when no process form is on that page
+#   key: the setting that gives SimPy's behaviour, when there is one
+#   fixed: the release that removes the gap, when one is planned
+# unattached: gaps that belong to no SimPy feature, because a SimPy program writes them
+#   in plain Python; the page lists them in a paragraph, with their `!python` form
+# A batch that removes a gap deletes its id from `gaps` and from every construct.
+
+gaps:
+  S1:
+    text: "A `wait` with one branch goes on one step after its event; SimPy's `yield event` goes on in the step the event is processed."
+    form: computed
+    fixed: 0.29.0
+  S2:
+    text: "`next` starts the following task as a new process, which goes on one step later than a SimPy process that carries on."
+    form: computed
+    fixed: 0.29.0
+  S3:
+    text: "`on:` actions run one step after the task ends; a SimPy statement at the end of the step runs at once."
+    form: computed
+    fixed: 0.29.0
+  S5:
+    text: "A job resumed after an interrupt goes on one step later than a SimPy process that keeps its request."
+    form: computed
+    fixed: 0.29.0
+  V1:
+    text: "A service time computed from the entity, an item, shared state or the time has no key."
+    form: computed
+  V2:
+    text: "A `wait` timeout computed for each entity has no key."
+    form: computed
+  V3:
+    text: "A computed value in `set`, `payload`, `on:`, an interrupt cause, a timeout value or a put item has no key; text is kept as text."
+    form: computed
+    fixed: 0.31.0
+  V6:
+    text: "A Builder filter receives the item, not the entity. A task function that starts a generator whose filter reads the entity gives SimPy's behaviour."
+    fixed: 0.32.0
+  V7:
+    text: "An expression cannot read a name deeper than two parts, the upstream payload in `next`, an interrupt or preemption cause, which requests hold a resource, or the priority of an item taken."
+    form: computed
+  V9:
+    text: "A sub-process takes no arguments from a key."
+    form: sub-process
+  V11:
+    text: "A wait condition with a rule of its own has no key; `any`, `all` and `at_least` are the only groups."
+    form: computed
+  V12:
+    text: "A store item cannot be put back after a get, cannot be a number or a text, and has no nested `item.` fields."
+    form: computed
+  A1:
+    text: "A fixed number of arrivals has no YAML key."
+    form: arrivals
+  A3:
+    text: "Arrivals in groups of a size drawn from an unbounded distribution have no key."
+    form: arrivals
+  A4:
+    text: "An arrival rate that depends on the time has no key."
+    form: arrivals
+  A5:
+    text: "A flow cannot turn one source off and on."
+    form: arrivals
+  A7:
+    text: "Splitting into a drawn number of entities, and children that inherit attributes, have no key."
+    form: arrivals
+  H1:
+    text: "A priority or preemptive unit cannot be held across a drawn or computed step, or across several later steps, by keys alone."
+    form: held
+  H3:
+    text: "With `keep`, a child flow started by `wait: {task: ...}` makes the task give the kept unit back when the child starts."
+    form: held
+    fixed: 0.31.0
+  H5:
+    text: "Two tasks that take the same resources in opposite orders are refused at build, even with spare capacity."
+    form: held
+  H6:
+    text: "A YAML task cannot release or hand on a unit that another entity holds."
+    form: held
+  H8:
+    text: "`queue_limit` cannot change while the run goes on."
+    form: held
+  H9:
+    text: "An interrupted task gives its unit back or repeats the same step; a SimPy process whose `cancel()` after the grant released nothing keeps the unit for other work until it releases it."
+    form: held
+  I3:
+    text: "After an interrupt, a flow cannot run and then resume the time left, for work that holds no resource."
+    form: computed
+  I4:
+    text: "A process cannot suspend until another process resumes it."
+    form: computed
+  I5:
+    text: "Patience that runs out at the instant the unit is released serves the customer; SimPy's `req in results` reneges."
+    form: computed
+    fixed: 0.31.0
+  I6:
+    text: "Going on after a renege or a balk has no direct form; a child flow that does it reports `ok: true` with no value."
+    form: computed
+  I8:
+    text: "A job preempted at the instant its work ends resumes with no time left; SimPy completes it at that instant."
+    form: computed
+    fixed: 0.31.0
+  I9:
+    text: "A task cannot interrupt a task that starts in the same step."
+    form: computed
+    fixed: 0.31.0
+  T1:
+    text: "`strict` defaults to false; SimPy's default is true."
+    key: "`simulation.strict: true`"
+    fixed: 0.30.0
+  T2:
+    text: "`on_unhandled_failure` defaults to `continue`; SimPy stops the run."
+    key: "`run.on_unhandled_failure: stop`"
+    fixed: 0.30.0
+  T3:
+    text: "A signal re-arms after it fires, so a wait that starts later misses it; a SimPy event stays triggered."
+    key: "`once: true` on the signal"
+    fixed: 0.30.0
+  T4:
+    text: "A run with no `until` never ends while statistics are on; SimPy ends when no event is left."
+    fixed: 0.30.0
+  T5:
+    text: "A service time or drawn delay is at least 0.00001 s, so a step of constant 0 takes time."
+    form: computed
+    fixed: 0.30.0
+  T6:
+    text: "Records round `sim_ts` to 3 decimals, so a model in small time units loses its times."
+    fixed: 0.30.0
+  T7:
+    text: "Integer times, amounts, container capacities and YAML priorities are floats, so `env.now` is `1.0` where SimPy gives `1`."
+    fixed: 0.30.0
+  T8:
+    text: "A step counts desflow's own events, and `step`, `peek` and `sync` have no YAML key."
+    fixed: 0.30.0
+  T9:
+    text: "Equal priorities in a priority store come out first in, first out; SimPy gives heap order."
+    form: computed
+    fixed: 0.31.0
+  T10:
+    text: "A losing timeout branch is dropped when an `any` wait ends; SimPy can yield the same `Timeout` again."
+    form: computed
+    fixed: 0.31.0
+  T11:
+    text: "A request, get or put branch granted at the instant its wait ends counts as won; a SimPy waiter can ignore it."
+    form: computed
+    fixed: 0.31.0
+  T13:
+    text: "A run with a sink at a factor above 0, or with an ingress connector, and no `until` runs for ever; SimPy returns when no event is left."
+    fixed: 0.30.0
+  T14:
+    text: "`strict` is never checked at factor 0; SimPy raises once the wall clock has moved."
+    fixed: 0.30.0
+  L1:
+    text: "The Low-level stores and containers lack `put_queue`, `get_queue`, `PutQueue` and `GetQueue`, `DynamicResource` lacks `put` and `get`, and requests, stores and containers are not instances of SimPy's classes."
+    fixed: 0.32.0
+  L2:
+    text: "`DynamicStore.items` has no setter."
+    fixed: 0.32.0
+  M1:
+    text: "Readings at each change of a resource, and an event trace, need a `!python` resource type or environment."
+    key: "`type: !python` on the resource, or `simulation.environment: !python`"
+  M2:
+    text: "A Builder `on=` refuses a callable. A generator started with `add_process` can add a function to an event's callbacks."
+  M3:
+    text: "`on_fail` needs a `fail` condition, so a failed wait is handled only with a dummy condition."
+    form: computed
+  M4:
+    text: "Several entities cannot start at one instant, in creation order, before any of them runs."
+    form: arrivals
+  M5:
+    text: "A custom resource type needs `type: !python` in YAML; the Builder takes the class in `type=`."
+    key: "`type: !python` on the resource"
+  M6:
+    text: "`process.name` reads the running task, so it changes across `next`; a SimPy process keeps one name for its whole life, as a process in a `processes` entry does."
+    form: computed
+
+unattached:
+  V4:
+    text: "a random value drawn for each entity, such as an attribute or a priority"
+    python: "a payload function draws `x` and a priority from the stream the SimPy program shares, and the next task takes the resource with `priority: attr.p`"
+  V10:
+    text: "routing weights that come from an attribute or from the state of the model"
+    python: "a payload function draws the route with weights from `attr.w`, and `next.when` reads it"
+  B1:
+    text: "a failure clock that runs on busy time only"
+    python: "a `processes` entry counts the busy time and calls the task `repair` when it reaches the limit"
+  B3:
+    text: "a batch that keeps each member's identity and closes on a time or a rule"
+    python: "a `processes` entry takes up to 3 members from a store, closes the batch 2 after its first member, and each member goes on under its own key"
+
+constructs:
+  # Environment
+  - {id: SP-E1, area: Environment, simpy: "`Environment(initial_time)`", gaps: [T7]}
+  - {id: SP-E2, area: Environment, simpy: "`Environment.now`", gaps: [T6, T7]}
+  - {id: SP-E3, area: Environment, simpy: "`Environment.active_process`", gaps: [S2, M6]}
+  - {id: SP-E4, area: Environment, simpy: "`env.process(...)` without `yield`", gaps: [A1, A3, A4, A5, A7]}
+  - {id: SP-E5, area: Environment, simpy: "`Environment.schedule(event, priority, delay)`", gaps: [S1, S3]}
+  - {id: SP-E6, area: Environment, simpy: "`URGENT` and `NORMAL` event priorities", gaps: [S1, S3]}
+  - {id: SP-E7, area: Environment, simpy: "Events at one time run in the order they were scheduled", gaps: [M4]}
+  - {id: SP-E8, area: Environment, simpy: "`Environment.peek()`", gaps: [T8]}
+  - {id: SP-E9, area: Environment, simpy: "`Environment.step()`", gaps: [T8]}
+  - {id: SP-E10, area: Environment, simpy: "A step processes only the model's events", gaps: [T8]}
+  - {id: SP-E11, area: Environment, simpy: "`run()` with no `until`", gaps: [T4, T13]}
+  - {id: SP-E12, area: Environment, simpy: "`run(until=time)`"}
+  - {id: SP-E13, area: Environment, simpy: "`run(until=event)`"}
+  - {id: SP-E14, area: Environment, simpy: "The value or exception of `run(until=event)`"}
+  - {id: SP-E15, area: Environment, simpy: "`run(until=t)` again with a later `t`"}
+  - {id: SP-E16, area: Environment, simpy: "Callbacks of the stopping event run when the run resumes"}
+  - {id: SP-E17, area: Environment, simpy: "A subclass of `Environment`", gaps: [T8]}
+  # Events and Timeout
+  - {id: SP-V1, area: Events and Timeout, simpy: "`Event.succeed(value)` waking every waiter", gaps: [S1, I4, T3]}
+  - {id: SP-V2, area: Events and Timeout, simpy: "`Event.fail(exception)`"}
+  - {id: SP-V3, area: Events and Timeout, simpy: "An event that triggers once", gaps: [T3]}
+  - {id: SP-V4, area: Events and Timeout, simpy: "`Event.trigger(event)`", gaps: [S3]}
+  - {id: SP-V5, area: Events and Timeout, simpy: "`Event.callbacks`", gaps: [S3, M2]}
+  - {id: SP-V6, area: Events and Timeout, simpy: "`Event.defused`", gaps: [M3]}
+  - {id: SP-V7, area: Events and Timeout, simpy: "A failed event nobody handles stops the run", gaps: [T2]}
+  - {id: SP-V8, area: Events and Timeout, simpy: "`Event.triggered`, `processed`, `ok` and `value`"}
+  - {id: SP-V9, area: Events and Timeout, simpy: "`a & b` and `a | b`", gaps: [V2, T10]}
+  - {id: SP-V10, area: Events and Timeout, simpy: "`Timeout(delay)`", gaps: [S1, V1, T5]}
+  - {id: SP-V11, area: Events and Timeout, simpy: "`Timeout(delay, value)`", gaps: [V3, S1]}
+  # Processes
+  - {id: SP-P1, area: Processes, simpy: "Start a process and wait for it", gaps: [S1, S2, V9]}
+  - {id: SP-P2, area: Processes, simpy: "A process's return value", gaps: [V3]}
+  - {id: SP-P3, area: Processes, simpy: "An exception in a process reaches the process that waits for it", gaps: [M3]}
+  - {id: SP-P4, area: Processes, simpy: "`Process.is_alive`", gaps: [S2]}
+  - {id: SP-P5, area: Processes, simpy: "`Process.target`", gaps: [S1, S2]}
+  - {id: SP-P6, area: Processes, simpy: "`Process.name`", gaps: [M6]}
+  - {id: SP-P7, area: Processes, simpy: "Wait for a process that is already running", gaps: [S1]}
+  - {id: SP-U1, area: Processes, simpy: "`start_delayed(env, generator, delay)`"}
+  # Conditions
+  - {id: SP-C1, area: Conditions, simpy: "`AnyOf` and `env.any_of`"}
+  - {id: SP-C2, area: Conditions, simpy: "`AllOf` and `env.all_of`"}
+  - {id: SP-C3, area: Conditions, simpy: "`ConditionValue`", gaps: [I5]}
+  - {id: SP-C4, area: Conditions, simpy: "A member that fails fails the condition"}
+  - {id: SP-C5, area: Conditions, simpy: "Nested and mixed conditions"}
+  - {id: SP-C6, area: Conditions, simpy: "`Condition(env, evaluate, events)` with a rule of your own", gaps: [V11]}
+  - {id: SP-C7, area: Conditions, simpy: "A condition over no events"}
+  - {id: SP-C8, area: Conditions, simpy: "A request, get or put as a member of a condition", gaps: [T11]}
+  # Interrupts
+  - {id: SP-P8, area: Interrupts, simpy: "`Process.interrupt(cause)` while the process waits", gaps: [I9]}
+  - {id: SP-P9, area: Interrupts, simpy: "An interrupt during a timeout", gaps: [I3, S5]}
+  - {id: SP-P10, area: Interrupts, simpy: "`Interrupt` and `Interrupt.cause`", gaps: [V7, V3]}
+  - {id: SP-P11, area: Interrupts, simpy: "Several interrupts at one time arrive in order", gaps: [S5]}
+  - {id: SP-P12, area: Interrupts, simpy: "A process waits again for the same event after an interrupt", gaps: [S5]}
+  - {id: SP-U2, area: Interrupts, simpy: "`subscribe_at(event)`", gaps: [S2]}
+  # Resources
+  - {id: SP-B1, area: Resources, simpy: "`capacity`", gaps: [T7]}
+  - {id: SP-S1, area: Resources, simpy: "`Resource.request()` and `release(request)`", gaps: [H6]}
+  - {id: SP-S2, area: Resources, simpy: "Capacity defaults to 1"}
+  - {id: SP-S3, area: Resources, simpy: "Capacity must be above 0"}
+  - {id: SP-S4, area: Resources, simpy: "`Resource.count`"}
+  - {id: SP-S5, area: Resources, simpy: "`Resource.queue`"}
+  - {id: SP-S6, area: Resources, simpy: "`Resource.users`", gaps: [V7]}
+  - {id: SP-S7, area: Resources, simpy: "`Request` as a context manager"}
+  - {id: SP-S8, area: Resources, simpy: "`Request.cancel()` before the grant"}
+  - {id: SP-S9, area: Resources, simpy: "`cancel()` after the grant", gaps: [H9]}
+  - {id: SP-S10, area: Resources, simpy: "`Release` and `Release.request`"}
+  - {id: SP-S11, area: Resources, simpy: "`Request.usage_since`", gaps: [V7]}
+  - {id: SP-S12, area: Resources, simpy: "Hold several resources at once", gaps: [H1, H3, H5]}
+  - {id: SP-S13, area: Resources, simpy: "Reneging: `req | env.timeout(patience)`", gaps: [I5, I6]}
+  - {id: SP-S14, area: Resources, simpy: "Balking: a check before `request()`", gaps: [I6]}
+  - {id: SP-Q1, area: Resources, simpy: "`PriorityResource.request(priority)`", gaps: [T7]}
+  - {id: SP-Q2, area: Resources, simpy: "Default request priority 0"}
+  - {id: SP-Q3, area: Resources, simpy: "Queue key `(priority, time, not preempt)`"}
+  - {id: SP-Q4, area: Resources, simpy: "`PreemptiveResource` and `request(preempt=False)`", gaps: [H1, I8]}
+  - {id: SP-Q5, area: Resources, simpy: "The user to preempt is picked with `max`"}
+  - {id: SP-Q6, area: Resources, simpy: "`Preempted` cause: `by`, `usage_since`, `resource`", gaps: [V7]}
+  - {id: SP-Q7, area: Resources, simpy: "`SortedQueue(maxlen)`, a waiting line with a limit", gaps: [H8]}
+  - {id: SP-Q8, area: Resources, simpy: "A subclass of `PreemptiveResource` or `Resource`", gaps: [M1, M5]}
+  # Containers
+  - {id: SP-K1, area: Containers, simpy: "`Container.put(amount)`", gaps: [T7]}
+  - {id: SP-K2, area: Containers, simpy: "`Container.get(amount)`", gaps: [T7]}
+  - {id: SP-K3, area: Containers, simpy: "`Container(init=)`"}
+  - {id: SP-K4, area: Containers, simpy: "`Container.level`", gaps: [T7]}
+  - {id: SP-K5, area: Containers, simpy: "Capacity defaults to infinity"}
+  # Stores
+  - {id: SP-T1, area: Stores, simpy: "`Store.put(item)`", gaps: [V12, V3]}
+  - {id: SP-T2, area: Stores, simpy: "`Store.get()`"}
+  - {id: SP-T3, area: Stores, simpy: "One waiting get is granted per put at one time"}
+  - {id: SP-T4, area: Stores, simpy: "A store that starts with items", gaps: [L2]}
+  - {id: SP-T5, area: Stores, simpy: "`Store.items`"}
+  - {id: SP-T6, area: Stores, simpy: "Capacity defaults to infinity"}
+  - {id: SP-T7, area: Stores, simpy: "`PriorityStore` and `PriorityItem`", gaps: [T9, V7]}
+  - {id: SP-T8, area: Stores, simpy: "Priorities of any orderable type"}
+  - {id: SP-T9, area: Stores, simpy: "`FilterStore.get(filter)`", gaps: [V6, V12]}
+  - {id: SP-B2, area: Stores, simpy: "`put_queue` and `get_queue`", gaps: [L1]}
+  - {id: SP-B3, area: Stores, simpy: "`Put` and `Get` as context managers, and `cancel()`"}
+  - {id: SP-B4, area: Stores, simpy: "Grant rules: waiting gets and puts are tried in queue order"}
+  - {id: SP-B5, area: Stores, simpy: "A custom store or container with `_do_put` and `_do_get`"}
+  - {id: SP-B6, area: Stores, simpy: "Custom `PutQueue` and `GetQueue` types"}
+  - {id: SP-B7, area: Stores, simpy: "Custom `Put` and `Get` event classes"}
+  - {id: SP-B8, area: Stores, simpy: "A put or get the process does not wait for"}
+  # Real-Time
+  - {id: SP-R1, area: Real-Time, simpy: "`RealtimeEnvironment(factor)`"}
+  - {id: SP-R2, area: Real-Time, simpy: "`strict`: a step that falls behind raises `RuntimeError`", gaps: [T14]}
+  - {id: SP-R3, area: Real-Time, simpy: "`strict` defaults to true", gaps: [T1]}
+  - {id: SP-R4, area: Real-Time, simpy: "`sync()`", gaps: [T8]}

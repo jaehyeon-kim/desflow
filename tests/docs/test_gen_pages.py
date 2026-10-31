@@ -112,7 +112,7 @@ def test_every_register_check_is_a_test_and_every_test_is_listed():
     assert set(listed) == _conformance_tests()
 
 
-def test_every_register_page_exists_and_every_group_has_a_heading():
+def test_every_register_page_exists_and_every_feature_has_a_row():
     page = gen_pages.compatibility_page()
     for entry in gen_pages.register():
         assert entry["id"] in gen_pages.GROUPS
@@ -120,9 +120,17 @@ def test_every_register_page_exists_and_every_group_has_a_heading():
             assert (ROOT / "docs" / entry["page"].split("#")[0]).is_file(), entry[
                 "page"
             ]
-            assert f"[{entry['operation']}](../{entry['page']})" in page
+            if entry["inventory"]:
+                assert f"[{entry['operation']}](../{entry['page']})" in page
         else:
-            assert entry["operation"] in page
+            # A gap replaces the reason of a difference in its row
+            rows = [
+                c
+                for c in gen_pages.constructs()["constructs"]
+                if c["id"] in entry["inventory"] and not c.get("gaps")
+            ]
+            if rows:
+                assert entry["differences"].replace("|", "\\|") in page
 
 
 # The 98 modelling features of SimPy 4.1.2, by inventory id; the SP- prefix keeps
@@ -173,8 +181,140 @@ def test_the_simpy_version_is_read_from_the_lock():
 
 
 def test_every_native_feature_says_what_it_is():
-    """Each native feature is shown with a sentence saying what it does."""
+    """Each native feature has a sentence saying what it does, in the register."""
     rows = [e for e in gen_pages.register() if e.get("status", "native") == "native"]
     assert all(row.get("description") for row in rows)
+
+
+# SimPy's areas, in the order of SimPy's documentation
+AREAS = [
+    "Environment",
+    "Events and Timeout",
+    "Processes",
+    "Conditions",
+    "Interrupts",
+    "Resources",
+    "Containers",
+    "Stores",
+    "Real-Time",
+]
+
+
+def test_the_page_has_one_section_for_each_area_and_one_row_for_each_feature():
+    """One table for each SimPy area, in SimPy's order, with a row for each of the
+    98 features and the columns SimPy, YAML, Builder, Low-level and Status."""
     page = gen_pages.compatibility_page()
-    assert all(row["description"] in page for row in rows)
+    data = gen_pages.constructs()
+    assert [line[3:] for line in page.splitlines() if line.startswith("## ")] == AREAS
+    assert sorted(c["id"] for c in data["constructs"]) == sorted(INVENTORY)
+    assert page.count("| SimPy | YAML | Builder | Low-level | Status |") == len(AREAS)
+    rows = [line for line in page.splitlines() if line.startswith("| ")]
+    assert len(rows) == len(INVENTORY) + len(AREAS) * 1  # a row each, and a header
+    for row in rows:
+        assert row.count(" | ") == 4 or "\\|" in row, row
+
+
+def test_every_gap_is_used_defined_and_linked_to_a_form():
+    """A gap names a construct and has a sentence; a form it links is a heading on
+    Call Python from YAML; a gap left in no row is deleted."""
+    data = gen_pages.constructs()
+    used = {g for c in data["constructs"] for g in c.get("gaps", [])}
+    assert used == set(data["gaps"])
+    page = (ROOT / "docs" / "how-to" / "tools" / "yaml-advanced.md").read_text(
+        encoding="utf-8"
+    )
+    for gap, info in data["gaps"].items():
+        assert info["text"], gap
+        if "form" in info:
+            heading = gen_pages.PYTHON_FORMS[info["form"]]
+            titles = [
+                "-".join(re.sub(r"[^a-z0-9 -]", "", line[4:].lower()).split())
+                for line in page.splitlines()
+                if line.startswith("### ")
+            ]
+            assert heading in titles, gap
+    # The gaps that 0.29.0 removes are on the page until their batch deletes them
+    assert "S4" not in data["gaps"]
+    for gap in ("S1", "S2", "S3", "S5"):
+        assert data["gaps"][gap]["fixed"] == "0.29.0"
+    # T4, T13 and T14 are fixed in 0.30.0 and link no form
+    for gap in ("T4", "T13", "T14"):
+        assert data["gaps"][gap]["fixed"] == "0.30.0"
+        assert "form" not in data["gaps"][gap]
+    # The run and time rules (T1 to T8) ship whole in 0.30.0; the resource, wait and
+    # interrupt rows in 0.31.0; the additive Low-level and filter rows in 0.32.0
+    for number in range(1, 9):
+        assert data["gaps"][f"T{number}"]["fixed"] == "0.30.0"
+    for gap in ("T9", "T10", "T11", "I5", "I8", "I9", "H3", "V3"):
+        assert data["gaps"][gap]["fixed"] == "0.31.0"
+    for gap in ("L1", "L2", "V6"):
+        assert data["gaps"][gap]["fixed"] == "0.32.0"
+    # A gap with only part of its row planned names no release
+    for gap in ("V1", "I6", "M3"):
+        assert "fixed" not in data["gaps"][gap]
+    # No release plans H9 and M6, so the page keeps their process forms
+    for gap in ("H9", "M6"):
+        assert "fixed" not in data["gaps"][gap]
+    for gap, info in data["unattached"].items():
+        assert "fixed" not in info, gap
+    page = gen_pages.compatibility_page()
+    assert "Planned for 0.30.0" in page and "Fixed in" not in page
+
+
+def test_gaps_that_belong_to_no_feature_are_named_on_the_page():
+    """V4, V10, B1 and B3 are written in plain Python by a SimPy program, so no
+    feature row holds them; a paragraph names each with its `!python` form."""
+    data = gen_pages.constructs()
+    page = gen_pages.compatibility_page()
+    assert list(data["unattached"]) == ["V4", "V10", "B1", "B3"]
+    used = {g for c in data["constructs"] for g in c.get("gaps", [])}
+    for gap, info in data["unattached"].items():
+        assert gap not in used and gap not in data["gaps"]
+        assert f"**{gap}**, {info['text']}" in page
+        assert info["python"] in page
+
+
+def test_a_row_shown_native_has_no_gap_that_says_otherwise():
+    """The constructs that the gap texts name carry those gaps, so they are not
+    shown native: a peek, a step and a sync (T8), a cause and a user list (V7),
+    a balk (I6), a wait on a process (S1), a container's amounts (T7), a held unit after
+    `cancel()` (H9) and a process name across `next` (M6)."""
+    rows = {c["id"]: c.get("gaps", []) for c in gen_pages.constructs()["constructs"]}
+    for construct, gap in (
+        ("SP-E8", "T8"),
+        ("SP-E9", "T8"),
+        ("SP-R4", "T8"),
+        ("SP-P10", "V7"),
+        ("SP-P10", "V3"),
+        ("SP-S6", "V7"),
+        ("SP-S11", "V7"),
+        ("SP-S14", "I6"),
+        ("SP-P7", "S1"),
+        ("SP-V11", "S1"),
+        ("SP-V4", "S3"),
+        ("SP-P3", "M3"),
+        ("SP-K1", "T7"),
+        ("SP-K2", "T7"),
+        ("SP-K4", "T7"),
+        ("SP-E5", "S1"),
+        ("SP-E5", "S3"),
+        ("SP-E6", "S1"),
+        ("SP-E6", "S3"),
+        ("SP-P4", "S2"),
+        ("SP-P5", "S1"),
+        ("SP-P5", "S2"),
+        ("SP-P11", "S5"),
+        ("SP-U2", "S2"),
+        ("SP-E3", "S2"),
+        ("SP-E3", "M6"),
+        ("SP-P6", "M6"),
+        ("SP-E17", "T8"),
+        ("SP-S9", "H9"),
+    ):
+        assert gap in rows[construct], (construct, gap)
+    assert "V9" not in rows["SP-P2"]
+    # A container's `level: 5` reads as an int, and the Low-level queue types and
+    # event classes give SimPy's result, so these rows stay native
+    for construct in ("SP-K3", "SP-B6", "SP-B7"):
+        assert rows[construct] == [], construct
+    assert rows["SP-B2"] == ["L1"]

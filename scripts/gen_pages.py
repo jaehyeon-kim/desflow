@@ -13,8 +13,9 @@ pages:
   model with one resource, store, container, task and flow.
 - YAML Keys: every key a blueprint takes, from the JSON Schema that ships with desflow
   (`desflow schema`), which is also published as `schema/blueprint.schema.json`.
-- SimPy Compatibility: every operation in `tests/conformance/register.yaml`, with its
-  form in each API, the conformance tests that compare it with SimPy, and its page.
+- SimPy Compatibility: every SimPy feature in `tests/conformance/simpy_constructs.yaml`,
+  with its form in each API from `tests/conformance/register.yaml`, its conformance
+  tests, its page and its gaps.
 - CLI: one page per command and sub-command of `desflow`, each its help as Click
   prints it, and an index page for `desflow` itself.
 """
@@ -28,11 +29,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from reference_pages.cli import cli_overview, cli_pages, commands  # noqa: E402
 from reference_pages.compatibility import (  # noqa: E402
-    GROUPS,
+    PYTHON_FORMS,
     compatibility_page,
+    constructs,
     register,
     simpy_version,
 )
+from reference_pages.compatibility_groups import GROUPS  # noqa: E402
 from reference_pages.distributions import (  # noqa: E402
     EXAMPLES,
     distribution_sections,
@@ -49,10 +52,12 @@ from reference_pages.yaml_keys import (  # noqa: E402
 __all__ = [
     "EXAMPLES",
     "GROUPS",
+    "PYTHON_FORMS",
     "cli_overview",
     "cli_pages",
     "commands",
     "compatibility_page",
+    "constructs",
     "distribution_sections",
     "distributions_page",
     "paragraphs",

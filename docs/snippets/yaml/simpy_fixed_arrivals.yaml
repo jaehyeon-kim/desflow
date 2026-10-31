@@ -1,0 +1,25 @@
+# Three customers, one every 2 seconds, and no more. Each is served for 3
+# seconds by one counter, so the second and third queue.
+simulation: {sim_id: Bank, factor: 0}
+
+resources:
+  counter: {current_cap: 1}
+
+services:
+  serving: {dist: constant, value: 3}
+
+processes:
+  - function: !python simpy_forms.customers
+    kwargs: {count: 3, gap: 2}
+
+tasks:
+  serve:
+    resource: counter
+    service: serving
+    payload: {customer: served}
+
+run:
+  until: 20
+
+egress:
+  - type: Console

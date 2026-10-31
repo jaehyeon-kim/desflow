@@ -1610,3 +1610,133 @@ def test_avro_check_prints_the_prediction_it_reads(
     asyncio.run(models.show_first_prediction())
     assert capsys.readouterr().out == f"{record}\n"
     assert _FakeConsumer.settings["topics"] == ("ml-predictions",)
+
+
+# Call Python from YAML: each form of SimPy behaviour the keys do not give yet runs
+# beside a plain SimPy program and gives its times
+
+
+def _simpy_form(name):
+    """The (time, key) of every payload record a form's blueprint publishes, by task."""
+    from desflow import SimulationContext
+
+    sys.modules.pop("simpy_forms", None)
+    app = SimulationContext.from_yaml(YAML_SNIPPETS / f"{name}.yaml")
+    capture = _Capture()
+    app.add_egress(capture)
+    app.factor = 0.0
+    app.run()
+    return [
+        (r["sim_ts"], r["value"])
+        for r in capture.records
+        if r["stream_type"] == "event" and "status" not in r["value"]
+    ]
+
+
+def test_computed_time_form_gives_simpy_times():
+    import simpy
+
+    env = simpy.Environment()
+    pump = simpy.Resource(env, 1)
+    expected = []
+
+    def car(name, start, litres):
+        yield env.timeout(start)
+        with pump.request() as request:
+            yield request
+            yield env.timeout(litres / 2)
+        expected.append((env.now, name))
+
+    for name, start, litres in (("car-1", 0, 4), ("car-2", 1, 6), ("car-3", 2, 2)):
+        env.process(car(name, start, litres))
+    env.run(until=10)
+    found = _simpy_form("simpy_computed_time")
+    assert (
+        [(t, v["car"]) for t, v in found]
+        == expected
+        == [
+            (2, "car-1"),
+            (5, "car-2"),
+            (6, "car-3"),
+        ]
+    )
+
+
+def test_held_unit_form_gives_simpy_times():
+    import simpy
+
+    env = simpy.Environment()
+    machine = simpy.PriorityResource(env, 1)
+    expected = []
+
+    def job(name, start, priority, first, second):
+        yield env.timeout(start)
+        with machine.request(priority=priority) as request:
+            yield request
+            yield env.timeout(first)
+            yield env.timeout(second)
+        expected.append((env.now, name))
+
+    for args in (
+        ("job-1", 0, 2, 1, 2),
+        ("job-2", 0, 1, 2, 1),
+        ("job-3", 1, 0, 1, 1),
+    ):
+        env.process(job(*args))
+    env.run(until=20)
+    found = _simpy_form("simpy_held_unit")
+    assert (
+        [(t, v["job"]) for t, v in found]
+        == expected
+        == [
+            (3, "job-1"),
+            (5, "job-3"),
+            (8, "job-2"),
+        ]
+    )
+
+
+def test_fixed_arrivals_form_gives_simpy_times():
+    import simpy
+
+    env = simpy.Environment()
+    counter = simpy.Resource(env, 1)
+    expected = []
+
+    def customer():
+        with counter.request() as request:
+            yield request
+            yield env.timeout(3)
+        expected.append(env.now)
+
+    def customers():
+        for _ in range(3):
+            yield env.timeout(2)
+            env.process(customer())
+
+    env.process(customers())
+    env.run(until=20)
+    found = _simpy_form("simpy_fixed_arrivals")
+    assert [t for t, _ in found] == expected == [5, 8, 11]
+
+
+def test_sub_process_form_passes_an_argument_and_reads_the_value():
+    import simpy
+
+    env = simpy.Environment()
+    expected = []
+
+    def child(boxes):
+        yield env.timeout(1)
+        return {"total": boxes * 3}
+
+    def order(boxes):
+        packed = yield env.process(child(boxes))
+        expected.append((env.now, packed["total"] + 1))
+
+    env.process(order(2))
+    env.run(until=10)
+    found = _simpy_form("simpy_sub_process")
+    assert (
+        [(t, v["total"]) for t, v in found if "total" in v][-1:] == expected == [(1, 7)]
+    )

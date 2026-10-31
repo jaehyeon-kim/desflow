@@ -144,7 +144,7 @@ Six public projects generate their data with desflow: four data engineering and 
 
 ## Roadmap
 
-desflow already does in YAML, the builder and the low-level API everything that plain SimPy does, and tests check each case. Before 1.0, it adds JSON Schema and Protobuf for the schema registries, hooks for a simulation server, and a record format that 1.0 keeps stable. After 1.0, a simulation server with tools for AI agents follows. The [roadmap page](https://jaehyeon.me/desflow/latest/about/roadmap/) shows each step in order.
+desflow writes SimPy's features in YAML, the builder and the low-level API, and tests check each one against plain SimPy. [SimPy Compatibility](https://jaehyeon.me/desflow/latest/simpy/compatibility/) lists the gaps that remain, and they are removed before 1.0. Before 1.0, it adds JSON Schema and Protobuf for the schema registries, hooks for a simulation server, and a record format that 1.0 keeps stable. After 1.0, a simulation server with tools for AI agents follows. The [roadmap page](https://jaehyeon.me/desflow/latest/about/roadmap/) shows each step in order.
 
 ## Learn More
 

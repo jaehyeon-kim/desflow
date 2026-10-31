@@ -3,9 +3,11 @@
 # each API, the conformance tests that compare it with plain SimPy (the version in
 # uv.lock, which scripts/gen_pages.py names on the page) and the docs page that
 # teaches it; a difference kept by design gives its reason. Every SimPy feature
-# is native or a difference: when desflow moves to a new SimPy release, the
+# is native or a difference here, and a gap in how a key or the engine behaves is
+# listed in simpy_constructs.yaml: when desflow moves to a new SimPy release, the
 # features it adds are native in that same desflow release.
-# scripts/gen_pages.py writes the SimPy Compatibility page from this file, and
+# scripts/gen_pages.py writes the SimPy Compatibility page from this file and
+# simpy_constructs.yaml, which names the page's rows and the gaps, and
 # tests/docs/test_gen_pages.py checks that every check names a test function,
 # every test function here is listed, and every page exists.
 #
@@ -18,7 +20,7 @@
 # status: native (the default: native in all three APIs and checked against
 #   SimPy) or difference
 # operation: what a model does
-# description: one sentence saying what the operation does, shown first on the page
+# description: one sentence saying what the operation does; the page does not show it
 # simpy: the SimPy construct it corresponds to
 # yaml, builder, low_level: one short form each
 # checks: pytest node ids of the conformance tests
@@ -261,7 +263,7 @@
   operation: Cancel after a grant
   description: "A task that already holds a unit stops early and gives the unit back."
   simpy: "`Request.cancel()` after the grant releases nothing; `Resource.release(request)` does"
-  yaml: "an interrupt with `on_interrupt: abandon` gives the unit back"
+  yaml: "an interrupt with `on_interrupt: abandon` gives the unit back, as `release(request)` does"
   builder: the same
   low_level: "`request.cancel()` releases nothing; `resource.release(request)`"
   checks:
@@ -1188,6 +1190,9 @@
   status: difference
   operation: A run with no until
   simpy: "`core.Environment.run()` returns when no event is left"
+  yaml: "`run:` with no `until`"
+  builder: "`app.run()` with no `until`"
+  low_level: "`env.run()` with no `until`"
   checks: []
   differences: "A run with a sink or an ingress connector and no `until` runs for ever, because a live run has no end: the connectors keep events coming. Give it an `until`, with a `drain` when it should finish its work, or a `stop` that is sure to happen, or stop it with Ctrl+C."
 
@@ -1205,5 +1210,8 @@
   status: difference
   operation: Capacity 0
   simpy: "`resources.resource.Resource(capacity=0)` raises `ValueError`, and so do `Store` and `Container`"
+  yaml: "`current_cap: 0` on a resource"
+  builder: "`add_resource(name, current_cap=0)`"
+  low_level: "`DynamicResource(env, ..., current_cap=0)`"
   checks: []
   differences: "A resource, store or container may have a capacity of 0, at the start or later, because its capacity changes during a run: a shift with no packers, a shelf that is closed. At capacity 0 a resource grants no request, and a store or container accepts no put, until the capacity rises; a get still takes what a store or container holds."

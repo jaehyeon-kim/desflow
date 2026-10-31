@@ -193,20 +193,20 @@ desflow keeps SimPy's event list, clock, processes and resources. It changes the
 
 ## Each Construct in desflow
 
-Each row names a construct, its form in the three ways of writing a model, and the group of conformance checks on [SimPy Compatibility](compatibility.md) that runs it in plain SimPy and in all three forms and compares the results. A construct with no native form in one of the three is marked as a difference there, with the reason.
+Each row names a construct, its form in the three ways of writing a model, and the area of [SimPy Compatibility](compatibility.md) that lists its features with their status, the conformance checks that run them in plain SimPy and in all three forms, and the gaps. A construct with no native form in one of the three is marked there as a gap or a difference, with the reason.
 
 | SimPy construct | YAML | Builder | Low-level | Checks |
 |---|---|---|---|---|
-| `Environment`: `run`, `step`, `peek`, `now` | `run.until` | `app.run(until=)`, `app.step()`, `app.peek()` | `env.run(until=)` | [Run Control](compatibility.md#c6-run-control) |
-| `timeout` | a task with `service` and no `resource` | `@app.task(service_id=...)` | `yield env.timeout(delay)` | [Events and Processes](compatibility.md#c1-events-and-processes) |
-| Events and callbacks | `signals:`, `on:` | `add_signal`, `on=` | `Signal`, `event.callbacks.append(fn)` | [Events and Processes](compatibility.md#c1-events-and-processes) |
-| Processes and waiting for one | `wait: {task: ...}` | `wait={"task": ...}`, `context.call(...)` | `yield env.process(child())` | [Events and Processes](compatibility.md#c1-events-and-processes) |
-| Interrupts | `interrupt:`, `on_interrupt` | `context.interrupt(...)`, `on_interrupt=` | `process.interrupt(cause)` | [Interrupts and Preemption](compatibility.md#c3-interrupts-and-preemption) |
-| `AnyOf`, `AllOf` | `wait: {any: ...}`, `wait: {all: ...}` | `wait={"any": ...}`, `wait={"all": ...}` | `yield a \| b`, `yield a & b` | [Wait for One or All](compatibility.md#c2-wait-for-one-or-all) |
-| `Resource`, `PriorityResource` | `resource: packers`, `queue: priority` | `@app.task(resource_id=...)`, `add_resource(queue=...)` | `with packers.request() as req: yield req` | [Resources](compatibility.md#c4-resources) |
-| `PreemptiveResource` | `preempt: true, queue: priority` | `add_resource(queue="priority", preempt=True)` | `DynamicResource(queue="priority", preempt=True)` | [Interrupts and Preemption](compatibility.md#c3-interrupts-and-preemption) |
-| `Container` | `put` and `get` with `container` and `amount` | `put={"container": ...}`, `get={"container": ...}` | `yield stock.put(2)`, `yield stock.get(1)` | [Stores and Containers](compatibility.md#c5-stores-and-containers) |
-| `Store`, `FilterStore`, `PriorityStore` | `put` and `get` with `store`, `filter`, `priority: true` | `put={"store": ...}`, `get={"store": ..., "filter": ...}` | `parcels.get(filter=...)` | [Stores and Containers](compatibility.md#c5-stores-and-containers) |
-| `RealtimeEnvironment` | `simulation.factor`, `simulation.strict` | `SimulationContext(factor=, strict=)` | `DynamicRealtimeEnvironment(factor=)` | [Run Control](compatibility.md#c6-run-control) |
+| `Environment`: `run`, `step`, `peek`, `now` | `run.until` | `app.run(until=)`, `app.step()`, `app.peek()` | `env.run(until=)` | [Environment](compatibility.md#environment) |
+| `timeout` | a task with `service` and no `resource` | `@app.task(service_id=...)` | `yield env.timeout(delay)` | [Events and Timeout](compatibility.md#events-and-timeout) |
+| Events and callbacks | `signals:`, `on:` | `add_signal`, `on=` | `Signal`, `event.callbacks.append(fn)` | [Events and Timeout](compatibility.md#events-and-timeout) |
+| Processes and waiting for one | `wait: {task: ...}` | `wait={"task": ...}`, `context.call(...)` | `yield env.process(child())` | [Processes](compatibility.md#processes) |
+| Interrupts | `interrupt:`, `on_interrupt` | `context.interrupt(...)`, `on_interrupt=` | `process.interrupt(cause)` | [Interrupts](compatibility.md#interrupts) |
+| `AnyOf`, `AllOf` | `wait: {any: ...}`, `wait: {all: ...}` | `wait={"any": ...}`, `wait={"all": ...}` | `yield a \| b`, `yield a & b` | [Conditions](compatibility.md#conditions) |
+| `Resource`, `PriorityResource` | `resource: packers`, `queue: priority` | `@app.task(resource_id=...)`, `add_resource(queue=...)` | `with packers.request() as req: yield req` | [Resources](compatibility.md#resources) |
+| `PreemptiveResource` | `preempt: true, queue: priority` | `add_resource(queue="priority", preempt=True)` | `DynamicResource(queue="priority", preempt=True)` | [Resources](compatibility.md#resources) |
+| `Container` | `put` and `get` with `container` and `amount` | `put={"container": ...}`, `get={"container": ...}` | `yield stock.put(2)`, `yield stock.get(1)` | [Containers](compatibility.md#containers) |
+| `Store`, `FilterStore`, `PriorityStore` | `put` and `get` with `store`, `filter`, `priority: true` | `put={"store": ...}`, `get={"store": ..., "filter": ...}` | `parcels.get(filter=...)` | [Stores](compatibility.md#stores) |
+| `RealtimeEnvironment` | `simulation.factor`, `simulation.strict` | `SimulationContext(factor=, strict=)` | `DynamicRealtimeEnvironment(factor=)` | [Real-Time](compatibility.md#real-time) |
 
-`!python` and `add_process` run SimPy code you write yourself. They are extension points, so a construct that has no native form in YAML or the builder is not covered by using them. User Guide pages that build on SimPy name the parts they use in their How It Works section, starting with [Arrivals and Services](../user-guide/model-parts/arrivals-and-services.md).
+`!python` and `add_process` run SimPy code you write yourself. Where the keys do not give SimPy's behaviour yet, a process written this way gives it before 1.0, as [Call Python from YAML](../how-to/tools/yaml-advanced.md#write-a-process-for-simpy-behaviour) shows. User Guide pages that build on SimPy name the parts they use in their How It Works section, starting with [Arrivals and Services](../user-guide/model-parts/arrivals-and-services.md).

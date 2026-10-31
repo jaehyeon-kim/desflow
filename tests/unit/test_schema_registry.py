@@ -578,7 +578,7 @@ def test_tls_options_build_a_context(tmp_path):
     ],
 )
 def test_old_keys_warn_and_act_like_their_argument(key, value, expected):
-    with pytest.warns(FutureWarning, match=rf"'{key}'.*0\.30\.0"):
+    with pytest.warns(FutureWarning, match=rf"'{key}'.*0\.33\.0"):
         options = confluent_client.resolve_legacy_options({key: value})
 
     assert {k: options[k] for k in expected} == expected

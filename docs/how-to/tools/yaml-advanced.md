@@ -1,6 +1,6 @@
 # Call Python from YAML
 
-A blueprint holds configuration as plain YAML. When a simulation needs logic that YAML cannot express, the file can reference a Python object with `!python module.attribute` in place of a value. This guide covers when to use it, how a reference is found, what each field receives, the setup step, and the errors a reference can give. It then works through the OML hot rolling digital twin, a steel mill model, and ends with a note on security.
+A blueprint holds configuration as plain YAML. When a simulation needs logic that YAML cannot express, the file can reference a Python object with `!python module.attribute` in place of a value. This guide covers when to use it, how a reference is found, what each field receives, the setup step, how to write SimPy behaviour that the keys do not give yet, and the errors a reference can give. It then works through the OML hot rolling digital twin, a steel mill model, and ends with a note on security.
 
 ---
 
@@ -16,6 +16,7 @@ Use `!python` when a blueprint needs one of these:
 
 - **Field values with logic.** Random or weighted choices, fields derived from other fields and state carried from one event to the next are written as a payload function or a process.
 - **More than a task can describe.** Collecting several entities into one, such as a batch, is written as a process. Routing (`next`), priorities (`priority` and `queue: priority`), stores and containers, several resources per task (`resource: [...]` and `keep`), preemption (`preempt: true`) and breakdowns (`breakdown:`) are written in plain YAML.
+- **SimPy behaviour the keys do not give yet.** A time computed per entity, a unit held across several steps, a fixed number of arrivals and the arguments and value of a sub-process are written as a process, as [Write a Process for SimPy Behaviour](#write-a-process-for-simpy-behaviour) shows.
 - **Readings other than the built-in statistics.** `stats: minimal` publishes resource, store and container readings, a container's `level` among them. Use a telemetry function to publish variables and derived metrics.
 - **Routing over several destinations, and serializers.** A router or an Avro serializer is a Python object.
 - **Setup a connector does not do itself**, such as topics that only a router knows about.
@@ -244,6 +245,178 @@ def daily_path(record: dict):
 def make_output_folder() -> None:
     """Called once by run.before, when the run starts, not when the file is loaded."""
     os.makedirs("events", exist_ok=True)
+```
+
+### Write a Process for SimPy Behaviour
+
+Use the keys first. [SimPy Compatibility](../../simpy/compatibility.md) lists, for each SimPy feature, whether a key gives SimPy's behaviour. Where it does not, write the behaviour as a SimPy process under `processes:` with `!python`. The process is the SimPy program: it takes `context` and its `kwargs`, and uses `context.env` as it would use a SimPy environment.
+
+A process uses the model's parts as a SimPy program uses its own:
+
+- `context.get_resource(id)`, `context.get_store(id)` and `context.get_container(id)` return objects with SimPy's calls: `request(priority=...)` and `release`, `put` and `get`, and `level` and `items`. `with resource.request() as request:` works.
+- `context.call(task, **kwargs)` starts a task and returns its process. Yield it to wait for the task and read its value, or leave it to start the task and go on.
+- `context.spawn(generator)` starts a SimPy generator as a process and returns it. Yield it to wait for it, or call `interrupt()` on it.
+- A process publishes no event record of its own; `context.publish` sends a telemetry value. End the work by calling a task, so that the record is published when the work has happened. A task that only started the process would publish `finished` before any work was done, and a record must not say that.
+
+Each form below has a YAML-only replacement after 1.0, written as an addition, so a blueprint written this way stays valid. Each runs in the docs tests beside a plain SimPy program, and gives its times.
+
+**A time computed per entity.** A service takes a time from a distribution, so a time computed from the car, here half its litres, is a process. Three cars fill at one pump and finish at 2, 5 and 6, as the same program does in SimPy:
+
+```yaml title="docs/snippets/yaml/simpy_computed_time.yaml"
+# A service time computed from the car: half its litres. A process holds the pump
+# for that time, then calls the task `filled`, which publishes the car's record.
+simulation: {sim_id: Station, factor: 0}
+
+resources:
+  pump: {current_cap: 1}
+
+processes:
+  - function: !python simpy_forms.fill
+    kwargs: {car: car-1, start: 0, litres: 4}
+  - function: !python simpy_forms.fill
+    kwargs: {car: car-2, start: 1, litres: 6}
+  - function: !python simpy_forms.fill
+    kwargs: {car: car-3, start: 2, litres: 2}
+
+tasks:
+  filled:
+    payload: !python simpy_forms.filled
+
+run:
+  until: 10
+
+egress:
+  - type: Console
+```
+
+```python title="docs/snippets/yaml/simpy_forms.py:computed-time"
+def fill(context, car, start, litres):
+    """A car that fills for half its litres in seconds, so the time is computed."""
+    env = context.env
+    yield env.timeout(start)
+    with context.get_resource("pump").request() as request:
+        yield request
+        yield env.timeout(litres / 2)
+    yield context.call("filled", car=car)
+```
+
+### Hold a Resource Across Steps
+
+A task holds a unit for its own service. A process holds it for as many steps as it yields, with a priority, and the queue and its order are the resource's. Here `job-1` holds the machine through two steps. `job-2` and `job-3` queue, and `job-3`, with the lower priority value, goes first. The jobs finish at 3, 5 and 8, as the SimPy program does:
+
+```yaml title="docs/snippets/yaml/simpy_held_unit.yaml"
+# A job keeps its unit of a priority machine through two steps, so a waiting job
+# with a lower priority value goes first when the unit is released.
+simulation: {sim_id: Shop, factor: 0}
+
+resources:
+  machine: {current_cap: 1, queue: priority}
+
+processes:
+  - function: !python simpy_forms.repair
+    kwargs: {job: job-1, start: 0, priority: 2, first: 1, second: 2}
+  - function: !python simpy_forms.repair
+    kwargs: {job: job-2, start: 0, priority: 1, first: 2, second: 1}
+  - function: !python simpy_forms.repair
+    kwargs: {job: job-3, start: 1, priority: 0, first: 1, second: 1}
+
+tasks:
+  repaired:
+    payload: !python simpy_forms.repaired
+
+run:
+  until: 20
+
+egress:
+  - type: Console
+```
+
+```python title="docs/snippets/yaml/simpy_forms.py:held"
+def repair(context, job, start, priority, first, second):
+    """A job that keeps its unit of the machine through two steps."""
+    env = context.env
+    yield env.timeout(start)
+    with context.get_resource("machine").request(priority=priority) as request:
+        yield request
+        yield env.timeout(first)
+        yield env.timeout(second)
+    yield context.call("repaired", job=job)
+```
+
+### Start a Fixed Number of Arrivals
+
+An arrival key starts entities for as long as the run goes. A process starts exactly three customers, one every 2 seconds, and ends. Each is served for 3 seconds by one counter, so the customers finish at 5, 8 and 11, as in SimPy:
+
+```yaml title="docs/snippets/yaml/simpy_fixed_arrivals.yaml"
+# Three customers, one every 2 seconds, and no more. Each is served for 3
+# seconds by one counter, so the second and third queue.
+simulation: {sim_id: Bank, factor: 0}
+
+resources:
+  counter: {current_cap: 1}
+
+services:
+  serving: {dist: constant, value: 3}
+
+processes:
+  - function: !python simpy_forms.customers
+    kwargs: {count: 3, gap: 2}
+
+tasks:
+  serve:
+    resource: counter
+    service: serving
+    payload: {customer: served}
+
+run:
+  until: 20
+
+egress:
+  - type: Console
+```
+
+```python title="docs/snippets/yaml/simpy_forms.py:arrivals"
+def customers(context, count, gap):
+    """Starts `count` customers, one every `gap` seconds, and then stops."""
+    for _ in range(count):
+        yield context.env.timeout(gap)
+        context.call("serve")
+```
+
+`context.call` is not yielded, so each customer starts and the loop goes on, as `env.process(customer())` does.
+
+### Pass Arguments to a Sub-Process and Read Its Value
+
+A SimPy process calls a child with arguments and reads what it returns. `context.call` takes the arguments as `kwargs` for the task's function, and the process it returns holds the value of the task's last payload. Here the process asks `pack` for 2 boxes, reads 6 back at time 1, and passes 7 to `ship`:
+
+```yaml title="docs/snippets/yaml/simpy_sub_process.yaml"
+# A process calls the task `pack` with an argument, reads the value it returns,
+# and passes a total on to the task `ship`.
+simulation: {sim_id: Dock, factor: 0}
+
+processes:
+  - function: !python simpy_forms.order
+    kwargs: {boxes: 2}
+
+tasks:
+  pack:
+    wait: {timeout: 1}
+    payload: !python simpy_forms.pack
+  ship:
+    payload: !python simpy_forms.shipped
+
+run:
+  until: 10
+
+egress:
+  - type: Console
+```
+
+```python title="docs/snippets/yaml/simpy_forms.py:sub-process"
+def order(context, boxes):
+    """Asks the task `pack` for `boxes` boxes and reads what it returns."""
+    packed = yield context.call("pack", boxes=boxes)
+    yield context.call("ship", total=packed["total"] + 1)
 ```
 
 ---
