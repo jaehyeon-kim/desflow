@@ -217,13 +217,10 @@ class TaskRun:
             make_event = getattr(self.env, "internal_event", self.env.event)
             self.ended = make_event()  # type: ignore[misc]
             self.ended.defused = True
-            for action in spec.on:
-                self.ended.callbacks.append(
-                    functools.partial(self._run_end_action, action)
-                )
             if not child:
                 # Count one pending end against the entity, taken back when the end
-                # event is processed, so a drain waits for the `on:` actions.
+                # event is processed, so the entity leaves and a drain ends when the
+                # end event is processed, after the `on:` actions have run.
                 entity.ends_pending += 1
                 self.ended.callbacks.append(
                     functools.partial(context._end_processed, entity)
@@ -317,6 +314,7 @@ class TaskRun:
             self.ended.succeed(result)
         else:
             self.ended.fail(result)
+        self._run_end_actions()
 
     def _record_last_ended(self) -> None:
         """Records this instance as the last-ended of its task on its entity, for a
@@ -326,9 +324,10 @@ class TaskRun:
                 self.entity.last_ended = {}
             self.entity.last_ended[self.spec.name] = self.ended
 
-    def _end_default(self, ok: bool, error: Any = None) -> None:
+    def _end_default(self, ok: bool, error: Any = None, actions: bool = True) -> None:
         """Triggers the end event for a balk, a renege or an error, when no other end
-        triggered it: a success with None, or a failure with the error."""
+        triggered it: a success with None, or a failure with the error. The `on:`
+        actions run after it unless `actions` is False."""
         if self.ended is None or self.ended.triggered:
             return
         self._record_last_ended()
@@ -336,9 +335,28 @@ class TaskRun:
             self.ended.succeed(None)
         else:
             self.ended.fail(error)
+        if actions:
+            self._run_end_actions()
 
-    def _run_end_action(self, action: Dict[str, Any], _event: Any = None) -> None:
-        """Runs one of the task's `on:` actions when its end event is processed."""
+    def _run_end_actions(self) -> None:
+        """Runs the task's `on:` actions in the step the instance ends, right after
+        the end event is triggered, as a statement at the end of a SimPy process's
+        step runs. A signal's `on:` stays a callback of the firing."""
+        try:
+            for action in self.spec.on:
+                self._run_end_action(action)
+        except Exception as error:
+            if not self.child:
+                raise
+            # A child flow's error would reach only the flow that waits for it, and
+            # none if that flow lost its wait. An action that cannot run stops the
+            # run, so it fails an event nobody handles, as a failing callback did.
+            make_event = getattr(self.env, "internal_event", self.env.event)
+            stop = make_event()  # type: ignore[misc]
+            stop.fail(error)
+
+    def _run_end_action(self, action: Dict[str, Any]) -> None:
+        """Runs one of the task's `on:` actions."""
         self.context._run_on_action(
             action, f"task '{self.spec.name}'", self.entity, self.outcome
         )
@@ -431,8 +449,11 @@ class TaskRun:
             result = yield from self._run()
         except BaseException as error:
             # An error ends the instance: the end event fails with it, so a waiter
-            # receives it. The run still raises, as before.
-            self._end_default(ok=False, error=error)
+            # receives it. The run still raises, as before. Closing the generator
+            # is not an end of the task, so no `on:` action runs for it.
+            self._end_default(
+                ok=False, error=error, actions=not isinstance(error, GeneratorExit)
+            )
             raise
         finally:
             self._target = None
@@ -913,7 +934,8 @@ class TaskRun:
         for a balk, a renege or an abandon. A child flow's end is its parent's.
 
         The entity leaves once its own flow has ended and no end event or counted
-        signal firing is still pending, so a drain waits for the `on:` actions.
+        signal firing is still pending, so a drain waits for the end event to be
+        processed.
         """
         if self.child:
             return

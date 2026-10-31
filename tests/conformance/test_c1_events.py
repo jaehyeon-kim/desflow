@@ -1,5 +1,6 @@
 """C1 events: one-shot signals (V3), callbacks and triggering from another event
-(V4 to V6), a failure nobody handles (V7), and the timeout value (V11).
+(V4 to V6), a failure nobody handles (V7), the timeout value (V11), and the step in
+which a task's `on:` actions run (S3).
 
 Each test runs a plain SimPy reference, then the same model in the low-level API, the
 builder and YAML, and compares the event times and values. The low-level models use
@@ -10,10 +11,18 @@ the timeout `value`.
 
 import pytest
 import simpy
+from simpy.events import NORMAL, URGENT
 
-from desflow import Signal, SignalFailed
+from desflow import Entity, Signal, SignalFailed
 from desflow.core.context import SimulationContext
-from tests.conformance.harness import run_builder, run_low_level, run_yaml, times
+from tests.conformance.harness import (
+    event_trace,
+    run_builder,
+    run_low_level,
+    run_yaml,
+    run_yaml_text,
+    times,
+)
 
 
 def _failed(records, task):
@@ -648,3 +657,925 @@ def test_c1_losing_child_flow_fire_after_left_is_not_counted():
     # running until it finishes at 5
     records = _drain(app, 1)
     assert times(records, "worker") == [5.0]
+
+
+# ------------------------------------------- `on:` in the step the task ends (S3)
+
+# A task's `on:` actions run in the step the task ends, before its next task starts,
+# as a statement at the end of a SimPy process's step does. Each test runs a plain
+# SimPy process that does the work in that statement, then the same model as tasks.
+# Two arrivals set the order of the entities at one instant, in both orders.
+
+ONE = "services: {one: {dist: constant, value: 1}, three: {dist: constant, value: 3}}"
+
+
+def _arrivals(names, n, order):
+    """The arrivals block and the replay files for `names` in the creation order
+    `order` ("ab" or "ba"), `n` entities of each at time 0. The arrivals take turns,
+    so the entities start in the order a, b, a, b."""
+    names = names if order == "ab" else names[::-1]
+    block = "".join(
+        f"  {name}: {{replay: {{path: {name}.csv}}, spawn: {name}_start}}\n"
+        for name in names
+    )
+    return "arrivals:\n" + block, {name: [0] * n for name in names}
+
+
+def _spawn_all(context, n, entries):
+    """A builder process that starts `n` entities of each `(letter, task function)`
+    in `entries`, taking turns in the order given, as the YAML arrivals do."""
+    for i in range(n):
+        for letter, task in entries:
+            context.spawn(task(i, entity=Entity(f"{letter}-{i}", letter, {})))
+    yield context.env.event()
+
+
+def _flag_reference(n, order):
+    env = simpy.Environment()
+    state = {"flag": False}
+    seen = []
+
+    def setter():
+        yield env.timeout(1)
+        state["flag"] = True
+
+    def reader():
+        yield env.timeout(1)
+        seen.append("seen" if state["flag"] else "unseen")
+
+    for _ in range(n):
+        for letter in order:
+            env.process(setter() if letter == "a" else reader())
+    env.run(until=10)
+    return seen
+
+
+def _routes(records):
+    return [
+        r["task"]
+        for r in records
+        if r["stream_type"] == "event" and r["task"] in ("seen", "unseen")
+    ]
+
+
+FLAG_NEXT = (
+    "next: {when: [{condition: 'registry[\"C1.variables.flag\"] == 1', task: seen}],"
+    " default: unseen}"
+)
+
+
+@pytest.mark.parametrize("order", ["ab", "ba"])
+@pytest.mark.parametrize("n", [1, 3])
+def test_c1_on_sets_a_flag_the_next_task_of_another_entity_reads_in_that_step(
+    tmp_path, n, order
+):
+    """An entity sets a flag in `on:` at 1, and another entity reads it at 1 in the
+    task after its service. The reader sees the flag when the setter was created
+    first, as a SimPy statement at the end of the step shows it."""
+    expected = _flag_reference(n, order)
+    assert expected[0] == ("seen" if order == "ab" else "unseen")
+    arrivals, files = _arrivals(["a", "b"], n, order)
+    text = (
+        "simulation: {sim_id: C1, factor: 0}\n"
+        "variables: {flag: 0}\n"
+        f"{ONE}\n"
+        f"{arrivals}"
+        "tasks:\n"
+        "  a_start: {service: one, payload: {e: a}, "
+        "on: [{path: C1.variables.flag, value: 1}]}\n"
+        f"  b_start: {{service: one, payload: {{e: b}}, {FLAG_NEXT}}}\n"
+        "  seen: {payload: {e: seen}}\n"
+        "  unseen: {payload: {e: unseen}}\n"
+        "run: {until: 10}\n"
+    )
+    outcome = run_yaml_text(tmp_path, text, files)
+    assert outcome.error is None
+    assert _routes(outcome.records) == expected
+
+    app = SimulationContext("C1", factor=0.0)
+    app.add_variable("flag", 0)
+    app.add_service("one", dist="constant", value=1)
+
+    @app.task(
+        service_id="one", on=[{"path": "C1.variables.flag", "value": 1}], name="a_start"
+    )
+    def a_start(task_id):
+        return {"e": "a"}
+
+    @app.task(
+        service_id="one",
+        next={
+            "when": [
+                {"condition": 'registry["C1.variables.flag"] == 1', "task": "seen"}
+            ],
+            "default": "unseen",
+        },
+        name="b_start",
+    )
+    def b_start(task_id):
+        return {"e": "b"}
+
+    @app.task(name="seen")
+    def seen(task_id):
+        return {"e": "seen"}
+
+    @app.task(name="unseen")
+    def unseen(task_id):
+        return {"e": "unseen"}
+
+    app.add_process(
+        lambda context: _spawn_all(
+            context, n, [(x, {"a": a_start, "b": b_start}[x]) for x in order]
+        )
+    )
+    assert _routes(run_builder(app, 10)) == expected
+
+
+def _use_reference(n, order, spawner, user):
+    """`spawner` entities spawn a child that uses a unit; `user` entities use it
+    themselves, both after one second; the unit is held for 3."""
+    env = simpy.Environment()
+    unit = simpy.Resource(env, 1)
+    grants = []
+
+    def hold(label):
+        with unit.request() as req:
+            yield req
+            grants.append((env.now, label))
+            yield env.timeout(3)
+
+    def spawns():
+        yield env.timeout(1)
+        env.process(hold("cuse"))
+
+    def uses():
+        yield env.timeout(1)
+        yield from hold("use")
+
+    for _ in range(n):
+        for letter in order:
+            env.process(spawns() if letter == spawner else uses())
+    env.run(until=60)
+    return grants
+
+
+def _grants(records, tasks):
+    return [
+        (t, task)
+        for t, _key, task, status in event_trace(records)
+        if status == "started" and task in tasks
+    ]
+
+
+@pytest.mark.parametrize("order", ["ab", "ba"])
+@pytest.mark.parametrize("n", [1, 3])
+def test_c1_an_on_spawn_asks_for_the_unit_in_the_step_its_task_ends(tmp_path, n, order):
+    """A task spawns a child in `on:` at 1 and another entity hands on to a task that
+    asks for the unit at 1. The child asks before the other entity when its spawner
+    was created first, as a SimPy process started in the step does."""
+    expected = _use_reference(n, order, "a", "b")
+    assert expected[0][1] == ("cuse" if order == "ab" else "use")
+    arrivals, files = _arrivals(["a", "b"], n, order)
+    text = (
+        "simulation: {sim_id: C1, factor: 0}\n"
+        "resources: {r: {current_cap: 1}}\n"
+        f"{ONE}\n"
+        f"{arrivals}"
+        "tasks:\n"
+        "  a_start: {service: one, payload: {e: a}, on: [{spawn: {task: cuse}}]}\n"
+        "  cuse: {resource: r, service: three, payload: {e: left}}\n"
+        "  b_start: {service: one, payload: {e: b}, next: use}\n"
+        "  use: {resource: r, service: three, payload: {e: left}}\n"
+        "run: {until: 60}\n"
+    )
+    outcome = run_yaml_text(tmp_path, text, files)
+    assert outcome.error is None
+    assert _grants(outcome.records, ("cuse", "use")) == expected
+
+    app = SimulationContext("C1", factor=0.0)
+    app.add_resource("r", current_cap=1, max_cap=1)
+    app.add_service("one", dist="constant", value=1)
+    app.add_service("three", dist="constant", value=3)
+
+    @app.task(service_id="one", on=[{"spawn": {"task": "cuse"}}], name="a_start")
+    def a_start(task_id):
+        return {"e": "a"}
+
+    @app.task(service_id="three", resource_id="r", name="cuse")
+    def cuse(task_id):
+        return {"e": "left"}
+
+    @app.task(service_id="one", next="use", name="b_start")
+    def b_start(task_id):
+        return {"e": "b"}
+
+    @app.task(service_id="three", resource_id="r", name="use")
+    def use(task_id):
+        return {"e": "left"}
+
+    app.add_process(
+        lambda context: _spawn_all(
+            context, n, [(x, {"a": a_start, "b": b_start}[x]) for x in order]
+        )
+    )
+    assert _grants(run_builder(app, 60), ("cuse", "use")) == expected
+
+
+@pytest.mark.parametrize("n", [1, 3, 10])
+def test_c1_two_on_spawns_then_a_running_join_wait_for_both_children(tmp_path, n):
+    """A task spawns two children in `on:`, and the next task waits for both with
+    `running`. The join waits for the children, as a SimPy process that starts two
+    processes and then yields both does, and ends at 2."""
+    env = simpy.Environment()
+    joined = []
+
+    def child(delay):
+        yield env.timeout(delay)
+
+    def parent():
+        first, second = env.process(child(1)), env.process(child(2))
+        yield first & second
+        joined.append(env.now)
+
+    for _ in range(n):
+        env.process(parent())
+    env.run(until=10)
+    assert joined == [2] * n
+    text = (
+        "simulation: {sim_id: C1, factor: 0}\n"
+        "services: {one: {dist: constant, value: 1}, two: {dist: constant, value: 2}}\n"
+        "arrivals: {a: {replay: {path: a.csv}, spawn: split}}\n"
+        "tasks:\n"
+        "  split: {payload: {e: s}, "
+        "on: [{spawn: {task: c1}}, {spawn: {task: c2}}], next: join}\n"
+        "  join: {wait: {all: {r1: {running: {task: c1}}, r2: {running: {task: c2}}}}, "
+        "payload: {e: joined}}\n"
+        "  c1: {service: one, payload: {e: c1}}\n"
+        "  c2: {service: two, payload: {e: c2}}\n"
+        "run: {until: 10}\n"
+    )
+    outcome = run_yaml_text(tmp_path, text, {"a": [0] * n})
+    assert outcome.error is None
+    assert times(outcome.records, "join") == [float(t) for t in joined]
+
+    app = SimulationContext("C1", factor=0.0)
+    app.add_service("one", dist="constant", value=1)
+    app.add_service("two", dist="constant", value=2)
+
+    @app.task(
+        on=[{"spawn": {"task": "c1"}}, {"spawn": {"task": "c2"}}],
+        next="join",
+        name="split",
+    )
+    def split(task_id):
+        return {"e": "s"}
+
+    @app.task(
+        wait={
+            "all": {
+                "r1": {"running": {"task": "c1"}},
+                "r2": {"running": {"task": "c2"}},
+            }
+        },
+        name="join",
+    )
+    def join(task_id):
+        return {"e": "joined"}
+
+    @app.task(service_id="one", name="c1")
+    def c1(task_id):
+        return {"e": "c1"}
+
+    @app.task(service_id="two", name="c2")
+    def c2(task_id):
+        return {"e": "c2"}
+
+    app.add_process(lambda context: _spawn_all(context, n, [("a", split)]))
+    assert times(run_builder(app, 10), "join") == [float(t) for t in joined]
+
+
+def _fire_from_reference(n):
+    env = simpy.Environment()
+    unit = simpy.Resource(env, 1)
+    state = {"done": env.event()}
+    grants = []
+
+    def hold(label):
+        with unit.request() as req:
+            yield req
+            grants.append((env.now, label))
+            yield env.timeout(3)
+
+    def closer():
+        yield env.timeout(1)
+        # A signal that re-arms: the waiting event is replaced as it is triggered
+        done, state["done"] = state["done"], env.event()
+        done.succeed({"v": 1})
+
+    def waiter():
+        yield state["done"]
+        yield from hold("waiter")
+
+    def rival():
+        yield env.timeout(1)
+        yield env.timeout(0)
+        yield from hold("rival")
+
+    for _ in range(n):
+        env.process(closer())
+        env.process(waiter())
+        env.process(rival())
+    env.run(until=100)
+    return grants
+
+
+FIRE_TASKS = (
+    "  closer: {service: one, payload: {v: 1}, "
+    "on: [{fire: {signal: done, from: closer}}]}\n"
+    "  waiter: {wait: {signal: done}, resource: r, service: three, "
+    "payload: {e: w}}\n"
+    "  rival: {service: one, payload: {e: r}, next: use}\n"
+    "  use: {wait: {timeout: 0}, resource: r, service: three, payload: {e: r}}\n"
+)
+
+
+@pytest.mark.parametrize("n", [1, 3, 10])
+def test_c1_fire_from_the_ending_task_wakes_a_waiter_in_the_step_the_task_ends(
+    tmp_path, n
+):
+    """A task fires a signal in `on:` with the outcome it copies from itself. A waiter
+    resumes in the step after that firing, ahead of a rival that asks for the unit
+    one zero-delay step after the task ends, as `done.succeed(...)` in a SimPy
+    process does."""
+    expected = _fire_from_reference(n)
+    assert expected[0][1] == "waiter" and "rival" in [label for _t, label in expected]
+    wanted = [(t, "use" if label == "rival" else "waiter") for t, label in expected]
+    text = (
+        "simulation: {sim_id: C1, factor: 0}\n"
+        "resources: {r: {current_cap: 1}}\n"
+        f"{ONE}\n"
+        "signals: [done]\n"
+        "arrivals:\n"
+        "  closer: {replay: {path: closer.csv}, spawn: closer}\n"
+        "  waiter: {replay: {path: waiter.csv}, spawn: waiter}\n"
+        "  rival: {replay: {path: rival.csv}, spawn: rival}\n"
+        f"tasks:\n{FIRE_TASKS}"
+        "run: {until: 100}\n"
+    )
+    outcome = run_yaml_text(
+        tmp_path, text, {"closer": [0] * n, "waiter": [0] * n, "rival": [0] * n}
+    )
+    assert outcome.error is None
+    assert _grants(outcome.records, ("waiter", "use")) == wanted
+
+    app = SimulationContext("C1", factor=0.0)
+    app.add_resource("r", current_cap=1, max_cap=1)
+    app.add_service("one", dist="constant", value=1)
+    app.add_service("three", dist="constant", value=3)
+    app.add_signal("done")
+
+    @app.task(
+        service_id="one",
+        on=[{"fire": {"signal": "done", "from": "closer"}}],
+        name="closer",
+    )
+    def closer(task_id):
+        return {"v": 1}
+
+    @app.task(
+        wait={"signal": "done"}, resource_id="r", service_id="three", name="waiter"
+    )
+    def waiter(task_id):
+        return {"e": "w"}
+
+    @app.task(service_id="one", next="use", name="rival")
+    def rival(task_id):
+        return {"e": "r"}
+
+    @app.task(wait={"timeout": 0}, resource_id="r", service_id="three", name="use")
+    def use(task_id):
+        return {"e": "r"}
+
+    app.add_process(
+        lambda context: _spawn_all(
+            context, n, [("c", closer), ("w", waiter), ("r", rival)]
+        )
+    )
+    assert _grants(run_builder(app, 100), ("waiter", "use")) == wanted
+
+
+def _interrupt_reference(n):
+    """`n` closers, each interrupting every victim that is still waiting."""
+    env = simpy.Environment()
+    unit = simpy.Resource(env, 1)
+    grants = []
+    victims = []
+
+    def hold(label):
+        with unit.request() as req:
+            yield req
+            grants.append((env.now, label))
+            yield env.timeout(3)
+
+    def victim(state):
+        try:
+            yield env.timeout(10)
+        except simpy.Interrupt:
+            pass
+        state["waiting"] = False
+        yield from hold("after")
+
+    def closer():
+        yield env.timeout(1)
+        for state, process in victims:
+            if state["waiting"]:
+                process.interrupt("closing")
+
+    def rival():
+        yield env.timeout(1)
+        yield from hold("use")
+
+    for _ in range(n):
+        state = {"waiting": True}
+        victims.append((state, env.process(victim(state))))
+        env.process(closer())
+        env.process(rival())
+    env.run(until=100)
+    return grants
+
+
+INTERRUPT_TASKS = (
+    "  long: {service: ten, on_interrupt: abandon, on_interrupt_next: after, "
+    "payload: {e: long}}\n"
+    "  after: {resource: r, service: three, payload: {e: after}}\n"
+    "  closer: {service: one, payload: {e: c}, "
+    "on: [{interrupt: {task: long, cause: closing}}]}\n"
+    "  rival: {service: one, payload: {e: r}, next: use}\n"
+    "  use: {resource: r, service: three, payload: {e: use}}\n"
+)
+
+
+@pytest.mark.parametrize("n", [1, 3, 10])
+def test_c1_an_on_interrupt_reaches_its_target_in_the_step_its_task_ends(tmp_path, n):
+    """A task interrupts running tasks in `on:` at 1. The interrupted tasks ask for
+    the unit before a rival that hands on to a task asking at 1, as a SimPy
+    `target.interrupt()` in the closing process does."""
+    expected = _interrupt_reference(n)
+    assert expected[0][1] == "after" and "use" in [label for _t, label in expected]
+    text = (
+        "simulation: {sim_id: C1, factor: 0}\n"
+        "resources: {r: {current_cap: 1}}\n"
+        "services: {one: {dist: constant, value: 1}, three: {dist: constant, value: 3},"
+        " ten: {dist: constant, value: 10}}\n"
+        "arrivals:\n"
+        "  victim: {replay: {path: victim.csv}, spawn: long}\n"
+        "  closer: {replay: {path: closer.csv}, spawn: closer}\n"
+        "  rival: {replay: {path: rival.csv}, spawn: rival}\n"
+        f"tasks:\n{INTERRUPT_TASKS}"
+        "run: {until: 100}\n"
+    )
+    outcome = run_yaml_text(
+        tmp_path, text, {"victim": [0] * n, "closer": [0] * n, "rival": [0] * n}
+    )
+    assert outcome.error is None
+    assert _grants(outcome.records, ("after", "use")) == expected
+
+    app = SimulationContext("C1", factor=0.0)
+    app.add_resource("r", current_cap=1, max_cap=1)
+    app.add_service("one", dist="constant", value=1)
+    app.add_service("three", dist="constant", value=3)
+    app.add_service("ten", dist="constant", value=10)
+
+    @app.task(
+        service_id="ten",
+        on_interrupt="abandon",
+        on_interrupt_next="after",
+        name="long",
+    )
+    def long(task_id):
+        return {"e": "long"}
+
+    @app.task(resource_id="r", service_id="three", name="after")
+    def after(task_id):
+        return {"e": "after"}
+
+    @app.task(
+        service_id="one",
+        on=[{"interrupt": {"task": "long", "cause": "closing"}}],
+        name="closer",
+    )
+    def closer(task_id):
+        return {"e": "c"}
+
+    @app.task(service_id="one", next="use", name="rival")
+    def rival(task_id):
+        return {"e": "r"}
+
+    @app.task(resource_id="r", service_id="three", name="use")
+    def use(task_id):
+        return {"e": "use"}
+
+    app.add_process(
+        lambda context: _spawn_all(
+            context, n, [("v", long), ("c", closer), ("r", rival)]
+        )
+    )
+    assert _grants(run_builder(app, 100), ("after", "use")) == expected
+
+
+def _set_source_reference(gap, service, new_gap):
+    env = simpy.Environment()
+    state = {"gap": gap}
+    arrivals = []
+
+    def job():
+        yield env.timeout(service)
+        state["gap"] = new_gap
+
+    def source():
+        while True:
+            yield env.timeout(state["gap"])
+            arrivals.append(env.now)
+            env.process(job())
+
+    env.process(source())
+    env.run(until=14)
+    return arrivals
+
+
+def test_c1_an_on_path_sets_an_arrival_gap_in_the_step_its_task_ends(tmp_path):
+    """A task sets the gap of an arrival in `on:` when its service ends at 4. The
+    arrival at 6 then waits the new gap, as a SimPy source that reads a shared gap
+    does, so the arrivals come at 2, 4, 6, 9 and 12."""
+    expected = _set_source_reference(2, 4, 3)
+    assert expected == [2, 4, 6, 9, 12]
+    text = (
+        "simulation: {sim_id: C1, factor: 0}\n"
+        "services: {s: {dist: constant, value: 4}}\n"
+        "arrivals: {o: {dist: constant, value: 2, spawn: k}}\n"
+        "tasks:\n"
+        "  k: {payload: {e: 1}, next: w}\n"
+        "  w: {service: s, payload: {w: 1}, "
+        "on: [{path: C1.arrival.o.value, value: 3}]}\n"
+        "run: {until: 14}\n"
+    )
+    outcome = run_yaml_text(tmp_path, text, {})
+    assert outcome.error is None
+    assert times(outcome.records, "k") == [float(t) for t in expected]
+
+    app = SimulationContext("C1", factor=0.0)
+    app.add_arrival("o", dist="constant", value=2, spawn="k")
+    app.add_service("s", dist="constant", value=4)
+
+    @app.task(name="k", next="w")
+    def k(task_id):
+        return {"e": 1}
+
+    @app.task(
+        name="w",
+        service_id="s",
+        on=[{"path": "C1.arrival.o.value", "value": 3}],
+    )
+    def w(task_id):
+        return {"w": 1}
+
+    assert times(run_builder(app, 14), "k") == [float(t) for t in expected]
+
+
+def _signal_reference(urgent, after):
+    """A closer ends a step at 5 and schedules a one-shot event; a rival asks for
+    the unit at the time the event is processed, in a step of its own."""
+    env = simpy.Environment()
+    machine = simpy.Resource(env, 1)
+    ready = env.event()
+    grants = []
+
+    def user(label):
+        with machine.request() as req:
+            yield req
+            grants.append((env.now, label))
+            yield env.timeout(1)
+
+    def waiter():
+        yield ready
+        yield from user("waiter")
+
+    def closer():
+        yield env.timeout(5)
+        ready._ok, ready._value = True, None
+        env.schedule(ready, URGENT if urgent else NORMAL, after)
+
+    def rival():
+        yield env.timeout(5)
+        if after:
+            yield env.timeout(after)
+        yield from user("rival")
+
+    env.process(waiter())
+    env.process(closer())
+    env.process(rival())
+    env.run(until=20)
+    return grants
+
+
+@pytest.mark.parametrize(
+    "urgent, after", [(False, 3), (True, 0)], ids=["delay_SP-E5", "urgent_SP-E6"]
+)
+def test_c1_an_on_fire_with_after_or_urgent_is_scheduled_in_the_step_its_task_ends(
+    tmp_path, urgent, after
+):
+    """A task fires a one-shot signal in `on:` with `after` or `urgent` at 5. A waiter
+    for the signal takes the unit before a rival that asks for it in the step the
+    event is processed, as it does when a SimPy process calls `env.schedule` at the
+    end of its step."""
+    expected = _signal_reference(urgent, after)
+    assert [label for _t, label in expected] == ["waiter", "rival"]
+    fire = "urgent: true" if urgent else f"after: {after} s"
+    wait = "" if urgent else f"wait: {{timeout: {after}}}, "
+    text = (
+        "simulation: {sim_id: C1, factor: 0}\n"
+        "resources: {r: {current_cap: 1}}\n"
+        "services: {one: {dist: constant, value: 1}}\n"
+        "signals:\n"
+        "  ready: {once: true}\n"
+        "arrivals:\n"
+        "  waiter: {replay: {path: waiter.csv}, spawn: waiter}\n"
+        "  closer: {replay: {path: closer.csv}, spawn: closer}\n"
+        "  rival: {replay: {path: rival.csv}, spawn: rival}\n"
+        "tasks:\n"
+        "  waiter: {wait: {signal: ready}, resource: r, service: one, "
+        "payload: {e: w}}\n"
+        "  closer: {wait: {timeout: 5}, payload: {e: c}, "
+        f"on: [{{fire: {{signal: ready, {fire}}}}}]}}\n"
+        "  rival: {wait: {timeout: 5}, payload: {e: r}, next: use}\n"
+        f"  use: {{{wait}resource: r, service: one, payload: {{e: u}}}}\n"
+        "run: {until: 20}\n"
+    )
+    outcome = run_yaml_text(
+        tmp_path, text, {"waiter": [0], "closer": [0], "rival": [0]}
+    )
+    assert outcome.error is None
+    assert _grants(outcome.records, ("waiter", "use")) == [
+        (t, "use" if label == "rival" else "waiter") for t, label in expected
+    ]
+
+
+def _same_instant_reference(n):
+    """Closers interrupt victims whose timeouts end at the same instant but are not
+    processed yet. A closer created before its victim runs first."""
+    env = simpy.Environment()
+    victims = []
+    outcomes = []
+
+    def victim(state):
+        try:
+            yield env.timeout(1)
+            outcomes.append("finished")
+        except simpy.Interrupt:
+            outcomes.append("interrupted")
+        state["waiting"] = False
+
+    def closer():
+        yield env.timeout(1)
+        for state, process in victims:
+            if state["waiting"]:
+                process.interrupt("closing")
+
+    for _ in range(n):
+        env.process(closer())
+        state = {"waiting": True}
+        victims.append((state, env.process(victim(state))))
+    env.run(until=10)
+    return outcomes
+
+
+@pytest.mark.parametrize("n", [1, 3])
+def test_c1_an_on_interrupt_reaches_a_task_that_ends_at_the_same_instant(tmp_path, n):
+    """A task interrupts a running task in `on:` at 1, when that task's service also
+    ends at 1. The interrupt arrives first, as `target.interrupt()` does for a
+    process whose timeout is triggered but not yet processed."""
+    expected = _same_instant_reference(n)
+    assert expected == ["interrupted"] * n
+    text = (
+        "simulation: {sim_id: C1, factor: 0}\n"
+        f"{ONE}\n"
+        "arrivals:\n"
+        "  closer: {replay: {path: closer.csv}, spawn: closer}\n"
+        "  victim: {replay: {path: victim.csv}, spawn: long}\n"
+        "tasks:\n"
+        "  closer: {service: one, payload: {e: c}, "
+        "on: [{interrupt: {task: long, cause: closing}}]}\n"
+        "  long: {service: one, on_interrupt: abandon, payload: {e: long}}\n"
+        "run: {until: 10}\n"
+    )
+    outcome = run_yaml_text(tmp_path, text, {"closer": [0] * n, "victim": [0] * n})
+    assert outcome.error is None
+    trace = event_trace(outcome.records)
+    assert [
+        s for _t, _k, task, s in trace if task == "long" and s == "interrupted"
+    ] == ["interrupted"] * n
+    assert times(outcome.records, "long") == []
+
+
+def test_c1_closing_a_task_that_is_still_serving_runs_no_on_action(tmp_path):
+    """A generator closed while its task is in service is not an end of the task, so
+    no `on:` action runs, as no statement after a `yield` runs in a closed SimPy
+    generator."""
+    text = (
+        "simulation: {sim_id: C1, factor: 0}\n"
+        "variables: {flag: 0}\n"
+        "services: {long: {dist: constant, value: 100}}\n"
+        "arrivals: {a: {replay: {path: a.csv}, spawn: job}}\n"
+        "tasks:\n"
+        "  job: {service: long, payload: {e: 1}, "
+        "on: [{path: C1.variables.flag, value: 1}]}\n"
+        "run: {until: 5}\n"
+    )
+    outcome = run_yaml_text(tmp_path, text, {"a": [0]})
+    app = outcome.app_or_env
+    registry = app._env.registry
+    (running,) = app._running["job"]
+    assert running.process.is_alive
+    running.process._generator.close()
+    assert registry.get("C1.variables.flag").value == 0
+
+
+CHILD_ERROR = {
+    "losing": (
+        "  parent: {wait: {any: {c: {task: kid}, t: {timeout: 1}}}, payload: {e: p}}\n"
+    ),
+    "waited": "  parent: {wait: {task: kid}, payload: {e: p}}\n",
+}
+
+
+@pytest.mark.parametrize("child", ["losing", "waited"])
+def test_c1_an_on_path_that_does_not_exist_in_a_child_flow_stops_the_run(
+    tmp_path, child
+):
+    """An `on:` action that raises in a child flow stops the run with its KeyError,
+    whether the parent lost its wait for the child or waits for it, as an exception
+    in a SimPy process that nothing handles stops `run()`. The stop is at the kid's
+    end."""
+    text = (
+        "simulation: {sim_id: C1, factor: 0}\n"
+        "services: {one: {dist: constant, value: 1}, three: {dist: constant, value: 3}}\n"
+        "arrivals: {a: {replay: {path: a.csv}, spawn: parent}}\n"
+        "tasks:\n"
+        f"{CHILD_ERROR[child]}"
+        "  kid: {service: three, payload: {e: k}, "
+        "on: [{path: C1.variables.nope, value: 1}]}\n"
+        "run: {until: 10}\n"
+    )
+    outcome = run_yaml_text(tmp_path, text, {"a": [0]})
+    assert outcome.app_or_env.env.now == 3.0
+    assert isinstance(outcome.error, KeyError)
+    assert "C1.variables.nope" in str(outcome.error)
+
+
+def test_c1_an_on_path_that_does_not_exist_in_a_root_task_stops_the_run(tmp_path):
+    """The same action in a root task stops the run with the KeyError too."""
+    text = (
+        "simulation: {sim_id: C1, factor: 0}\n"
+        f"{ONE}\n"
+        "arrivals: {a: {replay: {path: a.csv}, spawn: job}}\n"
+        "tasks:\n"
+        "  job: {service: one, payload: {e: 1}, "
+        "on: [{path: C1.variables.nope, value: 1}]}\n"
+        "run: {until: 10}\n"
+    )
+    outcome = run_yaml_text(tmp_path, text, {"a": [0]})
+    assert isinstance(outcome.error, KeyError)
+    assert "C1.variables.nope" in str(outcome.error)
+
+
+NEXT_FLAG = """
+simulation: {sim_id: C1, factor: 0}
+variables: {flag: 0}
+services: {one: {dist: constant, value: 1}}
+arrivals: {a: {replay: {path: a.csv}, spawn: first}}
+tasks:
+  first: {service: one, payload: {e: 1}, on: [{path: C1.variables.flag, value: 1}], %s
+  ok: {payload: {e: ok}}
+  nope: {payload: {e: nope}}
+  second: {payload: {e: 2}, %s
+run: {until: 5}
+"""
+FLAG_ROUTE = (
+    "next: {when: [{condition: 'registry[\"C1.variables.flag\"] == 1', task: ok}], "
+    "default: nope}}"
+)
+
+
+def test_c1_the_next_task_of_the_same_entity_reads_the_flag_its_on_set(tmp_path):
+    """A task sets a flag in `on:` and hands on to a second task, which routes on the
+    flag. The second task reads it set, as the next statement of a SimPy process
+    does."""
+    state = {"flag": False}
+    env = simpy.Environment()
+    routes = []
+
+    def process():
+        yield env.timeout(1)
+        state["flag"] = True
+        routes.append("ok" if state["flag"] else "nope")
+
+    env.process(process())
+    env.run(until=5)
+    assert routes == ["ok"]
+    text = NEXT_FLAG % ("next: second}", FLAG_ROUTE)
+    outcome = run_yaml_text(tmp_path, text, {"a": [0]})
+    assert outcome.error is None
+    assert [
+        t for _t, _k, t, s in event_trace(outcome.records) if t in ("ok", "nope")
+    ] == ["ok"]
+
+
+def test_c1_the_next_condition_of_the_task_with_the_on_reads_the_old_value(tmp_path):
+    """A `next` condition on the task that has the `on:` is evaluated when the next
+    task is chosen, before the actions run, so it reads the old value. The next
+    task reads the new one (the test above)."""
+    text = NEXT_FLAG % (FLAG_ROUTE, "next: ok}")
+    outcome = run_yaml_text(tmp_path, text, {"a": [0]})
+    assert outcome.error is None
+    assert [
+        t for _t, _k, t, s in event_trace(outcome.records) if t in ("ok", "nope")
+    ] == ["nope"]
+
+
+# Running the actions one step later, as before 0.29.0: the task fires a signal in its
+# own `on:`, and the signal's `on:` holds the actions. The `signal:` key is not the
+# same, because it fires only when the task finishes or fails.
+LATER_ORDERS = {
+    "flag": ["unseen"],
+    "spawn": [(1.0, "use"), (4.0, "use"), (7.0, "cuse"), (10.0, "cuse")],
+    "interrupt": [(1.0, "use"), (4.0, "after")],
+}
+
+
+def _later(tmp_path, kind, actions):
+    """The YAML of a model of `kind` whose a_start/closer task runs `actions` in a
+    signal's `on:` that the task fires."""
+    signal = "signals:\n  later: {on: " + actions + "}\n"
+    fire = "on: [{fire: {signal: later}}]"
+    if kind == "flag":
+        text = (
+            "simulation: {sim_id: C1, factor: 0}\nvariables: {flag: 0}\n"
+            f"{ONE}\n{signal}"
+            "arrivals:\n"
+            "  a: {replay: {path: a.csv}, spawn: a_start}\n"
+            "  b: {replay: {path: b.csv}, spawn: b_start}\n"
+            "tasks:\n"
+            f"  a_start: {{service: one, payload: {{e: a}}, {fire}}}\n"
+            f"  b_start: {{service: one, payload: {{e: b}}, {FLAG_NEXT}}}\n"
+            "  seen: {payload: {e: seen}}\n  unseen: {payload: {e: unseen}}\n"
+            "run: {until: 10}\n"
+        )
+        return run_yaml_text(tmp_path, text, {"a": [0], "b": [0]})
+    if kind == "spawn":
+        text = (
+            "simulation: {sim_id: C1, factor: 0}\nresources: {r: {current_cap: 1}}\n"
+            f"{ONE}\n{signal}"
+            "arrivals:\n"
+            "  a: {replay: {path: a.csv}, spawn: a_start}\n"
+            "  b: {replay: {path: b.csv}, spawn: b_start}\n"
+            "tasks:\n"
+            f"  a_start: {{service: one, payload: {{e: a}}, {fire}}}\n"
+            "  cuse: {resource: r, service: three, payload: {e: left}}\n"
+            "  b_start: {service: one, payload: {e: b}, next: use}\n"
+            "  use: {resource: r, service: three, payload: {e: left}}\n"
+            "run: {until: 60}\n"
+        )
+        return run_yaml_text(tmp_path, text, {"a": [0] * 2, "b": [0] * 2})
+    text = (
+        "simulation: {sim_id: C1, factor: 0}\nresources: {r: {current_cap: 1}}\n"
+        "services: {one: {dist: constant, value: 1}, three: {dist: constant, value: 3},"
+        " ten: {dist: constant, value: 10}}\n"
+        f"{signal}"
+        "arrivals:\n"
+        "  victim: {replay: {path: victim.csv}, spawn: long}\n"
+        "  closer: {replay: {path: closer.csv}, spawn: closer}\n"
+        "  rival: {replay: {path: rival.csv}, spawn: rival}\n"
+        f"tasks:\n{INTERRUPT_TASKS.replace('on: [{interrupt: {task: long, cause: closing}}]', fire)}"
+        "run: {until: 100}\n"
+    )
+    return run_yaml_text(tmp_path, text, {"victim": [0], "closer": [0], "rival": [0]})
+
+
+@pytest.mark.parametrize("kind", ["flag", "spawn", "interrupt"])
+def test_c1_an_on_fire_to_a_signals_on_runs_the_actions_one_step_later(tmp_path, kind):
+    """The way to keep the order before 0.29.0: the task's `on:` fires a signal, and
+    the actions are in the signal's `on:`, which runs as a callback of the firing."""
+    actions = {
+        "flag": "[{path: C1.variables.flag, value: 1}]",
+        "spawn": "[{spawn: {task: cuse}}]",
+        "interrupt": "[{interrupt: {task: long, cause: closing}}]",
+    }[kind]
+    outcome = _later(tmp_path, kind, actions)
+    assert outcome.error is None
+    if kind == "flag":
+        assert _routes(outcome.records) == LATER_ORDERS[kind]
+    elif kind == "spawn":
+        got = _grants(outcome.records, ("cuse", "use"))
+        assert [(t, task) for t, task in got][:4] == LATER_ORDERS[kind]
+    else:
+        assert _grants(outcome.records, ("after", "use")) == LATER_ORDERS[kind]

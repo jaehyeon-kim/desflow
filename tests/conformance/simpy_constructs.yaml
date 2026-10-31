@@ -21,10 +21,6 @@
 # A batch that removes a gap deletes its id from `gaps` and from every construct.
 
 gaps:
-  S3:
-    text: "`on:` actions run one step after the task ends; a SimPy statement at the end of the step runs at once."
-    form: computed
-    fixed: 0.29.0
   S5:
     text: "A job resumed after an interrupt goes on one step later than a SimPy process that keeps its request."
     form: computed
@@ -199,8 +195,8 @@ constructs:
   - {id: SP-E2, area: Environment, simpy: "`Environment.now`", gaps: [T6, T7]}
   - {id: SP-E3, area: Environment, simpy: "`Environment.active_process`", gaps: [M6]}
   - {id: SP-E4, area: Environment, simpy: "`env.process(...)` without `yield`", gaps: [A1, A3, A4, A5, A7]}
-  - {id: SP-E5, area: Environment, simpy: "`Environment.schedule(event, priority, delay)`", gaps: [S3]}
-  - {id: SP-E6, area: Environment, simpy: "`URGENT` and `NORMAL` event priorities", gaps: [S3]}
+  - {id: SP-E5, area: Environment, simpy: "`Environment.schedule(event, priority, delay)`"}
+  - {id: SP-E6, area: Environment, simpy: "`URGENT` and `NORMAL` event priorities"}
   - {id: SP-E7, area: Environment, simpy: "Events at one time run in the order they were scheduled", gaps: [M4]}
   - {id: SP-E8, area: Environment, simpy: "`Environment.peek()`", gaps: [T8]}
   - {id: SP-E9, area: Environment, simpy: "`Environment.step()`", gaps: [T8]}
@@ -216,8 +212,8 @@ constructs:
   - {id: SP-V1, area: Events and Timeout, simpy: "`Event.succeed(value)` waking every waiter", gaps: [I4, T3]}
   - {id: SP-V2, area: Events and Timeout, simpy: "`Event.fail(exception)`"}
   - {id: SP-V3, area: Events and Timeout, simpy: "An event that triggers once", gaps: [T3]}
-  - {id: SP-V4, area: Events and Timeout, simpy: "`Event.trigger(event)`", gaps: [S3]}
-  - {id: SP-V5, area: Events and Timeout, simpy: "`Event.callbacks`", gaps: [S3, M2]}
+  - {id: SP-V4, area: Events and Timeout, simpy: "`Event.trigger(event)`"}
+  - {id: SP-V5, area: Events and Timeout, simpy: "`Event.callbacks`", gaps: [M2]}
   - {id: SP-V6, area: Events and Timeout, simpy: "`Event.defused`", gaps: [M3]}
   - {id: SP-V7, area: Events and Timeout, simpy: "A failed event nobody handles stops the run", gaps: [T2]}
   - {id: SP-V8, area: Events and Timeout, simpy: "`Event.triggered`, `processed`, `ok` and `value`"}

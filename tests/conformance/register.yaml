@@ -924,6 +924,7 @@
   checks:
     - tests/conformance/test_c6_environment.py::test_c6_schedule_with_a_priority
     - tests/conformance/test_c2_wait_for_one_or_all.py::test_c2_signal_scheduled_with_a_delay_or_priority_wakes_a_waiter_in_its_step
+    - tests/conformance/test_c1_events.py::test_c1_an_on_fire_with_after_or_urgent_is_scheduled_in_the_step_its_task_ends
     - tests/conformance/test_c6_environment.py::test_c6_fire_with_after_is_not_counted_by_a_drain
     - tests/conformance/test_c6_environment.py::test_c6_fire_twice_with_after_is_refused_as_a_one_shot_signal
   page: user-guide/tasks-and-processes/signals-and-waiting.md#actions-when-an-event-happens
@@ -1055,6 +1056,19 @@
     - tests/conformance/test_c1_events.py::test_c1_drain_waits_through_a_chain_of_firings
     - tests/conformance/test_c1_events.py::test_c1_process_signal_fire_is_not_counted
     - tests/conformance/test_c1_events.py::test_c1_on_spawn_upstream_after_each_end
+    - tests/conformance/test_c1_events.py::test_c1_on_sets_a_flag_the_next_task_of_another_entity_reads_in_that_step
+    - tests/conformance/test_c1_events.py::test_c1_an_on_spawn_asks_for_the_unit_in_the_step_its_task_ends
+    - tests/conformance/test_c1_events.py::test_c1_two_on_spawns_then_a_running_join_wait_for_both_children
+    - tests/conformance/test_c1_events.py::test_c1_fire_from_the_ending_task_wakes_a_waiter_in_the_step_the_task_ends
+    - tests/conformance/test_c1_events.py::test_c1_an_on_interrupt_reaches_its_target_in_the_step_its_task_ends
+    - tests/conformance/test_c1_events.py::test_c1_an_on_path_sets_an_arrival_gap_in_the_step_its_task_ends
+    - tests/conformance/test_c1_events.py::test_c1_an_on_interrupt_reaches_a_task_that_ends_at_the_same_instant
+    - tests/conformance/test_c1_events.py::test_c1_the_next_task_of_the_same_entity_reads_the_flag_its_on_set
+    - tests/conformance/test_c1_events.py::test_c1_the_next_condition_of_the_task_with_the_on_reads_the_old_value
+    - tests/conformance/test_c1_events.py::test_c1_an_on_fire_to_a_signals_on_runs_the_actions_one_step_later
+    - tests/conformance/test_c1_events.py::test_c1_closing_a_task_that_is_still_serving_runs_no_on_action
+    - tests/conformance/test_c1_events.py::test_c1_an_on_path_that_does_not_exist_in_a_child_flow_stops_the_run
+    - tests/conformance/test_c1_events.py::test_c1_an_on_path_that_does_not_exist_in_a_root_task_stops_the_run
     - tests/conformance/test_c1_events.py::test_c1_losing_child_flow_fire_after_left_is_not_counted
   page: user-guide/tasks-and-processes/signals-and-waiting.md#actions-when-an-event-happens
 
