@@ -100,9 +100,9 @@ An interrupted run publishes these as well, and its finished event when it ends:
 
 | Event | When | `value` |
 |---|---|---|
-| interrupted | an `interrupt` reached it; its units and waits were given up | `{"path_id": ..., "status": "interrupted", "cause": ...}` |
+| interrupted | an `interrupt` reached it; its waits were given up, and a unit it held stays with it unless `on_interrupt` is `abandon` | `{"path_id": ..., "status": "interrupted", "cause": ...}` |
 | preempted | a request of a lower priority value took its unit | `{"path_id": ..., "status": "preempted", "resource": ..., "preempted_by": ..., "usage_since": ...}` |
-| resumed | after an interrupt or a preemption, it holds its units again and is served | `{"path_id": ..., "status": "resumed"}` |
+| resumed | after an interrupt or a preemption, it holds its units again, also when it never gave them back, and is served | `{"path_id": ..., "status": "resumed"}` |
 
 The fields of these values are:
 

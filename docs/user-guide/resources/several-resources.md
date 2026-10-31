@@ -12,9 +12,9 @@ Some work needs more than one resource at a time: an order needs a picker and a 
 
 ## How to Use It
 
-A task can hold several resources at once: `resource: [picker, bench]` asks for a picker, then, while it holds the picker, for the bench. The task is served once it holds all of them, and it releases all of them when it finishes. While it waits for the bench, it holds the picker. The units are granted one at a time, never together, so a task can hold some of its resources while it waits for the rest. `patience` covers the whole acquisition, and an interrupt gives back every unit held.
+A task can hold several resources at once: `resource: [picker, bench]` asks for a picker, then, while it holds the picker, for the bench. The task is served once it holds all of them, and it releases all of them when it finishes. While it waits for the bench, it holds the picker. The units are granted one at a time, never together, so a task can hold some of its resources while it waits for the rest. `patience` covers the whole acquisition. A plain interrupt keeps the units already held and asks again only for the one it waits for, and `on_interrupt: abandon` gives every unit back.
 
-A task can also hand a unit to the next task of its flow with `keep`: the next task holds it from the start and gives it back once it publishes `started`. An order can therefore keep the picker until it is on the packing bench, as [Hand Off to a Resource](../../how-to/modelling/multi-resource-handoffs.md) shows step by step. If the unit is preempted while the next task holds it, that task is interrupted and follows its `on_interrupt`. The `competing-resources` example does both:
+A task can also hand a unit to the next task of its flow with `keep`: the next task holds it from the start and gives it back once it publishes `started`. An order can therefore keep the picker until it is on the packing bench, as [Hand Off to a Resource](../../how-to/modelling/multi-resource-handoffs.md) shows step by step. A task that reneges, whose wait fails with no `on_fail`, or that has no next task gives it back when it ends. If the unit is preempted while the next task holds it, that task is interrupted and follows its `on_interrupt`. The `competing-resources` example does both:
 
 === "YAML"
 

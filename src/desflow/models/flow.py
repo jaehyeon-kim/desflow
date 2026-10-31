@@ -21,7 +21,9 @@ class Entity:
             `attributes` and by each task's `set`, and read in conditions as
             `attr.<name>`. A payload includes them only when it asks for them.
         held (Dict[str, Any]): Resource units a task kept for the next task with
-            `keep`, by resource name; the next task gives them back once it starts.
+            `keep`, by resource name; the next task gives them back once it starts, or the
+            flow does when it ends without one, as after a renege or a failure with
+            no `on_fail`.
     """
 
     key: str

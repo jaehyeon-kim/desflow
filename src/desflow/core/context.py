@@ -1128,9 +1128,12 @@ class SimulationContext:
             preempt: On a resource added with `preempt=True`, whether the task's
                 requests may take a unit from a task of a higher priority value.
             on_interrupt: What an interrupt or a preemption does: `resume` (the
-                default) gives back every unit, queues again and serves the
-                remaining time; `restart` does the same with a new service time;
-                `abandon` ends the flow, or goes to `on_interrupt_next`.
+                default) goes on with the units it still holds, asks again for the
+                one it lost or waited for, and serves the remaining time; `restart`
+                does the same with a new service time; `abandon` gives back every
+                unit and ends the flow, or goes to `on_interrupt_next`. A plain
+                interrupt leaves a granted unit with the task; a preemption or a
+                breakdown takes it.
             on_interrupt_next: The task an abandoned instance goes to.
             interrupt: An action applied when the task finishes:
                 `{"task": name, "where": condition, "cause": value}` interrupts every

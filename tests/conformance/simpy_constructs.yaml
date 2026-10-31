@@ -21,10 +21,6 @@
 # A batch that removes a gap deletes its id from `gaps` and from every construct.
 
 gaps:
-  S5:
-    text: "A job resumed after an interrupt goes on one step later than a SimPy process that keeps its request."
-    form: computed
-    fixed: 0.29.0
   V1:
     text: "A service time computed from the entity, an item, shared state or the time has no key."
     form: computed
@@ -240,10 +236,10 @@ constructs:
   - {id: SP-C8, area: Conditions, simpy: "A request, get or put as a member of a condition", gaps: [T11]}
   # Interrupts
   - {id: SP-P8, area: Interrupts, simpy: "`Process.interrupt(cause)` while the process waits", gaps: [I9]}
-  - {id: SP-P9, area: Interrupts, simpy: "An interrupt during a timeout", gaps: [I3, S5]}
+  - {id: SP-P9, area: Interrupts, simpy: "An interrupt during a timeout", gaps: [I3]}
   - {id: SP-P10, area: Interrupts, simpy: "`Interrupt` and `Interrupt.cause`", gaps: [V7, V3]}
-  - {id: SP-P11, area: Interrupts, simpy: "Several interrupts at one time arrive in order", gaps: [S5]}
-  - {id: SP-P12, area: Interrupts, simpy: "A process waits again for the same event after an interrupt", gaps: [S5]}
+  - {id: SP-P11, area: Interrupts, simpy: "Several interrupts at one time arrive in order"}
+  - {id: SP-P12, area: Interrupts, simpy: "A process waits again for the same event after an interrupt"}
   - {id: SP-U2, area: Interrupts, simpy: "`subscribe_at(event)`"}
   # Resources
   - {id: SP-B1, area: Resources, simpy: "`capacity`", gaps: [T7]}

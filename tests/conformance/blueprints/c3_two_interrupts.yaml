@@ -1,5 +1,5 @@
 # A worker starts at 10 with 5 seconds of service and is interrupted twice at 12;
-# it resumes once and ends at 15. See test_c3_interrupts.py.
+# it keeps its unit, resumes after each and ends at 15. See test_c3_interrupts.py.
 simulation:
   sim_id: C3
   factor: 0

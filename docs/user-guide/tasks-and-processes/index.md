@@ -241,7 +241,7 @@ A process outside a task runs as [Processes](processes.md#how-it-works) describe
 ## Stability and Limits
 
 - **Resources are acquired in one order.** A task can hold several resources and hand one to the next task, but tasks that acquire two resources in opposite orders are refused: [Several Resources](../resources/several-resources.md#several-resources).
-- **An interrupt gives back everything.** An interrupted task cancels its waits and releases every unit it holds before it follows its `on_interrupt`, so a resumed task queues again behind the requests already waiting: [Interruptions](../../learn/shop-logic/interruptions.md).
+- **`abandon` gives back everything.** An interrupted task cancels its waits. Under `resume` and `restart` it keeps a unit it holds through a plain interrupt and asks again only for a unit it lost, at the back of the line. A preemption or a breakdown takes the unit. Under `abandon` it releases every unit before it follows `on_interrupt_next`: [Interruptions](../../learn/shop-logic/interruptions.md).
 - **A finished event is exactly the payload.** It has no `status` or `path_id` unless the payload includes them.
 - **A condition branch checks after every change.** In a model with many waits on conditions and many changes, the work grows in proportion to both.
 - **Runtime helpers need a running simulation.** They raise `RuntimeError` before `run()`, as [Builder API](../writing-a-model/builder-api.md) lists. Call them inside a loop, task or process.

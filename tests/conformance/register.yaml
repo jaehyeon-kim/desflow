@@ -180,6 +180,7 @@
   low_level: "`process.interrupt(cause)`, caught as `simpy.Interrupt`"
   checks:
     - tests/conformance/test_c3_interrupts.py::test_c3_interrupt_while_waiting
+    - tests/conformance/test_c3_interrupts.py::test_c3_an_interrupt_in_a_queue_keeps_the_unit_already_granted
   page: learn/shop-logic/interruptions.md#interrupt-a-task
 
 - id: C3
@@ -193,6 +194,16 @@
   checks:
     - tests/conformance/test_c3_interrupts.py::test_c3_interrupt_during_service
     - tests/conformance/test_c3_interrupts.py::test_c3_two_interrupts_at_one_instant
+    - tests/conformance/test_c3_interrupts.py::test_c3_a_plain_interrupt_keeps_the_unit_while_others_wait
+    - tests/conformance/test_c3_interrupts.py::test_c3_abandon_with_a_next_task_gives_the_unit_back_and_asks_again
+    - tests/conformance/test_c3_interrupts.py::test_c3_a_unit_the_task_before_kept_goes_back_when_the_task_ends_without_starting
+    - tests/conformance/test_c3_interrupts.py::test_c3_a_breakdown_takes_the_broken_unit_and_a_worker_keeps_its_other_unit
+    - tests/conformance/test_c3_interrupts.py::test_c3_an_interrupt_during_a_get_keeps_the_unit_and_cancels_the_get
+    - tests/conformance/test_c3_interrupts.py::test_c3_an_interrupt_at_the_exact_end_of_service_goes_on_a_step_later
+    - tests/conformance/test_c3_interrupts.py::test_c3_an_interrupt_in_a_put_after_the_service_does_not_serve_again
+    - tests/conformance/test_c3_interrupts.py::test_c3_a_kept_unit_goes_back_when_the_flow_ends_without_a_next_task
+    - tests/conformance/test_c3_interrupts.py::test_c3_an_error_outside_the_function_gives_back_a_kept_unit_in_a_child_flow
+    - tests/conformance/test_c3_interrupts.py::test_c3_a_child_flow_that_ends_does_not_give_back_a_unit_its_sibling_keeps
     - tests/conformance/test_c1_process_interaction.py::test_c1_an_interrupt_cause_is_read_in_the_next_task
   page: learn/shop-logic/interruptions.md#resume-restart-or-abandon
 
@@ -398,6 +409,7 @@
   low_level: "`yield parcels.put(item)`"
   checks:
     - tests/conformance/test_c5_bounded.py::test_c5_bounded_store_put
+    - tests/conformance/test_c5_inventory.py::test_c5_a_default_put_goes_on_in_the_step_the_put_event_is_processed
   page: user-guide/model-parts/stores-and-containers.md#take-and-add
 
 - id: C5

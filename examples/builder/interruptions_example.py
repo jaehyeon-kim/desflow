@@ -3,8 +3,8 @@
 One packer serves express orders (priority 0) before regular ones (priority 1), and
 an express order takes the packer from a regular order being packed. The regular
 order is preempted, queues again and resumes with the packing time it had left. At
-60 seconds a fire drill interrupts the order being packed, which resumes when it
-gets the packer back.
+60 seconds a fire drill interrupts the order being packed, which goes on with its
+packer.
 
 Needs no containers. Runs unpaced and ends after 120 simulation seconds.
 """
@@ -39,7 +39,8 @@ app = (
     service_id="packing",
     resource_id="packers",
     priority="attr.priority",
-    # A preempted or interrupted order queues again and serves what it had left
+    # A preempted order queues again and serves what it had left; an interrupted one
+    # goes on with its packer
     on_interrupt="resume",
 )
 def pack(task_id, context, entity):

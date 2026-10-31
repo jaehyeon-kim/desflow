@@ -12,6 +12,7 @@ and YAML cancel a get through `patience`, and a put through an interrupt with
 `on_interrupt: abandon`.
 """
 
+import pytest
 import simpy
 
 from desflow import (
@@ -23,7 +24,12 @@ from desflow import (
     SimParameter,
 )
 from desflow.core.context import SimulationContext
-from tests.conformance.harness import run_builder, run_low_level, run_yaml
+from tests.conformance.harness import (
+    run_builder,
+    run_low_level,
+    run_yaml,
+    run_yaml_text,
+)
 
 ORDERS = {"large": (10, "L"), "small": (11, "S")}  # name: (arrives at, size wanted)
 PARCELS = [(12, "S"), (13, "L")]  # put at, size
@@ -349,3 +355,83 @@ def test_c5_cancel_quantity_put():
     assert _low_level_cancel("container", "put") == 0
     assert _builder_cancel_put("container") == 0
     assert _yaml_cancel_put("container") == 0
+
+
+def _reference_put_then_desk(kind, order, n):
+    """Two arrival processes each start `n` sources that put one thing into an
+    unbounded holder and then take the only desk for 1, and a third starts `n`
+    entities that only take the desk, in plain SimPy: `yield holder.put(...)` goes
+    on in the step the put event is processed, so the desk queue follows the order of
+    the puts, and an entity that does not put and is made after the sources asks
+    first."""
+    env = simpy.Environment()
+    holder = simpy.Store(env) if kind == "store" else simpy.Container(env)
+    desk = simpy.Resource(env, capacity=1)
+    trace = []
+
+    def source(name):
+        yield holder.put(name) if kind == "store" else holder.put(1)
+        with desk.request() as req:
+            yield req
+            trace.append((env.now, name, "started"))
+            yield env.timeout(1)
+            trace.append((env.now, name, "worked"))
+
+    def plain(name):
+        with desk.request() as req:
+            yield req
+            trace.append((env.now, name, "started"))
+            yield env.timeout(1)
+            trace.append((env.now, name, "worked"))
+
+    def arrivals(arrival, make):
+        for i in range(1, n + 1):
+            yield env.timeout(0)  # a replay arrival waits its gap before each spawn
+            env.process(make(f"{arrival}-{i}"))
+
+    for arrival in order:
+        env.process(arrivals(arrival, source))
+    env.process(arrivals("plain", plain))
+    env.run(until=4 * n + 4)
+    return trace
+
+
+@pytest.mark.parametrize("order", ["ab", "ba"])
+@pytest.mark.parametrize("n", [1, 3, 10])
+@pytest.mark.parametrize("kind", ["store", "container"])
+def test_c5_a_default_put_goes_on_in_the_step_the_put_event_is_processed(
+    tmp_path, kind, n, order
+):
+    """Pins unchanged behaviour (0.29.0 changes no put code): a task whose `put` waits
+    for the put, the default, goes on as `yield holder.put(...)` does, so entities
+    that put at one instant reach the desk in SimPy's order."""
+    expected = _reference_put_then_desk(kind, order, n)
+    put = "{store: box}" if kind == "store" else "{container: box, amount: 1}"
+    holder = "stores: {box: {}}" if kind == "store" else "containers: {box: {}}"
+    arrivals = (
+        "".join(f"  {a}: {{replay: {{path: {a}.csv}}, spawn: fill}}\n" for a in order)
+        + "  plain: {replay: {path: plain.csv}, spawn: use}\n"
+    )
+    text = (
+        "simulation: {sim_id: C5, factor: 0}\n"
+        f"{holder}\n"
+        "resources: {desk: {}}\n"
+        "services: {one: {dist: constant, value: 1}}\n"
+        f"arrivals:\n{arrivals}"
+        "tasks:\n"
+        f"  fill: {{put: {put}, payload: {{event: put}}, next: use}}\n"
+        "  use: {service: one, resource: desk, payload: {event: worked}}\n"
+        f"run: {{until: {4 * n + 4}}}\n"
+    )
+    outcome = run_yaml_text(
+        tmp_path, text, {"a": [0] * n, "b": [0] * n, "plain": [0] * n}
+    )
+    assert outcome.error is None
+    got = [
+        (float(r["sim_ts"]), r["key"], r["value"].get("status", "worked"))
+        for r in outcome.records
+        if r["stream_type"] == "event"
+        and r["task"] == "use"
+        and r["value"].get("status") != "queued"
+    ]
+    assert got == expected

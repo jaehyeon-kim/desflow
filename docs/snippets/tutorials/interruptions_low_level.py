@@ -54,11 +54,14 @@ def pack(env, sampler, shop, arrival, key, task_id, policy):
     shop["running"].setdefault(task, []).append(env.active_process)
     shop["keys"][env.active_process] = key
     remaining, started = None, False
+    request = None
     while True:
-        request = shop["packers"].request(priority=priority)
+        if request is None:
+            request = shop["packers"].request(priority=priority)
         since = None
         try:
-            yield request
+            if not request.processed:
+                yield request
             status = "resumed" if started else "started"
             publish({"path_id": path_id, "status": status})
             if started:
@@ -75,8 +78,11 @@ def pack(env, sampler, shop, arrival, key, task_id, policy):
             shop["packers"].release(request)
             break
         except simpy.Interrupt as interrupt:
-            request.cancel()
-            shop["packers"].release(request)
+            if policy == "abandon" or request not in shop["packers"].users:
+                # Ask again if queued or preempted; abandon gives a held unit back
+                request.cancel()
+                shop["packers"].release(request)
+                request = None
             if since is not None:
                 # resume serves what is left; restart draws a new packing time
                 remaining = (

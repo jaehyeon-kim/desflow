@@ -10,9 +10,10 @@ changes only with an Upgrading line in the Changelog.
 QUEUE_ORDERS = ("fifo", "lifo", "priority")
 DEFAULT_QUEUE_ORDER = "fifo"
 
-# What a task does when it is interrupted or preempted: `resume` queues again and
-# serves the remaining time, `restart` queues again with a new service time, and
-# `abandon` ends the task.
+# What a task does when it is interrupted or preempted: `resume` asks again for a
+# unit it lost and serves the remaining time, `restart` does the same with a new
+# service time, and `abandon` gives back every unit and ends the task. A plain
+# interrupt leaves a granted unit with the task; a preemption takes it.
 INTERRUPT_POLICIES = ("resume", "restart", "abandon")
 UNHANDLED_FAILURE_POLICIES = ("stop", "continue")
 

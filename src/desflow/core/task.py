@@ -545,9 +545,13 @@ class TaskRun:
         payload: Any = None
         rank = self._rank() if self.spec.resources else None
         remaining: Optional[float] = None  # service still owed, when interrupted
-        started = got_item = put_done = False
+        started = got_item = put_done = served = False
+        # The requests the task holds, and the position in `spec.resources` each one
+        # asked for. Kept across a resume, as a SimPy process keeps its request
+        # across `except Interrupt`.
+        held: List[Any] = []
+        slots: Dict[int, Any] = {}
         while failure is None:
-            held: List[Any] = []
             service_from: Optional[float] = None
             try:
                 # A unit a request wait branch won and a preemption then took is
@@ -579,7 +583,9 @@ class TaskRun:
                                 self._release(held)
                                 self._renege()
                                 return None
-                for resource in spec.resources:
+                for at, resource in enumerate(spec.resources):
+                    if at in slots:
+                        continue
                     self._target = f"resource.{resource}"
                     try:
                         request = self.context._resources_map[resource].request(
@@ -591,6 +597,7 @@ class TaskRun:
                         self._balk_full(self.context._resources_map[resource])
                         return None
                     held.append(request)
+                    slots[at] = request
                     deadline = self._deadline()
                     if deadline is None:
                         yield request
@@ -636,7 +643,7 @@ class TaskRun:
                     self.publish(self.status("resumed"))
                     stats.task_resumed(spec.name, self.task_id)
                 if failure is None:
-                    if spec.service_id is not None and remaining != 0:
+                    if spec.service_id is not None and not served:
                         if remaining is None:
                             config = env.registry.get_config(
                                 f"{self.context.sim_id}.service.{spec.service_id}"
@@ -645,7 +652,7 @@ class TaskRun:
                         service_from = env.now
                         self._target = "service"
                         yield env.timeout(remaining)
-                        remaining, service_from = 0.0, None
+                        remaining, service_from, served = 0.0, None, True
                     if spec.put is not None and not put_done:
                         if spec.put.wait:
                             self._target = f"put.{spec.put.target}"
@@ -667,7 +674,12 @@ class TaskRun:
                     stats.task_failed(spec.name, self.task_id)
             except Interrupt as interrupt:
                 self._waited()
-                self._release(held)
+                if spec.on_interrupt == "abandon":
+                    self._release(held)
+                else:
+                    # A plain interrupt leaves a granted unit with the task; a
+                    # preemption or a breakdown has already taken it
+                    self._keep_granted(held, slots)
                 # A unit asked for again and not yet granted leaves the line, so
                 # the resume asks once, not twice
                 for request in self._wait_held:
@@ -687,6 +699,7 @@ class TaskRun:
                 # `with` block does, so a child flow whose failure is handled
                 # elsewhere does not keep them for the rest of the run
                 self._release(held)
+                self._release_kept(own=True)
                 self._end_wait()
                 raise
             self._release(held)
@@ -708,6 +721,8 @@ class TaskRun:
             self._set_ended(failed, ok=False, result=TaskFailed(spec.name, failure))
             if spec.on_fail is not None:
                 return self._follow(spec.on_fail, failed)
+            # No task follows, so the units this flow keeps for it go back
+            self._release_kept(own=True)
             if self.child:
                 raise TaskFailed(spec.name, failure) from self._fail_error
             # Under `continue` a root task's failure ends the flow and the run goes
@@ -752,6 +767,7 @@ class TaskRun:
         # The end event succeeds once the next task is chosen, before the hand-on.
         self._set_ended(handed, ok=True, result=payload)
         if following is None:
+            self._release_kept(own=True)
             if self.child:
                 return payload
             self._end_flow("finished")
@@ -791,6 +807,26 @@ class TaskRun:
             self._pending.cancel()
             self._pending = None
 
+    def _keep_granted(self, held: List[Any], slots: Dict[int, Any]) -> None:
+        """Keeps the granted units of a resource that is up, which a resumed task
+        goes on with; cancels and gives back the others, so the resume asks for
+        only the units it lost."""
+        for at, request in list(slots.items()):
+            resource = request.resource
+            if (
+                request.triggered
+                and request in resource.users
+                and not getattr(resource, "down", False)
+            ):
+                continue
+            request.cancel()
+            resource.release(request)
+            held.remove(request)
+            del slots[at]
+        if self._pending is not None:
+            self._pending.cancel()
+            self._pending = None
+
     def _end_wait(self) -> None:
         """At the task's true end, not a resume, gives back the units a `request` wait
         branch won and cancels any wait-branch event still live, so a renege, a
@@ -818,19 +854,35 @@ class TaskRun:
                 event.resource.release(event)
         self._wait_events = {}
 
-    def _release_kept(self) -> None:
-        """Gives back the units the task before kept for this one."""
+    def _release_kept(self, lost_only: bool = False, own: bool = False) -> None:
+        """Gives back the units the task before kept for this one; with `lost_only`,
+        only those on a resource that is down or that a preemption already took, and
+        with `own`, only those this flow's process asked for, because the child flows
+        of one entity share its kept units."""
         for name in list(self.entity.held):
-            request = self.entity.held.pop(name)
-            request.resource.release(request)
+            request = self.entity.held[name]
+            resource = request.resource
+            if own and request.proc is not self.env.active_process:
+                continue
+            if (
+                lost_only
+                and request in resource.users
+                and not getattr(resource, "down", False)
+            ):
+                continue
+            del self.entity.held[name]
+            resource.release(request)
 
     def _interrupted(self, interrupt: Interrupt) -> bool:
         """Publishes an interrupt or a preemption; True when the task goes on.
 
-        The task has already given back its units and cancelled its waits.
+        The task has already cancelled its waits. Under `abandon` it has given back
+        its units, and so are the units the task before kept; otherwise a plain
+        interrupt leaves a granted unit, and only a unit a breakdown or a preemption
+        took goes back.
         """
         spec, stats = self.spec, self.env.stats
-        self._release_kept()
+        self._release_kept(lost_only=spec.on_interrupt != "abandon")
         cause = interrupt.cause
         preempted = isinstance(cause, Preempted)
         if preempted:
@@ -918,6 +970,7 @@ class TaskRun:
         self._end_flow("ended")
 
     def _renege(self) -> None:
+        self._release_kept(own=True)
         self._end_wait()
         self.publish(self.status("reneged"))
         self.env.stats.task_reneged(self.spec.name, self.task_id)

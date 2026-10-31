@@ -84,7 +84,8 @@ The preempted task publishes `preempted` with the resource's name, the key of th
         service: packing
         resource: packers
         priority: attr.priority
-        # A preempted or interrupted order queues again and serves what it had left.
+        # A preempted order queues again and serves what it had left; an interrupted one
+        # goes on with its packer.
         on_interrupt: resume
         payload: {event_type: order_packed}
         attributes: [priority]
@@ -102,7 +103,8 @@ The preempted task publishes `preempted` with the resource's name, the key of th
         service_id="packing",
         resource_id="packers",
         priority="attr.priority",
-        # A preempted or interrupted order queues again and serves what it had left
+        # A preempted order queues again and serves what it had left; an interrupted one
+        # goes on with its packer
         on_interrupt="resume",
     )
     def pack(task_id, context, entity):
@@ -113,8 +115,8 @@ The preempted task publishes `preempted` with the resource's name, the key of th
 
     ```python title="examples/low-level/interruptions_example.py:pack"
     def pack(env, sampler, shop, key, priority, task_id):
-        """Packs one order; a preemption or an interrupt sends it back to the queue
-        with the packing time it had left."""
+        """Packs one order; a preemption sends it back to the queue with the packing
+        time it had left, and an interrupt keeps its packer, as `on_interrupt` does."""
         path_id = "Shop.service.packing"
 
         def publish(value):
@@ -126,11 +128,14 @@ The preempted task publishes `preempted` with the resource's name, the key of th
         remaining, started = None, False
         shop["packing"].append(env.active_process)
         shop["keys"][env.active_process] = key
+        request = None
         while True:
-            request = shop["packers"].request(priority=priority)
+            if request is None:
+                request = shop["packers"].request(priority=priority)
             since = None
             try:
-                yield request
+                if not request.processed:
+                    yield request
                 if not started:
                     started = True
                     publish({"path_id": path_id, "status": "started"})
@@ -148,10 +153,12 @@ The preempted task publishes `preempted` with the resource's name, the key of th
                 shop["packers"].release(request)
                 break
             except simpy.Interrupt as interrupt:
-                request.cancel()
-                shop["packers"].release(request)  # nothing to give back if preempted
                 if since is not None:
                     remaining -= env.now - since
+                if request not in shop["packers"].users:
+                    # Queued, or preempted: ask again. A unit still held is kept.
+                    request.cancel()
+                    request = None
                 if isinstance(interrupt.cause, Preempted):
                     value = {
                         "path_id": path_id,

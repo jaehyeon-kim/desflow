@@ -642,10 +642,10 @@ def test_a_single_timeout_branch_is_read_as_wait_timeout_done():
     assert (5.0, "after", "after") in events
 
 
-def test_a_preempted_task_gives_a_kept_unit_back_and_the_stat_counts_it():
-    """A task preempted while keeping a second unit for its next task gives that kept
-    unit back before its preempted record, so a task waiting for it starts, and the
-    preempted statistic counts the preemption."""
+def test_a_task_preempted_on_its_second_resource_keeps_the_first_and_the_stat_counts_it():
+    """A task preempted on its second resource keeps the first, as nested `with`
+    blocks do, so a task waiting for the first starts when the preempted task ends,
+    not at the preemption. The preempted statistic counts the preemption."""
     keep = _Keep()
     app = SimulationContext("Shop", factor=0).add_egress(keep)
     app.with_stats("basic", interval=1000)
@@ -654,25 +654,18 @@ def test_a_preempted_task_gives_a_kept_unit_back_and_the_stat_counts_it():
     )
     app.add_resource("tray", current_cap=1, max_cap=1, queue="priority")
     app.add_service("working", dist="constant", value=10)
-    app.add_service("finishing", dist="constant", value=1)
     app.add_service("grabbing", dist="constant", value=1)
     app.add_service("rushing", dist="constant", value=1)
 
     @app.task(
         service_id="working",
         resource_id=["tray", "machine"],
-        keep=["tray"],
-        next="finish",
         priority=5,
         on_interrupt="resume",
         name="work",
     )
     def work(task_id):
         return {"event": "worked"}
-
-    @app.task(service_id="finishing", resource_id="tray", name="finish")
-    def finish(task_id):
-        return {"event": "finished"}
 
     @app.task(service_id="grabbing", resource_id="tray", name="grab")
     def grab(task_id):
@@ -683,7 +676,7 @@ def test_a_preempted_task_gives_a_kept_unit_back_and_the_stat_counts_it():
         return {"event": "rushed"}
 
     def script(context):
-        context.spawn(work(0))  # holds the machine and the tray, keeps the tray
+        context.spawn(work(0))  # holds the machine and the tray
         context.spawn(grab(0))  # waits for the tray
         yield context.env.timeout(3)
         context.spawn(rush(0))  # preempts work on the machine
@@ -696,15 +689,10 @@ def test_a_preempted_task_gives_a_kept_unit_back_and_the_stat_counts_it():
         if r["stream_type"] == "event"
     ]
     assert (3.0, "work", "preempted") in events
+    assert (4.0, "work", "resumed") in events
+    assert (11.0, "work", "worked") in events
     grab_started = [t for t, task, s in events if task == "grab" and s == "started"]
-    assert grab_started == [3.0]
-    # The kept unit is given back before the preempted record, so the record is
-    # published first and grab starts in the next step.
-    preempted_index = events.index((3.0, "work", "preempted"))
-    started_index = next(
-        i for i, (t, task, s) in enumerate(events) if task == "grab" and s == "started"
-    )
-    assert preempted_index < started_index
+    assert grab_started == [11.0]
     assert app.env.stats.readings()["Shop.stats.tasks.work.preempted"] == 1
 
 

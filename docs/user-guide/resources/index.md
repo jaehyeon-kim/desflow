@@ -167,7 +167,7 @@ In a blueprint, `queue_limit` sits beside the capacity. `packers` has the defaul
 
 ### Cancel and Release
 
-A task leaves a queue when its patience runs out, when it is interrupted, or under `on_interrupt: abandon`. It then cancels its request, so the request is never granted later. Once a unit is granted, the task gives it back when it finishes, when it is interrupted, and when it is preempted (the preempting task has it then). In the low-level API these are SimPy's calls:
+A task leaves a queue when its patience runs out, when it is interrupted, or under `on_interrupt: abandon`. It then cancels its request, so the request is never granted later. Once a unit is granted, the task gives it back when it finishes, under `on_interrupt: abandon`, and when it is preempted (the preempting task has it then). A plain interrupt under `resume` or `restart` leaves the unit with the task. In the low-level API these are SimPy's calls:
 
 ```python title="docs/snippets/pages/resource_cancel.py:cancel"
 held = packers.request()  # granted at once: the packer was free
