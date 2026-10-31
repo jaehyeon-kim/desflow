@@ -219,7 +219,31 @@ ______________________________________________________________________
 
 ## Check the Result
 
-`python analyse_the_event_log.py` runs the builder form, writes the files to `analyse_output/` and prints the counts below. `python analyse_the_event_log_low_level.py` does the same with the low-level form, and `run_yaml` with the blueprint. Each form writes the same events, so each gives the same counts.
+Save the files of your form from [Full Files](#full-files) in a folder of their own, each under the last part of its title. Every form needs `analyse_the_event_log.py`, which holds the analysis. Run from that folder, each writes the files to `analyse_output/` and prints the counts. The forms write the same events, so they print the same counts:
+
+The files are `analyse_the_event_log.yaml` and `analyse_the_event_log.py`. The argument `yaml` makes the script run the blueprint with `run_yaml`:
+
+```bash
+python analyse_the_event_log.py yaml
+```
+
+The file is `analyse_the_event_log.py`:
+
+```bash
+python analyse_the_event_log.py
+```
+
+The files are `analyse_the_event_log_low_level.py` and `analyse_the_event_log.py`:
+
+```bash
+python analyse_the_event_log_low_level.py
+```
+
+```text
+318 rows in the log, for 64 orders
+mean wait 1.250 s
+throughput 31.5 orders a minute
+```
 
 The first order waits **0.0** seconds and is in the shop for **1.5** seconds. The mean wait is **1.250** seconds and the longest wait is **3.66** seconds. These come from one 2-minute run of a shop with one packer, not from the busy hour of the tutorials. **63** orders leave in two minutes, a throughput of **31.5** orders a minute. The 64th is still being packed, so it has a wait and no time in the shop.
 
@@ -274,14 +298,16 @@ The shop runs for two minutes with one packer and writes its events to Parquet. 
 script reads the files with pyarrow, turns each order's three events into the rows of
 an event log (entity, event type, event, time, run), and computes each order's wait
 and time in the shop and the run's throughput. It uses pyarrow only, no pandas.
-python analyse_the_event_log.py writes the files to analyse_output/. `run_yaml`
-runs analyse_the_event_log.yaml instead, and analyse_the_event_log_low_level.py is
-the low-level API; each writes the same events.
+python analyse_the_event_log.py writes the files to analyse_output/. With the
+argument yaml, `run_yaml` runs analyse_the_event_log.yaml (beside the script) instead,
+and analyse_the_event_log_low_level.py is the low-level API; each writes the same
+events.
 """
 
 import logging
 import os
 import shutil
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -413,7 +439,7 @@ def throughput_per_minute(log: Table, seconds: float) -> float:
 
 if __name__ == "__main__":
     folder = Path("analyse_output")
-    run(folder)
+    run_yaml(folder) if sys.argv[1:] == ["yaml"] else run(folder)
     log = event_log(read_events(folder))
     per_order = waits_and_times(log)
     print(f"{log.num_rows} rows in the log, for {len(per_order)} orders")

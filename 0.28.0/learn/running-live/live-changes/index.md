@@ -17,7 +17,7 @@ This page shows how to:
 
 ## What You Add
 
-This page adds a **planned intervention**: two scenario steps that change the packing time and publish a **label**, a ground-truth record of each change. The events go to one file sink and the labels to another. A second run without the jam gives the baseline. A last step sends the same change live from `LocalIngress`, with no broker.
+This page adds a **planned intervention**: two scenario steps that change the packing time and publish a **label**, a ground-truth record of each change. The events go to one file sink and the labels to another. The file sinks need the `parquet` extra, so install `desflow[parquet]` (`pip install "desflow[parquet]"`). Without it, the run logs that pyarrow is required and writes no files. A second run without the jam gives the baseline. A last step sends the same change live from `LocalIngress`, with no broker.
 
 ______________________________________________________________________
 
@@ -129,7 +129,7 @@ env.setup_egress(
 
 `labels` takes one entry per sink, in the order of the list.
 
-Save the files from [Full Files](#full-files) in one folder and run the commands there: `desflow run live_changes.yaml`, `python live_changes.py` or `python live_changes_low_level.py`. Each sink writes one file per batch, such as `labels/labels_1a2b3c4d.jsonl`. A second run in the same folder adds new files beside the old ones, so start each run in an empty folder. The run writes these two labels. `--stdout` prints the run's records as JSON lines instead of writing the files, so `grep` shows the labels without a file to open. In the builder and the low-level API, `ConsoleEgress(format="json")` as the sink prints the same lines:
+Save the files from [Full Files](#full-files) in one folder and run the commands there: `desflow run live_changes.yaml`, `python live_changes.py` or `python live_changes_low_level.py`. Each sink writes one file per batch, such as `labels/labels_1a2b3c4d.jsonl`. The YAML file writes `events/` and `labels/` in the folder where you run it, and the scripts write below `live_changes_output/`. A second run in the same folder adds new files beside the old ones, so start each run in an empty folder. The run writes these two labels. `--stdout` prints the run's records as JSON lines instead of writing the files, so `grep` shows the labels without a file to open. In the builder and the low-level API, `ConsoleEgress(format="json")` as the sink prints the same lines:
 
 ```bash
 desflow run live_changes.yaml --stdout | grep '"label"'
@@ -175,13 +175,31 @@ def mean_wait(by_time: dict, start: float, end: float) -> float:
     return sum(window) / len(window)
 ```
 
-The comparison is done in Python, with these functions, in every tab. In YAML, delete the `scenario` block, run the file again in another empty folder, and read the `events/` folders of both runs with the functions. The Builder and Low-level scripts run both and print the results. The packing time is constant and draws no random numbers, so the jam does not change the arrival gaps the seed draws. Both runs therefore have the same orders at the same times, and each order's two waits can be compared one to one.
+The Builder and Low-level scripts run both hours and print the comparison. They write the files to `live_changes_output/jam/` and `live_changes_output/baseline/`. The YAML file runs one hour at a time, so the baseline is a copy without the `scenario` block, and the Builder script reads the two folders with the functions above:
+
+```bash
+mkdir jam baseline
+sed '/^scenario:/,/^$/d' live_changes.yaml > live_changes_baseline.yaml
+(cd jam && desflow run ../live_changes.yaml)
+(cd baseline && desflow run ../live_changes_baseline.yaml)
+python live_changes.py compare jam baseline
+```
+
+```bash
+python live_changes.py 2>/dev/null
+```
+
+```bash
+python live_changes_low_level.py 2>/dev/null
+```
+
+Each command ends with the same five lines, which [What You Get and Why](#what-you-get-and-why) shows. The packing time is constant and draws no random numbers, so the jam does not change the arrival gaps the seed draws. Both runs therefore have the same orders at the same times, and each order's two waits can be compared one to one.
 
 ______________________________________________________________________
 
 ## Send It Live
 
-A scenario is planned in advance. A change from outside arrives while the run goes on, from an ingress connector. `LocalIngress` is the ingress connector that needs no broker. It applies each change after a delay in wall-clock seconds, so the run must be paced. Here the run lasts 5 simulated minutes, paced at 200 simulated seconds for each wall-clock second, so it takes 1.5 wall-clock seconds:
+A scenario is planned in advance. A change from outside arrives while the run goes on, from an ingress connector. `LocalIngress` is the ingress connector that needs no broker. It applies each change after a delay in wall-clock seconds, so the run must be paced. Here the run lasts 5 simulated minutes, paced at 200 simulated seconds for each wall-clock second (`factor: 0.005`, so each simulated second takes 0.005 wall-clock seconds), so it takes 1.5 wall-clock seconds:
 
 ```yaml
 # Half a wall-clock second after the start, set packing to 3 seconds
@@ -205,7 +223,7 @@ ingress = [LocalIngress(schedule=[(0.5, "Shop.service.packing.value", 3.0)])]
 
 Half a wall-clock second is 100 simulated seconds at this pace, and packing changes to 3 seconds about then. The exact time depends on how fast the machine runs, so it differs from run to run. The change publishes no label: an ingress update changes the registry and nothing else, so no `labels/` folder is created. To keep the ground truth of a live change, the sender must record it itself.
 
-`live_changes_live.yaml` writes to `live/`, so its files stay apart from those of `live_changes.yaml`. Send it live with `desflow run live_changes_live.yaml`, `python live_changes.py live` or `python live_changes_low_level.py live`. The two scripts print `packing after the live change: 3.0 s`. [Ingress](https://jaehyeon.me/desflow/latest/user-guide/live-runs-and-connectors/ingress/index.md) describes the connectors that read Kafka, Redis and PostgreSQL in the same way.
+`live_changes_live.yaml` writes to `live/`, and the scripts to `live_changes_output/live/`, so the files stay apart from those of the jam runs. Send it live with `desflow run live_changes_live.yaml`, `python live_changes.py live` or `python live_changes_low_level.py live`. The two scripts print `packing after the live change: 3.0 s`. [Ingress](https://jaehyeon.me/desflow/latest/user-guide/live-runs-and-connectors/ingress/index.md) describes the connectors that read Kafka, Redis and PostgreSQL in the same way.
 
 ______________________________________________________________________
 
@@ -217,7 +235,17 @@ How long does the jam keep orders waiting after the fix? In one run of the hour 
 
 Each tab gives the labels and the mean waits:
 
-The labels are the two lines that `desflow run live_changes.yaml --stdout | grep '"label"'` prints in [Write Events and Labels Apart](#write-events-and-labels-apart). The mean waits come from the event files of two runs, read with the Python functions of [Measure Against a Baseline](#measure-against-a-baseline). The Builder and Low-level scripts do both runs and print them.
+```bash
+python live_changes.py compare jam baseline
+```
+
+```text
+label at 1200.0 s: printer_jam, packing 1.5 s to 3.0 s
+label at 1800.0 s: printer_fixed, packing 3.0 s to 1.5 s
+with the jam: mean wait  80.85 s from 20 to 30 min,  11.93 s from 30 to 40 min
+  without it: mean wait   1.50 s from 20 to 30 min,   1.04 s from 30 to 40 min
+the last order that waits longer is queued at 1987.8 s
+```
 
 ```bash
 python live_changes.py 2>/dev/null
@@ -359,6 +387,9 @@ on average (rate 0.4). From 20 to 30 minutes a jammed label printer slows packin
 to labels/, and the script prints the mean waits with and without the jam.
 Run it with: python live_changes.py
 With the argument live, it sends the jam live: python live_changes.py live
+With compare and two folders, it reads two runs that are already written, such as the
+runs of live_changes.yaml with and without its scenario block:
+python live_changes.py compare jam baseline
 """
 
 import json
@@ -449,13 +480,18 @@ def mean_wait(by_time: dict, start: float, end: float) -> float:
 
 def outcomes(out: Path) -> dict:
     """Runs the hour with and without the jam; returns the labels and mean waits."""
-    result: dict = {}
-    by_run: dict = {}
     for jam in (True, False):
         folder = out / ("jam" if jam else "baseline")
         shutil.rmtree(folder, ignore_errors=True)  # a run adds files; start empty
         shop(folder, jam).run(until="1 h")
-        by_time = by_run[jam] = waits(folder)
+    return compare(out / "jam", out / "baseline")
+
+
+def compare(jam_folder: Path, baseline_folder: Path) -> dict:
+    """Reads the two runs' files; returns the labels and mean waits."""
+    result: dict = {}
+    by_run = {True: waits(jam_folder), False: waits(baseline_folder)}
+    for jam, by_time in by_run.items():
         result[jam] = {
             "jam": round(mean_wait(by_time, 1200, 1800), 2),
             "after": round(mean_wait(by_time, 1800, 2400), 2),
@@ -464,12 +500,26 @@ def outcomes(out: Path) -> dict:
     result["last_longer"] = max(
         at for at, wait in by_run[True].items() if wait > by_run[False][at] + 0.001
     )
-    labels = read_rows(out / "jam" / "labels")
+    labels = read_rows(jam_folder / "labels")
     result["labels"] = [
         (row["sim_ts"], row["label"]["intervention"], row["old"], row["new"])
         for row in sorted(labels, key=lambda row: row["sim_ts"])
     ]
     return result
+
+
+def report(result: dict) -> None:
+    """Prints the labels and the mean waits."""
+    for at, name, old, new in result["labels"]:
+        print(f"label at {at:6.1f} s: {name}, packing {old} s to {new} s")
+    for jam, label in ((True, "with the jam"), (False, "without it")):
+        print(
+            f"{label:>12}: mean wait {result[jam]['jam']:6.2f} s from 20 to 30 min, "
+            f"{result[jam]['after']:6.2f} s from 30 to 40 min"
+        )
+    print(
+        f"the last order that waits longer is queued at {result['last_longer']:.1f} s"
+    )
 
 
 def live(out: Path) -> SimulationContext:
@@ -494,16 +544,11 @@ if __name__ == "__main__":
         env = live(here / "live").env
         packing = env.registry.get_config("Shop.service.packing").value
         print(f"packing after the live change: {packing} s")
+    elif sys.argv[1:2] == ["compare"]:
+        # python live_changes.py compare jam baseline: two runs that are already written
+        report(compare(Path(sys.argv[2]), Path(sys.argv[3])))
     else:
-        r = outcomes(here)
-        for at, name, old, new in r["labels"]:
-            print(f"label at {at:6.1f} s: {name}, packing {old} s to {new} s")
-        for jam, label in ((True, "with the jam"), (False, "without it")):
-            print(
-                f"{label:>12}: mean wait {r[jam]['jam']:6.2f} s from 20 to 30 min, "
-                f"{r[jam]['after']:6.2f} s from 30 to 40 min"
-            )
-        print(f"the last order that waits longer is queued at {r['last_longer']:.1f} s")
+        report(outcomes(here))
 ```
 
 ```python

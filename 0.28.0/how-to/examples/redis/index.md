@@ -8,7 +8,7 @@ ______________________________________________________________________
 
 ## Before You Start
 
-The example needs Docker and the odctl profile `valkey`, which each Quick Start below starts and stops. [Services for the Examples](https://jaehyeon.me/desflow/latest/how-to/examples/#services-for-the-examples) shows how to install odctl.
+The example needs Docker and the odctl profile `valkey`. Each Quick Start below starts the profile, and the Check the Result section stops it. [Services for the Examples](https://jaehyeon.me/desflow/latest/how-to/examples/#services-for-the-examples) shows how to install odctl.
 
 ______________________________________________________________________
 
@@ -35,9 +35,6 @@ odctl up valkey
 
 # 4. Run it (Ctrl + C to stop)
 desflow run redis.yaml
-
-# 5. Stop its service when finished
-odctl down valkey --volumes
 ```
 
 ```bash
@@ -53,9 +50,6 @@ odctl up valkey
 
 # 4. Run it (Ctrl + C to stop)
 desflow run redis.yaml
-
-# 5. Stop its service when finished
-odctl down valkey --volumes
 ```
 
 **What It Does**
@@ -125,9 +119,6 @@ odctl up valkey
 
 # 4. Run it (Ctrl + C to stop)
 uv run --no-project --with "desflow[redis]" redis_example.py
-
-# 5. Stop its service when finished
-odctl down valkey --volumes
 ```
 
 ```bash
@@ -143,9 +134,6 @@ odctl up valkey
 
 # 4. Run it (Ctrl + C to stop)
 python redis_example.py
-
-# 5. Stop its service when finished
-odctl down valkey --volumes
 ```
 
 This version wires the simulation by hand on `DynamicRealtimeEnvironment`, the low-level API.
@@ -169,9 +157,6 @@ odctl up valkey
 
 # 4. Run it (Ctrl + C to stop)
 uv run --no-project --with "desflow[redis]" redis_example.py
-
-# 5. Stop its service when finished
-odctl down valkey --volumes
 ```
 
 ```bash
@@ -187,9 +172,6 @@ odctl up valkey
 
 # 4. Run it (Ctrl + C to stop)
 python redis_example.py
-
-# 5. Stop its service when finished
-odctl down valkey --volumes
 ```
 
 ### Change a Parameter Live
@@ -207,7 +189,20 @@ ______________________________________________________________________
 
 ## Check the Result
 
-The three tabs write the same records, which [a test](https://github.com/jaehyeon-kim/desflow/blob/v0.28.0/tests/docs/test_example_twins.py) checks by running each version unpaced. A real run writes each order record to the `order_events` stream. `desflow run redis.yaml --sample 3 --stdout` prints the first three as JSON lines instead, with no Valkey:
+The three tabs write the same records, which [a test](https://github.com/jaehyeon-kim/desflow/blob/v0.28.0/tests/docs/test_example_twins.py) checks by running each version unpaced. A real run writes each order record to the `order_events` stream. Stop the run with Ctrl + C, leave the service up, and read the stream back:
+
+```bash
+docker exec valkey valkey-cli --no-auth-warning --user user --pass password XLEN order_events
+docker exec valkey valkey-cli --no-auth-warning --user user --pass password XRANGE order_events - + COUNT 2
+```
+
+`XLEN` prints one integer, the number of orders the run placed, about two for each second it ran at the starting rate. `XRANGE` prints two entries. Each has an id such as `1793407450263-0`, the field name `payload` and one JSON line, which holds the first two records below: `orders-1` with `order_id` 0 and `orders-2` with `order_id` 1. A second run appends to the same stream. When you have checked the result, stop the service:
+
+```bash
+odctl down valkey --volumes
+```
+
+In `redis/yaml`, which `desflow examples get redis --api yaml` creates, `desflow run redis.yaml --sample 3 --stdout` needs no Valkey. It prints the first three records as JSON lines instead:
 
 ```text
 {"stream_type":"event","sim_ts":0.638,"timestamp":"...","key":"orders-1","task":"record_order","instance":0,"value":{"channel":"web","status":"placed","order_id":0}}

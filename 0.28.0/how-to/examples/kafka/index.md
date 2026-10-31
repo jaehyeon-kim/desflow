@@ -8,7 +8,7 @@ ______________________________________________________________________
 
 ## Before You Start
 
-The example needs Docker and the odctl profile `kafka-lite`, which each Quick Start below starts and stops. [Services for the Examples](https://jaehyeon.me/desflow/latest/how-to/examples/#services-for-the-examples) shows how to install odctl.
+The example needs Docker and the odctl profile `kafka-lite`. Each Quick Start below starts the profile, and the Check the Result section stops it. [Services for the Examples](https://jaehyeon.me/desflow/latest/how-to/examples/#services-for-the-examples) shows how to install odctl.
 
 ______________________________________________________________________
 
@@ -38,9 +38,6 @@ desflow run kafka.yaml
 
 # 5. In a second terminal, in the same folder, watch and steer it at http://localhost:8080
 uv run --no-project --with "desflow[kafka]" --with nicegui ../kafka_dashboard.py
-
-# 6. Stop its service when finished
-odctl down kafka-lite --volumes
 ```
 
 ```bash
@@ -59,9 +56,6 @@ desflow run kafka.yaml
 
 # 5. In a second terminal, in the same folder, watch and steer it at http://localhost:8080
 python ../kafka_dashboard.py
-
-# 6. Stop its service when finished
-odctl down kafka-lite --volumes
 ```
 
 **What It Does**
@@ -94,9 +88,6 @@ uv run --no-project --with "desflow[kafka]" kafka_example.py
 
 # 5. In a second terminal, in the same folder, watch and steer it at http://localhost:8080
 uv run --no-project --with "desflow[kafka]" --with nicegui ../kafka_dashboard.py
-
-# 6. Stop its service when finished
-odctl down kafka-lite --volumes
 ```
 
 ```bash
@@ -115,9 +106,6 @@ python kafka_example.py
 
 # 5. In a second terminal, in the same folder, watch and steer it at http://localhost:8080
 python ../kafka_dashboard.py
-
-# 6. Stop its service when finished
-odctl down kafka-lite --volumes
 ```
 
 The run keeps going until you stop it. It logs one line per order when a packer starts on it. It publishes task lifecycle events to `sim-events`, and the packers' four readings (`capacity`, `in_use`, `queue_length` and `utilization`) and the task's `in_progress` to `sim-telemetry`.
@@ -144,9 +132,6 @@ uv run --no-project --with "desflow[kafka]" kafka_example.py
 
 # 5. In a second terminal, in the same folder, watch and steer it at http://localhost:8080
 uv run --no-project --with "desflow[kafka]" --with nicegui ../kafka_dashboard.py
-
-# 6. Stop its service when finished
-odctl down kafka-lite --volumes
 ```
 
 ```bash
@@ -165,9 +150,6 @@ python kafka_example.py
 
 # 5. In a second terminal, in the same folder, watch and steer it at http://localhost:8080
 python ../kafka_dashboard.py
-
-# 6. Stop its service when finished
-odctl down kafka-lite --volumes
 ```
 
 The run keeps going until you stop it. It logs one line per order when a packer starts on it. It publishes task lifecycle events to `sim-events`, and the packers' four readings (`capacity`, `in_use`, `queue_length` and `utilization`) and the task's `in_progress` to `sim-telemetry`.
@@ -180,7 +162,30 @@ ______________________________________________________________________
 
 ## Check the Result
 
-The three tabs publish the same records, which [a test](https://github.com/jaehyeon-kim/desflow/blob/v0.28.0/tests/docs/test_example_twins.py) checks by running each version unpaced. A real run sends the events to `sim-events` and the telemetry to `sim-telemetry`. `desflow run kafka.yaml --sample 5 --stdout` prints the first five events, and the telemetry published between them, as JSON lines instead, unpaced and with no broker:
+The three tabs publish the same records, which [a test](https://github.com/jaehyeon-kim/desflow/blob/v0.28.0/tests/docs/test_example_twins.py) checks by running each version unpaced. A real run sends the events to `sim-events` and the telemetry to `sim-telemetry`.
+
+Stop the run and the dashboard with Ctrl + C, and leave the service up. This command reads the first three events back from the broker:
+
+```bash
+docker exec kafka /opt/kafka/bin/kafka-console-consumer.sh \
+  --bootstrap-server localhost:9092 --topic sim-events --from-beginning --max-messages 3
+```
+
+It prints three JSON lines, then `Processed a total of 3 messages`. The first two are `orders-1` queued and started, both at `sim_ts` 1.276, and the third is `orders-2` queued. Each `timestamp` is the wall-clock time of your run:
+
+```text
+{"sim_ts":1.276,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","status":"queued"}}
+{"sim_ts":1.276,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","status":"started"}}
+{"sim_ts":1.348,"timestamp":"...","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","status":"queued"}}
+```
+
+Use `--topic sim-telemetry` to read the packers' readings, or open the Kafka UI at http://127.0.0.1:8086. A second run appends to the same topics, so start again with an empty broker when you want only one run in them. When you have checked the result, stop the service:
+
+```bash
+odctl down kafka-lite --volumes
+```
+
+In `kafka/yaml`, which `desflow examples get kafka --api yaml` creates, `desflow run kafka.yaml --sample 5 --stdout` needs no broker. It prints the first five events, and the telemetry published between them, as JSON lines, unpaced:
 
 ```text
 {"stream_type":"event","sim_ts":1.276,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","status":"queued"}}

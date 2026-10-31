@@ -6254,7 +6254,7 @@
 <li>0.515 seconds for the packing wait;</li>
 <li>1.615 percentage points for the packers' utilisation.</li>
 </ul>
-<p>Only 7, 9 and 9 of the 40 single runs fall inside the three intervals. A real observed hour can therefore fall outside an interval while the model is right. For this reason a study also compares the observed value with the spread of single runs. Here each observed value lies within one such standard deviation of the model's mean: 0.57 is 0.16 standard deviations from it, 1.9 is 0.03 and 88 is 0.03.</p>
+<p>Only 7, 9 and 9 of the 40 single runs fall inside the three intervals. A real observed hour can therefore fall outside an interval while the model is right. For this reason a study compares the observed value with the spread of single runs instead. Here each observed value lies within one such standard deviation of the model's mean: 0.57 is 0.16 standard deviations from it, 1.9 is 0.03 and 88 is 0.03.</p>
 <hr />
 <h2 id="choose-warm-up-and-precision">Choose Warm-up and Precision</h2>
 <p>Each run starts with the shop empty. The real busy hour does not start empty, because orders are already in the shop when it starts. The study therefore treats the hour as <a href="../../concepts/output-analysis/#terminating-or-steady-state">steady state</a> and leaves out the empty start. Run today's design 40 times after three candidate warm-ups and compare the mean waits:</p>
@@ -6778,7 +6778,7 @@
 <ul>
 <li>With it, the mean picking wait over 40 replications is <strong>0.56 ± 0.02</strong> seconds and the mean packing wait <strong>0.15 ± 0.01</strong> seconds. Both upper ends are under 1 second, and every check passes.</li>
 <li>In today's shop the mean packing wait is <strong>1.92 ± 0.16</strong> seconds, and a second picker would lengthen it by 0.26 seconds.</li>
-<li>The model agrees with the formulas where they apply, and each observed value lies inside the model's interval for its mean.</li>
+<li>The model agrees with the formulas where they apply, and each observed value lies within one standard deviation of a single run from the model's mean.</li>
 <li>Any warm-up from none to 10 minutes changes the mean waits by less than their half-widths.</li>
 <li>With orders 10% faster, the fourth packer still keeps both waits under 1 second, but orders then sometimes wait for shipping boxes.</li>
 </ul>

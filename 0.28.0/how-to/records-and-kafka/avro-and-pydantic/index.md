@@ -11,6 +11,7 @@ ______________________________________________________________________
 - [Egress](https://jaehyeon.me/desflow/latest/user-guide/live-runs-and-connectors/egress/#kafka) explains `KafkaEgress`.
 - [Route Records to Topics](https://jaehyeon.me/desflow/latest/how-to/records-and-kafka/complex-routing/index.md) explains a topic router.
 - The code publishes to Kafka, so start a broker first with `odctl up kafka-lite`. See [Installation](https://jaehyeon.me/desflow/latest/installation/index.md) for the one-time odctl install. Stop it with `odctl down kafka-lite --volumes`.
+- The models need `dataclasses-avroschema` with its Pydantic support, in every form: `pip install "dataclasses-avroschema[pydantic]"`.
 - Each serializer needs its extra: `pip install "desflow[confluent]"` for the Confluent Schema Registry, or `pip install "desflow[glue]"` for the AWS Glue Schema Registry. Both include `kafka`.
 
 ______________________________________________________________________
@@ -19,7 +20,7 @@ ______________________________________________________________________
 
 ### Publish a Pydantic Model
 
-`publish_event` turns a Pydantic V2 model into a JSON-ready dict before any egress sees it, so you do not convert it yourself. Pydantic V1 models, including `pydantic.v1`, are not supported and raise a `PydanticSerializationError`. A task publishes a model as its finished event in every form:
+`publish_event` turns a Pydantic V2 model into a JSON-ready dict before any egress sees it, so you do not convert it yourself. Pydantic V1 models, including `pydantic.v1`, are not supported and raise a `PydanticSerializationError`. A task publishes a model as its finished event in every form. `MLPrediction` is the model that [Generate the Schema from the Model](#generate-the-schema-from-the-model) defines:
 
 ```python
 def prediction(task_id, context, entity):
@@ -36,24 +37,24 @@ def pack_order(task_id: int, entity):
     return MLPrediction(task_id=entity.key, confidence=0.9)
 ```
 
-`publish_event` takes the model as the value:
+`publish_event` takes the model as the value, in the last two lines of `pack_order`:
 
 ```python
-from pydantic import BaseModel
-
-from desflow import DynamicRealtimeEnvironment
-
-
-class TaskEvent(BaseModel):
-    path_id: str
-    status: str
-
-
-def work_task(env: DynamicRealtimeEnvironment, number: int):
-    # The model is passed as it is; publish_event turns it into a dict.
-    event = TaskEvent(path_id="Shop.service.packing", status="queued")
-    env.publish_event(f"orders-{number + 1}", event, task="pack_order", instance=number)
-    yield env.timeout(0)
+def pack_order(env, packers, sampler, key, task_id):
+    path_id = "Shop.service.packing"
+    env.publish_event(
+        key, {"path_id": path_id, "status": "queued"}, "pack_order", task_id
+    )
+    with packers.request() as unit:
+        yield unit
+        env.publish_event(
+            key, {"path_id": path_id, "status": "started"}, "pack_order", task_id
+        )
+        yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
+        # The finished event is a prediction for the order, published as the model;
+        # publish_event turns it into a dict
+        prediction = MLPrediction(task_id=key, confidence=0.9)
+        env.publish_event(key, prediction, "pack_order", task_id)
 ```
 
 ### Avro for Some Topics
@@ -167,6 +168,8 @@ For a secured registry, `ConfluentAvroSerializer` and `ConfluentAvroDeserializer
 
 Each step of a request to the registry (connecting, sending, reading) times out after 10 seconds by default. `timeout=` sets another number of seconds, and `timeout=None` waits without a limit. A request that times out is retried up to `max_retries` times (3 by default) with a short random wait. A registry that never answers therefore holds up every sink of the run (for the serializer) or every source (for the deserializer) for up to about 50 seconds for each registry URL, on each request. The Kafka sink then logs the error, drops the rest of that batch and reconnects, and the next batch asks the registry again. The Kafka source logs the error and skips that message, and the next message asks the registry again. The simulation goes on while each sink's queue has room. Once a queue stays full, the run stops with an error, as [Egress](https://jaehyeon.me/desflow/latest/user-guide/live-runs-and-connectors/egress/#how-it-works) describes.
 
+`PredictionRecord` is the model from the previous section, imported from `avro_and_pydantic_models.py`:
+
 ```python
 import ssl
 
@@ -220,9 +223,9 @@ egress:
   - type: Kafka
     config:
       bootstrap_servers: 127.0.0.1:9092
-      topic_router: !python avro_and_pydantic.ml_topic_router
+      topic_router: !python avro_and_pydantic_models.ml_topic_router
       topic_serializers:
-        ml-predictions: !python avro_and_pydantic.generated_serializer
+        ml-predictions: !python avro_and_pydantic_models.generated_serializer
 
 run:
   until: 1 min
@@ -233,6 +236,8 @@ run:
 
 ```python
 import logging
+
+from avro_and_pydantic_models import MLPrediction, egress
 
 from desflow import KafkaAdminConnector, SimulationContext
 
@@ -271,24 +276,9 @@ if __name__ == "__main__":
     app.run(until="1 min")
 ```
 
+The shop uses `pack_order` from [Publish a Pydantic Model](#publish-a-pydantic-model):
+
 ```python
-def pack_order(env, packers, sampler, key, task_id):
-    path_id = "Shop.service.packing"
-    env.publish_event(
-        key, {"path_id": path_id, "status": "queued"}, "pack_order", task_id
-    )
-    with packers.request() as unit:
-        yield unit
-        env.publish_event(
-            key, {"path_id": path_id, "status": "started"}, "pack_order", task_id
-        )
-        yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
-        # The finished event is a prediction for the order, published as the model;
-        # publish_event turns it into a dict
-        prediction = MLPrediction(task_id=key, confidence=0.9)
-        env.publish_event(key, prediction, "pack_order", task_id)
-
-
 def orders(env, packers, sampler):
     gap = env.registry.get_config("Shop.arrival.orders")
     for number in itertools.count(1):
@@ -312,109 +302,67 @@ ______________________________________________________________________
 
 Run `desflow run avro_and_pydantic.yaml`, `python avro_and_pydantic.py` or `python avro_and_pydantic_low_level.py` while `kafka-lite` is up. The serializer registers the generated schema with the schema registry of `kafka-lite` on its first send. In every form, the `queued` and `started` events go to `sim-events` as JSON, and each prediction goes to `ml-predictions` and fits the generated schema.
 
+To read a prediction back, run the models file after a shop has run. Its last lines build a consumer of `ml-predictions` and a `ConfluentAvroDeserializer`, which fetches the schema that the message names from the registry:
+
+```python
+import asyncio
+
+from aiokafka import AIOKafkaConsumer
+
+from desflow.connectors.ingress.kafka import ConfluentAvroDeserializer
+
+
+async def show_first_prediction() -> None:
+    """Prints the first message of ml-predictions, decoded with the schema it names."""
+    consumer = AIOKafkaConsumer(
+        "ml-predictions",
+        bootstrap_servers="127.0.0.1:9092",
+        auto_offset_reset="earliest",
+    )
+    await consumer.start()
+    try:
+        message = await asyncio.wait_for(consumer.getone(), timeout=10)
+        reader = ConfluentAvroDeserializer(registry_url="http://127.0.0.1:8081")
+        print(reader.deserialize("ml-predictions", message.value))
+    finally:
+        await consumer.stop()
+
+
+if __name__ == "__main__":
+    asyncio.run(show_first_prediction())
+```
+
+```bash
+python avro_and_pydantic_models.py
+```
+
+```text
+{'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'sim_ts': 4.052, 'timestamp': '2026-10-31T00:51:56.940+00:00', 'value': {'event_type': 'prediction', 'task_id': 'orders-1', 'confidence': 0.9}}
+```
+
+The `timestamp` is the clock time of your run. The registry holds the subject `ml-predictions-value`, which `curl http://127.0.0.1:8081/subjects` lists.
+
 ______________________________________________________________________
 
 ## Full Files
 
-Every form uses the models, the router and the serializer in `avro_and_pydantic.py`, so keep the files in one folder.
+Every form uses the models, the router and the serializer in `avro_and_pydantic_models.py`, which builds no shop, so keep the files in one folder. The registry file imports its model from it.
 
 Full files
-
-```yaml
-# The Use Avro and Pydantic guide: each packed order publishes a prediction, sent to
-# ml-predictions as Avro; every other record goes to its topic as JSON. Needs
-# avro_and_pydantic.py and avro_and_pydantic_logic.py beside it, and a Kafka broker
-# with a schema registry: odctl up kafka-lite. Run it with:
-# desflow run avro_and_pydantic.yaml
-simulation:
-  sim_id: Shop
-  factor: 1
-  random_seed: 42
-
-resources:
-  packers: {current_cap: 1, max_cap: 1}
-
-services:
-  packing: {dist: constant, value: 1.5}
-
-arrivals:
-  orders: {dist: exponential, rate: 0.5, spawn: pack_order}
-
-tasks:
-  pack_order:
-    service: packing
-    resource: packers
-    # The finished event is a prediction for the order, published as the model
-    payload: !python avro_and_pydantic_logic.prediction
-
-egress:
-  # Predictions as Avro, the rest as JSON
-  - type: Kafka
-    config:
-      bootstrap_servers: 127.0.0.1:9092
-      topic_router: !python avro_and_pydantic.ml_topic_router
-      topic_serializers:
-        ml-predictions: !python avro_and_pydantic.generated_serializer
-
-run:
-  until: 1 min
-  before:
-    # With a router, KafkaEgress creates no topics, so create them first
-    - !python avro_and_pydantic_logic.create_topics
-```
-
-```python
-"""Python for avro_and_pydantic.yaml: the prediction each packed order publishes, and
-the topics the run needs. The models, the router and the serializer are those of
-avro_and_pydantic.py, which must be beside the blueprint."""
-
-from avro_and_pydantic import MLPrediction
-
-from desflow import KafkaAdminConnector
-
-TOPICS = ["sim-events", "sim-telemetry", "ml-predictions"]
-
-
-def prediction(task_id, context, entity):
-    """The finished event of a packed order: a prediction, published as the model."""
-    return MLPrediction(task_id=entity.key, confidence=0.9)
-
-
-def create_topics():
-    """With a router, KafkaEgress creates no topics, so create them first."""
-    admin = KafkaAdminConnector(bootstrap_servers="127.0.0.1:9092")
-    admin.create_topics([{"name": topic} for topic in TOPICS])
-```
 
 ```python
 """The Pydantic models, topic router and Avro serializers of the Use Avro and Pydantic page.
 
-The shop at the end publishes predictions as Avro and every other record as JSON. It
-needs a Kafka broker and a schema registry: start both with `odctl up kafka-lite`, then
-run `python avro_and_pydantic.py`. avro_and_pydantic.yaml and
-avro_and_pydantic_low_level.py are the same shop in YAML and the low-level API, and use
-the models, router and serializer of this file.
+Every form of the shop imports the models, the router and the serializers from this file:
+avro_and_pydantic.py (builder), avro_and_pydantic.yaml and avro_and_pydantic_low_level.py.
+It builds no simulation. Install `dataclasses-avroschema[pydantic]` for the models.
+
+After a shop has run, `python avro_and_pydantic_models.py` prints the first prediction
+of ml-predictions.
 """
 
 # Each section carries its own imports, as the page shows it.
 # ruff: noqa: E402
-
-from pydantic import BaseModel
-
-from desflow import DynamicRealtimeEnvironment
-
-
-class TaskEvent(BaseModel):
-    path_id: str
-    status: str
-
-
-def work_task(env: DynamicRealtimeEnvironment, number: int):
-    # The model is passed as it is; publish_event turns it into a dict.
-    event = TaskEvent(path_id="Shop.service.packing", status="queued")
-    env.publish_event(f"orders-{number + 1}", event, task="pack_order", instance=number)
-    yield env.timeout(0)
-
 
 from desflow import KafkaEgress
 from desflow.connectors.egress.kafka import ConfluentAvroSerializer
@@ -506,6 +454,45 @@ egress = KafkaEgress(
 )
 
 
+import asyncio
+
+from aiokafka import AIOKafkaConsumer
+
+from desflow.connectors.ingress.kafka import ConfluentAvroDeserializer
+
+
+async def show_first_prediction() -> None:
+    """Prints the first message of ml-predictions, decoded with the schema it names."""
+    consumer = AIOKafkaConsumer(
+        "ml-predictions",
+        bootstrap_servers="127.0.0.1:9092",
+        auto_offset_reset="earliest",
+    )
+    await consumer.start()
+    try:
+        message = await asyncio.wait_for(consumer.getone(), timeout=10)
+        reader = ConfluentAvroDeserializer(registry_url="http://127.0.0.1:8081")
+        print(reader.deserialize("ml-predictions", message.value))
+    finally:
+        await consumer.stop()
+
+
+if __name__ == "__main__":
+    asyncio.run(show_first_prediction())
+```
+
+```python
+"""The Registry Connection section of the Use Avro and Pydantic page: a serializer for a
+schema registry behind HTTPS and basic authentication.
+
+It needs the models of avro_and_pydantic_models.py beside it and builds the serializer when
+it is imported, so no shop imports it.
+"""
+
+# ruff: noqa: E402
+
+from avro_and_pydantic_models import PredictionRecord
+
 import ssl
 
 import certifi
@@ -521,9 +508,89 @@ secured_serializer = ConfluentAvroSerializer(
     verify=ssl.create_default_context(cafile=certifi.where()),
     timeout=30,
 )
+```
 
+```yaml
+# The Use Avro and Pydantic guide: each packed order publishes a prediction, sent to
+# ml-predictions as Avro; every other record goes to its topic as JSON. Needs
+# avro_and_pydantic_models.py and avro_and_pydantic_logic.py beside it, and a Kafka broker
+# with a schema registry: odctl up kafka-lite. Run it with:
+# desflow run avro_and_pydantic.yaml
+simulation:
+  sim_id: Shop
+  factor: 1
+  random_seed: 42
+
+resources:
+  packers: {current_cap: 1, max_cap: 1}
+
+services:
+  packing: {dist: constant, value: 1.5}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.5, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    # The finished event is a prediction for the order, published as the model
+    payload: !python avro_and_pydantic_logic.prediction
+
+egress:
+  # Predictions as Avro, the rest as JSON
+  - type: Kafka
+    config:
+      bootstrap_servers: 127.0.0.1:9092
+      topic_router: !python avro_and_pydantic_models.ml_topic_router
+      topic_serializers:
+        ml-predictions: !python avro_and_pydantic_models.generated_serializer
+
+run:
+  until: 1 min
+  before:
+    # With a router, KafkaEgress creates no topics, so create them first
+    - !python avro_and_pydantic_logic.create_topics
+```
+
+```python
+"""Python for avro_and_pydantic.yaml: the prediction each packed order publishes, and
+the topics the run needs. The models, the router and the serializer are those of
+avro_and_pydantic_models.py, which must be beside the blueprint."""
+
+from avro_and_pydantic_models import MLPrediction
+
+from desflow import KafkaAdminConnector
+
+TOPICS = ["sim-events", "sim-telemetry", "ml-predictions"]
+
+
+def prediction(task_id, context, entity):
+    """The finished event of a packed order: a prediction, published as the model."""
+    return MLPrediction(task_id=entity.key, confidence=0.9)
+
+
+def create_topics():
+    """With a router, KafkaEgress creates no topics, so create them first."""
+    admin = KafkaAdminConnector(bootstrap_servers="127.0.0.1:9092")
+    admin.create_topics([{"name": topic} for topic in TOPICS])
+```
+
+```python
+"""The shop of the Use Avro and Pydantic page, built with the builder API.
+
+The shop publishes predictions as Avro and every other record as JSON. It needs a Kafka
+broker and a schema registry: start both with `odctl up kafka-lite`, then run
+`python avro_and_pydantic.py`. avro_and_pydantic.yaml and avro_and_pydantic_low_level.py
+are the same shop in YAML and the low-level API. All three import the models, router and
+serializer of avro_and_pydantic_models.py, which must be beside them.
+"""
+
+# ruff: noqa: E402
 
 import logging
+
+from avro_and_pydantic_models import MLPrediction, egress
 
 from desflow import KafkaAdminConnector, SimulationContext
 
@@ -565,15 +632,15 @@ if __name__ == "__main__":
 prediction, sent to ml-predictions as Avro, and every other record goes to its topic
 as JSON.
 
-The model, the router and the serializer are those of avro_and_pydantic.py, which must
-be beside this script. It needs a Kafka broker and a schema registry: start both with
+The model, the router and the serializer are those of avro_and_pydantic_models.py, which
+must be beside this script. It needs a Kafka broker and a schema registry: start both with
 `odctl up kafka-lite`, then run `python avro_and_pydantic_low_level.py`.
 """
 
 import itertools
 import logging
 
-from avro_and_pydantic import MLPrediction, egress
+from avro_and_pydantic_models import MLPrediction, egress
 
 from desflow import (
     CapacityConfig,

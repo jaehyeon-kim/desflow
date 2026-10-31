@@ -193,7 +193,19 @@ ATTRIBUTES = {"orders": {"express": 0}, "express": {"express": 1}}
 
 `Entity(key, arrival, attributes)` is the order, created by the arrival process; the full file below shows it.
 
-Attributes are not published. A condition reads them as `attr.express`, and a payload includes them only when it names them. `ship_order` names `express` and `backordered`, so its finished event carries both. This is `orders-172`, which was picked while the shelf was empty, backordered, picked again and packed twice:
+Attributes are not published. A condition reads them as `attr.express`, and a payload includes them only when it names them. `ship_order` names `express` and `backordered`, so its finished event carries both. This is `orders-172`, which was picked while the shelf was empty, backordered, picked again and packed twice. Every tab prints its records to the terminal, so `grep` finds the order's lines:
+
+```bash
+desflow run flow_of_tasks.yaml 2>&1 | grep orders-172
+```
+
+```bash
+python flow_of_tasks.py 2>&1 | grep orders-172
+```
+
+```bash
+python flow_of_tasks_low_level.py 2>&1 | grep orders-172
+```
 
 ```text
 [EVT] {'sim_ts': 397.158, 'timestamp': '...', 'key': 'orders-172', 'task': 'pick_order', 'instance': 222, 'value': {'path_id': 'Shop.service.picking', 'status': 'queued'}}
@@ -217,7 +229,42 @@ ______________________________________________________________________
 
 ## What You Get and Why
 
-How do orders move through pick, pack and ship? Most go straight through, and a few go to backorder or are packed again. The run publishes the finished count of every task at the end, with `stats: basic`:
+How do orders move through pick, pack and ship? Most go straight through, and a few go to backorder or are packed again. The run publishes the finished count of every task at the end, with `stats: basic` in the YAML file, `with_stats("basic", interval=3600)` in the Builder file and `env.setup_stats("Shop", "basic", interval=3600)` in the Low-level file. Each tab prints the four counts:
+
+```bash
+desflow run flow_of_tasks.yaml --stdout | grep -E 'tasks\.(pick_order|backorder|pack_order|ship_order)\.finished"'
+```
+
+```text
+{"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pick_order.finished","value":1857}
+{"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.finished","value":1849}
+{"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.ship_order.finished","value":1775}
+{"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.backorder.finished","value":80}
+```
+
+```bash
+python flow_of_tasks.py 2>/dev/null
+```
+
+```text
+pick_order: 1857 finished
+backorder : 80 finished
+pack_order: 1849 finished
+ship_order: 1775 finished
+```
+
+```bash
+python flow_of_tasks_low_level.py 2>/dev/null
+```
+
+```text
+pick_order: 1857 finished
+backorder : 80 finished
+pack_order: 1849 finished
+ship_order: 1775 finished
+```
+
+The counts are:
 
 | Task         | Finished in the hour |
 | ------------ | -------------------- |
@@ -318,7 +365,8 @@ run:
 
 Two pickers, two packers and a shelf of boxes restocked every 100 seconds. An order
 picked while the shelf is empty goes to backorder for a minute and is picked again,
-and one parcel in 20 is packed again. Every record is printed to the terminal.
+and one parcel in 20 is packed again. Every record is printed to the terminal, and
+the finished count of each task is printed at the end.
 """
 
 import logging
@@ -411,6 +459,9 @@ app.arrival_loop("deliveries")(spawn("deliveries", restock, "restock"))
 
 if __name__ == "__main__":
     app.run(until="1 h")
+    readings = app.env.stats.readings()
+    for name in ("pick_order", "backorder", "pack_order", "ship_order"):
+        print(f"{name:<10}: {readings[f'Shop.stats.tasks.{name}.finished']} finished")
 ```
 
 ```python
@@ -418,7 +469,8 @@ if __name__ == "__main__":
 
 Two pickers, two packers and a shelf of boxes restocked every 100 seconds. An order
 picked while the shelf is empty goes to backorder for a minute and is picked again,
-and one parcel in 20 is packed again. Every record is printed to the terminal.
+and one parcel in 20 is packed again. Every record is printed to the terminal, and
+the finished count of each task is printed at the end.
 """
 
 import contextlib
@@ -594,5 +646,7 @@ def run(until=3600, factor=0.0):
 
 
 if __name__ == "__main__":
-    run()
+    readings = run().stats.readings()
+    for name in ("pick_order", "backorder", "pack_order", "ship_order"):
+        print(f"{name:<10}: {readings[f'Shop.stats.tasks.{name}.finished']} finished")
 ```

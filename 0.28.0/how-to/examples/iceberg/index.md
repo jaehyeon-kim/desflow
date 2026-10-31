@@ -10,7 +10,7 @@ ______________________________________________________________________
 
 ## Before You Start
 
-The example needs Docker and the odctl profile `catalog`, which each Quick Start below starts and stops. [Services for the Examples](https://jaehyeon.me/desflow/latest/how-to/examples/#services-for-the-examples) shows how to install odctl.
+The example needs Docker and the odctl profile `catalog`. Each Quick Start below starts the profile, and the Check the Result section stops it. [Services for the Examples](https://jaehyeon.me/desflow/latest/how-to/examples/#services-for-the-examples) shows how to install odctl.
 
 ______________________________________________________________________
 
@@ -40,9 +40,6 @@ odctl up catalog
 
 # 5. Run it
 desflow run iceberg.yaml
-
-# 6. Stop its service when finished
-odctl down catalog --volumes
 ```
 
 ```bash
@@ -61,9 +58,6 @@ odctl up catalog
 
 # 5. Run it
 desflow run iceberg.yaml
-
-# 6. Stop its service when finished
-odctl down catalog --volumes
 ```
 
 **What It Does**
@@ -93,9 +87,6 @@ odctl up catalog
 
 # 4. Run it
 uv run --no-project --with "desflow[iceberg]" iceberg_example.py
-
-# 5. Stop its service when finished
-odctl down catalog --volumes
 ```
 
 ```bash
@@ -111,14 +102,11 @@ odctl up catalog
 
 # 4. Run it
 python iceberg_example.py
-
-# 5. Stop its service when finished
-odctl down catalog --volumes
 ```
 
 `ICEBERG_URI`, `ICEBERG_WAREHOUSE`, `ICEBERG_NAMESPACE`, `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` and `S3_REGION` override the catalog and credentials.
 
-A second run appends to the same table rather than replacing it, because `IcebergStorageEgress` appends every record by default. Use `odctl down catalog --volumes` to start again with an empty catalog.
+A second run appends to the same table rather than replacing it, because `IcebergStorageEgress` appends every record by default. To start again with an empty catalog, stop the service as Check the Result shows and start it again.
 
 This version wires the simulation by hand on `DynamicRealtimeEnvironment`, the low-level API, and writes with `IcebergStorageEgress`.
 
@@ -139,9 +127,6 @@ odctl up catalog
 
 # 4. Run it
 uv run --no-project --with "desflow[iceberg]" iceberg_example.py
-
-# 5. Stop its service when finished
-odctl down catalog --volumes
 ```
 
 ```bash
@@ -157,20 +142,52 @@ odctl up catalog
 
 # 4. Run it
 python iceberg_example.py
-
-# 5. Stop its service when finished
-odctl down catalog --volumes
 ```
 
 `ICEBERG_URI`, `ICEBERG_WAREHOUSE`, `ICEBERG_NAMESPACE`, `S3_ENDPOINT`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` and `S3_REGION` override the catalog and credentials.
 
-A second run appends to the same table rather than replacing it, because `IcebergStorageEgress` appends every record by default. Use `odctl down catalog --volumes` to start again with an empty catalog.
+A second run appends to the same table rather than replacing it, because `IcebergStorageEgress` appends every record by default. To start again with an empty catalog, stop the service as Check the Result shows and start it again.
 
 ______________________________________________________________________
 
 ## Check the Result
 
-The three tabs write the same records, which [a test](https://github.com/jaehyeon-kim/desflow/blob/v0.28.0/tests/docs/test_example_twins.py) checks by running each version unpaced. A real run appends them as rows of the `simulation.events` table. `desflow run iceberg.yaml --sample 4 --stdout` prints the first four events as JSON lines instead, and contacts no catalog:
+The three tabs write the same records, which [a test](https://github.com/jaehyeon-kim/desflow/blob/v0.28.0/tests/docs/test_example_twins.py) checks by running each version unpaced. A real run appends them as rows of the `simulation.events` table. When the run has ended, leave the service up and read the table back from the catalog, with the same endpoints and credentials as the blueprint:
+
+```bash
+uv run --no-project --with "desflow[iceberg]" \
+python -c "
+from pyiceberg.catalog import load_catalog
+catalog = load_catalog(
+    'odctl', type='rest', uri='http://127.0.0.1:8181',
+    **{'s3.endpoint': 'http://127.0.0.1:8333', 's3.access-key-id': 'user',
+       's3.secret-access-key': 'password', 's3.region': 'us-east-1'},
+)
+table = catalog.load_table('simulation.events')
+print(table.scan().to_arrow().num_rows, len(table.snapshots()))
+"
+```
+
+```bash
+python -c "
+from pyiceberg.catalog import load_catalog
+catalog = load_catalog(
+    'odctl', type='rest', uri='http://127.0.0.1:8181',
+    **{'s3.endpoint': 'http://127.0.0.1:8333', 's3.access-key-id': 'user',
+       's3.secret-access-key': 'password', 's3.region': 'us-east-1'},
+)
+table = catalog.load_table('simulation.events')
+print(table.scan().to_arrow().num_rows, len(table.snapshots()))
+"
+```
+
+It prints the number of rows and the number of snapshots. After one run with the seed in the file these are `515786 3`: one row for each lifecycle event of the day, in three snapshots (two flushes of 200,000 records and the final flush). After a second run both numbers grow, because each run appends. When you have checked the result, stop the service:
+
+```bash
+odctl down catalog --volumes
+```
+
+In `iceberg/yaml`, which `desflow examples get iceberg --api yaml` creates, `desflow run iceberg.yaml --sample 4 --stdout` needs no catalog. It prints the first four events as JSON lines instead:
 
 ```text
 {"stream_type":"event","sim_ts":0.638,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","status":"queued"}}

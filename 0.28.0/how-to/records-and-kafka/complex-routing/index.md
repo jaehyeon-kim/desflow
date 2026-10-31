@@ -7,6 +7,7 @@ ______________________________________________________________________
 ## Before You Start
 
 - [Egress](https://jaehyeon.me/desflow/latest/user-guide/live-runs-and-connectors/egress/#kafka) explains `KafkaEgress` and its two topics.
+- Install the Kafka connectors: `pip install "desflow[kafka]"`.
 - The scripts publish to Kafka, so start a broker with `odctl up kafka-lite`. [Installation](https://jaehyeon.me/desflow/latest/installation/index.md) shows the one-time odctl install. Tear it down afterwards with `odctl down kafka-lite --volumes`.
 
 ______________________________________________________________________

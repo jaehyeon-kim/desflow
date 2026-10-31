@@ -1,12 +1,12 @@
 # Parquet History, Kafka Live
 
-One run writes ten minutes of backdated history to Parquet. It then publishes to Kafka in real time, and this second part is the live tail. Look for the history's Parquet files in `data/backfill/`, then for the `Logical clock reached go-live` line in the log, after which records reach Kafka at the pace of the wall clock. Each tab shows the example written one way. The sections after the tabs show the records, and explain why one run is better than two, how the settings fit together and what to get right.
+One run writes ten minutes of backdated history to Parquet. It then publishes to Kafka in real time, and this second part is the live tail. Look for the `Logical clock reached go-live` line in the log, after which records reach Kafka at the pace of the wall clock, and about 10 seconds later for the history's Parquet files in `data/backfill/`. Each tab shows the example written one way. The sections after the tabs show the records, and explain why one run is better than two, how the settings fit together and what to get right.
 
 ______________________________________________________________________
 
 ## Before You Start
 
-The example needs Docker and the odctl profile `kafka-lite`, which each Quick Start below starts and stops. [Services for the Examples](https://jaehyeon.me/desflow/latest/how-to/examples/#services-for-the-examples) shows how to install odctl.
+The example needs Docker and the odctl profile `kafka-lite`. Each Quick Start below starts the profile, and the Check the Result section stops it. [Services for the Examples](https://jaehyeon.me/desflow/latest/how-to/examples/#services-for-the-examples) shows how to install odctl.
 
 ______________________________________________________________________
 
@@ -36,9 +36,6 @@ odctl up kafka-lite
 
 # 5. Run it
 desflow run backfill_live.yaml
-
-# 6. Stop its service when finished
-odctl down kafka-lite --volumes
 ```
 
 ```bash
@@ -57,18 +54,15 @@ odctl up kafka-lite
 
 # 5. Run it
 desflow run backfill_live.yaml
-
-# 6. Stop its service when finished
-odctl down kafka-lite --volumes
 ```
 
 **What It Does**
 
-Ten minutes of history are written to `data/backfill/` within the first second, then the run publishes to `sim-events` and `sim-telemetry` in real time for 60 seconds and ends. The history folder is created on the first write, and `KafkaEgress` creates the two topics when it starts.
+Ten minutes of history are generated within the first second. The records stay in the buffer, because they do not reach `batch_size`, and the first interval flush writes them to `data/backfill/` about 10 seconds after go-live. The run publishes to `sim-events` and `sim-telemetry` in real time for 60 seconds and ends. The history folder is created on the first write, and `KafkaEgress` creates the two topics when it starts.
 
 `logical_start_time: -10m` and `go_live_at: now` are both read against one moment, the time the file is loaded, so they are exactly ten minutes apart. `until: 11m` then adds one minute of live tail. `when: history` sends the records stamped before `go_live_at` to Parquet, and `when: live` sends the rest to Kafka.
 
-[`examples/builder/backfill_live_example.py`](https://github.com/jaehyeon-kim/desflow/blob/v0.28.0/examples/builder/backfill_live_example.py) backdates the clock by ten minutes, writes those ten minutes to Parquet in well under a second, then publishes to Kafka in real time for sixty seconds. `HISTORY_MINUTES` and `LIVE_SECONDS` set the length of the two halves. A day of history (`HISTORY_MINUTES=1440`) is about 128,000 events.
+[`examples/builder/backfill_live_example.py`](https://github.com/jaehyeon-kim/desflow/blob/v0.28.0/examples/builder/backfill_live_example.py) backdates the clock by ten minutes, generates those ten minutes in the first second, then publishes to Kafka in real time for sixty seconds. The first interval flush writes the history to Parquet about 10 seconds after go-live. `HISTORY_MINUTES` and `LIVE_SECONDS` set the length of the two halves. A day of history (`HISTORY_MINUTES=1440`) is about 128,000 events.
 
 **Quick Start**
 
@@ -87,9 +81,6 @@ odctl up kafka-lite
 
 # 4. Run it
 uv run --no-project --with "desflow[kafka,parquet]" backfill_live_example.py
-
-# 5. Stop its service when finished
-odctl down kafka-lite --volumes
 ```
 
 ```bash
@@ -105,12 +96,9 @@ odctl up kafka-lite
 
 # 4. Run it
 python backfill_live_example.py
-
-# 5. Stop its service when finished
-odctl down kafka-lite --volumes
 ```
 
-[`examples/low-level/backfill_live_example.py`](https://github.com/jaehyeon-kim/desflow/blob/v0.28.0/examples/low-level/backfill_live_example.py) wires the same run by hand on `DynamicRealtimeEnvironment`: it backdates the clock by ten minutes, writes those ten minutes to Parquet in well under a second, then publishes to Kafka in real time for sixty seconds. `HISTORY_MINUTES` and `LIVE_SECONDS` set the two halves.
+[`examples/low-level/backfill_live_example.py`](https://github.com/jaehyeon-kim/desflow/blob/v0.28.0/examples/low-level/backfill_live_example.py) wires the same run by hand on `DynamicRealtimeEnvironment`: it backdates the clock by ten minutes, generates those ten minutes in the first second, then publishes to Kafka in real time for sixty seconds. The first interval flush writes the history to Parquet about 10 seconds after go-live. `HISTORY_MINUTES` and `LIVE_SECONDS` set the two halves.
 
 **Quick Start**
 
@@ -129,9 +117,6 @@ odctl up kafka-lite
 
 # 4. Run it
 uv run --no-project --with "desflow[kafka,parquet]" backfill_live_example.py
-
-# 5. Stop its service when finished
-odctl down kafka-lite --volumes
 ```
 
 ```bash
@@ -147,9 +132,6 @@ odctl up kafka-lite
 
 # 4. Run it
 python backfill_live_example.py
-
-# 5. Stop its service when finished
-odctl down kafka-lite --volumes
 ```
 
 ### Get Two Details Right
@@ -231,7 +213,30 @@ ______________________________________________________________________
 
 ## Check the Result
 
-The three tabs publish the same records, which [a test](https://github.com/jaehyeon-kim/desflow/blob/v0.28.0/tests/docs/test_example_twins.py) checks by running each version unpaced. A real run writes the records stamped before `go_live_at` to Parquet files under `data/backfill/`, and the rest to `sim-events` and `sim-telemetry`. `desflow run backfill_live.yaml --sample 4 --stdout` prints the first four events as JSON lines instead, unpaced and with no broker:
+The three tabs publish the same records, which [a test](https://github.com/jaehyeon-kim/desflow/blob/v0.28.0/tests/docs/test_example_twins.py) checks by running each version unpaced. A real run writes the records stamped before `go_live_at` to Parquet files under `data/backfill/`, and the rest to `sim-events` and `sim-telemetry`. When the run has ended, leave the service up and count the history rows from the folder the Quick Start used:
+
+```bash
+uv run --no-project --with "desflow[kafka,parquet]" python -c "import pyarrow.parquet as pq; print(pq.read_table('data/backfill').num_rows)"
+```
+
+```bash
+python -c "import pyarrow.parquet as pq; print(pq.read_table('data/backfill').num_rows)"
+```
+
+It prints `957`, the records of the first ten simulated minutes with the seed in the file. Then read the first live event back from Kafka:
+
+```bash
+docker exec kafka /opt/kafka/bin/kafka-console-consumer.sh \
+  --bootstrap-server localhost:9092 --topic sim-events --from-beginning --max-messages 1
+```
+
+It prints one JSON line and `Processed a total of 1 messages`. Its `sim_ts` is just over 600, the length of the history in simulation seconds, because the live tail starts where the history ends (`orders-320` queued, at `sim_ts` 600.111). A second run appends to both sinks. When you have checked the result, stop the service:
+
+```bash
+odctl down kafka-lite --volumes
+```
+
+In `backfill-live/yaml`, which `desflow examples get backfill-live --api yaml` creates, `desflow run backfill_live.yaml --sample 4 --stdout` needs no broker. It prints the first four events as JSON lines, unpaced:
 
 ```text
 {"stream_type":"event","sim_ts":2.552,"timestamp":"...","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","status":"queued"}}
@@ -242,7 +247,7 @@ The three tabs publish the same records, which [a test](https://github.com/jaehy
 
 Each `timestamp` is shown as `...`, because it changes with every run. It is the start of the history plus `sim_ts`, so these records are stamped before `go_live_at` and belong to the history.
 
-During the live tail the run can look as if it has stopped responding. History finishes within the first second of the run. After the `Logical clock reached go-live` line, the run logs at most one more line, the Kafka producer's connection line, until it shuts down. From `go_live_at` the run waits on the wall clock, as any live run does. The `Logical clock reached go-live` line confirms the switch.
+During the live tail the run can look as if it has stopped responding. History is generated within the first second of the run, and its files appear about 10 seconds after go-live. After the `Logical clock reached go-live` line, the run logs at most one more line, the Kafka producer's connection line, until it shuts down. From `go_live_at` the run waits on the wall clock, as any live run does. The `Logical clock reached go-live` line confirms the switch.
 
 [Go Live](https://jaehyeon.me/desflow/latest/user-guide/time-and-pacing/clocks-and-pacing/#go-live) explains why one run replaces two and how `logical_start_time`, `go_live_at` and `when` work together.
 
@@ -289,8 +294,9 @@ egress:
     # Records stamped at or after go_live_at.
     when: live
 
-# Only batch_size decides when the history is flushed. The interval flush starts at
-# go-live, so the live tail also flushes every 10 seconds.
+# batch_size flushes the history only when 2000 records are waiting. The interval
+# flush starts at go-live, so it writes what is left about 10 seconds later, and the
+# live tail also flushes every 10 seconds.
 batching:
   batch_size: 2000
   flush_interval: 10.0
@@ -422,10 +428,11 @@ app = (
         ),
         when=is_live,
     )
-    # Only batch_size decides when the history is flushed. The interval flush is a
-    # simulation process, started only when factor is non-zero as the egress is set up,
-    # and this run starts at 0.0. The interval flush starts at go-live, so the live
-    # tail also flushes every 10 seconds.
+    # batch_size flushes the history only when 2000 records are waiting. The interval
+    # flush is a simulation process, started only when factor is non-zero as the egress
+    # is set up, and this run starts at 0.0. The interval flush starts at go-live, so it
+    # writes what is left about 10 seconds later, and the live tail also flushes every
+    # 10 seconds.
     .with_batching(batch_size=2000, flush_interval=10.0)
     .add_resource("packers", current_cap=4, max_cap=10)
     .add_service("packing", dist="normal", mean=2.0, std=0.2)

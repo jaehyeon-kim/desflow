@@ -5794,7 +5794,7 @@
 </span></code></pre></div></td></tr></table></div>
 </div>
 <div class="tabbed-block">
-<p>The low-level API has no <code>Upstream</code>: a process holds the order and its attributes itself, and decides the next step in Python.</p>
+<p>A low-level process holds the order and its attributes itself. It can build an <code>Upstream</code> and call <code>Router.choose</code>, as in <a href="#choose-the-next-task">Choose the Next Task</a>, or decide the next step in plain Python.</p>
 </div>
 </div>
 </div>
@@ -5837,7 +5837,7 @@
 </span></code></pre></div></td></tr></table></div>
 </div>
 <div class="tabbed-block">
-<p>The low-level API has no conditions: a process decides in Python.</p>
+<p>A low-level <code>Router</code> takes these conditions, as in <a href="#choose-the-next-task">Choose the Next Task</a>, and a process can also decide in plain Python.</p>
 </div>
 </div>
 </div>

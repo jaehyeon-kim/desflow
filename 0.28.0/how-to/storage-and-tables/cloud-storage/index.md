@@ -20,7 +20,7 @@ A `filesystem` mapping names the store with `type`, and its other keys are the a
 
 - `s3`: the AWS settings, from environment variables such as `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`, the files in `~/.aws`, or the role the machine runs as.
 - `gcs`: Google's default credentials, such as those `gcloud auth application-default login` saves.
-- `azure`: Azure's default credentials for the storage account that `account_name` names.
+- `azure`: Azure's default credentials for the storage account that `account_name` names. The script takes the account name from the environment variable `AZURE_STORAGE_ACCOUNT`.
 
 The script keeps one mapping for each store. `STORAGE` picks one, and `STORAGE_BUCKET` names the bucket, the container or, for `local`, the folder:
 
@@ -76,17 +76,19 @@ egress:
   - type: Parquet
     config:
       default_path: ${STORAGE_BUCKET:-output}/parquet/events.parquet
-      filesystem: !python cloud_storage.filesystem
+      filesystem: !python cloud_storage_stores.filesystem
   - type: Jsonl
     config:
       default_path: ${STORAGE_BUCKET:-output}/jsonl/events.jsonl
-      filesystem: !python cloud_storage.filesystem
+      filesystem: !python cloud_storage_stores.filesystem
 ```
 
-The blueprint loads the mapping of `cloud_storage.py` with `!python`, so `STORAGE` picks the store in every form. `${STORAGE_BUCKET:-output}` reads the bucket from the same variable.
+The blueprint loads the mapping of `cloud_storage_stores.py` with `!python`, so `STORAGE` picks the store in every form. `${STORAGE_BUCKET:-output}` reads the bucket from the same variable.
 
 ```python
 import logging
+
+from cloud_storage_stores import sinks
 
 from desflow import SimulationContext
 
@@ -125,7 +127,7 @@ if __name__ == "__main__":
     app.run(until="1 hour")
 ```
 
-`shop` takes the sinks as an argument, and the script passes it `sinks` from the Builder file:
+`shop` takes the sinks as an argument, and the script passes it `sinks` from `cloud_storage_stores.py`:
 
 ```python
 def pack_order(env, packers, sampler, key, task_id):
@@ -191,76 +193,56 @@ STORAGE=s3 STORAGE_BUCKET=my-bucket python cloud_storage.py
 
 writes them to the bucket `my-bucket` on S3 instead. In every form, `output/parquet` and `output/jsonl` hold one file for each batch, with the same events: the `queued` and `started` events of each order, with `path_id` and `status`, and its finished event, with `order_id` and `amount`. A seeded run writes the same events in every form. Only `timestamp` differs, because it is the clock time at the start of the run plus the simulation time.
 
+To count the rows, run the stores file with the same variables. Its last lines build the PyArrow filesystem of the store from the mapping, call `read_events` on each folder and print the rows:
+
+```python
+if __name__ == "__main__":
+    from pyarrow import fs
+
+    # The PyArrow class of the store takes the keys of its mapping. It is looked up
+    # by name, because some pyarrow builds lack the classes of the other clouds.
+    classes = {
+        "local": "LocalFileSystem",
+        "s3": "S3FileSystem",
+        "gcs": "GcsFileSystem",
+        "azure": "AzureFileSystem",
+    }
+    options = {
+        key: value for key, value in filesystem.items() if key != "type" and value
+    }
+    store = getattr(fs, classes[filesystem["type"]])(**options)
+    for folder, format in (("parquet", "parquet"), ("jsonl", "json")):
+        events = read_events(store, f"{bucket}/{folder}", format)
+        print(f"{folder}: {events.num_rows} rows")
+```
+
+```bash
+python cloud_storage_stores.py
+```
+
+```text
+parquet: 5291 rows
+jsonl: 5291 rows
+```
+
+Both folders hold the same number of rows. For a cloud, run the script with the same `STORAGE` and `STORAGE_BUCKET` as the shop.
+
 ______________________________________________________________________
 
 ## Full Files
 
-Every form uses the store and the sinks of `cloud_storage.py`, so keep the files in one folder.
+Every form uses the store and the sinks of `cloud_storage_stores.py`, which builds no shop, so keep the files in one folder.
 
 Full files
 
-```yaml
-# The Write to Cloud Storage guide: the shop writes an hour of orders as Parquet and JSON
-# Lines files, as fast as the machine allows. STORAGE picks the store (local, the default,
-# s3, gcs or azure) and STORAGE_BUCKET the bucket, container or local folder. Needs
-# cloud_storage.py and cloud_storage_logic.py beside it. Run it with:
-# desflow run cloud_storage.yaml
-simulation:
-  sim_id: Shop
-  factor: 0.0
-  random_seed: 42
-
-resources:
-  packers: {current_cap: 1, max_cap: 1}
-
-services:
-  packing: {dist: constant, value: 1.5}
-
-arrivals:
-  orders: {dist: exponential, rate: 0.5, spawn: pack_order}
-
-tasks:
-  pack_order:
-    service: packing
-    resource: packers
-    # The finished event is the order record
-    payload: !python cloud_storage_logic.order_record
-
-egress:
-  # Every event as Parquet and as JSON Lines, in two folders of the bucket
-  - type: Parquet
-    config:
-      default_path: ${STORAGE_BUCKET:-output}/parquet/events.parquet
-      filesystem: !python cloud_storage.filesystem
-  - type: Jsonl
-    config:
-      default_path: ${STORAGE_BUCKET:-output}/jsonl/events.jsonl
-      filesystem: !python cloud_storage.filesystem
-
-run:
-  until: 1 hour
-```
-
 ```python
-"""Python for cloud_storage.yaml: the order record each packed order publishes. The store
-is that of cloud_storage.py, which must be beside the blueprint."""
+"""The stores, sinks and reader of the Write to Cloud Storage page.
 
-
-def order_record(task_id, context, entity):
-    """The finished event of a packed order: the order record."""
-    return {"order_id": task_id, "amount": 19.99}
-```
-
-```python
-"""The stores, sinks and shop of the Write to Cloud Storage page.
-
-The shop writes an hour of orders as Parquet and JSON Lines files, as fast as the machine
-allows. STORAGE picks the store: local (the default), s3, gcs or azure. STORAGE_BUCKET
-names the bucket or container, or the folder on the local disk. Run it with
-`STORAGE=s3 STORAGE_BUCKET=my-bucket python cloud_storage.py`, with the credentials of
-that cloud set up as the page describes.
-cloud_storage.yaml and cloud_storage_low_level.py are the same shop in YAML and the
-low-level API, and use the store and the sinks of this file.
+Every form of the shop imports the store and the sinks from this file: cloud_storage.py
+(builder), cloud_storage.yaml and cloud_storage_low_level.py. It builds no simulation.
+STORAGE picks the store: local (the default), s3, gcs or azure. STORAGE_BUCKET names the
+bucket or container, or the folder on the local disk, with the credentials of that cloud
+set up as the page describes.
 """
 
 # Each section carries its own imports, as the page shows it.
@@ -302,7 +284,104 @@ def storage_sinks(filesystem: dict, bucket: str) -> list:
 sinks = storage_sinks(filesystem, bucket)
 
 
+def read_events(store, folder: str, format: str = "parquet"):
+    """Every file a sink wrote under `folder`, as one table.
+
+    `store` is a PyArrow filesystem, such as pyarrow.fs.S3FileSystem(region="us-east-1").
+    """
+    import pyarrow.dataset as ds
+
+    # format="json" reads the files of the JSON Lines sink
+    return ds.dataset(folder, format=format, filesystem=store).to_table()
+
+
+if __name__ == "__main__":
+    from pyarrow import fs
+
+    # The PyArrow class of the store takes the keys of its mapping. It is looked up
+    # by name, because some pyarrow builds lack the classes of the other clouds.
+    classes = {
+        "local": "LocalFileSystem",
+        "s3": "S3FileSystem",
+        "gcs": "GcsFileSystem",
+        "azure": "AzureFileSystem",
+    }
+    options = {
+        key: value for key, value in filesystem.items() if key != "type" and value
+    }
+    store = getattr(fs, classes[filesystem["type"]])(**options)
+    for folder, format in (("parquet", "parquet"), ("jsonl", "json")):
+        events = read_events(store, f"{bucket}/{folder}", format)
+        print(f"{folder}: {events.num_rows} rows")
+```
+
+```yaml
+# The Write to Cloud Storage guide: the shop writes an hour of orders as Parquet and JSON
+# Lines files, as fast as the machine allows. STORAGE picks the store (local, the default,
+# s3, gcs or azure) and STORAGE_BUCKET the bucket, container or local folder. Needs
+# cloud_storage_stores.py and cloud_storage_logic.py beside it. Run it with:
+# desflow run cloud_storage.yaml
+simulation:
+  sim_id: Shop
+  factor: 0.0
+  random_seed: 42
+
+resources:
+  packers: {current_cap: 1, max_cap: 1}
+
+services:
+  packing: {dist: constant, value: 1.5}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.5, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    # The finished event is the order record
+    payload: !python cloud_storage_logic.order_record
+
+egress:
+  # Every event as Parquet and as JSON Lines, in two folders of the bucket
+  - type: Parquet
+    config:
+      default_path: ${STORAGE_BUCKET:-output}/parquet/events.parquet
+      filesystem: !python cloud_storage_stores.filesystem
+  - type: Jsonl
+    config:
+      default_path: ${STORAGE_BUCKET:-output}/jsonl/events.jsonl
+      filesystem: !python cloud_storage_stores.filesystem
+
+run:
+  until: 1 hour
+```
+
+```python
+"""Python for cloud_storage.yaml: the order record each packed order publishes. The store
+is that of cloud_storage_stores.py, which must be beside the blueprint."""
+
+
+def order_record(task_id, context, entity):
+    """The finished event of a packed order: the order record."""
+    return {"order_id": task_id, "amount": 19.99}
+```
+
+```python
+"""The shop of the Write to Cloud Storage page, built with the builder API.
+
+The shop writes an hour of orders as Parquet and JSON Lines files, as fast as the machine
+allows. Run it with `STORAGE=s3 STORAGE_BUCKET=my-bucket python cloud_storage.py`, with the
+credentials of that cloud set up as the page describes. cloud_storage.yaml and
+cloud_storage_low_level.py are the same shop in YAML and the low-level API. All three
+import the store and the sinks of cloud_storage_stores.py, which must be beside them.
+"""
+
+# ruff: noqa: E402
+
 import logging
+
+from cloud_storage_stores import sinks
 
 from desflow import SimulationContext
 
@@ -339,24 +418,13 @@ if __name__ == "__main__":
         level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
     )
     app.run(until="1 hour")
-
-
-def read_events(store, folder: str, format: str = "parquet"):
-    """Every file a sink wrote under `folder`, as one table.
-
-    `store` is a PyArrow filesystem, such as pyarrow.fs.S3FileSystem(region="us-east-1").
-    """
-    import pyarrow.dataset as ds
-
-    # format="json" reads the files of the JSON Lines sink
-    return ds.dataset(folder, format=format, filesystem=store).to_table()
 ```
 
 ```python
 """The Write to Cloud Storage guide, low-level API: the shop writes an hour of orders as
 Parquet and JSON Lines files, as fast as the machine allows.
 
-The store and the sinks are those of cloud_storage.py, which must be beside this script.
+The store and the sinks are those of cloud_storage_stores.py, which must be beside this script.
 STORAGE picks the store (local, the default, s3, gcs or azure) and STORAGE_BUCKET the
 bucket, container or local folder. Run it with `python cloud_storage_low_level.py`.
 """
@@ -364,7 +432,7 @@ bucket, container or local folder. Run it with `python cloud_storage_low_level.p
 import itertools
 import logging
 
-from cloud_storage import sinks
+from cloud_storage_stores import sinks
 
 from desflow import (
     CapacityConfig,

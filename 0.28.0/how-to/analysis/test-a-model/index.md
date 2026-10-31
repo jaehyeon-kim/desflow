@@ -203,19 +203,48 @@ ______________________________________________________________________
 
 ## Check the Result
 
-The back test needs the saved results, so write them once from the folder of the file:
+Save the files of your form from [Full Files](#full-files) in a folder of their own, each under the last part of its title, such as `test_a_model.yaml`. The back test needs the saved results, so write them once from that folder. pytest then collects the `test_` functions of a file whose name starts with `test_`. The three forms give the same results, so each passes the same four tests:
+
+The files are `test_a_model_yaml.py` and `test_a_model.yaml`:
+
+```bash
+python -c "import test_a_model_yaml; test_a_model_yaml.save_results()"
+pytest test_a_model_yaml.py
+```
+
+```text
+test_a_model_yaml.py ....                                                [100%]
+
+============================== 4 passed in 0.32s ===============================
+```
+
+The file is `test_a_model.py`:
 
 ```bash
 python -c "import test_a_model; test_a_model.save_results()"
-```
-
-pytest collects the `test_` functions of a file whose name starts with `test_`:
-
-```bash
 pytest test_a_model.py
 ```
 
-The YAML form is `test_a_model_yaml.py`, with `test_a_model.yaml` beside it, and the low-level form is `test_a_model_low_level.py`. Each passes the same tests against the same saved file, because the three forms give the same results.
+```text
+test_a_model.py ....                                                     [100%]
+
+============================== 4 passed in 0.14s ===============================
+```
+
+The file is `test_a_model_low_level.py`:
+
+```bash
+python -c "import test_a_model_low_level; test_a_model_low_level.save_results()"
+pytest test_a_model_low_level.py
+```
+
+```text
+test_a_model_low_level.py ....                                           [100%]
+
+============================== 4 passed in 0.27s ===============================
+```
+
+The times differ from run to run.
 
 ______________________________________________________________________
 

@@ -37,7 +37,7 @@ ______________________________________________________________________
 
 ## Fit the Packing Times
 
-Save the files from [Full Files](#full-files) in one folder, with `packing.yaml` and `packing_gamma.yaml` in a `fitted` folder inside it, and run the commands there. The two fit commands on this page write those two files again. Fit the times, which are in seconds and cannot be below 0:
+Save the files from [Full Files](#full-files) in one folder, with `packing.yaml`, `packing_gamma.yaml` and `packing_times.yaml` in a `fitted` folder inside it, and run the commands there. The two fit commands on this page write `packing.yaml` and `packing_gamma.yaml` again. Fit the times, which are in seconds and cannot be below 0:
 
 ```bash
 # Fit the packing times, write the best fit and plot every candidate
@@ -139,7 +139,55 @@ ______________________________________________________________________
 
 Run the busy hour 40 times with each distribution, each time with a different seed. These runs are **[replications](https://jaehyeon.me/desflow/latest/learn/concepts/output-analysis/#replications)**. The mean wait differs from one replication to the next. The 95% [half-width](https://jaehyeon.me/desflow/latest/learn/concepts/output-analysis/#interval-and-half-width) below says how far the mean of the 40 replications can be from the true mean wait. Each replication also leaves out its first 2 minutes, a **[warm-up](https://jaehyeon.me/desflow/latest/learn/concepts/output-analysis/#one-run-starts-empty)**, because the shop starts empty and its first orders wait less than later ones. [Trusting Results](https://jaehyeon.me/desflow/latest/learn/studies/trusting-results/index.md) shows how to choose both numbers.
 
-In YAML, `desflow run fit_the_inputs.yaml --replications 40 --measure tasks.pack_order.wait_mean` runs the best fit, and [What You Get and Why](#what-you-get-and-why) shows the gamma's commands. The table gives each distribution's mean packing time, and the [mean wait over the 40 replications](https://jaehyeon.me/desflow/latest/learn/first-model/first-simulation/#busy-hour-figures) with its half-width:
+Each tab prints the mean wait and half-width of the three rows below, in the order of the table. In YAML, the three files in `fitted/` come from Full Files, and `fitted/packing_times.yaml` holds the 40 times as they are:
+
+```bash
+# The triangular, the best fit, from fitted/packing.yaml
+desflow run fit_the_inputs.yaml --replications 40 --measure tasks.pack_order.wait_mean | grep '^tasks'
+# The gamma
+PACKING_FIT=fitted/packing_gamma.yaml desflow run fit_the_inputs.yaml --replications 40 --measure tasks.pack_order.wait_mean | grep '^tasks'
+# The 40 times
+PACKING_FIT=fitted/packing_times.yaml desflow run fit_the_inputs.yaml --replications 40 --measure tasks.pack_order.wait_mean | grep '^tasks'
+```
+
+```text
+tasks.pack_order.wait_mean    40         2.925              0.2494
+tasks.pack_order.wait_mean    40          2.33              0.1932
+tasks.pack_order.wait_mean    40         2.319              0.1951
+```
+
+```yaml
+# The 40 packing times of packing_times.csv, column packing_seconds, as they are, in seconds.
+dist: empirical
+values: [
+  1.5, 2.5, 2.4, 1.2, 1.3, 1.2, 1.8, 1.4, 2.0, 0.7,
+  2.7, 1.4, 1.9, 1.4, 1.3, 1.8, 2.0, 1.4, 1.4, 1.9,
+  1.1, 0.8, 1.7, 1.1, 0.7, 1.1, 1.2, 0.9, 0.8, 1.5,
+  2.1, 1.3, 1.1, 1.7, 1.9, 1.3, 1.8, 2.2, 1.4, 1.1
+]
+```
+
+```bash
+python fit_the_inputs.py 2>/dev/null | tail -3
+```
+
+```text
+triangular: mean wait 2.93 ± 0.25 s
+gamma: mean wait 2.33 ± 0.19 s
+empirical: mean wait 2.32 ± 0.20 s
+```
+
+```bash
+python fit_the_inputs_low_level.py 2>/dev/null | tail -3
+```
+
+```text
+triangular: mean wait 2.93 ± 0.25 s
+gamma: mean wait 2.33 ± 0.19 s
+empirical: mean wait 2.32 ± 0.20 s
+```
+
+The table gives each distribution's mean packing time, and the [mean wait over the 40 replications](https://jaehyeon.me/desflow/latest/learn/first-model/first-simulation/#busy-hour-figures) with its half-width:
 
 | Packing time               | Mean packing time (s) | Mean wait over 40 replications (s) |
 | -------------------------- | --------------------- | ---------------------------------- |
@@ -239,6 +287,17 @@ shape: 9.55777
 scale: 0.15694
 ```
 
+```yaml
+# The 40 packing times of packing_times.csv, column packing_seconds, as they are, in seconds.
+dist: empirical
+values: [
+  1.5, 2.5, 2.4, 1.2, 1.3, 1.2, 1.8, 1.4, 2.0, 0.7,
+  2.7, 1.4, 1.9, 1.4, 1.3, 1.8, 2.0, 1.4, 1.4, 1.9,
+  1.1, 0.8, 1.7, 1.1, 0.7, 1.1, 1.2, 0.9, 0.8, 1.5,
+  2.1, 1.3, 1.1, 1.7, 1.9, 1.3, 1.8, 2.2, 1.4, 1.1
+]
+```
+
 ```text
 bench_order,packing_seconds
 1,1.5
@@ -283,7 +342,7 @@ bench_order,packing_seconds
 40,1.1
 ```
 
-The two fitted files go in a folder `fitted` beside the blueprint, or `desflow fit` writes them as the page shows.
+The three fitted files go in a folder `fitted` beside the blueprint. `desflow fit` can write `packing.yaml` and `packing_gamma.yaml` as the page shows. `packing_times.yaml` is the 40 times as they are, so save it from here.
 
 ```python
 """The Fitting the Inputs tutorial: which distribution fits the 40 packing times? builder.

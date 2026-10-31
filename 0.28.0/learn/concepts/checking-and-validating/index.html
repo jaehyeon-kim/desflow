@@ -6231,7 +6231,7 @@
 <h3 id="how-to-use-it">How to Use It</h3>
 <p>Name each check by what it compares. The trace, a case worked by hand, the statistics against each other and a formula are verification. A comparison with the real shop and sensitivity analysis are validation. Law adds <strong>credibility</strong>: a model is credible when the people who will use its results accept them, and walking them through the assumptions earns it.</p>
 <h3 id="what-the-result-means">What the Result Means</h3>
-<p>Checking a Model passes every verification check and finds one disagreement with the shop's observed values. Verification alone would have called the model ready. The study must explain the disagreement before it trusts the model for the decision.</p>
+<p>Checking a Model passes every verification check, and both of the shop's observed values lie within one standard deviation of a single run. Verification alone says nothing about the real shop, so the model is ready for the decision only after both kinds of check.</p>
 <hr />
 <h2 id="read-the-trace">Read the Trace</h2>
 <h3 id="in-the-tutorial_1">In the Tutorial</h3>
@@ -6343,7 +6343,7 @@
 <hr />
 <h2 id="compare-with-the-real-shop">Compare With the Real Shop</h2>
 <h3 id="in-the-tutorial_5">In the Tutorial</h3>
-<p>Checking a Model compares the model with values observed in the shop over 58 minutes of a busy hour: a mean wait of 2.6 seconds and a utilisation of 91%. The values are illustrative. The wait lies inside the model's 95% interval over 20 replications, 2.16 to 2.80 seconds. The utilisation lies outside its interval, 89.70% to 90.96%.</p>
+<p>Checking a Model compares the model with values observed in the shop over 58 minutes of a busy hour: a mean wait of 2.6 seconds and a utilisation of 91%. The values are illustrative. The wait lies inside the 95% interval of the model's mean over 20 replications, 2.16 to 2.80 seconds. The utilisation lies outside its interval, 89.70% to 90.96%, but within one standard deviation of a single run, so both agree.</p>
 <h3 id="why-it-matters_5">Why It Matters</h3>
 <p>Validation needs evidence from the real system. Law suggests comparing the model's results with the existing system's where there is one, along with a walk-through of the assumptions by the people who know the system, and sensitivity analysis. The <a href="https://courses.ie.bilkent.edu.tr/ie324/wp-content/uploads/sites/4/2016/09/Validation.pdf">lecture notes</a> on Banks et al. describe calibration as a loop: compare the model with the real system, adjust it, compare again. They also give three steps:</p>
 <ol>
@@ -6354,7 +6354,7 @@
 <h3 id="how-to-use-it_5">How to Use It</h3>
 <p>Give the model the inputs of a real period and compare its measures with what happened. An experiment places each observed value beside the model's interval, as <a href="../../../user-guide/results/experiment-results/#compare-with-observed-values">Experiment Results</a> describes. Check the inputs as well as the outputs: <a href="../../inputs/choosing-inputs/">Choosing Inputs</a> and <a href="../../inputs/fit-the-inputs/">Fitting the Inputs</a> cover the inputs, and <a href="../../inputs/local-replay/">Local Replay</a> runs a model on the arrivals of a real trace.</p>
 <h3 id="what-the-result-means_5">What the Result Means</h3>
-<p>The results need to agree closely enough for the decision, not exactly. A value outside its interval is a disagreement that the study must explain before it trusts the model. The interval covers only the model's spread from run to run, not the error in the shop's own measurement. When the real system does not exist yet, as for a proposed design, there is nothing to compare with, and validity rests on the assumptions and on sensitivity analysis.</p>
+<p>The results need to agree closely enough for the decision, not exactly. The model's interval is for a mean of many runs, and one observed period varies about as much as one run does. So a value outside the interval can still agree, and the comparison uses the standard deviation of one run. A value more than about two of these from the model's mean is a disagreement that the study must explain before it trusts the model. Neither figure includes the error in the shop's own measurement. When the real system does not exist yet, as for a proposed design, there is nothing to compare with, and validity rests on the assumptions and on sensitivity analysis.</p>
 <hr />
 <h2 id="test-the-sensitivity">Test the Sensitivity</h2>
 <h3 id="in-the-tutorial_6">In the Tutorial</h3>

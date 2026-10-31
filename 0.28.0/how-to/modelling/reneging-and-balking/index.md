@@ -99,7 +99,49 @@ A unit can come free at the same instant a waiting order's patience runs out. Pl
 - a patience timeout scheduled after the holder's service end (the order arrived at 3 with a patience of 3, the holder started at 0 with 6 seconds of service) is processed after the release, and the order is served;
 - a patience timeout scheduled before it (the order arrived at 0 with a patience of 6, just after the holder) is processed first, and the order reneges.
 
-Each form runs both. The YAML form replays the two arrivals at their times from CSV files:
+Each form runs both from one script, `check_reneging.py`, made of the blocks in this section and the next, in order. It starts with the imports of the standard library and a class that keeps every record the model publishes. The imports of desflow follow the class, in the line `from desflow import CapacityConfig, DynamicRealtimeEnvironment, DynamicResource, Sampler, SimParameter, SimulationContext`:
+
+```python
+import asyncio
+import importlib.util
+import queue
+import shutil
+import tempfile
+from collections import Counter
+from pathlib import Path
+
+
+class Capture:
+    """An egress that keeps every record it receives."""
+
+    def __init__(self):
+        self.records = []
+
+    async def run(self, egress_queue):
+        try:
+            while True:
+                try:
+                    self.records.extend(egress_queue.get_nowait())
+                except queue.Empty:
+                    await asyncio.sleep(0.005)
+        except asyncio.CancelledError:
+            pass
+```
+
+The function `_outcome` tells what the order did, from the records of its `pack` task:
+
+```python
+def _outcome(records: list) -> str:
+    """What the order did: reneged if any record of its pack task says so."""
+    statuses = [
+        r["value"].get("status")
+        for r in records
+        if r["stream_type"] == "event" and r["task"] == "pack"
+    ]
+    return "reneged" if "reneged" in statuses else "served"
+```
+
+The YAML form replays the two arrivals at their times from CSV files. Save its blueprint as `reneging_tie.yaml` beside the script:
 
 ```yaml
 simulation:
@@ -138,7 +180,7 @@ run:
 def tie_yaml(
     waiter_at: float,
     patience: float,
-    blueprint: str = "docs/snippets/yaml/reneging_tie.yaml",
+    blueprint: str = "reneging_tie.yaml",
 ) -> str:
     """The same, with the blueprint and the two arrivals replayed from CSV files."""
     with tempfile.TemporaryDirectory() as tmp:
@@ -180,12 +222,7 @@ def tie(waiter_at: float, patience: float) -> str:
 
     app.add_process(script)
     app.run(until=8)
-    statuses = [
-        r["value"].get("status")
-        for r in capture.records
-        if r["stream_type"] == "event" and r["task"] == "pack"
-    ]
-    return "reneged" if "reneged" in statuses else "served"
+    return _outcome(capture.records)
 ```
 
 ```python
@@ -250,10 +287,20 @@ def balance(records: list, stats: dict) -> Counter:
     return outcome
 ```
 
-Each form runs the example below for 120 seconds with a capturing egress, and passes what it captured to `balance`:
+Each form runs the example below for 120 seconds with a capturing egress, and passes what it captured to `balance`. Run `desflow examples get patience` in the folder of the script first. The forms read the example from `patience/yaml/`, `patience/builder/` and `patience/low-level/`, and a function loads an example file without running it:
 
 ```python
-def yaml_form(path: str = "examples/yaml/patience.yaml") -> Counter:
+def _example(path: str):
+    """Loads an example script as a module, without running it."""
+    spec = importlib.util.spec_from_file_location("patience_example", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+```
+
+```python
+def yaml_form(path: str = "patience/yaml/patience.yaml") -> Counter:
     app = SimulationContext.from_yaml(path)
     capture = Capture()
     app.add_egress(capture)
@@ -262,7 +309,7 @@ def yaml_form(path: str = "examples/yaml/patience.yaml") -> Counter:
 ```
 
 ```python
-def builder_form(path: str = "examples/builder/patience_example.py") -> Counter:
+def builder_form(path: str = "patience/builder/patience_example.py") -> Counter:
     app = _example(path).app
     capture = Capture()
     app.add_egress(capture)
@@ -271,7 +318,7 @@ def builder_form(path: str = "examples/builder/patience_example.py") -> Counter:
 ```
 
 ```python
-def low_level_form(path: str = "examples/low-level/patience_example.py") -> Counter:
+def low_level_form(path: str = "patience/low-level/patience_example.py") -> Counter:
     example = _example(path)
     env = DynamicRealtimeEnvironment(factor=0)
     env.registry.register_sim_parameter(example.PARAMS)
@@ -286,7 +333,37 @@ def low_level_form(path: str = "examples/low-level/patience_example.py") -> Coun
     return balance(capture.records, env.stats.readings())
 ```
 
-Each returns 49 packed, 7 reneged, 17 balked and 1 being packed, 74 orders in all. A mean wait counts only the orders that were served, so report the reneged and balked counts beside it.
+Last, the script prints the results of the ties and of the three forms. The example also prints its events, so keep the lines that start with `check:`:
+
+```python
+if __name__ == "__main__":
+    print("check: arrives at 3, patience 3:", tie(3, 3))
+    print("check: arrives at 0, patience 6:", tie(0, 6))
+    print("check: the same in YAML:", tie_yaml(3, 3), tie_yaml(0, 6))
+    print("check: the same, low-level:", tie_low_level(3, 3), tie_low_level(0, 6))
+    for form in (yaml_form, builder_form, low_level_form):
+        print("check:", dict(form()))
+```
+
+```bash
+# With uv
+uv run --no-project --with desflow check_reneging.py | grep "^check:"
+# With pip
+pip install desflow
+python check_reneging.py | grep "^check:"
+```
+
+```text
+check: arrives at 3, patience 3: served
+check: arrives at 0, patience 6: reneged
+check: the same in YAML: served reneged
+check: the same, low-level: served reneged
+check: {'order_packed': 49, 'reneged': 7, 'started': 1, 'balked': 17}
+check: {'order_packed': 49, 'reneged': 7, 'started': 1, 'balked': 17}
+check: {'order_packed': 49, 'reneged': 7, 'started': 1, 'balked': 17}
+```
+
+Each form returns 49 packed, 7 reneged, 17 balked and 1 being packed, 74 orders in all. A mean wait counts only the orders that were served, so report the reneged and balked counts beside it.
 
 ______________________________________________________________________
 

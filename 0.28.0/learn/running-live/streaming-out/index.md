@@ -17,7 +17,7 @@ This page shows how to:
 
 ## What You Add
 
-This page adds two **sinks**: `ConsoleEgress`, which prints every record to the terminal, and `JsonlStorageEgress`, which writes JSON Lines files. The file sink has a `when` predicate that passes only the finished orders. [Egress, Batching and Delivery](https://jaehyeon.me/desflow/latest/user-guide/live-runs-and-connectors/egress/index.md) describes every sink.
+This page adds two **sinks**: `ConsoleEgress`, which prints every record to the terminal, and `JsonlStorageEgress`, which writes JSON Lines files. The file sink has a `when` predicate that passes only the finished orders. The file sink needs the `parquet` extra, so install `desflow[parquet]` (`pip install "desflow[parquet]"`). Without it, the run logs that pyarrow is required and writes no file. [Egress, Batching and Delivery](https://jaehyeon.me/desflow/latest/user-guide/live-runs-and-connectors/egress/index.md) describes every sink.
 
 ______________________________________________________________________
 

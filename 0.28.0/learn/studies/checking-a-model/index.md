@@ -147,6 +147,39 @@ ten: {Shop.resources.packers.current_cap: 10}
 
 The same keys, in the same mapping as the model.
 
+Run the experiment and print the means of the two extremes:
+
+```bash
+desflow experiment checking_a_model_experiment.yaml >/dev/null
+awk -F, '($1=="one"||$1=="ten") && $3 ~ /pack_order\.finished|utilization_avg|pack_order\.wait_mean/ {printf "%s %s %.2f\n", $1, $3, $7}' results/checking-a-model/summary.csv
+```
+
+```text
+one tasks.pack_order.wait_mean 1179.01
+one resources.packers.utilization_avg 100.00
+one tasks.pack_order.finished 2318.05
+ten tasks.pack_order.wait_mean 0.00
+ten resources.packers.utilization_avg 27.08
+ten tasks.pack_order.finished 6287.00
+```
+
+```bash
+python checking_a_model.py 2>/dev/null
+```
+
+The script prints the fixed run first. Then it prints one line for each extreme, and the lines of the later sections:
+
+```text
+one: 2318 finished, utilisation 100.00%, mean wait 1179.01 s
+ten: 6287 finished, utilisation 27.08%, mean wait 0.00 s
+```
+
+```bash
+python checking_a_model_low_level.py 2>/dev/null
+```
+
+It prints the same lines as the Builder script.
+
 One packer takes 1.5 seconds an order on average, so it can finish at most 3,480 ÷ 1.5 = 2,320 orders in the 3,480 seconds after the warm-up. Over the experiment's 20 replications, the one-packer design finishes **2,318** orders on average, with the packer busy **100%** of the time and a mean wait of about **1,179** seconds. Ten packers would be busy 1.8 orders a second × 1.5 seconds ÷ 10 packers = 27% of the time. The experiment measures **27.08%** on average, and the mean wait rounds to **0.00** seconds.
 
 Turn each extreme into a check, so a later change that breaks it fails. A check tests the far end of the interval, so it passes only when the whole interval is within the bound:
@@ -183,7 +216,20 @@ Two checks compare the run with queueing theory: Little's law, which holds for a
 
 [Little's law](https://jaehyeon.me/desflow/latest/learn/concepts/queueing-basics/#littles-law) says the average queue equals the arrival rate times the mean wait. The experiment measures the three separately, so they test each other. The arrival rate is the number of orders that arrived after the warm-up, `flows.orders.started`, divided by the 3,480 seconds that follow the warm-up:
 
-Read the means of `flows.orders.started`, `resources.packers.queue_length_avg` and `tasks.pack_order.wait_mean` from `summary.csv` or the report, and multiply by hand.
+Print the means of `flows.orders.started`, `resources.packers.queue_length_avg` and `tasks.pack_order.wait_mean` from `summary.csv`, and multiply by hand. The arrival rate is 6286.7 ÷ 3480 = 1.8065 orders a second:
+
+```bash
+awk -F, '($1=="three"||$1=="one") && $3 ~ /flows\.orders\.started|queue_length_avg|pack_order\.wait_mean/ {printf "%s %s %.3f\n", $1, $3, $7}' results/checking-a-model/summary.csv
+```
+
+```text
+three tasks.pack_order.wait_mean 2.479
+three resources.packers.queue_length_avg 4.488
+three flows.orders.started 6286.700
+one tasks.pack_order.wait_mean 1179.013
+one resources.packers.queue_length_avg 2127.625
+one flows.orders.started 6286.700
+```
 
 ```python
 HORIZON = 3600 - 120  # the measured part of the hour, after the warm-up, in seconds
@@ -202,6 +248,8 @@ def littles_law(result, design):
 
 The same function, with `HORIZON = 3600 - WARMUP`.
 
+The Builder and Low-level scripts print this check as the `three:` and `one:` lines `queue 4.488, 1.8065 x 2.479 = 4.478` and `queue 2127.625, 1.8065 x 1179.013 = 2129.913`, after the lines of the extremes.
+
 Over the 20 replications with three packers, the queue averages **4.488** orders, and 1.8065 orders a second × 2.479 seconds = **4.478** orders. The two agree. With one packer they also roughly agree: a queue of **2,127.6** orders against 1.8065 × 1,179.0 = **2,129.9**. One packer's queue grows through the whole run and never settles, so its mean depends on how long the run lasts. The agreement there therefore proves less than it does for three packers. Agreement with the law shows the statistics are consistent with each other. It does not show the model is right for the shop: a model with the wrong packing times would agree just as well.
 
 ### Queueing Formulas With explain
@@ -212,7 +260,11 @@ Over the 20 replications with three packers, the queue averages **4.488** orders
 desflow explain trusting_results.yaml --verify --replications 10
 ```
 
-`context.analyze(verify=True, replications=10)` returns the same comparison for a context loaded from a blueprint, or from a builder file with `load_context`. A context built in a script's own code cannot be built again for the runs, so it refuses `verify=True`. Use `desflow explain --verify` on the file instead.
+```bash
+desflow explain trusting_results.yaml --verify --replications 10
+```
+
+`context.analyze(verify=True, replications=10)` returns the same comparison for a context loaded from a blueprint, or from a builder file with `load_context`. `desflow explain` on `trusting_results.py` does not work, because that file defines no module-level `app`. Giving it one does not help: the builder file starts its orders in an `arrival_loop` function, which is code, so the formulas cannot see which task an order starts and every measure reads `not compared`. The command above uses the YAML file of Trusting Results, which is the same model with its arrivals declared.
 
 `desflow explain` does not support low-level models. It reads which arrival starts which task and which resource each task uses, and a low-level model does not declare those links: its SimPy code makes them as it runs.
 
@@ -268,14 +320,70 @@ observed: {file: checking_a_model_observed.csv, variant: three}
 
 The same key, in the same mapping as the model.
 
-The busy-hour wait with three packers and measured packing times has no exact formula in [Queueing Basics](https://jaehyeon.me/desflow/latest/learn/concepts/queueing-basics/index.md), so the experiment's interval is the check. The interval covers only the model's spread from run to run, not the error in the shop's own measurement. One rule applies to both measures: a value outside its interval is a disagreement that the study must explain before it trusts the model for the decision. Each interval is the 95% interval of the model's mean over the 20 replications with three packers:
+The busy-hour wait with three packers and measured packing times has no closed formula in [Queueing Basics](https://jaehyeon.me/desflow/latest/learn/concepts/queueing-basics/index.md), so the model's runs are the check. Each interval below is the 95% interval of the model's mean over the 20 replications with three packers. An interval for a mean is narrow, and one observed period is not a mean: it varies about as much as one run does, so only 8 and 4 of the 20 single runs fall inside these two intervals. Compare each observed value with the standard deviation of one run instead. A value more than about two of these from the model's mean is a [disagreement](https://jaehyeon.me/desflow/latest/learn/concepts/checking-and-validating/#compare-with-the-real-shop) that the study must explain before it trusts the model for the decision:
 
-| Measure     | Observed in the shop | Model's interval         | Result                             |
-| ----------- | -------------------- | ------------------------ | ---------------------------------- |
-| Mean wait   | 2.6 seconds          | **2.16 to 2.80** seconds | inside, so it agrees               |
-| Utilisation | 91%                  | **89.70 to 90.96%**      | outside, a disagreement to explain |
+| Measure     | Observed in the shop | Interval for the model's mean | Standard deviation of one run | Distance from the model's mean | Result |
+| ----------- | -------------------- | ----------------------------- | ----------------------------- | ------------------------------ | ------ |
+| Mean wait   | 2.6 seconds          | **2.16 to 2.80** seconds      | 0.69 seconds                  | 0.18 standard deviations       | agrees |
+| Utilisation | 91%                  | **89.70 to 90.96%**           | 1.34 points                   | 0.5 standard deviations        | agrees |
 
-The study could, for example, check how the shop measured its utilisation, or whether the packing times are right.
+Each tab prints the mean, the standard deviation of one run, the distance and the number of the 20 runs inside the interval, for the two measures:
+
+The command reads the observed values, the intervals in `summary.csv` and the 20 runs in `results.csv`:
+
+```bash
+awk -F, '
+  FILENAME ~ /observed\.csv$/ && FNR > 1 {obs[$1] = $2; order[++k] = $1}
+  FILENAME ~ /summary\.csv$/ && $1 == "three" {low[$3] = $9; high[$3] = $10}
+  FILENAME ~ /results\.csv$/ && $1 == "three" && $5 in obs {
+    n[$5]++; sum[$5] += $9; sq[$5] += $9 * $9
+    if ($9 >= low[$5] && $9 <= high[$5]) inside[$5]++
+  }
+  END {
+    for (i = 1; i <= k; i++) {
+      m = order[i]; mean = sum[m] / n[m]
+      sd = sqrt((sq[m] - n[m] * mean * mean) / (n[m] - 1))
+      d = obs[m] - mean; if (d < 0) d = -d
+      printf "%s: mean %.2f, sd %.2f, distance %.2f sd, %d of %d runs inside\n", m, mean, sd, d / sd, inside[m], n[m]
+    }
+  }' checking_a_model_observed.csv results/checking-a-model/summary.csv results/checking-a-model/results.csv
+```
+
+```text
+tasks.pack_order.wait_mean: mean 2.48, sd 0.69, distance 0.18 sd, 8 of 20 runs inside
+resources.packers.utilization_avg: mean 90.33, sd 1.34, distance 0.50 sd, 4 of 20 runs inside
+```
+
+```python
+def agreement(result, design="three"):
+    """For each observed value: the model's mean, the standard deviation of one run,
+    the distance in standard deviations, and how many of the runs lie inside the
+    interval for the mean."""
+    rows = []
+    for row in result.observed:
+        runs = [
+            r["value"]
+            for r in result.results
+            if r["design"] == design and r["statistic"] == row["measure"]
+        ]
+        mean, sd = statistics.mean(runs), statistics.stdev(runs)
+        inside = sum(row["low"] <= value <= row["high"] for value in runs)
+        rows.append(
+            (row["measure"], mean, sd, abs(row["value"] - mean) / sd, inside, len(runs))
+        )
+    return rows
+```
+
+The script prints one line for each measure, after the lines of the earlier sections:
+
+```text
+tasks.pack_order.wait_mean: mean 2.48, sd 0.69, distance 0.18 sd, 8 of 20 runs inside
+resources.packers.utilization_avg: mean 90.33, sd 1.34, distance 0.50 sd, 4 of 20 runs inside
+```
+
+The same function and the same two lines, from `checking_a_model_low_level.py`.
+
+The utilisation lies outside the interval for the mean and still agrees, because one observed hour is not a mean. An observed utilisation of 95% would be (95 - 90.33) ÷ 1.34 = 3.5 standard deviations away. The study would then check how the shop measured its utilisation, or whether the packing times are right.
 
 ______________________________________________________________________
 
@@ -370,14 +478,14 @@ Does the program do what the model on paper says, and is the model good enough t
 - Over the same replications, Little's law holds for three packers, with a mean queue of **4.488** orders against 4.478, and the measured utilisation agrees with the formula's 0.9.
 - With four packers at a rate 6% higher, the mean wait over 20 replications is **0.35 ± 0.02** seconds, and all three checks pass.
 
-The observed values are illustrative, and a real check uses the shop's own records. Against them the mean wait of 2.6 seconds lies inside the 95% interval of the 20 replications, **2.16 to 2.80**, but the utilisation of 91% lies outside **89.70 to 90.96**. The model is good enough for the decision only once the study has explained that disagreement.
+The observed values are illustrative, and a real check uses the shop's own records. Against them, the mean wait of 2.6 seconds is **0.18** standard deviations of one run from the model's mean, and the utilisation of 91% is **0.5**, so both agree. The utilisation lies outside the interval for the mean, **89.70 to 90.96**, because that interval is for a mean of 20 runs and not for one observed hour.
 
 The trace, the extremes, Little's law and the queueing formulas test the program against the model on paper. [Checking and Validating](https://jaehyeon.me/desflow/latest/learn/concepts/checking-and-validating/#verification-and-validation) calls these checks verification. The observed values and the sensitivity check test the model against the shop and the decision, and that page calls them validation. Written as tests, the checks run again after every change, so a model that was checked once stays checked.
 
 ## Key Takeaways
 
 - Verification checks that the program does what the model on paper says. Validation checks that the model is close enough to the real shop for the decision.
-- A value observed in the shop that lies outside the model's interval must be explained before the model is trusted.
+- Compare one observed period with the spread of single runs, not with the interval of a mean. A value far outside that spread must be explained before the model is trusted.
 - Checks written as tests keep a checked model checked after every change.
 
 ______________________________________________________________________
@@ -514,6 +622,7 @@ pytest checking_a_model.py
 """
 
 import logging
+import statistics
 from pathlib import Path
 
 from desflow import SimulationContext, run_experiment
@@ -627,6 +736,25 @@ def littles_law(result, design):
     )
 
 
+def agreement(result, design="three"):
+    """For each observed value: the model's mean, the standard deviation of one run,
+    the distance in standard deviations, and how many of the runs lie inside the
+    interval for the mean."""
+    rows = []
+    for row in result.observed:
+        runs = [
+            r["value"]
+            for r in result.results
+            if r["design"] == design and r["statistic"] == row["measure"]
+        ]
+        mean, sd = statistics.mean(runs), statistics.stdev(runs)
+        inside = sum(row["low"] <= value <= row["high"] for value in runs)
+        rows.append(
+            (row["measure"], mean, sd, abs(row["value"] - mean) / sd, inside, len(runs))
+        )
+    return rows
+
+
 def test_fixed_inputs_match_the_hand_trace():
     readings = fixed_run()
     assert readings["tasks.pack_order.finished"] == 4
@@ -644,6 +772,13 @@ def test_extremes_sensitivity_and_littles_law(tmp_path):
 if __name__ == "__main__":
     print(fixed_run())
     result = experiment()
+    means = {(r["design"], r["statistic"]): r["mean"] for r in result.summary}
+    for design in ("one", "ten"):
+        print(
+            f"{design}: {means[design, 'tasks.pack_order.finished']:.0f} finished, "
+            f"utilisation {means[design, 'resources.packers.utilization_avg']:.2f}%, "
+            f"mean wait {means[design, 'tasks.pack_order.wait_mean']:.2f} s"
+        )
     for design in ("three", "one"):
         queue, rate, wait = littles_law(result, design)
         print(
@@ -651,6 +786,11 @@ if __name__ == "__main__":
         )
     for row in result.observed:
         print(f"observed {row['measure']}: {row['value']} inside={row['inside']}")
+    for measure, mean, sd, distance, inside, runs in agreement(result):
+        print(
+            f"{measure}: mean {mean:.2f}, sd {sd:.2f}, distance {distance:.2f} sd, "
+            f"{inside} of {runs} runs inside"
+        )
 ```
 
 ```python
@@ -662,9 +802,12 @@ script prints the mean wait without and with the warm-up, the mean wait of 5 run
 after each of three candidate warm-ups, then the mean and half-width of two outputs
 over 5, 10, 20 and 40 replications. To see only those lines, run:
 python trusting_results.py 2>/dev/null
+With the argument start, it runs the first 15 minutes without a warm-up, to plot:
+python trusting_results.py start 2>&1
 """
 
 import logging
+import sys
 
 from desflow import ConsoleEgress, SimulationContext, replicate
 from desflow.analysis import interval
@@ -710,11 +853,16 @@ def shop(warmup="2 min") -> SimulationContext:
     return app
 
 
-def mean_wait(warmup) -> float:
-    """Runs the busy hour and returns the mean wait it measured."""
+def busy_hour(warmup) -> dict:
+    """Runs the busy hour and returns the statistics it measured."""
     app = shop(warmup)
     app.run(until="1 h")
-    return app.env.stats.readings()["Shop.stats.tasks.pack_order.wait_mean"]
+    return app.env.stats.readings()
+
+
+def mean_wait(warmup) -> float:
+    """Runs the busy hour and returns the mean wait it measured."""
+    return busy_hour(warmup)["Shop.stats.tasks.pack_order.wait_mean"]
 
 
 MEASURES = ["tasks.pack_order.wait_mean", "resources.packers.utilization_avg"]
@@ -743,9 +891,20 @@ def precision(result) -> dict:
     }
 
 
-if __name__ == "__main__":
+WAIT = "Shop.stats.tasks.pack_order.wait_mean"
+PACKED = "Shop.stats.tasks.pack_order.finished"
+QUEUE = "Shop.stats.resources.packers.queue_length_avg"
+
+
+def report() -> None:
+    """Prints the mean waits, the Little's law figures and the precision."""
     print(f"without a warm-up: mean wait {mean_wait(None):.3f} s")
-    print(f"with a 2 min warm-up: mean wait {mean_wait('2 min'):.3f} s")
+    warmed = busy_hour("2 min")
+    print(f"with a 2 min warm-up: mean wait {warmed[WAIT]:.3f} s")
+    print(
+        f"after the warm-up: {warmed[PACKED]} orders packed, "
+        f"queue_length_avg {warmed[QUEUE]:.2f}"
+    )
     for warmup, result in warmups().items():
         row = result.summary[0]
         print(
@@ -756,6 +915,14 @@ if __name__ == "__main__":
         print(
             f"{measure}, {n} runs: {result.mean:.2f} ± {result.half_width:.2f} ({share:.1%})"
         )
+
+
+if __name__ == "__main__":
+    if sys.argv[1:] == ["start"]:
+        # The statistics every 10 seconds of the first 15 minutes, without a warm-up
+        shop(None).run(until="15 min")
+    else:
+        report()
 ```
 
 ```text
@@ -775,6 +942,7 @@ pytest checking_a_model_low_level.py
 """
 
 import logging
+import statistics
 from pathlib import Path
 
 from desflow import (
@@ -883,6 +1051,25 @@ def littles_law(result, design):
     )
 
 
+def agreement(result, design="three"):
+    """For each observed value: the model's mean, the standard deviation of one run,
+    the distance in standard deviations, and how many of the runs lie inside the
+    interval for the mean."""
+    rows = []
+    for row in result.observed:
+        runs = [
+            r["value"]
+            for r in result.results
+            if r["design"] == design and r["statistic"] == row["measure"]
+        ]
+        mean, sd = statistics.mean(runs), statistics.stdev(runs)
+        inside = sum(row["low"] <= value <= row["high"] for value in runs)
+        rows.append(
+            (row["measure"], mean, sd, abs(row["value"] - mean) / sd, inside, len(runs))
+        )
+    return rows
+
+
 def test_fixed_inputs_match_the_hand_trace():
     readings = fixed_run()
     assert readings["tasks.pack_order.finished"] == 4
@@ -900,6 +1087,13 @@ def test_extremes_sensitivity_and_littles_law(tmp_path):
 if __name__ == "__main__":
     print(fixed_run())
     result = experiment()
+    means = {(r["design"], r["statistic"]): r["mean"] for r in result.summary}
+    for design in ("one", "ten"):
+        print(
+            f"{design}: {means[design, 'tasks.pack_order.finished']:.0f} finished, "
+            f"utilisation {means[design, 'resources.packers.utilization_avg']:.2f}%, "
+            f"mean wait {means[design, 'tasks.pack_order.wait_mean']:.2f} s"
+        )
     for design in ("three", "one"):
         queue, rate, wait = littles_law(result, design)
         print(
@@ -907,6 +1101,11 @@ if __name__ == "__main__":
         )
     for row in result.observed:
         print(f"observed {row['measure']}: {row['value']} inside={row['inside']}")
+    for measure, mean, sd, distance, inside, runs in agreement(result):
+        print(
+            f"{measure}: mean {mean:.2f}, sd {sd:.2f}, distance {distance:.2f} sd, "
+            f"{inside} of {runs} runs inside"
+        )
 ```
 
 ```python
@@ -918,9 +1117,12 @@ script prints the mean wait without and with the warm-up, the mean wait of 5 run
 after each of three candidate warm-ups, then the mean and half-width of two outputs
 over 5, 10, 20 and 40 replications. To see only those lines, run:
 python trusting_results_low_level.py 2>/dev/null
+With the argument start, it runs the first 15 minutes without a warm-up, to plot:
+python trusting_results_low_level.py start 2>&1
 """
 
 import logging
+import sys
 
 from desflow import (
     CapacityConfig,
@@ -1045,9 +1247,20 @@ def precision(result) -> dict:
     }
 
 
-if __name__ == "__main__":
+WAIT = "Shop.stats.tasks.pack_order.wait_mean"
+PACKED = "Shop.stats.tasks.pack_order.finished"
+QUEUE = "Shop.stats.resources.packers.queue_length_avg"
+
+
+def report() -> None:
+    """Prints the mean waits, the Little's law figures and the precision."""
     print(f"without a warm-up: mean wait {mean_wait(None):.3f} s")
-    print(f"with a 2 min warm-up: mean wait {mean_wait(WARMUP):.3f} s")
+    warmed = run(WARMUP).stats.readings()
+    print(f"with a 2 min warm-up: mean wait {warmed[WAIT]:.3f} s")
+    print(
+        f"after the warm-up: {warmed[PACKED]} orders packed, "
+        f"queue_length_avg {warmed[QUEUE]:.2f}"
+    )
     for warmup, result in warmups().items():
         row = result.summary[0]
         print(
@@ -1058,6 +1271,14 @@ if __name__ == "__main__":
         print(
             f"{measure}, {n} runs: {result.mean:.2f} ± {result.half_width:.2f} ({share:.1%})"
         )
+
+
+if __name__ == "__main__":
+    if sys.argv[1:] == ["start"]:
+        # The statistics every 10 seconds of the first 15 minutes, without a warm-up
+        run(None, until=900)
+    else:
+        report()
 ```
 
 ```text

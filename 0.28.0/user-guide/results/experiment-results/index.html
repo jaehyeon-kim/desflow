@@ -5497,7 +5497,7 @@
 </ul>
 <p>A check whose measure is not in <code>measures</code> is refused. The experiment writes every file before it reports a failed check, so the report shows what failed.</p>
 <h3 id="compare-with-observed-values">Compare With Observed Values</h3>
-<p><code>observed</code> names a CSV of values measured in the real system, with the columns <code>measure</code>, <code>value</code>, <code>unit</code>, <code>population</code> and <code>horizon</code>. Each row is placed beside the simulated interval of <code>variant</code> (the first variant when it is not given), and the report says whether the value lies inside it. A value means something only beside a simulated value of the same kind, so the experiment refuses a row whose unit, population or horizon differs from the measure's:</p>
+<p><code>observed</code> names a CSV of values measured in the real system, with the columns <code>measure</code>, <code>value</code>, <code>unit</code>, <code>population</code> and <code>horizon</code>. Each row is placed beside the simulated interval of <code>variant</code> (the first variant when it is not given), and the report says whether the value lies inside it. That interval is for a mean, so one observed period can lie outside it while the model is right, as <a href="../../../learn/concepts/checking-and-validating/#compare-with-the-real-shop">Checking and Validating</a> explains. A value means something only beside a simulated value of the same kind, so the experiment refuses a row whose unit, population or horizon differs from the measure's:</p>
 <table>
 <thead>
 <tr>

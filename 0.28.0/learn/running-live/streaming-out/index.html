@@ -5504,7 +5504,7 @@
 <li>know when the files are complete.</li>
 </ul>
 <h2 id="what-you-add">What You Add</h2>
-<p>This page adds two <strong>sinks</strong>: <code>ConsoleEgress</code>, which prints every record to the terminal, and <code>JsonlStorageEgress</code>, which writes JSON Lines files. The file sink has a <code>when</code> predicate that passes only the finished orders. <a href="../../../user-guide/live-runs-and-connectors/egress/">Egress, Batching and Delivery</a> describes every sink.</p>
+<p>This page adds two <strong>sinks</strong>: <code>ConsoleEgress</code>, which prints every record to the terminal, and <code>JsonlStorageEgress</code>, which writes JSON Lines files. The file sink has a <code>when</code> predicate that passes only the finished orders. The file sink needs the <code>parquet</code> extra, so install <code>desflow[parquet]</code> (<code>pip install "desflow[parquet]"</code>). Without it, the run logs that pyarrow is required and writes no file. <a href="../../../user-guide/live-runs-and-connectors/egress/">Egress, Batching and Delivery</a> describes every sink.</p>
 <hr />
 <h2 id="choose-what-each-sink-gets">Choose What Each Sink Gets</h2>
 <p>Every sink receives every event and every telemetry record, unless its <code>when</code> says otherwise. <code>when</code> is a function that takes one record and returns True to send it to that sink. This one passes the events whose value says <code>order_packed</code>:</p>

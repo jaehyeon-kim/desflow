@@ -17,7 +17,7 @@ This page shows how to:
 
 ## What You Add
 
-This page adds a packer that can be **preempted**, as [Preemption](#preemption) explains, and an `on_interrupt` policy on regular orders: `resume`, `restart` or `abandon`. It also calls the packer away once, which interrupts the regular orders in the shop. A breakdown interrupts work in the same way, and the [Model Breakdowns](https://jaehyeon.me/desflow/latest/how-to/modelling/breakdowns/index.md) guide adds one. The shop is the one from Priorities: one packer and 1.5 seconds of packing. A regular order arrives every 2.22 seconds on average (`rate: 0.45`), and an express order every 6.67 seconds (`rate: 0.15`).
+This page adds a packer that can be **preempted**, as [Preemption](#preemption) explains, and an `on_interrupt` policy on regular orders: `resume`, `restart` or `abandon`. It also recalls the regular orders once: every regular order in the shop receives an interrupt and follows its policy, and the packer stays available. Under `resume` and `restart` a recalled order queues for the packer again with the same priority, so it waits behind the express orders and behind the regular orders that queued again before it. Under `abandon` it is lost. [Model Breakdowns](https://jaehyeon.me/desflow/latest/how-to/modelling/breakdowns/index.md) shows a packer that is out of use for a time. The shop is the one from Priorities: one packer and 1.5 seconds of packing. A regular order arrives every 2.22 seconds on average (`rate: 0.45`), and an express order every 6.67 seconds (`rate: 0.15`).
 
 ______________________________________________________________________
 
@@ -215,36 +215,36 @@ ______________________________________________________________________
 
 ## Interrupt a Task
 
-Preemption is one source of interrupts, and a model can send others. An `interrupt` names a task. Every instance of that task that is running, waiting or being served receives an interrupt with the given `cause`, and follows its `on_interrupt`. A `where` condition, such as `attr.order == 3`, limits the interrupt to the instances for which the condition holds. Here the packer is called away at 31 minutes:
+Preemption is one source of interrupts, and a model can send others. An `interrupt` names a task. Every instance of that task that is running, waiting or being served receives an interrupt with the given `cause`, and follows its `on_interrupt`. A `where` condition, such as `attr.order == 3`, limits the interrupt to the instances for which the condition holds. Here a recall at 31 minutes interrupts every regular order:
 
 ```yaml
 scenario:
-  # The packer is called away at 31 minutes: every regular order in the shop,
+  # A recall at 31 minutes: every regular order in the shop,
   # waiting or being packed, is interrupted
-  - {at: 31 min, interrupt: {task: pack_order, cause: called away}}
+  - {at: 31 min, interrupt: {task: pack_order, cause: recalled}}
 ```
 
 A task can carry the same `interrupt`, applied when it finishes.
 
 ```python
-def called_away(context: SimulationContext):
-    """The packer is called away at 31 minutes: every regular order in the shop,
+def recall_orders(context: SimulationContext):
+    """A recall at 31 minutes: every regular order in the shop,
     waiting or being packed, is interrupted."""
     yield context.env.timeout(1860)
-    context.interrupt("pack_order", cause="called away")
+    context.interrupt("pack_order", cause="recalled")
 
-app.add_process(called_away)
+app.add_process(recall_orders)
 ```
 
 `context.interrupt(task, where=None, cause=None)` returns how many instances it reached. It never reaches the instance that calls it.
 
 ```python
-def called_away(env, shop):
-    """The packer is called away at 31 minutes: every regular order in the shop,
+def recall_orders(env, shop):
+    """A recall at 31 minutes: every regular order in the shop,
     waiting or being packed, is interrupted."""
     yield env.timeout(1860)
     for process in list(shop["running"].get("pack_order", [])):
-        process.interrupt("called away")
+        process.interrupt("recalled")
 ```
 
 `process.interrupt(cause)` is SimPy's. The model keeps its own list of the processes it may interrupt.
@@ -257,14 +257,14 @@ What remains of a regular order's packing when an express order takes its packer
 
 - With `resume`, the time it had left remains. After **344** preemptions, regular orders wait **8.12 seconds** on average.
 - With `restart`, nothing remains: each preempted order packs again from the start. Preemptions rise to **393**, and the mean wait triples to **25.33 seconds**.
-- With `abandon`, the order is lost. **314** orders are lost, 312 to preemption and 2 to the call at 31 minutes. The **1,293** packed orders wait only **3.60 seconds** on average, because every interrupted order leaves the queue.
+- With `abandon`, the order is lost. **314** orders are lost, 312 to preemption and 2 to the recall at 31 minutes. The **1,293** packed orders wait only **3.60 seconds** on average, because every interrupted order leaves the queue.
 
-The call at 31 minutes reaches every regular order in the shop at that moment: 3 under `resume`, 23 under `restart`, whose longer queue holds more orders, and 2 under `abandon`:
+The recall at 31 minutes reaches every regular order in the shop at that moment: 3 under `resume`, 23 under `restart`, whose longer queue holds more orders, and 2 under `abandon`:
 
-Each tab prints all three policies: the orders packed, preempted and called away (`interrupted`), the mean wait and the mean packing time.
+Each tab prints all three policies: the orders packed, preempted and recalled (`interrupted`), the mean wait and the mean packing time.
 
 ```bash
-# The resume policy: orders preempted, called away and packed, mean wait and packing time
+# The resume policy: orders preempted, recalled and packed, mean wait and packing time
 desflow run interruptions.yaml --stdout | grep -E 'pack_order\.(preempted|interrupted|finished|wait_mean|service_mean)"' | tail -5
 # The restart policy
 POLICY=restart desflow run interruptions.yaml --stdout | grep -E 'pack_order\.(preempted|interrupted|finished|wait_mean|service_mean)"' | tail -5
@@ -295,9 +295,9 @@ python interruptions.py 2>/dev/null
 ```
 
 ```text
-resume : 344 preempted, 3 called away, 1607 packed, mean wait  8.12 s, mean packing 1.50 s
-restart: 393 preempted, 23 called away, 1606 packed, mean wait 25.33 s, mean packing 1.69 s
-abandon: 312 preempted, 2 called away, 1293 packed, mean wait  3.60 s, mean packing 1.50 s
+resume : 344 preempted, 3 recalled, 1607 packed, mean wait  8.12 s, mean packing 1.50 s
+restart: 393 preempted, 23 recalled, 1606 packed, mean wait 25.33 s, mean packing 1.69 s
+abandon: 312 preempted, 2 recalled, 1293 packed, mean wait  3.60 s, mean packing 1.50 s
 ```
 
 ```bash
@@ -305,9 +305,9 @@ python interruptions_low_level.py 2>/dev/null
 ```
 
 ```text
-resume : 344 preempted, 3 called away, 1607 packed, mean wait  8.12 s, mean packing 1.50 s
-restart: 393 preempted, 23 called away, 1606 packed, mean wait 25.33 s, mean packing 1.69 s
-abandon: 312 preempted, 2 called away, 1293 packed, mean wait  3.60 s, mean packing 1.50 s
+resume : 344 preempted, 3 recalled, 1607 packed, mean wait  8.12 s, mean packing 1.50 s
+restart: 393 preempted, 23 recalled, 1606 packed, mean wait 25.33 s, mean packing 1.69 s
+abandon: 312 preempted, 2 recalled, 1293 packed, mean wait  3.60 s, mean packing 1.50 s
 ```
 
 Under `restart` the packer spends part of its time on packing that is thrown away, so it does more work for the same orders. The mean time packed rises from 1.50 to 1.69 seconds, and the load nears what one packer can do. Waits then grow fast, as [Queueing Basics](https://jaehyeon.me/desflow/latest/learn/concepts/queueing-basics/#waits-near-full-use) explains. `resume` loses no work, so its waits are close to those of plain priority. `abandon` looks best only because the mean leaves out the orders it lost. So report their count beside it. [Priority and Preemption](https://jaehyeon.me/desflow/latest/user-guide/resources/priority-and-preemption/#preemption) describes preemption, and [Tasks and Processes](https://jaehyeon.me/desflow/latest/user-guide/tasks-and-processes/index.md) the task's steps.
@@ -360,9 +360,9 @@ tasks:
     payload: {event_type: express_packed}
 
 scenario:
-  # The packer is called away at 31 minutes: every regular order in the shop,
+  # A recall at 31 minutes: every regular order in the shop,
   # waiting or being packed, is interrupted
-  - {at: 31 min, interrupt: {task: pack_order, cause: called away}}
+  - {at: 31 min, interrupt: {task: pack_order, cause: recalled}}
 
 # Counts of preemptions and resumptions, and the mean wait and service, at the end
 stats: {level: typical, interval: 1 h}
@@ -437,13 +437,13 @@ def shop(policy: str = "resume") -> SimulationContext:
 
         app.arrival_loop(arrival)(loop)
 
-    def called_away(context: SimulationContext):
-        """The packer is called away at 31 minutes: every regular order in the shop,
+    def recall_orders(context: SimulationContext):
+        """A recall at 31 minutes: every regular order in the shop,
         waiting or being packed, is interrupted."""
         yield context.env.timeout(1860)
-        context.interrupt("pack_order", cause="called away")
+        context.interrupt("pack_order", cause="recalled")
 
-    app.add_process(called_away)
+    app.add_process(recall_orders)
     return app
 
 
@@ -466,7 +466,7 @@ if __name__ == "__main__":
     for policy in ("resume", "restart", "abandon"):
         r = outcomes(policy)
         print(
-            f"{policy:<7}: {r['preempted']} preempted, {r['interrupted']} called away, "
+            f"{policy:<7}: {r['preempted']} preempted, {r['interrupted']} recalled, "
             f"{r['finished']} packed, "
             f"mean wait {r['wait_mean']:5.2f} s, mean packing {r['service_mean']:4.2f} s"
         )
@@ -586,12 +586,12 @@ def order_generator(env, sampler, shop, arrival, policy):
         env.process(pack(env, sampler, shop, arrival, key, task_id, policy))
 
 
-def called_away(env, shop):
-    """The packer is called away at 31 minutes: every regular order in the shop,
+def recall_orders(env, shop):
+    """A recall at 31 minutes: every regular order in the shop,
     waiting or being packed, is interrupted."""
     yield env.timeout(1860)
     for process in list(shop["running"].get("pack_order", [])):
-        process.interrupt("called away")
+        process.interrupt("recalled")
 
 
 def run(policy="resume", until=3600, factor=0.0):
@@ -612,7 +612,7 @@ def run(policy="resume", until=3600, factor=0.0):
     sampler = Sampler(seed=42)
     env.process(order_generator(env, sampler, shop, "orders", policy))
     env.process(order_generator(env, sampler, shop, "express", policy))
-    env.process(called_away(env, shop))
+    env.process(recall_orders(env, shop))
     try:
         env.run(until=until)
     finally:
@@ -637,7 +637,7 @@ if __name__ == "__main__":
     for policy in ("resume", "restart", "abandon"):
         r = outcomes(policy)
         print(
-            f"{policy:<7}: {r['preempted']} preempted, {r['interrupted']} called away, "
+            f"{policy:<7}: {r['preempted']} preempted, {r['interrupted']} recalled, "
             f"{r['finished']} packed, "
             f"mean wait {r['wait_mean']:5.2f} s, mean packing {r['service_mean']:4.2f} s"
         )

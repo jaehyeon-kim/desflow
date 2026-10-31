@@ -144,21 +144,7 @@ def glue_serializers():
 
 ### Run the Shop
 
-The router sends each order to one of the two topics, and `topic_serializers` names the serializer of each topic, as in [Avro for Some Topics](https://jaehyeon.me/desflow/latest/how-to/records-and-kafka/avro-and-pydantic/#avro-for-some-topics). In this shop the orders alternate between the formats, so one run shows both. Each form publishes the order record as the finished event of the packing task:
-
-```yaml
-egress:
-  # Orders as JSON Schema or Protobuf, the rest as JSON
-  - type: Kafka
-    config:
-      bootstrap_servers: 127.0.0.1:9092
-      topic_router: !python json_schema_and_protobuf.order_topic_router
-      topic_serializers:
-        orders-json: !python json_schema_and_protobuf.json_serializer
-        orders-protobuf: !python json_schema_and_protobuf.protobuf_serializer
-```
-
-The blueprint names the order record as the task's `payload` and loads the router and the serializers with `!python`, as [Run the Shop](https://jaehyeon.me/desflow/latest/how-to/records-and-kafka/avro-and-pydantic/#run-the-shop) does for Avro.
+The router sends each order to one of the two topics, and `topic_serializers` names the serializer of each topic, as in [Avro for Some Topics](https://jaehyeon.me/desflow/latest/how-to/records-and-kafka/avro-and-pydantic/#avro-for-some-topics). In this shop the orders alternate between the formats, so one run shows both. Each form publishes the order record as the finished event of the packing task. The router and the egress below are in `json_schema_and_protobuf_serializers.py`. The YAML form loads the router and the serializers from it, and the Builder and Low-level forms import `egress`:
 
 ```python
 from desflow import KafkaEgress
@@ -185,8 +171,24 @@ egress = KafkaEgress(
 )
 ```
 
+```yaml
+egress:
+  # Orders as JSON Schema or Protobuf, the rest as JSON
+  - type: Kafka
+    config:
+      bootstrap_servers: 127.0.0.1:9092
+      topic_router: !python json_schema_and_protobuf_serializers.order_topic_router
+      topic_serializers:
+        orders-json: !python json_schema_and_protobuf_serializers.json_serializer
+        orders-protobuf: !python json_schema_and_protobuf_serializers.protobuf_serializer
+```
+
+The blueprint names the order record as the task's `payload` and loads the router and the serializers with `!python`, as [Run the Shop](https://jaehyeon.me/desflow/latest/how-to/records-and-kafka/avro-and-pydantic/#run-the-shop) does for Avro.
+
 ```python
 import logging
+
+from json_schema_and_protobuf_serializers import egress
 
 from desflow import KafkaAdminConnector, SimulationContext
 
@@ -223,7 +225,7 @@ if __name__ == "__main__":
     app.run(until="1 min")
 ```
 
-`shop` takes the sinks as an argument, and the script passes it `[egress]` from the Builder file:
+`shop` takes the sinks as an argument, and the script passes it `[egress]` from `json_schema_and_protobuf_serializers.py`:
 
 ```python
 def pack_order(env, packers, sampler, key, task_id):
@@ -298,114 +300,62 @@ ______________________________________________________________________
 
 Run `desflow run json_schema_and_protobuf.yaml`, `python json_schema_and_protobuf.py` or `python json_schema_and_protobuf_low_level.py` while `kafka-lite` is up, after you generate `shop_record_pb2.py`. In every form, the `queued` and `started` events go to `sim-events` as JSON. Each order goes to `orders-json` or `orders-protobuf`, and its serializer registers the schema or the `.proto` file with the registry on its first send. `read_order` reads an `orders-json` message back as the dict that was sent, and an `orders-protobuf` message as a dict with `order_id` and `instance` as strings.
 
+`read_order` is called by the last lines of the serializers file. Run it after a shop has run. It reads the first message of each order topic and prints the record that `read_order` decodes:
+
+```python
+import asyncio
+
+from aiokafka import AIOKafkaConsumer
+
+
+async def show_first_order(topic: str) -> None:
+    """Prints the first order of a topic, decoded by the reader of its format."""
+    consumer = AIOKafkaConsumer(
+        topic, bootstrap_servers="127.0.0.1:9092", auto_offset_reset="earliest"
+    )
+    await consumer.start()
+    try:
+        message = await asyncio.wait_for(consumer.getone(), timeout=10)
+        print(topic, read_order(topic, message.value))
+    finally:
+        await consumer.stop()
+
+
+if __name__ == "__main__":
+    for topic in order_readers:
+        asyncio.run(show_first_order(topic))
+```
+
+```bash
+python json_schema_and_protobuf_serializers.py
+```
+
+```text
+orders-json {'sim_ts': 4.052, 'timestamp': '2026-10-31T00:53:06.126+00:00', 'key': 'orders-1', 'task': 'pack_order', 'instance': 0, 'value': {'order_id': 0, 'amount': 19.99}}
+orders-protobuf {'key': 'orders-2', 'task': 'pack_order', 'instance': '1', 'sim_ts': 5.552, 'timestamp': '2026-10-31T00:53:07.626+00:00', 'value': {'order_id': '1', 'amount': 19.99}}
+```
+
+The `timestamp` is the clock time of your run. The Protobuf record has `instance` and `order_id` as strings, as above.
+
 ______________________________________________________________________
 
 ## Full Files
 
-Every form uses the serializers and the router in `json_schema_and_protobuf.py`, so keep the files in one folder.
+Every form uses the serializers and the router in `json_schema_and_protobuf_serializers.py`, which builds no shop, so keep the files in one folder.
 
 Full files
-
-All three forms read `shop_record_pb2.py`, which `protoc` generates from this file:
-
-```protobuf
-// The record KafkaEgress sends for an order, as the JSON Schema and Protobuf
-// guide publishes it. Generate shop_record_pb2.py from it with the command on that page.
-syntax = "proto3";
-
-package com.desflow.shop;
-
-message Order {
-  int64 order_id = 1;
-  double amount = 2;
-}
-
-// `optional` keeps a missing task or instance apart from 0 and "", as null is in JSON.
-message ShopRecord {
-  string key = 1;
-  optional string task = 2;
-  optional int64 instance = 3;
-  double sim_ts = 4;
-  string timestamp = 5;
-  Order value = 6;
-}
-```
-
-```yaml
-# The JSON Schema and Protobuf guide: each packed order publishes an order record,
-# sent to orders-json as JSON Schema or to orders-protobuf as Protobuf; every other record
-# goes to its topic as JSON. Needs json_schema_and_protobuf.py,
-# json_schema_and_protobuf_logic.py, shop_record.proto and shop_record_pb2.py beside it, and
-# a Kafka broker with a schema registry: odctl up kafka-lite. Run it with:
-# desflow run json_schema_and_protobuf.yaml
-simulation:
-  sim_id: Shop
-  factor: 1
-  random_seed: 42
-
-resources:
-  packers: {current_cap: 1, max_cap: 1}
-
-services:
-  packing: {dist: constant, value: 1.5}
-
-arrivals:
-  orders: {dist: exponential, rate: 0.5, spawn: pack_order}
-
-tasks:
-  pack_order:
-    service: packing
-    resource: packers
-    # The finished event is the order record
-    payload: !python json_schema_and_protobuf_logic.order_record
-
-egress:
-  # Orders as JSON Schema or Protobuf, the rest as JSON
-  - type: Kafka
-    config:
-      bootstrap_servers: 127.0.0.1:9092
-      topic_router: !python json_schema_and_protobuf.order_topic_router
-      topic_serializers:
-        orders-json: !python json_schema_and_protobuf.json_serializer
-        orders-protobuf: !python json_schema_and_protobuf.protobuf_serializer
-
-run:
-  until: 1 min
-  before:
-    # With a router, KafkaEgress creates no topics, so create them first
-    - !python json_schema_and_protobuf_logic.create_topics
-```
-
-```python
-"""Python for json_schema_and_protobuf.yaml: the order record each packed order publishes,
-and the topics the run needs. The serializers and the router are those of
-json_schema_and_protobuf.py, which must be beside the blueprint."""
-
-from desflow import KafkaAdminConnector
-
-TOPICS = ["sim-events", "sim-telemetry", "orders-json", "orders-protobuf"]
-
-
-def order_record(task_id, context, entity):
-    """The finished event of a packed order: the order record."""
-    return {"order_id": task_id, "amount": 19.99}
-
-
-def create_topics():
-    """With a router, KafkaEgress creates no topics, so create them first."""
-    admin = KafkaAdminConnector(bootstrap_servers="127.0.0.1:9092")
-    admin.create_topics([{"name": topic} for topic in TOPICS])
-```
 
 ```python
 """The serializers, router and order readers of the JSON Schema and Protobuf page.
 
-The shop at the end publishes each packed order as JSON Schema or Protobuf and every other
-record as JSON. It needs a Kafka broker and a schema registry: start both with
-`odctl up kafka-lite`, then run `python json_schema_and_protobuf.py`.
-shop_record.proto and shop_record_pb2.py, generated from it, must be beside this file.
-json_schema_and_protobuf.yaml and json_schema_and_protobuf_low_level.py are the same shop in
-YAML and the low-level API, and use the serializers and router of this file.
+Every form of the shop imports the serializers and the router from this file:
+json_schema_and_protobuf.py (builder), json_schema_and_protobuf.yaml and
+json_schema_and_protobuf_low_level.py. It builds no simulation. shop_record.proto and
+shop_record_pb2.py, generated from it, must be beside this file. It needs a Kafka broker
+and a schema registry: start both with `odctl up kafka-lite`.
+
+After a shop has run, `python json_schema_and_protobuf_serializers.py` reads the first
+order of each order topic back.
 """
 
 # Each section carries its own imports, as the page shows it.
@@ -518,7 +468,136 @@ def read_order(topic: str, payload: bytes) -> dict:
     return order_readers[topic].deserialize(topic, payload)
 
 
+import asyncio
+
+from aiokafka import AIOKafkaConsumer
+
+
+async def show_first_order(topic: str) -> None:
+    """Prints the first order of a topic, decoded by the reader of its format."""
+    consumer = AIOKafkaConsumer(
+        topic, bootstrap_servers="127.0.0.1:9092", auto_offset_reset="earliest"
+    )
+    await consumer.start()
+    try:
+        message = await asyncio.wait_for(consumer.getone(), timeout=10)
+        print(topic, read_order(topic, message.value))
+    finally:
+        await consumer.stop()
+
+
+if __name__ == "__main__":
+    for topic in order_readers:
+        asyncio.run(show_first_order(topic))
+```
+
+All three forms read `shop_record_pb2.py`, which `protoc` generates from this file:
+
+```protobuf
+// The record KafkaEgress sends for an order, as the JSON Schema and Protobuf
+// guide publishes it. Generate shop_record_pb2.py from it with the command on that page.
+syntax = "proto3";
+
+package com.desflow.shop;
+
+message Order {
+  int64 order_id = 1;
+  double amount = 2;
+}
+
+// `optional` keeps a missing task or instance apart from 0 and "", as null is in JSON.
+message ShopRecord {
+  string key = 1;
+  optional string task = 2;
+  optional int64 instance = 3;
+  double sim_ts = 4;
+  string timestamp = 5;
+  Order value = 6;
+}
+```
+
+```yaml
+# The JSON Schema and Protobuf guide: each packed order publishes an order record,
+# sent to orders-json as JSON Schema or to orders-protobuf as Protobuf; every other record
+# goes to its topic as JSON. Needs json_schema_and_protobuf_serializers.py,
+# json_schema_and_protobuf_logic.py, shop_record.proto and shop_record_pb2.py beside it, and
+# a Kafka broker with a schema registry: odctl up kafka-lite. Run it with:
+# desflow run json_schema_and_protobuf.yaml
+simulation:
+  sim_id: Shop
+  factor: 1
+  random_seed: 42
+
+resources:
+  packers: {current_cap: 1, max_cap: 1}
+
+services:
+  packing: {dist: constant, value: 1.5}
+
+arrivals:
+  orders: {dist: exponential, rate: 0.5, spawn: pack_order}
+
+tasks:
+  pack_order:
+    service: packing
+    resource: packers
+    # The finished event is the order record
+    payload: !python json_schema_and_protobuf_logic.order_record
+
+egress:
+  # Orders as JSON Schema or Protobuf, the rest as JSON
+  - type: Kafka
+    config:
+      bootstrap_servers: 127.0.0.1:9092
+      topic_router: !python json_schema_and_protobuf_serializers.order_topic_router
+      topic_serializers:
+        orders-json: !python json_schema_and_protobuf_serializers.json_serializer
+        orders-protobuf: !python json_schema_and_protobuf_serializers.protobuf_serializer
+
+run:
+  until: 1 min
+  before:
+    # With a router, KafkaEgress creates no topics, so create them first
+    - !python json_schema_and_protobuf_logic.create_topics
+```
+
+```python
+"""Python for json_schema_and_protobuf.yaml: the order record each packed order publishes,
+and the topics the run needs. The serializers and the router are those of
+json_schema_and_protobuf_serializers.py, which must be beside the blueprint."""
+
+from desflow import KafkaAdminConnector
+
+TOPICS = ["sim-events", "sim-telemetry", "orders-json", "orders-protobuf"]
+
+
+def order_record(task_id, context, entity):
+    """The finished event of a packed order: the order record."""
+    return {"order_id": task_id, "amount": 19.99}
+
+
+def create_topics():
+    """With a router, KafkaEgress creates no topics, so create them first."""
+    admin = KafkaAdminConnector(bootstrap_servers="127.0.0.1:9092")
+    admin.create_topics([{"name": topic} for topic in TOPICS])
+```
+
+```python
+"""The shop of the JSON Schema and Protobuf page, built with the builder API.
+
+The shop publishes each packed order as JSON Schema or Protobuf and every other record as
+JSON. It needs a Kafka broker and a schema registry: start both with `odctl up kafka-lite`,
+then run `python json_schema_and_protobuf.py`. json_schema_and_protobuf.yaml and
+json_schema_and_protobuf_low_level.py are the same shop in YAML and the low-level API. All
+three import the serializers and the router of json_schema_and_protobuf_serializers.py,
+which must be beside them.
+"""
+
+# ruff: noqa: E402
+
 import logging
+
+from json_schema_and_protobuf_serializers import egress
 
 from desflow import KafkaAdminConnector, SimulationContext
 
@@ -560,8 +639,8 @@ if __name__ == "__main__":
 an order record, sent to orders-json as JSON Schema or to orders-protobuf as Protobuf, and
 every other record goes to its topic as JSON.
 
-The serializers and the router are those of json_schema_and_protobuf.py, which must be
-beside this script, with shop_record.proto and shop_record_pb2.py. It needs a Kafka broker
+The serializers and the router are those of json_schema_and_protobuf_serializers.py,
+which must be beside this script, with shop_record.proto and shop_record_pb2.py. It needs a Kafka broker
 and a schema registry: start both with `odctl up kafka-lite`, then run
 `python json_schema_and_protobuf_low_level.py`.
 """
@@ -569,7 +648,7 @@ and a schema registry: start both with `odctl up kafka-lite`, then run
 import itertools
 import logging
 
-from json_schema_and_protobuf import egress
+from json_schema_and_protobuf_serializers import egress
 
 from desflow import (
     CapacityConfig,

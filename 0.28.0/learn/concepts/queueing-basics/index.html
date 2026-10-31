@@ -1919,6 +1919,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Why It Matters">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pollaczek-khinchine-formula" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pollaczek-Khinchine Formula
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -6139,6 +6156,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Why It Matters">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pollaczek-khinchine-formula" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pollaczek-Khinchine Formula
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
         
           <li class="md-nav__item">
@@ -6362,7 +6396,7 @@
 <h3 id="how-to-use-it">How to Use It</h3>
 <p>Write the letters for the model before you use a formula: what the gaps are, what the packing times are, and how many units the resource has. <code>desflow explain</code> does the same for each resource. It names the formula it used, or says why none applies. For the busy hour of Queues and Capacity, an M/D/3 shop, it reports "no closed formula for c &gt; 1 with non-exponential times", as the output under <a href="#utilisation">Utilisation</a> shows.</p>
 <h3 id="what-the-result-means">What the Result Means</h3>
-<p>A model with a letter <code>G</code>, or with several servers and a letter other than <code>M</code>, has no exact formula for its wait. The run of the shop is then the only measure of the wait, and a formula gives at best an approximation to check it against.</p>
+<p>One server with general gaps and general service times (G/G/1), and several servers with service times that are not exponential, have no closed formula for the wait. The run of the shop is then the only measure of the wait, and a formula gives at best an approximation to check it against. One server with exponential gaps and any service times (M/G/1) does have one, the <a href="#pollaczek-khinchine-formula">Pollaczek-Khinchine formula</a>.</p>
 <hr />
 <h2 id="utilisation">Utilisation</h2>
 <h3 id="in-the-tutorial_1">In the Tutorial</h3>
@@ -6383,7 +6417,8 @@
 </ul>
 <p>Queues and Capacity runs the busy hour with 1 to 4 packers. One packer (utilisation 2.7) and two (1.35) leave mean waits of 1127.21 and 426.31 seconds, and the waits keep growing with the length of the run. Three packers (0.9) give 1.27 seconds and four (0.675) give 0.20 seconds.</p>
 <h3 id="how-to-use-it_1">How to Use It</h3>
-<p>Work out utilisation for each resource before you run the model. <code>desflow explain</code> does it from the model, without running it:</p>
+<p>The commands on this page use the files of the tutorials they name. Save them from the Full Files of <a href="../../first-model/queues-and-capacity/">Queues and Capacity</a>, <a href="../../first-model/measuring-a-run/">Measuring a Run</a> and <a href="../../inputs/choosing-inputs/">Choosing Inputs</a>.</p>
+<p>Work out utilisation for each resource before you run the model. <code>desflow explain</code> does it from the model, without running it. Its output includes these lines:</p>
 <div class="tabbed-set tabbed-alternate" data-tabs="1:3"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><input id="__tabbed_1_3" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">YAML</label><label for="__tabbed_1_2">Builder</label><label for="__tabbed_1_3">Low-level</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
@@ -6596,14 +6631,14 @@
 <h3 id="why-it-matters_4">Why It Matters</h3>
 <p>With several packers sharing one queue, an order waits only when every packer is busy. For exponential gaps and service times (M/M/c), the share of orders that find every packer busy is the <strong>Erlang C</strong> formula. The mean wait in the queue is that share divided by (c ÷ the mean service time − the arrival rate). The <code>erlang_c</code> and <code>mmc_wait</code> functions above compute it.</p>
 <h3 id="how-to-use-it_4">How to Use It</h3>
-<p>Compare designs at the same utilisation with the formulas. With a mean packing time of 1.5 seconds, one packer at utilisation 0.8 gives a mean wait of 6 seconds. Three packers at utilisation 0.8 give about 1.6 seconds:</p>
+<p>Compare three packers with a queue each against three packers sharing one queue, with the formulas. With a mean packing time of 1.5 seconds and utilisation 0.8, each of the three packers with its own queue is one packer at utilisation 0.8, and gives a mean wait of 6 seconds. Three packers sharing one queue give about 1.6 seconds:</p>
 <!-- records: queueing-packers -->
 <div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-13-1">1</a></span>
 <span class="normal"><a href="#__codelineno-13-2">2</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1"></a>one packer at utilisation 0.8: mean wait 6.0 s
 </span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2"></a>three packers at utilisation 0.8: mean wait 1.62 s
 </span></code></pre></div></td></tr></table></div>
 <h3 id="what-the-result-means_4">What the Result Means</h3>
-<p>Pooling packers into one queue shortens the wait at the same load. A design question such as "one fast packer or three slower ones" needs the wait, not only the utilisation. The formula covers exponential times only, so the shop's own runs answer it for other times.</p>
+<p>Pooling packers into one queue shortens the wait at the same load. A design question such as "one fast packer or three slower ones" depends on the measure, so utilisation alone cannot answer it. With one packer three times as fast, with a mean of 0.5 seconds at utilisation 0.8, an order waits 2.0 seconds in the queue and spends 2.5 seconds in the system. With three slower packers sharing a queue, it waits about 1.6 seconds and spends about 3.1 seconds in the system. The formula covers exponential times only, so the shop's own runs answer the question for other times.</p>
 <hr />
 <h2 id="variation-lengthens-waits">Variation Lengthens Waits</h2>
 <h3 id="in-the-tutorial_5">In the Tutorial</h3>
@@ -6616,8 +6651,10 @@
 <li>the mean service time.</li>
 </ul>
 <p>With exponential gaps (variation 1) and constant service (variation 0), the middle part is 0.5. The formula then gives half the M/M/1 wait, which is the M/D/1 result above. Variation in the gaps counts as much as variation in the packing times. When both variations are 0, the formula gives no wait at all.</p>
+<h4 id="pollaczek-khinchine-formula">Pollaczek-Khinchine Formula</h4>
+<p>For one server with exponential gaps and any service times (M/G/1), the <strong>Pollaczek-Khinchine formula</strong> gives the mean wait exactly: utilisation ÷ (1 − utilisation) × (1 + service variation²) ÷ 2 × the mean service time. It is Kingman's formula with an arrival variation of 1. With constant service it gives the M/D/1 wait, and with exponential service it gives the M/M/1 wait.</p>
 <h3 id="how-to-use-it_5">How to Use It</h3>
-<p>The <code>kingman_wait</code> function above computes it. Use it to judge how much the choice of an input distribution matters before you fit one. Choosing Inputs shows how to compare the candidates by running each.</p>
+<p>The <code>kingman_wait</code> function above computes Kingman's formula, and with an arrival variation of 1 it gives the Pollaczek-Khinchine wait. Use it to judge how much the choice of an input distribution matters before you fit one. Choosing Inputs shows how to compare the candidates by running each.</p>
 <h3 id="what-the-result-means_5">What the Result Means</h3>
 <p>A model whose inputs are replaced by their averages has no variation, so it shows no queue while utilisation is below 1. Its waits are too short. <a href="../common-mistakes/">Common Mistakes</a> lists this among the errors that distort a result.</p>
 <hr />
@@ -6853,7 +6890,7 @@
 </span><span id="__span-23-3"><a id="__codelineno-23-3" name="__codelineno-23-3"></a>M/M/3 at utilisation 0.8: formula 1.62 s, mean of 10 runs 1.64 ± 0.06 s
 </span><span id="__span-23-4"><a id="__codelineno-23-4" name="__codelineno-23-4"></a>M/D/1 at utilisation 0.75, Kingman: formula 2.25 s, mean of 10 runs 2.23 ± 0.14 s
 </span></code></pre></div></td></tr></table></div>
-<p>The busy hour itself is M/D/3, which has no exact formula. For one packer, constant service halves the M/M/1 wait. This check compares the M/D/3 runs with half the M/M/3 wait, as an approximation:</p>
+<p>The busy hour itself is M/D/3, which has no closed formula. For one packer, constant service halves the M/M/1 wait. This check compares the M/D/3 runs with half the M/M/3 wait, as an approximation:</p>
 <div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/pages/queueing_basics.py:kendall</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-24-1">1</a></span>
 <span class="normal"><a href="#__codelineno-24-2">2</a></span>
 <span class="normal"><a href="#__codelineno-24-3">3</a></span>
@@ -6893,7 +6930,7 @@
 <div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-27-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-27-1"><a id="__codelineno-27-1" name="__codelineno-27-1"></a>D/M/1 at utilisation 0.75: Kingman 2.25 s, mean of 10 runs 1.78 ± 0.09 s
 </span></code></pre></div></td></tr></table></div>
 <h3 id="what-the-result-means_7">What the Result Means</h3>
-<p>Where a formula is exact, as for M/M/1 and M/M/c, it lies within the interval of the runs. Half the M/M/3 wait is close for the M/D/3 busy hour. Kingman's formula lies outside the interval for D/M/1: it is accurate near full use and for the cases above, and a rough guide elsewhere. A check that fails on a case the formula covers points to a fault in the model. A check that fails outside the formula's cases says only that the formula does not apply.</p>
+<p>Where a formula is exact, as for M/M/1 and M/M/c, it lies within the interval of the runs. Half the M/M/3 wait is close for the M/D/3 busy hour. Kingman's formula lies outside the interval for D/M/1: it is exact with exponential gaps, accurate near full use, and a rough guide elsewhere. A check that fails on a case the formula covers points to a fault in the model. A check that fails outside the formula's cases says only that the formula does not apply.</p>
 <hr />
 <h2 id="key-takeaways">Key Takeaways</h2>
 <ul>

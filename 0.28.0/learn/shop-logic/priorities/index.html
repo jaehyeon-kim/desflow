@@ -5578,80 +5578,102 @@
 <hr />
 <h2 id="starvation">Starvation</h2>
 <p>Priority has a price. A regular order is served only when no express order is waiting, so every express order that arrives while it waits pushes it back. The price grows quickly as the shop gets busier.</p>
-<p>Run the hour once with the seed 42 at each of three total arrival rates, with a quarter of the orders express each time. In YAML, the variables <code>ORDERS_RATE</code> and <code>EXPRESS_RATE</code> set the two rates. When they are not set, a regular order arrives every 2.22 seconds (27 a minute, <code>0.45</code>) and an express order every 6.67 seconds (9 a minute, <code>0.15</code>). This command runs 30 orders a minute in all (0.5 a second):</p>
-<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-7-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1"></a><span class="nv">ORDERS_RATE</span><span class="o">=</span><span class="m">0</span>.375<span class="w"> </span><span class="nv">EXPRESS_RATE</span><span class="o">=</span><span class="m">0</span>.125<span class="w"> </span>desflow<span class="w"> </span>run<span class="w"> </span>priorities.yaml<span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>wait_mean
+<p>Run the hour once with the seed 42 at each of three total arrival rates, with a quarter of the orders express each time. When no rate is given, a regular order arrives every 2.22 seconds (27 a minute, <code>0.45</code>) and an express order every 6.67 seconds (9 a minute, <code>0.15</code>), 36 orders a minute in all (0.6 a second). The commands below run 30 orders a minute (0.5 a second) with the rates <code>0.375</code> and <code>0.125</code>, and print the mean wait of a regular order under <code>priority</code>:</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="3:3"><input checked="checked" id="__tabbed_3_1" name="__tabbed_3" type="radio" /><input id="__tabbed_3_2" name="__tabbed_3" type="radio" /><input id="__tabbed_3_3" name="__tabbed_3" type="radio" /><div class="tabbed-labels"><label for="__tabbed_3_1">YAML</label><label for="__tabbed_3_2">Builder</label><label for="__tabbed_3_3">Low-level</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<p>The variables <code>ORDERS_RATE</code> and <code>EXPRESS_RATE</code> set the two rates.</p>
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-7-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1"></a><span class="nv">ORDERS_RATE</span><span class="o">=</span><span class="m">0</span>.375<span class="w"> </span><span class="nv">EXPRESS_RATE</span><span class="o">=</span><span class="m">0</span>.125<span class="w"> </span>desflow<span class="w"> </span>run<span class="w"> </span>priorities.yaml<span class="w"> </span>--stdout<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-E<span class="w"> </span><span class="s1">'pack_order\.wait_mean"'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>tail<span class="w"> </span>-1
 </span></code></pre></div></td></tr></table></div>
-<p><code>ORDERS_RATE=0.4125 EXPRESS_RATE=0.1375</code> runs 33 a minute (0.55). The mean wait of a regular order is 2.50 seconds at 30 orders a minute, 3.98 seconds at 33 a minute and 6.94 seconds at 36 a minute (0.6). Express orders wait less than a second on average at all three rates. If express orders alone kept the packer busy, regular orders would never be served at all: they would <strong>starve</strong>.</p>
-<p><code>desflow explain</code> shows how busy the packer is at the default 36 orders a minute, without a run:</p>
-<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-8-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1"></a>desflow<span class="w"> </span>explain<span class="w"> </span>priorities.yaml
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-8-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1"></a>{"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":2.498057755878174}
+</span></code></pre></div></td></tr></table></div>
+</div>
+<div class="tabbed-block">
+<p>The two rates are the arguments of the script.</p>
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-9-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1"></a>python<span class="w"> </span>priorities.py<span class="w"> </span><span class="m">0</span>.375<span class="w"> </span><span class="m">0</span>.125<span class="w"> </span><span class="m">2</span>&gt;/dev/null<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-E<span class="w"> </span><span class="s1">'^priority +pack_order'</span>
+</span></code></pre></div></td></tr></table></div>
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-10-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1"></a>priority pack_order   mean wait  2.50 s
+</span></code></pre></div></td></tr></table></div>
+</div>
+<div class="tabbed-block">
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-11-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1"></a>python<span class="w"> </span>priorities_low_level.py<span class="w"> </span><span class="m">0</span>.375<span class="w"> </span><span class="m">0</span>.125<span class="w"> </span><span class="m">2</span>&gt;/dev/null<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-E<span class="w"> </span><span class="s1">'^priority +pack_order'</span>
+</span></code></pre></div></td></tr></table></div>
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-12-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1"></a>priority pack_order   mean wait  2.50 s
+</span></code></pre></div></td></tr></table></div>
+</div>
+</div>
+</div>
+<p>Use the rates <code>0.4125</code> and <code>0.1375</code>, as variables in YAML and as arguments in the scripts, for 33 a minute (0.55), and no rates for 36 a minute (0.6). The mean wait of a regular order is 2.50 seconds at 30 orders a minute, 3.98 seconds at 33 a minute and 6.94 seconds at 36 a minute. Express orders wait less than a second on average at all three rates. If express orders alone kept the packer busy, regular orders would never be served at all: they would <strong>starve</strong>.</p>
+<p><code>desflow explain</code> shows how busy the packer is at the default 36 orders a minute, without a run. Its output includes these lines:</p>
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-13-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1"></a>desflow<span class="w"> </span>explain<span class="w"> </span>priorities.yaml
 </span></code></pre></div></td></tr></table></div>
 <!-- records: priorities-explain -->
-<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-9-1">1</a></span>
-<span class="normal"><a href="#__codelineno-9-2">2</a></span>
-<span class="normal"><a href="#__codelineno-9-3">3</a></span>
-<span class="normal"><a href="#__codelineno-9-4">4</a></span>
-<span class="normal"><a href="#__codelineno-9-5">5</a></span>
-<span class="normal"><a href="#__codelineno-9-6">6</a></span>
-<span class="normal"><a href="#__codelineno-9-7">7</a></span>
-<span class="normal"><a href="#__codelineno-9-8">8</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1"></a>Resources
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2"></a>+--------------------------------------------------------+
-</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3"></a>| resource |   λ |      μ | c |   ρ | Wq | L | status    |
-</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4"></a>|----------+-----+--------+---+-----+----+---+-----------|
-</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5"></a>| packers  | 0.6 | 0.6667 | 1 | 0.9 |  - | - | CONGESTED |
-</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6"></a>+--------------------------------------------------------+
-</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7"></a>Not estimated:
-</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8"></a>  wait at packers: a priority queue serves its tasks in a different order from first come, first served; run --verify to measure it
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-14-1">1</a></span>
+<span class="normal"><a href="#__codelineno-14-2">2</a></span>
+<span class="normal"><a href="#__codelineno-14-3">3</a></span>
+<span class="normal"><a href="#__codelineno-14-4">4</a></span>
+<span class="normal"><a href="#__codelineno-14-5">5</a></span>
+<span class="normal"><a href="#__codelineno-14-6">6</a></span>
+<span class="normal"><a href="#__codelineno-14-7">7</a></span>
+<span class="normal"><a href="#__codelineno-14-8">8</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1"></a>Resources
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2"></a>+--------------------------------------------------------+
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3"></a>| resource |   λ |      μ | c |   ρ | Wq | L | status    |
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4"></a>|----------+-----+--------+---+-----+----+---+-----------|
+</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5"></a>| packers  | 0.6 | 0.6667 | 1 | 0.9 |  - | - | CONGESTED |
+</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6"></a>+--------------------------------------------------------+
+</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7"></a>Not estimated:
+</span><span id="__span-14-8"><a id="__codelineno-14-8" name="__codelineno-14-8"></a>  wait at packers: a priority queue serves its tasks in a different order from first come, first served; run --verify to measure it
 </span></code></pre></div></td></tr></table></div>
 <p>At utilisation 0.9 the packer is <code>CONGESTED</code>: orders often wait in a long queue, so the order in which it is served matters. <code>explain</code> gives no wait here, because its formulas assume first come, first served. The runs above measure the waits instead. In Python, <code>context.analyze()</code> gives the same analysis for a builder model. A low-level model has no <code>explain</code>, because its SimPy code makes the links between arrivals, tasks and resources as it runs, so there are none to read.</p>
 <hr />
 <h2 id="what-you-get-and-why">What You Get and Why</h2>
 <p>Can express orders jump the queue? <strong>Yes</strong>, and the regular orders pay for it. Each tab prints the mean wait of each kind of order, under <code>fifo</code>, then under <code>priority</code>:</p>
-<div class="tabbed-set tabbed-alternate" data-tabs="3:3"><input checked="checked" id="__tabbed_3_1" name="__tabbed_3" type="radio" /><input id="__tabbed_3_2" name="__tabbed_3" type="radio" /><input id="__tabbed_3_3" name="__tabbed_3" type="radio" /><div class="tabbed-labels"><label for="__tabbed_3_1">YAML</label><label for="__tabbed_3_2">Builder</label><label for="__tabbed_3_3">Low-level</label></div>
+<div class="tabbed-set tabbed-alternate" data-tabs="4:3"><input checked="checked" id="__tabbed_4_1" name="__tabbed_4" type="radio" /><input id="__tabbed_4_2" name="__tabbed_4" type="radio" /><input id="__tabbed_4_3" name="__tabbed_4" type="radio" /><div class="tabbed-labels"><label for="__tabbed_4_1">YAML</label><label for="__tabbed_4_2">Builder</label><label for="__tabbed_4_3">Low-level</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
 <p>The <code>fifo</code> run is the blueprint without <code>queue: priority</code> and without the two <code>priority:</code> lines, saved as <code>priorities_fifo.yaml</code>, because a priority on a <code>fifo</code> resource is refused when the run starts.</p>
-<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-10-1">1</a></span>
-<span class="normal"><a href="#__codelineno-10-2">2</a></span>
-<span class="normal"><a href="#__codelineno-10-3">3</a></span>
-<span class="normal"><a href="#__codelineno-10-4">4</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1"></a><span class="c1"># First come, first served: the mean wait of each kind of order</span>
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2"></a>desflow<span class="w"> </span>run<span class="w"> </span>priorities_fifo.yaml<span class="w"> </span>--stdout<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-E<span class="w"> </span><span class="s1">'pack_(order|express)\.wait_mean"'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>tail<span class="w"> </span>-2
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3"></a><span class="c1"># Express orders first</span>
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4"></a>desflow<span class="w"> </span>run<span class="w"> </span>priorities.yaml<span class="w"> </span>--stdout<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-E<span class="w"> </span><span class="s1">'pack_(order|express)\.wait_mean"'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>tail<span class="w"> </span>-2
-</span></code></pre></div></td></tr></table></div>
-<p><!-- records: priorities-yaml -->
-<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-11-1">1</a></span>
-<span class="normal"><a href="#__codelineno-11-2">2</a></span>
-<span class="normal"><a href="#__codelineno-11-3">3</a></span>
-<span class="normal"><a href="#__codelineno-11-4">4</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1"></a>{"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":5.315772740238626}
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2"></a>{"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_express.wait_mean","value":5.844909407947519}
-</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3"></a>{"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":6.937041396955051}
-</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4"></a>{"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_express.wait_mean","value":0.8410706363544268}
-</span></code></pre></div></td></tr></table></div></p>
-</div>
-<div class="tabbed-block">
-<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-12-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1"></a>python<span class="w"> </span>priorities.py<span class="w"> </span><span class="m">2</span>&gt;/dev/null
-</span></code></pre></div></td></tr></table></div>
-<p><!-- records: priorities-table -->
-<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-13-1">1</a></span>
-<span class="normal"><a href="#__codelineno-13-2">2</a></span>
-<span class="normal"><a href="#__codelineno-13-3">3</a></span>
-<span class="normal"><a href="#__codelineno-13-4">4</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1"></a>fifo     pack_express mean wait  5.84 s
-</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2"></a>fifo     pack_order   mean wait  5.32 s
-</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3"></a>priority pack_express mean wait  0.84 s
-</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4"></a>priority pack_order   mean wait  6.94 s
-</span></code></pre></div></td></tr></table></div></p>
-</div>
-<div class="tabbed-block">
-<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-14-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1"></a>python<span class="w"> </span>priorities_low_level.py<span class="w"> </span><span class="m">2</span>&gt;/dev/null
-</span></code></pre></div></td></tr></table></div>
-<p><!-- records: priorities-table -->
-<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-15-1">1</a></span>
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-15-1">1</a></span>
 <span class="normal"><a href="#__codelineno-15-2">2</a></span>
 <span class="normal"><a href="#__codelineno-15-3">3</a></span>
-<span class="normal"><a href="#__codelineno-15-4">4</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1"></a>fifo     pack_express mean wait  5.84 s
-</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2"></a>fifo     pack_order   mean wait  5.32 s
-</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3"></a>priority pack_express mean wait  0.84 s
-</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4"></a>priority pack_order   mean wait  6.94 s
+<span class="normal"><a href="#__codelineno-15-4">4</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1"></a><span class="c1"># First come, first served: the mean wait of each kind of order</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2"></a>desflow<span class="w"> </span>run<span class="w"> </span>priorities_fifo.yaml<span class="w"> </span>--stdout<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-E<span class="w"> </span><span class="s1">'pack_(order|express)\.wait_mean"'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>tail<span class="w"> </span>-2
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3"></a><span class="c1"># Express orders first</span>
+</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4"></a>desflow<span class="w"> </span>run<span class="w"> </span>priorities.yaml<span class="w"> </span>--stdout<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-E<span class="w"> </span><span class="s1">'pack_(order|express)\.wait_mean"'</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>tail<span class="w"> </span>-2
+</span></code></pre></div></td></tr></table></div>
+<p><!-- records: priorities-yaml -->
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-16-1">1</a></span>
+<span class="normal"><a href="#__codelineno-16-2">2</a></span>
+<span class="normal"><a href="#__codelineno-16-3">3</a></span>
+<span class="normal"><a href="#__codelineno-16-4">4</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1"></a>{"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":5.315772740238626}
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2"></a>{"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_express.wait_mean","value":5.844909407947519}
+</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3"></a>{"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":6.937041396955051}
+</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4"></a>{"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_express.wait_mean","value":0.8410706363544268}
+</span></code></pre></div></td></tr></table></div></p>
+</div>
+<div class="tabbed-block">
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-17-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1"></a>python<span class="w"> </span>priorities.py<span class="w"> </span><span class="m">2</span>&gt;/dev/null
+</span></code></pre></div></td></tr></table></div>
+<p><!-- records: priorities-table -->
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-18-1">1</a></span>
+<span class="normal"><a href="#__codelineno-18-2">2</a></span>
+<span class="normal"><a href="#__codelineno-18-3">3</a></span>
+<span class="normal"><a href="#__codelineno-18-4">4</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1"></a>fifo     pack_express mean wait  5.84 s
+</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2"></a>fifo     pack_order   mean wait  5.32 s
+</span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3"></a>priority pack_express mean wait  0.84 s
+</span><span id="__span-18-4"><a id="__codelineno-18-4" name="__codelineno-18-4"></a>priority pack_order   mean wait  6.94 s
+</span></code></pre></div></td></tr></table></div></p>
+</div>
+<div class="tabbed-block">
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-19-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1"></a>python<span class="w"> </span>priorities_low_level.py<span class="w"> </span><span class="m">2</span>&gt;/dev/null
+</span></code></pre></div></td></tr></table></div>
+<p><!-- records: priorities-table -->
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-20-1">1</a></span>
+<span class="normal"><a href="#__codelineno-20-2">2</a></span>
+<span class="normal"><a href="#__codelineno-20-3">3</a></span>
+<span class="normal"><a href="#__codelineno-20-4">4</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1"></a>fifo     pack_express mean wait  5.84 s
+</span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2"></a>fifo     pack_order   mean wait  5.32 s
+</span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3"></a>priority pack_express mean wait  0.84 s
+</span><span id="__span-20-4"><a id="__codelineno-20-4" name="__codelineno-20-4"></a>priority pack_order   mean wait  6.94 s
 </span></code></pre></div></td></tr></table></div></p>
 </div>
 </div>
@@ -5670,446 +5692,486 @@
 <h2 id="full-files">Full Files</h2>
 <details class="example">
 <summary>Full files</summary>
-<div class="tabbed-set tabbed-alternate" data-tabs="4:3"><input checked="checked" id="__tabbed_4_1" name="__tabbed_4" type="radio" /><input id="__tabbed_4_2" name="__tabbed_4" type="radio" /><input id="__tabbed_4_3" name="__tabbed_4" type="radio" /><div class="tabbed-labels"><label for="__tabbed_4_1">YAML</label><label for="__tabbed_4_2">Builder</label><label for="__tabbed_4_3">Low-level</label></div>
+<div class="tabbed-set tabbed-alternate" data-tabs="5:3"><input checked="checked" id="__tabbed_5_1" name="__tabbed_5" type="radio" /><input id="__tabbed_5_2" name="__tabbed_5" type="radio" /><input id="__tabbed_5_3" name="__tabbed_5" type="radio" /><div class="tabbed-labels"><label for="__tabbed_5_1">YAML</label><label for="__tabbed_5_2">Builder</label><label for="__tabbed_5_3">Low-level</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<div class="language-yaml highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/yaml/priorities.yaml</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-16-1"> 1</a></span>
-<span class="normal"><a href="#__codelineno-16-2"> 2</a></span>
-<span class="normal"><a href="#__codelineno-16-3"> 3</a></span>
-<span class="normal"><a href="#__codelineno-16-4"> 4</a></span>
-<span class="normal"><a href="#__codelineno-16-5"> 5</a></span>
-<span class="normal"><a href="#__codelineno-16-6"> 6</a></span>
-<span class="normal"><a href="#__codelineno-16-7"> 7</a></span>
-<span class="normal"><a href="#__codelineno-16-8"> 8</a></span>
-<span class="normal"><a href="#__codelineno-16-9"> 9</a></span>
-<span class="normal"><a href="#__codelineno-16-10">10</a></span>
-<span class="normal"><a href="#__codelineno-16-11">11</a></span>
-<span class="normal"><a href="#__codelineno-16-12">12</a></span>
-<span class="normal"><a href="#__codelineno-16-13">13</a></span>
-<span class="normal"><a href="#__codelineno-16-14">14</a></span>
-<span class="normal"><a href="#__codelineno-16-15">15</a></span>
-<span class="normal"><a href="#__codelineno-16-16">16</a></span>
-<span class="normal"><a href="#__codelineno-16-17">17</a></span>
-<span class="normal"><a href="#__codelineno-16-18">18</a></span>
-<span class="normal"><a href="#__codelineno-16-19">19</a></span>
-<span class="normal"><a href="#__codelineno-16-20">20</a></span>
-<span class="normal"><a href="#__codelineno-16-21">21</a></span>
-<span class="normal"><a href="#__codelineno-16-22">22</a></span>
-<span class="normal"><a href="#__codelineno-16-23">23</a></span>
-<span class="normal"><a href="#__codelineno-16-24">24</a></span>
-<span class="normal"><a href="#__codelineno-16-25">25</a></span>
-<span class="normal"><a href="#__codelineno-16-26">26</a></span>
-<span class="normal"><a href="#__codelineno-16-27">27</a></span>
-<span class="normal"><a href="#__codelineno-16-28">28</a></span>
-<span class="normal"><a href="#__codelineno-16-29">29</a></span>
-<span class="normal"><a href="#__codelineno-16-30">30</a></span>
-<span class="normal"><a href="#__codelineno-16-31">31</a></span>
-<span class="normal"><a href="#__codelineno-16-32">32</a></span>
-<span class="normal"><a href="#__codelineno-16-33">33</a></span>
-<span class="normal"><a href="#__codelineno-16-34">34</a></span>
-<span class="normal"><a href="#__codelineno-16-35">35</a></span>
-<span class="normal"><a href="#__codelineno-16-36">36</a></span>
-<span class="normal"><a href="#__codelineno-16-37">37</a></span>
-<span class="normal"><a href="#__codelineno-16-38">38</a></span>
-<span class="normal"><a href="#__codelineno-16-39">39</a></span>
-<span class="normal"><a href="#__codelineno-16-40">40</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1"></a><span class="c1"># The Priorities tutorial: express orders go before regular ones.</span>
-</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2"></a><span class="c1"># Run it with: desflow run priorities.yaml</span>
-</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3"></a><span class="nt">simulation</span><span class="p">:</span>
-</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4"></a><span class="w">  </span><span class="nt">sim_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Shop</span>
-</span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5"></a><span class="w">  </span><span class="nt">factor</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
-</span><span id="__span-16-6"><a id="__codelineno-16-6" name="__codelineno-16-6"></a><span class="w">  </span><span class="nt">random_seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span>
-</span><span id="__span-16-7"><a id="__codelineno-16-7" name="__codelineno-16-7"></a>
-</span><span id="__span-16-8"><a id="__codelineno-16-8" name="__codelineno-16-8"></a><span class="nt">resources</span><span class="p">:</span>
-</span><span id="__span-16-9"><a id="__codelineno-16-9" name="__codelineno-16-9"></a><span class="w">  </span><span class="c1"># The packer serves the lowest priority first, the oldest first among equals</span>
-</span><span id="__span-16-10"><a id="__codelineno-16-10" name="__codelineno-16-10"></a><span class="w">  </span><span class="nt">packers</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">current_cap</span><span class="p">:</span><span class="w"> </span><span class="nv">1</span><span class="p p-Indicator">,</span><span class="nt"> max_cap</span><span class="p">:</span><span class="w"> </span><span class="nv">4</span><span class="p p-Indicator">,</span><span class="nt"> queue</span><span class="p">:</span><span class="w"> </span><span class="nv">priority</span><span class="p p-Indicator">}</span>
-</span><span id="__span-16-11"><a id="__codelineno-16-11" name="__codelineno-16-11"></a>
-</span><span id="__span-16-12"><a id="__codelineno-16-12" name="__codelineno-16-12"></a><span class="nt">services</span><span class="p">:</span>
-</span><span id="__span-16-13"><a id="__codelineno-16-13" name="__codelineno-16-13"></a><span class="w">  </span><span class="nt">packing</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">dist</span><span class="p">:</span><span class="w"> </span><span class="nv">constant</span><span class="p p-Indicator">,</span><span class="nt"> value</span><span class="p">:</span><span class="w"> </span><span class="nv">1.5 s</span><span class="p p-Indicator">}</span>
-</span><span id="__span-16-14"><a id="__codelineno-16-14" name="__codelineno-16-14"></a>
-</span><span id="__span-16-15"><a id="__codelineno-16-15" name="__codelineno-16-15"></a><span class="nt">arrivals</span><span class="p">:</span>
-</span><span id="__span-16-16"><a id="__codelineno-16-16" name="__codelineno-16-16"></a><span class="w">  </span><span class="c1"># An order every 1.67 s on average in all (0.6 a second), one in four express;</span>
-</span><span id="__span-16-17"><a id="__codelineno-16-17" name="__codelineno-16-17"></a><span class="w">  </span><span class="c1"># ORDERS_RATE and EXPRESS_RATE set other rates</span>
-</span><span id="__span-16-18"><a id="__codelineno-16-18" name="__codelineno-16-18"></a><span class="w">  </span><span class="nt">orders</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">dist</span><span class="p">:</span><span class="w"> </span><span class="nv">exponential</span><span class="p p-Indicator">,</span><span class="nt"> rate</span><span class="p">:</span><span class="w"> </span><span class="s">"${ORDERS_RATE:-0.45}"</span><span class="p p-Indicator">,</span><span class="nt"> spawn</span><span class="p">:</span><span class="w"> </span><span class="nv">pack_order</span><span class="p p-Indicator">}</span>
-</span><span id="__span-16-19"><a id="__codelineno-16-19" name="__codelineno-16-19"></a><span class="w">  </span><span class="nt">express</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">dist</span><span class="p">:</span><span class="w"> </span><span class="nv">exponential</span><span class="p p-Indicator">,</span><span class="nt"> rate</span><span class="p">:</span><span class="w"> </span><span class="s">"${EXPRESS_RATE:-0.15}"</span><span class="p p-Indicator">,</span><span class="nt"> spawn</span><span class="p">:</span><span class="w"> </span><span class="nv">pack_express</span><span class="p p-Indicator">}</span>
-</span><span id="__span-16-20"><a id="__codelineno-16-20" name="__codelineno-16-20"></a>
-</span><span id="__span-16-21"><a id="__codelineno-16-21" name="__codelineno-16-21"></a><span class="nt">tasks</span><span class="p">:</span>
-</span><span id="__span-16-22"><a id="__codelineno-16-22" name="__codelineno-16-22"></a><span class="w">  </span><span class="nt">pack_order</span><span class="p">:</span>
-</span><span id="__span-16-23"><a id="__codelineno-16-23" name="__codelineno-16-23"></a><span class="w">    </span><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">packing</span>
-</span><span id="__span-16-24"><a id="__codelineno-16-24" name="__codelineno-16-24"></a><span class="w">    </span><span class="nt">resource</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">packers</span>
-</span><span id="__span-16-25"><a id="__codelineno-16-25" name="__codelineno-16-25"></a><span class="w">    </span><span class="nt">priority</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
-</span><span id="__span-16-26"><a id="__codelineno-16-26" name="__codelineno-16-26"></a><span class="w">    </span><span class="nt">payload</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">event_type</span><span class="p">:</span><span class="w"> </span><span class="nv">order_packed</span><span class="p p-Indicator">}</span>
-</span><span id="__span-16-27"><a id="__codelineno-16-27" name="__codelineno-16-27"></a><span class="w">  </span><span class="nt">pack_express</span><span class="p">:</span>
-</span><span id="__span-16-28"><a id="__codelineno-16-28" name="__codelineno-16-28"></a><span class="w">    </span><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">packing</span>
-</span><span id="__span-16-29"><a id="__codelineno-16-29" name="__codelineno-16-29"></a><span class="w">    </span><span class="nt">resource</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">packers</span>
-</span><span id="__span-16-30"><a id="__codelineno-16-30" name="__codelineno-16-30"></a><span class="w">    </span><span class="nt">priority</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span><span class="w">  </span><span class="c1"># served before any regular order that is waiting</span>
-</span><span id="__span-16-31"><a id="__codelineno-16-31" name="__codelineno-16-31"></a><span class="w">    </span><span class="nt">payload</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">event_type</span><span class="p">:</span><span class="w"> </span><span class="nv">express_packed</span><span class="p p-Indicator">}</span>
-</span><span id="__span-16-32"><a id="__codelineno-16-32" name="__codelineno-16-32"></a>
-</span><span id="__span-16-33"><a id="__codelineno-16-33" name="__codelineno-16-33"></a><span class="c1"># The mean wait of each task at the end</span>
-</span><span id="__span-16-34"><a id="__codelineno-16-34" name="__codelineno-16-34"></a><span class="nt">stats</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">level</span><span class="p">:</span><span class="w"> </span><span class="nv">typical</span><span class="p p-Indicator">,</span><span class="nt"> interval</span><span class="p">:</span><span class="w"> </span><span class="nv">1 h</span><span class="p p-Indicator">}</span>
-</span><span id="__span-16-35"><a id="__codelineno-16-35" name="__codelineno-16-35"></a>
-</span><span id="__span-16-36"><a id="__codelineno-16-36" name="__codelineno-16-36"></a><span class="nt">egress</span><span class="p">:</span>
-</span><span id="__span-16-37"><a id="__codelineno-16-37" name="__codelineno-16-37"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Console</span>
-</span><span id="__span-16-38"><a id="__codelineno-16-38" name="__codelineno-16-38"></a>
-</span><span id="__span-16-39"><a id="__codelineno-16-39" name="__codelineno-16-39"></a><span class="nt">run</span><span class="p">:</span>
-</span><span id="__span-16-40"><a id="__codelineno-16-40" name="__codelineno-16-40"></a><span class="w">  </span><span class="nt">until</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1 h</span>
+<div class="language-yaml highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/yaml/priorities.yaml</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-21-1"> 1</a></span>
+<span class="normal"><a href="#__codelineno-21-2"> 2</a></span>
+<span class="normal"><a href="#__codelineno-21-3"> 3</a></span>
+<span class="normal"><a href="#__codelineno-21-4"> 4</a></span>
+<span class="normal"><a href="#__codelineno-21-5"> 5</a></span>
+<span class="normal"><a href="#__codelineno-21-6"> 6</a></span>
+<span class="normal"><a href="#__codelineno-21-7"> 7</a></span>
+<span class="normal"><a href="#__codelineno-21-8"> 8</a></span>
+<span class="normal"><a href="#__codelineno-21-9"> 9</a></span>
+<span class="normal"><a href="#__codelineno-21-10">10</a></span>
+<span class="normal"><a href="#__codelineno-21-11">11</a></span>
+<span class="normal"><a href="#__codelineno-21-12">12</a></span>
+<span class="normal"><a href="#__codelineno-21-13">13</a></span>
+<span class="normal"><a href="#__codelineno-21-14">14</a></span>
+<span class="normal"><a href="#__codelineno-21-15">15</a></span>
+<span class="normal"><a href="#__codelineno-21-16">16</a></span>
+<span class="normal"><a href="#__codelineno-21-17">17</a></span>
+<span class="normal"><a href="#__codelineno-21-18">18</a></span>
+<span class="normal"><a href="#__codelineno-21-19">19</a></span>
+<span class="normal"><a href="#__codelineno-21-20">20</a></span>
+<span class="normal"><a href="#__codelineno-21-21">21</a></span>
+<span class="normal"><a href="#__codelineno-21-22">22</a></span>
+<span class="normal"><a href="#__codelineno-21-23">23</a></span>
+<span class="normal"><a href="#__codelineno-21-24">24</a></span>
+<span class="normal"><a href="#__codelineno-21-25">25</a></span>
+<span class="normal"><a href="#__codelineno-21-26">26</a></span>
+<span class="normal"><a href="#__codelineno-21-27">27</a></span>
+<span class="normal"><a href="#__codelineno-21-28">28</a></span>
+<span class="normal"><a href="#__codelineno-21-29">29</a></span>
+<span class="normal"><a href="#__codelineno-21-30">30</a></span>
+<span class="normal"><a href="#__codelineno-21-31">31</a></span>
+<span class="normal"><a href="#__codelineno-21-32">32</a></span>
+<span class="normal"><a href="#__codelineno-21-33">33</a></span>
+<span class="normal"><a href="#__codelineno-21-34">34</a></span>
+<span class="normal"><a href="#__codelineno-21-35">35</a></span>
+<span class="normal"><a href="#__codelineno-21-36">36</a></span>
+<span class="normal"><a href="#__codelineno-21-37">37</a></span>
+<span class="normal"><a href="#__codelineno-21-38">38</a></span>
+<span class="normal"><a href="#__codelineno-21-39">39</a></span>
+<span class="normal"><a href="#__codelineno-21-40">40</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1"></a><span class="c1"># The Priorities tutorial: express orders go before regular ones.</span>
+</span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2"></a><span class="c1"># Run it with: desflow run priorities.yaml</span>
+</span><span id="__span-21-3"><a id="__codelineno-21-3" name="__codelineno-21-3"></a><span class="nt">simulation</span><span class="p">:</span>
+</span><span id="__span-21-4"><a id="__codelineno-21-4" name="__codelineno-21-4"></a><span class="w">  </span><span class="nt">sim_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Shop</span>
+</span><span id="__span-21-5"><a id="__codelineno-21-5" name="__codelineno-21-5"></a><span class="w">  </span><span class="nt">factor</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+</span><span id="__span-21-6"><a id="__codelineno-21-6" name="__codelineno-21-6"></a><span class="w">  </span><span class="nt">random_seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span>
+</span><span id="__span-21-7"><a id="__codelineno-21-7" name="__codelineno-21-7"></a>
+</span><span id="__span-21-8"><a id="__codelineno-21-8" name="__codelineno-21-8"></a><span class="nt">resources</span><span class="p">:</span>
+</span><span id="__span-21-9"><a id="__codelineno-21-9" name="__codelineno-21-9"></a><span class="w">  </span><span class="c1"># The packer serves the lowest priority first, the oldest first among equals</span>
+</span><span id="__span-21-10"><a id="__codelineno-21-10" name="__codelineno-21-10"></a><span class="w">  </span><span class="nt">packers</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">current_cap</span><span class="p">:</span><span class="w"> </span><span class="nv">1</span><span class="p p-Indicator">,</span><span class="nt"> max_cap</span><span class="p">:</span><span class="w"> </span><span class="nv">4</span><span class="p p-Indicator">,</span><span class="nt"> queue</span><span class="p">:</span><span class="w"> </span><span class="nv">priority</span><span class="p p-Indicator">}</span>
+</span><span id="__span-21-11"><a id="__codelineno-21-11" name="__codelineno-21-11"></a>
+</span><span id="__span-21-12"><a id="__codelineno-21-12" name="__codelineno-21-12"></a><span class="nt">services</span><span class="p">:</span>
+</span><span id="__span-21-13"><a id="__codelineno-21-13" name="__codelineno-21-13"></a><span class="w">  </span><span class="nt">packing</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">dist</span><span class="p">:</span><span class="w"> </span><span class="nv">constant</span><span class="p p-Indicator">,</span><span class="nt"> value</span><span class="p">:</span><span class="w"> </span><span class="nv">1.5 s</span><span class="p p-Indicator">}</span>
+</span><span id="__span-21-14"><a id="__codelineno-21-14" name="__codelineno-21-14"></a>
+</span><span id="__span-21-15"><a id="__codelineno-21-15" name="__codelineno-21-15"></a><span class="nt">arrivals</span><span class="p">:</span>
+</span><span id="__span-21-16"><a id="__codelineno-21-16" name="__codelineno-21-16"></a><span class="w">  </span><span class="c1"># An order every 1.67 s on average in all (0.6 a second), one in four express;</span>
+</span><span id="__span-21-17"><a id="__codelineno-21-17" name="__codelineno-21-17"></a><span class="w">  </span><span class="c1"># ORDERS_RATE and EXPRESS_RATE set other rates</span>
+</span><span id="__span-21-18"><a id="__codelineno-21-18" name="__codelineno-21-18"></a><span class="w">  </span><span class="nt">orders</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">dist</span><span class="p">:</span><span class="w"> </span><span class="nv">exponential</span><span class="p p-Indicator">,</span><span class="nt"> rate</span><span class="p">:</span><span class="w"> </span><span class="s">"${ORDERS_RATE:-0.45}"</span><span class="p p-Indicator">,</span><span class="nt"> spawn</span><span class="p">:</span><span class="w"> </span><span class="nv">pack_order</span><span class="p p-Indicator">}</span>
+</span><span id="__span-21-19"><a id="__codelineno-21-19" name="__codelineno-21-19"></a><span class="w">  </span><span class="nt">express</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">dist</span><span class="p">:</span><span class="w"> </span><span class="nv">exponential</span><span class="p p-Indicator">,</span><span class="nt"> rate</span><span class="p">:</span><span class="w"> </span><span class="s">"${EXPRESS_RATE:-0.15}"</span><span class="p p-Indicator">,</span><span class="nt"> spawn</span><span class="p">:</span><span class="w"> </span><span class="nv">pack_express</span><span class="p p-Indicator">}</span>
+</span><span id="__span-21-20"><a id="__codelineno-21-20" name="__codelineno-21-20"></a>
+</span><span id="__span-21-21"><a id="__codelineno-21-21" name="__codelineno-21-21"></a><span class="nt">tasks</span><span class="p">:</span>
+</span><span id="__span-21-22"><a id="__codelineno-21-22" name="__codelineno-21-22"></a><span class="w">  </span><span class="nt">pack_order</span><span class="p">:</span>
+</span><span id="__span-21-23"><a id="__codelineno-21-23" name="__codelineno-21-23"></a><span class="w">    </span><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">packing</span>
+</span><span id="__span-21-24"><a id="__codelineno-21-24" name="__codelineno-21-24"></a><span class="w">    </span><span class="nt">resource</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">packers</span>
+</span><span id="__span-21-25"><a id="__codelineno-21-25" name="__codelineno-21-25"></a><span class="w">    </span><span class="nt">priority</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+</span><span id="__span-21-26"><a id="__codelineno-21-26" name="__codelineno-21-26"></a><span class="w">    </span><span class="nt">payload</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">event_type</span><span class="p">:</span><span class="w"> </span><span class="nv">order_packed</span><span class="p p-Indicator">}</span>
+</span><span id="__span-21-27"><a id="__codelineno-21-27" name="__codelineno-21-27"></a><span class="w">  </span><span class="nt">pack_express</span><span class="p">:</span>
+</span><span id="__span-21-28"><a id="__codelineno-21-28" name="__codelineno-21-28"></a><span class="w">    </span><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">packing</span>
+</span><span id="__span-21-29"><a id="__codelineno-21-29" name="__codelineno-21-29"></a><span class="w">    </span><span class="nt">resource</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">packers</span>
+</span><span id="__span-21-30"><a id="__codelineno-21-30" name="__codelineno-21-30"></a><span class="w">    </span><span class="nt">priority</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span><span class="w">  </span><span class="c1"># served before any regular order that is waiting</span>
+</span><span id="__span-21-31"><a id="__codelineno-21-31" name="__codelineno-21-31"></a><span class="w">    </span><span class="nt">payload</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">event_type</span><span class="p">:</span><span class="w"> </span><span class="nv">express_packed</span><span class="p p-Indicator">}</span>
+</span><span id="__span-21-32"><a id="__codelineno-21-32" name="__codelineno-21-32"></a>
+</span><span id="__span-21-33"><a id="__codelineno-21-33" name="__codelineno-21-33"></a><span class="c1"># The mean wait of each task at the end</span>
+</span><span id="__span-21-34"><a id="__codelineno-21-34" name="__codelineno-21-34"></a><span class="nt">stats</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">level</span><span class="p">:</span><span class="w"> </span><span class="nv">typical</span><span class="p p-Indicator">,</span><span class="nt"> interval</span><span class="p">:</span><span class="w"> </span><span class="nv">1 h</span><span class="p p-Indicator">}</span>
+</span><span id="__span-21-35"><a id="__codelineno-21-35" name="__codelineno-21-35"></a>
+</span><span id="__span-21-36"><a id="__codelineno-21-36" name="__codelineno-21-36"></a><span class="nt">egress</span><span class="p">:</span>
+</span><span id="__span-21-37"><a id="__codelineno-21-37" name="__codelineno-21-37"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Console</span>
+</span><span id="__span-21-38"><a id="__codelineno-21-38" name="__codelineno-21-38"></a>
+</span><span id="__span-21-39"><a id="__codelineno-21-39" name="__codelineno-21-39"></a><span class="nt">run</span><span class="p">:</span>
+</span><span id="__span-21-40"><a id="__codelineno-21-40" name="__codelineno-21-40"></a><span class="w">  </span><span class="nt">until</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1 h</span>
 </span></code></pre></div></td></tr></table></div>
 </div>
 <div class="tabbed-block">
-<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/tutorials/priorities.py</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-17-1"> 1</a></span>
-<span class="normal"><a href="#__codelineno-17-2"> 2</a></span>
-<span class="normal"><a href="#__codelineno-17-3"> 3</a></span>
-<span class="normal"><a href="#__codelineno-17-4"> 4</a></span>
-<span class="normal"><a href="#__codelineno-17-5"> 5</a></span>
-<span class="normal"><a href="#__codelineno-17-6"> 6</a></span>
-<span class="normal"><a href="#__codelineno-17-7"> 7</a></span>
-<span class="normal"><a href="#__codelineno-17-8"> 8</a></span>
-<span class="normal"><a href="#__codelineno-17-9"> 9</a></span>
-<span class="normal"><a href="#__codelineno-17-10">10</a></span>
-<span class="normal"><a href="#__codelineno-17-11">11</a></span>
-<span class="normal"><a href="#__codelineno-17-12">12</a></span>
-<span class="normal"><a href="#__codelineno-17-13">13</a></span>
-<span class="normal"><a href="#__codelineno-17-14">14</a></span>
-<span class="normal"><a href="#__codelineno-17-15">15</a></span>
-<span class="normal"><a href="#__codelineno-17-16">16</a></span>
-<span class="normal"><a href="#__codelineno-17-17">17</a></span>
-<span class="normal"><a href="#__codelineno-17-18">18</a></span>
-<span class="normal"><a href="#__codelineno-17-19">19</a></span>
-<span class="normal"><a href="#__codelineno-17-20">20</a></span>
-<span class="normal"><a href="#__codelineno-17-21">21</a></span>
-<span class="normal"><a href="#__codelineno-17-22">22</a></span>
-<span class="normal"><a href="#__codelineno-17-23">23</a></span>
-<span class="normal"><a href="#__codelineno-17-24">24</a></span>
-<span class="normal"><a href="#__codelineno-17-25">25</a></span>
-<span class="normal"><a href="#__codelineno-17-26">26</a></span>
-<span class="normal"><a href="#__codelineno-17-27">27</a></span>
-<span class="normal"><a href="#__codelineno-17-28">28</a></span>
-<span class="normal"><a href="#__codelineno-17-29">29</a></span>
-<span class="normal"><a href="#__codelineno-17-30">30</a></span>
-<span class="normal"><a href="#__codelineno-17-31">31</a></span>
-<span class="normal"><a href="#__codelineno-17-32">32</a></span>
-<span class="normal"><a href="#__codelineno-17-33">33</a></span>
-<span class="normal"><a href="#__codelineno-17-34">34</a></span>
-<span class="normal"><a href="#__codelineno-17-35">35</a></span>
-<span class="normal"><a href="#__codelineno-17-36">36</a></span>
-<span class="normal"><a href="#__codelineno-17-37">37</a></span>
-<span class="normal"><a href="#__codelineno-17-38">38</a></span>
-<span class="normal"><a href="#__codelineno-17-39">39</a></span>
-<span class="normal"><a href="#__codelineno-17-40">40</a></span>
-<span class="normal"><a href="#__codelineno-17-41">41</a></span>
-<span class="normal"><a href="#__codelineno-17-42">42</a></span>
-<span class="normal"><a href="#__codelineno-17-43">43</a></span>
-<span class="normal"><a href="#__codelineno-17-44">44</a></span>
-<span class="normal"><a href="#__codelineno-17-45">45</a></span>
-<span class="normal"><a href="#__codelineno-17-46">46</a></span>
-<span class="normal"><a href="#__codelineno-17-47">47</a></span>
-<span class="normal"><a href="#__codelineno-17-48">48</a></span>
-<span class="normal"><a href="#__codelineno-17-49">49</a></span>
-<span class="normal"><a href="#__codelineno-17-50">50</a></span>
-<span class="normal"><a href="#__codelineno-17-51">51</a></span>
-<span class="normal"><a href="#__codelineno-17-52">52</a></span>
-<span class="normal"><a href="#__codelineno-17-53">53</a></span>
-<span class="normal"><a href="#__codelineno-17-54">54</a></span>
-<span class="normal"><a href="#__codelineno-17-55">55</a></span>
-<span class="normal"><a href="#__codelineno-17-56">56</a></span>
-<span class="normal"><a href="#__codelineno-17-57">57</a></span>
-<span class="normal"><a href="#__codelineno-17-58">58</a></span>
-<span class="normal"><a href="#__codelineno-17-59">59</a></span>
-<span class="normal"><a href="#__codelineno-17-60">60</a></span>
-<span class="normal"><a href="#__codelineno-17-61">61</a></span>
-<span class="normal"><a href="#__codelineno-17-62">62</a></span>
-<span class="normal"><a href="#__codelineno-17-63">63</a></span>
-<span class="normal"><a href="#__codelineno-17-64">64</a></span>
-<span class="normal"><a href="#__codelineno-17-65">65</a></span>
-<span class="normal"><a href="#__codelineno-17-66">66</a></span>
-<span class="normal"><a href="#__codelineno-17-67">67</a></span>
-<span class="normal"><a href="#__codelineno-17-68">68</a></span>
-<span class="normal"><a href="#__codelineno-17-69">69</a></span>
-<span class="normal"><a href="#__codelineno-17-70">70</a></span>
-<span class="normal"><a href="#__codelineno-17-71">71</a></span>
-<span class="normal"><a href="#__codelineno-17-72">72</a></span>
-<span class="normal"><a href="#__codelineno-17-73">73</a></span>
-<span class="normal"><a href="#__codelineno-17-74">74</a></span>
-<span class="normal"><a href="#__codelineno-17-75">75</a></span>
-<span class="normal"><a href="#__codelineno-17-76">76</a></span>
-<span class="normal"><a href="#__codelineno-17-77">77</a></span>
-<span class="normal"><a href="#__codelineno-17-78">78</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1"></a><span class="sd">"""The Priorities tutorial: express orders go before regular ones, builder.</span>
-</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2"></a>
-</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3"></a><span class="sd">One packer and 1.5 seconds of packing. A regular order arrives every 2.22 seconds on</span>
-</span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4"></a><span class="sd">average (rate 0.45), and an express order every 6.67 seconds (rate 0.15). Every record</span>
-</span><span id="__span-17-5"><a id="__codelineno-17-5" name="__codelineno-17-5"></a><span class="sd">is printed to the terminal, and the script prints the mean wait of each kind of order</span>
-</span><span id="__span-17-6"><a id="__codelineno-17-6" name="__codelineno-17-6"></a><span class="sd">under each queue order at the end. To see only those lines, run:</span>
-</span><span id="__span-17-7"><a id="__codelineno-17-7" name="__codelineno-17-7"></a><span class="sd">python priorities.py 2&gt;/dev/null</span>
-</span><span id="__span-17-8"><a id="__codelineno-17-8" name="__codelineno-17-8"></a><span class="sd">"""</span>
-</span><span id="__span-17-9"><a id="__codelineno-17-9" name="__codelineno-17-9"></a>
-</span><span id="__span-17-10"><a id="__codelineno-17-10" name="__codelineno-17-10"></a><span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
-</span><span id="__span-17-11"><a id="__codelineno-17-11" name="__codelineno-17-11"></a>
-</span><span id="__span-17-12"><a id="__codelineno-17-12" name="__codelineno-17-12"></a><span class="kn">from</span><span class="w"> </span><span class="nn">desflow</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConsoleEgress</span><span class="p">,</span> <span class="n">SimulationContext</span>
-</span><span id="__span-17-13"><a id="__codelineno-17-13" name="__codelineno-17-13"></a>
-</span><span id="__span-17-14"><a id="__codelineno-17-14" name="__codelineno-17-14"></a><span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span>
-</span><span id="__span-17-15"><a id="__codelineno-17-15" name="__codelineno-17-15"></a>    <span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s2">"</span><span class="si">%(levelname)s</span><span class="s2"> [</span><span class="si">%(asctime)s</span><span class="s2">] </span><span class="si">%(message)s</span><span class="s2">"</span>
-</span><span id="__span-17-16"><a id="__codelineno-17-16" name="__codelineno-17-16"></a><span class="p">)</span>
-</span><span id="__span-17-17"><a id="__codelineno-17-17" name="__codelineno-17-17"></a>
-</span><span id="__span-17-18"><a id="__codelineno-17-18" name="__codelineno-17-18"></a>
-</span><span id="__span-17-19"><a id="__codelineno-17-19" name="__codelineno-17-19"></a><span class="k">def</span><span class="w"> </span><span class="nf">shop</span><span class="p">(</span><span class="n">queue</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"priority"</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SimulationContext</span><span class="p">:</span>
-</span><span id="__span-17-20"><a id="__codelineno-17-20" name="__codelineno-17-20"></a><span class="w">    </span><span class="sd">"""The shop with the packer's queue in `queue` order."""</span>
-</span><span id="__span-17-21"><a id="__codelineno-17-21" name="__codelineno-17-21"></a>
-</span><span id="__span-17-22"><a id="__codelineno-17-22" name="__codelineno-17-22"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">rank</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
-</span><span id="__span-17-23"><a id="__codelineno-17-23" name="__codelineno-17-23"></a>        <span class="c1"># A priority counts only under the priority order, and the other orders</span>
-</span><span id="__span-17-24"><a id="__codelineno-17-24" name="__codelineno-17-24"></a>        <span class="c1"># refuse one, so under fifo the tasks have none</span>
-</span><span id="__span-17-25"><a id="__codelineno-17-25" name="__codelineno-17-25"></a>        <span class="k">return</span> <span class="n">value</span> <span class="k">if</span> <span class="n">queue</span> <span class="o">==</span> <span class="s2">"priority"</span> <span class="k">else</span> <span class="kc">None</span>
-</span><span id="__span-17-26"><a id="__codelineno-17-26" name="__codelineno-17-26"></a>
-</span><span id="__span-17-27"><a id="__codelineno-17-27" name="__codelineno-17-27"></a>    <span class="n">app</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="__span-17-28"><a id="__codelineno-17-28" name="__codelineno-17-28"></a>        <span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_id</span><span class="o">=</span><span class="s2">"Shop"</span><span class="p">,</span> <span class="n">factor</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">random_seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
-</span><span id="__span-17-29"><a id="__codelineno-17-29" name="__codelineno-17-29"></a>        <span class="o">.</span><span class="n">add_service</span><span class="p">(</span><span class="s2">"packing"</span><span class="p">,</span> <span class="n">dist</span><span class="o">=</span><span class="s2">"constant"</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="mf">1.5</span><span class="p">)</span>
-</span><span id="__span-17-30"><a id="__codelineno-17-30" name="__codelineno-17-30"></a>        <span class="c1"># An order every 1.67 s on average in all (0.6 a second), one in four express</span>
-</span><span id="__span-17-31"><a id="__codelineno-17-31" name="__codelineno-17-31"></a>        <span class="o">.</span><span class="n">add_arrival</span><span class="p">(</span><span class="s2">"orders"</span><span class="p">,</span> <span class="n">dist</span><span class="o">=</span><span class="s2">"exponential"</span><span class="p">,</span> <span class="n">rate</span><span class="o">=</span><span class="mf">0.45</span><span class="p">)</span>
-</span><span id="__span-17-32"><a id="__codelineno-17-32" name="__codelineno-17-32"></a>        <span class="o">.</span><span class="n">add_arrival</span><span class="p">(</span><span class="s2">"express"</span><span class="p">,</span> <span class="n">dist</span><span class="o">=</span><span class="s2">"exponential"</span><span class="p">,</span> <span class="n">rate</span><span class="o">=</span><span class="mf">0.15</span><span class="p">)</span>
-</span><span id="__span-17-33"><a id="__codelineno-17-33" name="__codelineno-17-33"></a>        <span class="o">.</span><span class="n">with_stats</span><span class="p">(</span><span class="s2">"typical"</span><span class="p">,</span> <span class="n">interval</span><span class="o">=</span><span class="mi">3600</span><span class="p">)</span>  <span class="c1"># the mean wait of each task</span>
-</span><span id="__span-17-34"><a id="__codelineno-17-34" name="__codelineno-17-34"></a>        <span class="o">.</span><span class="n">add_egress</span><span class="p">(</span><span class="n">ConsoleEgress</span><span class="p">())</span>
-</span><span id="__span-17-35"><a id="__codelineno-17-35" name="__codelineno-17-35"></a>    <span class="p">)</span>
-</span><span id="__span-17-36"><a id="__codelineno-17-36" name="__codelineno-17-36"></a>    <span class="c1"># The packer serves the lowest priority first, the oldest first among equals</span>
-</span><span id="__span-17-37"><a id="__codelineno-17-37" name="__codelineno-17-37"></a>    <span class="n">app</span><span class="o">.</span><span class="n">add_resource</span><span class="p">(</span><span class="s2">"packers"</span><span class="p">,</span> <span class="n">current_cap</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_cap</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="n">queue</span><span class="p">)</span>
-</span><span id="__span-17-38"><a id="__codelineno-17-38" name="__codelineno-17-38"></a>
-</span><span id="__span-17-39"><a id="__codelineno-17-39" name="__codelineno-17-39"></a>    <span class="nd">@app</span><span class="o">.</span><span class="n">task</span><span class="p">(</span><span class="n">service_id</span><span class="o">=</span><span class="s2">"packing"</span><span class="p">,</span> <span class="n">resource_id</span><span class="o">=</span><span class="s2">"packers"</span><span class="p">,</span> <span class="n">priority</span><span class="o">=</span><span class="n">rank</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
-</span><span id="__span-17-40"><a id="__codelineno-17-40" name="__codelineno-17-40"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">pack_order</span><span class="p">(</span><span class="n">task_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
-</span><span id="__span-17-41"><a id="__codelineno-17-41" name="__codelineno-17-41"></a>        <span class="k">return</span> <span class="p">{</span><span class="s2">"event_type"</span><span class="p">:</span> <span class="s2">"order_packed"</span><span class="p">}</span>
-</span><span id="__span-17-42"><a id="__codelineno-17-42" name="__codelineno-17-42"></a>
-</span><span id="__span-17-43"><a id="__codelineno-17-43" name="__codelineno-17-43"></a>    <span class="c1"># Served before any regular order that is waiting</span>
-</span><span id="__span-17-44"><a id="__codelineno-17-44" name="__codelineno-17-44"></a>    <span class="nd">@app</span><span class="o">.</span><span class="n">task</span><span class="p">(</span><span class="n">service_id</span><span class="o">=</span><span class="s2">"packing"</span><span class="p">,</span> <span class="n">resource_id</span><span class="o">=</span><span class="s2">"packers"</span><span class="p">,</span> <span class="n">priority</span><span class="o">=</span><span class="n">rank</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
-</span><span id="__span-17-45"><a id="__codelineno-17-45" name="__codelineno-17-45"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">pack_express</span><span class="p">(</span><span class="n">task_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
-</span><span id="__span-17-46"><a id="__codelineno-17-46" name="__codelineno-17-46"></a>        <span class="k">return</span> <span class="p">{</span><span class="s2">"event_type"</span><span class="p">:</span> <span class="s2">"express_packed"</span><span class="p">}</span>
-</span><span id="__span-17-47"><a id="__codelineno-17-47" name="__codelineno-17-47"></a>
-</span><span id="__span-17-48"><a id="__codelineno-17-48" name="__codelineno-17-48"></a>
-</span><span id="__span-17-49"><a id="__codelineno-17-49" name="__codelineno-17-49"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">loop</span><span class="p">(</span><span class="n">arrival</span><span class="p">,</span> <span class="n">task</span><span class="p">):</span>
-</span><span id="__span-17-50"><a id="__codelineno-17-50" name="__codelineno-17-50"></a>        <span class="k">def</span><span class="w"> </span><span class="nf">generator</span><span class="p">(</span><span class="n">context</span><span class="p">:</span> <span class="n">SimulationContext</span><span class="p">):</span>
-</span><span id="__span-17-51"><a id="__codelineno-17-51" name="__codelineno-17-51"></a>            <span class="n">task_id</span> <span class="o">=</span> <span class="mi">0</span>
-</span><span id="__span-17-52"><a id="__codelineno-17-52" name="__codelineno-17-52"></a>            <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
-</span><span id="__span-17-53"><a id="__codelineno-17-53" name="__codelineno-17-53"></a>                <span class="n">order</span> <span class="o">=</span> <span class="k">yield</span> <span class="n">context</span><span class="o">.</span><span class="n">wait_for_arrival</span><span class="p">(</span><span class="n">arrival</span><span class="p">)</span>
-</span><span id="__span-17-54"><a id="__codelineno-17-54" name="__codelineno-17-54"></a>                <span class="n">context</span><span class="o">.</span><span class="n">spawn</span><span class="p">(</span><span class="n">task</span><span class="p">(</span><span class="n">task_id</span><span class="p">,</span> <span class="n">entity</span><span class="o">=</span><span class="n">order</span><span class="p">))</span>
-</span><span id="__span-17-55"><a id="__codelineno-17-55" name="__codelineno-17-55"></a>                <span class="n">task_id</span> <span class="o">+=</span> <span class="mi">1</span>
-</span><span id="__span-17-56"><a id="__codelineno-17-56" name="__codelineno-17-56"></a>
-</span><span id="__span-17-57"><a id="__codelineno-17-57" name="__codelineno-17-57"></a>        <span class="k">return</span> <span class="n">generator</span>
-</span><span id="__span-17-58"><a id="__codelineno-17-58" name="__codelineno-17-58"></a>
-</span><span id="__span-17-59"><a id="__codelineno-17-59" name="__codelineno-17-59"></a>    <span class="n">app</span><span class="o">.</span><span class="n">arrival_loop</span><span class="p">(</span><span class="s2">"orders"</span><span class="p">)(</span><span class="n">loop</span><span class="p">(</span><span class="s2">"orders"</span><span class="p">,</span> <span class="n">pack_order</span><span class="p">))</span>
-</span><span id="__span-17-60"><a id="__codelineno-17-60" name="__codelineno-17-60"></a>    <span class="n">app</span><span class="o">.</span><span class="n">arrival_loop</span><span class="p">(</span><span class="s2">"express"</span><span class="p">)(</span><span class="n">loop</span><span class="p">(</span><span class="s2">"express"</span><span class="p">,</span> <span class="n">pack_express</span><span class="p">))</span>
-</span><span id="__span-17-61"><a id="__codelineno-17-61" name="__codelineno-17-61"></a>    <span class="k">return</span> <span class="n">app</span>
-</span><span id="__span-17-62"><a id="__codelineno-17-62" name="__codelineno-17-62"></a>
-</span><span id="__span-17-63"><a id="__codelineno-17-63" name="__codelineno-17-63"></a>
-</span><span id="__span-17-64"><a id="__codelineno-17-64" name="__codelineno-17-64"></a><span class="k">def</span><span class="w"> </span><span class="nf">mean_waits</span><span class="p">(</span><span class="n">queue</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-</span><span id="__span-17-65"><a id="__codelineno-17-65" name="__codelineno-17-65"></a><span class="w">    </span><span class="sd">"""Runs one hour and returns the mean wait of each task."""</span>
-</span><span id="__span-17-66"><a id="__codelineno-17-66" name="__codelineno-17-66"></a>    <span class="n">app</span> <span class="o">=</span> <span class="n">shop</span><span class="p">(</span><span class="n">queue</span><span class="p">)</span>
-</span><span id="__span-17-67"><a id="__codelineno-17-67" name="__codelineno-17-67"></a>    <span class="n">app</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">until</span><span class="o">=</span><span class="s2">"1 h"</span><span class="p">)</span>
-</span><span id="__span-17-68"><a id="__codelineno-17-68" name="__codelineno-17-68"></a>    <span class="n">readings</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">readings</span><span class="p">()</span>
-</span><span id="__span-17-69"><a id="__codelineno-17-69" name="__codelineno-17-69"></a>    <span class="k">return</span> <span class="p">{</span>
-</span><span id="__span-17-70"><a id="__codelineno-17-70" name="__codelineno-17-70"></a>        <span class="n">task</span><span class="p">:</span> <span class="n">readings</span><span class="p">[</span><span class="sa">f</span><span class="s2">"Shop.stats.tasks.</span><span class="si">{</span><span class="n">task</span><span class="si">}</span><span class="s2">.wait_mean"</span><span class="p">]</span>
-</span><span id="__span-17-71"><a id="__codelineno-17-71" name="__codelineno-17-71"></a>        <span class="k">for</span> <span class="n">task</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"pack_express"</span><span class="p">,</span> <span class="s2">"pack_order"</span><span class="p">)</span>
-</span><span id="__span-17-72"><a id="__codelineno-17-72" name="__codelineno-17-72"></a>    <span class="p">}</span>
-</span><span id="__span-17-73"><a id="__codelineno-17-73" name="__codelineno-17-73"></a>
-</span><span id="__span-17-74"><a id="__codelineno-17-74" name="__codelineno-17-74"></a>
-</span><span id="__span-17-75"><a id="__codelineno-17-75" name="__codelineno-17-75"></a><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
-</span><span id="__span-17-76"><a id="__codelineno-17-76" name="__codelineno-17-76"></a>    <span class="k">for</span> <span class="n">queue</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"fifo"</span><span class="p">,</span> <span class="s2">"priority"</span><span class="p">):</span>
-</span><span id="__span-17-77"><a id="__codelineno-17-77" name="__codelineno-17-77"></a>        <span class="k">for</span> <span class="n">task</span><span class="p">,</span> <span class="n">wait</span> <span class="ow">in</span> <span class="n">mean_waits</span><span class="p">(</span><span class="n">queue</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-</span><span id="__span-17-78"><a id="__codelineno-17-78" name="__codelineno-17-78"></a>            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">queue</span><span class="si">:</span><span class="s2">&lt;8</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">task</span><span class="si">:</span><span class="s2">&lt;12</span><span class="si">}</span><span class="s2"> mean wait </span><span class="si">{</span><span class="n">wait</span><span class="si">:</span><span class="s2">5.2f</span><span class="si">}</span><span class="s2"> s"</span><span class="p">)</span>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/tutorials/priorities.py</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-22-1"> 1</a></span>
+<span class="normal"><a href="#__codelineno-22-2"> 2</a></span>
+<span class="normal"><a href="#__codelineno-22-3"> 3</a></span>
+<span class="normal"><a href="#__codelineno-22-4"> 4</a></span>
+<span class="normal"><a href="#__codelineno-22-5"> 5</a></span>
+<span class="normal"><a href="#__codelineno-22-6"> 6</a></span>
+<span class="normal"><a href="#__codelineno-22-7"> 7</a></span>
+<span class="normal"><a href="#__codelineno-22-8"> 8</a></span>
+<span class="normal"><a href="#__codelineno-22-9"> 9</a></span>
+<span class="normal"><a href="#__codelineno-22-10">10</a></span>
+<span class="normal"><a href="#__codelineno-22-11">11</a></span>
+<span class="normal"><a href="#__codelineno-22-12">12</a></span>
+<span class="normal"><a href="#__codelineno-22-13">13</a></span>
+<span class="normal"><a href="#__codelineno-22-14">14</a></span>
+<span class="normal"><a href="#__codelineno-22-15">15</a></span>
+<span class="normal"><a href="#__codelineno-22-16">16</a></span>
+<span class="normal"><a href="#__codelineno-22-17">17</a></span>
+<span class="normal"><a href="#__codelineno-22-18">18</a></span>
+<span class="normal"><a href="#__codelineno-22-19">19</a></span>
+<span class="normal"><a href="#__codelineno-22-20">20</a></span>
+<span class="normal"><a href="#__codelineno-22-21">21</a></span>
+<span class="normal"><a href="#__codelineno-22-22">22</a></span>
+<span class="normal"><a href="#__codelineno-22-23">23</a></span>
+<span class="normal"><a href="#__codelineno-22-24">24</a></span>
+<span class="normal"><a href="#__codelineno-22-25">25</a></span>
+<span class="normal"><a href="#__codelineno-22-26">26</a></span>
+<span class="normal"><a href="#__codelineno-22-27">27</a></span>
+<span class="normal"><a href="#__codelineno-22-28">28</a></span>
+<span class="normal"><a href="#__codelineno-22-29">29</a></span>
+<span class="normal"><a href="#__codelineno-22-30">30</a></span>
+<span class="normal"><a href="#__codelineno-22-31">31</a></span>
+<span class="normal"><a href="#__codelineno-22-32">32</a></span>
+<span class="normal"><a href="#__codelineno-22-33">33</a></span>
+<span class="normal"><a href="#__codelineno-22-34">34</a></span>
+<span class="normal"><a href="#__codelineno-22-35">35</a></span>
+<span class="normal"><a href="#__codelineno-22-36">36</a></span>
+<span class="normal"><a href="#__codelineno-22-37">37</a></span>
+<span class="normal"><a href="#__codelineno-22-38">38</a></span>
+<span class="normal"><a href="#__codelineno-22-39">39</a></span>
+<span class="normal"><a href="#__codelineno-22-40">40</a></span>
+<span class="normal"><a href="#__codelineno-22-41">41</a></span>
+<span class="normal"><a href="#__codelineno-22-42">42</a></span>
+<span class="normal"><a href="#__codelineno-22-43">43</a></span>
+<span class="normal"><a href="#__codelineno-22-44">44</a></span>
+<span class="normal"><a href="#__codelineno-22-45">45</a></span>
+<span class="normal"><a href="#__codelineno-22-46">46</a></span>
+<span class="normal"><a href="#__codelineno-22-47">47</a></span>
+<span class="normal"><a href="#__codelineno-22-48">48</a></span>
+<span class="normal"><a href="#__codelineno-22-49">49</a></span>
+<span class="normal"><a href="#__codelineno-22-50">50</a></span>
+<span class="normal"><a href="#__codelineno-22-51">51</a></span>
+<span class="normal"><a href="#__codelineno-22-52">52</a></span>
+<span class="normal"><a href="#__codelineno-22-53">53</a></span>
+<span class="normal"><a href="#__codelineno-22-54">54</a></span>
+<span class="normal"><a href="#__codelineno-22-55">55</a></span>
+<span class="normal"><a href="#__codelineno-22-56">56</a></span>
+<span class="normal"><a href="#__codelineno-22-57">57</a></span>
+<span class="normal"><a href="#__codelineno-22-58">58</a></span>
+<span class="normal"><a href="#__codelineno-22-59">59</a></span>
+<span class="normal"><a href="#__codelineno-22-60">60</a></span>
+<span class="normal"><a href="#__codelineno-22-61">61</a></span>
+<span class="normal"><a href="#__codelineno-22-62">62</a></span>
+<span class="normal"><a href="#__codelineno-22-63">63</a></span>
+<span class="normal"><a href="#__codelineno-22-64">64</a></span>
+<span class="normal"><a href="#__codelineno-22-65">65</a></span>
+<span class="normal"><a href="#__codelineno-22-66">66</a></span>
+<span class="normal"><a href="#__codelineno-22-67">67</a></span>
+<span class="normal"><a href="#__codelineno-22-68">68</a></span>
+<span class="normal"><a href="#__codelineno-22-69">69</a></span>
+<span class="normal"><a href="#__codelineno-22-70">70</a></span>
+<span class="normal"><a href="#__codelineno-22-71">71</a></span>
+<span class="normal"><a href="#__codelineno-22-72">72</a></span>
+<span class="normal"><a href="#__codelineno-22-73">73</a></span>
+<span class="normal"><a href="#__codelineno-22-74">74</a></span>
+<span class="normal"><a href="#__codelineno-22-75">75</a></span>
+<span class="normal"><a href="#__codelineno-22-76">76</a></span>
+<span class="normal"><a href="#__codelineno-22-77">77</a></span>
+<span class="normal"><a href="#__codelineno-22-78">78</a></span>
+<span class="normal"><a href="#__codelineno-22-79">79</a></span>
+<span class="normal"><a href="#__codelineno-22-80">80</a></span>
+<span class="normal"><a href="#__codelineno-22-81">81</a></span>
+<span class="normal"><a href="#__codelineno-22-82">82</a></span>
+<span class="normal"><a href="#__codelineno-22-83">83</a></span>
+<span class="normal"><a href="#__codelineno-22-84">84</a></span>
+<span class="normal"><a href="#__codelineno-22-85">85</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1"></a><span class="sd">"""The Priorities tutorial: express orders go before regular ones, builder.</span>
+</span><span id="__span-22-2"><a id="__codelineno-22-2" name="__codelineno-22-2"></a>
+</span><span id="__span-22-3"><a id="__codelineno-22-3" name="__codelineno-22-3"></a><span class="sd">One packer and 1.5 seconds of packing. A regular order arrives every 2.22 seconds on</span>
+</span><span id="__span-22-4"><a id="__codelineno-22-4" name="__codelineno-22-4"></a><span class="sd">average (rate 0.45), and an express order every 6.67 seconds (rate 0.15). Every record</span>
+</span><span id="__span-22-5"><a id="__codelineno-22-5" name="__codelineno-22-5"></a><span class="sd">is printed to the terminal, and the script prints the mean wait of each kind of order</span>
+</span><span id="__span-22-6"><a id="__codelineno-22-6" name="__codelineno-22-6"></a><span class="sd">under each queue order at the end. To see only those lines, run:</span>
+</span><span id="__span-22-7"><a id="__codelineno-22-7" name="__codelineno-22-7"></a><span class="sd">python priorities.py 2&gt;/dev/null</span>
+</span><span id="__span-22-8"><a id="__codelineno-22-8" name="__codelineno-22-8"></a><span class="sd">To use other rates, give the two as arguments: python priorities.py 0.375 0.125</span>
+</span><span id="__span-22-9"><a id="__codelineno-22-9" name="__codelineno-22-9"></a><span class="sd">"""</span>
+</span><span id="__span-22-10"><a id="__codelineno-22-10" name="__codelineno-22-10"></a>
+</span><span id="__span-22-11"><a id="__codelineno-22-11" name="__codelineno-22-11"></a><span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+</span><span id="__span-22-12"><a id="__codelineno-22-12" name="__codelineno-22-12"></a><span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+</span><span id="__span-22-13"><a id="__codelineno-22-13" name="__codelineno-22-13"></a>
+</span><span id="__span-22-14"><a id="__codelineno-22-14" name="__codelineno-22-14"></a><span class="kn">from</span><span class="w"> </span><span class="nn">desflow</span><span class="w"> </span><span class="kn">import</span> <span class="n">ConsoleEgress</span><span class="p">,</span> <span class="n">SimulationContext</span>
+</span><span id="__span-22-15"><a id="__codelineno-22-15" name="__codelineno-22-15"></a>
+</span><span id="__span-22-16"><a id="__codelineno-22-16" name="__codelineno-22-16"></a><span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span>
+</span><span id="__span-22-17"><a id="__codelineno-22-17" name="__codelineno-22-17"></a>    <span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s2">"</span><span class="si">%(levelname)s</span><span class="s2"> [</span><span class="si">%(asctime)s</span><span class="s2">] </span><span class="si">%(message)s</span><span class="s2">"</span>
+</span><span id="__span-22-18"><a id="__codelineno-22-18" name="__codelineno-22-18"></a><span class="p">)</span>
+</span><span id="__span-22-19"><a id="__codelineno-22-19" name="__codelineno-22-19"></a>
+</span><span id="__span-22-20"><a id="__codelineno-22-20" name="__codelineno-22-20"></a>
+</span><span id="__span-22-21"><a id="__codelineno-22-21" name="__codelineno-22-21"></a><span class="k">def</span><span class="w"> </span><span class="nf">shop</span><span class="p">(</span>
+</span><span id="__span-22-22"><a id="__codelineno-22-22" name="__codelineno-22-22"></a>    <span class="n">queue</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"priority"</span><span class="p">,</span> <span class="n">orders_rate</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.45</span><span class="p">,</span> <span class="n">express_rate</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.15</span>
+</span><span id="__span-22-23"><a id="__codelineno-22-23" name="__codelineno-22-23"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SimulationContext</span><span class="p">:</span>
+</span><span id="__span-22-24"><a id="__codelineno-22-24" name="__codelineno-22-24"></a><span class="w">    </span><span class="sd">"""The shop with the packer's queue in `queue` order and the two arrival rates."""</span>
+</span><span id="__span-22-25"><a id="__codelineno-22-25" name="__codelineno-22-25"></a>
+</span><span id="__span-22-26"><a id="__codelineno-22-26" name="__codelineno-22-26"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">rank</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+</span><span id="__span-22-27"><a id="__codelineno-22-27" name="__codelineno-22-27"></a>        <span class="c1"># A priority counts only under the priority order, and the other orders</span>
+</span><span id="__span-22-28"><a id="__codelineno-22-28" name="__codelineno-22-28"></a>        <span class="c1"># refuse one, so under fifo the tasks have none</span>
+</span><span id="__span-22-29"><a id="__codelineno-22-29" name="__codelineno-22-29"></a>        <span class="k">return</span> <span class="n">value</span> <span class="k">if</span> <span class="n">queue</span> <span class="o">==</span> <span class="s2">"priority"</span> <span class="k">else</span> <span class="kc">None</span>
+</span><span id="__span-22-30"><a id="__codelineno-22-30" name="__codelineno-22-30"></a>
+</span><span id="__span-22-31"><a id="__codelineno-22-31" name="__codelineno-22-31"></a>    <span class="n">app</span> <span class="o">=</span> <span class="p">(</span>
+</span><span id="__span-22-32"><a id="__codelineno-22-32" name="__codelineno-22-32"></a>        <span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_id</span><span class="o">=</span><span class="s2">"Shop"</span><span class="p">,</span> <span class="n">factor</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">random_seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
+</span><span id="__span-22-33"><a id="__codelineno-22-33" name="__codelineno-22-33"></a>        <span class="o">.</span><span class="n">add_service</span><span class="p">(</span><span class="s2">"packing"</span><span class="p">,</span> <span class="n">dist</span><span class="o">=</span><span class="s2">"constant"</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="mf">1.5</span><span class="p">)</span>
+</span><span id="__span-22-34"><a id="__codelineno-22-34" name="__codelineno-22-34"></a>        <span class="c1"># An order every 1.67 s on average in all (0.6 a second), one in four express</span>
+</span><span id="__span-22-35"><a id="__codelineno-22-35" name="__codelineno-22-35"></a>        <span class="o">.</span><span class="n">add_arrival</span><span class="p">(</span><span class="s2">"orders"</span><span class="p">,</span> <span class="n">dist</span><span class="o">=</span><span class="s2">"exponential"</span><span class="p">,</span> <span class="n">rate</span><span class="o">=</span><span class="n">orders_rate</span><span class="p">)</span>
+</span><span id="__span-22-36"><a id="__codelineno-22-36" name="__codelineno-22-36"></a>        <span class="o">.</span><span class="n">add_arrival</span><span class="p">(</span><span class="s2">"express"</span><span class="p">,</span> <span class="n">dist</span><span class="o">=</span><span class="s2">"exponential"</span><span class="p">,</span> <span class="n">rate</span><span class="o">=</span><span class="n">express_rate</span><span class="p">)</span>
+</span><span id="__span-22-37"><a id="__codelineno-22-37" name="__codelineno-22-37"></a>        <span class="o">.</span><span class="n">with_stats</span><span class="p">(</span><span class="s2">"typical"</span><span class="p">,</span> <span class="n">interval</span><span class="o">=</span><span class="mi">3600</span><span class="p">)</span>  <span class="c1"># the mean wait of each task</span>
+</span><span id="__span-22-38"><a id="__codelineno-22-38" name="__codelineno-22-38"></a>        <span class="o">.</span><span class="n">add_egress</span><span class="p">(</span><span class="n">ConsoleEgress</span><span class="p">())</span>
+</span><span id="__span-22-39"><a id="__codelineno-22-39" name="__codelineno-22-39"></a>    <span class="p">)</span>
+</span><span id="__span-22-40"><a id="__codelineno-22-40" name="__codelineno-22-40"></a>    <span class="c1"># The packer serves the lowest priority first, the oldest first among equals</span>
+</span><span id="__span-22-41"><a id="__codelineno-22-41" name="__codelineno-22-41"></a>    <span class="n">app</span><span class="o">.</span><span class="n">add_resource</span><span class="p">(</span><span class="s2">"packers"</span><span class="p">,</span> <span class="n">current_cap</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_cap</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="n">queue</span><span class="p">)</span>
+</span><span id="__span-22-42"><a id="__codelineno-22-42" name="__codelineno-22-42"></a>
+</span><span id="__span-22-43"><a id="__codelineno-22-43" name="__codelineno-22-43"></a>    <span class="nd">@app</span><span class="o">.</span><span class="n">task</span><span class="p">(</span><span class="n">service_id</span><span class="o">=</span><span class="s2">"packing"</span><span class="p">,</span> <span class="n">resource_id</span><span class="o">=</span><span class="s2">"packers"</span><span class="p">,</span> <span class="n">priority</span><span class="o">=</span><span class="n">rank</span><span class="p">(</span><span class="mi">1</span><span class="p">))</span>
+</span><span id="__span-22-44"><a id="__codelineno-22-44" name="__codelineno-22-44"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">pack_order</span><span class="p">(</span><span class="n">task_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+</span><span id="__span-22-45"><a id="__codelineno-22-45" name="__codelineno-22-45"></a>        <span class="k">return</span> <span class="p">{</span><span class="s2">"event_type"</span><span class="p">:</span> <span class="s2">"order_packed"</span><span class="p">}</span>
+</span><span id="__span-22-46"><a id="__codelineno-22-46" name="__codelineno-22-46"></a>
+</span><span id="__span-22-47"><a id="__codelineno-22-47" name="__codelineno-22-47"></a>    <span class="c1"># Served before any regular order that is waiting</span>
+</span><span id="__span-22-48"><a id="__codelineno-22-48" name="__codelineno-22-48"></a>    <span class="nd">@app</span><span class="o">.</span><span class="n">task</span><span class="p">(</span><span class="n">service_id</span><span class="o">=</span><span class="s2">"packing"</span><span class="p">,</span> <span class="n">resource_id</span><span class="o">=</span><span class="s2">"packers"</span><span class="p">,</span> <span class="n">priority</span><span class="o">=</span><span class="n">rank</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
+</span><span id="__span-22-49"><a id="__codelineno-22-49" name="__codelineno-22-49"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">pack_express</span><span class="p">(</span><span class="n">task_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+</span><span id="__span-22-50"><a id="__codelineno-22-50" name="__codelineno-22-50"></a>        <span class="k">return</span> <span class="p">{</span><span class="s2">"event_type"</span><span class="p">:</span> <span class="s2">"express_packed"</span><span class="p">}</span>
+</span><span id="__span-22-51"><a id="__codelineno-22-51" name="__codelineno-22-51"></a>
+</span><span id="__span-22-52"><a id="__codelineno-22-52" name="__codelineno-22-52"></a>
+</span><span id="__span-22-53"><a id="__codelineno-22-53" name="__codelineno-22-53"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">loop</span><span class="p">(</span><span class="n">arrival</span><span class="p">,</span> <span class="n">task</span><span class="p">):</span>
+</span><span id="__span-22-54"><a id="__codelineno-22-54" name="__codelineno-22-54"></a>        <span class="k">def</span><span class="w"> </span><span class="nf">generator</span><span class="p">(</span><span class="n">context</span><span class="p">:</span> <span class="n">SimulationContext</span><span class="p">):</span>
+</span><span id="__span-22-55"><a id="__codelineno-22-55" name="__codelineno-22-55"></a>            <span class="n">task_id</span> <span class="o">=</span> <span class="mi">0</span>
+</span><span id="__span-22-56"><a id="__codelineno-22-56" name="__codelineno-22-56"></a>            <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+</span><span id="__span-22-57"><a id="__codelineno-22-57" name="__codelineno-22-57"></a>                <span class="n">order</span> <span class="o">=</span> <span class="k">yield</span> <span class="n">context</span><span class="o">.</span><span class="n">wait_for_arrival</span><span class="p">(</span><span class="n">arrival</span><span class="p">)</span>
+</span><span id="__span-22-58"><a id="__codelineno-22-58" name="__codelineno-22-58"></a>                <span class="n">context</span><span class="o">.</span><span class="n">spawn</span><span class="p">(</span><span class="n">task</span><span class="p">(</span><span class="n">task_id</span><span class="p">,</span> <span class="n">entity</span><span class="o">=</span><span class="n">order</span><span class="p">))</span>
+</span><span id="__span-22-59"><a id="__codelineno-22-59" name="__codelineno-22-59"></a>                <span class="n">task_id</span> <span class="o">+=</span> <span class="mi">1</span>
+</span><span id="__span-22-60"><a id="__codelineno-22-60" name="__codelineno-22-60"></a>
+</span><span id="__span-22-61"><a id="__codelineno-22-61" name="__codelineno-22-61"></a>        <span class="k">return</span> <span class="n">generator</span>
+</span><span id="__span-22-62"><a id="__codelineno-22-62" name="__codelineno-22-62"></a>
+</span><span id="__span-22-63"><a id="__codelineno-22-63" name="__codelineno-22-63"></a>    <span class="n">app</span><span class="o">.</span><span class="n">arrival_loop</span><span class="p">(</span><span class="s2">"orders"</span><span class="p">)(</span><span class="n">loop</span><span class="p">(</span><span class="s2">"orders"</span><span class="p">,</span> <span class="n">pack_order</span><span class="p">))</span>
+</span><span id="__span-22-64"><a id="__codelineno-22-64" name="__codelineno-22-64"></a>    <span class="n">app</span><span class="o">.</span><span class="n">arrival_loop</span><span class="p">(</span><span class="s2">"express"</span><span class="p">)(</span><span class="n">loop</span><span class="p">(</span><span class="s2">"express"</span><span class="p">,</span> <span class="n">pack_express</span><span class="p">))</span>
+</span><span id="__span-22-65"><a id="__codelineno-22-65" name="__codelineno-22-65"></a>    <span class="k">return</span> <span class="n">app</span>
+</span><span id="__span-22-66"><a id="__codelineno-22-66" name="__codelineno-22-66"></a>
+</span><span id="__span-22-67"><a id="__codelineno-22-67" name="__codelineno-22-67"></a>
+</span><span id="__span-22-68"><a id="__codelineno-22-68" name="__codelineno-22-68"></a><span class="k">def</span><span class="w"> </span><span class="nf">mean_waits</span><span class="p">(</span>
+</span><span id="__span-22-69"><a id="__codelineno-22-69" name="__codelineno-22-69"></a>    <span class="n">queue</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">orders_rate</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.45</span><span class="p">,</span> <span class="n">express_rate</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.15</span>
+</span><span id="__span-22-70"><a id="__codelineno-22-70" name="__codelineno-22-70"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+</span><span id="__span-22-71"><a id="__codelineno-22-71" name="__codelineno-22-71"></a><span class="w">    </span><span class="sd">"""Runs one hour and returns the mean wait of each task."""</span>
+</span><span id="__span-22-72"><a id="__codelineno-22-72" name="__codelineno-22-72"></a>    <span class="n">app</span> <span class="o">=</span> <span class="n">shop</span><span class="p">(</span><span class="n">queue</span><span class="p">,</span> <span class="n">orders_rate</span><span class="p">,</span> <span class="n">express_rate</span><span class="p">)</span>
+</span><span id="__span-22-73"><a id="__codelineno-22-73" name="__codelineno-22-73"></a>    <span class="n">app</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">until</span><span class="o">=</span><span class="s2">"1 h"</span><span class="p">)</span>
+</span><span id="__span-22-74"><a id="__codelineno-22-74" name="__codelineno-22-74"></a>    <span class="n">readings</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">readings</span><span class="p">()</span>
+</span><span id="__span-22-75"><a id="__codelineno-22-75" name="__codelineno-22-75"></a>    <span class="k">return</span> <span class="p">{</span>
+</span><span id="__span-22-76"><a id="__codelineno-22-76" name="__codelineno-22-76"></a>        <span class="n">task</span><span class="p">:</span> <span class="n">readings</span><span class="p">[</span><span class="sa">f</span><span class="s2">"Shop.stats.tasks.</span><span class="si">{</span><span class="n">task</span><span class="si">}</span><span class="s2">.wait_mean"</span><span class="p">]</span>
+</span><span id="__span-22-77"><a id="__codelineno-22-77" name="__codelineno-22-77"></a>        <span class="k">for</span> <span class="n">task</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"pack_express"</span><span class="p">,</span> <span class="s2">"pack_order"</span><span class="p">)</span>
+</span><span id="__span-22-78"><a id="__codelineno-22-78" name="__codelineno-22-78"></a>    <span class="p">}</span>
+</span><span id="__span-22-79"><a id="__codelineno-22-79" name="__codelineno-22-79"></a>
+</span><span id="__span-22-80"><a id="__codelineno-22-80" name="__codelineno-22-80"></a>
+</span><span id="__span-22-81"><a id="__codelineno-22-81" name="__codelineno-22-81"></a><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+</span><span id="__span-22-82"><a id="__codelineno-22-82" name="__codelineno-22-82"></a>    <span class="n">rates</span> <span class="o">=</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">rate</span><span class="p">)</span> <span class="k">for</span> <span class="n">rate</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="mi">3</span><span class="p">]]</span>
+</span><span id="__span-22-83"><a id="__codelineno-22-83" name="__codelineno-22-83"></a>    <span class="k">for</span> <span class="n">queue</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"fifo"</span><span class="p">,</span> <span class="s2">"priority"</span><span class="p">):</span>
+</span><span id="__span-22-84"><a id="__codelineno-22-84" name="__codelineno-22-84"></a>        <span class="k">for</span> <span class="n">task</span><span class="p">,</span> <span class="n">wait</span> <span class="ow">in</span> <span class="n">mean_waits</span><span class="p">(</span><span class="n">queue</span><span class="p">,</span> <span class="o">*</span><span class="n">rates</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+</span><span id="__span-22-85"><a id="__codelineno-22-85" name="__codelineno-22-85"></a>            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">queue</span><span class="si">:</span><span class="s2">&lt;8</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">task</span><span class="si">:</span><span class="s2">&lt;12</span><span class="si">}</span><span class="s2"> mean wait </span><span class="si">{</span><span class="n">wait</span><span class="si">:</span><span class="s2">5.2f</span><span class="si">}</span><span class="s2"> s"</span><span class="p">)</span>
 </span></code></pre></div></td></tr></table></div>
 </div>
 <div class="tabbed-block">
-<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/tutorials/priorities_low_level.py</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-18-1"> 1</a></span>
-<span class="normal"><a href="#__codelineno-18-2"> 2</a></span>
-<span class="normal"><a href="#__codelineno-18-3"> 3</a></span>
-<span class="normal"><a href="#__codelineno-18-4"> 4</a></span>
-<span class="normal"><a href="#__codelineno-18-5"> 5</a></span>
-<span class="normal"><a href="#__codelineno-18-6"> 6</a></span>
-<span class="normal"><a href="#__codelineno-18-7"> 7</a></span>
-<span class="normal"><a href="#__codelineno-18-8"> 8</a></span>
-<span class="normal"><a href="#__codelineno-18-9"> 9</a></span>
-<span class="normal"><a href="#__codelineno-18-10">10</a></span>
-<span class="normal"><a href="#__codelineno-18-11">11</a></span>
-<span class="normal"><a href="#__codelineno-18-12">12</a></span>
-<span class="normal"><a href="#__codelineno-18-13">13</a></span>
-<span class="normal"><a href="#__codelineno-18-14">14</a></span>
-<span class="normal"><a href="#__codelineno-18-15">15</a></span>
-<span class="normal"><a href="#__codelineno-18-16">16</a></span>
-<span class="normal"><a href="#__codelineno-18-17">17</a></span>
-<span class="normal"><a href="#__codelineno-18-18">18</a></span>
-<span class="normal"><a href="#__codelineno-18-19">19</a></span>
-<span class="normal"><a href="#__codelineno-18-20">20</a></span>
-<span class="normal"><a href="#__codelineno-18-21">21</a></span>
-<span class="normal"><a href="#__codelineno-18-22">22</a></span>
-<span class="normal"><a href="#__codelineno-18-23">23</a></span>
-<span class="normal"><a href="#__codelineno-18-24">24</a></span>
-<span class="normal"><a href="#__codelineno-18-25">25</a></span>
-<span class="normal"><a href="#__codelineno-18-26">26</a></span>
-<span class="normal"><a href="#__codelineno-18-27">27</a></span>
-<span class="normal"><a href="#__codelineno-18-28">28</a></span>
-<span class="normal"><a href="#__codelineno-18-29">29</a></span>
-<span class="normal"><a href="#__codelineno-18-30">30</a></span>
-<span class="normal"><a href="#__codelineno-18-31">31</a></span>
-<span class="normal"><a href="#__codelineno-18-32">32</a></span>
-<span class="normal"><a href="#__codelineno-18-33">33</a></span>
-<span class="normal"><a href="#__codelineno-18-34">34</a></span>
-<span class="normal"><a href="#__codelineno-18-35">35</a></span>
-<span class="normal"><a href="#__codelineno-18-36">36</a></span>
-<span class="normal"><a href="#__codelineno-18-37">37</a></span>
-<span class="normal"><a href="#__codelineno-18-38">38</a></span>
-<span class="normal"><a href="#__codelineno-18-39">39</a></span>
-<span class="normal"><a href="#__codelineno-18-40">40</a></span>
-<span class="normal"><a href="#__codelineno-18-41">41</a></span>
-<span class="normal"><a href="#__codelineno-18-42">42</a></span>
-<span class="normal"><a href="#__codelineno-18-43">43</a></span>
-<span class="normal"><a href="#__codelineno-18-44">44</a></span>
-<span class="normal"><a href="#__codelineno-18-45">45</a></span>
-<span class="normal"><a href="#__codelineno-18-46">46</a></span>
-<span class="normal"><a href="#__codelineno-18-47">47</a></span>
-<span class="normal"><a href="#__codelineno-18-48">48</a></span>
-<span class="normal"><a href="#__codelineno-18-49">49</a></span>
-<span class="normal"><a href="#__codelineno-18-50">50</a></span>
-<span class="normal"><a href="#__codelineno-18-51">51</a></span>
-<span class="normal"><a href="#__codelineno-18-52">52</a></span>
-<span class="normal"><a href="#__codelineno-18-53">53</a></span>
-<span class="normal"><a href="#__codelineno-18-54">54</a></span>
-<span class="normal"><a href="#__codelineno-18-55">55</a></span>
-<span class="normal"><a href="#__codelineno-18-56">56</a></span>
-<span class="normal"><a href="#__codelineno-18-57">57</a></span>
-<span class="normal"><a href="#__codelineno-18-58">58</a></span>
-<span class="normal"><a href="#__codelineno-18-59">59</a></span>
-<span class="normal"><a href="#__codelineno-18-60">60</a></span>
-<span class="normal"><a href="#__codelineno-18-61">61</a></span>
-<span class="normal"><a href="#__codelineno-18-62">62</a></span>
-<span class="normal"><a href="#__codelineno-18-63">63</a></span>
-<span class="normal"><a href="#__codelineno-18-64">64</a></span>
-<span class="normal"><a href="#__codelineno-18-65">65</a></span>
-<span class="normal"><a href="#__codelineno-18-66">66</a></span>
-<span class="normal"><a href="#__codelineno-18-67">67</a></span>
-<span class="normal"><a href="#__codelineno-18-68">68</a></span>
-<span class="normal"><a href="#__codelineno-18-69">69</a></span>
-<span class="normal"><a href="#__codelineno-18-70">70</a></span>
-<span class="normal"><a href="#__codelineno-18-71">71</a></span>
-<span class="normal"><a href="#__codelineno-18-72">72</a></span>
-<span class="normal"><a href="#__codelineno-18-73">73</a></span>
-<span class="normal"><a href="#__codelineno-18-74">74</a></span>
-<span class="normal"><a href="#__codelineno-18-75">75</a></span>
-<span class="normal"><a href="#__codelineno-18-76">76</a></span>
-<span class="normal"><a href="#__codelineno-18-77">77</a></span>
-<span class="normal"><a href="#__codelineno-18-78">78</a></span>
-<span class="normal"><a href="#__codelineno-18-79">79</a></span>
-<span class="normal"><a href="#__codelineno-18-80">80</a></span>
-<span class="normal"><a href="#__codelineno-18-81">81</a></span>
-<span class="normal"><a href="#__codelineno-18-82">82</a></span>
-<span class="normal"><a href="#__codelineno-18-83">83</a></span>
-<span class="normal"><a href="#__codelineno-18-84">84</a></span>
-<span class="normal"><a href="#__codelineno-18-85">85</a></span>
-<span class="normal"><a href="#__codelineno-18-86">86</a></span>
-<span class="normal"><a href="#__codelineno-18-87">87</a></span>
-<span class="normal"><a href="#__codelineno-18-88">88</a></span>
-<span class="normal"><a href="#__codelineno-18-89">89</a></span>
-<span class="normal"><a href="#__codelineno-18-90">90</a></span>
-<span class="normal"><a href="#__codelineno-18-91">91</a></span>
-<span class="normal"><a href="#__codelineno-18-92">92</a></span>
-<span class="normal"><a href="#__codelineno-18-93">93</a></span>
-<span class="normal"><a href="#__codelineno-18-94">94</a></span>
-<span class="normal"><a href="#__codelineno-18-95">95</a></span>
-<span class="normal"><a href="#__codelineno-18-96">96</a></span>
-<span class="normal"><a href="#__codelineno-18-97">97</a></span>
-<span class="normal"><a href="#__codelineno-18-98">98</a></span>
-<span class="normal"><a href="#__codelineno-18-99">99</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1"></a><span class="sd">"""The Priorities tutorial: express orders go before regular ones, low-level.</span>
-</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2"></a>
-</span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3"></a><span class="sd">One packer and 1.5 seconds of packing. A regular order arrives every 2.22 seconds on</span>
-</span><span id="__span-18-4"><a id="__codelineno-18-4" name="__codelineno-18-4"></a><span class="sd">average (rate 0.45), and an express order every 6.67 seconds (rate 0.15). Every record</span>
-</span><span id="__span-18-5"><a id="__codelineno-18-5" name="__codelineno-18-5"></a><span class="sd">is printed to the terminal, and the script prints the mean wait of each kind of order</span>
-</span><span id="__span-18-6"><a id="__codelineno-18-6" name="__codelineno-18-6"></a><span class="sd">under each queue order at the end. To see only those lines, run:</span>
-</span><span id="__span-18-7"><a id="__codelineno-18-7" name="__codelineno-18-7"></a><span class="sd">python priorities_low_level.py 2&gt;/dev/null</span>
-</span><span id="__span-18-8"><a id="__codelineno-18-8" name="__codelineno-18-8"></a><span class="sd">"""</span>
-</span><span id="__span-18-9"><a id="__codelineno-18-9" name="__codelineno-18-9"></a>
-</span><span id="__span-18-10"><a id="__codelineno-18-10" name="__codelineno-18-10"></a><span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
-</span><span id="__span-18-11"><a id="__codelineno-18-11" name="__codelineno-18-11"></a>
-</span><span id="__span-18-12"><a id="__codelineno-18-12" name="__codelineno-18-12"></a><span class="kn">from</span><span class="w"> </span><span class="nn">desflow</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-</span><span id="__span-18-13"><a id="__codelineno-18-13" name="__codelineno-18-13"></a>    <span class="n">CapacityConfig</span><span class="p">,</span>
-</span><span id="__span-18-14"><a id="__codelineno-18-14" name="__codelineno-18-14"></a>    <span class="n">ConsoleEgress</span><span class="p">,</span>
-</span><span id="__span-18-15"><a id="__codelineno-18-15" name="__codelineno-18-15"></a>    <span class="n">DistributionConfig</span><span class="p">,</span>
-</span><span id="__span-18-16"><a id="__codelineno-18-16" name="__codelineno-18-16"></a>    <span class="n">DynamicRealtimeEnvironment</span><span class="p">,</span>
-</span><span id="__span-18-17"><a id="__codelineno-18-17" name="__codelineno-18-17"></a>    <span class="n">DynamicResource</span><span class="p">,</span>
-</span><span id="__span-18-18"><a id="__codelineno-18-18" name="__codelineno-18-18"></a>    <span class="n">Sampler</span><span class="p">,</span>
-</span><span id="__span-18-19"><a id="__codelineno-18-19" name="__codelineno-18-19"></a>    <span class="n">SimParameter</span><span class="p">,</span>
-</span><span id="__span-18-20"><a id="__codelineno-18-20" name="__codelineno-18-20"></a><span class="p">)</span>
-</span><span id="__span-18-21"><a id="__codelineno-18-21" name="__codelineno-18-21"></a>
-</span><span id="__span-18-22"><a id="__codelineno-18-22" name="__codelineno-18-22"></a><span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span>
-</span><span id="__span-18-23"><a id="__codelineno-18-23" name="__codelineno-18-23"></a>    <span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s2">"</span><span class="si">%(levelname)s</span><span class="s2"> [</span><span class="si">%(asctime)s</span><span class="s2">] </span><span class="si">%(message)s</span><span class="s2">"</span>
-</span><span id="__span-18-24"><a id="__codelineno-18-24" name="__codelineno-18-24"></a><span class="p">)</span>
-</span><span id="__span-18-25"><a id="__codelineno-18-25" name="__codelineno-18-25"></a>
-</span><span id="__span-18-26"><a id="__codelineno-18-26" name="__codelineno-18-26"></a><span class="n">PARAMS</span> <span class="o">=</span> <span class="n">SimParameter</span><span class="p">(</span>
-</span><span id="__span-18-27"><a id="__codelineno-18-27" name="__codelineno-18-27"></a>    <span class="n">sim_id</span><span class="o">=</span><span class="s2">"Shop"</span><span class="p">,</span>
-</span><span id="__span-18-28"><a id="__codelineno-18-28" name="__codelineno-18-28"></a>    <span class="n">arrival</span><span class="o">=</span><span class="p">{</span>
-</span><span id="__span-18-29"><a id="__codelineno-18-29" name="__codelineno-18-29"></a>        <span class="c1"># An order every 1.67 s on average in all (0.6 a second), one in four express</span>
-</span><span id="__span-18-30"><a id="__codelineno-18-30" name="__codelineno-18-30"></a>        <span class="s2">"orders"</span><span class="p">:</span> <span class="n">DistributionConfig</span><span class="p">(</span><span class="n">dist</span><span class="o">=</span><span class="s2">"exponential"</span><span class="p">,</span> <span class="n">rate</span><span class="o">=</span><span class="mf">0.45</span><span class="p">),</span>
-</span><span id="__span-18-31"><a id="__codelineno-18-31" name="__codelineno-18-31"></a>        <span class="s2">"express"</span><span class="p">:</span> <span class="n">DistributionConfig</span><span class="p">(</span><span class="n">dist</span><span class="o">=</span><span class="s2">"exponential"</span><span class="p">,</span> <span class="n">rate</span><span class="o">=</span><span class="mf">0.15</span><span class="p">),</span>
-</span><span id="__span-18-32"><a id="__codelineno-18-32" name="__codelineno-18-32"></a>    <span class="p">},</span>
-</span><span id="__span-18-33"><a id="__codelineno-18-33" name="__codelineno-18-33"></a>    <span class="n">service</span><span class="o">=</span><span class="p">{</span><span class="s2">"packing"</span><span class="p">:</span> <span class="n">DistributionConfig</span><span class="p">(</span><span class="n">dist</span><span class="o">=</span><span class="s2">"constant"</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="mf">1.5</span><span class="p">)},</span>
-</span><span id="__span-18-34"><a id="__codelineno-18-34" name="__codelineno-18-34"></a>    <span class="n">resources</span><span class="o">=</span><span class="p">{</span><span class="s2">"packers"</span><span class="p">:</span> <span class="n">CapacityConfig</span><span class="p">(</span><span class="n">current_cap</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_cap</span><span class="o">=</span><span class="mi">4</span><span class="p">)},</span>
-</span><span id="__span-18-35"><a id="__codelineno-18-35" name="__codelineno-18-35"></a><span class="p">)</span>
-</span><span id="__span-18-36"><a id="__codelineno-18-36" name="__codelineno-18-36"></a><span class="c1"># Express orders are served before any regular order that is waiting</span>
-</span><span id="__span-18-37"><a id="__codelineno-18-37" name="__codelineno-18-37"></a><span class="n">TASKS</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"orders"</span><span class="p">:</span> <span class="p">(</span><span class="s2">"pack_order"</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">"express"</span><span class="p">:</span> <span class="p">(</span><span class="s2">"pack_express"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)}</span>
-</span><span id="__span-18-38"><a id="__codelineno-18-38" name="__codelineno-18-38"></a>
-</span><span id="__span-18-39"><a id="__codelineno-18-39" name="__codelineno-18-39"></a>
-</span><span id="__span-18-40"><a id="__codelineno-18-40" name="__codelineno-18-40"></a><span class="k">def</span><span class="w"> </span><span class="nf">pack</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">sampler</span><span class="p">,</span> <span class="n">packers</span><span class="p">,</span> <span class="n">arrival</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">task_id</span><span class="p">):</span>
-</span><span id="__span-18-41"><a id="__codelineno-18-41" name="__codelineno-18-41"></a>    <span class="n">task</span><span class="p">,</span> <span class="n">priority</span> <span class="o">=</span> <span class="n">TASKS</span><span class="p">[</span><span class="n">arrival</span><span class="p">]</span>
-</span><span id="__span-18-42"><a id="__codelineno-18-42" name="__codelineno-18-42"></a>    <span class="n">path_id</span> <span class="o">=</span> <span class="s2">"Shop.service.packing"</span>
-</span><span id="__span-18-43"><a id="__codelineno-18-43" name="__codelineno-18-43"></a>
-</span><span id="__span-18-44"><a id="__codelineno-18-44" name="__codelineno-18-44"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">publish</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
-</span><span id="__span-18-45"><a id="__codelineno-18-45" name="__codelineno-18-45"></a>        <span class="n">env</span><span class="o">.</span><span class="n">publish_event</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">task</span><span class="o">=</span><span class="n">task</span><span class="p">,</span> <span class="n">instance</span><span class="o">=</span><span class="n">task_id</span><span class="p">)</span>
-</span><span id="__span-18-46"><a id="__codelineno-18-46" name="__codelineno-18-46"></a>
-</span><span id="__span-18-47"><a id="__codelineno-18-47" name="__codelineno-18-47"></a>    <span class="n">publish</span><span class="p">({</span><span class="s2">"path_id"</span><span class="p">:</span> <span class="n">path_id</span><span class="p">,</span> <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"queued"</span><span class="p">})</span>
-</span><span id="__span-18-48"><a id="__codelineno-18-48" name="__codelineno-18-48"></a>    <span class="n">env</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">task_queued</span><span class="p">(</span><span class="n">task</span><span class="p">,</span> <span class="n">task_id</span><span class="p">)</span>
-</span><span id="__span-18-49"><a id="__codelineno-18-49" name="__codelineno-18-49"></a>    <span class="c1"># Under fifo and lifo the priority is ignored</span>
-</span><span id="__span-18-50"><a id="__codelineno-18-50" name="__codelineno-18-50"></a>    <span class="k">with</span> <span class="n">packers</span><span class="o">.</span><span class="n">request</span><span class="p">(</span><span class="n">priority</span><span class="o">=</span><span class="n">priority</span><span class="p">)</span> <span class="k">as</span> <span class="n">request</span><span class="p">:</span>
-</span><span id="__span-18-51"><a id="__codelineno-18-51" name="__codelineno-18-51"></a>        <span class="k">yield</span> <span class="n">request</span>
-</span><span id="__span-18-52"><a id="__codelineno-18-52" name="__codelineno-18-52"></a>        <span class="n">publish</span><span class="p">({</span><span class="s2">"path_id"</span><span class="p">:</span> <span class="n">path_id</span><span class="p">,</span> <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"started"</span><span class="p">})</span>
-</span><span id="__span-18-53"><a id="__codelineno-18-53" name="__codelineno-18-53"></a>        <span class="n">env</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">task_started</span><span class="p">(</span><span class="n">task</span><span class="p">,</span> <span class="n">task_id</span><span class="p">)</span>
-</span><span id="__span-18-54"><a id="__codelineno-18-54" name="__codelineno-18-54"></a>        <span class="k">yield</span> <span class="n">env</span><span class="o">.</span><span class="n">timeout</span><span class="p">(</span><span class="n">sampler</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">registry</span><span class="o">.</span><span class="n">get_config</span><span class="p">(</span><span class="n">path_id</span><span class="p">)))</span>
-</span><span id="__span-18-55"><a id="__codelineno-18-55" name="__codelineno-18-55"></a>        <span class="n">event</span> <span class="o">=</span> <span class="s2">"express_packed"</span> <span class="k">if</span> <span class="n">arrival</span> <span class="o">==</span> <span class="s2">"express"</span> <span class="k">else</span> <span class="s2">"order_packed"</span>
-</span><span id="__span-18-56"><a id="__codelineno-18-56" name="__codelineno-18-56"></a>        <span class="n">publish</span><span class="p">({</span><span class="s2">"event_type"</span><span class="p">:</span> <span class="n">event</span><span class="p">})</span>
-</span><span id="__span-18-57"><a id="__codelineno-18-57" name="__codelineno-18-57"></a>    <span class="n">env</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">task_finished</span><span class="p">(</span><span class="n">task</span><span class="p">,</span> <span class="n">task_id</span><span class="p">)</span>
-</span><span id="__span-18-58"><a id="__codelineno-18-58" name="__codelineno-18-58"></a>
-</span><span id="__span-18-59"><a id="__codelineno-18-59" name="__codelineno-18-59"></a>
-</span><span id="__span-18-60"><a id="__codelineno-18-60" name="__codelineno-18-60"></a><span class="k">def</span><span class="w"> </span><span class="nf">order_generator</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">sampler</span><span class="p">,</span> <span class="n">packers</span><span class="p">,</span> <span class="n">arrival</span><span class="p">):</span>
-</span><span id="__span-18-61"><a id="__codelineno-18-61" name="__codelineno-18-61"></a>    <span class="n">config</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">registry</span><span class="o">.</span><span class="n">get_config</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Shop.arrival.</span><span class="si">{</span><span class="n">arrival</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
-</span><span id="__span-18-62"><a id="__codelineno-18-62" name="__codelineno-18-62"></a>    <span class="n">task_id</span> <span class="o">=</span> <span class="mi">0</span>
-</span><span id="__span-18-63"><a id="__codelineno-18-63" name="__codelineno-18-63"></a>    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
-</span><span id="__span-18-64"><a id="__codelineno-18-64" name="__codelineno-18-64"></a>        <span class="k">yield</span> <span class="n">env</span><span class="o">.</span><span class="n">timeout</span><span class="p">(</span><span class="n">sampler</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">config</span><span class="p">))</span>
-</span><span id="__span-18-65"><a id="__codelineno-18-65" name="__codelineno-18-65"></a>        <span class="n">key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">arrival</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">task_id</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2">"</span>
-</span><span id="__span-18-66"><a id="__codelineno-18-66" name="__codelineno-18-66"></a>        <span class="n">env</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">pack</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">sampler</span><span class="p">,</span> <span class="n">packers</span><span class="p">,</span> <span class="n">arrival</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">task_id</span><span class="p">))</span>
-</span><span id="__span-18-67"><a id="__codelineno-18-67" name="__codelineno-18-67"></a>        <span class="n">task_id</span> <span class="o">+=</span> <span class="mi">1</span>
-</span><span id="__span-18-68"><a id="__codelineno-18-68" name="__codelineno-18-68"></a>
-</span><span id="__span-18-69"><a id="__codelineno-18-69" name="__codelineno-18-69"></a>
-</span><span id="__span-18-70"><a id="__codelineno-18-70" name="__codelineno-18-70"></a><span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="n">queue</span><span class="o">=</span><span class="s2">"priority"</span><span class="p">,</span> <span class="n">until</span><span class="o">=</span><span class="mi">3600</span><span class="p">,</span> <span class="n">factor</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
-</span><span id="__span-18-71"><a id="__codelineno-18-71" name="__codelineno-18-71"></a>    <span class="n">env</span> <span class="o">=</span> <span class="n">DynamicRealtimeEnvironment</span><span class="p">(</span><span class="n">factor</span><span class="o">=</span><span class="n">factor</span><span class="p">)</span>
-</span><span id="__span-18-72"><a id="__codelineno-18-72" name="__codelineno-18-72"></a>    <span class="n">env</span><span class="o">.</span><span class="n">registry</span><span class="o">.</span><span class="n">register_sim_parameter</span><span class="p">(</span><span class="n">PARAMS</span><span class="p">)</span>
-</span><span id="__span-18-73"><a id="__codelineno-18-73" name="__codelineno-18-73"></a>    <span class="n">env</span><span class="o">.</span><span class="n">setup_egress</span><span class="p">([</span><span class="n">ConsoleEgress</span><span class="p">()])</span>
-</span><span id="__span-18-74"><a id="__codelineno-18-74" name="__codelineno-18-74"></a>    <span class="n">env</span><span class="o">.</span><span class="n">setup_stats</span><span class="p">(</span><span class="s2">"Shop"</span><span class="p">,</span> <span class="s2">"typical"</span><span class="p">,</span> <span class="n">interval</span><span class="o">=</span><span class="mi">3600</span><span class="p">)</span>  <span class="c1"># the mean wait of each task</span>
-</span><span id="__span-18-75"><a id="__codelineno-18-75" name="__codelineno-18-75"></a>    <span class="c1"># The packer serves the lowest priority first, the oldest first among equals</span>
-</span><span id="__span-18-76"><a id="__codelineno-18-76" name="__codelineno-18-76"></a>    <span class="n">packers</span> <span class="o">=</span> <span class="n">DynamicResource</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="s2">"Shop"</span><span class="p">,</span> <span class="s2">"packers"</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="n">queue</span><span class="p">)</span>
-</span><span id="__span-18-77"><a id="__codelineno-18-77" name="__codelineno-18-77"></a>    <span class="n">sampler</span> <span class="o">=</span> <span class="n">Sampler</span><span class="p">(</span><span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
-</span><span id="__span-18-78"><a id="__codelineno-18-78" name="__codelineno-18-78"></a>    <span class="n">env</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">order_generator</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">sampler</span><span class="p">,</span> <span class="n">packers</span><span class="p">,</span> <span class="s2">"orders"</span><span class="p">))</span>
-</span><span id="__span-18-79"><a id="__codelineno-18-79" name="__codelineno-18-79"></a>    <span class="n">env</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">order_generator</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">sampler</span><span class="p">,</span> <span class="n">packers</span><span class="p">,</span> <span class="s2">"express"</span><span class="p">))</span>
-</span><span id="__span-18-80"><a id="__codelineno-18-80" name="__codelineno-18-80"></a>    <span class="k">try</span><span class="p">:</span>
-</span><span id="__span-18-81"><a id="__codelineno-18-81" name="__codelineno-18-81"></a>        <span class="n">env</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">until</span><span class="o">=</span><span class="n">until</span><span class="p">)</span>
-</span><span id="__span-18-82"><a id="__codelineno-18-82" name="__codelineno-18-82"></a>    <span class="k">finally</span><span class="p">:</span>
-</span><span id="__span-18-83"><a id="__codelineno-18-83" name="__codelineno-18-83"></a>        <span class="n">env</span><span class="o">.</span><span class="n">teardown</span><span class="p">()</span>
-</span><span id="__span-18-84"><a id="__codelineno-18-84" name="__codelineno-18-84"></a>    <span class="k">return</span> <span class="n">env</span>
-</span><span id="__span-18-85"><a id="__codelineno-18-85" name="__codelineno-18-85"></a>
-</span><span id="__span-18-86"><a id="__codelineno-18-86" name="__codelineno-18-86"></a>
-</span><span id="__span-18-87"><a id="__codelineno-18-87" name="__codelineno-18-87"></a><span class="k">def</span><span class="w"> </span><span class="nf">mean_waits</span><span class="p">(</span><span class="n">queue</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
-</span><span id="__span-18-88"><a id="__codelineno-18-88" name="__codelineno-18-88"></a><span class="w">    </span><span class="sd">"""Runs one hour and returns the mean wait of each task."""</span>
-</span><span id="__span-18-89"><a id="__codelineno-18-89" name="__codelineno-18-89"></a>    <span class="n">readings</span> <span class="o">=</span> <span class="n">run</span><span class="p">(</span><span class="n">queue</span><span class="p">)</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">readings</span><span class="p">()</span>
-</span><span id="__span-18-90"><a id="__codelineno-18-90" name="__codelineno-18-90"></a>    <span class="k">return</span> <span class="p">{</span>
-</span><span id="__span-18-91"><a id="__codelineno-18-91" name="__codelineno-18-91"></a>        <span class="n">task</span><span class="p">:</span> <span class="n">readings</span><span class="p">[</span><span class="sa">f</span><span class="s2">"Shop.stats.tasks.</span><span class="si">{</span><span class="n">task</span><span class="si">}</span><span class="s2">.wait_mean"</span><span class="p">]</span>
-</span><span id="__span-18-92"><a id="__codelineno-18-92" name="__codelineno-18-92"></a>        <span class="k">for</span> <span class="n">task</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"pack_express"</span><span class="p">,</span> <span class="s2">"pack_order"</span><span class="p">)</span>
-</span><span id="__span-18-93"><a id="__codelineno-18-93" name="__codelineno-18-93"></a>    <span class="p">}</span>
-</span><span id="__span-18-94"><a id="__codelineno-18-94" name="__codelineno-18-94"></a>
-</span><span id="__span-18-95"><a id="__codelineno-18-95" name="__codelineno-18-95"></a>
-</span><span id="__span-18-96"><a id="__codelineno-18-96" name="__codelineno-18-96"></a><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
-</span><span id="__span-18-97"><a id="__codelineno-18-97" name="__codelineno-18-97"></a>    <span class="k">for</span> <span class="n">queue</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"fifo"</span><span class="p">,</span> <span class="s2">"priority"</span><span class="p">):</span>
-</span><span id="__span-18-98"><a id="__codelineno-18-98" name="__codelineno-18-98"></a>        <span class="k">for</span> <span class="n">task</span><span class="p">,</span> <span class="n">wait</span> <span class="ow">in</span> <span class="n">mean_waits</span><span class="p">(</span><span class="n">queue</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-</span><span id="__span-18-99"><a id="__codelineno-18-99" name="__codelineno-18-99"></a>            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">queue</span><span class="si">:</span><span class="s2">&lt;8</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">task</span><span class="si">:</span><span class="s2">&lt;12</span><span class="si">}</span><span class="s2"> mean wait </span><span class="si">{</span><span class="n">wait</span><span class="si">:</span><span class="s2">5.2f</span><span class="si">}</span><span class="s2"> s"</span><span class="p">)</span>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/tutorials/priorities_low_level.py</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-23-1">  1</a></span>
+<span class="normal"><a href="#__codelineno-23-2">  2</a></span>
+<span class="normal"><a href="#__codelineno-23-3">  3</a></span>
+<span class="normal"><a href="#__codelineno-23-4">  4</a></span>
+<span class="normal"><a href="#__codelineno-23-5">  5</a></span>
+<span class="normal"><a href="#__codelineno-23-6">  6</a></span>
+<span class="normal"><a href="#__codelineno-23-7">  7</a></span>
+<span class="normal"><a href="#__codelineno-23-8">  8</a></span>
+<span class="normal"><a href="#__codelineno-23-9">  9</a></span>
+<span class="normal"><a href="#__codelineno-23-10"> 10</a></span>
+<span class="normal"><a href="#__codelineno-23-11"> 11</a></span>
+<span class="normal"><a href="#__codelineno-23-12"> 12</a></span>
+<span class="normal"><a href="#__codelineno-23-13"> 13</a></span>
+<span class="normal"><a href="#__codelineno-23-14"> 14</a></span>
+<span class="normal"><a href="#__codelineno-23-15"> 15</a></span>
+<span class="normal"><a href="#__codelineno-23-16"> 16</a></span>
+<span class="normal"><a href="#__codelineno-23-17"> 17</a></span>
+<span class="normal"><a href="#__codelineno-23-18"> 18</a></span>
+<span class="normal"><a href="#__codelineno-23-19"> 19</a></span>
+<span class="normal"><a href="#__codelineno-23-20"> 20</a></span>
+<span class="normal"><a href="#__codelineno-23-21"> 21</a></span>
+<span class="normal"><a href="#__codelineno-23-22"> 22</a></span>
+<span class="normal"><a href="#__codelineno-23-23"> 23</a></span>
+<span class="normal"><a href="#__codelineno-23-24"> 24</a></span>
+<span class="normal"><a href="#__codelineno-23-25"> 25</a></span>
+<span class="normal"><a href="#__codelineno-23-26"> 26</a></span>
+<span class="normal"><a href="#__codelineno-23-27"> 27</a></span>
+<span class="normal"><a href="#__codelineno-23-28"> 28</a></span>
+<span class="normal"><a href="#__codelineno-23-29"> 29</a></span>
+<span class="normal"><a href="#__codelineno-23-30"> 30</a></span>
+<span class="normal"><a href="#__codelineno-23-31"> 31</a></span>
+<span class="normal"><a href="#__codelineno-23-32"> 32</a></span>
+<span class="normal"><a href="#__codelineno-23-33"> 33</a></span>
+<span class="normal"><a href="#__codelineno-23-34"> 34</a></span>
+<span class="normal"><a href="#__codelineno-23-35"> 35</a></span>
+<span class="normal"><a href="#__codelineno-23-36"> 36</a></span>
+<span class="normal"><a href="#__codelineno-23-37"> 37</a></span>
+<span class="normal"><a href="#__codelineno-23-38"> 38</a></span>
+<span class="normal"><a href="#__codelineno-23-39"> 39</a></span>
+<span class="normal"><a href="#__codelineno-23-40"> 40</a></span>
+<span class="normal"><a href="#__codelineno-23-41"> 41</a></span>
+<span class="normal"><a href="#__codelineno-23-42"> 42</a></span>
+<span class="normal"><a href="#__codelineno-23-43"> 43</a></span>
+<span class="normal"><a href="#__codelineno-23-44"> 44</a></span>
+<span class="normal"><a href="#__codelineno-23-45"> 45</a></span>
+<span class="normal"><a href="#__codelineno-23-46"> 46</a></span>
+<span class="normal"><a href="#__codelineno-23-47"> 47</a></span>
+<span class="normal"><a href="#__codelineno-23-48"> 48</a></span>
+<span class="normal"><a href="#__codelineno-23-49"> 49</a></span>
+<span class="normal"><a href="#__codelineno-23-50"> 50</a></span>
+<span class="normal"><a href="#__codelineno-23-51"> 51</a></span>
+<span class="normal"><a href="#__codelineno-23-52"> 52</a></span>
+<span class="normal"><a href="#__codelineno-23-53"> 53</a></span>
+<span class="normal"><a href="#__codelineno-23-54"> 54</a></span>
+<span class="normal"><a href="#__codelineno-23-55"> 55</a></span>
+<span class="normal"><a href="#__codelineno-23-56"> 56</a></span>
+<span class="normal"><a href="#__codelineno-23-57"> 57</a></span>
+<span class="normal"><a href="#__codelineno-23-58"> 58</a></span>
+<span class="normal"><a href="#__codelineno-23-59"> 59</a></span>
+<span class="normal"><a href="#__codelineno-23-60"> 60</a></span>
+<span class="normal"><a href="#__codelineno-23-61"> 61</a></span>
+<span class="normal"><a href="#__codelineno-23-62"> 62</a></span>
+<span class="normal"><a href="#__codelineno-23-63"> 63</a></span>
+<span class="normal"><a href="#__codelineno-23-64"> 64</a></span>
+<span class="normal"><a href="#__codelineno-23-65"> 65</a></span>
+<span class="normal"><a href="#__codelineno-23-66"> 66</a></span>
+<span class="normal"><a href="#__codelineno-23-67"> 67</a></span>
+<span class="normal"><a href="#__codelineno-23-68"> 68</a></span>
+<span class="normal"><a href="#__codelineno-23-69"> 69</a></span>
+<span class="normal"><a href="#__codelineno-23-70"> 70</a></span>
+<span class="normal"><a href="#__codelineno-23-71"> 71</a></span>
+<span class="normal"><a href="#__codelineno-23-72"> 72</a></span>
+<span class="normal"><a href="#__codelineno-23-73"> 73</a></span>
+<span class="normal"><a href="#__codelineno-23-74"> 74</a></span>
+<span class="normal"><a href="#__codelineno-23-75"> 75</a></span>
+<span class="normal"><a href="#__codelineno-23-76"> 76</a></span>
+<span class="normal"><a href="#__codelineno-23-77"> 77</a></span>
+<span class="normal"><a href="#__codelineno-23-78"> 78</a></span>
+<span class="normal"><a href="#__codelineno-23-79"> 79</a></span>
+<span class="normal"><a href="#__codelineno-23-80"> 80</a></span>
+<span class="normal"><a href="#__codelineno-23-81"> 81</a></span>
+<span class="normal"><a href="#__codelineno-23-82"> 82</a></span>
+<span class="normal"><a href="#__codelineno-23-83"> 83</a></span>
+<span class="normal"><a href="#__codelineno-23-84"> 84</a></span>
+<span class="normal"><a href="#__codelineno-23-85"> 85</a></span>
+<span class="normal"><a href="#__codelineno-23-86"> 86</a></span>
+<span class="normal"><a href="#__codelineno-23-87"> 87</a></span>
+<span class="normal"><a href="#__codelineno-23-88"> 88</a></span>
+<span class="normal"><a href="#__codelineno-23-89"> 89</a></span>
+<span class="normal"><a href="#__codelineno-23-90"> 90</a></span>
+<span class="normal"><a href="#__codelineno-23-91"> 91</a></span>
+<span class="normal"><a href="#__codelineno-23-92"> 92</a></span>
+<span class="normal"><a href="#__codelineno-23-93"> 93</a></span>
+<span class="normal"><a href="#__codelineno-23-94"> 94</a></span>
+<span class="normal"><a href="#__codelineno-23-95"> 95</a></span>
+<span class="normal"><a href="#__codelineno-23-96"> 96</a></span>
+<span class="normal"><a href="#__codelineno-23-97"> 97</a></span>
+<span class="normal"><a href="#__codelineno-23-98"> 98</a></span>
+<span class="normal"><a href="#__codelineno-23-99"> 99</a></span>
+<span class="normal"><a href="#__codelineno-23-100">100</a></span>
+<span class="normal"><a href="#__codelineno-23-101">101</a></span>
+<span class="normal"><a href="#__codelineno-23-102">102</a></span>
+<span class="normal"><a href="#__codelineno-23-103">103</a></span>
+<span class="normal"><a href="#__codelineno-23-104">104</a></span>
+<span class="normal"><a href="#__codelineno-23-105">105</a></span>
+<span class="normal"><a href="#__codelineno-23-106">106</a></span>
+<span class="normal"><a href="#__codelineno-23-107">107</a></span>
+<span class="normal"><a href="#__codelineno-23-108">108</a></span>
+<span class="normal"><a href="#__codelineno-23-109">109</a></span>
+<span class="normal"><a href="#__codelineno-23-110">110</a></span>
+<span class="normal"><a href="#__codelineno-23-111">111</a></span>
+<span class="normal"><a href="#__codelineno-23-112">112</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1"></a><span class="sd">"""The Priorities tutorial: express orders go before regular ones, low-level.</span>
+</span><span id="__span-23-2"><a id="__codelineno-23-2" name="__codelineno-23-2"></a>
+</span><span id="__span-23-3"><a id="__codelineno-23-3" name="__codelineno-23-3"></a><span class="sd">One packer and 1.5 seconds of packing. A regular order arrives every 2.22 seconds on</span>
+</span><span id="__span-23-4"><a id="__codelineno-23-4" name="__codelineno-23-4"></a><span class="sd">average (rate 0.45), and an express order every 6.67 seconds (rate 0.15). Every record</span>
+</span><span id="__span-23-5"><a id="__codelineno-23-5" name="__codelineno-23-5"></a><span class="sd">is printed to the terminal, and the script prints the mean wait of each kind of order</span>
+</span><span id="__span-23-6"><a id="__codelineno-23-6" name="__codelineno-23-6"></a><span class="sd">under each queue order at the end. To see only those lines, run:</span>
+</span><span id="__span-23-7"><a id="__codelineno-23-7" name="__codelineno-23-7"></a><span class="sd">python priorities_low_level.py 2&gt;/dev/null</span>
+</span><span id="__span-23-8"><a id="__codelineno-23-8" name="__codelineno-23-8"></a><span class="sd">To use other rates, give the two as arguments: python priorities_low_level.py 0.375 0.125</span>
+</span><span id="__span-23-9"><a id="__codelineno-23-9" name="__codelineno-23-9"></a><span class="sd">"""</span>
+</span><span id="__span-23-10"><a id="__codelineno-23-10" name="__codelineno-23-10"></a>
+</span><span id="__span-23-11"><a id="__codelineno-23-11" name="__codelineno-23-11"></a><span class="kn">import</span><span class="w"> </span><span class="nn">copy</span>
+</span><span id="__span-23-12"><a id="__codelineno-23-12" name="__codelineno-23-12"></a><span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+</span><span id="__span-23-13"><a id="__codelineno-23-13" name="__codelineno-23-13"></a><span class="kn">import</span><span class="w"> </span><span class="nn">sys</span>
+</span><span id="__span-23-14"><a id="__codelineno-23-14" name="__codelineno-23-14"></a>
+</span><span id="__span-23-15"><a id="__codelineno-23-15" name="__codelineno-23-15"></a><span class="kn">from</span><span class="w"> </span><span class="nn">desflow</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+</span><span id="__span-23-16"><a id="__codelineno-23-16" name="__codelineno-23-16"></a>    <span class="n">CapacityConfig</span><span class="p">,</span>
+</span><span id="__span-23-17"><a id="__codelineno-23-17" name="__codelineno-23-17"></a>    <span class="n">ConsoleEgress</span><span class="p">,</span>
+</span><span id="__span-23-18"><a id="__codelineno-23-18" name="__codelineno-23-18"></a>    <span class="n">DistributionConfig</span><span class="p">,</span>
+</span><span id="__span-23-19"><a id="__codelineno-23-19" name="__codelineno-23-19"></a>    <span class="n">DynamicRealtimeEnvironment</span><span class="p">,</span>
+</span><span id="__span-23-20"><a id="__codelineno-23-20" name="__codelineno-23-20"></a>    <span class="n">DynamicResource</span><span class="p">,</span>
+</span><span id="__span-23-21"><a id="__codelineno-23-21" name="__codelineno-23-21"></a>    <span class="n">Sampler</span><span class="p">,</span>
+</span><span id="__span-23-22"><a id="__codelineno-23-22" name="__codelineno-23-22"></a>    <span class="n">SimParameter</span><span class="p">,</span>
+</span><span id="__span-23-23"><a id="__codelineno-23-23" name="__codelineno-23-23"></a><span class="p">)</span>
+</span><span id="__span-23-24"><a id="__codelineno-23-24" name="__codelineno-23-24"></a>
+</span><span id="__span-23-25"><a id="__codelineno-23-25" name="__codelineno-23-25"></a><span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span>
+</span><span id="__span-23-26"><a id="__codelineno-23-26" name="__codelineno-23-26"></a>    <span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s2">"</span><span class="si">%(levelname)s</span><span class="s2"> [</span><span class="si">%(asctime)s</span><span class="s2">] </span><span class="si">%(message)s</span><span class="s2">"</span>
+</span><span id="__span-23-27"><a id="__codelineno-23-27" name="__codelineno-23-27"></a><span class="p">)</span>
+</span><span id="__span-23-28"><a id="__codelineno-23-28" name="__codelineno-23-28"></a>
+</span><span id="__span-23-29"><a id="__codelineno-23-29" name="__codelineno-23-29"></a><span class="n">PARAMS</span> <span class="o">=</span> <span class="n">SimParameter</span><span class="p">(</span>
+</span><span id="__span-23-30"><a id="__codelineno-23-30" name="__codelineno-23-30"></a>    <span class="n">sim_id</span><span class="o">=</span><span class="s2">"Shop"</span><span class="p">,</span>
+</span><span id="__span-23-31"><a id="__codelineno-23-31" name="__codelineno-23-31"></a>    <span class="n">arrival</span><span class="o">=</span><span class="p">{</span>
+</span><span id="__span-23-32"><a id="__codelineno-23-32" name="__codelineno-23-32"></a>        <span class="c1"># An order every 1.67 s on average in all (0.6 a second), one in four express</span>
+</span><span id="__span-23-33"><a id="__codelineno-23-33" name="__codelineno-23-33"></a>        <span class="s2">"orders"</span><span class="p">:</span> <span class="n">DistributionConfig</span><span class="p">(</span><span class="n">dist</span><span class="o">=</span><span class="s2">"exponential"</span><span class="p">,</span> <span class="n">rate</span><span class="o">=</span><span class="mf">0.45</span><span class="p">),</span>
+</span><span id="__span-23-34"><a id="__codelineno-23-34" name="__codelineno-23-34"></a>        <span class="s2">"express"</span><span class="p">:</span> <span class="n">DistributionConfig</span><span class="p">(</span><span class="n">dist</span><span class="o">=</span><span class="s2">"exponential"</span><span class="p">,</span> <span class="n">rate</span><span class="o">=</span><span class="mf">0.15</span><span class="p">),</span>
+</span><span id="__span-23-35"><a id="__codelineno-23-35" name="__codelineno-23-35"></a>    <span class="p">},</span>
+</span><span id="__span-23-36"><a id="__codelineno-23-36" name="__codelineno-23-36"></a>    <span class="n">service</span><span class="o">=</span><span class="p">{</span><span class="s2">"packing"</span><span class="p">:</span> <span class="n">DistributionConfig</span><span class="p">(</span><span class="n">dist</span><span class="o">=</span><span class="s2">"constant"</span><span class="p">,</span> <span class="n">value</span><span class="o">=</span><span class="mf">1.5</span><span class="p">)},</span>
+</span><span id="__span-23-37"><a id="__codelineno-23-37" name="__codelineno-23-37"></a>    <span class="n">resources</span><span class="o">=</span><span class="p">{</span><span class="s2">"packers"</span><span class="p">:</span> <span class="n">CapacityConfig</span><span class="p">(</span><span class="n">current_cap</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_cap</span><span class="o">=</span><span class="mi">4</span><span class="p">)},</span>
+</span><span id="__span-23-38"><a id="__codelineno-23-38" name="__codelineno-23-38"></a><span class="p">)</span>
+</span><span id="__span-23-39"><a id="__codelineno-23-39" name="__codelineno-23-39"></a><span class="c1"># Express orders are served before any regular order that is waiting</span>
+</span><span id="__span-23-40"><a id="__codelineno-23-40" name="__codelineno-23-40"></a><span class="n">TASKS</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"orders"</span><span class="p">:</span> <span class="p">(</span><span class="s2">"pack_order"</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="s2">"express"</span><span class="p">:</span> <span class="p">(</span><span class="s2">"pack_express"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)}</span>
+</span><span id="__span-23-41"><a id="__codelineno-23-41" name="__codelineno-23-41"></a>
+</span><span id="__span-23-42"><a id="__codelineno-23-42" name="__codelineno-23-42"></a>
+</span><span id="__span-23-43"><a id="__codelineno-23-43" name="__codelineno-23-43"></a><span class="k">def</span><span class="w"> </span><span class="nf">pack</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">sampler</span><span class="p">,</span> <span class="n">packers</span><span class="p">,</span> <span class="n">arrival</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">task_id</span><span class="p">):</span>
+</span><span id="__span-23-44"><a id="__codelineno-23-44" name="__codelineno-23-44"></a>    <span class="n">task</span><span class="p">,</span> <span class="n">priority</span> <span class="o">=</span> <span class="n">TASKS</span><span class="p">[</span><span class="n">arrival</span><span class="p">]</span>
+</span><span id="__span-23-45"><a id="__codelineno-23-45" name="__codelineno-23-45"></a>    <span class="n">path_id</span> <span class="o">=</span> <span class="s2">"Shop.service.packing"</span>
+</span><span id="__span-23-46"><a id="__codelineno-23-46" name="__codelineno-23-46"></a>
+</span><span id="__span-23-47"><a id="__codelineno-23-47" name="__codelineno-23-47"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">publish</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+</span><span id="__span-23-48"><a id="__codelineno-23-48" name="__codelineno-23-48"></a>        <span class="n">env</span><span class="o">.</span><span class="n">publish_event</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">value</span><span class="p">,</span> <span class="n">task</span><span class="o">=</span><span class="n">task</span><span class="p">,</span> <span class="n">instance</span><span class="o">=</span><span class="n">task_id</span><span class="p">)</span>
+</span><span id="__span-23-49"><a id="__codelineno-23-49" name="__codelineno-23-49"></a>
+</span><span id="__span-23-50"><a id="__codelineno-23-50" name="__codelineno-23-50"></a>    <span class="n">publish</span><span class="p">({</span><span class="s2">"path_id"</span><span class="p">:</span> <span class="n">path_id</span><span class="p">,</span> <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"queued"</span><span class="p">})</span>
+</span><span id="__span-23-51"><a id="__codelineno-23-51" name="__codelineno-23-51"></a>    <span class="n">env</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">task_queued</span><span class="p">(</span><span class="n">task</span><span class="p">,</span> <span class="n">task_id</span><span class="p">)</span>
+</span><span id="__span-23-52"><a id="__codelineno-23-52" name="__codelineno-23-52"></a>    <span class="c1"># Under fifo and lifo the priority is ignored</span>
+</span><span id="__span-23-53"><a id="__codelineno-23-53" name="__codelineno-23-53"></a>    <span class="k">with</span> <span class="n">packers</span><span class="o">.</span><span class="n">request</span><span class="p">(</span><span class="n">priority</span><span class="o">=</span><span class="n">priority</span><span class="p">)</span> <span class="k">as</span> <span class="n">request</span><span class="p">:</span>
+</span><span id="__span-23-54"><a id="__codelineno-23-54" name="__codelineno-23-54"></a>        <span class="k">yield</span> <span class="n">request</span>
+</span><span id="__span-23-55"><a id="__codelineno-23-55" name="__codelineno-23-55"></a>        <span class="n">publish</span><span class="p">({</span><span class="s2">"path_id"</span><span class="p">:</span> <span class="n">path_id</span><span class="p">,</span> <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"started"</span><span class="p">})</span>
+</span><span id="__span-23-56"><a id="__codelineno-23-56" name="__codelineno-23-56"></a>        <span class="n">env</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">task_started</span><span class="p">(</span><span class="n">task</span><span class="p">,</span> <span class="n">task_id</span><span class="p">)</span>
+</span><span id="__span-23-57"><a id="__codelineno-23-57" name="__codelineno-23-57"></a>        <span class="k">yield</span> <span class="n">env</span><span class="o">.</span><span class="n">timeout</span><span class="p">(</span><span class="n">sampler</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">registry</span><span class="o">.</span><span class="n">get_config</span><span class="p">(</span><span class="n">path_id</span><span class="p">)))</span>
+</span><span id="__span-23-58"><a id="__codelineno-23-58" name="__codelineno-23-58"></a>        <span class="n">event</span> <span class="o">=</span> <span class="s2">"express_packed"</span> <span class="k">if</span> <span class="n">arrival</span> <span class="o">==</span> <span class="s2">"express"</span> <span class="k">else</span> <span class="s2">"order_packed"</span>
+</span><span id="__span-23-59"><a id="__codelineno-23-59" name="__codelineno-23-59"></a>        <span class="n">publish</span><span class="p">({</span><span class="s2">"event_type"</span><span class="p">:</span> <span class="n">event</span><span class="p">})</span>
+</span><span id="__span-23-60"><a id="__codelineno-23-60" name="__codelineno-23-60"></a>    <span class="n">env</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">task_finished</span><span class="p">(</span><span class="n">task</span><span class="p">,</span> <span class="n">task_id</span><span class="p">)</span>
+</span><span id="__span-23-61"><a id="__codelineno-23-61" name="__codelineno-23-61"></a>
+</span><span id="__span-23-62"><a id="__codelineno-23-62" name="__codelineno-23-62"></a>
+</span><span id="__span-23-63"><a id="__codelineno-23-63" name="__codelineno-23-63"></a><span class="k">def</span><span class="w"> </span><span class="nf">order_generator</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">sampler</span><span class="p">,</span> <span class="n">packers</span><span class="p">,</span> <span class="n">arrival</span><span class="p">):</span>
+</span><span id="__span-23-64"><a id="__codelineno-23-64" name="__codelineno-23-64"></a>    <span class="n">config</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">registry</span><span class="o">.</span><span class="n">get_config</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Shop.arrival.</span><span class="si">{</span><span class="n">arrival</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</span><span id="__span-23-65"><a id="__codelineno-23-65" name="__codelineno-23-65"></a>    <span class="n">task_id</span> <span class="o">=</span> <span class="mi">0</span>
+</span><span id="__span-23-66"><a id="__codelineno-23-66" name="__codelineno-23-66"></a>    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+</span><span id="__span-23-67"><a id="__codelineno-23-67" name="__codelineno-23-67"></a>        <span class="k">yield</span> <span class="n">env</span><span class="o">.</span><span class="n">timeout</span><span class="p">(</span><span class="n">sampler</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">config</span><span class="p">))</span>
+</span><span id="__span-23-68"><a id="__codelineno-23-68" name="__codelineno-23-68"></a>        <span class="n">key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">arrival</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">task_id</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2">"</span>
+</span><span id="__span-23-69"><a id="__codelineno-23-69" name="__codelineno-23-69"></a>        <span class="n">env</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">pack</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">sampler</span><span class="p">,</span> <span class="n">packers</span><span class="p">,</span> <span class="n">arrival</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">task_id</span><span class="p">))</span>
+</span><span id="__span-23-70"><a id="__codelineno-23-70" name="__codelineno-23-70"></a>        <span class="n">task_id</span> <span class="o">+=</span> <span class="mi">1</span>
+</span><span id="__span-23-71"><a id="__codelineno-23-71" name="__codelineno-23-71"></a>
+</span><span id="__span-23-72"><a id="__codelineno-23-72" name="__codelineno-23-72"></a>
+</span><span id="__span-23-73"><a id="__codelineno-23-73" name="__codelineno-23-73"></a><span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="n">queue</span><span class="o">=</span><span class="s2">"priority"</span><span class="p">,</span> <span class="n">until</span><span class="o">=</span><span class="mi">3600</span><span class="p">,</span> <span class="n">factor</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">orders_rate</span><span class="o">=</span><span class="mf">0.45</span><span class="p">,</span> <span class="n">express_rate</span><span class="o">=</span><span class="mf">0.15</span><span class="p">):</span>
+</span><span id="__span-23-74"><a id="__codelineno-23-74" name="__codelineno-23-74"></a>    <span class="n">params</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="n">PARAMS</span><span class="p">)</span>
+</span><span id="__span-23-75"><a id="__codelineno-23-75" name="__codelineno-23-75"></a>    <span class="n">params</span><span class="o">.</span><span class="n">arrival</span><span class="p">[</span><span class="s2">"orders"</span><span class="p">]</span> <span class="o">=</span> <span class="n">DistributionConfig</span><span class="p">(</span><span class="n">dist</span><span class="o">=</span><span class="s2">"exponential"</span><span class="p">,</span> <span class="n">rate</span><span class="o">=</span><span class="n">orders_rate</span><span class="p">)</span>
+</span><span id="__span-23-76"><a id="__codelineno-23-76" name="__codelineno-23-76"></a>    <span class="n">params</span><span class="o">.</span><span class="n">arrival</span><span class="p">[</span><span class="s2">"express"</span><span class="p">]</span> <span class="o">=</span> <span class="n">DistributionConfig</span><span class="p">(</span>
+</span><span id="__span-23-77"><a id="__codelineno-23-77" name="__codelineno-23-77"></a>        <span class="n">dist</span><span class="o">=</span><span class="s2">"exponential"</span><span class="p">,</span> <span class="n">rate</span><span class="o">=</span><span class="n">express_rate</span>
+</span><span id="__span-23-78"><a id="__codelineno-23-78" name="__codelineno-23-78"></a>    <span class="p">)</span>
+</span><span id="__span-23-79"><a id="__codelineno-23-79" name="__codelineno-23-79"></a>    <span class="n">env</span> <span class="o">=</span> <span class="n">DynamicRealtimeEnvironment</span><span class="p">(</span><span class="n">factor</span><span class="o">=</span><span class="n">factor</span><span class="p">)</span>
+</span><span id="__span-23-80"><a id="__codelineno-23-80" name="__codelineno-23-80"></a>    <span class="n">env</span><span class="o">.</span><span class="n">registry</span><span class="o">.</span><span class="n">register_sim_parameter</span><span class="p">(</span><span class="n">params</span><span class="p">)</span>
+</span><span id="__span-23-81"><a id="__codelineno-23-81" name="__codelineno-23-81"></a>    <span class="n">env</span><span class="o">.</span><span class="n">setup_egress</span><span class="p">([</span><span class="n">ConsoleEgress</span><span class="p">()])</span>
+</span><span id="__span-23-82"><a id="__codelineno-23-82" name="__codelineno-23-82"></a>    <span class="n">env</span><span class="o">.</span><span class="n">setup_stats</span><span class="p">(</span><span class="s2">"Shop"</span><span class="p">,</span> <span class="s2">"typical"</span><span class="p">,</span> <span class="n">interval</span><span class="o">=</span><span class="mi">3600</span><span class="p">)</span>  <span class="c1"># the mean wait of each task</span>
+</span><span id="__span-23-83"><a id="__codelineno-23-83" name="__codelineno-23-83"></a>    <span class="c1"># The packer serves the lowest priority first, the oldest first among equals</span>
+</span><span id="__span-23-84"><a id="__codelineno-23-84" name="__codelineno-23-84"></a>    <span class="n">packers</span> <span class="o">=</span> <span class="n">DynamicResource</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="s2">"Shop"</span><span class="p">,</span> <span class="s2">"packers"</span><span class="p">,</span> <span class="n">queue</span><span class="o">=</span><span class="n">queue</span><span class="p">)</span>
+</span><span id="__span-23-85"><a id="__codelineno-23-85" name="__codelineno-23-85"></a>    <span class="n">sampler</span> <span class="o">=</span> <span class="n">Sampler</span><span class="p">(</span><span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
+</span><span id="__span-23-86"><a id="__codelineno-23-86" name="__codelineno-23-86"></a>    <span class="n">env</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">order_generator</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">sampler</span><span class="p">,</span> <span class="n">packers</span><span class="p">,</span> <span class="s2">"orders"</span><span class="p">))</span>
+</span><span id="__span-23-87"><a id="__codelineno-23-87" name="__codelineno-23-87"></a>    <span class="n">env</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">order_generator</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">sampler</span><span class="p">,</span> <span class="n">packers</span><span class="p">,</span> <span class="s2">"express"</span><span class="p">))</span>
+</span><span id="__span-23-88"><a id="__codelineno-23-88" name="__codelineno-23-88"></a>    <span class="k">try</span><span class="p">:</span>
+</span><span id="__span-23-89"><a id="__codelineno-23-89" name="__codelineno-23-89"></a>        <span class="n">env</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">until</span><span class="o">=</span><span class="n">until</span><span class="p">)</span>
+</span><span id="__span-23-90"><a id="__codelineno-23-90" name="__codelineno-23-90"></a>    <span class="k">finally</span><span class="p">:</span>
+</span><span id="__span-23-91"><a id="__codelineno-23-91" name="__codelineno-23-91"></a>        <span class="n">env</span><span class="o">.</span><span class="n">teardown</span><span class="p">()</span>
+</span><span id="__span-23-92"><a id="__codelineno-23-92" name="__codelineno-23-92"></a>    <span class="k">return</span> <span class="n">env</span>
+</span><span id="__span-23-93"><a id="__codelineno-23-93" name="__codelineno-23-93"></a>
+</span><span id="__span-23-94"><a id="__codelineno-23-94" name="__codelineno-23-94"></a>
+</span><span id="__span-23-95"><a id="__codelineno-23-95" name="__codelineno-23-95"></a><span class="k">def</span><span class="w"> </span><span class="nf">mean_waits</span><span class="p">(</span>
+</span><span id="__span-23-96"><a id="__codelineno-23-96" name="__codelineno-23-96"></a>    <span class="n">queue</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">orders_rate</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.45</span><span class="p">,</span> <span class="n">express_rate</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.15</span>
+</span><span id="__span-23-97"><a id="__codelineno-23-97" name="__codelineno-23-97"></a><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+</span><span id="__span-23-98"><a id="__codelineno-23-98" name="__codelineno-23-98"></a><span class="w">    </span><span class="sd">"""Runs one hour and returns the mean wait of each task."""</span>
+</span><span id="__span-23-99"><a id="__codelineno-23-99" name="__codelineno-23-99"></a>    <span class="n">readings</span> <span class="o">=</span> <span class="n">run</span><span class="p">(</span>
+</span><span id="__span-23-100"><a id="__codelineno-23-100" name="__codelineno-23-100"></a>        <span class="n">queue</span><span class="p">,</span> <span class="n">orders_rate</span><span class="o">=</span><span class="n">orders_rate</span><span class="p">,</span> <span class="n">express_rate</span><span class="o">=</span><span class="n">express_rate</span>
+</span><span id="__span-23-101"><a id="__codelineno-23-101" name="__codelineno-23-101"></a>    <span class="p">)</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">readings</span><span class="p">()</span>
+</span><span id="__span-23-102"><a id="__codelineno-23-102" name="__codelineno-23-102"></a>    <span class="k">return</span> <span class="p">{</span>
+</span><span id="__span-23-103"><a id="__codelineno-23-103" name="__codelineno-23-103"></a>        <span class="n">task</span><span class="p">:</span> <span class="n">readings</span><span class="p">[</span><span class="sa">f</span><span class="s2">"Shop.stats.tasks.</span><span class="si">{</span><span class="n">task</span><span class="si">}</span><span class="s2">.wait_mean"</span><span class="p">]</span>
+</span><span id="__span-23-104"><a id="__codelineno-23-104" name="__codelineno-23-104"></a>        <span class="k">for</span> <span class="n">task</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"pack_express"</span><span class="p">,</span> <span class="s2">"pack_order"</span><span class="p">)</span>
+</span><span id="__span-23-105"><a id="__codelineno-23-105" name="__codelineno-23-105"></a>    <span class="p">}</span>
+</span><span id="__span-23-106"><a id="__codelineno-23-106" name="__codelineno-23-106"></a>
+</span><span id="__span-23-107"><a id="__codelineno-23-107" name="__codelineno-23-107"></a>
+</span><span id="__span-23-108"><a id="__codelineno-23-108" name="__codelineno-23-108"></a><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+</span><span id="__span-23-109"><a id="__codelineno-23-109" name="__codelineno-23-109"></a>    <span class="n">rates</span> <span class="o">=</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">rate</span><span class="p">)</span> <span class="k">for</span> <span class="n">rate</span> <span class="ow">in</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="mi">3</span><span class="p">]]</span>
+</span><span id="__span-23-110"><a id="__codelineno-23-110" name="__codelineno-23-110"></a>    <span class="k">for</span> <span class="n">queue</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"fifo"</span><span class="p">,</span> <span class="s2">"priority"</span><span class="p">):</span>
+</span><span id="__span-23-111"><a id="__codelineno-23-111" name="__codelineno-23-111"></a>        <span class="k">for</span> <span class="n">task</span><span class="p">,</span> <span class="n">wait</span> <span class="ow">in</span> <span class="n">mean_waits</span><span class="p">(</span><span class="n">queue</span><span class="p">,</span> <span class="o">*</span><span class="n">rates</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+</span><span id="__span-23-112"><a id="__codelineno-23-112" name="__codelineno-23-112"></a>            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">queue</span><span class="si">:</span><span class="s2">&lt;8</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">task</span><span class="si">:</span><span class="s2">&lt;12</span><span class="si">}</span><span class="s2"> mean wait </span><span class="si">{</span><span class="n">wait</span><span class="si">:</span><span class="s2">5.2f</span><span class="si">}</span><span class="s2"> s"</span><span class="p">)</span>
 </span></code></pre></div></td></tr></table></div>
 </div>
 </div>

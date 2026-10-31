@@ -5529,40 +5529,45 @@
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7"></a>    <span class="p">(</span><span class="n">later</span> <span class="o">-</span> <span class="n">earlier</span><span class="p">)</span><span class="o">.</span><span class="n">total_seconds</span><span class="p">()</span> <span class="k">for</span> <span class="n">earlier</span><span class="p">,</span> <span class="n">later</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">placed</span><span class="p">,</span> <span class="n">placed</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
 </span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8"></a><span class="p">]</span>
 </span></code></pre></div></td></tr></table></div>
-<p><code>order_log.csv</code> is an illustrative log of 300 orders placed one afternoon, with the time each was placed to a tenth of a second. Write the gaps to a CSV column to fit them with <code>desflow fit</code> instead.</p>
+<p><code>order_log.csv</code> is an illustrative log of 300 orders placed one afternoon, with the time each was placed to a tenth of a second. Write the gaps to a CSV column with one header, <code>gap_seconds</code>, to fit them with <code>desflow fit</code> instead:</p>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/guides/fit_a_distribution.py:write-gaps</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-1-1">1</a></span>
+<span class="normal"><a href="#__codelineno-1-2">2</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1"></a><span class="n">path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">folder</span><span class="p">)</span> <span class="o">/</span> <span class="s2">"gaps.csv"</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2"></a><span class="n">path</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="s2">"gap_seconds</span><span class="se">\n</span><span class="s2">"</span> <span class="o">+</span> <span class="s2">""</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">gap</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span> <span class="k">for</span> <span class="n">gap</span> <span class="ow">in</span> <span class="n">gaps</span><span class="p">()))</span>
+</span></code></pre></div></td></tr></table></div>
+<p><code>python fit_a_distribution.py</code> writes this <code>gaps.csv</code> into the folder you run it in.</p>
 <h3 id="fit-it">Fit It</h3>
 <p>State the unit and the bounds. The gaps are in seconds and none can be below 0:</p>
-<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/guides/fit_a_distribution.py:fit</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-1-1">1</a></span>
-<span class="normal"><a href="#__codelineno-1-2">2</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">fit_column</span><span class="p">(</span><span class="n">gaps</span><span class="p">(),</span> <span class="n">unit</span><span class="o">=</span><span class="s2">"s"</span><span class="p">,</span> <span class="n">lower</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
-</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">text</span><span class="p">())</span>  <span class="c1"># every candidate, its status and diagnostics</span>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/guides/fit_a_distribution.py:fit</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-2-1">1</a></span>
+<span class="normal"><a href="#__codelineno-2-2">2</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">fit_column</span><span class="p">(</span><span class="n">gaps</span><span class="p">(),</span> <span class="n">unit</span><span class="o">=</span><span class="s2">"s"</span><span class="p">,</span> <span class="n">lower</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2"></a><span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">text</span><span class="p">())</span>  <span class="c1"># every candidate, its status and diagnostics</span>
 </span></code></pre></div></td></tr></table></div>
 <p>On the command line, <code>desflow fit gaps.csv --column gap_seconds --unit s --lower 0 --out fitted/orders.yaml</code> does the same. The table for the 299 gaps:</p>
 <!-- records: fit-gaps -->
-<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-2-1"> 1</a></span>
-<span class="normal"><a href="#__codelineno-2-2"> 2</a></span>
-<span class="normal"><a href="#__codelineno-2-3"> 3</a></span>
-<span class="normal"><a href="#__codelineno-2-4"> 4</a></span>
-<span class="normal"><a href="#__codelineno-2-5"> 5</a></span>
-<span class="normal"><a href="#__codelineno-2-6"> 6</a></span>
-<span class="normal"><a href="#__codelineno-2-7"> 7</a></span>
-<span class="normal"><a href="#__codelineno-2-8"> 8</a></span>
-<span class="normal"><a href="#__codelineno-2-9"> 9</a></span>
-<span class="normal"><a href="#__codelineno-2-10">10</a></span>
-<span class="normal"><a href="#__codelineno-2-11">11</a></span>
-<span class="normal"><a href="#__codelineno-2-12">12</a></span>
-<span class="normal"><a href="#__codelineno-2-13">13</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1"></a>299 rows: 299 used, 0 missing, 0 invalid
-</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2"></a>family            status              AIC  KS stat KS p (approx.)  parameters or reason
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3"></a>exponential *     fitted             1205  0.03517         0.8404  rate=0.36388
-</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4"></a>normal            fitted             1487   0.1707      4.359e-08  mean=2.74816, std=2.88857 (can draw below the lower bound 0)
-</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5"></a>lognormal         skipped                                          lognormal needs every value above 0; 5 are not
-</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6"></a>truncated_normal  did not fit                                      RuntimeError: Maximum number of function evaluations has been exceeded.
-</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7"></a>constant          skipped                                          the values are not all equal
-</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8"></a>uniform           rejected                                         its mean is 12.75, the data's is 2.748: more than 25% apart
-</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9"></a>triangular        rejected                                         its mean is 7.702, the data's is 2.748: more than 25% apart
-</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10"></a>gamma             skipped                                          gamma needs every value above 0; 5 are not
-</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11"></a>weibull           skipped                                          weibull needs every value above 0; 5 are not
-</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12"></a>empirical         fitted                                           values: 299 numbers
-</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13"></a>* best: exponential
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-3-1"> 1</a></span>
+<span class="normal"><a href="#__codelineno-3-2"> 2</a></span>
+<span class="normal"><a href="#__codelineno-3-3"> 3</a></span>
+<span class="normal"><a href="#__codelineno-3-4"> 4</a></span>
+<span class="normal"><a href="#__codelineno-3-5"> 5</a></span>
+<span class="normal"><a href="#__codelineno-3-6"> 6</a></span>
+<span class="normal"><a href="#__codelineno-3-7"> 7</a></span>
+<span class="normal"><a href="#__codelineno-3-8"> 8</a></span>
+<span class="normal"><a href="#__codelineno-3-9"> 9</a></span>
+<span class="normal"><a href="#__codelineno-3-10">10</a></span>
+<span class="normal"><a href="#__codelineno-3-11">11</a></span>
+<span class="normal"><a href="#__codelineno-3-12">12</a></span>
+<span class="normal"><a href="#__codelineno-3-13">13</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1"></a>299 rows: 299 used, 0 missing, 0 invalid
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2"></a>family            status              AIC  KS stat KS p (approx.)  parameters or reason
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3"></a>exponential *     fitted             1205  0.03517         0.8404  rate=0.36388
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4"></a>normal            fitted             1487   0.1707      4.359e-08  mean=2.74816, std=2.88857 (can draw below the lower bound 0)
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5"></a>lognormal         skipped                                          lognormal needs every value above 0; 5 are not
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6"></a>truncated_normal  did not fit                                      RuntimeError: Maximum number of function evaluations has been exceeded.
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7"></a>constant          skipped                                          the values are not all equal
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8"></a>uniform           rejected                                         its mean is 12.75, the data's is 2.748: more than 25% apart
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9"></a>triangular        rejected                                         its mean is 7.702, the data's is 2.748: more than 25% apart
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10"></a>gamma             skipped                                          gamma needs every value above 0; 5 are not
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11"></a>weibull           skipped                                          weibull needs every value above 0; 5 are not
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12"></a>empirical         fitted                                           values: 299 numbers
+</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13"></a>* best: exponential
 </span></code></pre></div></td></tr></table></div>
 <h3 id="read-the-table">Read the Table</h3>
 <ul>
@@ -5577,51 +5582,51 @@
 <div class="tabbed-content">
 <div class="tabbed-block">
 <p>Write the best fit with <code>--out</code>, or from Python:</p>
-<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/guides/fit_a_distribution.py:write</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-3-1">1</a></span>
-<span class="normal"><a href="#__codelineno-3-2">2</a></span>
-<span class="normal"><a href="#__codelineno-3-3">3</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1"></a><span class="n">path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">folder</span><span class="p">)</span> <span class="o">/</span> <span class="s2">"fitted"</span> <span class="o">/</span> <span class="s2">"orders.yaml"</span>
-</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2"></a><span class="n">path</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3"></a><span class="n">path</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">yaml</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s2">"order_log.csv, gaps between placed_at"</span><span class="p">))</span>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/guides/fit_a_distribution.py:write</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-4-1">1</a></span>
+<span class="normal"><a href="#__codelineno-4-2">2</a></span>
+<span class="normal"><a href="#__codelineno-4-3">3</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1"></a><span class="n">path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">folder</span><span class="p">)</span> <span class="o">/</span> <span class="s2">"fitted"</span> <span class="o">/</span> <span class="s2">"orders.yaml"</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2"></a><span class="n">path</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3"></a><span class="n">path</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">yaml</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s2">"order_log.csv, gaps between placed_at"</span><span class="p">))</span>
 </span></code></pre></div></td></tr></table></div>
 <p>and include it. An arrival also needs the task it spawns, so the include names the file and adds <code>spawn</code>:</p>
-<div class="language-yaml highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/yaml/fit_a_distribution.yaml:include</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-4-1">1</a></span>
-<span class="normal"><a href="#__codelineno-4-2">2</a></span>
-<span class="normal"><a href="#__codelineno-4-3">3</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1"></a><span class="nt">arrivals</span><span class="p">:</span>
-</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2"></a><span class="w">  </span><span class="c1"># The fitted gaps, with the task each order starts added to them</span>
-</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3"></a><span class="w">  </span><span class="nt">orders</span><span class="p">:</span><span class="w"> </span><span class="kt">!include</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">file</span><span class="p">:</span><span class="w"> </span><span class="nv">fitted/orders.yaml</span><span class="p p-Indicator">,</span><span class="nt"> spawn</span><span class="p">:</span><span class="w"> </span><span class="nv">pack_order</span><span class="p p-Indicator">}</span>
+<div class="language-yaml highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/yaml/fit_a_distribution.yaml:include</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-5-1">1</a></span>
+<span class="normal"><a href="#__codelineno-5-2">2</a></span>
+<span class="normal"><a href="#__codelineno-5-3">3</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1"></a><span class="nt">arrivals</span><span class="p">:</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2"></a><span class="w">  </span><span class="c1"># The fitted gaps, with the task each order starts added to them</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3"></a><span class="w">  </span><span class="nt">orders</span><span class="p">:</span><span class="w"> </span><span class="kt">!include</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">file</span><span class="p">:</span><span class="w"> </span><span class="nv">fitted/orders.yaml</span><span class="p p-Indicator">,</span><span class="nt"> spawn</span><span class="p">:</span><span class="w"> </span><span class="nv">pack_order</span><span class="p p-Indicator">}</span>
 </span></code></pre></div></td></tr></table></div>
 <p>The file:</p>
-<div class="language-yaml highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/yaml/fitted/orders.yaml</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-5-1">1</a></span>
-<span class="normal"><a href="#__codelineno-5-2">2</a></span>
-<span class="normal"><a href="#__codelineno-5-3">3</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1"></a><span class="c1"># Fitted by desflow fit from order_log.csv, gaps between placed_at: exponential, from 299 values in s, written in seconds.</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2"></a><span class="nt">dist</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">exponential</span>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3"></a><span class="nt">rate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.36388</span>
+<div class="language-yaml highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/yaml/fitted/orders.yaml</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-6-1">1</a></span>
+<span class="normal"><a href="#__codelineno-6-2">2</a></span>
+<span class="normal"><a href="#__codelineno-6-3">3</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1"></a><span class="c1"># Fitted by desflow fit from order_log.csv, gaps between placed_at: exponential, from 299 values in s, written in seconds.</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2"></a><span class="nt">dist</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">exponential</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3"></a><span class="nt">rate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.36388</span>
 </span></code></pre></div></td></tr></table></div>
 </div>
 <div class="tabbed-block">
-<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/guides/fit_a_distribution.py:load</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-6-1">1</a></span>
-<span class="normal"><a href="#__codelineno-6-2">2</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1"></a><span class="c1"># The best fit's settings, such as dist="exponential", rate=0.4</span>
-</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2"></a><span class="o">.</span><span class="n">add_arrival</span><span class="p">(</span><span class="s2">"orders"</span><span class="p">,</span> <span class="o">**</span><span class="n">result</span><span class="o">.</span><span class="n">settings</span><span class="p">())</span>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/guides/fit_a_distribution.py:load</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-7-1">1</a></span>
+<span class="normal"><a href="#__codelineno-7-2">2</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1"></a><span class="c1"># The best fit's settings, such as dist="exponential", rate=0.4</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2"></a><span class="o">.</span><span class="n">add_arrival</span><span class="p">(</span><span class="s2">"orders"</span><span class="p">,</span> <span class="o">**</span><span class="n">result</span><span class="o">.</span><span class="n">settings</span><span class="p">())</span>
 </span></code></pre></div></td></tr></table></div>
 </div>
 <div class="tabbed-block">
-<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/guides/fit_a_distribution_low_level.py:load</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-7-1">1</a></span>
-<span class="normal"><a href="#__codelineno-7-2">2</a></span>
-<span class="normal"><a href="#__codelineno-7-3">3</a></span>
-<span class="normal"><a href="#__codelineno-7-4">4</a></span>
-<span class="normal"><a href="#__codelineno-7-5">5</a></span>
-<span class="normal"><a href="#__codelineno-7-6">6</a></span>
-<span class="normal"><a href="#__codelineno-7-7">7</a></span>
-<span class="normal"><a href="#__codelineno-7-8">8</a></span>
-<span class="normal"><a href="#__codelineno-7-9">9</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">params</span><span class="p">(</span><span class="n">result</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SimParameter</span><span class="p">:</span>
-</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2"></a><span class="w">    </span><span class="sd">"""One packer, with the fitted arrivals."""</span>
-</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3"></a>    <span class="k">return</span> <span class="n">SimParameter</span><span class="p">(</span>
-</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4"></a>        <span class="n">sim_id</span><span class="o">=</span><span class="s2">"Shop"</span><span class="p">,</span>
-</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5"></a>        <span class="c1"># The best fit's settings, such as dist="exponential", rate=0.4</span>
-</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6"></a>        <span class="n">arrival</span><span class="o">=</span><span class="p">{</span><span class="s2">"orders"</span><span class="p">:</span> <span class="n">DistributionConfig</span><span class="p">(</span><span class="o">**</span><span class="n">result</span><span class="o">.</span><span class="n">settings</span><span class="p">())},</span>
-</span><span id="__span-7-7"><a id="__codelineno-7-7" name="__codelineno-7-7"></a>        <span class="n">service</span><span class="o">=</span><span class="p">{</span><span class="s2">"packing"</span><span class="p">:</span> <span class="n">DistributionConfig</span><span class="p">(</span><span class="n">dist</span><span class="o">=</span><span class="s2">"gamma"</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">0.375</span><span class="p">)},</span>
-</span><span id="__span-7-8"><a id="__codelineno-7-8" name="__codelineno-7-8"></a>        <span class="n">resources</span><span class="o">=</span><span class="p">{</span><span class="s2">"packers"</span><span class="p">:</span> <span class="n">CapacityConfig</span><span class="p">(</span><span class="n">current_cap</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_cap</span><span class="o">=</span><span class="mi">2</span><span class="p">)},</span>
-</span><span id="__span-7-9"><a id="__codelineno-7-9" name="__codelineno-7-9"></a>    <span class="p">)</span>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/guides/fit_a_distribution_low_level.py:load</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-8-1">1</a></span>
+<span class="normal"><a href="#__codelineno-8-2">2</a></span>
+<span class="normal"><a href="#__codelineno-8-3">3</a></span>
+<span class="normal"><a href="#__codelineno-8-4">4</a></span>
+<span class="normal"><a href="#__codelineno-8-5">5</a></span>
+<span class="normal"><a href="#__codelineno-8-6">6</a></span>
+<span class="normal"><a href="#__codelineno-8-7">7</a></span>
+<span class="normal"><a href="#__codelineno-8-8">8</a></span>
+<span class="normal"><a href="#__codelineno-8-9">9</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">params</span><span class="p">(</span><span class="n">result</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SimParameter</span><span class="p">:</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2"></a><span class="w">    </span><span class="sd">"""One packer, with the fitted arrivals."""</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3"></a>    <span class="k">return</span> <span class="n">SimParameter</span><span class="p">(</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4"></a>        <span class="n">sim_id</span><span class="o">=</span><span class="s2">"Shop"</span><span class="p">,</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5"></a>        <span class="c1"># The best fit's settings, such as dist="exponential", rate=0.4</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6"></a>        <span class="n">arrival</span><span class="o">=</span><span class="p">{</span><span class="s2">"orders"</span><span class="p">:</span> <span class="n">DistributionConfig</span><span class="p">(</span><span class="o">**</span><span class="n">result</span><span class="o">.</span><span class="n">settings</span><span class="p">())},</span>
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7"></a>        <span class="n">service</span><span class="o">=</span><span class="p">{</span><span class="s2">"packing"</span><span class="p">:</span> <span class="n">DistributionConfig</span><span class="p">(</span><span class="n">dist</span><span class="o">=</span><span class="s2">"gamma"</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">0.375</span><span class="p">)},</span>
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8"></a>        <span class="n">resources</span><span class="o">=</span><span class="p">{</span><span class="s2">"packers"</span><span class="p">:</span> <span class="n">CapacityConfig</span><span class="p">(</span><span class="n">current_cap</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_cap</span><span class="o">=</span><span class="mi">2</span><span class="p">)},</span>
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9"></a>    <span class="p">)</span>
 </span></code></pre></div></td></tr></table></div>
 </div>
 </div>
@@ -5629,445 +5634,484 @@
 <p><code>result.settings("normal")</code> takes another fitted family instead of the best.</p>
 <h3 id="when-nothing-fits">When Nothing Fits</h3>
 <p>When every family is skipped, rejected or did not fit, the best is the <code>empirical</code> distribution: the data itself, which a run draws from at random. For many values, a histogram is shorter:</p>
-<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/guides/fit_a_distribution.py:empirical</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-8-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">fit_column</span><span class="p">(</span><span class="n">gaps</span><span class="p">(),</span> <span class="n">unit</span><span class="o">=</span><span class="s2">"s"</span><span class="p">,</span> <span class="n">candidates</span><span class="o">=</span><span class="p">[</span><span class="s2">"empirical"</span><span class="p">],</span> <span class="n">bins</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/guides/fit_a_distribution.py:empirical</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-9-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1"></a><span class="n">result</span> <span class="o">=</span> <span class="n">fit_column</span><span class="p">(</span><span class="n">gaps</span><span class="p">(),</span> <span class="n">unit</span><span class="o">=</span><span class="s2">"s"</span><span class="p">,</span> <span class="n">candidates</span><span class="o">=</span><span class="p">[</span><span class="s2">"empirical"</span><span class="p">],</span> <span class="n">bins</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
 </span></code></pre></div></td></tr></table></div>
 <p>On the command line, the same is <code>--candidates empirical --bins 10</code>. An empirical distribution never draws a value outside the data's range, so it cannot produce a gap longer than the longest one in the log.</p>
 <hr />
 <h2 id="check-the-result">Check the Result</h2>
 <p>Each form fits the gaps and runs the shop for an hour with the fitted arrivals. In that one run, one packer packs 1,302 orders in every form, because each uses the same seed, 42. The scripts read <code>order_log.csv</code> from their own folder, so run them in a clone of the repository:</p>
-<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-9-1">1</a></span>
-<span class="normal"><a href="#__codelineno-9-2">2</a></span>
-<span class="normal"><a href="#__codelineno-9-3">3</a></span>
-<span class="normal"><a href="#__codelineno-9-4">4</a></span>
-<span class="normal"><a href="#__codelineno-9-5">5</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1"></a><span class="c1"># The scripts and the order log are in docs/snippets/guides/ of the repository</span>
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/jaehyeon-kim/desflow.git
-</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3"></a><span class="nb">cd</span><span class="w"> </span>desflow/docs/snippets/guides
-</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4"></a>python<span class="w"> </span>fit_a_distribution.py
-</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5"></a>python<span class="w"> </span>fit_a_distribution_low_level.py
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-10-1">1</a></span>
+<span class="normal"><a href="#__codelineno-10-2">2</a></span>
+<span class="normal"><a href="#__codelineno-10-3">3</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1"></a><span class="c1"># The scripts and the order log are in docs/snippets/guides/ of the repository</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/jaehyeon-kim/desflow.git
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3"></a><span class="nb">cd</span><span class="w"> </span>desflow/docs/snippets/guides
 </span></code></pre></div></td></tr></table></div>
-<p>For the blueprint, write <code>fitted/orders.yaml</code> first, with <code>write</code> or <code>desflow fit --out</code>, beside <code>fit_a_distribution.yaml</code>, then run <code>desflow run fit_a_distribution.yaml</code>.</p>
+<div class="tabbed-set tabbed-alternate" data-tabs="2:3"><input checked="checked" id="__tabbed_2_1" name="__tabbed_2" type="radio" /><input id="__tabbed_2_2" name="__tabbed_2" type="radio" /><input id="__tabbed_2_3" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="__tabbed_2_1">YAML</label><label for="__tabbed_2_2">Builder</label><label for="__tabbed_2_3">Low-level</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<p>The blueprint includes <code>fitted/orders.yaml</code>, which the repository holds beside it, in <code>docs/snippets/yaml/</code>. It is the file that <code>write</code> and <code>desflow fit --out</code> write. The run prints its records, so keep the last count of finished orders:</p>
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-11-1">1</a></span>
+<span class="normal"><a href="#__codelineno-11-2">2</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1"></a><span class="nb">cd</span><span class="w"> </span>../yaml
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2"></a>desflow<span class="w"> </span>run<span class="w"> </span>fit_a_distribution.yaml<span class="w"> </span>--stdout<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>flows.orders.finished<span class="w"> </span><span class="p">|</span><span class="w"> </span>tail<span class="w"> </span>-n<span class="w"> </span><span class="m">1</span>
+</span></code></pre></div></td></tr></table></div>
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-12-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1"></a>{"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.flows.orders.finished","value":1302}
+</span></code></pre></div></td></tr></table></div>
+<p>The timestamp is the wall-clock time of the run.</p>
+</div>
+<div class="tabbed-block">
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-13-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1"></a>python<span class="w"> </span>fit_a_distribution.py
+</span></code></pre></div></td></tr></table></div>
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-14-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1"></a>orders packed in an hour: 1302
+</span></code></pre></div></td></tr></table></div>
+<p>The script prints the table of candidates before this line, and writes <code>gaps.csv</code> into the folder.</p>
+</div>
+<div class="tabbed-block">
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-15-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1"></a>python<span class="w"> </span>fit_a_distribution_low_level.py
+</span></code></pre></div></td></tr></table></div>
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-16-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1"></a>orders packed in an hour: 1302
+</span></code></pre></div></td></tr></table></div>
+<p>The script prints the table of candidates before this line.</p>
+</div>
+</div>
+</div>
 <hr />
 <h2 id="full-files">Full Files</h2>
 <details class="example">
 <summary>Full files</summary>
-<div class="tabbed-set tabbed-alternate" data-tabs="2:3"><input checked="checked" id="__tabbed_2_1" name="__tabbed_2" type="radio" /><input id="__tabbed_2_2" name="__tabbed_2" type="radio" /><input id="__tabbed_2_3" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="__tabbed_2_1">YAML</label><label for="__tabbed_2_2">Builder</label><label for="__tabbed_2_3">Low-level</label></div>
+<div class="tabbed-set tabbed-alternate" data-tabs="3:3"><input checked="checked" id="__tabbed_3_1" name="__tabbed_3" type="radio" /><input id="__tabbed_3_2" name="__tabbed_3" type="radio" /><input id="__tabbed_3_3" name="__tabbed_3" type="radio" /><div class="tabbed-labels"><label for="__tabbed_3_1">YAML</label><label for="__tabbed_3_2">Builder</label><label for="__tabbed_3_3">Low-level</label></div>
 <div class="tabbed-content">
 <div class="tabbed-block">
-<div class="language-yaml highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/yaml/fit_a_distribution.yaml</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-10-1"> 1</a></span>
-<span class="normal"><a href="#__codelineno-10-2"> 2</a></span>
-<span class="normal"><a href="#__codelineno-10-3"> 3</a></span>
-<span class="normal"><a href="#__codelineno-10-4"> 4</a></span>
-<span class="normal"><a href="#__codelineno-10-5"> 5</a></span>
-<span class="normal"><a href="#__codelineno-10-6"> 6</a></span>
-<span class="normal"><a href="#__codelineno-10-7"> 7</a></span>
-<span class="normal"><a href="#__codelineno-10-8"> 8</a></span>
-<span class="normal"><a href="#__codelineno-10-9"> 9</a></span>
-<span class="normal"><a href="#__codelineno-10-10">10</a></span>
-<span class="normal"><a href="#__codelineno-10-11">11</a></span>
-<span class="normal"><a href="#__codelineno-10-12">12</a></span>
-<span class="normal"><a href="#__codelineno-10-13">13</a></span>
-<span class="normal"><a href="#__codelineno-10-14">14</a></span>
-<span class="normal"><a href="#__codelineno-10-15">15</a></span>
-<span class="normal"><a href="#__codelineno-10-16">16</a></span>
-<span class="normal"><a href="#__codelineno-10-17">17</a></span>
-<span class="normal"><a href="#__codelineno-10-18">18</a></span>
-<span class="normal"><a href="#__codelineno-10-19">19</a></span>
-<span class="normal"><a href="#__codelineno-10-20">20</a></span>
-<span class="normal"><a href="#__codelineno-10-21">21</a></span>
-<span class="normal"><a href="#__codelineno-10-22">22</a></span>
-<span class="normal"><a href="#__codelineno-10-23">23</a></span>
-<span class="normal"><a href="#__codelineno-10-24">24</a></span>
-<span class="normal"><a href="#__codelineno-10-25">25</a></span>
-<span class="normal"><a href="#__codelineno-10-26">26</a></span>
-<span class="normal"><a href="#__codelineno-10-27">27</a></span>
-<span class="normal"><a href="#__codelineno-10-28">28</a></span>
-<span class="normal"><a href="#__codelineno-10-29">29</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1"></a><span class="c1"># The Fit a Distribution guide: the shop with arrivals fitted to an order log.</span>
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2"></a><span class="c1"># Fit the gaps first: write() in docs/snippets/guides/fit_a_distribution.py, or</span>
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3"></a><span class="c1"># desflow fit on a column of the gaps with --out fitted/orders.yaml, writes</span>
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4"></a><span class="c1"># fitted/orders.yaml. Then run it with: desflow run fit_a_distribution.yaml</span>
-</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5"></a><span class="nt">simulation</span><span class="p">:</span>
-</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6"></a><span class="w">  </span><span class="nt">sim_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Shop</span>
-</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7"></a><span class="w">  </span><span class="nt">factor</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
-</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8"></a><span class="w">  </span><span class="nt">random_seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span>
-</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9"></a>
-</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10"></a><span class="nt">resources</span><span class="p">:</span>
-</span><span id="__span-10-11"><a id="__codelineno-10-11" name="__codelineno-10-11"></a><span class="w">  </span><span class="nt">packers</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">current_cap</span><span class="p">:</span><span class="w"> </span><span class="nv">1</span><span class="p p-Indicator">,</span><span class="nt"> max_cap</span><span class="p">:</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">}</span>
-</span><span id="__span-10-12"><a id="__codelineno-10-12" name="__codelineno-10-12"></a>
-</span><span id="__span-10-13"><a id="__codelineno-10-13" name="__codelineno-10-13"></a><span class="nt">services</span><span class="p">:</span>
-</span><span id="__span-10-14"><a id="__codelineno-10-14" name="__codelineno-10-14"></a><span class="w">  </span><span class="nt">packing</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">dist</span><span class="p">:</span><span class="w"> </span><span class="nv">gamma</span><span class="p p-Indicator">,</span><span class="nt"> shape</span><span class="p">:</span><span class="w"> </span><span class="nv">4</span><span class="p p-Indicator">,</span><span class="nt"> scale</span><span class="p">:</span><span class="w"> </span><span class="nv">0.375</span><span class="p p-Indicator">}</span>
-</span><span id="__span-10-15"><a id="__codelineno-10-15" name="__codelineno-10-15"></a>
-</span><span id="__span-10-16"><a id="__codelineno-10-16" name="__codelineno-10-16"></a><span class="nt">arrivals</span><span class="p">:</span>
-</span><span id="__span-10-17"><a id="__codelineno-10-17" name="__codelineno-10-17"></a><span class="w">  </span><span class="c1"># The fitted gaps, with the task each order starts added to them</span>
-</span><span id="__span-10-18"><a id="__codelineno-10-18" name="__codelineno-10-18"></a><span class="w">  </span><span class="nt">orders</span><span class="p">:</span><span class="w"> </span><span class="kt">!include</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">file</span><span class="p">:</span><span class="w"> </span><span class="nv">fitted/orders.yaml</span><span class="p p-Indicator">,</span><span class="nt"> spawn</span><span class="p">:</span><span class="w"> </span><span class="nv">pack_order</span><span class="p p-Indicator">}</span>
-</span><span id="__span-10-19"><a id="__codelineno-10-19" name="__codelineno-10-19"></a>
-</span><span id="__span-10-20"><a id="__codelineno-10-20" name="__codelineno-10-20"></a><span class="nt">tasks</span><span class="p">:</span>
-</span><span id="__span-10-21"><a id="__codelineno-10-21" name="__codelineno-10-21"></a><span class="w">  </span><span class="nt">pack_order</span><span class="p">:</span>
-</span><span id="__span-10-22"><a id="__codelineno-10-22" name="__codelineno-10-22"></a><span class="w">    </span><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">packing</span>
-</span><span id="__span-10-23"><a id="__codelineno-10-23" name="__codelineno-10-23"></a><span class="w">    </span><span class="nt">resource</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">packers</span>
-</span><span id="__span-10-24"><a id="__codelineno-10-24" name="__codelineno-10-24"></a><span class="w">    </span><span class="nt">payload</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">event_type</span><span class="p">:</span><span class="w"> </span><span class="nv">order_packed</span><span class="p p-Indicator">}</span>
-</span><span id="__span-10-25"><a id="__codelineno-10-25" name="__codelineno-10-25"></a>
-</span><span id="__span-10-26"><a id="__codelineno-10-26" name="__codelineno-10-26"></a><span class="nt">stats</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">basic</span>
-</span><span id="__span-10-27"><a id="__codelineno-10-27" name="__codelineno-10-27"></a>
-</span><span id="__span-10-28"><a id="__codelineno-10-28" name="__codelineno-10-28"></a><span class="nt">run</span><span class="p">:</span>
-</span><span id="__span-10-29"><a id="__codelineno-10-29" name="__codelineno-10-29"></a><span class="w">  </span><span class="nt">until</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1 h</span>
+<div class="language-yaml highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/yaml/fit_a_distribution.yaml</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-17-1"> 1</a></span>
+<span class="normal"><a href="#__codelineno-17-2"> 2</a></span>
+<span class="normal"><a href="#__codelineno-17-3"> 3</a></span>
+<span class="normal"><a href="#__codelineno-17-4"> 4</a></span>
+<span class="normal"><a href="#__codelineno-17-5"> 5</a></span>
+<span class="normal"><a href="#__codelineno-17-6"> 6</a></span>
+<span class="normal"><a href="#__codelineno-17-7"> 7</a></span>
+<span class="normal"><a href="#__codelineno-17-8"> 8</a></span>
+<span class="normal"><a href="#__codelineno-17-9"> 9</a></span>
+<span class="normal"><a href="#__codelineno-17-10">10</a></span>
+<span class="normal"><a href="#__codelineno-17-11">11</a></span>
+<span class="normal"><a href="#__codelineno-17-12">12</a></span>
+<span class="normal"><a href="#__codelineno-17-13">13</a></span>
+<span class="normal"><a href="#__codelineno-17-14">14</a></span>
+<span class="normal"><a href="#__codelineno-17-15">15</a></span>
+<span class="normal"><a href="#__codelineno-17-16">16</a></span>
+<span class="normal"><a href="#__codelineno-17-17">17</a></span>
+<span class="normal"><a href="#__codelineno-17-18">18</a></span>
+<span class="normal"><a href="#__codelineno-17-19">19</a></span>
+<span class="normal"><a href="#__codelineno-17-20">20</a></span>
+<span class="normal"><a href="#__codelineno-17-21">21</a></span>
+<span class="normal"><a href="#__codelineno-17-22">22</a></span>
+<span class="normal"><a href="#__codelineno-17-23">23</a></span>
+<span class="normal"><a href="#__codelineno-17-24">24</a></span>
+<span class="normal"><a href="#__codelineno-17-25">25</a></span>
+<span class="normal"><a href="#__codelineno-17-26">26</a></span>
+<span class="normal"><a href="#__codelineno-17-27">27</a></span>
+<span class="normal"><a href="#__codelineno-17-28">28</a></span>
+<span class="normal"><a href="#__codelineno-17-29">29</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1"></a><span class="c1"># The Fit a Distribution guide: the shop with arrivals fitted to an order log.</span>
+</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2"></a><span class="c1"># The fitted/ folder beside it holds the best fit, orders.yaml. write() in</span>
+</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3"></a><span class="c1"># docs/snippets/guides/fit_a_distribution.py, or desflow fit on gaps.csv with</span>
+</span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4"></a><span class="c1"># --out fitted/orders.yaml, writes it again. Run it with: desflow run fit_a_distribution.yaml</span>
+</span><span id="__span-17-5"><a id="__codelineno-17-5" name="__codelineno-17-5"></a><span class="nt">simulation</span><span class="p">:</span>
+</span><span id="__span-17-6"><a id="__codelineno-17-6" name="__codelineno-17-6"></a><span class="w">  </span><span class="nt">sim_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Shop</span>
+</span><span id="__span-17-7"><a id="__codelineno-17-7" name="__codelineno-17-7"></a><span class="w">  </span><span class="nt">factor</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+</span><span id="__span-17-8"><a id="__codelineno-17-8" name="__codelineno-17-8"></a><span class="w">  </span><span class="nt">random_seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span>
+</span><span id="__span-17-9"><a id="__codelineno-17-9" name="__codelineno-17-9"></a>
+</span><span id="__span-17-10"><a id="__codelineno-17-10" name="__codelineno-17-10"></a><span class="nt">resources</span><span class="p">:</span>
+</span><span id="__span-17-11"><a id="__codelineno-17-11" name="__codelineno-17-11"></a><span class="w">  </span><span class="nt">packers</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">current_cap</span><span class="p">:</span><span class="w"> </span><span class="nv">1</span><span class="p p-Indicator">,</span><span class="nt"> max_cap</span><span class="p">:</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">}</span>
+</span><span id="__span-17-12"><a id="__codelineno-17-12" name="__codelineno-17-12"></a>
+</span><span id="__span-17-13"><a id="__codelineno-17-13" name="__codelineno-17-13"></a><span class="nt">services</span><span class="p">:</span>
+</span><span id="__span-17-14"><a id="__codelineno-17-14" name="__codelineno-17-14"></a><span class="w">  </span><span class="nt">packing</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">dist</span><span class="p">:</span><span class="w"> </span><span class="nv">gamma</span><span class="p p-Indicator">,</span><span class="nt"> shape</span><span class="p">:</span><span class="w"> </span><span class="nv">4</span><span class="p p-Indicator">,</span><span class="nt"> scale</span><span class="p">:</span><span class="w"> </span><span class="nv">0.375</span><span class="p p-Indicator">}</span>
+</span><span id="__span-17-15"><a id="__codelineno-17-15" name="__codelineno-17-15"></a>
+</span><span id="__span-17-16"><a id="__codelineno-17-16" name="__codelineno-17-16"></a><span class="nt">arrivals</span><span class="p">:</span>
+</span><span id="__span-17-17"><a id="__codelineno-17-17" name="__codelineno-17-17"></a><span class="w">  </span><span class="c1"># The fitted gaps, with the task each order starts added to them</span>
+</span><span id="__span-17-18"><a id="__codelineno-17-18" name="__codelineno-17-18"></a><span class="w">  </span><span class="nt">orders</span><span class="p">:</span><span class="w"> </span><span class="kt">!include</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">file</span><span class="p">:</span><span class="w"> </span><span class="nv">fitted/orders.yaml</span><span class="p p-Indicator">,</span><span class="nt"> spawn</span><span class="p">:</span><span class="w"> </span><span class="nv">pack_order</span><span class="p p-Indicator">}</span>
+</span><span id="__span-17-19"><a id="__codelineno-17-19" name="__codelineno-17-19"></a>
+</span><span id="__span-17-20"><a id="__codelineno-17-20" name="__codelineno-17-20"></a><span class="nt">tasks</span><span class="p">:</span>
+</span><span id="__span-17-21"><a id="__codelineno-17-21" name="__codelineno-17-21"></a><span class="w">  </span><span class="nt">pack_order</span><span class="p">:</span>
+</span><span id="__span-17-22"><a id="__codelineno-17-22" name="__codelineno-17-22"></a><span class="w">    </span><span class="nt">service</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">packing</span>
+</span><span id="__span-17-23"><a id="__codelineno-17-23" name="__codelineno-17-23"></a><span class="w">    </span><span class="nt">resource</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">packers</span>
+</span><span id="__span-17-24"><a id="__codelineno-17-24" name="__codelineno-17-24"></a><span class="w">    </span><span class="nt">payload</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">event_type</span><span class="p">:</span><span class="w"> </span><span class="nv">order_packed</span><span class="p p-Indicator">}</span>
+</span><span id="__span-17-25"><a id="__codelineno-17-25" name="__codelineno-17-25"></a>
+</span><span id="__span-17-26"><a id="__codelineno-17-26" name="__codelineno-17-26"></a><span class="nt">stats</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">basic</span>
+</span><span id="__span-17-27"><a id="__codelineno-17-27" name="__codelineno-17-27"></a>
+</span><span id="__span-17-28"><a id="__codelineno-17-28" name="__codelineno-17-28"></a><span class="nt">run</span><span class="p">:</span>
+</span><span id="__span-17-29"><a id="__codelineno-17-29" name="__codelineno-17-29"></a><span class="w">  </span><span class="nt">until</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1 h</span>
 </span></code></pre></div></td></tr></table></div>
-<div class="language-yaml highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/yaml/fitted/orders.yaml</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-11-1">1</a></span>
-<span class="normal"><a href="#__codelineno-11-2">2</a></span>
-<span class="normal"><a href="#__codelineno-11-3">3</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1"></a><span class="c1"># Fitted by desflow fit from order_log.csv, gaps between placed_at: exponential, from 299 values in s, written in seconds.</span>
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2"></a><span class="nt">dist</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">exponential</span>
-</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3"></a><span class="nt">rate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.36388</span>
-</span></code></pre></div></td></tr></table></div>
-</div>
-<div class="tabbed-block">
-<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/guides/fit_a_distribution.py</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-12-1"> 1</a></span>
-<span class="normal"><a href="#__codelineno-12-2"> 2</a></span>
-<span class="normal"><a href="#__codelineno-12-3"> 3</a></span>
-<span class="normal"><a href="#__codelineno-12-4"> 4</a></span>
-<span class="normal"><a href="#__codelineno-12-5"> 5</a></span>
-<span class="normal"><a href="#__codelineno-12-6"> 6</a></span>
-<span class="normal"><a href="#__codelineno-12-7"> 7</a></span>
-<span class="normal"><a href="#__codelineno-12-8"> 8</a></span>
-<span class="normal"><a href="#__codelineno-12-9"> 9</a></span>
-<span class="normal"><a href="#__codelineno-12-10">10</a></span>
-<span class="normal"><a href="#__codelineno-12-11">11</a></span>
-<span class="normal"><a href="#__codelineno-12-12">12</a></span>
-<span class="normal"><a href="#__codelineno-12-13">13</a></span>
-<span class="normal"><a href="#__codelineno-12-14">14</a></span>
-<span class="normal"><a href="#__codelineno-12-15">15</a></span>
-<span class="normal"><a href="#__codelineno-12-16">16</a></span>
-<span class="normal"><a href="#__codelineno-12-17">17</a></span>
-<span class="normal"><a href="#__codelineno-12-18">18</a></span>
-<span class="normal"><a href="#__codelineno-12-19">19</a></span>
-<span class="normal"><a href="#__codelineno-12-20">20</a></span>
-<span class="normal"><a href="#__codelineno-12-21">21</a></span>
-<span class="normal"><a href="#__codelineno-12-22">22</a></span>
-<span class="normal"><a href="#__codelineno-12-23">23</a></span>
-<span class="normal"><a href="#__codelineno-12-24">24</a></span>
-<span class="normal"><a href="#__codelineno-12-25">25</a></span>
-<span class="normal"><a href="#__codelineno-12-26">26</a></span>
-<span class="normal"><a href="#__codelineno-12-27">27</a></span>
-<span class="normal"><a href="#__codelineno-12-28">28</a></span>
-<span class="normal"><a href="#__codelineno-12-29">29</a></span>
-<span class="normal"><a href="#__codelineno-12-30">30</a></span>
-<span class="normal"><a href="#__codelineno-12-31">31</a></span>
-<span class="normal"><a href="#__codelineno-12-32">32</a></span>
-<span class="normal"><a href="#__codelineno-12-33">33</a></span>
-<span class="normal"><a href="#__codelineno-12-34">34</a></span>
-<span class="normal"><a href="#__codelineno-12-35">35</a></span>
-<span class="normal"><a href="#__codelineno-12-36">36</a></span>
-<span class="normal"><a href="#__codelineno-12-37">37</a></span>
-<span class="normal"><a href="#__codelineno-12-38">38</a></span>
-<span class="normal"><a href="#__codelineno-12-39">39</a></span>
-<span class="normal"><a href="#__codelineno-12-40">40</a></span>
-<span class="normal"><a href="#__codelineno-12-41">41</a></span>
-<span class="normal"><a href="#__codelineno-12-42">42</a></span>
-<span class="normal"><a href="#__codelineno-12-43">43</a></span>
-<span class="normal"><a href="#__codelineno-12-44">44</a></span>
-<span class="normal"><a href="#__codelineno-12-45">45</a></span>
-<span class="normal"><a href="#__codelineno-12-46">46</a></span>
-<span class="normal"><a href="#__codelineno-12-47">47</a></span>
-<span class="normal"><a href="#__codelineno-12-48">48</a></span>
-<span class="normal"><a href="#__codelineno-12-49">49</a></span>
-<span class="normal"><a href="#__codelineno-12-50">50</a></span>
-<span class="normal"><a href="#__codelineno-12-51">51</a></span>
-<span class="normal"><a href="#__codelineno-12-52">52</a></span>
-<span class="normal"><a href="#__codelineno-12-53">53</a></span>
-<span class="normal"><a href="#__codelineno-12-54">54</a></span>
-<span class="normal"><a href="#__codelineno-12-55">55</a></span>
-<span class="normal"><a href="#__codelineno-12-56">56</a></span>
-<span class="normal"><a href="#__codelineno-12-57">57</a></span>
-<span class="normal"><a href="#__codelineno-12-58">58</a></span>
-<span class="normal"><a href="#__codelineno-12-59">59</a></span>
-<span class="normal"><a href="#__codelineno-12-60">60</a></span>
-<span class="normal"><a href="#__codelineno-12-61">61</a></span>
-<span class="normal"><a href="#__codelineno-12-62">62</a></span>
-<span class="normal"><a href="#__codelineno-12-63">63</a></span>
-<span class="normal"><a href="#__codelineno-12-64">64</a></span>
-<span class="normal"><a href="#__codelineno-12-65">65</a></span>
-<span class="normal"><a href="#__codelineno-12-66">66</a></span>
-<span class="normal"><a href="#__codelineno-12-67">67</a></span>
-<span class="normal"><a href="#__codelineno-12-68">68</a></span>
-<span class="normal"><a href="#__codelineno-12-69">69</a></span>
-<span class="normal"><a href="#__codelineno-12-70">70</a></span>
-<span class="normal"><a href="#__codelineno-12-71">71</a></span>
-<span class="normal"><a href="#__codelineno-12-72">72</a></span>
-<span class="normal"><a href="#__codelineno-12-73">73</a></span>
-<span class="normal"><a href="#__codelineno-12-74">74</a></span>
-<span class="normal"><a href="#__codelineno-12-75">75</a></span>
-<span class="normal"><a href="#__codelineno-12-76">76</a></span>
-<span class="normal"><a href="#__codelineno-12-77">77</a></span>
-<span class="normal"><a href="#__codelineno-12-78">78</a></span>
-<span class="normal"><a href="#__codelineno-12-79">79</a></span>
-<span class="normal"><a href="#__codelineno-12-80">80</a></span>
-<span class="normal"><a href="#__codelineno-12-81">81</a></span>
-<span class="normal"><a href="#__codelineno-12-82">82</a></span>
-<span class="normal"><a href="#__codelineno-12-83">83</a></span>
-<span class="normal"><a href="#__codelineno-12-84">84</a></span>
-<span class="normal"><a href="#__codelineno-12-85">85</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1"></a><span class="sd">"""Fit a Distribution: the gaps between orders in an order log, fitted and loaded.</span>
-</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2"></a>
-</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3"></a><span class="sd">order_log.csv is an illustrative log of 300 orders placed one afternoon, with the</span>
-</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4"></a><span class="sd">time each was placed. The script turns the times into the gaps between orders,</span>
-</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5"></a><span class="sd">fits them, prints the table of candidates, and runs the shop for an hour with the</span>
-</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6"></a><span class="sd">fitted arrivals. `write` saves the settings for a blueprint's `!include`.</span>
-</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7"></a><span class="sd">"""</span>
-</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8"></a>
-</span><span id="__span-12-9"><a id="__codelineno-12-9" name="__codelineno-12-9"></a><span class="kn">import</span><span class="w"> </span><span class="nn">csv</span>
-</span><span id="__span-12-10"><a id="__codelineno-12-10" name="__codelineno-12-10"></a><span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
-</span><span id="__span-12-11"><a id="__codelineno-12-11" name="__codelineno-12-11"></a><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
-</span><span id="__span-12-12"><a id="__codelineno-12-12" name="__codelineno-12-12"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
-</span><span id="__span-12-13"><a id="__codelineno-12-13" name="__codelineno-12-13"></a>
-</span><span id="__span-12-14"><a id="__codelineno-12-14" name="__codelineno-12-14"></a><span class="kn">from</span><span class="w"> </span><span class="nn">desflow</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationContext</span><span class="p">,</span> <span class="n">fit_column</span>
-</span><span id="__span-12-15"><a id="__codelineno-12-15" name="__codelineno-12-15"></a>
-</span><span id="__span-12-16"><a id="__codelineno-12-16" name="__codelineno-12-16"></a><span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span>
-</span><span id="__span-12-17"><a id="__codelineno-12-17" name="__codelineno-12-17"></a>    <span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s2">"</span><span class="si">%(levelname)s</span><span class="s2"> [</span><span class="si">%(asctime)s</span><span class="s2">] </span><span class="si">%(message)s</span><span class="s2">"</span>
-</span><span id="__span-12-18"><a id="__codelineno-12-18" name="__codelineno-12-18"></a><span class="p">)</span>
-</span><span id="__span-12-19"><a id="__codelineno-12-19" name="__codelineno-12-19"></a><span class="n">LOG</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s2">"order_log.csv"</span>
-</span><span id="__span-12-20"><a id="__codelineno-12-20" name="__codelineno-12-20"></a>
-</span><span id="__span-12-21"><a id="__codelineno-12-21" name="__codelineno-12-21"></a>
-</span><span id="__span-12-22"><a id="__codelineno-12-22" name="__codelineno-12-22"></a><span class="k">def</span><span class="w"> </span><span class="nf">gaps</span><span class="p">():</span>
-</span><span id="__span-12-23"><a id="__codelineno-12-23" name="__codelineno-12-23"></a><span class="w">    </span><span class="sd">"""The gaps between consecutive orders, in seconds."""</span>
-</span><span id="__span-12-24"><a id="__codelineno-12-24" name="__codelineno-12-24"></a>    <span class="k">with</span> <span class="n">LOG</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">newline</span><span class="o">=</span><span class="s2">""</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">"utf-8"</span><span class="p">)</span> <span class="k">as</span> <span class="n">handle</span><span class="p">:</span>
-</span><span id="__span-12-25"><a id="__codelineno-12-25" name="__codelineno-12-25"></a>        <span class="n">placed</span> <span class="o">=</span> <span class="p">[</span>
-</span><span id="__span-12-26"><a id="__codelineno-12-26" name="__codelineno-12-26"></a>            <span class="n">datetime</span><span class="o">.</span><span class="n">fromisoformat</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"placed_at"</span><span class="p">])</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">csv</span><span class="o">.</span><span class="n">DictReader</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span>
-</span><span id="__span-12-27"><a id="__codelineno-12-27" name="__codelineno-12-27"></a>        <span class="p">]</span>
-</span><span id="__span-12-28"><a id="__codelineno-12-28" name="__codelineno-12-28"></a>    <span class="c1"># An arrival is fitted to the gaps between orders, not to the times themselves</span>
-</span><span id="__span-12-29"><a id="__codelineno-12-29" name="__codelineno-12-29"></a>    <span class="k">return</span> <span class="p">[</span>
-</span><span id="__span-12-30"><a id="__codelineno-12-30" name="__codelineno-12-30"></a>        <span class="p">(</span><span class="n">later</span> <span class="o">-</span> <span class="n">earlier</span><span class="p">)</span><span class="o">.</span><span class="n">total_seconds</span><span class="p">()</span> <span class="k">for</span> <span class="n">earlier</span><span class="p">,</span> <span class="n">later</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">placed</span><span class="p">,</span> <span class="n">placed</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
-</span><span id="__span-12-31"><a id="__codelineno-12-31" name="__codelineno-12-31"></a>    <span class="p">]</span>
-</span><span id="__span-12-32"><a id="__codelineno-12-32" name="__codelineno-12-32"></a>
-</span><span id="__span-12-33"><a id="__codelineno-12-33" name="__codelineno-12-33"></a>
-</span><span id="__span-12-34"><a id="__codelineno-12-34" name="__codelineno-12-34"></a><span class="k">def</span><span class="w"> </span><span class="nf">fit</span><span class="p">():</span>
-</span><span id="__span-12-35"><a id="__codelineno-12-35" name="__codelineno-12-35"></a><span class="w">    </span><span class="sd">"""Every family fitted to the gaps."""</span>
-</span><span id="__span-12-36"><a id="__codelineno-12-36" name="__codelineno-12-36"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">fit_column</span><span class="p">(</span><span class="n">gaps</span><span class="p">(),</span> <span class="n">unit</span><span class="o">=</span><span class="s2">"s"</span><span class="p">,</span> <span class="n">lower</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
-</span><span id="__span-12-37"><a id="__codelineno-12-37" name="__codelineno-12-37"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">text</span><span class="p">())</span>  <span class="c1"># every candidate, its status and diagnostics</span>
-</span><span id="__span-12-38"><a id="__codelineno-12-38" name="__codelineno-12-38"></a>    <span class="k">return</span> <span class="n">result</span>
-</span><span id="__span-12-39"><a id="__codelineno-12-39" name="__codelineno-12-39"></a>
-</span><span id="__span-12-40"><a id="__codelineno-12-40" name="__codelineno-12-40"></a>
-</span><span id="__span-12-41"><a id="__codelineno-12-41" name="__codelineno-12-41"></a><span class="k">def</span><span class="w"> </span><span class="nf">histogram</span><span class="p">():</span>
-</span><span id="__span-12-42"><a id="__codelineno-12-42" name="__codelineno-12-42"></a><span class="w">    </span><span class="sd">"""The empirical alternative: the gaps as a histogram of 10 bins."""</span>
-</span><span id="__span-12-43"><a id="__codelineno-12-43" name="__codelineno-12-43"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">fit_column</span><span class="p">(</span><span class="n">gaps</span><span class="p">(),</span> <span class="n">unit</span><span class="o">=</span><span class="s2">"s"</span><span class="p">,</span> <span class="n">candidates</span><span class="o">=</span><span class="p">[</span><span class="s2">"empirical"</span><span class="p">],</span> <span class="n">bins</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
-</span><span id="__span-12-44"><a id="__codelineno-12-44" name="__codelineno-12-44"></a>    <span class="k">return</span> <span class="n">result</span>
-</span><span id="__span-12-45"><a id="__codelineno-12-45" name="__codelineno-12-45"></a>
-</span><span id="__span-12-46"><a id="__codelineno-12-46" name="__codelineno-12-46"></a>
-</span><span id="__span-12-47"><a id="__codelineno-12-47" name="__codelineno-12-47"></a><span class="k">def</span><span class="w"> </span><span class="nf">write</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">folder</span><span class="p">):</span>
-</span><span id="__span-12-48"><a id="__codelineno-12-48" name="__codelineno-12-48"></a><span class="w">    </span><span class="sd">"""Writes the best fit where a blueprint includes it."""</span>
-</span><span id="__span-12-49"><a id="__codelineno-12-49" name="__codelineno-12-49"></a>    <span class="n">path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">folder</span><span class="p">)</span> <span class="o">/</span> <span class="s2">"fitted"</span> <span class="o">/</span> <span class="s2">"orders.yaml"</span>
-</span><span id="__span-12-50"><a id="__codelineno-12-50" name="__codelineno-12-50"></a>    <span class="n">path</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-</span><span id="__span-12-51"><a id="__codelineno-12-51" name="__codelineno-12-51"></a>    <span class="n">path</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">yaml</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s2">"order_log.csv, gaps between placed_at"</span><span class="p">))</span>
-</span><span id="__span-12-52"><a id="__codelineno-12-52" name="__codelineno-12-52"></a>    <span class="k">return</span> <span class="n">path</span>
-</span><span id="__span-12-53"><a id="__codelineno-12-53" name="__codelineno-12-53"></a>
-</span><span id="__span-12-54"><a id="__codelineno-12-54" name="__codelineno-12-54"></a>
-</span><span id="__span-12-55"><a id="__codelineno-12-55" name="__codelineno-12-55"></a><span class="k">def</span><span class="w"> </span><span class="nf">shop</span><span class="p">(</span><span class="n">result</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SimulationContext</span><span class="p">:</span>
-</span><span id="__span-12-56"><a id="__codelineno-12-56" name="__codelineno-12-56"></a><span class="w">    </span><span class="sd">"""One packer, with the fitted arrivals."""</span>
-</span><span id="__span-12-57"><a id="__codelineno-12-57" name="__codelineno-12-57"></a>    <span class="n">app</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="__span-12-58"><a id="__codelineno-12-58" name="__codelineno-12-58"></a>        <span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_id</span><span class="o">=</span><span class="s2">"Shop"</span><span class="p">,</span> <span class="n">factor</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">random_seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
-</span><span id="__span-12-59"><a id="__codelineno-12-59" name="__codelineno-12-59"></a>        <span class="o">.</span><span class="n">add_resource</span><span class="p">(</span><span class="s2">"packers"</span><span class="p">,</span> <span class="n">current_cap</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_cap</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
-</span><span id="__span-12-60"><a id="__codelineno-12-60" name="__codelineno-12-60"></a>        <span class="o">.</span><span class="n">add_service</span><span class="p">(</span><span class="s2">"packing"</span><span class="p">,</span> <span class="n">dist</span><span class="o">=</span><span class="s2">"gamma"</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">0.375</span><span class="p">)</span>
-</span><span id="__span-12-61"><a id="__codelineno-12-61" name="__codelineno-12-61"></a>        <span class="c1"># The best fit's settings, such as dist="exponential", rate=0.4</span>
-</span><span id="__span-12-62"><a id="__codelineno-12-62" name="__codelineno-12-62"></a>        <span class="o">.</span><span class="n">add_arrival</span><span class="p">(</span><span class="s2">"orders"</span><span class="p">,</span> <span class="o">**</span><span class="n">result</span><span class="o">.</span><span class="n">settings</span><span class="p">())</span>
-</span><span id="__span-12-63"><a id="__codelineno-12-63" name="__codelineno-12-63"></a>        <span class="o">.</span><span class="n">with_stats</span><span class="p">(</span><span class="s2">"basic"</span><span class="p">)</span>
-</span><span id="__span-12-64"><a id="__codelineno-12-64" name="__codelineno-12-64"></a>    <span class="p">)</span>
-</span><span id="__span-12-65"><a id="__codelineno-12-65" name="__codelineno-12-65"></a>
-</span><span id="__span-12-66"><a id="__codelineno-12-66" name="__codelineno-12-66"></a>    <span class="nd">@app</span><span class="o">.</span><span class="n">task</span><span class="p">(</span><span class="n">service_id</span><span class="o">=</span><span class="s2">"packing"</span><span class="p">,</span> <span class="n">resource_id</span><span class="o">=</span><span class="s2">"packers"</span><span class="p">)</span>
-</span><span id="__span-12-67"><a id="__codelineno-12-67" name="__codelineno-12-67"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">pack_order</span><span class="p">(</span><span class="n">task_id</span><span class="p">):</span>
-</span><span id="__span-12-68"><a id="__codelineno-12-68" name="__codelineno-12-68"></a>        <span class="k">return</span> <span class="p">{</span><span class="s2">"event_type"</span><span class="p">:</span> <span class="s2">"order_packed"</span><span class="p">}</span>
-</span><span id="__span-12-69"><a id="__codelineno-12-69" name="__codelineno-12-69"></a>
-</span><span id="__span-12-70"><a id="__codelineno-12-70" name="__codelineno-12-70"></a>    <span class="nd">@app</span><span class="o">.</span><span class="n">arrival_loop</span><span class="p">(</span><span class="s2">"orders"</span><span class="p">)</span>
-</span><span id="__span-12-71"><a id="__codelineno-12-71" name="__codelineno-12-71"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">order_loop</span><span class="p">(</span><span class="n">context</span><span class="p">):</span>
-</span><span id="__span-12-72"><a id="__codelineno-12-72" name="__codelineno-12-72"></a>        <span class="n">task_id</span> <span class="o">=</span> <span class="mi">0</span>
-</span><span id="__span-12-73"><a id="__codelineno-12-73" name="__codelineno-12-73"></a>        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
-</span><span id="__span-12-74"><a id="__codelineno-12-74" name="__codelineno-12-74"></a>            <span class="n">order</span> <span class="o">=</span> <span class="k">yield</span> <span class="n">context</span><span class="o">.</span><span class="n">wait_for_arrival</span><span class="p">(</span><span class="s2">"orders"</span><span class="p">)</span>
-</span><span id="__span-12-75"><a id="__codelineno-12-75" name="__codelineno-12-75"></a>            <span class="n">context</span><span class="o">.</span><span class="n">spawn</span><span class="p">(</span><span class="n">pack_order</span><span class="p">(</span><span class="n">task_id</span><span class="p">,</span> <span class="n">entity</span><span class="o">=</span><span class="n">order</span><span class="p">))</span>
-</span><span id="__span-12-76"><a id="__codelineno-12-76" name="__codelineno-12-76"></a>            <span class="n">task_id</span> <span class="o">+=</span> <span class="mi">1</span>
-</span><span id="__span-12-77"><a id="__codelineno-12-77" name="__codelineno-12-77"></a>
-</span><span id="__span-12-78"><a id="__codelineno-12-78" name="__codelineno-12-78"></a>    <span class="k">return</span> <span class="n">app</span>
-</span><span id="__span-12-79"><a id="__codelineno-12-79" name="__codelineno-12-79"></a>
-</span><span id="__span-12-80"><a id="__codelineno-12-80" name="__codelineno-12-80"></a>
-</span><span id="__span-12-81"><a id="__codelineno-12-81" name="__codelineno-12-81"></a><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
-</span><span id="__span-12-82"><a id="__codelineno-12-82" name="__codelineno-12-82"></a>    <span class="n">app</span> <span class="o">=</span> <span class="n">shop</span><span class="p">(</span><span class="n">fit</span><span class="p">())</span>
-</span><span id="__span-12-83"><a id="__codelineno-12-83" name="__codelineno-12-83"></a>    <span class="n">app</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">until</span><span class="o">=</span><span class="s2">"1 h"</span><span class="p">)</span>
-</span><span id="__span-12-84"><a id="__codelineno-12-84" name="__codelineno-12-84"></a>    <span class="n">finished</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">readings</span><span class="p">()[</span><span class="s2">"Shop.stats.flows.orders.finished"</span><span class="p">]</span>
-</span><span id="__span-12-85"><a id="__codelineno-12-85" name="__codelineno-12-85"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"orders packed in an hour: </span><span class="si">{</span><span class="n">finished</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<div class="language-yaml highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/yaml/fitted/orders.yaml</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-18-1">1</a></span>
+<span class="normal"><a href="#__codelineno-18-2">2</a></span>
+<span class="normal"><a href="#__codelineno-18-3">3</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1"></a><span class="c1"># Fitted by desflow fit from order_log.csv, gaps between placed_at: exponential, from 299 values in s, written in seconds.</span>
+</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2"></a><span class="nt">dist</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">exponential</span>
+</span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3"></a><span class="nt">rate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.36388</span>
 </span></code></pre></div></td></tr></table></div>
 </div>
 <div class="tabbed-block">
-<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/guides/fit_a_distribution_low_level.py</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-13-1"> 1</a></span>
-<span class="normal"><a href="#__codelineno-13-2"> 2</a></span>
-<span class="normal"><a href="#__codelineno-13-3"> 3</a></span>
-<span class="normal"><a href="#__codelineno-13-4"> 4</a></span>
-<span class="normal"><a href="#__codelineno-13-5"> 5</a></span>
-<span class="normal"><a href="#__codelineno-13-6"> 6</a></span>
-<span class="normal"><a href="#__codelineno-13-7"> 7</a></span>
-<span class="normal"><a href="#__codelineno-13-8"> 8</a></span>
-<span class="normal"><a href="#__codelineno-13-9"> 9</a></span>
-<span class="normal"><a href="#__codelineno-13-10">10</a></span>
-<span class="normal"><a href="#__codelineno-13-11">11</a></span>
-<span class="normal"><a href="#__codelineno-13-12">12</a></span>
-<span class="normal"><a href="#__codelineno-13-13">13</a></span>
-<span class="normal"><a href="#__codelineno-13-14">14</a></span>
-<span class="normal"><a href="#__codelineno-13-15">15</a></span>
-<span class="normal"><a href="#__codelineno-13-16">16</a></span>
-<span class="normal"><a href="#__codelineno-13-17">17</a></span>
-<span class="normal"><a href="#__codelineno-13-18">18</a></span>
-<span class="normal"><a href="#__codelineno-13-19">19</a></span>
-<span class="normal"><a href="#__codelineno-13-20">20</a></span>
-<span class="normal"><a href="#__codelineno-13-21">21</a></span>
-<span class="normal"><a href="#__codelineno-13-22">22</a></span>
-<span class="normal"><a href="#__codelineno-13-23">23</a></span>
-<span class="normal"><a href="#__codelineno-13-24">24</a></span>
-<span class="normal"><a href="#__codelineno-13-25">25</a></span>
-<span class="normal"><a href="#__codelineno-13-26">26</a></span>
-<span class="normal"><a href="#__codelineno-13-27">27</a></span>
-<span class="normal"><a href="#__codelineno-13-28">28</a></span>
-<span class="normal"><a href="#__codelineno-13-29">29</a></span>
-<span class="normal"><a href="#__codelineno-13-30">30</a></span>
-<span class="normal"><a href="#__codelineno-13-31">31</a></span>
-<span class="normal"><a href="#__codelineno-13-32">32</a></span>
-<span class="normal"><a href="#__codelineno-13-33">33</a></span>
-<span class="normal"><a href="#__codelineno-13-34">34</a></span>
-<span class="normal"><a href="#__codelineno-13-35">35</a></span>
-<span class="normal"><a href="#__codelineno-13-36">36</a></span>
-<span class="normal"><a href="#__codelineno-13-37">37</a></span>
-<span class="normal"><a href="#__codelineno-13-38">38</a></span>
-<span class="normal"><a href="#__codelineno-13-39">39</a></span>
-<span class="normal"><a href="#__codelineno-13-40">40</a></span>
-<span class="normal"><a href="#__codelineno-13-41">41</a></span>
-<span class="normal"><a href="#__codelineno-13-42">42</a></span>
-<span class="normal"><a href="#__codelineno-13-43">43</a></span>
-<span class="normal"><a href="#__codelineno-13-44">44</a></span>
-<span class="normal"><a href="#__codelineno-13-45">45</a></span>
-<span class="normal"><a href="#__codelineno-13-46">46</a></span>
-<span class="normal"><a href="#__codelineno-13-47">47</a></span>
-<span class="normal"><a href="#__codelineno-13-48">48</a></span>
-<span class="normal"><a href="#__codelineno-13-49">49</a></span>
-<span class="normal"><a href="#__codelineno-13-50">50</a></span>
-<span class="normal"><a href="#__codelineno-13-51">51</a></span>
-<span class="normal"><a href="#__codelineno-13-52">52</a></span>
-<span class="normal"><a href="#__codelineno-13-53">53</a></span>
-<span class="normal"><a href="#__codelineno-13-54">54</a></span>
-<span class="normal"><a href="#__codelineno-13-55">55</a></span>
-<span class="normal"><a href="#__codelineno-13-56">56</a></span>
-<span class="normal"><a href="#__codelineno-13-57">57</a></span>
-<span class="normal"><a href="#__codelineno-13-58">58</a></span>
-<span class="normal"><a href="#__codelineno-13-59">59</a></span>
-<span class="normal"><a href="#__codelineno-13-60">60</a></span>
-<span class="normal"><a href="#__codelineno-13-61">61</a></span>
-<span class="normal"><a href="#__codelineno-13-62">62</a></span>
-<span class="normal"><a href="#__codelineno-13-63">63</a></span>
-<span class="normal"><a href="#__codelineno-13-64">64</a></span>
-<span class="normal"><a href="#__codelineno-13-65">65</a></span>
-<span class="normal"><a href="#__codelineno-13-66">66</a></span>
-<span class="normal"><a href="#__codelineno-13-67">67</a></span>
-<span class="normal"><a href="#__codelineno-13-68">68</a></span>
-<span class="normal"><a href="#__codelineno-13-69">69</a></span>
-<span class="normal"><a href="#__codelineno-13-70">70</a></span>
-<span class="normal"><a href="#__codelineno-13-71">71</a></span>
-<span class="normal"><a href="#__codelineno-13-72">72</a></span>
-<span class="normal"><a href="#__codelineno-13-73">73</a></span>
-<span class="normal"><a href="#__codelineno-13-74">74</a></span>
-<span class="normal"><a href="#__codelineno-13-75">75</a></span>
-<span class="normal"><a href="#__codelineno-13-76">76</a></span>
-<span class="normal"><a href="#__codelineno-13-77">77</a></span>
-<span class="normal"><a href="#__codelineno-13-78">78</a></span>
-<span class="normal"><a href="#__codelineno-13-79">79</a></span>
-<span class="normal"><a href="#__codelineno-13-80">80</a></span>
-<span class="normal"><a href="#__codelineno-13-81">81</a></span>
-<span class="normal"><a href="#__codelineno-13-82">82</a></span>
-<span class="normal"><a href="#__codelineno-13-83">83</a></span>
-<span class="normal"><a href="#__codelineno-13-84">84</a></span>
-<span class="normal"><a href="#__codelineno-13-85">85</a></span>
-<span class="normal"><a href="#__codelineno-13-86">86</a></span>
-<span class="normal"><a href="#__codelineno-13-87">87</a></span>
-<span class="normal"><a href="#__codelineno-13-88">88</a></span>
-<span class="normal"><a href="#__codelineno-13-89">89</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1"></a><span class="sd">"""The Fit a Distribution guide, low-level API: the shop with arrivals fitted to an</span>
-</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2"></a><span class="sd">order log.</span>
-</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3"></a>
-</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4"></a><span class="sd">python fit_a_distribution_low_level.py fits the gaps between the orders in</span>
-</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5"></a><span class="sd">order_log.csv, as fit_a_distribution.py does, and runs the shop for an hour with the</span>
-</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6"></a><span class="sd">fitted arrivals. It prints the number of orders packed.</span>
-</span><span id="__span-13-7"><a id="__codelineno-13-7" name="__codelineno-13-7"></a><span class="sd">"""</span>
-</span><span id="__span-13-8"><a id="__codelineno-13-8" name="__codelineno-13-8"></a>
-</span><span id="__span-13-9"><a id="__codelineno-13-9" name="__codelineno-13-9"></a><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
-</span><span id="__span-13-10"><a id="__codelineno-13-10" name="__codelineno-13-10"></a><span class="kn">import</span><span class="w"> </span><span class="nn">itertools</span>
-</span><span id="__span-13-11"><a id="__codelineno-13-11" name="__codelineno-13-11"></a><span class="kn">import</span><span class="w"> </span><span class="nn">queue</span>
-</span><span id="__span-13-12"><a id="__codelineno-13-12" name="__codelineno-13-12"></a>
-</span><span id="__span-13-13"><a id="__codelineno-13-13" name="__codelineno-13-13"></a><span class="kn">from</span><span class="w"> </span><span class="nn">desflow</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-</span><span id="__span-13-14"><a id="__codelineno-13-14" name="__codelineno-13-14"></a>    <span class="n">CapacityConfig</span><span class="p">,</span>
-</span><span id="__span-13-15"><a id="__codelineno-13-15" name="__codelineno-13-15"></a>    <span class="n">DistributionConfig</span><span class="p">,</span>
-</span><span id="__span-13-16"><a id="__codelineno-13-16" name="__codelineno-13-16"></a>    <span class="n">DynamicRealtimeEnvironment</span><span class="p">,</span>
-</span><span id="__span-13-17"><a id="__codelineno-13-17" name="__codelineno-13-17"></a>    <span class="n">DynamicResource</span><span class="p">,</span>
-</span><span id="__span-13-18"><a id="__codelineno-13-18" name="__codelineno-13-18"></a>    <span class="n">Sampler</span><span class="p">,</span>
-</span><span id="__span-13-19"><a id="__codelineno-13-19" name="__codelineno-13-19"></a>    <span class="n">SimParameter</span><span class="p">,</span>
-</span><span id="__span-13-20"><a id="__codelineno-13-20" name="__codelineno-13-20"></a><span class="p">)</span>
-</span><span id="__span-13-21"><a id="__codelineno-13-21" name="__codelineno-13-21"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fit_a_distribution</span><span class="w"> </span><span class="kn">import</span> <span class="n">fit</span>
-</span><span id="__span-13-22"><a id="__codelineno-13-22" name="__codelineno-13-22"></a>
-</span><span id="__span-13-23"><a id="__codelineno-13-23" name="__codelineno-13-23"></a>
-</span><span id="__span-13-24"><a id="__codelineno-13-24" name="__codelineno-13-24"></a><span class="k">class</span><span class="w"> </span><span class="nc">Count</span><span class="p">:</span>
-</span><span id="__span-13-25"><a id="__codelineno-13-25" name="__codelineno-13-25"></a><span class="w">    </span><span class="sd">"""An egress that counts the orders packed."""</span>
-</span><span id="__span-13-26"><a id="__codelineno-13-26" name="__codelineno-13-26"></a>
-</span><span id="__span-13-27"><a id="__codelineno-13-27" name="__codelineno-13-27"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="__span-13-28"><a id="__codelineno-13-28" name="__codelineno-13-28"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">packed</span> <span class="o">=</span> <span class="mi">0</span>
-</span><span id="__span-13-29"><a id="__codelineno-13-29" name="__codelineno-13-29"></a>
-</span><span id="__span-13-30"><a id="__codelineno-13-30" name="__codelineno-13-30"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">egress_queue</span><span class="p">):</span>
-</span><span id="__span-13-31"><a id="__codelineno-13-31" name="__codelineno-13-31"></a>        <span class="k">try</span><span class="p">:</span>
-</span><span id="__span-13-32"><a id="__codelineno-13-32" name="__codelineno-13-32"></a>            <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
-</span><span id="__span-13-33"><a id="__codelineno-13-33" name="__codelineno-13-33"></a>                <span class="k">try</span><span class="p">:</span>
-</span><span id="__span-13-34"><a id="__codelineno-13-34" name="__codelineno-13-34"></a>                    <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">egress_queue</span><span class="o">.</span><span class="n">get_nowait</span><span class="p">():</span>
-</span><span id="__span-13-35"><a id="__codelineno-13-35" name="__codelineno-13-35"></a>                        <span class="n">value</span> <span class="o">=</span> <span class="n">record</span><span class="p">[</span><span class="s2">"value"</span><span class="p">]</span>
-</span><span id="__span-13-36"><a id="__codelineno-13-36" name="__codelineno-13-36"></a>                        <span class="bp">self</span><span class="o">.</span><span class="n">packed</span> <span class="o">+=</span> <span class="n">value</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"event_type"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"order_packed"</span>
-</span><span id="__span-13-37"><a id="__codelineno-13-37" name="__codelineno-13-37"></a>                <span class="k">except</span> <span class="n">queue</span><span class="o">.</span><span class="n">Empty</span><span class="p">:</span>
-</span><span id="__span-13-38"><a id="__codelineno-13-38" name="__codelineno-13-38"></a>                    <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.01</span><span class="p">)</span>
-</span><span id="__span-13-39"><a id="__codelineno-13-39" name="__codelineno-13-39"></a>        <span class="k">except</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">CancelledError</span><span class="p">:</span>
-</span><span id="__span-13-40"><a id="__codelineno-13-40" name="__codelineno-13-40"></a>            <span class="k">pass</span>
-</span><span id="__span-13-41"><a id="__codelineno-13-41" name="__codelineno-13-41"></a>
-</span><span id="__span-13-42"><a id="__codelineno-13-42" name="__codelineno-13-42"></a>
-</span><span id="__span-13-43"><a id="__codelineno-13-43" name="__codelineno-13-43"></a><span class="k">def</span><span class="w"> </span><span class="nf">params</span><span class="p">(</span><span class="n">result</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SimParameter</span><span class="p">:</span>
-</span><span id="__span-13-44"><a id="__codelineno-13-44" name="__codelineno-13-44"></a><span class="w">    </span><span class="sd">"""One packer, with the fitted arrivals."""</span>
-</span><span id="__span-13-45"><a id="__codelineno-13-45" name="__codelineno-13-45"></a>    <span class="k">return</span> <span class="n">SimParameter</span><span class="p">(</span>
-</span><span id="__span-13-46"><a id="__codelineno-13-46" name="__codelineno-13-46"></a>        <span class="n">sim_id</span><span class="o">=</span><span class="s2">"Shop"</span><span class="p">,</span>
-</span><span id="__span-13-47"><a id="__codelineno-13-47" name="__codelineno-13-47"></a>        <span class="c1"># The best fit's settings, such as dist="exponential", rate=0.4</span>
-</span><span id="__span-13-48"><a id="__codelineno-13-48" name="__codelineno-13-48"></a>        <span class="n">arrival</span><span class="o">=</span><span class="p">{</span><span class="s2">"orders"</span><span class="p">:</span> <span class="n">DistributionConfig</span><span class="p">(</span><span class="o">**</span><span class="n">result</span><span class="o">.</span><span class="n">settings</span><span class="p">())},</span>
-</span><span id="__span-13-49"><a id="__codelineno-13-49" name="__codelineno-13-49"></a>        <span class="n">service</span><span class="o">=</span><span class="p">{</span><span class="s2">"packing"</span><span class="p">:</span> <span class="n">DistributionConfig</span><span class="p">(</span><span class="n">dist</span><span class="o">=</span><span class="s2">"gamma"</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">0.375</span><span class="p">)},</span>
-</span><span id="__span-13-50"><a id="__codelineno-13-50" name="__codelineno-13-50"></a>        <span class="n">resources</span><span class="o">=</span><span class="p">{</span><span class="s2">"packers"</span><span class="p">:</span> <span class="n">CapacityConfig</span><span class="p">(</span><span class="n">current_cap</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_cap</span><span class="o">=</span><span class="mi">2</span><span class="p">)},</span>
-</span><span id="__span-13-51"><a id="__codelineno-13-51" name="__codelineno-13-51"></a>    <span class="p">)</span>
-</span><span id="__span-13-52"><a id="__codelineno-13-52" name="__codelineno-13-52"></a>
-</span><span id="__span-13-53"><a id="__codelineno-13-53" name="__codelineno-13-53"></a>
-</span><span id="__span-13-54"><a id="__codelineno-13-54" name="__codelineno-13-54"></a><span class="k">def</span><span class="w"> </span><span class="nf">pack_order</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">packers</span><span class="p">,</span> <span class="n">sampler</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">task_id</span><span class="p">):</span>
-</span><span id="__span-13-55"><a id="__codelineno-13-55" name="__codelineno-13-55"></a>    <span class="n">path_id</span> <span class="o">=</span> <span class="s2">"Shop.service.packing"</span>
-</span><span id="__span-13-56"><a id="__codelineno-13-56" name="__codelineno-13-56"></a>    <span class="n">env</span><span class="o">.</span><span class="n">publish_event</span><span class="p">(</span>
-</span><span id="__span-13-57"><a id="__codelineno-13-57" name="__codelineno-13-57"></a>        <span class="n">key</span><span class="p">,</span> <span class="p">{</span><span class="s2">"path_id"</span><span class="p">:</span> <span class="n">path_id</span><span class="p">,</span> <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"queued"</span><span class="p">},</span> <span class="s2">"pack_order"</span><span class="p">,</span> <span class="n">task_id</span>
-</span><span id="__span-13-58"><a id="__codelineno-13-58" name="__codelineno-13-58"></a>    <span class="p">)</span>
-</span><span id="__span-13-59"><a id="__codelineno-13-59" name="__codelineno-13-59"></a>    <span class="k">with</span> <span class="n">packers</span><span class="o">.</span><span class="n">request</span><span class="p">()</span> <span class="k">as</span> <span class="n">unit</span><span class="p">:</span>
-</span><span id="__span-13-60"><a id="__codelineno-13-60" name="__codelineno-13-60"></a>        <span class="k">yield</span> <span class="n">unit</span>
-</span><span id="__span-13-61"><a id="__codelineno-13-61" name="__codelineno-13-61"></a>        <span class="n">env</span><span class="o">.</span><span class="n">publish_event</span><span class="p">(</span>
-</span><span id="__span-13-62"><a id="__codelineno-13-62" name="__codelineno-13-62"></a>            <span class="n">key</span><span class="p">,</span> <span class="p">{</span><span class="s2">"path_id"</span><span class="p">:</span> <span class="n">path_id</span><span class="p">,</span> <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"started"</span><span class="p">},</span> <span class="s2">"pack_order"</span><span class="p">,</span> <span class="n">task_id</span>
-</span><span id="__span-13-63"><a id="__codelineno-13-63" name="__codelineno-13-63"></a>        <span class="p">)</span>
-</span><span id="__span-13-64"><a id="__codelineno-13-64" name="__codelineno-13-64"></a>        <span class="k">yield</span> <span class="n">env</span><span class="o">.</span><span class="n">timeout</span><span class="p">(</span><span class="n">sampler</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">registry</span><span class="o">.</span><span class="n">get_config</span><span class="p">(</span><span class="n">path_id</span><span class="p">)))</span>
-</span><span id="__span-13-65"><a id="__codelineno-13-65" name="__codelineno-13-65"></a>        <span class="n">env</span><span class="o">.</span><span class="n">publish_event</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="p">{</span><span class="s2">"event_type"</span><span class="p">:</span> <span class="s2">"order_packed"</span><span class="p">},</span> <span class="s2">"pack_order"</span><span class="p">,</span> <span class="n">task_id</span><span class="p">)</span>
-</span><span id="__span-13-66"><a id="__codelineno-13-66" name="__codelineno-13-66"></a>
-</span><span id="__span-13-67"><a id="__codelineno-13-67" name="__codelineno-13-67"></a>
-</span><span id="__span-13-68"><a id="__codelineno-13-68" name="__codelineno-13-68"></a><span class="k">def</span><span class="w"> </span><span class="nf">orders</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">packers</span><span class="p">,</span> <span class="n">sampler</span><span class="p">):</span>
-</span><span id="__span-13-69"><a id="__codelineno-13-69" name="__codelineno-13-69"></a>    <span class="n">gap</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">registry</span><span class="o">.</span><span class="n">get_config</span><span class="p">(</span><span class="s2">"Shop.arrival.orders"</span><span class="p">)</span>
-</span><span id="__span-13-70"><a id="__codelineno-13-70" name="__codelineno-13-70"></a>    <span class="k">for</span> <span class="n">number</span> <span class="ow">in</span> <span class="n">itertools</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="mi">1</span><span class="p">):</span>
-</span><span id="__span-13-71"><a id="__codelineno-13-71" name="__codelineno-13-71"></a>        <span class="k">yield</span> <span class="n">env</span><span class="o">.</span><span class="n">timeout</span><span class="p">(</span><span class="n">sampler</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">gap</span><span class="p">))</span>
-</span><span id="__span-13-72"><a id="__codelineno-13-72" name="__codelineno-13-72"></a>        <span class="n">env</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">pack_order</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">packers</span><span class="p">,</span> <span class="n">sampler</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"orders-</span><span class="si">{</span><span class="n">number</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">number</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
-</span><span id="__span-13-73"><a id="__codelineno-13-73" name="__codelineno-13-73"></a>
-</span><span id="__span-13-74"><a id="__codelineno-13-74" name="__codelineno-13-74"></a>
-</span><span id="__span-13-75"><a id="__codelineno-13-75" name="__codelineno-13-75"></a><span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">until</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">3600</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-</span><span id="__span-13-76"><a id="__codelineno-13-76" name="__codelineno-13-76"></a><span class="w">    </span><span class="sd">"""Runs the shop for an hour and returns the number of orders packed."""</span>
-</span><span id="__span-13-77"><a id="__codelineno-13-77" name="__codelineno-13-77"></a>    <span class="n">count</span> <span class="o">=</span> <span class="n">Count</span><span class="p">()</span>
-</span><span id="__span-13-78"><a id="__codelineno-13-78" name="__codelineno-13-78"></a>    <span class="n">env</span> <span class="o">=</span> <span class="n">DynamicRealtimeEnvironment</span><span class="p">(</span><span class="n">factor</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
-</span><span id="__span-13-79"><a id="__codelineno-13-79" name="__codelineno-13-79"></a>    <span class="n">env</span><span class="o">.</span><span class="n">registry</span><span class="o">.</span><span class="n">register_sim_parameter</span><span class="p">(</span><span class="n">params</span><span class="p">(</span><span class="n">result</span><span class="p">))</span>
-</span><span id="__span-13-80"><a id="__codelineno-13-80" name="__codelineno-13-80"></a>    <span class="n">env</span><span class="o">.</span><span class="n">setup_egress</span><span class="p">([</span><span class="n">count</span><span class="p">])</span>
-</span><span id="__span-13-81"><a id="__codelineno-13-81" name="__codelineno-13-81"></a>    <span class="n">packers</span> <span class="o">=</span> <span class="n">DynamicResource</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="s2">"Shop"</span><span class="p">,</span> <span class="s2">"packers"</span><span class="p">)</span>
-</span><span id="__span-13-82"><a id="__codelineno-13-82" name="__codelineno-13-82"></a>    <span class="n">env</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">orders</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">packers</span><span class="p">,</span> <span class="n">Sampler</span><span class="p">(</span><span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)))</span>
-</span><span id="__span-13-83"><a id="__codelineno-13-83" name="__codelineno-13-83"></a>    <span class="n">env</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">until</span><span class="o">=</span><span class="n">until</span><span class="p">)</span>
-</span><span id="__span-13-84"><a id="__codelineno-13-84" name="__codelineno-13-84"></a>    <span class="n">env</span><span class="o">.</span><span class="n">teardown</span><span class="p">()</span>  <span class="c1"># waits until the sink has taken every batch</span>
-</span><span id="__span-13-85"><a id="__codelineno-13-85" name="__codelineno-13-85"></a>    <span class="k">return</span> <span class="n">count</span><span class="o">.</span><span class="n">packed</span>
-</span><span id="__span-13-86"><a id="__codelineno-13-86" name="__codelineno-13-86"></a>
-</span><span id="__span-13-87"><a id="__codelineno-13-87" name="__codelineno-13-87"></a>
-</span><span id="__span-13-88"><a id="__codelineno-13-88" name="__codelineno-13-88"></a><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
-</span><span id="__span-13-89"><a id="__codelineno-13-89" name="__codelineno-13-89"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"orders packed in an hour: </span><span class="si">{</span><span class="n">run</span><span class="p">(</span><span class="n">fit</span><span class="p">())</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/guides/fit_a_distribution.py</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-19-1"> 1</a></span>
+<span class="normal"><a href="#__codelineno-19-2"> 2</a></span>
+<span class="normal"><a href="#__codelineno-19-3"> 3</a></span>
+<span class="normal"><a href="#__codelineno-19-4"> 4</a></span>
+<span class="normal"><a href="#__codelineno-19-5"> 5</a></span>
+<span class="normal"><a href="#__codelineno-19-6"> 6</a></span>
+<span class="normal"><a href="#__codelineno-19-7"> 7</a></span>
+<span class="normal"><a href="#__codelineno-19-8"> 8</a></span>
+<span class="normal"><a href="#__codelineno-19-9"> 9</a></span>
+<span class="normal"><a href="#__codelineno-19-10">10</a></span>
+<span class="normal"><a href="#__codelineno-19-11">11</a></span>
+<span class="normal"><a href="#__codelineno-19-12">12</a></span>
+<span class="normal"><a href="#__codelineno-19-13">13</a></span>
+<span class="normal"><a href="#__codelineno-19-14">14</a></span>
+<span class="normal"><a href="#__codelineno-19-15">15</a></span>
+<span class="normal"><a href="#__codelineno-19-16">16</a></span>
+<span class="normal"><a href="#__codelineno-19-17">17</a></span>
+<span class="normal"><a href="#__codelineno-19-18">18</a></span>
+<span class="normal"><a href="#__codelineno-19-19">19</a></span>
+<span class="normal"><a href="#__codelineno-19-20">20</a></span>
+<span class="normal"><a href="#__codelineno-19-21">21</a></span>
+<span class="normal"><a href="#__codelineno-19-22">22</a></span>
+<span class="normal"><a href="#__codelineno-19-23">23</a></span>
+<span class="normal"><a href="#__codelineno-19-24">24</a></span>
+<span class="normal"><a href="#__codelineno-19-25">25</a></span>
+<span class="normal"><a href="#__codelineno-19-26">26</a></span>
+<span class="normal"><a href="#__codelineno-19-27">27</a></span>
+<span class="normal"><a href="#__codelineno-19-28">28</a></span>
+<span class="normal"><a href="#__codelineno-19-29">29</a></span>
+<span class="normal"><a href="#__codelineno-19-30">30</a></span>
+<span class="normal"><a href="#__codelineno-19-31">31</a></span>
+<span class="normal"><a href="#__codelineno-19-32">32</a></span>
+<span class="normal"><a href="#__codelineno-19-33">33</a></span>
+<span class="normal"><a href="#__codelineno-19-34">34</a></span>
+<span class="normal"><a href="#__codelineno-19-35">35</a></span>
+<span class="normal"><a href="#__codelineno-19-36">36</a></span>
+<span class="normal"><a href="#__codelineno-19-37">37</a></span>
+<span class="normal"><a href="#__codelineno-19-38">38</a></span>
+<span class="normal"><a href="#__codelineno-19-39">39</a></span>
+<span class="normal"><a href="#__codelineno-19-40">40</a></span>
+<span class="normal"><a href="#__codelineno-19-41">41</a></span>
+<span class="normal"><a href="#__codelineno-19-42">42</a></span>
+<span class="normal"><a href="#__codelineno-19-43">43</a></span>
+<span class="normal"><a href="#__codelineno-19-44">44</a></span>
+<span class="normal"><a href="#__codelineno-19-45">45</a></span>
+<span class="normal"><a href="#__codelineno-19-46">46</a></span>
+<span class="normal"><a href="#__codelineno-19-47">47</a></span>
+<span class="normal"><a href="#__codelineno-19-48">48</a></span>
+<span class="normal"><a href="#__codelineno-19-49">49</a></span>
+<span class="normal"><a href="#__codelineno-19-50">50</a></span>
+<span class="normal"><a href="#__codelineno-19-51">51</a></span>
+<span class="normal"><a href="#__codelineno-19-52">52</a></span>
+<span class="normal"><a href="#__codelineno-19-53">53</a></span>
+<span class="normal"><a href="#__codelineno-19-54">54</a></span>
+<span class="normal"><a href="#__codelineno-19-55">55</a></span>
+<span class="normal"><a href="#__codelineno-19-56">56</a></span>
+<span class="normal"><a href="#__codelineno-19-57">57</a></span>
+<span class="normal"><a href="#__codelineno-19-58">58</a></span>
+<span class="normal"><a href="#__codelineno-19-59">59</a></span>
+<span class="normal"><a href="#__codelineno-19-60">60</a></span>
+<span class="normal"><a href="#__codelineno-19-61">61</a></span>
+<span class="normal"><a href="#__codelineno-19-62">62</a></span>
+<span class="normal"><a href="#__codelineno-19-63">63</a></span>
+<span class="normal"><a href="#__codelineno-19-64">64</a></span>
+<span class="normal"><a href="#__codelineno-19-65">65</a></span>
+<span class="normal"><a href="#__codelineno-19-66">66</a></span>
+<span class="normal"><a href="#__codelineno-19-67">67</a></span>
+<span class="normal"><a href="#__codelineno-19-68">68</a></span>
+<span class="normal"><a href="#__codelineno-19-69">69</a></span>
+<span class="normal"><a href="#__codelineno-19-70">70</a></span>
+<span class="normal"><a href="#__codelineno-19-71">71</a></span>
+<span class="normal"><a href="#__codelineno-19-72">72</a></span>
+<span class="normal"><a href="#__codelineno-19-73">73</a></span>
+<span class="normal"><a href="#__codelineno-19-74">74</a></span>
+<span class="normal"><a href="#__codelineno-19-75">75</a></span>
+<span class="normal"><a href="#__codelineno-19-76">76</a></span>
+<span class="normal"><a href="#__codelineno-19-77">77</a></span>
+<span class="normal"><a href="#__codelineno-19-78">78</a></span>
+<span class="normal"><a href="#__codelineno-19-79">79</a></span>
+<span class="normal"><a href="#__codelineno-19-80">80</a></span>
+<span class="normal"><a href="#__codelineno-19-81">81</a></span>
+<span class="normal"><a href="#__codelineno-19-82">82</a></span>
+<span class="normal"><a href="#__codelineno-19-83">83</a></span>
+<span class="normal"><a href="#__codelineno-19-84">84</a></span>
+<span class="normal"><a href="#__codelineno-19-85">85</a></span>
+<span class="normal"><a href="#__codelineno-19-86">86</a></span>
+<span class="normal"><a href="#__codelineno-19-87">87</a></span>
+<span class="normal"><a href="#__codelineno-19-88">88</a></span>
+<span class="normal"><a href="#__codelineno-19-89">89</a></span>
+<span class="normal"><a href="#__codelineno-19-90">90</a></span>
+<span class="normal"><a href="#__codelineno-19-91">91</a></span>
+<span class="normal"><a href="#__codelineno-19-92">92</a></span>
+<span class="normal"><a href="#__codelineno-19-93">93</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1"></a><span class="sd">"""Fit a Distribution: the gaps between orders in an order log, fitted and loaded.</span>
+</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2"></a>
+</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3"></a><span class="sd">order_log.csv is an illustrative log of 300 orders placed one afternoon, with the</span>
+</span><span id="__span-19-4"><a id="__codelineno-19-4" name="__codelineno-19-4"></a><span class="sd">time each was placed. The script turns the times into the gaps between orders,</span>
+</span><span id="__span-19-5"><a id="__codelineno-19-5" name="__codelineno-19-5"></a><span class="sd">fits them, prints the table of candidates, and runs the shop for an hour with the</span>
+</span><span id="__span-19-6"><a id="__codelineno-19-6" name="__codelineno-19-6"></a><span class="sd">fitted arrivals. `write_gaps` writes the gaps to gaps.csv, and `write` saves the settings for a blueprint's `!include`.</span>
+</span><span id="__span-19-7"><a id="__codelineno-19-7" name="__codelineno-19-7"></a><span class="sd">"""</span>
+</span><span id="__span-19-8"><a id="__codelineno-19-8" name="__codelineno-19-8"></a>
+</span><span id="__span-19-9"><a id="__codelineno-19-9" name="__codelineno-19-9"></a><span class="kn">import</span><span class="w"> </span><span class="nn">csv</span>
+</span><span id="__span-19-10"><a id="__codelineno-19-10" name="__codelineno-19-10"></a><span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+</span><span id="__span-19-11"><a id="__codelineno-19-11" name="__codelineno-19-11"></a><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
+</span><span id="__span-19-12"><a id="__codelineno-19-12" name="__codelineno-19-12"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+</span><span id="__span-19-13"><a id="__codelineno-19-13" name="__codelineno-19-13"></a>
+</span><span id="__span-19-14"><a id="__codelineno-19-14" name="__codelineno-19-14"></a><span class="kn">from</span><span class="w"> </span><span class="nn">desflow</span><span class="w"> </span><span class="kn">import</span> <span class="n">SimulationContext</span><span class="p">,</span> <span class="n">fit_column</span>
+</span><span id="__span-19-15"><a id="__codelineno-19-15" name="__codelineno-19-15"></a>
+</span><span id="__span-19-16"><a id="__codelineno-19-16" name="__codelineno-19-16"></a><span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span>
+</span><span id="__span-19-17"><a id="__codelineno-19-17" name="__codelineno-19-17"></a>    <span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">WARNING</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s2">"</span><span class="si">%(levelname)s</span><span class="s2"> [</span><span class="si">%(asctime)s</span><span class="s2">] </span><span class="si">%(message)s</span><span class="s2">"</span>
+</span><span id="__span-19-18"><a id="__codelineno-19-18" name="__codelineno-19-18"></a><span class="p">)</span>
+</span><span id="__span-19-19"><a id="__codelineno-19-19" name="__codelineno-19-19"></a><span class="n">LOG</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="o">.</span><span class="n">parent</span> <span class="o">/</span> <span class="s2">"order_log.csv"</span>
+</span><span id="__span-19-20"><a id="__codelineno-19-20" name="__codelineno-19-20"></a>
+</span><span id="__span-19-21"><a id="__codelineno-19-21" name="__codelineno-19-21"></a>
+</span><span id="__span-19-22"><a id="__codelineno-19-22" name="__codelineno-19-22"></a><span class="k">def</span><span class="w"> </span><span class="nf">gaps</span><span class="p">():</span>
+</span><span id="__span-19-23"><a id="__codelineno-19-23" name="__codelineno-19-23"></a><span class="w">    </span><span class="sd">"""The gaps between consecutive orders, in seconds."""</span>
+</span><span id="__span-19-24"><a id="__codelineno-19-24" name="__codelineno-19-24"></a>    <span class="k">with</span> <span class="n">LOG</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">newline</span><span class="o">=</span><span class="s2">""</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">"utf-8"</span><span class="p">)</span> <span class="k">as</span> <span class="n">handle</span><span class="p">:</span>
+</span><span id="__span-19-25"><a id="__codelineno-19-25" name="__codelineno-19-25"></a>        <span class="n">placed</span> <span class="o">=</span> <span class="p">[</span>
+</span><span id="__span-19-26"><a id="__codelineno-19-26" name="__codelineno-19-26"></a>            <span class="n">datetime</span><span class="o">.</span><span class="n">fromisoformat</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="s2">"placed_at"</span><span class="p">])</span> <span class="k">for</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">csv</span><span class="o">.</span><span class="n">DictReader</span><span class="p">(</span><span class="n">handle</span><span class="p">)</span>
+</span><span id="__span-19-27"><a id="__codelineno-19-27" name="__codelineno-19-27"></a>        <span class="p">]</span>
+</span><span id="__span-19-28"><a id="__codelineno-19-28" name="__codelineno-19-28"></a>    <span class="c1"># An arrival is fitted to the gaps between orders, not to the times themselves</span>
+</span><span id="__span-19-29"><a id="__codelineno-19-29" name="__codelineno-19-29"></a>    <span class="k">return</span> <span class="p">[</span>
+</span><span id="__span-19-30"><a id="__codelineno-19-30" name="__codelineno-19-30"></a>        <span class="p">(</span><span class="n">later</span> <span class="o">-</span> <span class="n">earlier</span><span class="p">)</span><span class="o">.</span><span class="n">total_seconds</span><span class="p">()</span> <span class="k">for</span> <span class="n">earlier</span><span class="p">,</span> <span class="n">later</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">placed</span><span class="p">,</span> <span class="n">placed</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+</span><span id="__span-19-31"><a id="__codelineno-19-31" name="__codelineno-19-31"></a>    <span class="p">]</span>
+</span><span id="__span-19-32"><a id="__codelineno-19-32" name="__codelineno-19-32"></a>
+</span><span id="__span-19-33"><a id="__codelineno-19-33" name="__codelineno-19-33"></a>
+</span><span id="__span-19-34"><a id="__codelineno-19-34" name="__codelineno-19-34"></a><span class="k">def</span><span class="w"> </span><span class="nf">write_gaps</span><span class="p">(</span><span class="n">folder</span><span class="p">):</span>
+</span><span id="__span-19-35"><a id="__codelineno-19-35" name="__codelineno-19-35"></a><span class="w">    </span><span class="sd">"""Writes the gaps to a CSV column, for `desflow fit`."""</span>
+</span><span id="__span-19-36"><a id="__codelineno-19-36" name="__codelineno-19-36"></a>    <span class="n">path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">folder</span><span class="p">)</span> <span class="o">/</span> <span class="s2">"gaps.csv"</span>
+</span><span id="__span-19-37"><a id="__codelineno-19-37" name="__codelineno-19-37"></a>    <span class="n">path</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="s2">"gap_seconds</span><span class="se">\n</span><span class="s2">"</span> <span class="o">+</span> <span class="s2">""</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">gap</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span> <span class="k">for</span> <span class="n">gap</span> <span class="ow">in</span> <span class="n">gaps</span><span class="p">()))</span>
+</span><span id="__span-19-38"><a id="__codelineno-19-38" name="__codelineno-19-38"></a>    <span class="k">return</span> <span class="n">path</span>
+</span><span id="__span-19-39"><a id="__codelineno-19-39" name="__codelineno-19-39"></a>
+</span><span id="__span-19-40"><a id="__codelineno-19-40" name="__codelineno-19-40"></a>
+</span><span id="__span-19-41"><a id="__codelineno-19-41" name="__codelineno-19-41"></a><span class="k">def</span><span class="w"> </span><span class="nf">fit</span><span class="p">():</span>
+</span><span id="__span-19-42"><a id="__codelineno-19-42" name="__codelineno-19-42"></a><span class="w">    </span><span class="sd">"""Every family fitted to the gaps."""</span>
+</span><span id="__span-19-43"><a id="__codelineno-19-43" name="__codelineno-19-43"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">fit_column</span><span class="p">(</span><span class="n">gaps</span><span class="p">(),</span> <span class="n">unit</span><span class="o">=</span><span class="s2">"s"</span><span class="p">,</span> <span class="n">lower</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+</span><span id="__span-19-44"><a id="__codelineno-19-44" name="__codelineno-19-44"></a>    <span class="nb">print</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">text</span><span class="p">())</span>  <span class="c1"># every candidate, its status and diagnostics</span>
+</span><span id="__span-19-45"><a id="__codelineno-19-45" name="__codelineno-19-45"></a>    <span class="k">return</span> <span class="n">result</span>
+</span><span id="__span-19-46"><a id="__codelineno-19-46" name="__codelineno-19-46"></a>
+</span><span id="__span-19-47"><a id="__codelineno-19-47" name="__codelineno-19-47"></a>
+</span><span id="__span-19-48"><a id="__codelineno-19-48" name="__codelineno-19-48"></a><span class="k">def</span><span class="w"> </span><span class="nf">histogram</span><span class="p">():</span>
+</span><span id="__span-19-49"><a id="__codelineno-19-49" name="__codelineno-19-49"></a><span class="w">    </span><span class="sd">"""The empirical alternative: the gaps as a histogram of 10 bins."""</span>
+</span><span id="__span-19-50"><a id="__codelineno-19-50" name="__codelineno-19-50"></a>    <span class="n">result</span> <span class="o">=</span> <span class="n">fit_column</span><span class="p">(</span><span class="n">gaps</span><span class="p">(),</span> <span class="n">unit</span><span class="o">=</span><span class="s2">"s"</span><span class="p">,</span> <span class="n">candidates</span><span class="o">=</span><span class="p">[</span><span class="s2">"empirical"</span><span class="p">],</span> <span class="n">bins</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+</span><span id="__span-19-51"><a id="__codelineno-19-51" name="__codelineno-19-51"></a>    <span class="k">return</span> <span class="n">result</span>
+</span><span id="__span-19-52"><a id="__codelineno-19-52" name="__codelineno-19-52"></a>
+</span><span id="__span-19-53"><a id="__codelineno-19-53" name="__codelineno-19-53"></a>
+</span><span id="__span-19-54"><a id="__codelineno-19-54" name="__codelineno-19-54"></a><span class="k">def</span><span class="w"> </span><span class="nf">write</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">folder</span><span class="p">):</span>
+</span><span id="__span-19-55"><a id="__codelineno-19-55" name="__codelineno-19-55"></a><span class="w">    </span><span class="sd">"""Writes the best fit where a blueprint includes it."""</span>
+</span><span id="__span-19-56"><a id="__codelineno-19-56" name="__codelineno-19-56"></a>    <span class="n">path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">folder</span><span class="p">)</span> <span class="o">/</span> <span class="s2">"fitted"</span> <span class="o">/</span> <span class="s2">"orders.yaml"</span>
+</span><span id="__span-19-57"><a id="__codelineno-19-57" name="__codelineno-19-57"></a>    <span class="n">path</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</span><span id="__span-19-58"><a id="__codelineno-19-58" name="__codelineno-19-58"></a>    <span class="n">path</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">yaml</span><span class="p">(</span><span class="n">source</span><span class="o">=</span><span class="s2">"order_log.csv, gaps between placed_at"</span><span class="p">))</span>
+</span><span id="__span-19-59"><a id="__codelineno-19-59" name="__codelineno-19-59"></a>    <span class="k">return</span> <span class="n">path</span>
+</span><span id="__span-19-60"><a id="__codelineno-19-60" name="__codelineno-19-60"></a>
+</span><span id="__span-19-61"><a id="__codelineno-19-61" name="__codelineno-19-61"></a>
+</span><span id="__span-19-62"><a id="__codelineno-19-62" name="__codelineno-19-62"></a><span class="k">def</span><span class="w"> </span><span class="nf">shop</span><span class="p">(</span><span class="n">result</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SimulationContext</span><span class="p">:</span>
+</span><span id="__span-19-63"><a id="__codelineno-19-63" name="__codelineno-19-63"></a><span class="w">    </span><span class="sd">"""One packer, with the fitted arrivals."""</span>
+</span><span id="__span-19-64"><a id="__codelineno-19-64" name="__codelineno-19-64"></a>    <span class="n">app</span> <span class="o">=</span> <span class="p">(</span>
+</span><span id="__span-19-65"><a id="__codelineno-19-65" name="__codelineno-19-65"></a>        <span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_id</span><span class="o">=</span><span class="s2">"Shop"</span><span class="p">,</span> <span class="n">factor</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">random_seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
+</span><span id="__span-19-66"><a id="__codelineno-19-66" name="__codelineno-19-66"></a>        <span class="o">.</span><span class="n">add_resource</span><span class="p">(</span><span class="s2">"packers"</span><span class="p">,</span> <span class="n">current_cap</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_cap</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+</span><span id="__span-19-67"><a id="__codelineno-19-67" name="__codelineno-19-67"></a>        <span class="o">.</span><span class="n">add_service</span><span class="p">(</span><span class="s2">"packing"</span><span class="p">,</span> <span class="n">dist</span><span class="o">=</span><span class="s2">"gamma"</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">0.375</span><span class="p">)</span>
+</span><span id="__span-19-68"><a id="__codelineno-19-68" name="__codelineno-19-68"></a>        <span class="c1"># The best fit's settings, such as dist="exponential", rate=0.4</span>
+</span><span id="__span-19-69"><a id="__codelineno-19-69" name="__codelineno-19-69"></a>        <span class="o">.</span><span class="n">add_arrival</span><span class="p">(</span><span class="s2">"orders"</span><span class="p">,</span> <span class="o">**</span><span class="n">result</span><span class="o">.</span><span class="n">settings</span><span class="p">())</span>
+</span><span id="__span-19-70"><a id="__codelineno-19-70" name="__codelineno-19-70"></a>        <span class="o">.</span><span class="n">with_stats</span><span class="p">(</span><span class="s2">"basic"</span><span class="p">)</span>
+</span><span id="__span-19-71"><a id="__codelineno-19-71" name="__codelineno-19-71"></a>    <span class="p">)</span>
+</span><span id="__span-19-72"><a id="__codelineno-19-72" name="__codelineno-19-72"></a>
+</span><span id="__span-19-73"><a id="__codelineno-19-73" name="__codelineno-19-73"></a>    <span class="nd">@app</span><span class="o">.</span><span class="n">task</span><span class="p">(</span><span class="n">service_id</span><span class="o">=</span><span class="s2">"packing"</span><span class="p">,</span> <span class="n">resource_id</span><span class="o">=</span><span class="s2">"packers"</span><span class="p">)</span>
+</span><span id="__span-19-74"><a id="__codelineno-19-74" name="__codelineno-19-74"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">pack_order</span><span class="p">(</span><span class="n">task_id</span><span class="p">):</span>
+</span><span id="__span-19-75"><a id="__codelineno-19-75" name="__codelineno-19-75"></a>        <span class="k">return</span> <span class="p">{</span><span class="s2">"event_type"</span><span class="p">:</span> <span class="s2">"order_packed"</span><span class="p">}</span>
+</span><span id="__span-19-76"><a id="__codelineno-19-76" name="__codelineno-19-76"></a>
+</span><span id="__span-19-77"><a id="__codelineno-19-77" name="__codelineno-19-77"></a>    <span class="nd">@app</span><span class="o">.</span><span class="n">arrival_loop</span><span class="p">(</span><span class="s2">"orders"</span><span class="p">)</span>
+</span><span id="__span-19-78"><a id="__codelineno-19-78" name="__codelineno-19-78"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">order_loop</span><span class="p">(</span><span class="n">context</span><span class="p">):</span>
+</span><span id="__span-19-79"><a id="__codelineno-19-79" name="__codelineno-19-79"></a>        <span class="n">task_id</span> <span class="o">=</span> <span class="mi">0</span>
+</span><span id="__span-19-80"><a id="__codelineno-19-80" name="__codelineno-19-80"></a>        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+</span><span id="__span-19-81"><a id="__codelineno-19-81" name="__codelineno-19-81"></a>            <span class="n">order</span> <span class="o">=</span> <span class="k">yield</span> <span class="n">context</span><span class="o">.</span><span class="n">wait_for_arrival</span><span class="p">(</span><span class="s2">"orders"</span><span class="p">)</span>
+</span><span id="__span-19-82"><a id="__codelineno-19-82" name="__codelineno-19-82"></a>            <span class="n">context</span><span class="o">.</span><span class="n">spawn</span><span class="p">(</span><span class="n">pack_order</span><span class="p">(</span><span class="n">task_id</span><span class="p">,</span> <span class="n">entity</span><span class="o">=</span><span class="n">order</span><span class="p">))</span>
+</span><span id="__span-19-83"><a id="__codelineno-19-83" name="__codelineno-19-83"></a>            <span class="n">task_id</span> <span class="o">+=</span> <span class="mi">1</span>
+</span><span id="__span-19-84"><a id="__codelineno-19-84" name="__codelineno-19-84"></a>
+</span><span id="__span-19-85"><a id="__codelineno-19-85" name="__codelineno-19-85"></a>    <span class="k">return</span> <span class="n">app</span>
+</span><span id="__span-19-86"><a id="__codelineno-19-86" name="__codelineno-19-86"></a>
+</span><span id="__span-19-87"><a id="__codelineno-19-87" name="__codelineno-19-87"></a>
+</span><span id="__span-19-88"><a id="__codelineno-19-88" name="__codelineno-19-88"></a><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+</span><span id="__span-19-89"><a id="__codelineno-19-89" name="__codelineno-19-89"></a>    <span class="n">write_gaps</span><span class="p">(</span><span class="s2">"."</span><span class="p">)</span>  <span class="c1"># the column that `desflow fit` reads</span>
+</span><span id="__span-19-90"><a id="__codelineno-19-90" name="__codelineno-19-90"></a>    <span class="n">app</span> <span class="o">=</span> <span class="n">shop</span><span class="p">(</span><span class="n">fit</span><span class="p">())</span>
+</span><span id="__span-19-91"><a id="__codelineno-19-91" name="__codelineno-19-91"></a>    <span class="n">app</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">until</span><span class="o">=</span><span class="s2">"1 h"</span><span class="p">)</span>
+</span><span id="__span-19-92"><a id="__codelineno-19-92" name="__codelineno-19-92"></a>    <span class="n">finished</span> <span class="o">=</span> <span class="n">app</span><span class="o">.</span><span class="n">env</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">readings</span><span class="p">()[</span><span class="s2">"Shop.stats.flows.orders.finished"</span><span class="p">]</span>
+</span><span id="__span-19-93"><a id="__codelineno-19-93" name="__codelineno-19-93"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"orders packed in an hour: </span><span class="si">{</span><span class="n">finished</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</span></code></pre></div></td></tr></table></div>
+</div>
+<div class="tabbed-block">
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">docs/snippets/guides/fit_a_distribution_low_level.py</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-20-1"> 1</a></span>
+<span class="normal"><a href="#__codelineno-20-2"> 2</a></span>
+<span class="normal"><a href="#__codelineno-20-3"> 3</a></span>
+<span class="normal"><a href="#__codelineno-20-4"> 4</a></span>
+<span class="normal"><a href="#__codelineno-20-5"> 5</a></span>
+<span class="normal"><a href="#__codelineno-20-6"> 6</a></span>
+<span class="normal"><a href="#__codelineno-20-7"> 7</a></span>
+<span class="normal"><a href="#__codelineno-20-8"> 8</a></span>
+<span class="normal"><a href="#__codelineno-20-9"> 9</a></span>
+<span class="normal"><a href="#__codelineno-20-10">10</a></span>
+<span class="normal"><a href="#__codelineno-20-11">11</a></span>
+<span class="normal"><a href="#__codelineno-20-12">12</a></span>
+<span class="normal"><a href="#__codelineno-20-13">13</a></span>
+<span class="normal"><a href="#__codelineno-20-14">14</a></span>
+<span class="normal"><a href="#__codelineno-20-15">15</a></span>
+<span class="normal"><a href="#__codelineno-20-16">16</a></span>
+<span class="normal"><a href="#__codelineno-20-17">17</a></span>
+<span class="normal"><a href="#__codelineno-20-18">18</a></span>
+<span class="normal"><a href="#__codelineno-20-19">19</a></span>
+<span class="normal"><a href="#__codelineno-20-20">20</a></span>
+<span class="normal"><a href="#__codelineno-20-21">21</a></span>
+<span class="normal"><a href="#__codelineno-20-22">22</a></span>
+<span class="normal"><a href="#__codelineno-20-23">23</a></span>
+<span class="normal"><a href="#__codelineno-20-24">24</a></span>
+<span class="normal"><a href="#__codelineno-20-25">25</a></span>
+<span class="normal"><a href="#__codelineno-20-26">26</a></span>
+<span class="normal"><a href="#__codelineno-20-27">27</a></span>
+<span class="normal"><a href="#__codelineno-20-28">28</a></span>
+<span class="normal"><a href="#__codelineno-20-29">29</a></span>
+<span class="normal"><a href="#__codelineno-20-30">30</a></span>
+<span class="normal"><a href="#__codelineno-20-31">31</a></span>
+<span class="normal"><a href="#__codelineno-20-32">32</a></span>
+<span class="normal"><a href="#__codelineno-20-33">33</a></span>
+<span class="normal"><a href="#__codelineno-20-34">34</a></span>
+<span class="normal"><a href="#__codelineno-20-35">35</a></span>
+<span class="normal"><a href="#__codelineno-20-36">36</a></span>
+<span class="normal"><a href="#__codelineno-20-37">37</a></span>
+<span class="normal"><a href="#__codelineno-20-38">38</a></span>
+<span class="normal"><a href="#__codelineno-20-39">39</a></span>
+<span class="normal"><a href="#__codelineno-20-40">40</a></span>
+<span class="normal"><a href="#__codelineno-20-41">41</a></span>
+<span class="normal"><a href="#__codelineno-20-42">42</a></span>
+<span class="normal"><a href="#__codelineno-20-43">43</a></span>
+<span class="normal"><a href="#__codelineno-20-44">44</a></span>
+<span class="normal"><a href="#__codelineno-20-45">45</a></span>
+<span class="normal"><a href="#__codelineno-20-46">46</a></span>
+<span class="normal"><a href="#__codelineno-20-47">47</a></span>
+<span class="normal"><a href="#__codelineno-20-48">48</a></span>
+<span class="normal"><a href="#__codelineno-20-49">49</a></span>
+<span class="normal"><a href="#__codelineno-20-50">50</a></span>
+<span class="normal"><a href="#__codelineno-20-51">51</a></span>
+<span class="normal"><a href="#__codelineno-20-52">52</a></span>
+<span class="normal"><a href="#__codelineno-20-53">53</a></span>
+<span class="normal"><a href="#__codelineno-20-54">54</a></span>
+<span class="normal"><a href="#__codelineno-20-55">55</a></span>
+<span class="normal"><a href="#__codelineno-20-56">56</a></span>
+<span class="normal"><a href="#__codelineno-20-57">57</a></span>
+<span class="normal"><a href="#__codelineno-20-58">58</a></span>
+<span class="normal"><a href="#__codelineno-20-59">59</a></span>
+<span class="normal"><a href="#__codelineno-20-60">60</a></span>
+<span class="normal"><a href="#__codelineno-20-61">61</a></span>
+<span class="normal"><a href="#__codelineno-20-62">62</a></span>
+<span class="normal"><a href="#__codelineno-20-63">63</a></span>
+<span class="normal"><a href="#__codelineno-20-64">64</a></span>
+<span class="normal"><a href="#__codelineno-20-65">65</a></span>
+<span class="normal"><a href="#__codelineno-20-66">66</a></span>
+<span class="normal"><a href="#__codelineno-20-67">67</a></span>
+<span class="normal"><a href="#__codelineno-20-68">68</a></span>
+<span class="normal"><a href="#__codelineno-20-69">69</a></span>
+<span class="normal"><a href="#__codelineno-20-70">70</a></span>
+<span class="normal"><a href="#__codelineno-20-71">71</a></span>
+<span class="normal"><a href="#__codelineno-20-72">72</a></span>
+<span class="normal"><a href="#__codelineno-20-73">73</a></span>
+<span class="normal"><a href="#__codelineno-20-74">74</a></span>
+<span class="normal"><a href="#__codelineno-20-75">75</a></span>
+<span class="normal"><a href="#__codelineno-20-76">76</a></span>
+<span class="normal"><a href="#__codelineno-20-77">77</a></span>
+<span class="normal"><a href="#__codelineno-20-78">78</a></span>
+<span class="normal"><a href="#__codelineno-20-79">79</a></span>
+<span class="normal"><a href="#__codelineno-20-80">80</a></span>
+<span class="normal"><a href="#__codelineno-20-81">81</a></span>
+<span class="normal"><a href="#__codelineno-20-82">82</a></span>
+<span class="normal"><a href="#__codelineno-20-83">83</a></span>
+<span class="normal"><a href="#__codelineno-20-84">84</a></span>
+<span class="normal"><a href="#__codelineno-20-85">85</a></span>
+<span class="normal"><a href="#__codelineno-20-86">86</a></span>
+<span class="normal"><a href="#__codelineno-20-87">87</a></span>
+<span class="normal"><a href="#__codelineno-20-88">88</a></span>
+<span class="normal"><a href="#__codelineno-20-89">89</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1"></a><span class="sd">"""The Fit a Distribution guide, low-level API: the shop with arrivals fitted to an</span>
+</span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2"></a><span class="sd">order log.</span>
+</span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3"></a>
+</span><span id="__span-20-4"><a id="__codelineno-20-4" name="__codelineno-20-4"></a><span class="sd">python fit_a_distribution_low_level.py fits the gaps between the orders in</span>
+</span><span id="__span-20-5"><a id="__codelineno-20-5" name="__codelineno-20-5"></a><span class="sd">order_log.csv, as fit_a_distribution.py does, and runs the shop for an hour with the</span>
+</span><span id="__span-20-6"><a id="__codelineno-20-6" name="__codelineno-20-6"></a><span class="sd">fitted arrivals. It prints the number of orders packed.</span>
+</span><span id="__span-20-7"><a id="__codelineno-20-7" name="__codelineno-20-7"></a><span class="sd">"""</span>
+</span><span id="__span-20-8"><a id="__codelineno-20-8" name="__codelineno-20-8"></a>
+</span><span id="__span-20-9"><a id="__codelineno-20-9" name="__codelineno-20-9"></a><span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+</span><span id="__span-20-10"><a id="__codelineno-20-10" name="__codelineno-20-10"></a><span class="kn">import</span><span class="w"> </span><span class="nn">itertools</span>
+</span><span id="__span-20-11"><a id="__codelineno-20-11" name="__codelineno-20-11"></a><span class="kn">import</span><span class="w"> </span><span class="nn">queue</span>
+</span><span id="__span-20-12"><a id="__codelineno-20-12" name="__codelineno-20-12"></a>
+</span><span id="__span-20-13"><a id="__codelineno-20-13" name="__codelineno-20-13"></a><span class="kn">from</span><span class="w"> </span><span class="nn">desflow</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+</span><span id="__span-20-14"><a id="__codelineno-20-14" name="__codelineno-20-14"></a>    <span class="n">CapacityConfig</span><span class="p">,</span>
+</span><span id="__span-20-15"><a id="__codelineno-20-15" name="__codelineno-20-15"></a>    <span class="n">DistributionConfig</span><span class="p">,</span>
+</span><span id="__span-20-16"><a id="__codelineno-20-16" name="__codelineno-20-16"></a>    <span class="n">DynamicRealtimeEnvironment</span><span class="p">,</span>
+</span><span id="__span-20-17"><a id="__codelineno-20-17" name="__codelineno-20-17"></a>    <span class="n">DynamicResource</span><span class="p">,</span>
+</span><span id="__span-20-18"><a id="__codelineno-20-18" name="__codelineno-20-18"></a>    <span class="n">Sampler</span><span class="p">,</span>
+</span><span id="__span-20-19"><a id="__codelineno-20-19" name="__codelineno-20-19"></a>    <span class="n">SimParameter</span><span class="p">,</span>
+</span><span id="__span-20-20"><a id="__codelineno-20-20" name="__codelineno-20-20"></a><span class="p">)</span>
+</span><span id="__span-20-21"><a id="__codelineno-20-21" name="__codelineno-20-21"></a><span class="kn">from</span><span class="w"> </span><span class="nn">fit_a_distribution</span><span class="w"> </span><span class="kn">import</span> <span class="n">fit</span>
+</span><span id="__span-20-22"><a id="__codelineno-20-22" name="__codelineno-20-22"></a>
+</span><span id="__span-20-23"><a id="__codelineno-20-23" name="__codelineno-20-23"></a>
+</span><span id="__span-20-24"><a id="__codelineno-20-24" name="__codelineno-20-24"></a><span class="k">class</span><span class="w"> </span><span class="nc">Count</span><span class="p">:</span>
+</span><span id="__span-20-25"><a id="__codelineno-20-25" name="__codelineno-20-25"></a><span class="w">    </span><span class="sd">"""An egress that counts the orders packed."""</span>
+</span><span id="__span-20-26"><a id="__codelineno-20-26" name="__codelineno-20-26"></a>
+</span><span id="__span-20-27"><a id="__codelineno-20-27" name="__codelineno-20-27"></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="__span-20-28"><a id="__codelineno-20-28" name="__codelineno-20-28"></a>        <span class="bp">self</span><span class="o">.</span><span class="n">packed</span> <span class="o">=</span> <span class="mi">0</span>
+</span><span id="__span-20-29"><a id="__codelineno-20-29" name="__codelineno-20-29"></a>
+</span><span id="__span-20-30"><a id="__codelineno-20-30" name="__codelineno-20-30"></a>    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">egress_queue</span><span class="p">):</span>
+</span><span id="__span-20-31"><a id="__codelineno-20-31" name="__codelineno-20-31"></a>        <span class="k">try</span><span class="p">:</span>
+</span><span id="__span-20-32"><a id="__codelineno-20-32" name="__codelineno-20-32"></a>            <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+</span><span id="__span-20-33"><a id="__codelineno-20-33" name="__codelineno-20-33"></a>                <span class="k">try</span><span class="p">:</span>
+</span><span id="__span-20-34"><a id="__codelineno-20-34" name="__codelineno-20-34"></a>                    <span class="k">for</span> <span class="n">record</span> <span class="ow">in</span> <span class="n">egress_queue</span><span class="o">.</span><span class="n">get_nowait</span><span class="p">():</span>
+</span><span id="__span-20-35"><a id="__codelineno-20-35" name="__codelineno-20-35"></a>                        <span class="n">value</span> <span class="o">=</span> <span class="n">record</span><span class="p">[</span><span class="s2">"value"</span><span class="p">]</span>
+</span><span id="__span-20-36"><a id="__codelineno-20-36" name="__codelineno-20-36"></a>                        <span class="bp">self</span><span class="o">.</span><span class="n">packed</span> <span class="o">+=</span> <span class="n">value</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"event_type"</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"order_packed"</span>
+</span><span id="__span-20-37"><a id="__codelineno-20-37" name="__codelineno-20-37"></a>                <span class="k">except</span> <span class="n">queue</span><span class="o">.</span><span class="n">Empty</span><span class="p">:</span>
+</span><span id="__span-20-38"><a id="__codelineno-20-38" name="__codelineno-20-38"></a>                    <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.01</span><span class="p">)</span>
+</span><span id="__span-20-39"><a id="__codelineno-20-39" name="__codelineno-20-39"></a>        <span class="k">except</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">CancelledError</span><span class="p">:</span>
+</span><span id="__span-20-40"><a id="__codelineno-20-40" name="__codelineno-20-40"></a>            <span class="k">pass</span>
+</span><span id="__span-20-41"><a id="__codelineno-20-41" name="__codelineno-20-41"></a>
+</span><span id="__span-20-42"><a id="__codelineno-20-42" name="__codelineno-20-42"></a>
+</span><span id="__span-20-43"><a id="__codelineno-20-43" name="__codelineno-20-43"></a><span class="k">def</span><span class="w"> </span><span class="nf">params</span><span class="p">(</span><span class="n">result</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SimParameter</span><span class="p">:</span>
+</span><span id="__span-20-44"><a id="__codelineno-20-44" name="__codelineno-20-44"></a><span class="w">    </span><span class="sd">"""One packer, with the fitted arrivals."""</span>
+</span><span id="__span-20-45"><a id="__codelineno-20-45" name="__codelineno-20-45"></a>    <span class="k">return</span> <span class="n">SimParameter</span><span class="p">(</span>
+</span><span id="__span-20-46"><a id="__codelineno-20-46" name="__codelineno-20-46"></a>        <span class="n">sim_id</span><span class="o">=</span><span class="s2">"Shop"</span><span class="p">,</span>
+</span><span id="__span-20-47"><a id="__codelineno-20-47" name="__codelineno-20-47"></a>        <span class="c1"># The best fit's settings, such as dist="exponential", rate=0.4</span>
+</span><span id="__span-20-48"><a id="__codelineno-20-48" name="__codelineno-20-48"></a>        <span class="n">arrival</span><span class="o">=</span><span class="p">{</span><span class="s2">"orders"</span><span class="p">:</span> <span class="n">DistributionConfig</span><span class="p">(</span><span class="o">**</span><span class="n">result</span><span class="o">.</span><span class="n">settings</span><span class="p">())},</span>
+</span><span id="__span-20-49"><a id="__codelineno-20-49" name="__codelineno-20-49"></a>        <span class="n">service</span><span class="o">=</span><span class="p">{</span><span class="s2">"packing"</span><span class="p">:</span> <span class="n">DistributionConfig</span><span class="p">(</span><span class="n">dist</span><span class="o">=</span><span class="s2">"gamma"</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">0.375</span><span class="p">)},</span>
+</span><span id="__span-20-50"><a id="__codelineno-20-50" name="__codelineno-20-50"></a>        <span class="n">resources</span><span class="o">=</span><span class="p">{</span><span class="s2">"packers"</span><span class="p">:</span> <span class="n">CapacityConfig</span><span class="p">(</span><span class="n">current_cap</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">max_cap</span><span class="o">=</span><span class="mi">2</span><span class="p">)},</span>
+</span><span id="__span-20-51"><a id="__codelineno-20-51" name="__codelineno-20-51"></a>    <span class="p">)</span>
+</span><span id="__span-20-52"><a id="__codelineno-20-52" name="__codelineno-20-52"></a>
+</span><span id="__span-20-53"><a id="__codelineno-20-53" name="__codelineno-20-53"></a>
+</span><span id="__span-20-54"><a id="__codelineno-20-54" name="__codelineno-20-54"></a><span class="k">def</span><span class="w"> </span><span class="nf">pack_order</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">packers</span><span class="p">,</span> <span class="n">sampler</span><span class="p">,</span> <span class="n">key</span><span class="p">,</span> <span class="n">task_id</span><span class="p">):</span>
+</span><span id="__span-20-55"><a id="__codelineno-20-55" name="__codelineno-20-55"></a>    <span class="n">path_id</span> <span class="o">=</span> <span class="s2">"Shop.service.packing"</span>
+</span><span id="__span-20-56"><a id="__codelineno-20-56" name="__codelineno-20-56"></a>    <span class="n">env</span><span class="o">.</span><span class="n">publish_event</span><span class="p">(</span>
+</span><span id="__span-20-57"><a id="__codelineno-20-57" name="__codelineno-20-57"></a>        <span class="n">key</span><span class="p">,</span> <span class="p">{</span><span class="s2">"path_id"</span><span class="p">:</span> <span class="n">path_id</span><span class="p">,</span> <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"queued"</span><span class="p">},</span> <span class="s2">"pack_order"</span><span class="p">,</span> <span class="n">task_id</span>
+</span><span id="__span-20-58"><a id="__codelineno-20-58" name="__codelineno-20-58"></a>    <span class="p">)</span>
+</span><span id="__span-20-59"><a id="__codelineno-20-59" name="__codelineno-20-59"></a>    <span class="k">with</span> <span class="n">packers</span><span class="o">.</span><span class="n">request</span><span class="p">()</span> <span class="k">as</span> <span class="n">unit</span><span class="p">:</span>
+</span><span id="__span-20-60"><a id="__codelineno-20-60" name="__codelineno-20-60"></a>        <span class="k">yield</span> <span class="n">unit</span>
+</span><span id="__span-20-61"><a id="__codelineno-20-61" name="__codelineno-20-61"></a>        <span class="n">env</span><span class="o">.</span><span class="n">publish_event</span><span class="p">(</span>
+</span><span id="__span-20-62"><a id="__codelineno-20-62" name="__codelineno-20-62"></a>            <span class="n">key</span><span class="p">,</span> <span class="p">{</span><span class="s2">"path_id"</span><span class="p">:</span> <span class="n">path_id</span><span class="p">,</span> <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"started"</span><span class="p">},</span> <span class="s2">"pack_order"</span><span class="p">,</span> <span class="n">task_id</span>
+</span><span id="__span-20-63"><a id="__codelineno-20-63" name="__codelineno-20-63"></a>        <span class="p">)</span>
+</span><span id="__span-20-64"><a id="__codelineno-20-64" name="__codelineno-20-64"></a>        <span class="k">yield</span> <span class="n">env</span><span class="o">.</span><span class="n">timeout</span><span class="p">(</span><span class="n">sampler</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">env</span><span class="o">.</span><span class="n">registry</span><span class="o">.</span><span class="n">get_config</span><span class="p">(</span><span class="n">path_id</span><span class="p">)))</span>
+</span><span id="__span-20-65"><a id="__codelineno-20-65" name="__codelineno-20-65"></a>        <span class="n">env</span><span class="o">.</span><span class="n">publish_event</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="p">{</span><span class="s2">"event_type"</span><span class="p">:</span> <span class="s2">"order_packed"</span><span class="p">},</span> <span class="s2">"pack_order"</span><span class="p">,</span> <span class="n">task_id</span><span class="p">)</span>
+</span><span id="__span-20-66"><a id="__codelineno-20-66" name="__codelineno-20-66"></a>
+</span><span id="__span-20-67"><a id="__codelineno-20-67" name="__codelineno-20-67"></a>
+</span><span id="__span-20-68"><a id="__codelineno-20-68" name="__codelineno-20-68"></a><span class="k">def</span><span class="w"> </span><span class="nf">orders</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">packers</span><span class="p">,</span> <span class="n">sampler</span><span class="p">):</span>
+</span><span id="__span-20-69"><a id="__codelineno-20-69" name="__codelineno-20-69"></a>    <span class="n">gap</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">registry</span><span class="o">.</span><span class="n">get_config</span><span class="p">(</span><span class="s2">"Shop.arrival.orders"</span><span class="p">)</span>
+</span><span id="__span-20-70"><a id="__codelineno-20-70" name="__codelineno-20-70"></a>    <span class="k">for</span> <span class="n">number</span> <span class="ow">in</span> <span class="n">itertools</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="mi">1</span><span class="p">):</span>
+</span><span id="__span-20-71"><a id="__codelineno-20-71" name="__codelineno-20-71"></a>        <span class="k">yield</span> <span class="n">env</span><span class="o">.</span><span class="n">timeout</span><span class="p">(</span><span class="n">sampler</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">gap</span><span class="p">))</span>
+</span><span id="__span-20-72"><a id="__codelineno-20-72" name="__codelineno-20-72"></a>        <span class="n">env</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">pack_order</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">packers</span><span class="p">,</span> <span class="n">sampler</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"orders-</span><span class="si">{</span><span class="n">number</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">number</span> <span class="o">-</span> <span class="mi">1</span><span class="p">))</span>
+</span><span id="__span-20-73"><a id="__codelineno-20-73" name="__codelineno-20-73"></a>
+</span><span id="__span-20-74"><a id="__codelineno-20-74" name="__codelineno-20-74"></a>
+</span><span id="__span-20-75"><a id="__codelineno-20-75" name="__codelineno-20-75"></a><span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">until</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mi">3600</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+</span><span id="__span-20-76"><a id="__codelineno-20-76" name="__codelineno-20-76"></a><span class="w">    </span><span class="sd">"""Runs the shop for an hour and returns the number of orders packed."""</span>
+</span><span id="__span-20-77"><a id="__codelineno-20-77" name="__codelineno-20-77"></a>    <span class="n">count</span> <span class="o">=</span> <span class="n">Count</span><span class="p">()</span>
+</span><span id="__span-20-78"><a id="__codelineno-20-78" name="__codelineno-20-78"></a>    <span class="n">env</span> <span class="o">=</span> <span class="n">DynamicRealtimeEnvironment</span><span class="p">(</span><span class="n">factor</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+</span><span id="__span-20-79"><a id="__codelineno-20-79" name="__codelineno-20-79"></a>    <span class="n">env</span><span class="o">.</span><span class="n">registry</span><span class="o">.</span><span class="n">register_sim_parameter</span><span class="p">(</span><span class="n">params</span><span class="p">(</span><span class="n">result</span><span class="p">))</span>
+</span><span id="__span-20-80"><a id="__codelineno-20-80" name="__codelineno-20-80"></a>    <span class="n">env</span><span class="o">.</span><span class="n">setup_egress</span><span class="p">([</span><span class="n">count</span><span class="p">])</span>
+</span><span id="__span-20-81"><a id="__codelineno-20-81" name="__codelineno-20-81"></a>    <span class="n">packers</span> <span class="o">=</span> <span class="n">DynamicResource</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="s2">"Shop"</span><span class="p">,</span> <span class="s2">"packers"</span><span class="p">)</span>
+</span><span id="__span-20-82"><a id="__codelineno-20-82" name="__codelineno-20-82"></a>    <span class="n">env</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">orders</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">packers</span><span class="p">,</span> <span class="n">Sampler</span><span class="p">(</span><span class="n">seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)))</span>
+</span><span id="__span-20-83"><a id="__codelineno-20-83" name="__codelineno-20-83"></a>    <span class="n">env</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">until</span><span class="o">=</span><span class="n">until</span><span class="p">)</span>
+</span><span id="__span-20-84"><a id="__codelineno-20-84" name="__codelineno-20-84"></a>    <span class="n">env</span><span class="o">.</span><span class="n">teardown</span><span class="p">()</span>  <span class="c1"># waits until the sink has taken every batch</span>
+</span><span id="__span-20-85"><a id="__codelineno-20-85" name="__codelineno-20-85"></a>    <span class="k">return</span> <span class="n">count</span><span class="o">.</span><span class="n">packed</span>
+</span><span id="__span-20-86"><a id="__codelineno-20-86" name="__codelineno-20-86"></a>
+</span><span id="__span-20-87"><a id="__codelineno-20-87" name="__codelineno-20-87"></a>
+</span><span id="__span-20-88"><a id="__codelineno-20-88" name="__codelineno-20-88"></a><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+</span><span id="__span-20-89"><a id="__codelineno-20-89" name="__codelineno-20-89"></a>    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"orders packed in an hour: </span><span class="si">{</span><span class="n">run</span><span class="p">(</span><span class="n">fit</span><span class="p">())</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 </span></code></pre></div></td></tr></table></div>
 </div>
 </div>

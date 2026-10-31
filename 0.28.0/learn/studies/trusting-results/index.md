@@ -35,10 +35,36 @@ egress:
   - type: Console
 ```
 
+`WARMUP=0` keeps the first minutes, and `--until` stops the run at 15 minutes. `head -4` keeps the first four lines, the queue and the mean wait at 10 and 20 seconds:
+
+```bash
+WARMUP=0 desflow run trusting_results.yaml --until "15 min" --stdout | grep -E 'packers\.queue_length"|pack_order\.wait_mean"' | head -4
+```
+
+```text
+{"stream_type":"telemetry","sim_ts":10.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length","value":0}
+{"stream_type":"telemetry","sim_ts":10.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":0.45699808696098815}
+{"stream_type":"telemetry","sim_ts":20.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length","value":2}
+{"stream_type":"telemetry","sim_ts":20.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":0.5569464838069348}
+```
+
 ```python
 # Every 10 seconds, wait_mean is the mean wait so far: plot it against sim_ts
 .with_stats("typical", interval=10)
 .add_egress(ConsoleEgress())
+```
+
+The script runs the first 15 minutes without a warm-up when it is given the argument `start`. `head -4` keeps the first four lines, the queue and the mean wait at 10 and 20 seconds:
+
+```bash
+python trusting_results.py start 2>&1 | grep -E "packers\.queue_length'|pack_order\.wait_mean'" | head -4
+```
+
+```text
+[TEL] {'sim_ts': 10.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.queue_length', 'value': 0}
+[TEL] {'sim_ts': 10.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.wait_mean', 'value': 0.45699808696098815}
+[TEL] {'sim_ts': 20.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.queue_length', 'value': 2}
+[TEL] {'sim_ts': 20.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.wait_mean', 'value': 0.5569464838069348}
 ```
 
 ```python
@@ -49,7 +75,33 @@ env.setup_stats("Shop", "typical", interval=10)
 env.setup_egress([ConsoleEgress()], warmup=warmup)
 ```
 
-Plot the two against `sim_ts` for the first 15 minutes:
+The script runs the first 15 minutes without a warm-up when it is given the argument `start`. `head -4` keeps the first four lines, the queue and the mean wait at 10 and 20 seconds:
+
+```bash
+python trusting_results_low_level.py start 2>&1 | grep -E "packers\.queue_length'|pack_order\.wait_mean'" | head -4
+```
+
+```text
+[TEL] {'sim_ts': 10.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.queue_length', 'value': 0}
+[TEL] {'sim_ts': 10.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.wait_mean', 'value': 0.45699808696098815}
+[TEL] {'sim_ts': 20.0, 'timestamp': '...', 'path_id': 'Shop.stats.resources.packers.queue_length', 'value': 2}
+[TEL] {'sim_ts': 20.0, 'timestamp': '...', 'path_id': 'Shop.stats.tasks.pack_order.wait_mean', 'value': 0.5569464838069348}
+```
+
+Without `head -4`, each tab prints the two values every 10 seconds of the first 15 minutes, 90 lines for each path. Plot the `value` of the two paths against `sim_ts`. Some of the values:
+
+| `sim_ts` (s) | Queue | Mean wait so far (s) |
+| ------------ | ----- | -------------------- |
+| 10           | 0     | 0.46                 |
+| 30           | 5     | 0.89                 |
+| 60           | 0     | 1.12                 |
+| 90           | 4     | 1.55                 |
+| 120          | 3     | 1.41                 |
+| 300          | 4     | 1.19                 |
+| 600          | 0     | 1.40                 |
+| 900          | 0     | 1.27                 |
+
+The plot of all 90 readings:
 
 The queue reaches its usual range within the first minute. The mean wait so far climbs for about a minute and a half, because the first orders found free packers. After that it moves up and down with no trend. The plot shows one seed only, and another seed could climb for longer. So the plot alone cannot settle the [warm-up](https://jaehyeon.me/desflow/latest/learn/concepts/output-analysis/#one-run-starts-empty). It suggests three candidates:
 
@@ -100,7 +152,7 @@ desflow run trusting_results.yaml --stdout | grep -E 'pack_order\.wait_mean"' | 
 ```
 
 ```bash
-python trusting_results.py 2>/dev/null
+python trusting_results.py 2>/dev/null | grep -E '^(without|with a)'
 ```
 
 ```text
@@ -109,7 +161,7 @@ with a 2 min warm-up: mean wait 1.381 s
 ```
 
 ```bash
-python trusting_results_low_level.py 2>/dev/null
+python trusting_results_low_level.py 2>/dev/null | grep -E '^(without|with a)'
 ```
 
 ```text
@@ -126,8 +178,21 @@ The run in [Leave Out the Start](#leave-out-the-start) used one seed, 42. Anothe
 Run the busy hour 40 times. The 40 seeds are spawned from the seed 42, so every run of the command uses the same 40 seeds. Each replication leaves out the same 2-minute warm-up:
 
 ```bash
-# 40 runs: the mean wait and the packers' utilisation, each with its interval
-desflow run trusting_results.yaml --replications 40 --measure tasks.pack_order.wait_mean --measure resources.packers.utilization_avg
+# 5, 10, 20 and 40 runs: the mean wait and the packers' utilisation, each with its interval
+for n in 5 10 20 40; do
+  desflow run trusting_results.yaml --replications $n --measure tasks.pack_order.wait_mean --measure resources.packers.utilization_avg 2>/dev/null | grep -E '^(tasks|resources)'
+done
+```
+
+```text
+tasks.pack_order.wait_mean            5         2.207              0.4688
+resources.packers.utilization_avg     5         89.72               1.371
+tasks.pack_order.wait_mean           10         2.252              0.2476
+resources.packers.utilization_avg    10         90.34              0.9148
+tasks.pack_order.wait_mean           20         2.479              0.3223
+resources.packers.utilization_avg    20         90.33              0.6263
+tasks.pack_order.wait_mean           40         2.319              0.1951
+resources.packers.utilization_avg    40         90.03              0.4496
 ```
 
 ```python
@@ -137,6 +202,21 @@ MEASURES = ["tasks.pack_order.wait_mean", "resources.packers.utilization_avg"]
 def replications(n=40):
     """Runs the busy hour n times, each after the warm-up, with seeds spawned from 42."""
     return replicate(shop, n, seed=42, until="1 h", measures=MEASURES)
+```
+
+```bash
+python trusting_results.py 2>/dev/null | grep ' runs: '
+```
+
+```text
+tasks.pack_order.wait_mean, 5 runs: 2.21 ± 0.47 (21.2%)
+tasks.pack_order.wait_mean, 10 runs: 2.25 ± 0.25 (11.0%)
+tasks.pack_order.wait_mean, 20 runs: 2.48 ± 0.32 (13.0%)
+tasks.pack_order.wait_mean, 40 runs: 2.32 ± 0.20 (8.4%)
+resources.packers.utilization_avg, 5 runs: 89.72 ± 1.37 (1.5%)
+resources.packers.utilization_avg, 10 runs: 90.34 ± 0.91 (1.0%)
+resources.packers.utilization_avg, 20 runs: 90.33 ± 0.63 (0.7%)
+resources.packers.utilization_avg, 40 runs: 90.03 ± 0.45 (0.5%)
 ```
 
 ```python
@@ -156,11 +236,17 @@ def replications(n=40):
     return replicate(shop, n, seed=42, until=3600, warmup=WARMUP, measures=MEASURES)
 ```
 
+```bash
+python trusting_results_low_level.py 2>/dev/null | grep ' runs: '
+```
+
+It prints the same eight lines as the Builder script.
+
 `LowLevelModel` names the function that builds the model in an environment it is given, and the warm-up is an argument of `replicate`, because a replication has no sinks.
 
 Each replication runs unpaced with no sinks and reads the built-in statistics at its end. [Replications](https://jaehyeon.me/desflow/latest/user-guide/results/replications/index.md) describes every option.
 
-The mean of the 40 values is the estimate. Its **[95% interval](https://jaehyeon.me/desflow/latest/learn/concepts/output-analysis/#interval-and-half-width)** says how far off it may be: with 95% confidence, the true mean lies within the estimate plus or minus the **half-width**. The seeds are spawned in order, so the first 10 of the 40 replications are the 10 a run with `--replications 10` makes. The table reads the estimate after the first 5, 10 and 20 replications and after all 40:
+The mean of the 40 values is the estimate. Its **[95% interval](https://jaehyeon.me/desflow/latest/learn/concepts/output-analysis/#interval-and-half-width)** says how far off it may be: with 95% confidence, the true mean lies within the estimate plus or minus the **half-width**. The seeds are spawned in order, so the first 10 of the 40 replications are the 10 a run with `--replications 10` makes. Each tab prints the estimate after the first 5, 10 and 20 replications and after all 40, which the table gives with the half-width as a share of the mean:
 
 | Replications | Mean wait (s) | Half-width (s) | Wait half-width share | Utilisation (%) | Half-width (%) | Utilisation half-width share |
 | ------------ | ------------- | -------------- | --------------------- | --------------- | -------------- | ---------------------------- |
@@ -191,7 +277,7 @@ measure                        n          mean    half-width (90%)
 tasks.pack_order.wait_mean    40         2.319              0.1625
 ```
 
-The half-width falls from 0.20 to 0.16 seconds, 7.0% of the mean, with no extra run. A 90% interval misses the true mean more often, 1 study in 10 instead of 1 in 20, so choose the level with the precision, before the runs.
+The run also prints its seeds and how to repeat one replication. The half-width falls from 0.20 to 0.16 seconds, 7.0% of the mean, with no extra run. A 90% interval misses the true mean more often, 1 study in 10 instead of 1 in 20, so choose the level with the precision, before the runs.
 
 ______________________________________________________________________
 
@@ -200,11 +286,17 @@ ______________________________________________________________________
 One seed gives one path through the hour. Run five replications after each candidate warm-up, with the same five seeds spawned from 42, and compare the mean waits. Five replications are enough here, although the mean wait needs 40 for 10% precision. The comparison does not need a precise mean: it asks only whether a longer warm-up moves the mean by more than its half-width. Each candidate runs the same five seeds, so a difference between candidates comes from the warm-up and not from the seeds:
 
 ```bash
-# 5 runs with a warm-up of one minute
-WARMUP="1 min" desflow run trusting_results.yaml --replications 5 --measure tasks.pack_order.wait_mean
+# 5 runs with each candidate warm-up
+for w in "1 min" "2 min" "4 min"; do
+  WARMUP="$w" desflow run trusting_results.yaml --replications 5 --measure tasks.pack_order.wait_mean 2>/dev/null | grep '^tasks'
+done
 ```
 
-`WARMUP="2 min"` and `WARMUP="4 min"` run the other two candidates.
+```text
+tasks.pack_order.wait_mean     5         2.196              0.4656
+tasks.pack_order.wait_mean     5         2.207              0.4688
+tasks.pack_order.wait_mean     5         2.232              0.4725
+```
 
 ```python
 def warmups(n=5) -> dict:
@@ -216,6 +308,16 @@ def warmups(n=5) -> dict:
     }
 ```
 
+```bash
+python trusting_results.py 2>/dev/null | grep '^warm-up'
+```
+
+```text
+warm-up 1 min: mean wait 2.196 ± 0.47 s
+warm-up 2 min: mean wait 2.207 ± 0.47 s
+warm-up 4 min: mean wait 2.232 ± 0.47 s
+```
+
 ```python
 def warmups(n=5) -> dict:
     """The mean wait of n runs after each candidate warm-up, with seeds spawned from 42."""
@@ -225,6 +327,16 @@ def warmups(n=5) -> dict:
         warmup: replicate(shop, n, seed=42, until=3600, warmup=warmup, measures=wait)
         for warmup in (60, WARMUP, 240)
     }
+```
+
+```bash
+python trusting_results_low_level.py 2>/dev/null | grep '^warm-up'
+```
+
+```text
+warm-up 60 s: mean wait 2.196 ± 0.47 s
+warm-up 120 s: mean wait 2.207 ± 0.47 s
+warm-up 240 s: mean wait 2.232 ± 0.47 s
 ```
 
 `model` is the function from [Run It With Other Seeds](#run-it-with-other-seeds) above.
@@ -247,7 +359,34 @@ Is one run enough? No, because one run's answer depends on its seed. The run wit
 
 The empty start is not the problem. The warm-up is **2 minutes**, the shortest candidate that passes the comparison over five seeds and covers the climb in the plot. In the run with the seed 42, a 2-minute warm-up changes the mean wait only from 1.382 to 1.381 seconds. The shop fills within a minute or two, and those minutes are a small part of one hour. A shorter run, or a start further from the usual state, such as a shop that opens with a backlog of orders, needs the warm-up much more.
 
-Initialisation bias ([Output Analysis](https://jaehyeon.me/desflow/latest/learn/concepts/output-analysis/#one-run-starts-empty) explains it) fades once the state of the shop no longer depends on how the run started. Here the queue, empty for the first orders, reaches its usual range within a minute. The warmed-up numbers still pass the [Little's law](https://jaehyeon.me/desflow/latest/learn/concepts/queueing-basics/#littles-law) check from Measuring a Run. In the 3,480 seconds after the warm-up, 6,024 orders were packed, 1.73 a second. 1.73 orders a second × 1.381 seconds of mean wait = 2.39 orders waiting on average, which matches the `queue_length_avg` of 2.40 that the same statistics report. [Statistics](https://jaehyeon.me/desflow/latest/user-guide/results/statistics/index.md) describes how the reset works.
+Initialisation bias ([Output Analysis](https://jaehyeon.me/desflow/latest/learn/concepts/output-analysis/#one-run-starts-empty) explains it) fades once the state of the shop no longer depends on how the run started. Here the queue, empty for the first orders, reaches its usual range within a minute. The warmed-up numbers still pass the [Little's law](https://jaehyeon.me/desflow/latest/learn/concepts/queueing-basics/#littles-law) check from Measuring a Run. In the 3,480 seconds after the warm-up, 6,024 orders were packed, 1.73 a second. 1.73 orders a second × 1.381 seconds of mean wait = 2.39 orders waiting on average, which matches the `queue_length_avg` of 2.40 that the same statistics report. Each tab prints the two counts:
+
+```bash
+desflow run trusting_results.yaml --stdout | grep -E 'pack_order\.finished"|queue_length_avg"' | tail -2
+```
+
+```text
+{"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.resources.packers.queue_length_avg","value":2.3953385163016563}
+{"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.finished","value":6024}
+```
+
+```bash
+python trusting_results.py 2>/dev/null | grep '^after'
+```
+
+```text
+after the warm-up: 6024 orders packed, queue_length_avg 2.40
+```
+
+```bash
+python trusting_results_low_level.py 2>/dev/null | grep '^after'
+```
+
+```text
+after the warm-up: 6024 orders packed, queue_length_avg 2.40
+```
+
+[Statistics](https://jaehyeon.me/desflow/latest/user-guide/results/statistics/index.md) describes how the reset works.
 
 Replications ([Output Analysis](https://jaehyeon.me/desflow/latest/learn/concepts/output-analysis/#replications) explains them) are independent of each other, because each has its own seed. So the spread of their values measures how much the answer depends on chance. With few replications the spread itself is uncertain. The [Student t quantile](https://jaehyeon.me/desflow/latest/learn/concepts/output-analysis/#interval-and-half-width) allows for it: the half-width is the standard error times 2.776 for 5 replications, and times 2.023 for 40.
 
@@ -314,9 +453,12 @@ script prints the mean wait without and with the warm-up, the mean wait of 5 run
 after each of three candidate warm-ups, then the mean and half-width of two outputs
 over 5, 10, 20 and 40 replications. To see only those lines, run:
 python trusting_results.py 2>/dev/null
+With the argument start, it runs the first 15 minutes without a warm-up, to plot:
+python trusting_results.py start 2>&1
 """
 
 import logging
+import sys
 
 from desflow import ConsoleEgress, SimulationContext, replicate
 from desflow.analysis import interval
@@ -362,11 +504,16 @@ def shop(warmup="2 min") -> SimulationContext:
     return app
 
 
-def mean_wait(warmup) -> float:
-    """Runs the busy hour and returns the mean wait it measured."""
+def busy_hour(warmup) -> dict:
+    """Runs the busy hour and returns the statistics it measured."""
     app = shop(warmup)
     app.run(until="1 h")
-    return app.env.stats.readings()["Shop.stats.tasks.pack_order.wait_mean"]
+    return app.env.stats.readings()
+
+
+def mean_wait(warmup) -> float:
+    """Runs the busy hour and returns the mean wait it measured."""
+    return busy_hour(warmup)["Shop.stats.tasks.pack_order.wait_mean"]
 
 
 MEASURES = ["tasks.pack_order.wait_mean", "resources.packers.utilization_avg"]
@@ -395,9 +542,20 @@ def precision(result) -> dict:
     }
 
 
-if __name__ == "__main__":
+WAIT = "Shop.stats.tasks.pack_order.wait_mean"
+PACKED = "Shop.stats.tasks.pack_order.finished"
+QUEUE = "Shop.stats.resources.packers.queue_length_avg"
+
+
+def report() -> None:
+    """Prints the mean waits, the Little's law figures and the precision."""
     print(f"without a warm-up: mean wait {mean_wait(None):.3f} s")
-    print(f"with a 2 min warm-up: mean wait {mean_wait('2 min'):.3f} s")
+    warmed = busy_hour("2 min")
+    print(f"with a 2 min warm-up: mean wait {warmed[WAIT]:.3f} s")
+    print(
+        f"after the warm-up: {warmed[PACKED]} orders packed, "
+        f"queue_length_avg {warmed[QUEUE]:.2f}"
+    )
     for warmup, result in warmups().items():
         row = result.summary[0]
         print(
@@ -408,6 +566,14 @@ if __name__ == "__main__":
         print(
             f"{measure}, {n} runs: {result.mean:.2f} ± {result.half_width:.2f} ({share:.1%})"
         )
+
+
+if __name__ == "__main__":
+    if sys.argv[1:] == ["start"]:
+        # The statistics every 10 seconds of the first 15 minutes, without a warm-up
+        shop(None).run(until="15 min")
+    else:
+        report()
 ```
 
 ```python
@@ -419,9 +585,12 @@ script prints the mean wait without and with the warm-up, the mean wait of 5 run
 after each of three candidate warm-ups, then the mean and half-width of two outputs
 over 5, 10, 20 and 40 replications. To see only those lines, run:
 python trusting_results_low_level.py 2>/dev/null
+With the argument start, it runs the first 15 minutes without a warm-up, to plot:
+python trusting_results_low_level.py start 2>&1
 """
 
 import logging
+import sys
 
 from desflow import (
     CapacityConfig,
@@ -546,9 +715,20 @@ def precision(result) -> dict:
     }
 
 
-if __name__ == "__main__":
+WAIT = "Shop.stats.tasks.pack_order.wait_mean"
+PACKED = "Shop.stats.tasks.pack_order.finished"
+QUEUE = "Shop.stats.resources.packers.queue_length_avg"
+
+
+def report() -> None:
+    """Prints the mean waits, the Little's law figures and the precision."""
     print(f"without a warm-up: mean wait {mean_wait(None):.3f} s")
-    print(f"with a 2 min warm-up: mean wait {mean_wait(WARMUP):.3f} s")
+    warmed = run(WARMUP).stats.readings()
+    print(f"with a 2 min warm-up: mean wait {warmed[WAIT]:.3f} s")
+    print(
+        f"after the warm-up: {warmed[PACKED]} orders packed, "
+        f"queue_length_avg {warmed[QUEUE]:.2f}"
+    )
     for warmup, result in warmups().items():
         row = result.summary[0]
         print(
@@ -559,4 +739,12 @@ if __name__ == "__main__":
         print(
             f"{measure}, {n} runs: {result.mean:.2f} ± {result.half_width:.2f} ({share:.1%})"
         )
+
+
+if __name__ == "__main__":
+    if sys.argv[1:] == ["start"]:
+        # The statistics every 10 seconds of the first 15 minutes, without a warm-up
+        run(None, until=900)
+    else:
+        report()
 ```

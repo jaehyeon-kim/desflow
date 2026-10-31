@@ -5439,7 +5439,7 @@
 <p>Look for one entry in the <code>order_events</code> stream for each order. After you publish a new arrival rate to <code>simulation_params</code>, the stream grows faster.</p>
 <hr />
 <h2 id="before-you-start">Before You Start</h2>
-<p>The example needs Docker and the odctl profile <code>valkey</code>, which each Quick Start below starts and stops. <a href="../#services-for-the-examples">Services for the Examples</a> shows how to install odctl.</p>
+<p>The example needs Docker and the odctl profile <code>valkey</code>. Each Quick Start below starts the profile, and the Check the Result section stops it. <a href="../#services-for-the-examples">Services for the Examples</a> shows how to install odctl.</p>
 <hr />
 <h2 id="steps">Steps</h2>
 <h3 id="run-it">Run It</h3>
@@ -5463,10 +5463,7 @@
 <span class="normal"><a href="#__codelineno-0-9"> 9</a></span>
 <span class="normal"><a href="#__codelineno-0-10">10</a></span>
 <span class="normal"><a href="#__codelineno-0-11">11</a></span>
-<span class="normal"><a href="#__codelineno-0-12">12</a></span>
-<span class="normal"><a href="#__codelineno-0-13">13</a></span>
-<span class="normal"><a href="#__codelineno-0-14">14</a></span>
-<span class="normal"><a href="#__codelineno-0-15">15</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1"></a><span class="c1"># 1. Install</span>
+<span class="normal"><a href="#__codelineno-0-12">12</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1"></a><span class="c1"># 1. Install</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2"></a>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span><span class="s2">"desflow[redis]"</span><span class="w"> </span>--with-executables-from<span class="w"> </span><span class="s2">"odctl&gt;=1.0,&lt;2"</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3"></a>
 </span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4"></a><span class="c1"># 2. Download the example</span>
@@ -5478,9 +5475,6 @@
 </span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10"></a>
 </span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11"></a><span class="c1"># 4. Run it (Ctrl + C to stop)</span>
 </span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12"></a>desflow<span class="w"> </span>run<span class="w"> </span>redis.yaml
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13"></a>
-</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14"></a><span class="c1"># 5. Stop its service when finished</span>
-</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15"></a>odctl<span class="w"> </span>down<span class="w"> </span>valkey<span class="w"> </span>--volumes
 </span></code></pre></div></td></tr></table></div>
 </div>
 <div class="tabbed-block">
@@ -5495,10 +5489,7 @@
 <span class="normal"><a href="#__codelineno-1-9"> 9</a></span>
 <span class="normal"><a href="#__codelineno-1-10">10</a></span>
 <span class="normal"><a href="#__codelineno-1-11">11</a></span>
-<span class="normal"><a href="#__codelineno-1-12">12</a></span>
-<span class="normal"><a href="#__codelineno-1-13">13</a></span>
-<span class="normal"><a href="#__codelineno-1-14">14</a></span>
-<span class="normal"><a href="#__codelineno-1-15">15</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1"></a><span class="c1"># 1. Install</span>
+<span class="normal"><a href="#__codelineno-1-12">12</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1"></a><span class="c1"># 1. Install</span>
 </span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"desflow[redis]"</span><span class="w"> </span><span class="s2">"odctl&gt;=1.0,&lt;2"</span>
 </span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3"></a>
 </span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4"></a><span class="c1"># 2. Download the example</span>
@@ -5510,9 +5501,6 @@
 </span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10"></a>
 </span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11"></a><span class="c1"># 4. Run it (Ctrl + C to stop)</span>
 </span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12"></a>desflow<span class="w"> </span>run<span class="w"> </span>redis.yaml
-</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13"></a>
-</span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14"></a><span class="c1"># 5. Stop its service when finished</span>
-</span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15"></a>odctl<span class="w"> </span>down<span class="w"> </span>valkey<span class="w"> </span>--volumes
 </span></code></pre></div></td></tr></table></div>
 </div>
 </div>
@@ -5593,10 +5581,7 @@
 <span class="normal"><a href="#__codelineno-4-9"> 9</a></span>
 <span class="normal"><a href="#__codelineno-4-10">10</a></span>
 <span class="normal"><a href="#__codelineno-4-11">11</a></span>
-<span class="normal"><a href="#__codelineno-4-12">12</a></span>
-<span class="normal"><a href="#__codelineno-4-13">13</a></span>
-<span class="normal"><a href="#__codelineno-4-14">14</a></span>
-<span class="normal"><a href="#__codelineno-4-15">15</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1"></a><span class="c1"># 1. Install</span>
+<span class="normal"><a href="#__codelineno-4-12">12</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1"></a><span class="c1"># 1. Install</span>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2"></a>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span><span class="s2">"desflow[redis]"</span><span class="w"> </span>--with-executables-from<span class="w"> </span><span class="s2">"odctl&gt;=1.0,&lt;2"</span>
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3"></a>
 </span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4"></a><span class="c1"># 2. Download the example</span>
@@ -5608,9 +5593,6 @@
 </span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10"></a>
 </span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11"></a><span class="c1"># 4. Run it (Ctrl + C to stop)</span>
 </span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12"></a>uv<span class="w"> </span>run<span class="w"> </span>--no-project<span class="w"> </span>--with<span class="w"> </span><span class="s2">"desflow[redis]"</span><span class="w"> </span>redis_example.py
-</span><span id="__span-4-13"><a id="__codelineno-4-13" name="__codelineno-4-13"></a>
-</span><span id="__span-4-14"><a id="__codelineno-4-14" name="__codelineno-4-14"></a><span class="c1"># 5. Stop its service when finished</span>
-</span><span id="__span-4-15"><a id="__codelineno-4-15" name="__codelineno-4-15"></a>odctl<span class="w"> </span>down<span class="w"> </span>valkey<span class="w"> </span>--volumes
 </span></code></pre></div></td></tr></table></div>
 </div>
 <div class="tabbed-block">
@@ -5625,10 +5607,7 @@
 <span class="normal"><a href="#__codelineno-5-9"> 9</a></span>
 <span class="normal"><a href="#__codelineno-5-10">10</a></span>
 <span class="normal"><a href="#__codelineno-5-11">11</a></span>
-<span class="normal"><a href="#__codelineno-5-12">12</a></span>
-<span class="normal"><a href="#__codelineno-5-13">13</a></span>
-<span class="normal"><a href="#__codelineno-5-14">14</a></span>
-<span class="normal"><a href="#__codelineno-5-15">15</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1"></a><span class="c1"># 1. Install</span>
+<span class="normal"><a href="#__codelineno-5-12">12</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1"></a><span class="c1"># 1. Install</span>
 </span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"desflow[redis]"</span><span class="w"> </span><span class="s2">"odctl&gt;=1.0,&lt;2"</span>
 </span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3"></a>
 </span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4"></a><span class="c1"># 2. Download the example</span>
@@ -5640,9 +5619,6 @@
 </span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10"></a>
 </span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11"></a><span class="c1"># 4. Run it (Ctrl + C to stop)</span>
 </span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12"></a>python<span class="w"> </span>redis_example.py
-</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13"></a>
-</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14"></a><span class="c1"># 5. Stop its service when finished</span>
-</span><span id="__span-5-15"><a id="__codelineno-5-15" name="__codelineno-5-15"></a>odctl<span class="w"> </span>down<span class="w"> </span>valkey<span class="w"> </span>--volumes
 </span></code></pre></div></td></tr></table></div>
 </div>
 </div>
@@ -5667,10 +5643,7 @@
 <span class="normal"><a href="#__codelineno-6-9"> 9</a></span>
 <span class="normal"><a href="#__codelineno-6-10">10</a></span>
 <span class="normal"><a href="#__codelineno-6-11">11</a></span>
-<span class="normal"><a href="#__codelineno-6-12">12</a></span>
-<span class="normal"><a href="#__codelineno-6-13">13</a></span>
-<span class="normal"><a href="#__codelineno-6-14">14</a></span>
-<span class="normal"><a href="#__codelineno-6-15">15</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1"></a><span class="c1"># 1. Install</span>
+<span class="normal"><a href="#__codelineno-6-12">12</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1"></a><span class="c1"># 1. Install</span>
 </span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2"></a>uv<span class="w"> </span>tool<span class="w"> </span>install<span class="w"> </span><span class="s2">"desflow[redis]"</span><span class="w"> </span>--with-executables-from<span class="w"> </span><span class="s2">"odctl&gt;=1.0,&lt;2"</span>
 </span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3"></a>
 </span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4"></a><span class="c1"># 2. Download the example</span>
@@ -5682,9 +5655,6 @@
 </span><span id="__span-6-10"><a id="__codelineno-6-10" name="__codelineno-6-10"></a>
 </span><span id="__span-6-11"><a id="__codelineno-6-11" name="__codelineno-6-11"></a><span class="c1"># 4. Run it (Ctrl + C to stop)</span>
 </span><span id="__span-6-12"><a id="__codelineno-6-12" name="__codelineno-6-12"></a>uv<span class="w"> </span>run<span class="w"> </span>--no-project<span class="w"> </span>--with<span class="w"> </span><span class="s2">"desflow[redis]"</span><span class="w"> </span>redis_example.py
-</span><span id="__span-6-13"><a id="__codelineno-6-13" name="__codelineno-6-13"></a>
-</span><span id="__span-6-14"><a id="__codelineno-6-14" name="__codelineno-6-14"></a><span class="c1"># 5. Stop its service when finished</span>
-</span><span id="__span-6-15"><a id="__codelineno-6-15" name="__codelineno-6-15"></a>odctl<span class="w"> </span>down<span class="w"> </span>valkey<span class="w"> </span>--volumes
 </span></code></pre></div></td></tr></table></div>
 </div>
 <div class="tabbed-block">
@@ -5699,10 +5669,7 @@
 <span class="normal"><a href="#__codelineno-7-9"> 9</a></span>
 <span class="normal"><a href="#__codelineno-7-10">10</a></span>
 <span class="normal"><a href="#__codelineno-7-11">11</a></span>
-<span class="normal"><a href="#__codelineno-7-12">12</a></span>
-<span class="normal"><a href="#__codelineno-7-13">13</a></span>
-<span class="normal"><a href="#__codelineno-7-14">14</a></span>
-<span class="normal"><a href="#__codelineno-7-15">15</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1"></a><span class="c1"># 1. Install</span>
+<span class="normal"><a href="#__codelineno-7-12">12</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1"></a><span class="c1"># 1. Install</span>
 </span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2"></a>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"desflow[redis]"</span><span class="w"> </span><span class="s2">"odctl&gt;=1.0,&lt;2"</span>
 </span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3"></a>
 </span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4"></a><span class="c1"># 2. Download the example</span>
@@ -5714,9 +5681,6 @@
 </span><span id="__span-7-10"><a id="__codelineno-7-10" name="__codelineno-7-10"></a>
 </span><span id="__span-7-11"><a id="__codelineno-7-11" name="__codelineno-7-11"></a><span class="c1"># 4. Run it (Ctrl + C to stop)</span>
 </span><span id="__span-7-12"><a id="__codelineno-7-12" name="__codelineno-7-12"></a>python<span class="w"> </span>redis_example.py
-</span><span id="__span-7-13"><a id="__codelineno-7-13" name="__codelineno-7-13"></a>
-</span><span id="__span-7-14"><a id="__codelineno-7-14" name="__codelineno-7-14"></a><span class="c1"># 5. Stop its service when finished</span>
-</span><span id="__span-7-15"><a id="__codelineno-7-15" name="__codelineno-7-15"></a>odctl<span class="w"> </span>down<span class="w"> </span>valkey<span class="w"> </span>--volumes
 </span></code></pre></div></td></tr></table></div>
 </div>
 </div>
@@ -5733,13 +5697,21 @@
 <p><code>RedisIngress</code> does not log the message it receives. To see that the update took effect, watch <code>XLEN order_events</code>. The arrival rate goes from 2.0 to 10.0 orders a second, so the stream grows about five times faster than before.</p>
 <hr />
 <h2 id="check-the-result">Check the Result</h2>
-<p>The three tabs write the same records, which <a href="https://github.com/jaehyeon-kim/desflow/blob/v0.28.0/tests/docs/test_example_twins.py">a test</a> checks by running each version unpaced. A real run writes each order record to the <code>order_events</code> stream. <code>desflow run redis.yaml --sample 3 --stdout</code> prints the first three as JSON lines instead, with no Valkey:</p>
+<p>The three tabs write the same records, which <a href="https://github.com/jaehyeon-kim/desflow/blob/v0.28.0/tests/docs/test_example_twins.py">a test</a> checks by running each version unpaced. A real run writes each order record to the <code>order_events</code> stream. Stop the run with Ctrl + C, leave the service up, and read the stream back:</p>
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-9-1">1</a></span>
+<span class="normal"><a href="#__codelineno-9-2">2</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1"></a>docker<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>valkey<span class="w"> </span>valkey-cli<span class="w"> </span>--no-auth-warning<span class="w"> </span>--user<span class="w"> </span>user<span class="w"> </span>--pass<span class="w"> </span>password<span class="w"> </span>XLEN<span class="w"> </span>order_events
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2"></a>docker<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>valkey<span class="w"> </span>valkey-cli<span class="w"> </span>--no-auth-warning<span class="w"> </span>--user<span class="w"> </span>user<span class="w"> </span>--pass<span class="w"> </span>password<span class="w"> </span>XRANGE<span class="w"> </span>order_events<span class="w"> </span>-<span class="w"> </span>+<span class="w"> </span>COUNT<span class="w"> </span><span class="m">2</span>
+</span></code></pre></div></td></tr></table></div>
+<p><code>XLEN</code> prints one integer, the number of orders the run placed, about two for each second it ran at the starting rate. <code>XRANGE</code> prints two entries. Each has an id such as <code>1793407450263-0</code>, the field name <code>payload</code> and one JSON line, which holds the first two records below: <code>orders-1</code> with <code>order_id</code> 0 and <code>orders-2</code> with <code>order_id</code> 1. A second run appends to the same stream. When you have checked the result, stop the service:</p>
+<div class="language-bash highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-10-1">1</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1"></a>odctl<span class="w"> </span>down<span class="w"> </span>valkey<span class="w"> </span>--volumes
+</span></code></pre></div></td></tr></table></div>
+<p>In <code>redis/yaml</code>, which <code>desflow examples get redis --api yaml</code> creates, <code>desflow run redis.yaml --sample 3 --stdout</code> needs no Valkey. It prints the first three records as JSON lines instead:</p>
 <!-- records: redis-sample -->
-<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-9-1">1</a></span>
-<span class="normal"><a href="#__codelineno-9-2">2</a></span>
-<span class="normal"><a href="#__codelineno-9-3">3</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1"></a>{"stream_type":"event","sim_ts":0.638,"timestamp":"...","key":"orders-1","task":"record_order","instance":0,"value":{"channel":"web","status":"placed","order_id":0}}
-</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2"></a>{"stream_type":"event","sim_ts":0.674,"timestamp":"...","key":"orders-2","task":"record_order","instance":1,"value":{"channel":"web","status":"placed","order_id":1}}
-</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3"></a>{"stream_type":"event","sim_ts":0.934,"timestamp":"...","key":"orders-3","task":"record_order","instance":2,"value":{"channel":"web","status":"placed","order_id":2}}
+<div class="language-text highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-11-1">1</a></span>
+<span class="normal"><a href="#__codelineno-11-2">2</a></span>
+<span class="normal"><a href="#__codelineno-11-3">3</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1"></a>{"stream_type":"event","sim_ts":0.638,"timestamp":"...","key":"orders-1","task":"record_order","instance":0,"value":{"channel":"web","status":"placed","order_id":0}}
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2"></a>{"stream_type":"event","sim_ts":0.674,"timestamp":"...","key":"orders-2","task":"record_order","instance":1,"value":{"channel":"web","status":"placed","order_id":1}}
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3"></a>{"stream_type":"event","sim_ts":0.934,"timestamp":"...","key":"orders-3","task":"record_order","instance":2,"value":{"channel":"web","status":"placed","order_id":2}}
 </span></code></pre></div></td></tr></table></div>
 <p>This command leaves out the <code>__stream__</code> key that names the stream, because only a Redis sink uses it. It logs a warning that says so. <code>RedisEgress</code> also removes the key before it writes, so the stored records have the same fields.</p>
 <hr />
@@ -5751,231 +5723,7 @@
 <div class="tabbed-block">
 <p><code>record_order</code> has no service or resource, so it publishes its fixed <code>payload</code> as soon as an arrival spawns it, with the task id added as <code>order_id</code>. A mapping payload is a constant, so every order record here has the same <code>channel</code> field, <code>web</code>.</p>
 <p>Files live in the <a href="https://github.com/jaehyeon-kim/desflow/tree/v0.28.0/examples/yaml"><code>examples/yaml/</code> folder</a> of the repository, and the label on each block below is its path there.</p>
-<div class="language-yaml highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">examples/yaml/redis.yaml</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-10-1"> 1</a></span>
-<span class="normal"><a href="#__codelineno-10-2"> 2</a></span>
-<span class="normal"><a href="#__codelineno-10-3"> 3</a></span>
-<span class="normal"><a href="#__codelineno-10-4"> 4</a></span>
-<span class="normal"><a href="#__codelineno-10-5"> 5</a></span>
-<span class="normal"><a href="#__codelineno-10-6"> 6</a></span>
-<span class="normal"><a href="#__codelineno-10-7"> 7</a></span>
-<span class="normal"><a href="#__codelineno-10-8"> 8</a></span>
-<span class="normal"><a href="#__codelineno-10-9"> 9</a></span>
-<span class="normal"><a href="#__codelineno-10-10">10</a></span>
-<span class="normal"><a href="#__codelineno-10-11">11</a></span>
-<span class="normal"><a href="#__codelineno-10-12">12</a></span>
-<span class="normal"><a href="#__codelineno-10-13">13</a></span>
-<span class="normal"><a href="#__codelineno-10-14">14</a></span>
-<span class="normal"><a href="#__codelineno-10-15">15</a></span>
-<span class="normal"><a href="#__codelineno-10-16">16</a></span>
-<span class="normal"><a href="#__codelineno-10-17">17</a></span>
-<span class="normal"><a href="#__codelineno-10-18">18</a></span>
-<span class="normal"><a href="#__codelineno-10-19">19</a></span>
-<span class="normal"><a href="#__codelineno-10-20">20</a></span>
-<span class="normal"><a href="#__codelineno-10-21">21</a></span>
-<span class="normal"><a href="#__codelineno-10-22">22</a></span>
-<span class="normal"><a href="#__codelineno-10-23">23</a></span>
-<span class="normal"><a href="#__codelineno-10-24">24</a></span>
-<span class="normal"><a href="#__codelineno-10-25">25</a></span>
-<span class="normal"><a href="#__codelineno-10-26">26</a></span>
-<span class="normal"><a href="#__codelineno-10-27">27</a></span>
-<span class="normal"><a href="#__codelineno-10-28">28</a></span>
-<span class="normal"><a href="#__codelineno-10-29">29</a></span>
-<span class="normal"><a href="#__codelineno-10-30">30</a></span>
-<span class="normal"><a href="#__codelineno-10-31">31</a></span>
-<span class="normal"><a href="#__codelineno-10-32">32</a></span>
-<span class="normal"><a href="#__codelineno-10-33">33</a></span>
-<span class="normal"><a href="#__codelineno-10-34">34</a></span>
-<span class="normal"><a href="#__codelineno-10-35">35</a></span>
-<span class="normal"><a href="#__codelineno-10-36">36</a></span>
-<span class="normal"><a href="#__codelineno-10-37">37</a></span>
-<span class="normal"><a href="#__codelineno-10-38">38</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1"></a><span class="c1"># Redis Streams output with live parameter updates, in YAML.</span>
-</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2"></a><span class="c1">#</span>
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3"></a><span class="c1"># The YAML version of redis_example.py, which --api builder downloads: a simulation that records</span>
-</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4"></a><span class="c1"># each order as it is placed. Each order spawns record_order, a task with no service</span>
-</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5"></a><span class="c1"># or resource, which publishes its payload at once. RedisEgress writes it to the</span>
-</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6"></a><span class="c1"># order_events stream that the __stream__ key names, while RedisIngress subscribes to</span>
-</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7"></a><span class="c1"># the simulation_params channel.</span>
-</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8"></a><span class="c1">#</span>
-</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9"></a><span class="c1"># Needs Valkey: odctl up valkey. Runs until interrupted with Ctrl + C.</span>
-</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10"></a><span class="c1"># Run it from its folder with: desflow run redis.yaml</span>
-</span><span id="__span-10-11"><a id="__codelineno-10-11" name="__codelineno-10-11"></a>
-</span><span id="__span-10-12"><a id="__codelineno-10-12" name="__codelineno-10-12"></a><span class="nt">simulation</span><span class="p">:</span>
-</span><span id="__span-10-13"><a id="__codelineno-10-13" name="__codelineno-10-13"></a><span class="w">  </span><span class="nt">sim_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Shop</span>
-</span><span id="__span-10-14"><a id="__codelineno-10-14" name="__codelineno-10-14"></a><span class="w">  </span><span class="nt">factor</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
-</span><span id="__span-10-15"><a id="__codelineno-10-15" name="__codelineno-10-15"></a><span class="w">  </span><span class="nt">random_seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span>
-</span><span id="__span-10-16"><a id="__codelineno-10-16" name="__codelineno-10-16"></a>
-</span><span id="__span-10-17"><a id="__codelineno-10-17" name="__codelineno-10-17"></a><span class="nt">ingress</span><span class="p">:</span>
-</span><span id="__span-10-18"><a id="__codelineno-10-18" name="__codelineno-10-18"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Redis</span>
-</span><span id="__span-10-19"><a id="__codelineno-10-19" name="__codelineno-10-19"></a><span class="w">    </span><span class="nt">config</span><span class="p">:</span>
-</span><span id="__span-10-20"><a id="__codelineno-10-20" name="__codelineno-10-20"></a><span class="w">      </span><span class="c1"># The odctl valkey profile disables the unauthenticated default user, so the</span>
-</span><span id="__span-10-21"><a id="__codelineno-10-21" name="__codelineno-10-21"></a><span class="w">      </span><span class="c1"># URL carries credentials.</span>
-</span><span id="__span-10-22"><a id="__codelineno-10-22" name="__codelineno-10-22"></a><span class="w">      </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">redis://user:password@127.0.0.1:6379/0</span>
-</span><span id="__span-10-23"><a id="__codelineno-10-23" name="__codelineno-10-23"></a><span class="w">      </span><span class="nt">channel_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">simulation_params</span>
-</span><span id="__span-10-24"><a id="__codelineno-10-24" name="__codelineno-10-24"></a>
-</span><span id="__span-10-25"><a id="__codelineno-10-25" name="__codelineno-10-25"></a><span class="nt">egress</span><span class="p">:</span>
-</span><span id="__span-10-26"><a id="__codelineno-10-26" name="__codelineno-10-26"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Redis</span>
-</span><span id="__span-10-27"><a id="__codelineno-10-27" name="__codelineno-10-27"></a><span class="w">    </span><span class="nt">config</span><span class="p">:</span>
-</span><span id="__span-10-28"><a id="__codelineno-10-28" name="__codelineno-10-28"></a><span class="w">      </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">redis://user:password@127.0.0.1:6379/0</span>
-</span><span id="__span-10-29"><a id="__codelineno-10-29" name="__codelineno-10-29"></a><span class="w">      </span><span class="nt">stream_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">events</span>
-</span><span id="__span-10-30"><a id="__codelineno-10-30" name="__codelineno-10-30"></a>
-</span><span id="__span-10-31"><a id="__codelineno-10-31" name="__codelineno-10-31"></a><span class="nt">arrivals</span><span class="p">:</span>
-</span><span id="__span-10-32"><a id="__codelineno-10-32" name="__codelineno-10-32"></a><span class="w">  </span><span class="nt">orders</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">dist</span><span class="p">:</span><span class="w"> </span><span class="nv">exponential</span><span class="p p-Indicator">,</span><span class="nt"> rate</span><span class="p">:</span><span class="w"> </span><span class="nv">2.0</span><span class="p p-Indicator">,</span><span class="nt"> spawn</span><span class="p">:</span><span class="w"> </span><span class="nv">record_order</span><span class="p p-Indicator">}</span>
-</span><span id="__span-10-33"><a id="__codelineno-10-33" name="__codelineno-10-33"></a>
-</span><span id="__span-10-34"><a id="__codelineno-10-34" name="__codelineno-10-34"></a><span class="nt">tasks</span><span class="p">:</span>
-</span><span id="__span-10-35"><a id="__codelineno-10-35" name="__codelineno-10-35"></a><span class="w">  </span><span class="nt">record_order</span><span class="p">:</span>
-</span><span id="__span-10-36"><a id="__codelineno-10-36" name="__codelineno-10-36"></a><span class="w">    </span><span class="c1"># id_field adds the task id as order_id.</span>
-</span><span id="__span-10-37"><a id="__codelineno-10-37" name="__codelineno-10-37"></a><span class="w">    </span><span class="nt">payload</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">__stream__</span><span class="p">:</span><span class="w"> </span><span class="nv">order_events</span><span class="p p-Indicator">,</span><span class="nt"> channel</span><span class="p">:</span><span class="w"> </span><span class="nv">web</span><span class="p p-Indicator">,</span><span class="nt"> status</span><span class="p">:</span><span class="w"> </span><span class="nv">placed</span><span class="p p-Indicator">}</span>
-</span><span id="__span-10-38"><a id="__codelineno-10-38" name="__codelineno-10-38"></a><span class="w">    </span><span class="nt">id_field</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order_id</span>
-</span></code></pre></div></td></tr></table></div>
-</div>
-<div class="tabbed-block">
-<p>Scripts live in the <a href="https://github.com/jaehyeon-kim/desflow/tree/v0.28.0/examples"><code>examples/</code> folder</a> of the repository, and the label on the block below is this one's path there.</p>
-<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">examples/builder/redis_example.py</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-11-1"> 1</a></span>
-<span class="normal"><a href="#__codelineno-11-2"> 2</a></span>
-<span class="normal"><a href="#__codelineno-11-3"> 3</a></span>
-<span class="normal"><a href="#__codelineno-11-4"> 4</a></span>
-<span class="normal"><a href="#__codelineno-11-5"> 5</a></span>
-<span class="normal"><a href="#__codelineno-11-6"> 6</a></span>
-<span class="normal"><a href="#__codelineno-11-7"> 7</a></span>
-<span class="normal"><a href="#__codelineno-11-8"> 8</a></span>
-<span class="normal"><a href="#__codelineno-11-9"> 9</a></span>
-<span class="normal"><a href="#__codelineno-11-10">10</a></span>
-<span class="normal"><a href="#__codelineno-11-11">11</a></span>
-<span class="normal"><a href="#__codelineno-11-12">12</a></span>
-<span class="normal"><a href="#__codelineno-11-13">13</a></span>
-<span class="normal"><a href="#__codelineno-11-14">14</a></span>
-<span class="normal"><a href="#__codelineno-11-15">15</a></span>
-<span class="normal"><a href="#__codelineno-11-16">16</a></span>
-<span class="normal"><a href="#__codelineno-11-17">17</a></span>
-<span class="normal"><a href="#__codelineno-11-18">18</a></span>
-<span class="normal"><a href="#__codelineno-11-19">19</a></span>
-<span class="normal"><a href="#__codelineno-11-20">20</a></span>
-<span class="normal"><a href="#__codelineno-11-21">21</a></span>
-<span class="normal"><a href="#__codelineno-11-22">22</a></span>
-<span class="normal"><a href="#__codelineno-11-23">23</a></span>
-<span class="normal"><a href="#__codelineno-11-24">24</a></span>
-<span class="normal"><a href="#__codelineno-11-25">25</a></span>
-<span class="normal"><a href="#__codelineno-11-26">26</a></span>
-<span class="normal"><a href="#__codelineno-11-27">27</a></span>
-<span class="normal"><a href="#__codelineno-11-28">28</a></span>
-<span class="normal"><a href="#__codelineno-11-29">29</a></span>
-<span class="normal"><a href="#__codelineno-11-30">30</a></span>
-<span class="normal"><a href="#__codelineno-11-31">31</a></span>
-<span class="normal"><a href="#__codelineno-11-32">32</a></span>
-<span class="normal"><a href="#__codelineno-11-33">33</a></span>
-<span class="normal"><a href="#__codelineno-11-34">34</a></span>
-<span class="normal"><a href="#__codelineno-11-35">35</a></span>
-<span class="normal"><a href="#__codelineno-11-36">36</a></span>
-<span class="normal"><a href="#__codelineno-11-37">37</a></span>
-<span class="normal"><a href="#__codelineno-11-38">38</a></span>
-<span class="normal"><a href="#__codelineno-11-39">39</a></span>
-<span class="normal"><a href="#__codelineno-11-40">40</a></span>
-<span class="normal"><a href="#__codelineno-11-41">41</a></span>
-<span class="normal"><a href="#__codelineno-11-42">42</a></span>
-<span class="normal"><a href="#__codelineno-11-43">43</a></span>
-<span class="normal"><a href="#__codelineno-11-44">44</a></span>
-<span class="normal"><a href="#__codelineno-11-45">45</a></span>
-<span class="normal"><a href="#__codelineno-11-46">46</a></span>
-<span class="normal"><a href="#__codelineno-11-47">47</a></span>
-<span class="normal"><a href="#__codelineno-11-48">48</a></span>
-<span class="normal"><a href="#__codelineno-11-49">49</a></span>
-<span class="normal"><a href="#__codelineno-11-50">50</a></span>
-<span class="normal"><a href="#__codelineno-11-51">51</a></span>
-<span class="normal"><a href="#__codelineno-11-52">52</a></span>
-<span class="normal"><a href="#__codelineno-11-53">53</a></span>
-<span class="normal"><a href="#__codelineno-11-54">54</a></span>
-<span class="normal"><a href="#__codelineno-11-55">55</a></span>
-<span class="normal"><a href="#__codelineno-11-56">56</a></span>
-<span class="normal"><a href="#__codelineno-11-57">57</a></span>
-<span class="normal"><a href="#__codelineno-11-58">58</a></span>
-<span class="normal"><a href="#__codelineno-11-59">59</a></span>
-<span class="normal"><a href="#__codelineno-11-60">60</a></span>
-<span class="normal"><a href="#__codelineno-11-61">61</a></span>
-<span class="normal"><a href="#__codelineno-11-62">62</a></span>
-<span class="normal"><a href="#__codelineno-11-63">63</a></span>
-<span class="normal"><a href="#__codelineno-11-64">64</a></span>
-<span class="normal"><a href="#__codelineno-11-65">65</a></span>
-<span class="normal"><a href="#__codelineno-11-66">66</a></span>
-<span class="normal"><a href="#__codelineno-11-67">67</a></span>
-<span class="normal"><a href="#__codelineno-11-68">68</a></span>
-<span class="normal"><a href="#__codelineno-11-69">69</a></span>
-<span class="normal"><a href="#__codelineno-11-70">70</a></span>
-<span class="normal"><a href="#__codelineno-11-71">71</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1"></a><span class="sd">"""Redis Streams output with live parameter updates, builder API.</span>
-</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2"></a>
-</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3"></a><span class="sd">The simulation records each order as it is placed. `RedisEgress` writes the</span>
-</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4"></a><span class="sd">records to the `order_events` Redis Stream, named by each record's `__stream__` key,</span>
-</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5"></a><span class="sd">while `RedisIngress` subscribes to the `simulation_params` channel, so publishing a</span>
-</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6"></a><span class="sd">message to that channel changes the arrival rate of a running simulation.</span>
-</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7"></a>
-</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8"></a><span class="sd">Needs Valkey: `odctl up valkey`. Runs until interrupted with Ctrl + C.</span>
-</span><span id="__span-11-9"><a id="__codelineno-11-9" name="__codelineno-11-9"></a><span class="sd">Set EXAMPLE_UNTIL to a number of simulation seconds to end the run at that time instead.</span>
-</span><span id="__span-11-10"><a id="__codelineno-11-10" name="__codelineno-11-10"></a><span class="sd">"""</span>
-</span><span id="__span-11-11"><a id="__codelineno-11-11" name="__codelineno-11-11"></a>
-</span><span id="__span-11-12"><a id="__codelineno-11-12" name="__codelineno-11-12"></a><span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
-</span><span id="__span-11-13"><a id="__codelineno-11-13" name="__codelineno-11-13"></a><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
-</span><span id="__span-11-14"><a id="__codelineno-11-14" name="__codelineno-11-14"></a>
-</span><span id="__span-11-15"><a id="__codelineno-11-15" name="__codelineno-11-15"></a><span class="kn">from</span><span class="w"> </span><span class="nn">desflow</span><span class="w"> </span><span class="kn">import</span> <span class="n">RedisEgress</span><span class="p">,</span> <span class="n">RedisIngress</span><span class="p">,</span> <span class="n">SimulationContext</span>
-</span><span id="__span-11-16"><a id="__codelineno-11-16" name="__codelineno-11-16"></a>
-</span><span id="__span-11-17"><a id="__codelineno-11-17" name="__codelineno-11-17"></a><span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
-</span><span id="__span-11-18"><a id="__codelineno-11-18" name="__codelineno-11-18"></a>
-</span><span id="__span-11-19"><a id="__codelineno-11-19" name="__codelineno-11-19"></a><span class="c1"># The odctl `valkey` profile disables the unauthenticated default user, so the</span>
-</span><span id="__span-11-20"><a id="__codelineno-11-20" name="__codelineno-11-20"></a><span class="c1"># URL carries credentials. A plain Redis without auth takes redis://127.0.0.1:6379/0.</span>
-</span><span id="__span-11-21"><a id="__codelineno-11-21" name="__codelineno-11-21"></a><span class="n">REDIS_URL</span> <span class="o">=</span> <span class="s2">"redis://user:password@127.0.0.1:6379/0"</span>
-</span><span id="__span-11-22"><a id="__codelineno-11-22" name="__codelineno-11-22"></a>
-</span><span id="__span-11-23"><a id="__codelineno-11-23" name="__codelineno-11-23"></a><span class="n">app</span> <span class="o">=</span> <span class="p">(</span>
-</span><span id="__span-11-24"><a id="__codelineno-11-24" name="__codelineno-11-24"></a>    <span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_id</span><span class="o">=</span><span class="s2">"Shop"</span><span class="p">,</span> <span class="n">factor</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">random_seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
-</span><span id="__span-11-25"><a id="__codelineno-11-25" name="__codelineno-11-25"></a>    <span class="o">.</span><span class="n">add_ingress</span><span class="p">(</span><span class="n">RedisIngress</span><span class="p">(</span><span class="n">REDIS_URL</span><span class="p">,</span> <span class="n">channel_name</span><span class="o">=</span><span class="s2">"simulation_params"</span><span class="p">))</span>
-</span><span id="__span-11-26"><a id="__codelineno-11-26" name="__codelineno-11-26"></a>    <span class="o">.</span><span class="n">add_egress</span><span class="p">(</span><span class="n">RedisEgress</span><span class="p">(</span><span class="n">REDIS_URL</span><span class="p">,</span> <span class="n">stream_name</span><span class="o">=</span><span class="s2">"events"</span><span class="p">))</span>
-</span><span id="__span-11-27"><a id="__codelineno-11-27" name="__codelineno-11-27"></a>    <span class="o">.</span><span class="n">add_arrival</span><span class="p">(</span><span class="s2">"orders"</span><span class="p">,</span> <span class="n">dist</span><span class="o">=</span><span class="s2">"exponential"</span><span class="p">,</span> <span class="n">rate</span><span class="o">=</span><span class="mf">2.0</span><span class="p">)</span>
-</span><span id="__span-11-28"><a id="__codelineno-11-28" name="__codelineno-11-28"></a><span class="p">)</span>
-</span><span id="__span-11-29"><a id="__codelineno-11-29" name="__codelineno-11-29"></a>
-</span><span id="__span-11-30"><a id="__codelineno-11-30" name="__codelineno-11-30"></a>
-</span><span id="__span-11-31"><a id="__codelineno-11-31" name="__codelineno-11-31"></a><span class="nd">@app</span><span class="o">.</span><span class="n">task</span><span class="p">()</span>
-</span><span id="__span-11-32"><a id="__codelineno-11-32" name="__codelineno-11-32"></a><span class="k">def</span><span class="w"> </span><span class="nf">record_order</span><span class="p">(</span><span class="n">task_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">context</span><span class="p">):</span>
-</span><span id="__span-11-33"><a id="__codelineno-11-33" name="__codelineno-11-33"></a><span class="w">    </span><span class="sd">"""A task with no service or resource: its payload is published at once."""</span>
-</span><span id="__span-11-34"><a id="__codelineno-11-34" name="__codelineno-11-34"></a>    <span class="k">return</span> <span class="p">{</span>
-</span><span id="__span-11-35"><a id="__codelineno-11-35" name="__codelineno-11-35"></a>        <span class="s2">"__stream__"</span><span class="p">:</span> <span class="s2">"order_events"</span><span class="p">,</span>
-</span><span id="__span-11-36"><a id="__codelineno-11-36" name="__codelineno-11-36"></a>        <span class="s2">"order_id"</span><span class="p">:</span> <span class="n">task_id</span><span class="p">,</span>
-</span><span id="__span-11-37"><a id="__codelineno-11-37" name="__codelineno-11-37"></a>        <span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"web"</span><span class="p">,</span>
-</span><span id="__span-11-38"><a id="__codelineno-11-38" name="__codelineno-11-38"></a>        <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"placed"</span><span class="p">,</span>
-</span><span id="__span-11-39"><a id="__codelineno-11-39" name="__codelineno-11-39"></a>    <span class="p">}</span>
-</span><span id="__span-11-40"><a id="__codelineno-11-40" name="__codelineno-11-40"></a>
-</span><span id="__span-11-41"><a id="__codelineno-11-41" name="__codelineno-11-41"></a>
-</span><span id="__span-11-42"><a id="__codelineno-11-42" name="__codelineno-11-42"></a><span class="nd">@app</span><span class="o">.</span><span class="n">arrival_loop</span><span class="p">(</span><span class="s2">"orders"</span><span class="p">)</span>
-</span><span id="__span-11-43"><a id="__codelineno-11-43" name="__codelineno-11-43"></a><span class="k">def</span><span class="w"> </span><span class="nf">order_generator</span><span class="p">(</span><span class="n">context</span><span class="p">):</span>
-</span><span id="__span-11-44"><a id="__codelineno-11-44" name="__codelineno-11-44"></a>    <span class="n">task_id</span> <span class="o">=</span> <span class="mi">0</span>
-</span><span id="__span-11-45"><a id="__codelineno-11-45" name="__codelineno-11-45"></a>    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
-</span><span id="__span-11-46"><a id="__codelineno-11-46" name="__codelineno-11-46"></a>        <span class="n">entity</span> <span class="o">=</span> <span class="k">yield</span> <span class="n">context</span><span class="o">.</span><span class="n">wait_for_arrival</span><span class="p">(</span><span class="s2">"orders"</span><span class="p">)</span>
-</span><span id="__span-11-47"><a id="__codelineno-11-47" name="__codelineno-11-47"></a>        <span class="n">context</span><span class="o">.</span><span class="n">spawn</span><span class="p">(</span><span class="n">record_order</span><span class="p">(</span><span class="n">task_id</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">entity</span><span class="o">=</span><span class="n">entity</span><span class="p">))</span>
-</span><span id="__span-11-48"><a id="__codelineno-11-48" name="__codelineno-11-48"></a>        <span class="n">task_id</span> <span class="o">+=</span> <span class="mi">1</span>
-</span><span id="__span-11-49"><a id="__codelineno-11-49" name="__codelineno-11-49"></a>
-</span><span id="__span-11-50"><a id="__codelineno-11-50" name="__codelineno-11-50"></a>
-</span><span id="__span-11-51"><a id="__codelineno-11-51" name="__codelineno-11-51"></a><span class="c1"># The simulation time, in seconds, at which the run ends.</span>
-</span><span id="__span-11-52"><a id="__codelineno-11-52" name="__codelineno-11-52"></a><span class="c1"># When EXAMPLE_UNTIL is not set, the run goes on until Ctrl + C.</span>
-</span><span id="__span-11-53"><a id="__codelineno-11-53" name="__codelineno-11-53"></a><span class="n">EXAMPLE_UNTIL</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s2">"EXAMPLE_UNTIL"</span><span class="p">)</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">or</span> <span class="kc">None</span>
-</span><span id="__span-11-54"><a id="__codelineno-11-54" name="__codelineno-11-54"></a>
-</span><span id="__span-11-55"><a id="__codelineno-11-55" name="__codelineno-11-55"></a>
-</span><span id="__span-11-56"><a id="__codelineno-11-56" name="__codelineno-11-56"></a><span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">():</span>
-</span><span id="__span-11-57"><a id="__codelineno-11-57" name="__codelineno-11-57"></a>    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Starting Builder Redis Demo. Press Ctrl+C to stop..."</span><span class="p">)</span>
-</span><span id="__span-11-58"><a id="__codelineno-11-58" name="__codelineno-11-58"></a>    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
-</span><span id="__span-11-59"><a id="__codelineno-11-59" name="__codelineno-11-59"></a>        <span class="s2">"Test Ingress by running: docker exec -it valkey valkey-cli --user user "</span>
-</span><span id="__span-11-60"><a id="__codelineno-11-60" name="__codelineno-11-60"></a>        <span class="s2">"--pass password PUBLISH simulation_params "</span>
-</span><span id="__span-11-61"><a id="__codelineno-11-61" name="__codelineno-11-61"></a>        <span class="s1">'</span><span class="se">\'</span><span class="s1">{"path": "Shop.arrival.orders.rate", "value": 10.0}</span><span class="se">\'</span><span class="s1">'</span>
-</span><span id="__span-11-62"><a id="__codelineno-11-62" name="__codelineno-11-62"></a>    <span class="p">)</span>
-</span><span id="__span-11-63"><a id="__codelineno-11-63" name="__codelineno-11-63"></a>    <span class="k">try</span><span class="p">:</span>
-</span><span id="__span-11-64"><a id="__codelineno-11-64" name="__codelineno-11-64"></a>        <span class="n">app</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">until</span><span class="o">=</span><span class="n">EXAMPLE_UNTIL</span><span class="p">)</span>
-</span><span id="__span-11-65"><a id="__codelineno-11-65" name="__codelineno-11-65"></a>    <span class="k">except</span> <span class="ne">KeyboardInterrupt</span><span class="p">:</span>
-</span><span id="__span-11-66"><a id="__codelineno-11-66" name="__codelineno-11-66"></a>        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Simulation interrupted by user."</span><span class="p">)</span>
-</span><span id="__span-11-67"><a id="__codelineno-11-67" name="__codelineno-11-67"></a>
-</span><span id="__span-11-68"><a id="__codelineno-11-68" name="__codelineno-11-68"></a>
-</span><span id="__span-11-69"><a id="__codelineno-11-69" name="__codelineno-11-69"></a><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
-</span><span id="__span-11-70"><a id="__codelineno-11-70" name="__codelineno-11-70"></a>    <span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span><span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">)</span>
-</span><span id="__span-11-71"><a id="__codelineno-11-71" name="__codelineno-11-71"></a>    <span class="n">run</span><span class="p">()</span>
-</span></code></pre></div></td></tr></table></div>
-</div>
-<div class="tabbed-block">
-<p>Scripts live in the <a href="https://github.com/jaehyeon-kim/desflow/tree/v0.28.0/examples"><code>examples/</code> folder</a> of the repository, and the label on the block below is this one's path there.</p>
-<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">examples/low-level/redis_example.py</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-12-1"> 1</a></span>
+<div class="language-yaml highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">examples/yaml/redis.yaml</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-12-1"> 1</a></span>
 <span class="normal"><a href="#__codelineno-12-2"> 2</a></span>
 <span class="normal"><a href="#__codelineno-12-3"> 3</a></span>
 <span class="normal"><a href="#__codelineno-12-4"> 4</a></span>
@@ -6012,144 +5760,368 @@
 <span class="normal"><a href="#__codelineno-12-35">35</a></span>
 <span class="normal"><a href="#__codelineno-12-36">36</a></span>
 <span class="normal"><a href="#__codelineno-12-37">37</a></span>
-<span class="normal"><a href="#__codelineno-12-38">38</a></span>
-<span class="normal"><a href="#__codelineno-12-39">39</a></span>
-<span class="normal"><a href="#__codelineno-12-40">40</a></span>
-<span class="normal"><a href="#__codelineno-12-41">41</a></span>
-<span class="normal"><a href="#__codelineno-12-42">42</a></span>
-<span class="normal"><a href="#__codelineno-12-43">43</a></span>
-<span class="normal"><a href="#__codelineno-12-44">44</a></span>
-<span class="normal"><a href="#__codelineno-12-45">45</a></span>
-<span class="normal"><a href="#__codelineno-12-46">46</a></span>
-<span class="normal"><a href="#__codelineno-12-47">47</a></span>
-<span class="normal"><a href="#__codelineno-12-48">48</a></span>
-<span class="normal"><a href="#__codelineno-12-49">49</a></span>
-<span class="normal"><a href="#__codelineno-12-50">50</a></span>
-<span class="normal"><a href="#__codelineno-12-51">51</a></span>
-<span class="normal"><a href="#__codelineno-12-52">52</a></span>
-<span class="normal"><a href="#__codelineno-12-53">53</a></span>
-<span class="normal"><a href="#__codelineno-12-54">54</a></span>
-<span class="normal"><a href="#__codelineno-12-55">55</a></span>
-<span class="normal"><a href="#__codelineno-12-56">56</a></span>
-<span class="normal"><a href="#__codelineno-12-57">57</a></span>
-<span class="normal"><a href="#__codelineno-12-58">58</a></span>
-<span class="normal"><a href="#__codelineno-12-59">59</a></span>
-<span class="normal"><a href="#__codelineno-12-60">60</a></span>
-<span class="normal"><a href="#__codelineno-12-61">61</a></span>
-<span class="normal"><a href="#__codelineno-12-62">62</a></span>
-<span class="normal"><a href="#__codelineno-12-63">63</a></span>
-<span class="normal"><a href="#__codelineno-12-64">64</a></span>
-<span class="normal"><a href="#__codelineno-12-65">65</a></span>
-<span class="normal"><a href="#__codelineno-12-66">66</a></span>
-<span class="normal"><a href="#__codelineno-12-67">67</a></span>
-<span class="normal"><a href="#__codelineno-12-68">68</a></span>
-<span class="normal"><a href="#__codelineno-12-69">69</a></span>
-<span class="normal"><a href="#__codelineno-12-70">70</a></span>
-<span class="normal"><a href="#__codelineno-12-71">71</a></span>
-<span class="normal"><a href="#__codelineno-12-72">72</a></span>
-<span class="normal"><a href="#__codelineno-12-73">73</a></span>
-<span class="normal"><a href="#__codelineno-12-74">74</a></span>
-<span class="normal"><a href="#__codelineno-12-75">75</a></span>
-<span class="normal"><a href="#__codelineno-12-76">76</a></span>
-<span class="normal"><a href="#__codelineno-12-77">77</a></span>
-<span class="normal"><a href="#__codelineno-12-78">78</a></span>
-<span class="normal"><a href="#__codelineno-12-79">79</a></span>
-<span class="normal"><a href="#__codelineno-12-80">80</a></span>
-<span class="normal"><a href="#__codelineno-12-81">81</a></span>
-<span class="normal"><a href="#__codelineno-12-82">82</a></span>
-<span class="normal"><a href="#__codelineno-12-83">83</a></span>
-<span class="normal"><a href="#__codelineno-12-84">84</a></span>
-<span class="normal"><a href="#__codelineno-12-85">85</a></span>
-<span class="normal"><a href="#__codelineno-12-86">86</a></span>
-<span class="normal"><a href="#__codelineno-12-87">87</a></span>
-<span class="normal"><a href="#__codelineno-12-88">88</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1"></a><span class="sd">"""Redis Streams output with live parameter updates, low-level API.</span>
-</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2"></a>
-</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3"></a><span class="sd">The low-level version of `builder/redis_example.py`. The simulation records each</span>
-</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4"></a><span class="sd">order as it is placed. `RedisEgress` writes the records to the `order_events` stream,</span>
-</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5"></a><span class="sd">named by each record's `__stream__` key, and `RedisIngress` subscribes to the</span>
-</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6"></a><span class="sd">`simulation_params` channel.</span>
-</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7"></a>
-</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8"></a><span class="sd">Needs Valkey: `odctl up valkey`. Runs until interrupted with Ctrl + C.</span>
-</span><span id="__span-12-9"><a id="__codelineno-12-9" name="__codelineno-12-9"></a><span class="sd">Set EXAMPLE_UNTIL to a number of simulation seconds to end the run at that time instead.</span>
-</span><span id="__span-12-10"><a id="__codelineno-12-10" name="__codelineno-12-10"></a><span class="sd">"""</span>
+<span class="normal"><a href="#__codelineno-12-38">38</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1"></a><span class="c1"># Redis Streams output with live parameter updates, in YAML.</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2"></a><span class="c1">#</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3"></a><span class="c1"># The YAML version of redis_example.py, which --api builder downloads: a simulation that records</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4"></a><span class="c1"># each order as it is placed. Each order spawns record_order, a task with no service</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5"></a><span class="c1"># or resource, which publishes its payload at once. RedisEgress writes it to the</span>
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6"></a><span class="c1"># order_events stream that the __stream__ key names, while RedisIngress subscribes to</span>
+</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7"></a><span class="c1"># the simulation_params channel.</span>
+</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8"></a><span class="c1">#</span>
+</span><span id="__span-12-9"><a id="__codelineno-12-9" name="__codelineno-12-9"></a><span class="c1"># Needs Valkey: odctl up valkey. Runs until interrupted with Ctrl + C.</span>
+</span><span id="__span-12-10"><a id="__codelineno-12-10" name="__codelineno-12-10"></a><span class="c1"># Run it from its folder with: desflow run redis.yaml</span>
 </span><span id="__span-12-11"><a id="__codelineno-12-11" name="__codelineno-12-11"></a>
-</span><span id="__span-12-12"><a id="__codelineno-12-12" name="__codelineno-12-12"></a><span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
-</span><span id="__span-12-13"><a id="__codelineno-12-13" name="__codelineno-12-13"></a><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
-</span><span id="__span-12-14"><a id="__codelineno-12-14" name="__codelineno-12-14"></a>
-</span><span id="__span-12-15"><a id="__codelineno-12-15" name="__codelineno-12-15"></a><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+</span><span id="__span-12-12"><a id="__codelineno-12-12" name="__codelineno-12-12"></a><span class="nt">simulation</span><span class="p">:</span>
+</span><span id="__span-12-13"><a id="__codelineno-12-13" name="__codelineno-12-13"></a><span class="w">  </span><span class="nt">sim_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Shop</span>
+</span><span id="__span-12-14"><a id="__codelineno-12-14" name="__codelineno-12-14"></a><span class="w">  </span><span class="nt">factor</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+</span><span id="__span-12-15"><a id="__codelineno-12-15" name="__codelineno-12-15"></a><span class="w">  </span><span class="nt">random_seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span>
 </span><span id="__span-12-16"><a id="__codelineno-12-16" name="__codelineno-12-16"></a>
-</span><span id="__span-12-17"><a id="__codelineno-12-17" name="__codelineno-12-17"></a><span class="kn">from</span><span class="w"> </span><span class="nn">desflow</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
-</span><span id="__span-12-18"><a id="__codelineno-12-18" name="__codelineno-12-18"></a>    <span class="n">DistributionConfig</span><span class="p">,</span>
-</span><span id="__span-12-19"><a id="__codelineno-12-19" name="__codelineno-12-19"></a>    <span class="n">DynamicRealtimeEnvironment</span><span class="p">,</span>
-</span><span id="__span-12-20"><a id="__codelineno-12-20" name="__codelineno-12-20"></a>    <span class="n">RedisEgress</span><span class="p">,</span>
-</span><span id="__span-12-21"><a id="__codelineno-12-21" name="__codelineno-12-21"></a>    <span class="n">RedisIngress</span><span class="p">,</span>
-</span><span id="__span-12-22"><a id="__codelineno-12-22" name="__codelineno-12-22"></a>    <span class="n">Sampler</span><span class="p">,</span>
-</span><span id="__span-12-23"><a id="__codelineno-12-23" name="__codelineno-12-23"></a>    <span class="n">SimParameter</span><span class="p">,</span>
-</span><span id="__span-12-24"><a id="__codelineno-12-24" name="__codelineno-12-24"></a><span class="p">)</span>
-</span><span id="__span-12-25"><a id="__codelineno-12-25" name="__codelineno-12-25"></a>
-</span><span id="__span-12-26"><a id="__codelineno-12-26" name="__codelineno-12-26"></a><span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">"redis_example"</span><span class="p">)</span>
-</span><span id="__span-12-27"><a id="__codelineno-12-27" name="__codelineno-12-27"></a>
-</span><span id="__span-12-28"><a id="__codelineno-12-28" name="__codelineno-12-28"></a><span class="c1"># The odctl `valkey` profile disables the unauthenticated default user, so the</span>
-</span><span id="__span-12-29"><a id="__codelineno-12-29" name="__codelineno-12-29"></a><span class="c1"># URL carries credentials. A plain Redis without auth takes redis://127.0.0.1:6379/0.</span>
-</span><span id="__span-12-30"><a id="__codelineno-12-30" name="__codelineno-12-30"></a><span class="n">REDIS_URL</span> <span class="o">=</span> <span class="s2">"redis://user:password@127.0.0.1:6379/0"</span>
-</span><span id="__span-12-31"><a id="__codelineno-12-31" name="__codelineno-12-31"></a>
-</span><span id="__span-12-32"><a id="__codelineno-12-32" name="__codelineno-12-32"></a><span class="n">PARAMS</span> <span class="o">=</span> <span class="n">SimParameter</span><span class="p">(</span>
-</span><span id="__span-12-33"><a id="__codelineno-12-33" name="__codelineno-12-33"></a>    <span class="n">sim_id</span><span class="o">=</span><span class="s2">"Shop"</span><span class="p">,</span>
-</span><span id="__span-12-34"><a id="__codelineno-12-34" name="__codelineno-12-34"></a>    <span class="n">arrival</span><span class="o">=</span><span class="p">{</span><span class="s2">"orders"</span><span class="p">:</span> <span class="n">DistributionConfig</span><span class="p">(</span><span class="n">dist</span><span class="o">=</span><span class="s2">"exponential"</span><span class="p">,</span> <span class="n">rate</span><span class="o">=</span><span class="mf">2.0</span><span class="p">)},</span>
-</span><span id="__span-12-35"><a id="__codelineno-12-35" name="__codelineno-12-35"></a><span class="p">)</span>
-</span><span id="__span-12-36"><a id="__codelineno-12-36" name="__codelineno-12-36"></a>
-</span><span id="__span-12-37"><a id="__codelineno-12-37" name="__codelineno-12-37"></a>
-</span><span id="__span-12-38"><a id="__codelineno-12-38" name="__codelineno-12-38"></a><span class="k">def</span><span class="w"> </span><span class="nf">order_generator</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">sampler</span><span class="p">):</span>
-</span><span id="__span-12-39"><a id="__codelineno-12-39" name="__codelineno-12-39"></a><span class="w">    </span><span class="sd">"""Publishes one record per order, as the builder's task with no service does."""</span>
-</span><span id="__span-12-40"><a id="__codelineno-12-40" name="__codelineno-12-40"></a>    <span class="n">gap</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">registry</span><span class="o">.</span><span class="n">get_config</span><span class="p">(</span><span class="s2">"Shop.arrival.orders"</span><span class="p">)</span>
-</span><span id="__span-12-41"><a id="__codelineno-12-41" name="__codelineno-12-41"></a>    <span class="n">task_id</span> <span class="o">=</span> <span class="mi">0</span>
-</span><span id="__span-12-42"><a id="__codelineno-12-42" name="__codelineno-12-42"></a>    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
-</span><span id="__span-12-43"><a id="__codelineno-12-43" name="__codelineno-12-43"></a>        <span class="k">yield</span> <span class="n">env</span><span class="o">.</span><span class="n">timeout</span><span class="p">(</span><span class="n">sampler</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">gap</span><span class="p">))</span>
-</span><span id="__span-12-44"><a id="__codelineno-12-44" name="__codelineno-12-44"></a>        <span class="n">order_event</span> <span class="o">=</span> <span class="p">{</span>
-</span><span id="__span-12-45"><a id="__codelineno-12-45" name="__codelineno-12-45"></a>            <span class="s2">"__stream__"</span><span class="p">:</span> <span class="s2">"order_events"</span><span class="p">,</span>
-</span><span id="__span-12-46"><a id="__codelineno-12-46" name="__codelineno-12-46"></a>            <span class="s2">"order_id"</span><span class="p">:</span> <span class="n">task_id</span><span class="p">,</span>
-</span><span id="__span-12-47"><a id="__codelineno-12-47" name="__codelineno-12-47"></a>            <span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"web"</span><span class="p">,</span>
-</span><span id="__span-12-48"><a id="__codelineno-12-48" name="__codelineno-12-48"></a>            <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"placed"</span><span class="p">,</span>
-</span><span id="__span-12-49"><a id="__codelineno-12-49" name="__codelineno-12-49"></a>        <span class="p">}</span>
-</span><span id="__span-12-50"><a id="__codelineno-12-50" name="__codelineno-12-50"></a>        <span class="c1"># The order key, and the task name and instance id the builder adds</span>
-</span><span id="__span-12-51"><a id="__codelineno-12-51" name="__codelineno-12-51"></a>        <span class="n">env</span><span class="o">.</span><span class="n">publish_event</span><span class="p">(</span>
-</span><span id="__span-12-52"><a id="__codelineno-12-52" name="__codelineno-12-52"></a>            <span class="sa">f</span><span class="s2">"orders-</span><span class="si">{</span><span class="n">task_id</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">order_event</span><span class="p">,</span> <span class="n">task</span><span class="o">=</span><span class="s2">"record_order"</span><span class="p">,</span> <span class="n">instance</span><span class="o">=</span><span class="n">task_id</span>
-</span><span id="__span-12-53"><a id="__codelineno-12-53" name="__codelineno-12-53"></a>        <span class="p">)</span>
-</span><span id="__span-12-54"><a id="__codelineno-12-54" name="__codelineno-12-54"></a>        <span class="n">task_id</span> <span class="o">+=</span> <span class="mi">1</span>
-</span><span id="__span-12-55"><a id="__codelineno-12-55" name="__codelineno-12-55"></a>
-</span><span id="__span-12-56"><a id="__codelineno-12-56" name="__codelineno-12-56"></a>
-</span><span id="__span-12-57"><a id="__codelineno-12-57" name="__codelineno-12-57"></a><span class="c1"># The simulation time, in seconds, at which the run ends.</span>
-</span><span id="__span-12-58"><a id="__codelineno-12-58" name="__codelineno-12-58"></a><span class="c1"># When EXAMPLE_UNTIL is not set, the run goes on until Ctrl + C.</span>
-</span><span id="__span-12-59"><a id="__codelineno-12-59" name="__codelineno-12-59"></a><span class="n">EXAMPLE_UNTIL</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s2">"EXAMPLE_UNTIL"</span><span class="p">)</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">or</span> <span class="kc">None</span>
-</span><span id="__span-12-60"><a id="__codelineno-12-60" name="__codelineno-12-60"></a>
-</span><span id="__span-12-61"><a id="__codelineno-12-61" name="__codelineno-12-61"></a>
-</span><span id="__span-12-62"><a id="__codelineno-12-62" name="__codelineno-12-62"></a><span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">():</span>
-</span><span id="__span-12-63"><a id="__codelineno-12-63" name="__codelineno-12-63"></a>    <span class="n">env</span> <span class="o">=</span> <span class="n">DynamicRealtimeEnvironment</span><span class="p">(</span><span class="n">factor</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-</span><span id="__span-12-64"><a id="__codelineno-12-64" name="__codelineno-12-64"></a>    <span class="n">env</span><span class="o">.</span><span class="n">registry</span><span class="o">.</span><span class="n">register_sim_parameter</span><span class="p">(</span><span class="n">PARAMS</span><span class="p">)</span>
-</span><span id="__span-12-65"><a id="__codelineno-12-65" name="__codelineno-12-65"></a>    <span class="n">env</span><span class="o">.</span><span class="n">setup_egress</span><span class="p">([</span><span class="n">RedisEgress</span><span class="p">(</span><span class="n">REDIS_URL</span><span class="p">,</span> <span class="n">stream_name</span><span class="o">=</span><span class="s2">"events"</span><span class="p">)])</span>
-</span><span id="__span-12-66"><a id="__codelineno-12-66" name="__codelineno-12-66"></a>    <span class="n">env</span><span class="o">.</span><span class="n">setup_ingress</span><span class="p">([</span><span class="n">RedisIngress</span><span class="p">(</span><span class="n">REDIS_URL</span><span class="p">,</span> <span class="n">channel_name</span><span class="o">=</span><span class="s2">"simulation_params"</span><span class="p">)])</span>
-</span><span id="__span-12-67"><a id="__codelineno-12-67" name="__codelineno-12-67"></a>
-</span><span id="__span-12-68"><a id="__codelineno-12-68" name="__codelineno-12-68"></a>    <span class="n">sampler</span> <span class="o">=</span> <span class="n">Sampler</span><span class="p">(</span><span class="n">rng</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="mi">42</span><span class="p">))</span>
-</span><span id="__span-12-69"><a id="__codelineno-12-69" name="__codelineno-12-69"></a>    <span class="n">env</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">order_generator</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">sampler</span><span class="p">))</span>
-</span><span id="__span-12-70"><a id="__codelineno-12-70" name="__codelineno-12-70"></a>
-</span><span id="__span-12-71"><a id="__codelineno-12-71" name="__codelineno-12-71"></a>    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Starting Low-level Redis Demo. Press Ctrl+C to stop..."</span><span class="p">)</span>
-</span><span id="__span-12-72"><a id="__codelineno-12-72" name="__codelineno-12-72"></a>    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
-</span><span id="__span-12-73"><a id="__codelineno-12-73" name="__codelineno-12-73"></a>        <span class="s2">"Test Ingress by running: docker exec -it valkey valkey-cli --user user "</span>
-</span><span id="__span-12-74"><a id="__codelineno-12-74" name="__codelineno-12-74"></a>        <span class="s2">"--pass password PUBLISH simulation_params "</span>
-</span><span id="__span-12-75"><a id="__codelineno-12-75" name="__codelineno-12-75"></a>        <span class="s1">'</span><span class="se">\'</span><span class="s1">{"path": "Shop.arrival.orders.rate", "value": 10.0}</span><span class="se">\'</span><span class="s1">'</span>
-</span><span id="__span-12-76"><a id="__codelineno-12-76" name="__codelineno-12-76"></a>    <span class="p">)</span>
-</span><span id="__span-12-77"><a id="__codelineno-12-77" name="__codelineno-12-77"></a>
-</span><span id="__span-12-78"><a id="__codelineno-12-78" name="__codelineno-12-78"></a>    <span class="k">try</span><span class="p">:</span>
-</span><span id="__span-12-79"><a id="__codelineno-12-79" name="__codelineno-12-79"></a>        <span class="n">env</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">until</span><span class="o">=</span><span class="n">EXAMPLE_UNTIL</span><span class="p">)</span>
-</span><span id="__span-12-80"><a id="__codelineno-12-80" name="__codelineno-12-80"></a>    <span class="k">except</span> <span class="ne">KeyboardInterrupt</span><span class="p">:</span>
-</span><span id="__span-12-81"><a id="__codelineno-12-81" name="__codelineno-12-81"></a>        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Simulation interrupted by user."</span><span class="p">)</span>
-</span><span id="__span-12-82"><a id="__codelineno-12-82" name="__codelineno-12-82"></a>    <span class="k">finally</span><span class="p">:</span>
-</span><span id="__span-12-83"><a id="__codelineno-12-83" name="__codelineno-12-83"></a>        <span class="n">env</span><span class="o">.</span><span class="n">teardown</span><span class="p">()</span>
-</span><span id="__span-12-84"><a id="__codelineno-12-84" name="__codelineno-12-84"></a>
-</span><span id="__span-12-85"><a id="__codelineno-12-85" name="__codelineno-12-85"></a>
-</span><span id="__span-12-86"><a id="__codelineno-12-86" name="__codelineno-12-86"></a><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
-</span><span id="__span-12-87"><a id="__codelineno-12-87" name="__codelineno-12-87"></a>    <span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span><span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">)</span>
-</span><span id="__span-12-88"><a id="__codelineno-12-88" name="__codelineno-12-88"></a>    <span class="n">run</span><span class="p">()</span>
+</span><span id="__span-12-17"><a id="__codelineno-12-17" name="__codelineno-12-17"></a><span class="nt">ingress</span><span class="p">:</span>
+</span><span id="__span-12-18"><a id="__codelineno-12-18" name="__codelineno-12-18"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Redis</span>
+</span><span id="__span-12-19"><a id="__codelineno-12-19" name="__codelineno-12-19"></a><span class="w">    </span><span class="nt">config</span><span class="p">:</span>
+</span><span id="__span-12-20"><a id="__codelineno-12-20" name="__codelineno-12-20"></a><span class="w">      </span><span class="c1"># The odctl valkey profile disables the unauthenticated default user, so the</span>
+</span><span id="__span-12-21"><a id="__codelineno-12-21" name="__codelineno-12-21"></a><span class="w">      </span><span class="c1"># URL carries credentials.</span>
+</span><span id="__span-12-22"><a id="__codelineno-12-22" name="__codelineno-12-22"></a><span class="w">      </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">redis://user:password@127.0.0.1:6379/0</span>
+</span><span id="__span-12-23"><a id="__codelineno-12-23" name="__codelineno-12-23"></a><span class="w">      </span><span class="nt">channel_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">simulation_params</span>
+</span><span id="__span-12-24"><a id="__codelineno-12-24" name="__codelineno-12-24"></a>
+</span><span id="__span-12-25"><a id="__codelineno-12-25" name="__codelineno-12-25"></a><span class="nt">egress</span><span class="p">:</span>
+</span><span id="__span-12-26"><a id="__codelineno-12-26" name="__codelineno-12-26"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Redis</span>
+</span><span id="__span-12-27"><a id="__codelineno-12-27" name="__codelineno-12-27"></a><span class="w">    </span><span class="nt">config</span><span class="p">:</span>
+</span><span id="__span-12-28"><a id="__codelineno-12-28" name="__codelineno-12-28"></a><span class="w">      </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">redis://user:password@127.0.0.1:6379/0</span>
+</span><span id="__span-12-29"><a id="__codelineno-12-29" name="__codelineno-12-29"></a><span class="w">      </span><span class="nt">stream_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">events</span>
+</span><span id="__span-12-30"><a id="__codelineno-12-30" name="__codelineno-12-30"></a>
+</span><span id="__span-12-31"><a id="__codelineno-12-31" name="__codelineno-12-31"></a><span class="nt">arrivals</span><span class="p">:</span>
+</span><span id="__span-12-32"><a id="__codelineno-12-32" name="__codelineno-12-32"></a><span class="w">  </span><span class="nt">orders</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">dist</span><span class="p">:</span><span class="w"> </span><span class="nv">exponential</span><span class="p p-Indicator">,</span><span class="nt"> rate</span><span class="p">:</span><span class="w"> </span><span class="nv">2.0</span><span class="p p-Indicator">,</span><span class="nt"> spawn</span><span class="p">:</span><span class="w"> </span><span class="nv">record_order</span><span class="p p-Indicator">}</span>
+</span><span id="__span-12-33"><a id="__codelineno-12-33" name="__codelineno-12-33"></a>
+</span><span id="__span-12-34"><a id="__codelineno-12-34" name="__codelineno-12-34"></a><span class="nt">tasks</span><span class="p">:</span>
+</span><span id="__span-12-35"><a id="__codelineno-12-35" name="__codelineno-12-35"></a><span class="w">  </span><span class="nt">record_order</span><span class="p">:</span>
+</span><span id="__span-12-36"><a id="__codelineno-12-36" name="__codelineno-12-36"></a><span class="w">    </span><span class="c1"># id_field adds the task id as order_id.</span>
+</span><span id="__span-12-37"><a id="__codelineno-12-37" name="__codelineno-12-37"></a><span class="w">    </span><span class="nt">payload</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt">__stream__</span><span class="p">:</span><span class="w"> </span><span class="nv">order_events</span><span class="p p-Indicator">,</span><span class="nt"> channel</span><span class="p">:</span><span class="w"> </span><span class="nv">web</span><span class="p p-Indicator">,</span><span class="nt"> status</span><span class="p">:</span><span class="w"> </span><span class="nv">placed</span><span class="p p-Indicator">}</span>
+</span><span id="__span-12-38"><a id="__codelineno-12-38" name="__codelineno-12-38"></a><span class="w">    </span><span class="nt">id_field</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order_id</span>
+</span></code></pre></div></td></tr></table></div>
+</div>
+<div class="tabbed-block">
+<p>Scripts live in the <a href="https://github.com/jaehyeon-kim/desflow/tree/v0.28.0/examples"><code>examples/</code> folder</a> of the repository, and the label on the block below is this one's path there.</p>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">examples/builder/redis_example.py</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-13-1"> 1</a></span>
+<span class="normal"><a href="#__codelineno-13-2"> 2</a></span>
+<span class="normal"><a href="#__codelineno-13-3"> 3</a></span>
+<span class="normal"><a href="#__codelineno-13-4"> 4</a></span>
+<span class="normal"><a href="#__codelineno-13-5"> 5</a></span>
+<span class="normal"><a href="#__codelineno-13-6"> 6</a></span>
+<span class="normal"><a href="#__codelineno-13-7"> 7</a></span>
+<span class="normal"><a href="#__codelineno-13-8"> 8</a></span>
+<span class="normal"><a href="#__codelineno-13-9"> 9</a></span>
+<span class="normal"><a href="#__codelineno-13-10">10</a></span>
+<span class="normal"><a href="#__codelineno-13-11">11</a></span>
+<span class="normal"><a href="#__codelineno-13-12">12</a></span>
+<span class="normal"><a href="#__codelineno-13-13">13</a></span>
+<span class="normal"><a href="#__codelineno-13-14">14</a></span>
+<span class="normal"><a href="#__codelineno-13-15">15</a></span>
+<span class="normal"><a href="#__codelineno-13-16">16</a></span>
+<span class="normal"><a href="#__codelineno-13-17">17</a></span>
+<span class="normal"><a href="#__codelineno-13-18">18</a></span>
+<span class="normal"><a href="#__codelineno-13-19">19</a></span>
+<span class="normal"><a href="#__codelineno-13-20">20</a></span>
+<span class="normal"><a href="#__codelineno-13-21">21</a></span>
+<span class="normal"><a href="#__codelineno-13-22">22</a></span>
+<span class="normal"><a href="#__codelineno-13-23">23</a></span>
+<span class="normal"><a href="#__codelineno-13-24">24</a></span>
+<span class="normal"><a href="#__codelineno-13-25">25</a></span>
+<span class="normal"><a href="#__codelineno-13-26">26</a></span>
+<span class="normal"><a href="#__codelineno-13-27">27</a></span>
+<span class="normal"><a href="#__codelineno-13-28">28</a></span>
+<span class="normal"><a href="#__codelineno-13-29">29</a></span>
+<span class="normal"><a href="#__codelineno-13-30">30</a></span>
+<span class="normal"><a href="#__codelineno-13-31">31</a></span>
+<span class="normal"><a href="#__codelineno-13-32">32</a></span>
+<span class="normal"><a href="#__codelineno-13-33">33</a></span>
+<span class="normal"><a href="#__codelineno-13-34">34</a></span>
+<span class="normal"><a href="#__codelineno-13-35">35</a></span>
+<span class="normal"><a href="#__codelineno-13-36">36</a></span>
+<span class="normal"><a href="#__codelineno-13-37">37</a></span>
+<span class="normal"><a href="#__codelineno-13-38">38</a></span>
+<span class="normal"><a href="#__codelineno-13-39">39</a></span>
+<span class="normal"><a href="#__codelineno-13-40">40</a></span>
+<span class="normal"><a href="#__codelineno-13-41">41</a></span>
+<span class="normal"><a href="#__codelineno-13-42">42</a></span>
+<span class="normal"><a href="#__codelineno-13-43">43</a></span>
+<span class="normal"><a href="#__codelineno-13-44">44</a></span>
+<span class="normal"><a href="#__codelineno-13-45">45</a></span>
+<span class="normal"><a href="#__codelineno-13-46">46</a></span>
+<span class="normal"><a href="#__codelineno-13-47">47</a></span>
+<span class="normal"><a href="#__codelineno-13-48">48</a></span>
+<span class="normal"><a href="#__codelineno-13-49">49</a></span>
+<span class="normal"><a href="#__codelineno-13-50">50</a></span>
+<span class="normal"><a href="#__codelineno-13-51">51</a></span>
+<span class="normal"><a href="#__codelineno-13-52">52</a></span>
+<span class="normal"><a href="#__codelineno-13-53">53</a></span>
+<span class="normal"><a href="#__codelineno-13-54">54</a></span>
+<span class="normal"><a href="#__codelineno-13-55">55</a></span>
+<span class="normal"><a href="#__codelineno-13-56">56</a></span>
+<span class="normal"><a href="#__codelineno-13-57">57</a></span>
+<span class="normal"><a href="#__codelineno-13-58">58</a></span>
+<span class="normal"><a href="#__codelineno-13-59">59</a></span>
+<span class="normal"><a href="#__codelineno-13-60">60</a></span>
+<span class="normal"><a href="#__codelineno-13-61">61</a></span>
+<span class="normal"><a href="#__codelineno-13-62">62</a></span>
+<span class="normal"><a href="#__codelineno-13-63">63</a></span>
+<span class="normal"><a href="#__codelineno-13-64">64</a></span>
+<span class="normal"><a href="#__codelineno-13-65">65</a></span>
+<span class="normal"><a href="#__codelineno-13-66">66</a></span>
+<span class="normal"><a href="#__codelineno-13-67">67</a></span>
+<span class="normal"><a href="#__codelineno-13-68">68</a></span>
+<span class="normal"><a href="#__codelineno-13-69">69</a></span>
+<span class="normal"><a href="#__codelineno-13-70">70</a></span>
+<span class="normal"><a href="#__codelineno-13-71">71</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1"></a><span class="sd">"""Redis Streams output with live parameter updates, builder API.</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2"></a>
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3"></a><span class="sd">The simulation records each order as it is placed. `RedisEgress` writes the</span>
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4"></a><span class="sd">records to the `order_events` Redis Stream, named by each record's `__stream__` key,</span>
+</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5"></a><span class="sd">while `RedisIngress` subscribes to the `simulation_params` channel, so publishing a</span>
+</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6"></a><span class="sd">message to that channel changes the arrival rate of a running simulation.</span>
+</span><span id="__span-13-7"><a id="__codelineno-13-7" name="__codelineno-13-7"></a>
+</span><span id="__span-13-8"><a id="__codelineno-13-8" name="__codelineno-13-8"></a><span class="sd">Needs Valkey: `odctl up valkey`. Runs until interrupted with Ctrl + C.</span>
+</span><span id="__span-13-9"><a id="__codelineno-13-9" name="__codelineno-13-9"></a><span class="sd">Set EXAMPLE_UNTIL to a number of simulation seconds to end the run at that time instead.</span>
+</span><span id="__span-13-10"><a id="__codelineno-13-10" name="__codelineno-13-10"></a><span class="sd">"""</span>
+</span><span id="__span-13-11"><a id="__codelineno-13-11" name="__codelineno-13-11"></a>
+</span><span id="__span-13-12"><a id="__codelineno-13-12" name="__codelineno-13-12"></a><span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+</span><span id="__span-13-13"><a id="__codelineno-13-13" name="__codelineno-13-13"></a><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+</span><span id="__span-13-14"><a id="__codelineno-13-14" name="__codelineno-13-14"></a>
+</span><span id="__span-13-15"><a id="__codelineno-13-15" name="__codelineno-13-15"></a><span class="kn">from</span><span class="w"> </span><span class="nn">desflow</span><span class="w"> </span><span class="kn">import</span> <span class="n">RedisEgress</span><span class="p">,</span> <span class="n">RedisIngress</span><span class="p">,</span> <span class="n">SimulationContext</span>
+</span><span id="__span-13-16"><a id="__codelineno-13-16" name="__codelineno-13-16"></a>
+</span><span id="__span-13-17"><a id="__codelineno-13-17" name="__codelineno-13-17"></a><span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+</span><span id="__span-13-18"><a id="__codelineno-13-18" name="__codelineno-13-18"></a>
+</span><span id="__span-13-19"><a id="__codelineno-13-19" name="__codelineno-13-19"></a><span class="c1"># The odctl `valkey` profile disables the unauthenticated default user, so the</span>
+</span><span id="__span-13-20"><a id="__codelineno-13-20" name="__codelineno-13-20"></a><span class="c1"># URL carries credentials. A plain Redis without auth takes redis://127.0.0.1:6379/0.</span>
+</span><span id="__span-13-21"><a id="__codelineno-13-21" name="__codelineno-13-21"></a><span class="n">REDIS_URL</span> <span class="o">=</span> <span class="s2">"redis://user:password@127.0.0.1:6379/0"</span>
+</span><span id="__span-13-22"><a id="__codelineno-13-22" name="__codelineno-13-22"></a>
+</span><span id="__span-13-23"><a id="__codelineno-13-23" name="__codelineno-13-23"></a><span class="n">app</span> <span class="o">=</span> <span class="p">(</span>
+</span><span id="__span-13-24"><a id="__codelineno-13-24" name="__codelineno-13-24"></a>    <span class="n">SimulationContext</span><span class="p">(</span><span class="n">sim_id</span><span class="o">=</span><span class="s2">"Shop"</span><span class="p">,</span> <span class="n">factor</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">random_seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
+</span><span id="__span-13-25"><a id="__codelineno-13-25" name="__codelineno-13-25"></a>    <span class="o">.</span><span class="n">add_ingress</span><span class="p">(</span><span class="n">RedisIngress</span><span class="p">(</span><span class="n">REDIS_URL</span><span class="p">,</span> <span class="n">channel_name</span><span class="o">=</span><span class="s2">"simulation_params"</span><span class="p">))</span>
+</span><span id="__span-13-26"><a id="__codelineno-13-26" name="__codelineno-13-26"></a>    <span class="o">.</span><span class="n">add_egress</span><span class="p">(</span><span class="n">RedisEgress</span><span class="p">(</span><span class="n">REDIS_URL</span><span class="p">,</span> <span class="n">stream_name</span><span class="o">=</span><span class="s2">"events"</span><span class="p">))</span>
+</span><span id="__span-13-27"><a id="__codelineno-13-27" name="__codelineno-13-27"></a>    <span class="o">.</span><span class="n">add_arrival</span><span class="p">(</span><span class="s2">"orders"</span><span class="p">,</span> <span class="n">dist</span><span class="o">=</span><span class="s2">"exponential"</span><span class="p">,</span> <span class="n">rate</span><span class="o">=</span><span class="mf">2.0</span><span class="p">)</span>
+</span><span id="__span-13-28"><a id="__codelineno-13-28" name="__codelineno-13-28"></a><span class="p">)</span>
+</span><span id="__span-13-29"><a id="__codelineno-13-29" name="__codelineno-13-29"></a>
+</span><span id="__span-13-30"><a id="__codelineno-13-30" name="__codelineno-13-30"></a>
+</span><span id="__span-13-31"><a id="__codelineno-13-31" name="__codelineno-13-31"></a><span class="nd">@app</span><span class="o">.</span><span class="n">task</span><span class="p">()</span>
+</span><span id="__span-13-32"><a id="__codelineno-13-32" name="__codelineno-13-32"></a><span class="k">def</span><span class="w"> </span><span class="nf">record_order</span><span class="p">(</span><span class="n">task_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">context</span><span class="p">):</span>
+</span><span id="__span-13-33"><a id="__codelineno-13-33" name="__codelineno-13-33"></a><span class="w">    </span><span class="sd">"""A task with no service or resource: its payload is published at once."""</span>
+</span><span id="__span-13-34"><a id="__codelineno-13-34" name="__codelineno-13-34"></a>    <span class="k">return</span> <span class="p">{</span>
+</span><span id="__span-13-35"><a id="__codelineno-13-35" name="__codelineno-13-35"></a>        <span class="s2">"__stream__"</span><span class="p">:</span> <span class="s2">"order_events"</span><span class="p">,</span>
+</span><span id="__span-13-36"><a id="__codelineno-13-36" name="__codelineno-13-36"></a>        <span class="s2">"order_id"</span><span class="p">:</span> <span class="n">task_id</span><span class="p">,</span>
+</span><span id="__span-13-37"><a id="__codelineno-13-37" name="__codelineno-13-37"></a>        <span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"web"</span><span class="p">,</span>
+</span><span id="__span-13-38"><a id="__codelineno-13-38" name="__codelineno-13-38"></a>        <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"placed"</span><span class="p">,</span>
+</span><span id="__span-13-39"><a id="__codelineno-13-39" name="__codelineno-13-39"></a>    <span class="p">}</span>
+</span><span id="__span-13-40"><a id="__codelineno-13-40" name="__codelineno-13-40"></a>
+</span><span id="__span-13-41"><a id="__codelineno-13-41" name="__codelineno-13-41"></a>
+</span><span id="__span-13-42"><a id="__codelineno-13-42" name="__codelineno-13-42"></a><span class="nd">@app</span><span class="o">.</span><span class="n">arrival_loop</span><span class="p">(</span><span class="s2">"orders"</span><span class="p">)</span>
+</span><span id="__span-13-43"><a id="__codelineno-13-43" name="__codelineno-13-43"></a><span class="k">def</span><span class="w"> </span><span class="nf">order_generator</span><span class="p">(</span><span class="n">context</span><span class="p">):</span>
+</span><span id="__span-13-44"><a id="__codelineno-13-44" name="__codelineno-13-44"></a>    <span class="n">task_id</span> <span class="o">=</span> <span class="mi">0</span>
+</span><span id="__span-13-45"><a id="__codelineno-13-45" name="__codelineno-13-45"></a>    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+</span><span id="__span-13-46"><a id="__codelineno-13-46" name="__codelineno-13-46"></a>        <span class="n">entity</span> <span class="o">=</span> <span class="k">yield</span> <span class="n">context</span><span class="o">.</span><span class="n">wait_for_arrival</span><span class="p">(</span><span class="s2">"orders"</span><span class="p">)</span>
+</span><span id="__span-13-47"><a id="__codelineno-13-47" name="__codelineno-13-47"></a>        <span class="n">context</span><span class="o">.</span><span class="n">spawn</span><span class="p">(</span><span class="n">record_order</span><span class="p">(</span><span class="n">task_id</span><span class="p">,</span> <span class="n">context</span><span class="p">,</span> <span class="n">entity</span><span class="o">=</span><span class="n">entity</span><span class="p">))</span>
+</span><span id="__span-13-48"><a id="__codelineno-13-48" name="__codelineno-13-48"></a>        <span class="n">task_id</span> <span class="o">+=</span> <span class="mi">1</span>
+</span><span id="__span-13-49"><a id="__codelineno-13-49" name="__codelineno-13-49"></a>
+</span><span id="__span-13-50"><a id="__codelineno-13-50" name="__codelineno-13-50"></a>
+</span><span id="__span-13-51"><a id="__codelineno-13-51" name="__codelineno-13-51"></a><span class="c1"># The simulation time, in seconds, at which the run ends.</span>
+</span><span id="__span-13-52"><a id="__codelineno-13-52" name="__codelineno-13-52"></a><span class="c1"># When EXAMPLE_UNTIL is not set, the run goes on until Ctrl + C.</span>
+</span><span id="__span-13-53"><a id="__codelineno-13-53" name="__codelineno-13-53"></a><span class="n">EXAMPLE_UNTIL</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s2">"EXAMPLE_UNTIL"</span><span class="p">)</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">or</span> <span class="kc">None</span>
+</span><span id="__span-13-54"><a id="__codelineno-13-54" name="__codelineno-13-54"></a>
+</span><span id="__span-13-55"><a id="__codelineno-13-55" name="__codelineno-13-55"></a>
+</span><span id="__span-13-56"><a id="__codelineno-13-56" name="__codelineno-13-56"></a><span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">():</span>
+</span><span id="__span-13-57"><a id="__codelineno-13-57" name="__codelineno-13-57"></a>    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Starting Builder Redis Demo. Press Ctrl+C to stop..."</span><span class="p">)</span>
+</span><span id="__span-13-58"><a id="__codelineno-13-58" name="__codelineno-13-58"></a>    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+</span><span id="__span-13-59"><a id="__codelineno-13-59" name="__codelineno-13-59"></a>        <span class="s2">"Test Ingress by running: docker exec -it valkey valkey-cli --user user "</span>
+</span><span id="__span-13-60"><a id="__codelineno-13-60" name="__codelineno-13-60"></a>        <span class="s2">"--pass password PUBLISH simulation_params "</span>
+</span><span id="__span-13-61"><a id="__codelineno-13-61" name="__codelineno-13-61"></a>        <span class="s1">'</span><span class="se">\'</span><span class="s1">{"path": "Shop.arrival.orders.rate", "value": 10.0}</span><span class="se">\'</span><span class="s1">'</span>
+</span><span id="__span-13-62"><a id="__codelineno-13-62" name="__codelineno-13-62"></a>    <span class="p">)</span>
+</span><span id="__span-13-63"><a id="__codelineno-13-63" name="__codelineno-13-63"></a>    <span class="k">try</span><span class="p">:</span>
+</span><span id="__span-13-64"><a id="__codelineno-13-64" name="__codelineno-13-64"></a>        <span class="n">app</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">until</span><span class="o">=</span><span class="n">EXAMPLE_UNTIL</span><span class="p">)</span>
+</span><span id="__span-13-65"><a id="__codelineno-13-65" name="__codelineno-13-65"></a>    <span class="k">except</span> <span class="ne">KeyboardInterrupt</span><span class="p">:</span>
+</span><span id="__span-13-66"><a id="__codelineno-13-66" name="__codelineno-13-66"></a>        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Simulation interrupted by user."</span><span class="p">)</span>
+</span><span id="__span-13-67"><a id="__codelineno-13-67" name="__codelineno-13-67"></a>
+</span><span id="__span-13-68"><a id="__codelineno-13-68" name="__codelineno-13-68"></a>
+</span><span id="__span-13-69"><a id="__codelineno-13-69" name="__codelineno-13-69"></a><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+</span><span id="__span-13-70"><a id="__codelineno-13-70" name="__codelineno-13-70"></a>    <span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span><span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">)</span>
+</span><span id="__span-13-71"><a id="__codelineno-13-71" name="__codelineno-13-71"></a>    <span class="n">run</span><span class="p">()</span>
+</span></code></pre></div></td></tr></table></div>
+</div>
+<div class="tabbed-block">
+<p>Scripts live in the <a href="https://github.com/jaehyeon-kim/desflow/tree/v0.28.0/examples"><code>examples/</code> folder</a> of the repository, and the label on the block below is this one's path there.</p>
+<div class="language-python highlight"><table class="highlighttable"><tr><th colspan="2" class="filename"><span class="filename">examples/low-level/redis_example.py</span></th></tr><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-14-1"> 1</a></span>
+<span class="normal"><a href="#__codelineno-14-2"> 2</a></span>
+<span class="normal"><a href="#__codelineno-14-3"> 3</a></span>
+<span class="normal"><a href="#__codelineno-14-4"> 4</a></span>
+<span class="normal"><a href="#__codelineno-14-5"> 5</a></span>
+<span class="normal"><a href="#__codelineno-14-6"> 6</a></span>
+<span class="normal"><a href="#__codelineno-14-7"> 7</a></span>
+<span class="normal"><a href="#__codelineno-14-8"> 8</a></span>
+<span class="normal"><a href="#__codelineno-14-9"> 9</a></span>
+<span class="normal"><a href="#__codelineno-14-10">10</a></span>
+<span class="normal"><a href="#__codelineno-14-11">11</a></span>
+<span class="normal"><a href="#__codelineno-14-12">12</a></span>
+<span class="normal"><a href="#__codelineno-14-13">13</a></span>
+<span class="normal"><a href="#__codelineno-14-14">14</a></span>
+<span class="normal"><a href="#__codelineno-14-15">15</a></span>
+<span class="normal"><a href="#__codelineno-14-16">16</a></span>
+<span class="normal"><a href="#__codelineno-14-17">17</a></span>
+<span class="normal"><a href="#__codelineno-14-18">18</a></span>
+<span class="normal"><a href="#__codelineno-14-19">19</a></span>
+<span class="normal"><a href="#__codelineno-14-20">20</a></span>
+<span class="normal"><a href="#__codelineno-14-21">21</a></span>
+<span class="normal"><a href="#__codelineno-14-22">22</a></span>
+<span class="normal"><a href="#__codelineno-14-23">23</a></span>
+<span class="normal"><a href="#__codelineno-14-24">24</a></span>
+<span class="normal"><a href="#__codelineno-14-25">25</a></span>
+<span class="normal"><a href="#__codelineno-14-26">26</a></span>
+<span class="normal"><a href="#__codelineno-14-27">27</a></span>
+<span class="normal"><a href="#__codelineno-14-28">28</a></span>
+<span class="normal"><a href="#__codelineno-14-29">29</a></span>
+<span class="normal"><a href="#__codelineno-14-30">30</a></span>
+<span class="normal"><a href="#__codelineno-14-31">31</a></span>
+<span class="normal"><a href="#__codelineno-14-32">32</a></span>
+<span class="normal"><a href="#__codelineno-14-33">33</a></span>
+<span class="normal"><a href="#__codelineno-14-34">34</a></span>
+<span class="normal"><a href="#__codelineno-14-35">35</a></span>
+<span class="normal"><a href="#__codelineno-14-36">36</a></span>
+<span class="normal"><a href="#__codelineno-14-37">37</a></span>
+<span class="normal"><a href="#__codelineno-14-38">38</a></span>
+<span class="normal"><a href="#__codelineno-14-39">39</a></span>
+<span class="normal"><a href="#__codelineno-14-40">40</a></span>
+<span class="normal"><a href="#__codelineno-14-41">41</a></span>
+<span class="normal"><a href="#__codelineno-14-42">42</a></span>
+<span class="normal"><a href="#__codelineno-14-43">43</a></span>
+<span class="normal"><a href="#__codelineno-14-44">44</a></span>
+<span class="normal"><a href="#__codelineno-14-45">45</a></span>
+<span class="normal"><a href="#__codelineno-14-46">46</a></span>
+<span class="normal"><a href="#__codelineno-14-47">47</a></span>
+<span class="normal"><a href="#__codelineno-14-48">48</a></span>
+<span class="normal"><a href="#__codelineno-14-49">49</a></span>
+<span class="normal"><a href="#__codelineno-14-50">50</a></span>
+<span class="normal"><a href="#__codelineno-14-51">51</a></span>
+<span class="normal"><a href="#__codelineno-14-52">52</a></span>
+<span class="normal"><a href="#__codelineno-14-53">53</a></span>
+<span class="normal"><a href="#__codelineno-14-54">54</a></span>
+<span class="normal"><a href="#__codelineno-14-55">55</a></span>
+<span class="normal"><a href="#__codelineno-14-56">56</a></span>
+<span class="normal"><a href="#__codelineno-14-57">57</a></span>
+<span class="normal"><a href="#__codelineno-14-58">58</a></span>
+<span class="normal"><a href="#__codelineno-14-59">59</a></span>
+<span class="normal"><a href="#__codelineno-14-60">60</a></span>
+<span class="normal"><a href="#__codelineno-14-61">61</a></span>
+<span class="normal"><a href="#__codelineno-14-62">62</a></span>
+<span class="normal"><a href="#__codelineno-14-63">63</a></span>
+<span class="normal"><a href="#__codelineno-14-64">64</a></span>
+<span class="normal"><a href="#__codelineno-14-65">65</a></span>
+<span class="normal"><a href="#__codelineno-14-66">66</a></span>
+<span class="normal"><a href="#__codelineno-14-67">67</a></span>
+<span class="normal"><a href="#__codelineno-14-68">68</a></span>
+<span class="normal"><a href="#__codelineno-14-69">69</a></span>
+<span class="normal"><a href="#__codelineno-14-70">70</a></span>
+<span class="normal"><a href="#__codelineno-14-71">71</a></span>
+<span class="normal"><a href="#__codelineno-14-72">72</a></span>
+<span class="normal"><a href="#__codelineno-14-73">73</a></span>
+<span class="normal"><a href="#__codelineno-14-74">74</a></span>
+<span class="normal"><a href="#__codelineno-14-75">75</a></span>
+<span class="normal"><a href="#__codelineno-14-76">76</a></span>
+<span class="normal"><a href="#__codelineno-14-77">77</a></span>
+<span class="normal"><a href="#__codelineno-14-78">78</a></span>
+<span class="normal"><a href="#__codelineno-14-79">79</a></span>
+<span class="normal"><a href="#__codelineno-14-80">80</a></span>
+<span class="normal"><a href="#__codelineno-14-81">81</a></span>
+<span class="normal"><a href="#__codelineno-14-82">82</a></span>
+<span class="normal"><a href="#__codelineno-14-83">83</a></span>
+<span class="normal"><a href="#__codelineno-14-84">84</a></span>
+<span class="normal"><a href="#__codelineno-14-85">85</a></span>
+<span class="normal"><a href="#__codelineno-14-86">86</a></span>
+<span class="normal"><a href="#__codelineno-14-87">87</a></span>
+<span class="normal"><a href="#__codelineno-14-88">88</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1"></a><span class="sd">"""Redis Streams output with live parameter updates, low-level API.</span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2"></a>
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3"></a><span class="sd">The low-level version of `builder/redis_example.py`. The simulation records each</span>
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4"></a><span class="sd">order as it is placed. `RedisEgress` writes the records to the `order_events` stream,</span>
+</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5"></a><span class="sd">named by each record's `__stream__` key, and `RedisIngress` subscribes to the</span>
+</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6"></a><span class="sd">`simulation_params` channel.</span>
+</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7"></a>
+</span><span id="__span-14-8"><a id="__codelineno-14-8" name="__codelineno-14-8"></a><span class="sd">Needs Valkey: `odctl up valkey`. Runs until interrupted with Ctrl + C.</span>
+</span><span id="__span-14-9"><a id="__codelineno-14-9" name="__codelineno-14-9"></a><span class="sd">Set EXAMPLE_UNTIL to a number of simulation seconds to end the run at that time instead.</span>
+</span><span id="__span-14-10"><a id="__codelineno-14-10" name="__codelineno-14-10"></a><span class="sd">"""</span>
+</span><span id="__span-14-11"><a id="__codelineno-14-11" name="__codelineno-14-11"></a>
+</span><span id="__span-14-12"><a id="__codelineno-14-12" name="__codelineno-14-12"></a><span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+</span><span id="__span-14-13"><a id="__codelineno-14-13" name="__codelineno-14-13"></a><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+</span><span id="__span-14-14"><a id="__codelineno-14-14" name="__codelineno-14-14"></a>
+</span><span id="__span-14-15"><a id="__codelineno-14-15" name="__codelineno-14-15"></a><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+</span><span id="__span-14-16"><a id="__codelineno-14-16" name="__codelineno-14-16"></a>
+</span><span id="__span-14-17"><a id="__codelineno-14-17" name="__codelineno-14-17"></a><span class="kn">from</span><span class="w"> </span><span class="nn">desflow</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+</span><span id="__span-14-18"><a id="__codelineno-14-18" name="__codelineno-14-18"></a>    <span class="n">DistributionConfig</span><span class="p">,</span>
+</span><span id="__span-14-19"><a id="__codelineno-14-19" name="__codelineno-14-19"></a>    <span class="n">DynamicRealtimeEnvironment</span><span class="p">,</span>
+</span><span id="__span-14-20"><a id="__codelineno-14-20" name="__codelineno-14-20"></a>    <span class="n">RedisEgress</span><span class="p">,</span>
+</span><span id="__span-14-21"><a id="__codelineno-14-21" name="__codelineno-14-21"></a>    <span class="n">RedisIngress</span><span class="p">,</span>
+</span><span id="__span-14-22"><a id="__codelineno-14-22" name="__codelineno-14-22"></a>    <span class="n">Sampler</span><span class="p">,</span>
+</span><span id="__span-14-23"><a id="__codelineno-14-23" name="__codelineno-14-23"></a>    <span class="n">SimParameter</span><span class="p">,</span>
+</span><span id="__span-14-24"><a id="__codelineno-14-24" name="__codelineno-14-24"></a><span class="p">)</span>
+</span><span id="__span-14-25"><a id="__codelineno-14-25" name="__codelineno-14-25"></a>
+</span><span id="__span-14-26"><a id="__codelineno-14-26" name="__codelineno-14-26"></a><span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="s2">"redis_example"</span><span class="p">)</span>
+</span><span id="__span-14-27"><a id="__codelineno-14-27" name="__codelineno-14-27"></a>
+</span><span id="__span-14-28"><a id="__codelineno-14-28" name="__codelineno-14-28"></a><span class="c1"># The odctl `valkey` profile disables the unauthenticated default user, so the</span>
+</span><span id="__span-14-29"><a id="__codelineno-14-29" name="__codelineno-14-29"></a><span class="c1"># URL carries credentials. A plain Redis without auth takes redis://127.0.0.1:6379/0.</span>
+</span><span id="__span-14-30"><a id="__codelineno-14-30" name="__codelineno-14-30"></a><span class="n">REDIS_URL</span> <span class="o">=</span> <span class="s2">"redis://user:password@127.0.0.1:6379/0"</span>
+</span><span id="__span-14-31"><a id="__codelineno-14-31" name="__codelineno-14-31"></a>
+</span><span id="__span-14-32"><a id="__codelineno-14-32" name="__codelineno-14-32"></a><span class="n">PARAMS</span> <span class="o">=</span> <span class="n">SimParameter</span><span class="p">(</span>
+</span><span id="__span-14-33"><a id="__codelineno-14-33" name="__codelineno-14-33"></a>    <span class="n">sim_id</span><span class="o">=</span><span class="s2">"Shop"</span><span class="p">,</span>
+</span><span id="__span-14-34"><a id="__codelineno-14-34" name="__codelineno-14-34"></a>    <span class="n">arrival</span><span class="o">=</span><span class="p">{</span><span class="s2">"orders"</span><span class="p">:</span> <span class="n">DistributionConfig</span><span class="p">(</span><span class="n">dist</span><span class="o">=</span><span class="s2">"exponential"</span><span class="p">,</span> <span class="n">rate</span><span class="o">=</span><span class="mf">2.0</span><span class="p">)},</span>
+</span><span id="__span-14-35"><a id="__codelineno-14-35" name="__codelineno-14-35"></a><span class="p">)</span>
+</span><span id="__span-14-36"><a id="__codelineno-14-36" name="__codelineno-14-36"></a>
+</span><span id="__span-14-37"><a id="__codelineno-14-37" name="__codelineno-14-37"></a>
+</span><span id="__span-14-38"><a id="__codelineno-14-38" name="__codelineno-14-38"></a><span class="k">def</span><span class="w"> </span><span class="nf">order_generator</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">sampler</span><span class="p">):</span>
+</span><span id="__span-14-39"><a id="__codelineno-14-39" name="__codelineno-14-39"></a><span class="w">    </span><span class="sd">"""Publishes one record per order, as the builder's task with no service does."""</span>
+</span><span id="__span-14-40"><a id="__codelineno-14-40" name="__codelineno-14-40"></a>    <span class="n">gap</span> <span class="o">=</span> <span class="n">env</span><span class="o">.</span><span class="n">registry</span><span class="o">.</span><span class="n">get_config</span><span class="p">(</span><span class="s2">"Shop.arrival.orders"</span><span class="p">)</span>
+</span><span id="__span-14-41"><a id="__codelineno-14-41" name="__codelineno-14-41"></a>    <span class="n">task_id</span> <span class="o">=</span> <span class="mi">0</span>
+</span><span id="__span-14-42"><a id="__codelineno-14-42" name="__codelineno-14-42"></a>    <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+</span><span id="__span-14-43"><a id="__codelineno-14-43" name="__codelineno-14-43"></a>        <span class="k">yield</span> <span class="n">env</span><span class="o">.</span><span class="n">timeout</span><span class="p">(</span><span class="n">sampler</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">gap</span><span class="p">))</span>
+</span><span id="__span-14-44"><a id="__codelineno-14-44" name="__codelineno-14-44"></a>        <span class="n">order_event</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="__span-14-45"><a id="__codelineno-14-45" name="__codelineno-14-45"></a>            <span class="s2">"__stream__"</span><span class="p">:</span> <span class="s2">"order_events"</span><span class="p">,</span>
+</span><span id="__span-14-46"><a id="__codelineno-14-46" name="__codelineno-14-46"></a>            <span class="s2">"order_id"</span><span class="p">:</span> <span class="n">task_id</span><span class="p">,</span>
+</span><span id="__span-14-47"><a id="__codelineno-14-47" name="__codelineno-14-47"></a>            <span class="s2">"channel"</span><span class="p">:</span> <span class="s2">"web"</span><span class="p">,</span>
+</span><span id="__span-14-48"><a id="__codelineno-14-48" name="__codelineno-14-48"></a>            <span class="s2">"status"</span><span class="p">:</span> <span class="s2">"placed"</span><span class="p">,</span>
+</span><span id="__span-14-49"><a id="__codelineno-14-49" name="__codelineno-14-49"></a>        <span class="p">}</span>
+</span><span id="__span-14-50"><a id="__codelineno-14-50" name="__codelineno-14-50"></a>        <span class="c1"># The order key, and the task name and instance id the builder adds</span>
+</span><span id="__span-14-51"><a id="__codelineno-14-51" name="__codelineno-14-51"></a>        <span class="n">env</span><span class="o">.</span><span class="n">publish_event</span><span class="p">(</span>
+</span><span id="__span-14-52"><a id="__codelineno-14-52" name="__codelineno-14-52"></a>            <span class="sa">f</span><span class="s2">"orders-</span><span class="si">{</span><span class="n">task_id</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">order_event</span><span class="p">,</span> <span class="n">task</span><span class="o">=</span><span class="s2">"record_order"</span><span class="p">,</span> <span class="n">instance</span><span class="o">=</span><span class="n">task_id</span>
+</span><span id="__span-14-53"><a id="__codelineno-14-53" name="__codelineno-14-53"></a>        <span class="p">)</span>
+</span><span id="__span-14-54"><a id="__codelineno-14-54" name="__codelineno-14-54"></a>        <span class="n">task_id</span> <span class="o">+=</span> <span class="mi">1</span>
+</span><span id="__span-14-55"><a id="__codelineno-14-55" name="__codelineno-14-55"></a>
+</span><span id="__span-14-56"><a id="__codelineno-14-56" name="__codelineno-14-56"></a>
+</span><span id="__span-14-57"><a id="__codelineno-14-57" name="__codelineno-14-57"></a><span class="c1"># The simulation time, in seconds, at which the run ends.</span>
+</span><span id="__span-14-58"><a id="__codelineno-14-58" name="__codelineno-14-58"></a><span class="c1"># When EXAMPLE_UNTIL is not set, the run goes on until Ctrl + C.</span>
+</span><span id="__span-14-59"><a id="__codelineno-14-59" name="__codelineno-14-59"></a><span class="n">EXAMPLE_UNTIL</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s2">"EXAMPLE_UNTIL"</span><span class="p">)</span> <span class="ow">or</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">or</span> <span class="kc">None</span>
+</span><span id="__span-14-60"><a id="__codelineno-14-60" name="__codelineno-14-60"></a>
+</span><span id="__span-14-61"><a id="__codelineno-14-61" name="__codelineno-14-61"></a>
+</span><span id="__span-14-62"><a id="__codelineno-14-62" name="__codelineno-14-62"></a><span class="k">def</span><span class="w"> </span><span class="nf">run</span><span class="p">():</span>
+</span><span id="__span-14-63"><a id="__codelineno-14-63" name="__codelineno-14-63"></a>    <span class="n">env</span> <span class="o">=</span> <span class="n">DynamicRealtimeEnvironment</span><span class="p">(</span><span class="n">factor</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</span><span id="__span-14-64"><a id="__codelineno-14-64" name="__codelineno-14-64"></a>    <span class="n">env</span><span class="o">.</span><span class="n">registry</span><span class="o">.</span><span class="n">register_sim_parameter</span><span class="p">(</span><span class="n">PARAMS</span><span class="p">)</span>
+</span><span id="__span-14-65"><a id="__codelineno-14-65" name="__codelineno-14-65"></a>    <span class="n">env</span><span class="o">.</span><span class="n">setup_egress</span><span class="p">([</span><span class="n">RedisEgress</span><span class="p">(</span><span class="n">REDIS_URL</span><span class="p">,</span> <span class="n">stream_name</span><span class="o">=</span><span class="s2">"events"</span><span class="p">)])</span>
+</span><span id="__span-14-66"><a id="__codelineno-14-66" name="__codelineno-14-66"></a>    <span class="n">env</span><span class="o">.</span><span class="n">setup_ingress</span><span class="p">([</span><span class="n">RedisIngress</span><span class="p">(</span><span class="n">REDIS_URL</span><span class="p">,</span> <span class="n">channel_name</span><span class="o">=</span><span class="s2">"simulation_params"</span><span class="p">)])</span>
+</span><span id="__span-14-67"><a id="__codelineno-14-67" name="__codelineno-14-67"></a>
+</span><span id="__span-14-68"><a id="__codelineno-14-68" name="__codelineno-14-68"></a>    <span class="n">sampler</span> <span class="o">=</span> <span class="n">Sampler</span><span class="p">(</span><span class="n">rng</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="mi">42</span><span class="p">))</span>
+</span><span id="__span-14-69"><a id="__codelineno-14-69" name="__codelineno-14-69"></a>    <span class="n">env</span><span class="o">.</span><span class="n">process</span><span class="p">(</span><span class="n">order_generator</span><span class="p">(</span><span class="n">env</span><span class="p">,</span> <span class="n">sampler</span><span class="p">))</span>
+</span><span id="__span-14-70"><a id="__codelineno-14-70" name="__codelineno-14-70"></a>
+</span><span id="__span-14-71"><a id="__codelineno-14-71" name="__codelineno-14-71"></a>    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Starting Low-level Redis Demo. Press Ctrl+C to stop..."</span><span class="p">)</span>
+</span><span id="__span-14-72"><a id="__codelineno-14-72" name="__codelineno-14-72"></a>    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+</span><span id="__span-14-73"><a id="__codelineno-14-73" name="__codelineno-14-73"></a>        <span class="s2">"Test Ingress by running: docker exec -it valkey valkey-cli --user user "</span>
+</span><span id="__span-14-74"><a id="__codelineno-14-74" name="__codelineno-14-74"></a>        <span class="s2">"--pass password PUBLISH simulation_params "</span>
+</span><span id="__span-14-75"><a id="__codelineno-14-75" name="__codelineno-14-75"></a>        <span class="s1">'</span><span class="se">\'</span><span class="s1">{"path": "Shop.arrival.orders.rate", "value": 10.0}</span><span class="se">\'</span><span class="s1">'</span>
+</span><span id="__span-14-76"><a id="__codelineno-14-76" name="__codelineno-14-76"></a>    <span class="p">)</span>
+</span><span id="__span-14-77"><a id="__codelineno-14-77" name="__codelineno-14-77"></a>
+</span><span id="__span-14-78"><a id="__codelineno-14-78" name="__codelineno-14-78"></a>    <span class="k">try</span><span class="p">:</span>
+</span><span id="__span-14-79"><a id="__codelineno-14-79" name="__codelineno-14-79"></a>        <span class="n">env</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">until</span><span class="o">=</span><span class="n">EXAMPLE_UNTIL</span><span class="p">)</span>
+</span><span id="__span-14-80"><a id="__codelineno-14-80" name="__codelineno-14-80"></a>    <span class="k">except</span> <span class="ne">KeyboardInterrupt</span><span class="p">:</span>
+</span><span id="__span-14-81"><a id="__codelineno-14-81" name="__codelineno-14-81"></a>        <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="s2">"Simulation interrupted by user."</span><span class="p">)</span>
+</span><span id="__span-14-82"><a id="__codelineno-14-82" name="__codelineno-14-82"></a>    <span class="k">finally</span><span class="p">:</span>
+</span><span id="__span-14-83"><a id="__codelineno-14-83" name="__codelineno-14-83"></a>        <span class="n">env</span><span class="o">.</span><span class="n">teardown</span><span class="p">()</span>
+</span><span id="__span-14-84"><a id="__codelineno-14-84" name="__codelineno-14-84"></a>
+</span><span id="__span-14-85"><a id="__codelineno-14-85" name="__codelineno-14-85"></a>
+</span><span id="__span-14-86"><a id="__codelineno-14-86" name="__codelineno-14-86"></a><span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+</span><span id="__span-14-87"><a id="__codelineno-14-87" name="__codelineno-14-87"></a>    <span class="n">logging</span><span class="o">.</span><span class="n">basicConfig</span><span class="p">(</span><span class="n">level</span><span class="o">=</span><span class="n">logging</span><span class="o">.</span><span class="n">INFO</span><span class="p">)</span>
+</span><span id="__span-14-88"><a id="__codelineno-14-88" name="__codelineno-14-88"></a>    <span class="n">run</span><span class="p">()</span>
 </span></code></pre></div></td></tr></table></div>
 </div>
 </div>

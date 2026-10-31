@@ -12,7 +12,7 @@ ______________________________________________________________________
 
 ## Before You Start
 
-The example needs Docker and the odctl profile `postgres`, which each Quick Start below starts and stops. [Services for the Examples](https://jaehyeon.me/desflow/latest/how-to/examples/#services-for-the-examples) shows how to install odctl.
+The example needs Docker and the odctl profile `postgres`. Each Quick Start below starts the profile, and the Check the Result section stops it. [Services for the Examples](https://jaehyeon.me/desflow/latest/how-to/examples/#services-for-the-examples) shows how to install odctl.
 
 ______________________________________________________________________
 
@@ -39,9 +39,6 @@ odctl up postgres
 
 # 4. Run it (Ctrl + C to stop)
 desflow run postgres_orders.yaml
-
-# 5. Stop its service when finished
-odctl down postgres --volumes
 ```
 
 ```bash
@@ -57,9 +54,6 @@ odctl up postgres
 
 # 4. Run it (Ctrl + C to stop)
 desflow run postgres_orders.yaml
-
-# 5. Stop its service when finished
-odctl down postgres --volumes
 ```
 
 The generator is added with `add_process`, so it is called as `order_generator(context, arrival="orders", max_items=5)`. It draws from `context.sampler.rng`, the random number generator seeded by `random_seed`, so a seeded run repeats the same orders.
@@ -81,9 +75,6 @@ odctl up postgres
 
 # 4. Run it (Ctrl + C to stop)
 uv run --no-project --with "desflow[postgres]" postgres_orders_example.py
-
-# 5. Stop its service when finished
-odctl down postgres --volumes
 ```
 
 ```bash
@@ -99,9 +90,6 @@ odctl up postgres
 
 # 4. Run it (Ctrl + C to stop)
 python postgres_orders_example.py
-
-# 5. Stop its service when finished
-odctl down postgres --volumes
 ```
 
 The generator is a SimPy process started with `env.process`. It draws the gaps between orders and the order contents from one `Sampler` seeded with 42, in the same order as the other two versions, so it publishes the same orders.
@@ -123,9 +111,6 @@ odctl up postgres
 
 # 4. Run it (Ctrl + C to stop)
 uv run --no-project --with "desflow[postgres]" postgres_orders_example.py
-
-# 5. Stop its service when finished
-odctl down postgres --volumes
 ```
 
 ```bash
@@ -141,9 +126,6 @@ odctl up postgres
 
 # 4. Run it (Ctrl + C to stop)
 python postgres_orders_example.py
-
-# 5. Stop its service when finished
-odctl down postgres --volumes
 ```
 
 ### Change a Parameter Live
@@ -159,7 +141,19 @@ ______________________________________________________________________
 
 ## Check the Result
 
-The three tabs write the same records, which [a test](https://github.com/jaehyeon-kim/desflow/blob/v0.28.0/tests/docs/test_example_twins.py) checks by running each version unpaced. A real run writes each order as a row of `orders` and each line item as a row of `order_items`. `desflow run postgres_orders.yaml --sample 2 --stdout` prints the first two records as JSON lines instead, with no database. They are the one line item of `orders-1`, then the order itself:
+The three tabs write the same records, which [a test](https://github.com/jaehyeon-kim/desflow/blob/v0.28.0/tests/docs/test_example_twins.py) checks by running each version unpaced. A real run writes each order as a row of `orders` and each line item as a row of `order_items`. Stop the run with Ctrl + C, leave the service up, and join the two tables for the first three orders:
+
+```bash
+docker exec postgres psql -U user -d odctl -c "SELECT o.order_id, o.total_amount, count(i.order_item_id) AS items, round(sum(i.quantity * i.unit_price)::numeric, 2) AS items_total FROM orders o JOIN order_items i USING (order_id) GROUP BY o.order_id, o.total_amount ORDER BY o.order_id LIMIT 3;"
+```
+
+It prints `(3 rows)`. In every row `items_total` equals `total_amount` in value, though `total_amount` is a `REAL` column that `psql` prints without trailing zeros: the third row shows `332.3` and `332.30`. `items` is between 1 and 5. The first row is order 1 with 1 item and a total of 82.68, as in the records below; the later rows depend on the seed and the code in `postgres_orders_logic.py`. When you have checked the result, stop the service:
+
+```bash
+odctl down postgres --volumes
+```
+
+In `related-records/yaml`, which `desflow examples get related-records --api yaml` creates, `desflow run postgres_orders.yaml --sample 2 --stdout` needs no database. It prints the first two records as JSON lines instead. They are the one line item of `orders-1`, then the order itself:
 
 ```text
 {"stream_type":"event","sim_ts":1.276,"timestamp":"...","key":"orders-1","task":null,"instance":null,"value":{"order_item_id":1,"order_id":1,"product_id":22,"quantity":3,"unit_price":27.56}}
