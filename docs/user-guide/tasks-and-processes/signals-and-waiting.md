@@ -159,7 +159,7 @@ A task fires a signal with `signal: name` when it finishes, with its payload as 
         stats.task_started("check", task_id)
         shop.publish(key, "check", task_id, {"event_type": "order_checked"})
         stats.task_finished("check", task_id)
-        env.process(dispatch(shop, key, arrival))
+        yield from dispatch(shop, key, arrival)
 
 
     def inspect(shop, key, arrival):
@@ -209,7 +209,7 @@ A task fires a signal with `signal: name` when it finishes, with its payload as 
         shop.publish(key, "dispatch", task_id, {"event_type": "dispatched"})
         stats.task_finished("dispatch", task_id)
         task = "by_courier" if courier in done else "by_post"
-        env.process(send(shop, key, arrival, task))
+        yield from send(shop, key, arrival, task)
     ```
 
     ```python title="examples/low-level/process_interaction_example.py:courier"

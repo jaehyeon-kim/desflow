@@ -16,7 +16,7 @@ Use `!python` when a blueprint needs one of these:
 
 - **Field values with logic.** Random or weighted choices, fields derived from other fields and state carried from one event to the next are written as a payload function or a process.
 - **More than a task can describe.** Collecting several entities into one, such as a batch, is written as a process. Routing (`next`), priorities (`priority` and `queue: priority`), stores and containers, several resources per task (`resource: [...]` and `keep`), preemption (`preempt: true`) and breakdowns (`breakdown:`) are written in plain YAML.
-- **SimPy behaviour the keys do not give yet.** A time computed per entity, a unit held across several steps, a fixed number of arrivals and the arguments and value of a sub-process are written as a process, as [Write a Process for SimPy Behaviour](#write-a-process-for-simpy-behaviour) shows.
+- **SimPy behaviour the keys do not give yet.** A time computed per entity, a unit held across several steps, a fixed number of arrivals, the arguments and value of a sub-process, a wait for the same event again after an interrupt and a wait for a whole flow are written as a process, as [Write a Process for SimPy Behaviour](#write-a-process-for-simpy-behaviour) shows.
 - **Readings other than the built-in statistics.** `stats: minimal` publishes resource, store and container readings, a container's `level` among them. Use a telemetry function to publish variables and derived metrics.
 - **Routing over several destinations, and serializers.** A router or an Avro serializer is a Python object.
 - **Setup a connector does not do itself**, such as topics that only a router knows about.
@@ -417,6 +417,145 @@ def order(context, boxes):
     """Asks the task `pack` for `boxes` boxes and reads what it returns."""
     packed = yield context.call("pack", boxes=boxes)
     yield context.call("ship", total=packed["total"] + 1)
+```
+
+### Wait Again for the Same Event After an Interrupt
+
+A task under `on_interrupt: resume` asks again after an interrupt. A `wait: {timeout: 5}` interrupted at 2 starts the 5 seconds again, so it ends at 7, and so does a timeout inside `any`. A queued request or a `get` goes to the back of its queue, so another waiter takes the unit or the item first. A SimPy process catches the interrupt and yields the same event again. The timeout ends at 5, its first time, and a request or a `get` keeps its place. Here `job-1` is interrupted at 2 and ends at 5:
+
+```yaml title="docs/snippets/yaml/simpy_wait_again.yaml"
+# A job waits for a timeout of 5 seconds and is interrupted at 2. It waits for
+# the same timeout again, so it ends at 5.
+simulation: {sim_id: Shop, factor: 0}
+
+processes:
+  - function: !python simpy_forms.wait_again
+    kwargs: {job: job-1, delay: 5, interrupt_at: 2}
+
+tasks:
+  done:
+    payload: !python simpy_forms.done
+
+run:
+  until: 20
+
+egress:
+  - type: Console
+```
+
+```python title="docs/snippets/yaml/simpy_forms.py:wait-again"
+def pause(env, target, at):
+    """Interrupts `target` at time `at`."""
+    yield env.timeout(at)
+    target.interrupt("pause")
+
+
+def wait_again(context, job, delay, interrupt_at):
+    """A job that waits for a timeout, is interrupted, and waits for the same
+    timeout again, so the timeout ends at its first time."""
+    env = context.env
+    context.spawn(pause(env, env.active_process, interrupt_at))
+    timeout = env.timeout(delay)
+    while True:
+        try:
+            yield timeout
+            break
+        except Interrupt:
+            pass
+    yield context.call("done", job=job)
+```
+
+The same form keeps a place in a queue. Here `holder` has the machine to 5, `first` queues behind it and is interrupted at 2, and `second` queues at 1. `first` yields its request again and goes on at 5, ahead of `second`. With the keys, `second` goes on at 5 and `first` at 6:
+
+```yaml title="docs/snippets/yaml/simpy_queue_again.yaml"
+# `first` queues for the machine behind `holder` and is interrupted at 2. It yields
+# the same request again, so it keeps its place ahead of `second` and goes on at 6.
+simulation: {sim_id: Shop, factor: 0}
+
+resources:
+  machine: {current_cap: 1}
+
+processes:
+  - function: !python simpy_forms.queue_again
+    kwargs: {job: holder, start: 0, time: 5}
+  - function: !python simpy_forms.queue_again
+    kwargs: {job: first, start: 0, time: 1, interrupt_at: 2}
+  - function: !python simpy_forms.queue_again
+    kwargs: {job: second, start: 1, time: 1}
+
+tasks:
+  done:
+    payload: !python simpy_forms.done
+
+run:
+  until: 20
+
+egress:
+  - type: Console
+```
+
+```python title="docs/snippets/yaml/simpy_forms.py:queue-again"
+def queue_again(context, job, start, time, interrupt_at=None):
+    """A job that queues for the machine, is interrupted, and yields the same
+    request again, so it keeps its place in the queue."""
+    env = context.env
+    yield env.timeout(start)
+    machine = context.get_resource("machine")
+    if interrupt_at is not None:
+        context.spawn(pause(env, env.active_process, interrupt_at))
+    request = machine.request()
+    while True:
+        try:
+            yield request
+            break
+        except Interrupt:
+            pass
+    yield env.timeout(time)
+    machine.release(request)
+    yield context.call("done", job=job)
+```
+
+### Wait for a Whole Flow to End
+
+`wait: {running: {task: relay}}` goes on when that instance of `relay` ends. A flow is one process, so its next task runs in the same process, and SimPy's `yield process` goes on when the whole flow ends. A process yields the process of a flow of two tasks, each of 3 seconds, and goes on at 6. A `running` wait on `relay` goes on at 3:
+
+```yaml title="docs/snippets/yaml/simpy_whole_flow.yaml"
+# A process waits for a flow of two tasks, each of 3 seconds, to end. It goes on
+# at 6, when the second task ends, not at 3, when the first task ends.
+simulation: {sim_id: Relay, factor: 0}
+
+processes:
+  - function: !python simpy_forms.watch_flow
+
+tasks:
+  relay:
+    wait: {timeout: 3}
+    payload: {step: relay}
+  more:
+    wait: {timeout: 3}
+    payload: {step: more}
+  done:
+    payload: {step: done}
+
+run:
+  until: 20
+
+egress:
+  - type: Console
+```
+
+```python title="docs/snippets/yaml/simpy_forms.py:whole-flow"
+def two_steps(context):
+    """The flow: the task `relay`, then the task `more`, in one process."""
+    yield context.call("relay")
+    yield context.call("more")
+
+
+def watch_flow(context):
+    """Waits for the whole flow to end, as `yield process` does."""
+    flow = context.spawn(two_steps(context))
+    yield flow
+    yield context.call("done")
 ```
 
 ---

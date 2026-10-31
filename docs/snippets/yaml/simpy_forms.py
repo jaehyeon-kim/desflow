@@ -6,6 +6,8 @@ record of its own; `context.publish` sends a telemetry value. Each one ends by c
 a task, whose records are true because the work has happened by then.
 """
 
+from simpy import Interrupt
+
 
 # --8<-- [start:computed-time]
 def fill(context, car, start, litres):
@@ -57,7 +59,73 @@ def order(context, boxes):
 # --8<-- [end:sub-process]
 
 
-# The tasks of the four blueprints take these arguments
+# --8<-- [start:wait-again]
+def pause(env, target, at):
+    """Interrupts `target` at time `at`."""
+    yield env.timeout(at)
+    target.interrupt("pause")
+
+
+def wait_again(context, job, delay, interrupt_at):
+    """A job that waits for a timeout, is interrupted, and waits for the same
+    timeout again, so the timeout ends at its first time."""
+    env = context.env
+    context.spawn(pause(env, env.active_process, interrupt_at))
+    timeout = env.timeout(delay)
+    while True:
+        try:
+            yield timeout
+            break
+        except Interrupt:
+            pass
+    yield context.call("done", job=job)
+
+
+# --8<-- [end:wait-again]
+
+
+# --8<-- [start:queue-again]
+def queue_again(context, job, start, time, interrupt_at=None):
+    """A job that queues for the machine, is interrupted, and yields the same
+    request again, so it keeps its place in the queue."""
+    env = context.env
+    yield env.timeout(start)
+    machine = context.get_resource("machine")
+    if interrupt_at is not None:
+        context.spawn(pause(env, env.active_process, interrupt_at))
+    request = machine.request()
+    while True:
+        try:
+            yield request
+            break
+        except Interrupt:
+            pass
+    yield env.timeout(time)
+    machine.release(request)
+    yield context.call("done", job=job)
+
+
+# --8<-- [end:queue-again]
+
+
+# --8<-- [start:whole-flow]
+def two_steps(context):
+    """The flow: the task `relay`, then the task `more`, in one process."""
+    yield context.call("relay")
+    yield context.call("more")
+
+
+def watch_flow(context):
+    """Waits for the whole flow to end, as `yield process` does."""
+    flow = context.spawn(two_steps(context))
+    yield flow
+    yield context.call("done")
+
+
+# --8<-- [end:whole-flow]
+
+
+# The tasks of the blueprints take these arguments
 def filled(task_id, context, car):
     return {"car": car}
 
@@ -72,3 +140,7 @@ def pack(task_id, context, boxes):
 
 def shipped(task_id, context, total):
     return {"total": total}
+
+
+def done(task_id, context, job):
+    return {"job": job}

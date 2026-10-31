@@ -67,7 +67,7 @@ In the low-level API, `pick` passes its granted request to `pack`, which release
         env.publish_event(key, {"path_id": path_id, "status": "started"}, "pick", task_id)
         yield env.timeout(shop["sampler"].sample(env.registry.get_config(path_id)))
         env.publish_event(key, {"event_type": "order_picked"}, "pick", task_id)
-        env.process(pack(env, shop, key, picker))  # the order still holds the picker
+        yield from pack(env, shop, key, picker)  # the order still holds the picker
 
 
     def pack(env, shop, key, picker):
@@ -239,7 +239,7 @@ A task that needs both resources for the whole of its work lists them instead, `
             env.publish_event(key, {"path_id": path_id, "status": "started"}, "pick", task_id)
             yield env.timeout(shop["sampler"].sample(env.registry.get_config(path_id)))
             env.publish_event(key, {"event_type": "order_picked"}, "pick", task_id)
-            env.process(pack(env, shop, key, picker))  # the order still holds the picker
+            yield from pack(env, shop, key, picker)  # the order still holds the picker
 
 
         def pack(env, shop, key, picker):

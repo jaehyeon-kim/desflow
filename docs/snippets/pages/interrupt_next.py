@@ -84,7 +84,7 @@ def pack(env, sampler, packers, counts):
         counts["packed"] += 1
     except simpy.Interrupt:
         # An order that loses its packer to a rush order is packed by hand instead
-        env.process(pack_by_hand(env, sampler, counts))
+        yield from pack_by_hand(env, sampler, counts)
     finally:
         packers.release(request)
 

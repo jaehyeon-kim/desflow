@@ -84,7 +84,7 @@ A task with no `next` ends the order's flow. Save the files from [Full Files](#f
     ),
     ```
 
-    A `Router` takes the same rules as `next` and returns the name of the task to start. When a task finishes, its process asks the router and starts the next task as a new process, with the same entity:
+    A `Router` takes the same rules as `next` and returns the name of the task to start. When a task finishes, its process asks the router and runs the next task with `yield from`, in the same process and the same step, with the same entity:
 
     ```python title="docs/snippets/tutorials/flow_of_tasks_low_level.py:next"
     entity.attributes.update(SETS.get(name, {}))
@@ -94,10 +94,10 @@ A task with no `next` ends the order's flow. Save the files from [Full Files](#f
         env.stats.flow_finished(entity.arrival)  # the order leaves the shop
         return
     instance = next(counters[following])
-    env.process(task(env, sampler, shop, following, entity, instance, counters))
+    yield from task(env, sampler, shop, following, entity, instance, counters)
     ```
 
-    In SimPy terms, a process that starts another process with `env.process(...)` is how one step leads to the next. [SimPy and desflow](../../simpy/index.md#processes-and-waiting-for-a-process) describes processes.
+    In SimPy terms, `yield from` runs a generator inside the current process, so the next task is the next statement of one process. A process that started the next task with `env.process(...)` would begin it in a later step, and at a tie it would ask for a unit after the processes already started. [SimPy and desflow](../../simpy/index.md#processes-and-waiting-for-a-process) describes processes.
 
 The rule reads `level.stock`, the level of the container `stock`, at the moment picking finishes. [Stores and Containers](../../user-guide/model-parts/stores-and-containers.md) describes containers. Each name in a condition says where its value comes from: `level.` for a store or container, `attr.` for the entity's attributes, `payload.` for the finished task's payload, and `registry["..."]` for a live parameter. [Task Flow](../../user-guide/model-parts/task-flow.md) lists everything a condition can use.
 
@@ -608,7 +608,7 @@ The counts are:
 
 
         def task(env, sampler, shop, name, entity, task_id, counters):
-            """Runs one task for an order, then starts the task its router chooses."""
+            """Runs one task for an order, then the task its router chooses, in the same process."""
             service, resource = TASKS[name]
             path_id = f"Shop.service.{service}"
 
@@ -640,7 +640,7 @@ The counts are:
                 env.stats.flow_finished(entity.arrival)  # the order leaves the shop
                 return
             instance = next(counters[following])
-            env.process(task(env, sampler, shop, following, entity, instance, counters))
+            yield from task(env, sampler, shop, following, entity, instance, counters)
 
 
         def order_generator(env, sampler, shop, arrival, counters):

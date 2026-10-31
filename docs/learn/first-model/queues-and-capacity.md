@@ -430,7 +430,7 @@ In a network, each task's rate comes from the tasks before it. This version of t
         if following is None:
             env.stats.flow_finished("orders")
         else:
-            env.process(step(env, sampler, shop, following, entity, counters))
+            yield from step(env, sampler, shop, following, entity, counters)
     ```
 
     `desflow explain` does not support low-level models. It reads which arrival starts which task and which resource each task uses, and a low-level model does not declare those links: its SimPy code makes them as it runs.
@@ -826,7 +826,7 @@ The formulas describe a queue that has settled. A run starts with no orders in t
             if following is None:
                 env.stats.flow_finished("orders")
             else:
-                env.process(step(env, sampler, shop, following, entity, counters))
+                yield from step(env, sampler, shop, following, entity, counters)
 
 
         def network_orders(env, sampler, shop, counters):

@@ -19,6 +19,8 @@ PYTHON_FORMS: Dict[str, str] = {
     "held": "hold-a-resource-across-steps",
     "arrivals": "start-a-fixed-number-of-arrivals",
     "sub-process": "pass-arguments-to-a-sub-process-and-read-its-value",
+    "wait-again": "wait-again-for-the-same-event-after-an-interrupt",
+    "whole-flow": "wait-for-a-whole-flow-to-end",
 }
 
 

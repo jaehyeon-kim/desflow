@@ -101,6 +101,9 @@ gaps:
     text: "A task cannot interrupt a task that starts in the same step."
     form: computed
     fixed: 0.31.0
+  I10:
+    text: "After an interrupt, a task under `on_interrupt: resume` asks again: a `wait: {timeout: 5}` interrupted at 2 starts again and ends at 7, a timeout inside `any` starts again, and a queued request or a `get` goes to the back of its queue, so another waiter takes the unit or the item first. A SimPy process that yields the same event again keeps the first end of the timeout and its place in the queue."
+    form: wait-again
   T1:
     text: "`strict` defaults to false; SimPy's default is true."
     key: "`simulation.strict: true`"
@@ -170,6 +173,9 @@ gaps:
   M6:
     text: "`process.name` reads the running task, so it changes across `next`; a SimPy process keeps one name for its whole life, as a process in a `processes` entry does."
     form: computed
+  M7:
+    text: "`wait: {running: ...}` goes on when the instance ends, not when its flow ends; a flow is one process, and SimPy's `yield process` goes on when the whole process ends."
+    form: whole-flow
 
 unattached:
   V4:
@@ -223,7 +229,7 @@ constructs:
   - {id: SP-P4, area: Processes, simpy: "`Process.is_alive`"}
   - {id: SP-P5, area: Processes, simpy: "`Process.target`"}
   - {id: SP-P6, area: Processes, simpy: "`Process.name`", gaps: [M6]}
-  - {id: SP-P7, area: Processes, simpy: "Wait for a process that is already running"}
+  - {id: SP-P7, area: Processes, simpy: "Wait for a process that is already running", gaps: [M7]}
   - {id: SP-U1, area: Processes, simpy: "`start_delayed(env, generator, delay)`"}
   # Conditions
   - {id: SP-C1, area: Conditions, simpy: "`AnyOf` and `env.any_of`"}
@@ -239,7 +245,7 @@ constructs:
   - {id: SP-P9, area: Interrupts, simpy: "An interrupt during a timeout", gaps: [I3]}
   - {id: SP-P10, area: Interrupts, simpy: "`Interrupt` and `Interrupt.cause`", gaps: [V7, V3]}
   - {id: SP-P11, area: Interrupts, simpy: "Several interrupts at one time arrive in order"}
-  - {id: SP-P12, area: Interrupts, simpy: "A process waits again for the same event after an interrupt"}
+  - {id: SP-P12, area: Interrupts, simpy: "A process waits again for the same event after an interrupt", gaps: [I10]}
   - {id: SP-U2, area: Interrupts, simpy: "`subscribe_at(event)`"}
   # Resources
   - {id: SP-B1, area: Resources, simpy: "`capacity`", gaps: [T7]}

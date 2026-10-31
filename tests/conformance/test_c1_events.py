@@ -1400,6 +1400,99 @@ def test_c1_closing_a_task_that_is_still_serving_runs_no_on_action(tmp_path):
     assert registry.get("C1.variables.flag").value == 0
 
 
+_END_ON = {
+    "balk": "balk: 't >= 0', ",
+    "renege": "patience: 2 s, ",
+}
+
+
+@pytest.mark.parametrize("kind", ["balk", "renege"])
+def test_c1_a_task_that_balks_or_reneges_runs_its_on_actions(tmp_path, kind):
+    """A task whose `on:` spawns a child runs the action in the step it balks or
+    reneges, as the statement after a SimPy process's balk or renege does. The machine
+    is held to 10; the visitor balks at 1, or reneges at 3 after a patience of 2."""
+    env = simpy.Environment()
+    machine = simpy.Resource(env, 1)
+    expected = []
+
+    def mark():
+        expected.append(env.now)
+        yield env.timeout(0)
+
+    def holder():
+        with machine.request() as request:
+            yield request
+            yield env.timeout(10)
+
+    def visitor():
+        yield env.timeout(1)
+        if kind == "balk":
+            env.process(mark())
+            return
+        request = machine.request()
+        yield request | env.timeout(2)
+        if not request.triggered:
+            request.cancel()
+            env.process(mark())
+
+    env.process(holder())
+    env.process(visitor())
+    env.run(until=20)
+    assert expected == [1 if kind == "balk" else 3]
+
+    text = (
+        "simulation: {sim_id: C1, factor: 0}\n"
+        "resources: {machine: {current_cap: 1}}\n"
+        "services: {long: {dist: constant, value: 10}, one: {dist: constant, value: 1}}\n"
+        "arrivals:\n"
+        "  h: {replay: {path: h.csv}, spawn: hold}\n"
+        "  v: {replay: {path: v.csv}, spawn: visit}\n"
+        "tasks:\n"
+        "  hold: {resource: machine, service: long, payload: {e: h}}\n"
+        f"  visit: {{resource: machine, service: one, {_END_ON[kind]}"
+        "payload: {e: v}, on: [{spawn: {task: mark}}]}\n"
+        "  mark: {payload: {e: m}}\n"
+        "run: {until: 20}\n"
+    )
+    outcome = run_yaml_text(tmp_path, text, {"h": [0], "v": [1]})
+    assert outcome.error is None
+    assert times(outcome.records, "mark") == expected
+
+    app = SimulationContext("C1", factor=0.0)
+    app.add_resource("machine", current_cap=1, max_cap=1)
+    app.add_service("long", dist="constant", value=10)
+    app.add_service("one", dist="constant", value=1)
+
+    @app.task(service_id="long", resource_id="machine", name="hold")
+    def hold(task_id):
+        return {"e": "h"}
+
+    end = {"balk": {"balk": "t >= 0"}, "renege": {"patience": 2}}[kind]
+
+    @app.task(
+        service_id="one",
+        resource_id="machine",
+        on=[{"spawn": {"task": "mark"}}],
+        name="visit",
+        **end,
+    )
+    def visit(task_id):
+        return {"e": "v"}
+
+    @app.task(name="mark")
+    def mark_task(task_id):
+        return {"e": "m"}
+
+    def script(context):
+        context.spawn(hold(0))
+        yield context.env.timeout(1)
+        context.spawn(visit(0))
+        yield context.env.event()
+
+    app.add_process(script)
+    assert times(run_builder(app, 20), "mark") == expected
+
+
 CHILD_ERROR = {
     "losing": (
         "  parent: {wait: {any: {c: {task: kid}, t: {timeout: 1}}}, payload: {e: p}}\n"

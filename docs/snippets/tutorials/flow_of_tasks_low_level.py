@@ -104,7 +104,7 @@ def payload(name, entity):
 
 
 def task(env, sampler, shop, name, entity, task_id, counters):
-    """Runs one task for an order, then starts the task its router chooses."""
+    """Runs one task for an order, then the task its router chooses, in the same process."""
     service, resource = TASKS[name]
     path_id = f"Shop.service.{service}"
 
@@ -137,7 +137,7 @@ def task(env, sampler, shop, name, entity, task_id, counters):
         env.stats.flow_finished(entity.arrival)  # the order leaves the shop
         return
     instance = next(counters[following])
-    env.process(task(env, sampler, shop, following, entity, instance, counters))
+    yield from task(env, sampler, shop, following, entity, instance, counters)
     # --8<-- [end:next]
 
 

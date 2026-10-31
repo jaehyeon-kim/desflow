@@ -106,7 +106,7 @@ def pack_order_process(env, sampler, packers, key, task_id, label_ids):
         yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
         publish(payload)
     # next: print_label, a new instance for the same order
-    env.process(print_label_process(env, sampler, key, next(label_ids)))
+    yield from print_label_process(env, sampler, key, next(label_ids))
 
 
 # --8<-- [end:low-level-task]

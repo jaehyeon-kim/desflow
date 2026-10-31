@@ -251,8 +251,9 @@ def test_every_gap_is_used_defined_and_linked_to_a_form():
     # A gap with only part of its row planned names no release
     for gap in ("V1", "I6", "M3"):
         assert "fixed" not in data["gaps"][gap]
-    # No release plans H9 and M6, so the page keeps their process forms
-    for gap in ("H9", "M6"):
+    # No release in 0.30.0 to 0.32.0 plans H9, M6, I10 and M7, so the page keeps
+    # their process forms
+    for gap in ("H9", "M6", "I10", "M7"):
         assert "fixed" not in data["gaps"][gap]
     for gap, info in data["unattached"].items():
         assert "fixed" not in info, gap
@@ -277,7 +278,8 @@ def test_a_row_shown_native_has_no_gap_that_says_otherwise():
     """The constructs that the gap texts name carry those gaps, so they are not
     shown native: a peek, a step and a sync (T8), a cause and a user list (V7),
     a balk (I6), a container's amounts (T7), a held unit after
-    `cancel()` (H9) and a process name across `next` (M6)."""
+    `cancel()` (H9), a process name across `next` (M6), a wait again after an
+    interrupt (I10) and a wait for a whole flow (M7)."""
     rows = {c["id"]: c.get("gaps", []) for c in gen_pages.constructs()["constructs"]}
     for construct, gap in (
         ("SP-E8", "T8"),
@@ -296,6 +298,8 @@ def test_a_row_shown_native_has_no_gap_that_says_otherwise():
         ("SP-P6", "M6"),
         ("SP-E17", "T8"),
         ("SP-S9", "H9"),
+        ("SP-P12", "I10"),
+        ("SP-P7", "M7"),
     ):
         assert gap in rows[construct], (construct, gap)
     assert "V9" not in rows["SP-P2"]

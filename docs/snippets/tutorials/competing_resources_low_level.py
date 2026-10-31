@@ -69,7 +69,7 @@ def pick_order(env, sampler, shop, key, task_id, keep):
         shop["picker"].release(picker)
         picker = None
     # With keep, the picker carries the order and stays with it until it is on the bench
-    env.process(pack_order(env, sampler, shop, key, task_id, picker))
+    yield from pack_order(env, sampler, shop, key, task_id, picker)
 
 
 def pack_order(env, sampler, shop, key, task_id, picker):

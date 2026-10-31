@@ -1740,3 +1740,174 @@ def test_sub_process_form_passes_an_argument_and_reads_the_value():
     assert (
         [(t, v["total"]) for t, v in found if "total" in v][-1:] == expected == [(1, 7)]
     )
+
+
+_KEYS_WAIT_AGAIN = """
+simulation: {sim_id: Shop, factor: 0}
+resources: {r: {current_cap: 1}}
+services: {two: {dist: constant, value: 2}}
+tasks:
+  work: {wait: {timeout: 5}, on_interrupt: resume, payload: {job: job-1}}
+  boss: {service: two, interrupt: {task: work, cause: pause}, payload: {boss: 1}}
+arrivals:
+  w: {replay: {path: w.csv}, spawn: work}
+  b: {replay: {path: b.csv}, spawn: boss}
+run: {until: 20}
+"""
+
+
+def test_wait_again_form_ends_the_timeout_at_its_first_time(tmp_path):
+    """After an interrupt at 2, a process that yields the same timeout again ends it
+    at 5, as SimPy does. The keys (`wait: {timeout: 5}` with `on_interrupt: resume`)
+    start the 5 seconds again, so the task ends at 7."""
+    import simpy
+
+    env = simpy.Environment()
+    expected = []
+
+    def job(name):
+        timeout = env.timeout(5)
+        while True:
+            try:
+                yield timeout
+                break
+            except simpy.Interrupt:
+                pass
+        expected.append((env.now, name))
+
+    def pause(target):
+        yield env.timeout(2)
+        target.interrupt("pause")
+
+    process = env.process(job("job-1"))
+    env.process(pause(process))
+    env.run(until=20)
+    found = _simpy_form("simpy_wait_again")
+    assert [(t, v["job"]) for t, v in found] == expected == [(5, "job-1")]
+
+    (tmp_path / "w.csv").write_text("time\n0\n")
+    (tmp_path / "b.csv").write_text("time\n0\n")
+    blueprint = tmp_path / "keys.yaml"
+    blueprint.write_text(_KEYS_WAIT_AGAIN, encoding="utf-8")
+    from desflow import SimulationContext
+
+    app = SimulationContext.from_yaml(blueprint)
+    capture = _Capture()
+    app.add_egress(capture)
+    app.factor = 0.0
+    app.run()
+    ends = [
+        r["sim_ts"]
+        for r in capture.records
+        if r["stream_type"] == "event" and r["value"].get("job") == "job-1"
+    ]
+    assert ends == [7]
+
+
+def test_whole_flow_form_goes_on_when_the_flow_ends():
+    """A process that yields the process of a two-task flow goes on at 6, when the
+    flow ends, as SimPy's `yield process` does. A `running` wait on the first task
+    goes on at 3, when that task ends."""
+    import simpy
+
+    env = simpy.Environment()
+    expected = []
+
+    def flow():
+        yield env.timeout(3)
+        yield env.timeout(3)
+
+    def watch():
+        yield env.process(flow())
+        expected.append(env.now)
+
+    env.process(watch())
+    env.run(until=20)
+    found = _simpy_form("simpy_whole_flow")
+    assert [t for t, v in found if v.get("step") == "done"] == expected == [6]
+    assert [t for t, v in found if v.get("step") == "relay"] == [3]
+
+
+def _keys_queue_again(tmp_path):
+    """The keys: `first` queues behind `holder`, is interrupted at 2 under
+    `on_interrupt: resume`, and asks again."""
+    text = """
+simulation: {sim_id: Shop, factor: 0}
+resources: {machine: {current_cap: 1}}
+services:
+  five: {dist: constant, value: 5}
+  one: {dist: constant, value: 1}
+  two: {dist: constant, value: 2}
+tasks:
+  holder: {resource: machine, service: five, payload: {job: holder}}
+  first: {resource: machine, service: one, on_interrupt: resume, payload: {job: first}}
+  second: {resource: machine, service: one, payload: {job: second}}
+  boss: {service: two, interrupt: {task: first, cause: pause}, payload: {boss: 1}}
+arrivals:
+  h: {replay: {path: h.csv}, spawn: holder}
+  f: {replay: {path: f.csv}, spawn: first}
+  s: {replay: {path: s.csv}, spawn: second}
+  b: {replay: {path: b.csv}, spawn: boss}
+run: {until: 20}
+"""
+    for name, at in (("h", 0), ("f", 0), ("s", 1), ("b", 0)):
+        (tmp_path / f"{name}.csv").write_text(f"time\n{at}\n")
+    blueprint = tmp_path / "keys.yaml"
+    blueprint.write_text(text, encoding="utf-8")
+    from desflow import SimulationContext
+
+    app = SimulationContext.from_yaml(blueprint)
+    capture = _Capture()
+    app.add_egress(capture)
+    app.factor = 0.0
+    app.run()
+    return [
+        (r["sim_ts"], r["value"]["job"])
+        for r in capture.records
+        if r["stream_type"] == "event" and "job" in r["value"]
+    ]
+
+
+def test_queue_again_form_keeps_its_place_in_the_queue(tmp_path):
+    """`first` queues behind `holder`, which holds the machine to 5, and is interrupted
+    at 2. A SimPy process that yields the same request again keeps its place, so it
+    goes on at 5 and ends at 6, and `second` ends at 7. The keys (`on_interrupt:
+    resume`) ask again at the back: `second` goes on at 5 and ends at 6, and `first`
+    ends at 7."""
+    import simpy
+
+    env = simpy.Environment()
+    machine = simpy.Resource(env, 1)
+    expected = []
+
+    def job(name, start, time, interrupt_at=None):
+        yield env.timeout(start)
+        if interrupt_at is not None:
+            env.process(pause(env.active_process, interrupt_at))
+        request = machine.request()
+        while True:
+            try:
+                yield request
+                break
+            except simpy.Interrupt:
+                pass
+        yield env.timeout(time)
+        machine.release(request)
+        expected.append((env.now, name))
+
+    def pause(target, at):
+        yield env.timeout(at)
+        target.interrupt("pause")
+
+    env.process(job("holder", 0, 5))
+    env.process(job("first", 0, 1, 2))
+    env.process(job("second", 1, 1))
+    env.run(until=20)
+    assert expected == [(5, "holder"), (6, "first"), (7, "second")]
+    found = _simpy_form("simpy_queue_again")
+    assert [(t, v["job"]) for t, v in found] == expected
+    assert _keys_queue_again(tmp_path) == [
+        (5, "holder"),
+        (6, "second"),
+        (7, "first"),
+    ]

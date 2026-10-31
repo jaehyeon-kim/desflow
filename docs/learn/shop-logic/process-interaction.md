@@ -156,7 +156,7 @@ A packed order waits for the courier or for its limit. SimPy waits for the first
         env.stats.task_finished("dispatch", task_id)
         # The courier came before the limit when its event is in the AnyOf's value
         task = "by_courier" if courier in done else "by_post"
-        env.process(send(env, key, task, ids))
+        yield from send(env, key, task, ids)
     ```
 
     `env.any_of([...])` is the `AnyOf`. Its value holds the events that happened, so `courier in done` is the YAML's `wait.courier.done`.
@@ -475,7 +475,7 @@ Orders are packed at random moments, so the time from packing to the next courie
                 yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
                 publish(env, key, "pack_order", task_id, {"event_type": "order_packed"})
                 env.stats.task_finished("pack_order", task_id)
-            env.process(dispatch(env, shop, key, ids))
+            yield from dispatch(env, shop, key, ids)
 
 
         def dispatch(env, shop, key, ids):
@@ -491,7 +491,7 @@ Orders are packed at random moments, so the time from packing to the next courie
             env.stats.task_finished("dispatch", task_id)
             # The courier came before the limit when its event is in the AnyOf's value
             task = "by_courier" if courier in done else "by_post"
-            env.process(send(env, key, task, ids))
+            yield from send(env, key, task, ids)
 
 
         def send(env, key, task, ids):

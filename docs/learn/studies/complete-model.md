@@ -296,7 +296,7 @@ Each order is picked, then packed, then shipped in a box from the shelf. A deliv
 
 
     def task(env, sampler, shop, name, key, task_id, counters):
-        """Runs one task of an order, then starts the task after it."""
+        """Runs one task of an order, then the task after it, in the same process."""
         service, resource, following = TASKS[name]
         status = {"path_id": f"Shop.service.{service}"} if service else {}
 
@@ -328,7 +328,7 @@ Each order is picked, then packed, then shipped in a box from the shelf. A deliv
             env.stats.flow_finished("orders")  # the order leaves the shop
             return
         instance = next(counters[following])
-        env.process(task(env, sampler, shop, following, key, instance, counters))
+        yield from task(env, sampler, shop, following, key, instance, counters)
 
 
     def restock(env, shop, key, task_id):
@@ -1287,7 +1287,7 @@ Each step answers a different doubt about the result. The fits test the inputs, 
 
 
         def task(env, sampler, shop, name, key, task_id, counters):
-            """Runs one task of an order, then starts the task after it."""
+            """Runs one task of an order, then the task after it, in the same process."""
             service, resource, following = TASKS[name]
             status = {"path_id": f"Shop.service.{service}"} if service else {}
 
@@ -1319,7 +1319,7 @@ Each step answers a different doubt about the result. The fits test the inputs, 
                 env.stats.flow_finished("orders")  # the order leaves the shop
                 return
             instance = next(counters[following])
-            env.process(task(env, sampler, shop, following, key, instance, counters))
+            yield from task(env, sampler, shop, following, key, instance, counters)
 
 
         def restock(env, shop, key, task_id):

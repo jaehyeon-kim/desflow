@@ -83,7 +83,7 @@ In SimPy a process holds a resource from the moment its request is granted until
             shop["picker"].release(picker)
             picker = None
         # With keep, the picker carries the order and stays with it until it is on the bench
-        env.process(pack_order(env, sampler, shop, key, task_id, picker))
+        yield from pack_order(env, sampler, shop, key, task_id, picker)
 
 
     def pack_order(env, sampler, shop, key, task_id, picker):
@@ -406,7 +406,7 @@ Each order brings 2 seconds of packing on average and arrives every 2.5 seconds 
                 shop["picker"].release(picker)
                 picker = None
             # With keep, the picker carries the order and stays with it until it is on the bench
-            env.process(pack_order(env, sampler, shop, key, task_id, picker))
+            yield from pack_order(env, sampler, shop, key, task_id, picker)
 
 
         def pack_order(env, sampler, shop, key, task_id, picker):

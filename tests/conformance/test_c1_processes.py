@@ -484,8 +484,11 @@ def test_c1_wait_for_a_process_two_instances():
 
 def test_c1_wait_for_a_process_that_hands_on():
     """A running wait on a task that hands on to the next task resumes when that task
-    finishes, at 4, not when its flow ends at 7, as SimPy's `yield proc` on a process
-    that returns before its successor runs."""
+    finishes, at 4. It matches a SimPy `yield proc` on a process that starts the next
+    task as another process, which is not how desflow runs a flow: the flow is one
+    process and ends at 7, and a SimPy `yield proc` on that one process resumes at 7.
+    The difference is gap M7 of SimPy Compatibility, and the program with the whole
+    flow in one process is what the `!python` form gives."""
     env = simpy.Environment()
     out = []
 
@@ -510,8 +513,26 @@ def test_c1_wait_for_a_process_that_hands_on():
     env.run(until=10)
     assert out == [(4, {"event": "relayed"})]
 
+    # The whole flow as one process, which is how desflow runs it: the wait ends at 7
+    env = simpy.Environment()
+    out = []
+
+    def flow():
+        yield env.timeout(3)
+        yield env.timeout(3)
+        return {"event": "more_done"}
+
+    def whole_car():
+        yield env.timeout(1)
+        flow_proc = env.process(flow())
+        env.process(driver(flow_proc))
+
+    env.process(whole_car())
+    env.run(until=10)
+    assert out == [(7, {"event": "more_done"})]
+
     records = run_yaml("c1_running_hands_on.yaml")[0]
-    assert times(records, "driver") == [4.0]
+    assert times(records, "driver") == [4.0]  # the instance ends at 4, not the flow
     assert times(records, "more") == [7.0]  # the flow goes on past the resume
 
 

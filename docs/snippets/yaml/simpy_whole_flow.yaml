@@ -1,0 +1,22 @@
+# A process waits for a flow of two tasks, each of 3 seconds, to end. It goes on
+# at 6, when the second task ends, not at 3, when the first task ends.
+simulation: {sim_id: Relay, factor: 0}
+
+processes:
+  - function: !python simpy_forms.watch_flow
+
+tasks:
+  relay:
+    wait: {timeout: 3}
+    payload: {step: relay}
+  more:
+    wait: {timeout: 3}
+    payload: {step: more}
+  done:
+    payload: {step: done}
+
+run:
+  until: 20
+
+egress:
+  - type: Console

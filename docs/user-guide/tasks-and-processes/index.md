@@ -84,7 +84,7 @@ A task with a service and a resource asks for a unit of the resource, holds it f
             yield env.timeout(sampler.sample(env.registry.get_config(path_id)))
             publish(payload)
         # next: print_label, a new instance for the same order
-        env.process(print_label_process(env, sampler, key, next(label_ids)))
+        yield from print_label_process(env, sampler, key, next(label_ids))
     ```
 
     This is ordinary SimPy: `packers.request()` waits for a unit, `env.timeout` waits the service time, and leaving the `with` block releases the unit. The `env.publish_event` call at each step produces the records.

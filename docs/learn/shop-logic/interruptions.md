@@ -107,12 +107,12 @@ An order that is abandoned when it loses its packer, and goes to be packed by ha
             counts["packed"] += 1
         except simpy.Interrupt:
             # An order that loses its packer to a rush order is packed by hand instead
-            env.process(pack_by_hand(env, sampler, counts))
+            yield from pack_by_hand(env, sampler, counts)
         finally:
             packers.release(request)
     ```
 
-    In the low-level API the process catches the `Interrupt` and starts the process that packs by hand.
+    In the low-level API the process catches the `Interrupt` and packs by hand with `yield from`, in the same process.
 
 The task publishes `preempted` (or `interrupted`) when it loses the packer, and `resumed` when it is served again, also when it never gave the packer up. A `preempted` record names the express order that took the packer (`preempted_by`, its entity key) and the time the regular order had held it (`usage_since`):
 

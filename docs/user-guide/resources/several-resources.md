@@ -75,7 +75,7 @@ A task can also hand a unit to the next task of its flow with `keep`: the next t
         yield env.timeout(duration())
         publish({"event_type": "order_picked"})
         stats.task_finished("pick", task_id)
-        env.process(pack(shop, key, picker))
+        yield from pack(shop, key, picker)
 
 
     def pack(shop, key, picker):
