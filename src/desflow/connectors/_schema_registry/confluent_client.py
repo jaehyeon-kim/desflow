@@ -451,7 +451,7 @@ def resolve_legacy_options(
 
     Each accepted key warns with a `FutureWarning`. The warning names the key and
     its replacement, never the value, so a secret is not printed. The keys are
-    removed in desflow 0.33.0.
+    removed in desflow 0.41.0.
 
     Args:
         options (Mapping[str, Any]): The keys that were passed as `**registry_kwargs`.
@@ -617,4 +617,4 @@ def _notice(key: str, replacement: str | None) -> str:
         text = f"The registry option '{key}' has no effect in desflow"
     else:
         text = f"The registry option '{key}' is replaced by {replacement}"
-    return f"{text}, and desflow 0.33.0 removes it."
+    return f"{text}, and desflow 0.41.0 removes it."

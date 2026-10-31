@@ -148,7 +148,7 @@ class ConfluentAvroSerializer:
                 default is 3.
             **registry_kwargs: Deprecated confluent-kafka keys, such as
                 `{'basic.auth.user.info': 'user:pass'}`, which desflow accepts with a
-                `FutureWarning` and removes in 0.33.0. Use the named arguments.
+                `FutureWarning` and removes in 0.41.0. Use the named arguments.
 
         Raises:
             ImportError: If the 'fastavro' or 'httpx' package is not installed.
