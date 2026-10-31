@@ -235,7 +235,7 @@ def test_every_gap_is_used_defined_and_linked_to_a_form():
             assert heading in titles, gap
     # The gaps that 0.29.0 removes are on the page until their batch deletes them
     assert "S4" not in data["gaps"]
-    for gap in ("S2", "S3", "S5"):
+    for gap in ("S3", "S5"):
         assert data["gaps"][gap]["fixed"] == "0.29.0"
     # T4, T13 and T14 are fixed in 0.30.0 and link no form
     for gap in ("T4", "T13", "T14"):
@@ -296,11 +296,7 @@ def test_a_row_shown_native_has_no_gap_that_says_otherwise():
         ("SP-K4", "T7"),
         ("SP-E5", "S3"),
         ("SP-E6", "S3"),
-        ("SP-P4", "S2"),
-        ("SP-P5", "S2"),
         ("SP-P11", "S5"),
-        ("SP-U2", "S2"),
-        ("SP-E3", "S2"),
         ("SP-E3", "M6"),
         ("SP-P6", "M6"),
         ("SP-E17", "T8"),

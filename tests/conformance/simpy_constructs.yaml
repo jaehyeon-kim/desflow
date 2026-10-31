@@ -21,10 +21,6 @@
 # A batch that removes a gap deletes its id from `gaps` and from every construct.
 
 gaps:
-  S2:
-    text: "`next` starts the following task as a new process, which goes on one step later than a SimPy process that carries on."
-    form: computed
-    fixed: 0.29.0
   S3:
     text: "`on:` actions run one step after the task ends; a SimPy statement at the end of the step runs at once."
     form: computed
@@ -201,7 +197,7 @@ constructs:
   # Environment
   - {id: SP-E1, area: Environment, simpy: "`Environment(initial_time)`", gaps: [T7]}
   - {id: SP-E2, area: Environment, simpy: "`Environment.now`", gaps: [T6, T7]}
-  - {id: SP-E3, area: Environment, simpy: "`Environment.active_process`", gaps: [S2, M6]}
+  - {id: SP-E3, area: Environment, simpy: "`Environment.active_process`", gaps: [M6]}
   - {id: SP-E4, area: Environment, simpy: "`env.process(...)` without `yield`", gaps: [A1, A3, A4, A5, A7]}
   - {id: SP-E5, area: Environment, simpy: "`Environment.schedule(event, priority, delay)`", gaps: [S3]}
   - {id: SP-E6, area: Environment, simpy: "`URGENT` and `NORMAL` event priorities", gaps: [S3]}
@@ -229,11 +225,11 @@ constructs:
   - {id: SP-V10, area: Events and Timeout, simpy: "`Timeout(delay)`", gaps: [V1, T5]}
   - {id: SP-V11, area: Events and Timeout, simpy: "`Timeout(delay, value)`", gaps: [V3]}
   # Processes
-  - {id: SP-P1, area: Processes, simpy: "Start a process and wait for it", gaps: [S2, V9]}
+  - {id: SP-P1, area: Processes, simpy: "Start a process and wait for it", gaps: [V9]}
   - {id: SP-P2, area: Processes, simpy: "A process's return value", gaps: [V3]}
   - {id: SP-P3, area: Processes, simpy: "An exception in a process reaches the process that waits for it", gaps: [M3]}
-  - {id: SP-P4, area: Processes, simpy: "`Process.is_alive`", gaps: [S2]}
-  - {id: SP-P5, area: Processes, simpy: "`Process.target`", gaps: [S2]}
+  - {id: SP-P4, area: Processes, simpy: "`Process.is_alive`"}
+  - {id: SP-P5, area: Processes, simpy: "`Process.target`"}
   - {id: SP-P6, area: Processes, simpy: "`Process.name`", gaps: [M6]}
   - {id: SP-P7, area: Processes, simpy: "Wait for a process that is already running"}
   - {id: SP-U1, area: Processes, simpy: "`start_delayed(env, generator, delay)`"}
@@ -252,7 +248,7 @@ constructs:
   - {id: SP-P10, area: Interrupts, simpy: "`Interrupt` and `Interrupt.cause`", gaps: [V7, V3]}
   - {id: SP-P11, area: Interrupts, simpy: "Several interrupts at one time arrive in order", gaps: [S5]}
   - {id: SP-P12, area: Interrupts, simpy: "A process waits again for the same event after an interrupt", gaps: [S5]}
-  - {id: SP-U2, area: Interrupts, simpy: "`subscribe_at(event)`", gaps: [S2]}
+  - {id: SP-U2, area: Interrupts, simpy: "`subscribe_at(event)`"}
   # Resources
   - {id: SP-B1, area: Resources, simpy: "`capacity`", gaps: [T7]}
   - {id: SP-S1, area: Resources, simpy: "`Resource.request()` and `release(request)`", gaps: [H6]}

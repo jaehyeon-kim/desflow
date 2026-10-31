@@ -27,7 +27,7 @@ A task can wait for something before it queues for its resource: its `wait`. A w
 | `{request: name}` | a unit of a resource; a won unit is held through the service and given back when the task ends | the request |
 | `{get: {store: name}}` or `{get: {container: name, amount: 2}}` | an item or an amount, as a task `get` does | the item taken |
 | `{put: {store: name}}` or `{put: {container: name, amount: 2}}` | room to add the payload of the task before it, or an amount | none |
-| `{running: {task: name, where: ...}}` | every running instance of a task, on the waiter's entity and on the entities it spawned, to end, as SimPy's `yield process` does; `where` narrows them, read in each instance's scope; when none match, the wait is done at once | the one instance's finished payload, or a mapping from instance id to payload for several, in start order |
+| `{running: {task: name, where: ...}}` | every running instance of a task, on the waiter's entity and on the entities it spawned, to end, which is the end of that instance and not of its flow's process; `where` narrows them, read in each instance's scope; when none match, the wait is done at once | the one instance's finished payload, or a mapping from instance id to payload for several, in start order |
 
 A `running` branch waits for tasks already running. Here an order waits for the delivery it started, unless the delivery has already left with the van:
 
@@ -264,7 +264,7 @@ A task's `interrupt` runs when the task finishes, as a `spawn` does. Here the ta
 
 ### Be Told When a Flow Ends
 
-A task's `subscribe` asks to be interrupted when something happens, rather than pausing for it. `subscribe: {task: charger}` starts the `charger` child flow, and interrupts the task when that flow ends, with the cause `{"event": "charger", "value": <charger's payload>}`. The task then follows its `on_interrupt`, as it does for any interrupt. `context.subscribe(event)` subscribes a process to any SimPy event, a process included, as SimPy's `subscribe_at` does. It refuses an event that has already happened.
+A task's `subscribe` asks to be interrupted when something happens, rather than pausing for it. `subscribe: {task: charger}` starts the `charger` child flow, and interrupts the task when that flow ends, with the cause `{"event": "charger", "value": <charger's payload>}`. The task then follows its `on_interrupt`, as it does for any interrupt. The subscription belongs to the flow's process, so after a hand-on the interrupt reaches the next task. `context.subscribe(event)` subscribes a process to any SimPy event, a process included, as SimPy's `subscribe_at` does. It refuses an event that has already happened.
 
 ### Actions When an Event Happens
 

@@ -74,6 +74,10 @@
   low_level: "`yield env.process(child())`"
   checks:
     - tests/conformance/test_c1_process_interaction.py::test_c1_start_and_wait_for_a_process
+    - tests/conformance/test_c1_process_interaction.py::test_c1_next_asks_for_the_unit_before_a_child_spawned_in_that_step
+    - tests/conformance/test_c1_process_interaction.py::test_c1_a_process_that_waits_for_a_flow_wakes_when_the_flow_ends
+    - tests/conformance/test_c1_process_interaction.py::test_c1_a_next_chain_of_5000_tasks_runs_without_nesting_generators
+    - tests/conformance/test_c1_process_interaction.py::test_c1_a_long_next_loop_keeps_no_finished_instances
   page: user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows
 
 - id: C1
@@ -124,6 +128,7 @@
   low_level: "the process `env.process` returns"
   checks:
     - tests/conformance/test_c1_process_interaction.py::test_c1_process_inspection
+    - tests/conformance/test_c1_process_interaction.py::test_c1_process_is_alive_across_a_next_chain
   page: user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows
 
 - id: C1
@@ -188,6 +193,7 @@
   checks:
     - tests/conformance/test_c3_interrupts.py::test_c3_interrupt_during_service
     - tests/conformance/test_c3_interrupts.py::test_c3_two_interrupts_at_one_instant
+    - tests/conformance/test_c1_process_interaction.py::test_c1_an_interrupt_cause_is_read_in_the_next_task
   page: learn/shop-logic/interruptions.md#resume-restart-or-abandon
 
 - id: C3
@@ -282,6 +288,7 @@
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_hold_several_resources
     - tests/conformance/test_c4_resources.py::test_c4_keep_hands_a_unit_to_the_next_task
+    - tests/conformance/test_c1_process_interaction.py::test_c1_a_preempted_kept_unit_interrupts_the_next_task_while_it_queues
   page: user-guide/resources/several-resources.md#several-resources
   differences: A model whose tasks acquire two resources in opposite orders is refused when it is built, because those tasks could each wait for ever; SimPy runs it. Two requests under one `all` wait are made together, so another task that acquires the two one after the other, in either order, is refused too.
 
@@ -888,6 +895,8 @@
     - tests/conformance/test_c1_process_interaction.py::test_c1_active_process
     - tests/conformance/test_c1_process_interaction.py::test_c1_process_name
     - tests/conformance/test_c1_process_interaction.py::test_c1_process_target
+    - tests/conformance/test_c1_process_interaction.py::test_c1_process_target_across_a_next_chain
+    - tests/conformance/test_c1_process_interaction.py::test_c1_active_process_is_the_same_process_across_a_next_chain
     - tests/conformance/test_c2_wait_for_one_or_all.py::test_c2_target_during_a_single_branch_wait_is_the_event_waited_on
   page: user-guide/tasks-and-processes/processes.md#how-it-works
 
@@ -1183,6 +1192,7 @@
   checks:
     - tests/conformance/test_c1_processes.py::test_c1_be_told_when_an_event_happens
     - tests/conformance/test_c1_processes.py::test_c1_be_told_when_an_event_happens_after_the_subscriber_ended
+    - tests/conformance/test_c1_process_interaction.py::test_c1_subscribe_interrupts_the_next_task_after_a_hand_on
   page: user-guide/tasks-and-processes/signals-and-waiting.md#be-told-when-a-flow-ends
 
 # Differences kept by design, approved by the owner: A run with no until and

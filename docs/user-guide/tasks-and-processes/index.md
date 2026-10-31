@@ -232,7 +232,7 @@ Until `run()` is called nothing exists but the description, and the runtime help
 7. It publishes the payload as the finished event, or `failed`, and releases the resource.
 8. It fires its `signal` (or fails it) and sends its `interrupt` action to the tasks it names. It applies `set` to the entity's attributes. Then it starts the next task that its `next` chooses, or its `on_fail` task, as a new instance for the same entity.
 
-A YAML task and its `spawn` make the same task and arrival loop that the builder code above makes. The code that runs these steps is `TaskRun` in `desflow/core/task.py`. In SimPy terms each task run is one process started with `env.process`, and each arrival loop is another. [SimPy and desflow](../../simpy/index.md) describes processes.
+A YAML task and its `spawn` make the same task and arrival loop that the builder code above makes. The code that runs these steps is `TaskRun` in `desflow/core/task.py`. In SimPy terms each flow of tasks is one process started with `env.process`, and each arrival loop is another. [SimPy and desflow](../../simpy/index.md) describes processes.
 
 A process outside a task runs as [Processes](processes.md#how-it-works) describes.
 

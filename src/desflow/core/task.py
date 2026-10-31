@@ -1,10 +1,11 @@
 """The life of one task instance: what `@app.task` and a YAML task run.
 
 `TaskSpec` holds what a task is, checked once when it is declared. `TaskRun` runs one
-instance of it as a SimPy process, in this order: the balk check; `queued`; the
-`wait`; the resource; the `get`; `started`; the user function; the service time;
-the `put`; the `fail` check; the finished payload, or `failed`; the `signal`; the
-`interrupt` action; `set`; then `next`, or `on_fail`, or the end of the flow. The
+instance of it, in this order: the balk check; `queued`; the `wait`; the resource; the
+`get`; `started`; the user function; the service time; the `put`; the `fail` check;
+the finished payload, or `failed`; the `signal`; the `interrupt` action; `set`; then
+`next`, or `on_fail`, or the end of the flow. `run` is a flow's SimPy process: it runs
+the first instance, then each instance that one hands on to, in the same process. The
 context keeps the decorator and the checks made before the clock starts.
 """
 
@@ -157,7 +158,7 @@ class TaskSpec:
 
 
 class TaskRun:
-    """One instance of a task, run as a SimPy process by `run()`."""
+    """One instance of a task, run by `run()`, the SimPy process of its flow."""
 
     def __init__(
         self,
@@ -183,6 +184,8 @@ class TaskRun:
         self.item: Any = None
         self.waits: Dict[str, Dict[str, Any]] = {}
         self.process: Any = None
+        # The instance this one handed on to, which `run` runs next; None if none
+        self._following: Optional["TaskRun"] = None
         # The put or get the task is waiting for, cancelled by an interrupt
         self._pending: Any = None
         # The child flows a `{task}` wait started, by branch, kept for a resume
@@ -390,7 +393,28 @@ class TaskRun:
     # --------------------------------------------------------------------- run
 
     def run(self):
-        """The task's process: everything from the balk check to the next task.
+        """The process of a flow: this instance, then each instance it hands on to.
+
+        One loop runs the instances, so no generator nests at any length of flow, and
+        the next instance asks for its unit in the step the last one ends, as the
+        next statement of a SimPy process does. A root flow's process ends with the
+        first payload, a child flow's with the last. The process is named after the
+        task it runs now (P6).
+        """
+        run, first, kept = self, True, None
+        while True:
+            value = yield from run._run_one()
+            if first:
+                first, kept = False, value
+            if run._following is None:
+                return value if self.child else kept
+            # The instance that ended keeps no link, so a long flow frees each one.
+            following, run._following = run._following, None
+            run = following
+            self.env.active_process._generator.__name__ = run.spec.name  # type: ignore[attr-defined]
+
+    def _run_one(self):
+        """One instance: everything from the balk check to the next task.
 
         While it runs, the instance is listed with its task, so `interrupt` can
         reach it.
@@ -487,7 +511,7 @@ class TaskRun:
                         self._children = {}  # a restart starts its child flows again
                         self._cancel_wait_events()  # and re-makes its wait branches
                     continue  # resume or restart: wait again
-                return (yield from self._abandon(interrupt))
+                return self._abandon(interrupt)
             if outcome is _RENEGED:
                 self._renege()
                 return None
@@ -636,7 +660,7 @@ class TaskRun:
                         remaining = None
                 if self._interrupted(interrupt):
                     continue
-                return (yield from self._abandon(interrupt))
+                return self._abandon(interrupt)
             except Exception:
                 # Any other error gives the units back before it goes on, as a
                 # `with` block does, so a child flow whose failure is handled
@@ -662,7 +686,7 @@ class TaskRun:
             # waiter and the `on:` actions see the failure.
             self._set_ended(failed, ok=False, result=TaskFailed(spec.name, failure))
             if spec.on_fail is not None:
-                return (yield from self._follow(spec.on_fail, failed))
+                return self._follow(spec.on_fail, failed)
             if self.child:
                 raise TaskFailed(spec.name, failure) from self._fail_error
             # Under `continue` a root task's failure ends the flow and the run goes
@@ -711,10 +735,8 @@ class TaskRun:
                 return payload
             self._end_flow("finished")
             return payload
-        result = yield from self._follow(following, handed)
-        # A root task's process ends with its own finished payload, also when it
-        # hands on; a child flow's process ends with the flow's last payload.
-        return result if self.child else payload
+        self._follow(following, handed)
+        return payload
 
     def _deadline(self) -> Any:
         """A timer for the patience left, started now, or None without patience."""
@@ -803,7 +825,7 @@ class TaskRun:
         stats.task_interrupted(spec.name, self.task_id, preempted=preempted)
         return spec.on_interrupt != "abandon"
 
-    def _abandon(self, interrupt: Interrupt):
+    def _abandon(self, interrupt: Interrupt) -> None:
         """Ends the task after an interrupt with `on_interrupt: abandon`."""
         spec, stats = self.spec, self.env.stats
         self._end_wait()
@@ -817,7 +839,8 @@ class TaskRun:
         )
         if spec.on_interrupt_next is not None:
             self._set_ended(handed, ok=True, result=None)
-            return (yield from self._follow(spec.on_interrupt_next, handed))
+            self._follow(spec.on_interrupt_next, handed)
+            return
         if self.child:
             # In a child flow with no on_interrupt_next, the end event fails with
             # the TaskFailed the abandon raises, so a waiter fails with it.
@@ -829,7 +852,6 @@ class TaskRun:
             raise TaskFailed(spec.name, f"interrupted: {_cause(interrupt)}")
         self._set_ended(handed, ok=True, result=None)
         self._end_flow("ended")
-        return None
 
     # ----------------------------------------------------------------- helpers
 
@@ -924,34 +946,24 @@ class TaskRun:
             return None
         return spec.fail_reason if spec.fail_reason is not None else text
 
-    def _follow(self, task: str, handed: Upstream):
-        """Starts the next task; a child flow waits for it and returns its result."""
+    def _follow(self, task: str, handed: Upstream) -> None:
+        """Makes the next instance, which `run` runs in the same process."""
         context = self.context
         if task not in context._tasks:
             raise ValueError(
                 f"task '{self.spec.name}' routes to '{task}', which is not a task"
                 + suggestion(task, context._tasks)
             )
-        if self.child:
-            result = yield context._start(
-                task,
-                self.entity,
-                handed,
-                child=True,
-                args=self.args,
-                kwargs=self.kwargs,
-            )
-            return result
-        self.env.process(
-            context._tasks[task](
-                context.next_instance(task),
-                *self.args,
-                entity=self.entity,
-                upstream=handed,
-                **self.kwargs,
-            )
+        self._following = TaskRun(
+            context,
+            context._task_specs[task],
+            context.next_instance(task),
+            self.entity,
+            handed,
+            self.args,
+            self.kwargs,
+            child=self.child,
         )
-        return None
 
     def _transfer(
         self, transfer: Transfer, direction: str, payload: Any, deadline: Any

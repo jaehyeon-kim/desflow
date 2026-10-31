@@ -23,6 +23,15 @@
 - run: example:interruptions:yaml
   since: 0.23.0
   changelog: "A `preempted` event carries `preempted_by`, the key of the entity that took the unit, and `usage_since`, the time the preempted task was granted it. Storage sinks gain two columns."
-- run: blueprint:c1_signals.yaml
+- run: blueprint:c1_running.yaml
   since: 0.29.0
-  changelog: "A task with one `wait` branch now goes on in the step its event is processed, as `yield event` does in SimPy, so records at one instant can change order and a shared unit can go to another entity; to keep the old order, write the branch under `any`, as `wait: {any: {only: {timeout: 2}}}`."
+  changelog: "`next`, `on_fail` and `on_interrupt_next` now run the following task in the same process and the same step, so it asks for a unit before a child spawned at that instant, and a process you wait for ends when its whole flow ends; to let the child go first, give the following task `wait: {timeout: 0}`. A `subscribe` interrupt or a preempted kept unit now reaches the following task, which `on_interrupt: abandon` cuts short."
+- run: blueprint:c1_running_ended.yaml
+  since: 0.29.0
+  changelog: "`next`, `on_fail` and `on_interrupt_next` now run the following task in the same process and the same step, so it asks for a unit before a child spawned at that instant, and a process you wait for ends when its whole flow ends; to let the child go first, give the following task `wait: {timeout: 0}`. A `subscribe` interrupt or a preempted kept unit now reaches the following task, which `on_interrupt: abandon` cuts short."
+- run: blueprint:c1_running_fails.yaml
+  since: 0.29.0
+  changelog: "`next`, `on_fail` and `on_interrupt_next` now run the following task in the same process and the same step, so it asks for a unit before a child spawned at that instant, and a process you wait for ends when its whole flow ends; to let the child go first, give the following task `wait: {timeout: 0}`. A `subscribe` interrupt or a preempted kept unit now reaches the following task, which `on_interrupt: abandon` cuts short."
+- run: blueprint:c1_running_hands_on.yaml
+  since: 0.29.0
+  changelog: "`next`, `on_fail` and `on_interrupt_next` now run the following task in the same process and the same step, so it asks for a unit before a child spawned at that instant, and a process you wait for ends when its whole flow ends; to let the child go first, give the following task `wait: {timeout: 0}`. A `subscribe` interrupt or a preempted kept unit now reaches the following task, which `on_interrupt: abandon` cuts short."

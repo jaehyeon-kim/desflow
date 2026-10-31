@@ -274,7 +274,7 @@ A blueprint is checked when it loads, and each error names its YAML line. Every 
 
 **Weights.** The weights are turned into cumulative shares once. Each choice draws one uniform number from the routing task's stream and picks the task whose share it falls in.
 
-**Starting the Next Task.** When a task finishes, it applies `set`, builds the `Upstream` and asks its rules for the next task. It starts that task as a new SimPy process, with the same entity and the next instance id from the task's counter. An arrival that spawns the task uses the same counter, so no two runs of a task share an id. In SimPy terms, one process starting the next is the whole mechanism. [SimPy and desflow](../../simpy/index.md) describes processes.
+**Starting the Next Task.** When a task finishes, it applies `set`, builds the `Upstream` and asks its rules for the next task. It runs that task next, in the same SimPy process and the same step, with the same entity and the next instance id from the task's counter. An arrival that spawns the task uses the same counter, so no two runs of a task share an id. In SimPy terms, the next task is the next statement of one process. [SimPy and desflow](../../simpy/index.md) describes processes.
 
 ---
 
