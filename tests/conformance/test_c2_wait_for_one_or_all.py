@@ -1,4 +1,5 @@
-"""C2 waits for one or all: SimPy's `AnyOf` and `AllOf` as a task's `wait`.
+"""C2 waits for one or all: SimPy's `AnyOf` and `AllOf` as a task's `wait`, and a
+`wait` with one branch as SimPy's `yield event`.
 
 Each test runs a plain SimPy reference and the same model in the low-level API, the
 builder and YAML: a wait for either of a signal and a timeout, two signals at one
@@ -6,11 +7,14 @@ instant, and a wait for all of a signal and a child flow, which succeeds and, wh
 the signal fails, fails at once while the child runs on.
 """
 
+import pytest
 import simpy
+from simpy.events import NORMAL, URGENT
 
-from desflow import Signal
+from desflow import Entity, Signal
 from desflow.core.context import SimulationContext
 from tests.conformance.harness import (
+    event_trace,
     periodic,
     run_builder,
     run_low_level,
@@ -396,3 +400,284 @@ def test_c2_condition_over_no_events():
         ):
             assert times(records, "order")  # the order went on (a payload event)
             assert not times(records, "order", "reneged")
+
+
+# ------------------------------------------- a wait with one branch (S1)
+
+# A waiter and a rival each wait for an event that happens at one instant, then ask for
+# the same unit, held for 1. SimPy gives the unit to the one whose event is processed
+# first, so the order of the grants shows whether a single-branch wait goes on in the
+# step its event is processed, as `yield event` does.
+LEAVES = {
+    "timeout": {"timeout": 2},
+    "timeout_value": {"timeout": {"after": 2, "value": "v"}},
+    "timeout_zero": {"timeout": 0},
+    "signal": {"signal": "s"},
+    "child": {"task": "child"},
+    "running": {"running": {"task": "charge"}},
+}
+
+
+def _sleep(env, delay):
+    yield env.timeout(delay)
+
+
+def _leaf_event(env, kind, shared):
+    """The event a SimPy process yields for a `wait` branch of this kind."""
+    if kind == "timeout":
+        return env.timeout(2)
+    if kind == "timeout_value":
+        return env.timeout(2, "v")
+    if kind == "timeout_zero":
+        return env.timeout(0)
+    if kind == "signal":
+        return shared["s"]
+    if kind == "child":
+        return env.process(_sleep(env, 2))
+    return env.all_of([env.process(_sleep(env, 2))])
+
+
+def _leaf_reference(kind, n, waiters_first):
+    env = simpy.Environment()
+    machine = simpy.Resource(env, 1)
+    shared = {"s": env.event()}
+    grants = []
+
+    def user(label):
+        yield _leaf_event(env, kind, shared)
+        with machine.request() as req:
+            yield req
+            grants.append((env.now, label))
+            yield env.timeout(1)
+
+    def fire():
+        yield env.timeout(2)
+        shared["s"].succeed()
+
+    env.process(fire())
+    for i in range(n):
+        for who in ("w", "r") if waiters_first else ("r", "w"):
+            env.process(user((who, i)))
+    env.run(until=40)
+    return grants
+
+
+def _leaf_builder(kind, n, waiters_first):
+    app = SimulationContext("C2", factor=0.0)
+    app.add_resource("machine", current_cap=1, max_cap=1)
+    app.add_service("hold", dist="constant", value=1.0)
+    app.add_service("work", dist="constant", value=2.0)
+    app.add_signal("s", once=True)
+
+    @app.task(
+        wait=LEAVES[kind], service_id="hold", resource_id="machine", name="waiter"
+    )
+    def waiter(task_id):
+        return {"event": "held"}
+
+    @app.task(service_id="work", name="child")
+    def child(task_id):
+        return {"event": "child"}
+
+    @app.task(service_id="work", name="charge")
+    def charge(task_id):
+        return {"event": "charge"}
+
+    # A `running` branch waits for the instances the entity spawned, so its waiter
+    # first spawns a charge, then waits for it
+    @app.task(spawn={"task": "charge"}, next="waiter", name="launch")
+    def launch(task_id):
+        return {"event": "launched"}
+
+    grants = []
+
+    def rival(context, i, shared):
+        env = context.env
+        yield _leaf_event(env, kind, shared)
+        with context.get_resource("machine").request() as req:
+            yield req
+            grants.append((env.now, ("r", i)))
+            yield env.timeout(1)
+
+    def script(context):
+        env = context.env
+        shared = {"s": context.signal("s").wait()}
+
+        def fire():
+            yield env.timeout(2)
+            context.signal("s").fire()
+
+        env.process(fire())
+        for i in range(n):
+            for who in ("w", "r") if waiters_first else ("r", "w"):
+                if who == "w":
+                    first = launch if kind == "running" else waiter
+                    context.spawn(first(i, entity=Entity(f"w{i}", "w")))
+                else:
+                    env.process(rival(context, i, shared))
+        yield env.event()
+
+    app.add_process(script)
+    records = run_builder(app, 40)
+    started = [
+        (t, ("w", int(key[1:])))
+        for t, key, task, status in event_trace(records)
+        if task == "waiter" and status == "started"
+    ]
+    return sorted(started + grants, key=lambda grant: grant[0])
+
+
+@pytest.mark.parametrize("waiters_first", [True, False])
+@pytest.mark.parametrize("n", [1, 3, 10])
+@pytest.mark.parametrize("kind", list(LEAVES))
+def test_c2_single_branch_wait_goes_on_in_the_step_its_event_is_processed(
+    kind, n, waiters_first
+):
+    """A waiter and a rival ask for one unit when the same event is processed. The
+    grants come in the order SimPy gives, for a timeout with and without a value, a
+    timeout of 0, a signal, a child flow and a `running` branch."""
+    expected = _leaf_reference(kind, n, waiters_first)
+    assert len(expected) == 2 * n
+    assert _leaf_builder(kind, n, waiters_first) == expected
+
+
+# ------------------- a signal scheduled with a delay or a priority (SP-E5, SP-E6)
+
+
+def _scheduled_reference(urgent, after):
+    """A process waits for a one-shot event that `env.schedule` arms at 5; a rival
+    asks for the same unit at the time the event is processed."""
+    env = simpy.Environment()
+    machine = simpy.Resource(env, 1)
+    ready = env.event()
+    grants = []
+
+    def user(label):
+        with machine.request() as req:
+            yield req
+            grants.append((env.now, label))
+            yield env.timeout(1)
+
+    def waiter():
+        yield ready
+        yield from user("waiter")
+
+    def starter():
+        yield env.timeout(5)
+        early = env.timeout(0) if urgent else None
+        ready._ok, ready._value = True, None
+        env.schedule(ready, URGENT if urgent else NORMAL, after)
+        yield early if urgent else env.timeout(after)
+        env.process(user("rival"))
+
+    env.process(waiter())
+    env.process(starter())
+    env.run(until=20)
+    return grants
+
+
+def _scheduled_builder(urgent, after):
+    app = SimulationContext("C2", factor=0.0)
+    app.add_resource("machine", current_cap=1, max_cap=1)
+    app.add_service("hold", dist="constant", value=1.0)
+    app.add_signal("ready", once=True)
+
+    @app.task(
+        wait={"signal": "ready"},
+        service_id="hold",
+        resource_id="machine",
+        name="waiter",
+    )
+    def waiter(task_id):
+        return {"event": "held"}
+
+    def rival(context):
+        with context.get_resource("machine").request() as req:
+            yield req
+            grants.append((context.env.now, "rival"))
+            yield context.env.timeout(1)
+
+    grants = []
+
+    def script(context):
+        env = context.env
+        context.spawn(waiter(0, entity=Entity("waiter", "w")))
+        yield env.timeout(5)
+        early = env.timeout(0) if urgent else None
+        context.signal("ready").fire(urgent=urgent, after=after)
+        yield early if urgent else env.timeout(after)
+        env.process(rival(context))
+        yield env.event()
+
+    app.add_process(script)
+    records = run_builder(app, 20)
+    started = [
+        (t, "waiter")
+        for t, _key, task, status in event_trace(records)
+        if task == "waiter" and status == "started"
+    ]
+    return sorted(started + grants, key=lambda grant: grant[0])
+
+
+@pytest.mark.parametrize(
+    "urgent, after", [(False, 3), (True, 0)], ids=["delay_SP-E5", "urgent_SP-E6"]
+)
+def test_c2_signal_scheduled_with_a_delay_or_priority_wakes_a_waiter_in_its_step(
+    urgent, after
+):
+    """`fire` with `after` or `urgent` arms the signal as `env.schedule` does, and a
+    `wait: {signal}` waiter goes on in the step the signal is processed, so it takes
+    the unit before a rival that asks for it in a later event of that instant."""
+    expected = _scheduled_reference(urgent, after)
+    assert [label for _t, label in expected] == ["waiter", "rival"]
+    assert _scheduled_builder(urgent, after) == expected
+
+
+# ------------------------------------------------ the target of a wait (SP-P5)
+
+
+def test_c2_target_during_a_single_branch_wait_is_the_event_waited_on():
+    """`proc.target` is the event the process yields: the timeout or the signal's
+    event itself, not a condition around it."""
+    env = simpy.Environment()
+    ready = env.event()
+    seen = {}
+
+    def worker(event):
+        yield event
+
+    def probe(timed, signalled):
+        yield env.timeout(1)
+        seen["timeout"] = isinstance(timed.target, simpy.events.Timeout)
+        seen["signal"] = signalled.target is ready
+
+    timed = env.process(worker(env.timeout(2)))
+    signalled = env.process(worker(ready))
+    env.process(probe(timed, signalled))
+    env.run(until=3)
+    assert seen == {"timeout": True, "signal": True}
+
+    app = SimulationContext("C2", factor=0.0)
+    app.add_signal("ready", once=True)
+
+    @app.task(wait={"timeout": 2}, name="timed")
+    def timed_task(task_id):
+        return {"event": "went_on"}
+
+    @app.task(wait={"signal": "ready"}, name="signalled")
+    def signalled_task(task_id):
+        return {"event": "went_on"}
+
+    got = {}
+
+    def script(context):
+        timed = context.spawn(timed_task(0))
+        signalled = context.spawn(signalled_task(0))
+        yield context.env.timeout(1)
+        got["timeout"] = isinstance(timed.target, simpy.events.Timeout)
+        got["signal"] = signalled.target is context.signal("ready").wait()
+        yield context.env.event()
+
+    app.add_process(script)
+    run_builder(app, 3)
+    assert got == seen

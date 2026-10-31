@@ -86,7 +86,7 @@ def check(shop, key, arrival):
     env, stats, task_id = shop.env, shop.env.stats, shop.next_id("check")
     shop.publish(key, "check", task_id, {"status": "queued"})
     stats.task_queued("check", task_id)
-    yield env.any_of([env.process(inspect(shop, key, arrival))])
+    yield env.process(inspect(shop, key, arrival))
     shop.publish(key, "check", task_id, {"status": "started"})
     stats.task_started("check", task_id)
     shop.publish(key, "check", task_id, {"event_type": "order_checked"})

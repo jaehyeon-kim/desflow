@@ -485,9 +485,8 @@ def _statuses(records):
 
 
 def test_a_wait_and_a_patience_that_end_at_the_same_instant():
-    """The patience timer was scheduled first, so it wins the tie and the order
-    reneges, as `yield wait | patience` does in SimPy; the wait's own branch,
-    triggered at that instant but not yet processed, is not read."""
+    """The wait's timeout is processed before the patience condition, so the order
+    goes on, as `yield timeout | patience` does in SimPy: `ev in result` is true."""
     keep = _Keep()
     app = SimulationContext("Shop", factor=0).add_egress(keep)
 
@@ -501,7 +500,11 @@ def test_a_wait_and_a_patience_that_end_at_the_same_instant():
 
     app.add_process(script)
     app.run(until=10)
-    assert _statuses(keep.records) == [(0.0, "queued"), (5.0, "reneged")]
+    assert _statuses(keep.records) == [
+        (0.0, "queued"),
+        (5.0, "started"),
+        (5.0, "went_on"),
+    ]
 
 
 def test_a_resumed_wait_waits_again_for_the_same_child_flow():

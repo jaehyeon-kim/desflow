@@ -23,3 +23,6 @@
 - run: example:interruptions:yaml
   since: 0.23.0
   changelog: "A `preempted` event carries `preempted_by`, the key of the entity that took the unit, and `usage_since`, the time the preempted task was granted it. Storage sinks gain two columns."
+- run: blueprint:c1_signals.yaml
+  since: 0.29.0
+  changelog: "A task with one `wait` branch now goes on in the step its event is processed, as `yield event` does in SimPy, so records at one instant can change order and a shared unit can go to another entity; to keep the old order, write the branch under `any`, as `wait: {any: {only: {timeout: 2}}}`."

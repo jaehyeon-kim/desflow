@@ -1103,9 +1103,10 @@ class TaskRun:
                 stop()
             self._cancel_wait_events()
             return str(error)
-        # A single-branch wait is joined as `any_of([branch])`, so a leaf reads
-        # `in joined.value` the same way at the top as inside a group.
-        joined = root_event if wait.root.is_group else env.any_of([root_event])
+        # A single-branch wait yields its event, as `yield event` does in SimPy, so
+        # the task goes on in the step the event is processed; a group yields its
+        # own condition.
+        joined = root_event
         if deadline is not None and deadline.callbacks is not None:
             deadline.callbacks.append(
                 lambda _: before_patience.update(
@@ -1124,10 +1125,10 @@ class TaskRun:
             # running, as SimPy leaves processes running.
             for stop in stop_watching:
                 stop()
-        # The patience timer was scheduled first, so at a tie it wins: the wait's
-        # condition is then triggered but not processed, and has no value yet. The
-        # wait still succeeds when its request, get and put branches granted at that
-        # instant satisfy it, so a granted item or unit is not lost.
+        # When the patience ends first and the wait's event or condition is not yet
+        # processed, the wait has lost the tie. It still succeeds when its request,
+        # get and put branches granted at that instant satisfy it, so a granted item
+        # or unit is not lost.
         tie = failure is None and not joined.processed
         if tie and not done_at_tie(wait.root):
             return _RENEGED
@@ -1152,7 +1153,11 @@ class TaskRun:
                 # A branch granted at the instant the wait ended is triggered but not
                 # in the value yet: it counts as won, so its item or unit is kept
                 done = (
-                    (event in joined.value or (event.triggered and event.ok))
+                    (
+                        event.triggered and event.ok
+                        if event is joined
+                        else event in joined.value or (event.triggered and event.ok)
+                    )
                     if joined.ok
                     else event.processed
                 )
@@ -1164,7 +1169,11 @@ class TaskRun:
                 done = event.processed
                 value = self._running_value(node, done)
             else:
-                done = (event in joined.value) if joined.ok else event.processed
+                done = (
+                    (event.processed if event is joined else event in joined.value)
+                    if joined.ok
+                    else event.processed
+                )
                 value = _branch_value(event) if done else None
             self.waits[name] = {
                 "done": done,

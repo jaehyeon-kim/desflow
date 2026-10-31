@@ -235,7 +235,7 @@ def test_every_gap_is_used_defined_and_linked_to_a_form():
             assert heading in titles, gap
     # The gaps that 0.29.0 removes are on the page until their batch deletes them
     assert "S4" not in data["gaps"]
-    for gap in ("S1", "S2", "S3", "S5"):
+    for gap in ("S2", "S3", "S5"):
         assert data["gaps"][gap]["fixed"] == "0.29.0"
     # T4, T13 and T14 are fixed in 0.30.0 and link no form
     for gap in ("T4", "T13", "T14"):
@@ -277,7 +277,7 @@ def test_gaps_that_belong_to_no_feature_are_named_on_the_page():
 def test_a_row_shown_native_has_no_gap_that_says_otherwise():
     """The constructs that the gap texts name carry those gaps, so they are not
     shown native: a peek, a step and a sync (T8), a cause and a user list (V7),
-    a balk (I6), a wait on a process (S1), a container's amounts (T7), a held unit after
+    a balk (I6), a container's amounts (T7), a held unit after
     `cancel()` (H9) and a process name across `next` (M6)."""
     rows = {c["id"]: c.get("gaps", []) for c in gen_pages.constructs()["constructs"]}
     for construct, gap in (
@@ -289,19 +289,14 @@ def test_a_row_shown_native_has_no_gap_that_says_otherwise():
         ("SP-S6", "V7"),
         ("SP-S11", "V7"),
         ("SP-S14", "I6"),
-        ("SP-P7", "S1"),
-        ("SP-V11", "S1"),
         ("SP-V4", "S3"),
         ("SP-P3", "M3"),
         ("SP-K1", "T7"),
         ("SP-K2", "T7"),
         ("SP-K4", "T7"),
-        ("SP-E5", "S1"),
         ("SP-E5", "S3"),
-        ("SP-E6", "S1"),
         ("SP-E6", "S3"),
         ("SP-P4", "S2"),
-        ("SP-P5", "S1"),
         ("SP-P5", "S2"),
         ("SP-P11", "S5"),
         ("SP-U2", "S2"),

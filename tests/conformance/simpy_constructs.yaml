@@ -21,10 +21,6 @@
 # A batch that removes a gap deletes its id from `gaps` and from every construct.
 
 gaps:
-  S1:
-    text: "A `wait` with one branch goes on one step after its event; SimPy's `yield event` goes on in the step the event is processed."
-    form: computed
-    fixed: 0.29.0
   S2:
     text: "`next` starts the following task as a new process, which goes on one step later than a SimPy process that carries on."
     form: computed
@@ -207,8 +203,8 @@ constructs:
   - {id: SP-E2, area: Environment, simpy: "`Environment.now`", gaps: [T6, T7]}
   - {id: SP-E3, area: Environment, simpy: "`Environment.active_process`", gaps: [S2, M6]}
   - {id: SP-E4, area: Environment, simpy: "`env.process(...)` without `yield`", gaps: [A1, A3, A4, A5, A7]}
-  - {id: SP-E5, area: Environment, simpy: "`Environment.schedule(event, priority, delay)`", gaps: [S1, S3]}
-  - {id: SP-E6, area: Environment, simpy: "`URGENT` and `NORMAL` event priorities", gaps: [S1, S3]}
+  - {id: SP-E5, area: Environment, simpy: "`Environment.schedule(event, priority, delay)`", gaps: [S3]}
+  - {id: SP-E6, area: Environment, simpy: "`URGENT` and `NORMAL` event priorities", gaps: [S3]}
   - {id: SP-E7, area: Environment, simpy: "Events at one time run in the order they were scheduled", gaps: [M4]}
   - {id: SP-E8, area: Environment, simpy: "`Environment.peek()`", gaps: [T8]}
   - {id: SP-E9, area: Environment, simpy: "`Environment.step()`", gaps: [T8]}
@@ -221,7 +217,7 @@ constructs:
   - {id: SP-E16, area: Environment, simpy: "Callbacks of the stopping event run when the run resumes"}
   - {id: SP-E17, area: Environment, simpy: "A subclass of `Environment`", gaps: [T8]}
   # Events and Timeout
-  - {id: SP-V1, area: Events and Timeout, simpy: "`Event.succeed(value)` waking every waiter", gaps: [S1, I4, T3]}
+  - {id: SP-V1, area: Events and Timeout, simpy: "`Event.succeed(value)` waking every waiter", gaps: [I4, T3]}
   - {id: SP-V2, area: Events and Timeout, simpy: "`Event.fail(exception)`"}
   - {id: SP-V3, area: Events and Timeout, simpy: "An event that triggers once", gaps: [T3]}
   - {id: SP-V4, area: Events and Timeout, simpy: "`Event.trigger(event)`", gaps: [S3]}
@@ -230,16 +226,16 @@ constructs:
   - {id: SP-V7, area: Events and Timeout, simpy: "A failed event nobody handles stops the run", gaps: [T2]}
   - {id: SP-V8, area: Events and Timeout, simpy: "`Event.triggered`, `processed`, `ok` and `value`"}
   - {id: SP-V9, area: Events and Timeout, simpy: "`a & b` and `a | b`", gaps: [V2, T10]}
-  - {id: SP-V10, area: Events and Timeout, simpy: "`Timeout(delay)`", gaps: [S1, V1, T5]}
-  - {id: SP-V11, area: Events and Timeout, simpy: "`Timeout(delay, value)`", gaps: [V3, S1]}
+  - {id: SP-V10, area: Events and Timeout, simpy: "`Timeout(delay)`", gaps: [V1, T5]}
+  - {id: SP-V11, area: Events and Timeout, simpy: "`Timeout(delay, value)`", gaps: [V3]}
   # Processes
-  - {id: SP-P1, area: Processes, simpy: "Start a process and wait for it", gaps: [S1, S2, V9]}
+  - {id: SP-P1, area: Processes, simpy: "Start a process and wait for it", gaps: [S2, V9]}
   - {id: SP-P2, area: Processes, simpy: "A process's return value", gaps: [V3]}
   - {id: SP-P3, area: Processes, simpy: "An exception in a process reaches the process that waits for it", gaps: [M3]}
   - {id: SP-P4, area: Processes, simpy: "`Process.is_alive`", gaps: [S2]}
-  - {id: SP-P5, area: Processes, simpy: "`Process.target`", gaps: [S1, S2]}
+  - {id: SP-P5, area: Processes, simpy: "`Process.target`", gaps: [S2]}
   - {id: SP-P6, area: Processes, simpy: "`Process.name`", gaps: [M6]}
-  - {id: SP-P7, area: Processes, simpy: "Wait for a process that is already running", gaps: [S1]}
+  - {id: SP-P7, area: Processes, simpy: "Wait for a process that is already running"}
   - {id: SP-U1, area: Processes, simpy: "`start_delayed(env, generator, delay)`"}
   # Conditions
   - {id: SP-C1, area: Conditions, simpy: "`AnyOf` and `env.any_of`"}
