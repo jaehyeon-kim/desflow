@@ -29,7 +29,14 @@ return [
 ]
 ```
 
-`order_log.csv` is an illustrative log of 300 orders placed one afternoon, with the time each was placed to a tenth of a second. Write the gaps to a CSV column to fit them with `desflow fit` instead.
+`order_log.csv` is an illustrative log of 300 orders placed one afternoon, with the time each was placed to a tenth of a second. Write the gaps to a CSV column with one header, `gap_seconds`, to fit them with `desflow fit` instead:
+
+```python title="docs/snippets/guides/fit_a_distribution.py:write-gaps"
+path = Path(folder) / "gaps.csv"
+path.write_text("gap_seconds\n" + "".join(f"{gap}\n" for gap in gaps()))
+```
+
+`python fit_a_distribution.py` writes this `gaps.csv` into the folder you run it in.
 
 ### Fit It
 
@@ -139,11 +146,46 @@ Each form fits the gaps and runs the shop for an hour with the fitted arrivals. 
 # The scripts and the order log are in docs/snippets/guides/ of the repository
 git clone https://github.com/jaehyeon-kim/desflow.git
 cd desflow/docs/snippets/guides
-python fit_a_distribution.py
-python fit_a_distribution_low_level.py
 ```
 
-For the blueprint, write `fitted/orders.yaml` first, with `write` or `desflow fit --out`, beside `fit_a_distribution.yaml`, then run `desflow run fit_a_distribution.yaml`.
+=== "YAML"
+
+    The blueprint includes `fitted/orders.yaml`, which the repository holds beside it, in `docs/snippets/yaml/`. It is the file that `write` and `desflow fit --out` write. The run prints its records, so keep the last count of finished orders:
+
+    ```bash
+    cd ../yaml
+    desflow run fit_a_distribution.yaml --stdout | grep flows.orders.finished | tail -n 1
+    ```
+
+    ```text
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.flows.orders.finished","value":1302}
+    ```
+
+    The timestamp is the wall-clock time of the run.
+
+=== "Builder"
+
+    ```bash
+    python fit_a_distribution.py
+    ```
+
+    ```text
+    orders packed in an hour: 1302
+    ```
+
+    The script prints the table of candidates before this line, and writes `gaps.csv` into the folder.
+
+=== "Low-level"
+
+    ```bash
+    python fit_a_distribution_low_level.py
+    ```
+
+    ```text
+    orders packed in an hour: 1302
+    ```
+
+    The script prints the table of candidates before this line.
 
 ---
 
@@ -155,9 +197,9 @@ For the blueprint, write `fitted/orders.yaml` first, with `write` or `desflow fi
 
         ```yaml title="docs/snippets/yaml/fit_a_distribution.yaml"
         # The Fit a Distribution guide: the shop with arrivals fitted to an order log.
-        # Fit the gaps first: write() in docs/snippets/guides/fit_a_distribution.py, or
-        # desflow fit on a column of the gaps with --out fitted/orders.yaml, writes
-        # fitted/orders.yaml. Then run it with: desflow run fit_a_distribution.yaml
+        # The fitted/ folder beside it holds the best fit, orders.yaml. write() in
+        # docs/snippets/guides/fit_a_distribution.py, or desflow fit on gaps.csv with
+        # --out fitted/orders.yaml, writes it again. Run it with: desflow run fit_a_distribution.yaml
         simulation:
           sim_id: Shop
           factor: 0
@@ -199,7 +241,7 @@ For the blueprint, write `fitted/orders.yaml` first, with `write` or `desflow fi
         order_log.csv is an illustrative log of 300 orders placed one afternoon, with the
         time each was placed. The script turns the times into the gaps between orders,
         fits them, prints the table of candidates, and runs the shop for an hour with the
-        fitted arrivals. `write` saves the settings for a blueprint's `!include`.
+        fitted arrivals. `write_gaps` writes the gaps to gaps.csv, and `write` saves the settings for a blueprint's `!include`.
         """
 
         import csv
@@ -225,6 +267,13 @@ For the blueprint, write `fitted/orders.yaml` first, with `write` or `desflow fi
             return [
                 (later - earlier).total_seconds() for earlier, later in zip(placed, placed[1:])
             ]
+
+
+        def write_gaps(folder):
+            """Writes the gaps to a CSV column, for `desflow fit`."""
+            path = Path(folder) / "gaps.csv"
+            path.write_text("gap_seconds\n" + "".join(f"{gap}\n" for gap in gaps()))
+            return path
 
 
         def fit():
@@ -275,6 +324,7 @@ For the blueprint, write `fitted/orders.yaml` first, with `write` or `desflow fi
 
 
         if __name__ == "__main__":
+            write_gaps(".")  # the column that `desflow fit` reads
             app = shop(fit())
             app.run(until="1 h")
             finished = app.env.stats.readings()["Shop.stats.flows.orders.finished"]

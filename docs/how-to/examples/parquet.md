@@ -71,8 +71,6 @@ The example needs only desflow, which each Quick Start below installs, and no ot
       S3_ACCESS_KEY=user S3_SECRET_KEY=password
     ```
 
-    Stop it with `odctl down storage --volumes` when you are finished.
-
 === "Builder"
 
     This version builds the simulation with the builder API (`SimulationContext`) and writes with `ParquetStorageEgress`.
@@ -117,8 +115,6 @@ The example needs only desflow, which each Quick Start below installs, and no ot
     export PARQUET_FILESYSTEM=s3 DEST_PATH=odctl-dev/history S3_ENDPOINT=http://127.0.0.1:8333 \
       S3_ACCESS_KEY=user S3_SECRET_KEY=password
     ```
-
-    Stop it with `odctl down storage --volumes` when you are finished.
 
 === "Low-level"
 
@@ -165,13 +161,37 @@ The example needs only desflow, which each Quick Start below installs, and no ot
       S3_ACCESS_KEY=user S3_SECRET_KEY=password
     ```
 
-    Stop it with `odctl down storage --volumes` when you are finished.
-
 ---
 
 ## Check the Result
 
-The three tabs write the same records, which [a test](https://github.com/jaehyeon-kim/desflow/blob/main/tests/docs/test_example_twins.py) checks by running each version unpaced. A real run writes them as rows of Parquet files under `data/`. `desflow run parquet.yaml --sample 4 --stdout` prints the first four events as JSON lines instead, and writes no file:
+The three tabs write the same records, which [a test](https://github.com/jaehyeon-kim/desflow/blob/main/tests/docs/test_example_twins.py) checks by running each version unpaced. A real run writes them as rows of Parquet files under `data/`. From the folder the Quick Start used, count the rows in those files:
+
+=== "uv"
+
+    ```bash
+    uv run --no-project --with "desflow[parquet]" python -c "import pyarrow.dataset as ds; print(ds.dataset('data', format='parquet').count_rows())"
+    ```
+
+=== "pip"
+
+    ```bash
+    python -c "import pyarrow.dataset as ds; print(ds.dataset('data', format='parquet').count_rows())"
+    ```
+
+It prints `3621530`, one row per lifecycle event of the week, and `ls data | wc -l` prints `725`, the number of files. With the S3 variables set, the files are under `odctl-dev/history/` in the object store instead. Count them there with this command, which uses the same credentials as the variables, and expect the same `3621530`. With uv, start the command with the same `uv run --no-project --with "desflow[parquet]"` prefix:
+
+```bash
+python -c "import pyarrow.dataset as ds; from pyarrow import fs; s3 = fs.S3FileSystem(endpoint_override='127.0.0.1:8333', scheme='http', access_key='user', secret_key='password'); print(ds.dataset('odctl-dev/history', filesystem=s3, format='parquet').count_rows())"
+```
+
+When you have checked the result, delete `data/`. If you started the object store, stop it:
+
+```bash
+odctl down storage --volumes
+```
+
+In `parquet/yaml`, which `desflow examples get parquet --api yaml` creates, `desflow run parquet.yaml --sample 4 --stdout` prints the first four events as JSON lines instead, and writes no file:
 
 <!-- records: parquet-sample -->
 ```text

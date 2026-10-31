@@ -30,7 +30,7 @@ A check whose measure is not in `measures` is refused. The experiment writes eve
 
 ### Compare With Observed Values
 
-`observed` names a CSV of values measured in the real system, with the columns `measure`, `value`, `unit`, `population` and `horizon`. Each row is placed beside the simulated interval of `variant` (the first variant when it is not given), and the report says whether the value lies inside it. A value means something only beside a simulated value of the same kind, so the experiment refuses a row whose unit, population or horizon differs from the measure's:
+`observed` names a CSV of values measured in the real system, with the columns `measure`, `value`, `unit`, `population` and `horizon`. Each row is placed beside the simulated interval of `variant` (the first variant when it is not given), and the report says whether the value lies inside it. That interval is for a mean, so one observed period can lie outside it while the model is right, as [Checking and Validating](../../learn/concepts/checking-and-validating.md#compare-with-the-real-shop) explains. A value means something only beside a simulated value of the same kind, so the experiment refuses a row whose unit, population or horizon differs from the measure's:
 
 | Statistic | Unit | Population |
 |---|---|---|

@@ -24,11 +24,13 @@ arrivals:
   # --8<-- [end:arrivals]
 
 tasks:
+  # --8<-- [start:restock]
   restock:
     # The shirt goes on the shelf, as a mapping with its size
     put: {store: shelf}
     payload: {}
     attributes: [size]
+  # --8<-- [end:restock]
   # --8<-- [start:take]
   take_shirt:
     # Takes the oldest shirt of the order's own size; waits while there is none

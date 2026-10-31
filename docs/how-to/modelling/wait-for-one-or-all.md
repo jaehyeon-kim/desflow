@@ -13,6 +13,41 @@ Make a task wait for the first of several things, or for all of them, and read w
 
 ## Steps
 
+The Builder and YAML blocks in the steps are functions of one script, `wait_for_one_or_all.py`, in the order the blocks appear. Its start, which the functions share, is below. The line `from desflow import Entity, SimulationContext` follows it, and `_shop` is the first function of the first Builder block:
+
+```python title="docs/snippets/guides/wait_for_one_or_all.py:header"
+import asyncio
+import queue
+import shutil
+import sys
+import tempfile
+from pathlib import Path
+
+
+class Capture:
+    """An egress that keeps every event it receives."""
+
+    def __init__(self):
+        self.events = []
+
+    async def run(self, egress_queue):
+        try:
+            while True:
+                try:
+                    batch = egress_queue.get_nowait()
+                    self.events += [r for r in batch if r["stream_type"] == "event"]
+                except queue.Empty:
+                    await asyncio.sleep(0.005)
+        except asyncio.CancelledError:
+            pass
+
+
+def _events(task: str, capture: Capture) -> list:
+    return [e for e in capture.events if e["task"] == task]
+```
+
+The YAML blocks read their files from the folder of the script. Save each blueprint under the name in its title, `wait_first.yaml`, `wait_tie.yaml` and `wait_all.yaml`, and the payload function as `wait_for_one_or_all_logic.py`. The Low-level blocks are functions of a second script, `wait_for_one_or_all_low_level.py`, which [Check the Result](#check-the-result) completes.
+
 ### Wait for the First
 
 `wait: {any: {...}}` ends when the first branch happens, as SimPy's `AnyOf` (`a | b`) does. Name each branch. After the wait, `wait.<branch>.done` says which happened. Here an order waits for a restock or 30 seconds. A builder function that declares `wait` reads the branches, and so does a blueprint's `!python` payload:
@@ -88,7 +123,7 @@ Make a task wait for the first of several things, or for all of them, and read w
         return capture
 
 
-    def first_yaml(gap: float, blueprint=BLUEPRINTS / "wait_first.yaml") -> dict:
+    def first_yaml(gap: float, blueprint="wait_first.yaml") -> dict:
         capture = run_blueprint(
             Path(blueprint),
             {"orders.csv": "time\n0\n", "restocks.csv": f"time\n{gap}\n"},
@@ -96,7 +131,7 @@ Make a task wait for the first of several things, or for all of them, and read w
         return _events("order", capture)[-1]["value"]["done"]
 
 
-    def two_at_once_yaml(blueprint=BLUEPRINTS / "wait_tie.yaml") -> dict:
+    def two_at_once_yaml(blueprint="wait_tie.yaml") -> dict:
         capture = run_blueprint(
             Path(blueprint),
             {
@@ -108,7 +143,7 @@ Make a task wait for the first of several things, or for all of them, and read w
         return _events("order", capture)[-1]["value"]["done"]
 
 
-    def all_with_a_failure_yaml(blueprint=BLUEPRINTS / "wait_all.yaml") -> list:
+    def all_with_a_failure_yaml(blueprint="wait_all.yaml") -> list:
         capture = run_blueprint(
             Path(blueprint),
             {"orders.csv": "time\n0\n", "restocks.csv": "time,broken\n2,1\n"},
@@ -123,6 +158,13 @@ Make a task wait for the first of several things, or for all of them, and read w
 === "Builder"
 
     ```python title="docs/snippets/guides/wait_for_one_or_all.py:first"
+    def _shop():
+        app = SimulationContext("Shop", factor=0)
+        capture = Capture()
+        app.add_egress(capture)
+        return app, capture
+
+
     def first(gap: float) -> dict:
         """Which branches were done when the order's wait ended."""
         app, capture = _shop()
@@ -558,7 +600,113 @@ An `any` or an `all` with no branches is accepted, and succeeds at once with an 
 
 ## Check the Result
 
-The example is a shop where each order waits for a restock or 30 seconds, whichever comes first. A restock waits for both its delivery, which takes 10 seconds, and a stock count, which takes 20 seconds. Orders arrive about every 10 seconds, and a delivery every minute. Its files are in [Full Files](#full-files). `python wait_for_one_or_all_example.py` and `python wait_for_one_or_all_example_low_level.py` print the counts and the restock times, and `example_yaml` in `wait_for_one_or_all.py` reads them from a run of the blueprint.
+The script prints the result of every step above. The Builder and YAML functions end the script with:
+
+```python title="docs/snippets/guides/wait_for_one_or_all.py:main"
+if __name__ == "__main__":
+    print("check: restock after 10 s:", first(10))
+    print("check: restock after 50 s:", first(50))
+    print("check: two at once:", two_at_once())
+    print("check: all, with a failure:", all_with_a_failure())
+    print("check: the same in YAML:", first_yaml(10), first_yaml(50))
+    print("check: two at once in YAML:", two_at_once_yaml())
+    print("check: all, with a failure, in YAML:", all_with_a_failure_yaml())
+```
+
+Run it in the folder with the script, the three blueprints and the payload file, and keep the lines that start with `check:`:
+
+```bash
+# With uv
+uv run --no-project --with desflow wait_for_one_or_all.py | grep "^check:"
+# With pip
+pip install desflow
+python wait_for_one_or_all.py | grep "^check:"
+```
+
+```text
+check: restock after 10 s: {'stock': True, 'limit': False}
+check: restock after 50 s: {'stock': False, 'limit': True}
+check: two at once: {'boxes': True, 'labels': True}
+check: all, with a failure: [(0.0, 'order', 'queued'), (2.0, 'order', 'failed'), (4.0, 'inspect', 'finished')]
+check: the same in YAML: {'stock': True, 'limit': False} {'stock': False, 'limit': True}
+check: two at once in YAML: {'boxes': True, 'labels': True}
+check: all, with a failure, in YAML: [(0.0, 'order', 'queued'), (2.0, 'order', 'failed'), (4.0, 'inspect', 'finished')]
+```
+
+The Low-level script, `wait_for_one_or_all_low_level.py`, starts with the line `from desflow import DynamicRealtimeEnvironment, Signal, SignalFailed`, followed by the three Low-level functions in the order they appear above. It ends with:
+
+```python title="docs/snippets/guides/wait_for_one_or_all_low_level.py:main"
+if __name__ == "__main__":
+    print("restock after 10 s:", first(10))
+    print("restock after 50 s:", first(50))
+    print("two at once:", two_at_once())
+    print("all, with a failure:", all_with_a_failure())
+```
+
+It needs no blueprint. Run it:
+
+```bash
+# With uv
+uv run --no-project --with desflow wait_for_one_or_all_low_level.py
+# With pip
+pip install desflow
+python wait_for_one_or_all_low_level.py
+```
+
+```text
+restock after 10 s: {'stock': True, 'limit': False}
+restock after 50 s: {'stock': False, 'limit': True}
+two at once: {'boxes': True, 'labels': True}
+all, with a failure: [(0, 'order', 'queued'), (2, 'order', 'failed'), (4, 'inspect', 'finished')]
+```
+
+The low-level form prints the times of the last line without a decimal point, because its timeouts are whole numbers.
+
+The example is a shop where each order waits for a restock or 30 seconds, whichever comes first. A restock waits for both its delivery, which takes 10 seconds, and a stock count, which takes 20 seconds. Orders arrive about every 10 seconds, and a delivery every minute. Its files are in [Full Files](#full-files). Save the form you use in a folder of its own, and run it:
+
+=== "YAML"
+
+    The records go to the terminal as JSON lines. Keep the last count of each task and the time of each restock:
+
+    ```bash
+    desflow run wait_for_one_or_all_example.yaml --stdout > records.jsonl
+    grep -oE '"path_id":"Shop.stats.tasks.(pack|refund).finished","value":[0-9]+' records.jsonl | tail -n 2
+    grep '"event_type":"restocked"' records.jsonl | grep -oE '"sim_ts":[0-9.]+'
+    ```
+
+    ```text
+    "path_id":"Shop.stats.tasks.refund.finished","value":35
+    "path_id":"Shop.stats.tasks.pack.finished","value":27
+    "sim_ts":80.0
+    "sim_ts":140.0
+    "sim_ts":200.0
+    "sim_ts":260.0
+    "sim_ts":320.0
+    "sim_ts":380.0
+    "sim_ts":440.0
+    "sim_ts":500.0
+    "sim_ts":560.0
+    ```
+
+=== "Builder"
+
+    ```bash
+    uv run --no-project --with desflow wait_for_one_or_all_example.py
+    ```
+
+    ```text
+    {'pack': 27, 'refund': 35, 'restocked_at': [80.0, 140.0, 200.0, 260.0, 320.0, 380.0, 440.0, 500.0, 560.0]}
+    ```
+
+=== "Low-level"
+
+    ```bash
+    uv run --no-project --with desflow wait_for_one_or_all_example_low_level.py
+    ```
+
+    ```text
+    {'pack': 27, 'refund': 35, 'restocked_at': [80, 140, 200, 260, 320, 380, 440, 500, 560]}
+    ```
 
 Each form runs once for 10 simulation minutes at `factor=0`: 27 orders are packed after a restock and 35 are refunded at the time limit. The restocks come at 80, 140 and so on to 560 seconds. Each comes 20 seconds after its delivery starts, because the wait for all ends with the stock count, the longer of its two branches. With `any` in place of `all`, each restock would come after the 10-second delivery instead, and more orders would be packed.
 

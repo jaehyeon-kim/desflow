@@ -2,13 +2,13 @@
 
 Shirts of three sizes arrive on one shelf, and orders of three sizes take them.
 Every record is printed to the terminal. The script then prints, for each size, how
-many orders were filled and how many were cancelled. To see only those lines, run:
+many orders started, were filled, were still waiting and were cancelled, and the shirts left
+on the shelf. To see only those lines, run:
 python filtered_inventory_low_level.py 2>/dev/null
 """
 
 import itertools
 import logging
-from collections import Counter
 
 from desflow import (
     CapacityConfig,
@@ -51,18 +51,26 @@ PARAMS = SimParameter(
 )
 
 
+# --8<-- [start:restock]
 def restock(env, shelf, key, size, task_id):
     """The shirt goes on the shelf, as a mapping with its size."""
     yield shelf.put({"size": size})
     env.publish_event(key, {"size": size}, task="restock", instance=task_id)
 
 
+# --8<-- [end:restock]
+
+
 # --8<-- [start:take]
 def take_shirt(env, shelf, key, size, task_id):
+    arrival = key.rsplit("-", 1)[0]
+
     def publish(value):
         env.publish_event(key, value, task="take_shirt", instance=task_id)
 
     publish({"status": "queued"})
+    env.stats.flow_started(arrival)
+    env.stats.task_queued("take_shirt", task_id)
     # Takes the oldest shirt of the order's own size; waits while there is none
     get = shelf.get(filter=lambda shirt: shirt["size"] == size)
     # A customer cancels an order not filled within 10 minutes
@@ -70,9 +78,14 @@ def take_shirt(env, shelf, key, size, task_id):
     if not get.triggered:
         get.cancel()  # out of the queue, so it never takes a shirt later
         publish({"status": "reneged"})
+        env.stats.task_reneged("take_shirt", task_id)
+        env.stats.flow_ended(arrival)
         return
     publish({"status": "started"})
+    env.stats.task_started("take_shirt", task_id)
     publish({"event_type": "order_filled", "shirt": get.value})
+    env.stats.task_finished("take_shirt", task_id)
+    env.stats.flow_finished(arrival)
 
 
 # --8<-- [end:take]
@@ -85,43 +98,14 @@ def generator(env, sampler, shelf, arrival, size, task, ids):
         env.process(task(env, shelf, f"{arrival}-{number}", size, next(ids)))
 
 
-class _Outcomes:
-    """An egress that counts each order's outcome, by size, from its events."""
-
-    def __init__(self):
-        self.counts = Counter()
-
-    async def run(self, egress_queue):
-        import asyncio
-        import queue
-
-        try:
-            while True:
-                try:
-                    for record in egress_queue.get_nowait():
-                        count(self.counts, record)
-                except queue.Empty:
-                    await asyncio.sleep(0.01)
-        except asyncio.CancelledError:
-            pass
-
-
-def count(counts: Counter, record: dict) -> None:
-    """Counts a filled or cancelled order, by the size in its key."""
-    if record["stream_type"] != "event" or record["task"] != "take_shirt":
-        return
-    size = record["key"].split("-")[0][-1].upper()
-    value = record["value"]
-    if value.get("event_type") == "order_filled":
-        counts[(size, "filled")] += 1
-    elif value.get("status") == "reneged":
-        counts[(size, "cancelled")] += 1
-
-
-def run(until=8 * 3600, factor=0.0, sinks=()):
+def run(until=8 * 3600, factor=0.0):
     env = DynamicRealtimeEnvironment(factor=factor)
     env.registry.register_sim_parameter(PARAMS)
-    env.setup_egress([ConsoleEgress(), *sinks])
+    env.setup_egress([ConsoleEgress()])
+    # --8<-- [start:stats]
+    # The counts of each arrival's orders, published once, at the end of the 8 hours
+    env.setup_stats("Shop", "basic", interval=8 * 3600)
+    # --8<-- [end:stats]
     shelf = DynamicStore(env, "Shop", "shelf")
     sampler = Sampler(seed=42)
     restocks, takes = itertools.count(), itertools.count()
@@ -138,17 +122,27 @@ def run(until=8 * 3600, factor=0.0, sinks=()):
     return env
 
 
-def outcomes() -> Counter:
-    """Runs eight hours and counts filled and cancelled orders by size."""
-    outcome = _Outcomes()
-    run(sinks=[outcome])
-    return outcome.counts
+def outcomes() -> dict:
+    """Runs eight hours; returns each size's order counts and the shirts left."""
+    readings = run().stats.readings()
+    result: dict = {}
+    for size in ORDERS:
+        flow = f"Shop.stats.flows.orders_{size.lower()}"
+        started = readings[f"{flow}.started"]
+        filled = readings[f"{flow}.finished"]
+        waiting = readings[f"{flow}.in_system"]
+        # A cancelled order leaves its flow without finishing it
+        result[size] = (started, filled, waiting, started - filled - waiting)
+    result["left"] = readings["Shop.stats.stores.shelf.level"]
+    return result
 
 
 if __name__ == "__main__":
-    counts = outcomes()
+    result = outcomes()
     for size in ORDERS:
+        started, filled, waiting, cancelled = result[size]
         print(
-            f"size {size}: {counts[(size, 'filled')]:4} filled, "
-            f"{counts[(size, 'cancelled')]:4} cancelled"
+            f"size {size}: {started:4} started, {filled:4} filled, "
+            f"{waiting:2} waiting, {cancelled:3} cancelled"
         )
+    print(f"shirts left on the shelf: {result['left']}")

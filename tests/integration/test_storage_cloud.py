@@ -1,4 +1,5 @@
 import runpy
+import sys
 import uuid
 from pathlib import Path
 
@@ -59,17 +60,23 @@ def _run_the_page_shop(filesystem: dict) -> tuple:
     Returns the Parquet and the JSON Lines tables, read back with the page's
     read_events through the same filesystem.
     """
-    page = runpy.run_path(str(GUIDES / "cloud_storage.py"))
+    # The shop imports the store and the sinks from the stores file beside it
+    sys.path.insert(0, str(GUIDES))
+    try:
+        shop = runpy.run_path(str(GUIDES / "cloud_storage.py"))
+        stores = runpy.run_path(str(GUIDES / "cloud_storage_stores.py"))
+    finally:
+        sys.path.remove(str(GUIDES))
 
     store = _build_filesystem(filesystem, pafs)
     store.create_dir("desflow-storage")
     # The page's bucket argument is a prefix, so a folder of its own keeps runs apart
     folder = f"desflow-storage/page-{uuid.uuid4().hex[:8]}"
     try:
-        page["build_shop"](page["storage_sinks"](filesystem, folder)).run(until=600)
+        shop["build_shop"](stores["storage_sinks"](filesystem, folder)).run(until=600)
         return (
-            page["read_events"](store, f"{folder}/parquet"),
-            page["read_events"](store, f"{folder}/jsonl", format="json"),
+            stores["read_events"](store, f"{folder}/parquet"),
+            stores["read_events"](store, f"{folder}/jsonl", format="json"),
         )
     finally:
         store.delete_dir_contents(folder, missing_dir_ok=True)

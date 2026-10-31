@@ -101,10 +101,11 @@ app = (
         ),
         when=is_live,
     )
-    # Only batch_size decides when the history is flushed. The interval flush is a
-    # simulation process, started only when factor is non-zero as the egress is set up,
-    # and this run starts at 0.0. The interval flush starts at go-live, so the live
-    # tail also flushes every 10 seconds.
+    # batch_size flushes the history only when 2000 records are waiting. The interval
+    # flush is a simulation process, started only when factor is non-zero as the egress
+    # is set up, and this run starts at 0.0. The interval flush starts at go-live, so it
+    # writes what is left about 10 seconds later, and the live tail also flushes every
+    # 10 seconds.
     .with_batching(batch_size=2000, flush_interval=10.0)
     .add_resource("packers", current_cap=4, max_cap=10)
     .add_service("packing", dist="normal", mean=2.0, std=0.2)

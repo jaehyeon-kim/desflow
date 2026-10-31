@@ -206,7 +206,47 @@ sim_ts,key,task,status,event_type
 
 `orders-2` starts at 2 seconds while `orders-1` is still being packed, so the second unit is there. By 20 seconds, 19 orders have arrived and started, and the 18 that arrived by 18 seconds are packed. That is 19 `queued`, 19 `started` and 18 `order_packed` events: 56 rows. All three forms write the same rows.
 
-`python write_a_connector.py` writes `changes.jsonl`, runs the YAML and builder forms, and prints the packers' units at the end and the number of rows in `events.csv` for each. `python write_a_connector_low_level.py` does the same for the low-level form.
+Save the files that the tab of your form names from [Full Files](#full-files) in one folder, each under the last part of its title, and run the command of your form from that folder:
+
+=== "YAML"
+
+    Save `write_a_connector.yaml` and `write_a_connector_logic.py`. The first line writes the change that the ingress reads. The blueprint does not write it:
+
+    ```bash
+    echo '{"path": "Shop.resources.packers.current_cap", "value": 2}' > changes.jsonl
+    desflow run write_a_connector.yaml
+    head -n 6 events.csv
+    wc -l events.csv
+    ```
+
+    ```text
+    sim_ts,key,task,status,event_type
+    1.0,orders-1,pack_order,queued,
+    1.0,orders-1,pack_order,started,
+    2.0,orders-2,pack_order,queued,
+    2.0,orders-2,pack_order,started,
+    2.5,orders-1,pack_order,,order_packed
+          57 events.csv
+    ```
+
+    The 57 lines are the header and the 56 rows. The spaces before the count depend on your system.
+
+=== "Builder"
+
+    Save `write_a_connector.py`, `write_a_connector_logic.py` and the blueprint `write_a_connector.yaml`, because the script runs the YAML form first. `python write_a_connector.py` writes `changes.jsonl`, runs the YAML form and then the builder form, and prints the packers' units at the end and the number of rows in `events.csv` for each:
+
+    ```text
+    yaml_form       packers: 2, rows in events.csv: 56
+    builder_form    packers: 2, rows in events.csv: 56
+    ```
+
+=== "Low-level"
+
+    Save `write_a_connector_low_level.py` and `write_a_connector_logic.py`. `python write_a_connector_low_level.py` does the same for the low-level form:
+
+    ```text
+    low_level_form  packers: 2, rows in events.csv: 56
+    ```
 
 ---
 
@@ -310,8 +350,9 @@ Every form uses the two connectors in `write_a_connector_logic.py` unchanged. Pu
         ```yaml title="docs/snippets/yaml/write_a_connector.yaml"
         # The Write a Connector guide: a shop whose packers follow a file of changes and
         # whose events go to a CSV file, through two connectors of its own.
-        # Run it with: python write_a_connector.py, which writes changes.jsonl first.
-        # In a folder with no changes.jsonl, desflow run write_a_connector.yaml keeps one packer.
+        # Write changes.jsonl first (the line is in the Check the Result section of the page),
+        # then run it with: desflow run write_a_connector.yaml
+        # In a folder with no changes.jsonl, it keeps one packer.
         simulation:
           sim_id: Shop
           factor: 0.05  # 20 simulation seconds a second, so the file is read during the run

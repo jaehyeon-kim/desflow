@@ -10,6 +10,7 @@ simulation:
 variables:
   desk_open: 0  # 1 from 09:00 to 17:00, set by the scenario
 
+# --8<-- [start:assumptions]
 resources:
   technicians: {current_cap: 0, max_cap: 3}  # said: 3 technicians; assumed: they work 09:00 to 17:00
 
@@ -23,6 +24,7 @@ arrivals:
   # said: about 30 a day between 09:00 and 17:00, one every 16 minutes on average while open.
   # Arrivals run all day at that rate, and check_open drops those that come while the desk is closed.
   laptops: {dist: exponential, rate: 0.0010417, spawn: check_open}
+# --8<-- [end:assumptions]
 
 tasks:
   check_open:

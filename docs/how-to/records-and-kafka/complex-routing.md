@@ -7,6 +7,7 @@ Records often belong in different Kafka topics: task events in one, telemetry in
 ## Before You Start
 
 - [Egress](../../user-guide/live-runs-and-connectors/egress.md#kafka) explains `KafkaEgress` and its two topics.
+- Install the Kafka connectors: `pip install "desflow[kafka]"`.
 - The scripts publish to Kafka, so start a broker with `odctl up kafka-lite`. [Installation](../../installation.md) shows the one-time odctl install. Tear it down afterwards with `odctl down kafka-lite --volumes`.
 
 ---

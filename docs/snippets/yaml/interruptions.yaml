@@ -38,9 +38,9 @@ tasks:
 
 # --8<-- [start:interrupt]
 scenario:
-  # The packer is called away at 31 minutes: every regular order in the shop,
+  # A recall at 31 minutes: every regular order in the shop,
   # waiting or being packed, is interrupted
-  - {at: 31 min, interrupt: {task: pack_order, cause: called away}}
+  - {at: 31 min, interrupt: {task: pack_order, cause: recalled}}
 # --8<-- [end:interrupt]
 
 # --8<-- [start:watch]

@@ -2,8 +2,8 @@
 an order record, sent to orders-json as JSON Schema or to orders-protobuf as Protobuf, and
 every other record goes to its topic as JSON.
 
-The serializers and the router are those of json_schema_and_protobuf.py, which must be
-beside this script, with shop_record.proto and shop_record_pb2.py. It needs a Kafka broker
+The serializers and the router are those of json_schema_and_protobuf_serializers.py,
+which must be beside this script, with shop_record.proto and shop_record_pb2.py. It needs a Kafka broker
 and a schema registry: start both with `odctl up kafka-lite`, then run
 `python json_schema_and_protobuf_low_level.py`.
 """
@@ -11,7 +11,7 @@ and a schema registry: start both with `odctl up kafka-lite`, then run
 import itertools
 import logging
 
-from json_schema_and_protobuf import egress
+from json_schema_and_protobuf_serializers import egress
 
 from desflow import (
     CapacityConfig,

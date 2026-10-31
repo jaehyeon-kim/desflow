@@ -8,6 +8,7 @@ pytest checking_a_model_low_level.py
 """
 
 import logging
+import statistics
 from pathlib import Path
 
 from desflow import (
@@ -120,6 +121,29 @@ def littles_law(result, design):
     )
 
 
+# --8<-- [start:agreement]
+def agreement(result, design="three"):
+    """For each observed value: the model's mean, the standard deviation of one run,
+    the distance in standard deviations, and how many of the runs lie inside the
+    interval for the mean."""
+    rows = []
+    for row in result.observed:
+        runs = [
+            r["value"]
+            for r in result.results
+            if r["design"] == design and r["statistic"] == row["measure"]
+        ]
+        mean, sd = statistics.mean(runs), statistics.stdev(runs)
+        inside = sum(row["low"] <= value <= row["high"] for value in runs)
+        rows.append(
+            (row["measure"], mean, sd, abs(row["value"] - mean) / sd, inside, len(runs))
+        )
+    return rows
+
+
+# --8<-- [end:agreement]
+
+
 def test_fixed_inputs_match_the_hand_trace():
     readings = fixed_run()
     assert readings["tasks.pack_order.finished"] == 4
@@ -137,6 +161,13 @@ def test_extremes_sensitivity_and_littles_law(tmp_path):
 if __name__ == "__main__":
     print(fixed_run())
     result = experiment()
+    means = {(r["design"], r["statistic"]): r["mean"] for r in result.summary}
+    for design in ("one", "ten"):
+        print(
+            f"{design}: {means[design, 'tasks.pack_order.finished']:.0f} finished, "
+            f"utilisation {means[design, 'resources.packers.utilization_avg']:.2f}%, "
+            f"mean wait {means[design, 'tasks.pack_order.wait_mean']:.2f} s"
+        )
     for design in ("three", "one"):
         queue, rate, wait = littles_law(result, design)
         print(
@@ -144,3 +175,8 @@ if __name__ == "__main__":
         )
     for row in result.observed:
         print(f"observed {row['measure']}: {row['value']} inside={row['inside']}")
+    for measure, mean, sd, distance, inside, runs in agreement(result):
+        print(
+            f"{measure}: mean {mean:.2f}, sd {sd:.2f}, distance {distance:.2f} sd, "
+            f"{inside} of {runs} runs inside"
+        )

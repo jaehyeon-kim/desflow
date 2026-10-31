@@ -32,7 +32,7 @@ Name each check by what it compares. The trace, a case worked by hand, the stati
 
 ### What the Result Means
 
-Checking a Model passes every verification check and finds one disagreement with the shop's observed values. Verification alone would have called the model ready. The study must explain the disagreement before it trusts the model for the decision.
+Checking a Model passes every verification check, and both of the shop's observed values lie within one standard deviation of a single run. Verification alone says nothing about the real shop, so the model is ready for the decision only after both kinds of check.
 
 ---
 
@@ -169,7 +169,7 @@ This is verification, not validation. It checks that the program agrees with the
 
 ### In the Tutorial
 
-Checking a Model compares the model with values observed in the shop over 58 minutes of a busy hour: a mean wait of 2.6 seconds and a utilisation of 91%. The values are illustrative. The wait lies inside the model's 95% interval over 20 replications, 2.16 to 2.80 seconds. The utilisation lies outside its interval, 89.70% to 90.96%.
+Checking a Model compares the model with values observed in the shop over 58 minutes of a busy hour: a mean wait of 2.6 seconds and a utilisation of 91%. The values are illustrative. The wait lies inside the 95% interval of the model's mean over 20 replications, 2.16 to 2.80 seconds. The utilisation lies outside its interval, 89.70% to 90.96%, but within one standard deviation of a single run, so both agree.
 
 ### Why It Matters
 
@@ -185,7 +185,7 @@ Give the model the inputs of a real period and compare its measures with what ha
 
 ### What the Result Means
 
-The results need to agree closely enough for the decision, not exactly. A value outside its interval is a disagreement that the study must explain before it trusts the model. The interval covers only the model's spread from run to run, not the error in the shop's own measurement. When the real system does not exist yet, as for a proposed design, there is nothing to compare with, and validity rests on the assumptions and on sensitivity analysis.
+The results need to agree closely enough for the decision, not exactly. The model's interval is for a mean of many runs, and one observed period varies about as much as one run does. So a value outside the interval can still agree, and the comparison uses the standard deviation of one run. A value more than about two of these from the model's mean is a disagreement that the study must explain before it trusts the model. Neither figure includes the error in the shop's own measurement. When the real system does not exist yet, as for a proposed design, there is nothing to compare with, and validity rests on the assumptions and on sensitivity analysis.
 
 ---
 

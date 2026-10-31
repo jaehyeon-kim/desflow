@@ -19,7 +19,7 @@
 
 `catalog` is a mapping of PyIceberg catalog properties, which desflow passes to PyIceberg's `load_catalog` on the first write. `type` picks the kind of catalog, and the optional `name` key names it. The script keeps one mapping for each catalog, and `ICEBERG_CATALOG` picks one:
 
-```python title="docs/snippets/guides/iceberg_tables.py:catalogs"
+```python title="docs/snippets/guides/iceberg_tables_catalog.py:catalogs"
 import os
 from pathlib import Path
 
@@ -64,13 +64,13 @@ name = os.getenv("ICEBERG_CATALOG", "sqlite")
 catalog = {"name": name, **CATALOGS[name]}
 ```
 
-The Glue mapping gives no keys, so PyIceberg uses the standard AWS settings: environment variables such as `AWS_ACCESS_KEY_ID`, the files in `~/.aws`, or the role the machine runs as. `ICEBERG_WAREHOUSE` names the S3 folder of the table files. [PyIceberg's configuration](https://py.iceberg.apache.org/configuration/) lists the properties of each catalog.
+The Glue mapping gives no credentials, so PyIceberg uses the standard AWS settings: environment variables such as `AWS_ACCESS_KEY_ID`, the files in `~/.aws`, or the role the machine runs as. `ICEBERG_WAREHOUSE` names the S3 folder of the table files. [PyIceberg's configuration](https://py.iceberg.apache.org/configuration/) lists the properties of each catalog.
 
 ### Write the Table
 
 The sink creates the table from the first batch, with a column for each key of the records. Each flush is one commit, and every commit writes new metadata, so the sink gets a large batch of its own:
 
-```python title="docs/snippets/guides/iceberg_tables.py:sink"
+```python title="docs/snippets/guides/iceberg_tables_catalog.py:sink"
 from desflow import IcebergStorageEgress
 
 
@@ -94,19 +94,21 @@ Each form runs the shop for an hour of simulated time at `factor=0.0`. The run f
       - type: Iceberg
         config:
           default_table: shop.events
-          catalog: !python iceberg_tables.catalog
+          catalog: !python iceberg_tables_catalog.catalog
         # One commit per flush, so the sink gets a large batch of its own
         batch_size: 200000
     ```
 
-    The blueprint loads the mapping of `iceberg_tables.py` with `!python`, so `ICEBERG_CATALOG` picks the catalog in every form.
+    The blueprint loads the mapping of `iceberg_tables_catalog.py` with `!python`, so `ICEBERG_CATALOG` picks the catalog in every form.
 
 === "Builder"
 
     ```python title="docs/snippets/guides/iceberg_tables.py:shop"
     import logging
 
-    from desflow import SimulationContext
+    from iceberg_tables_catalog import BATCH_SIZE, sink
+
+    from desflow import IcebergStorageEgress, SimulationContext
 
 
     def build_shop(sink: IcebergStorageEgress) -> SimulationContext:
@@ -144,7 +146,7 @@ Each form runs the shop for an hour of simulated time at `factor=0.0`. The run f
 
 === "Low-level"
 
-    `shop` takes the sink as an argument, and the script passes it `sink` from the Builder file, with its batch size in `batch_sizes`:
+    `shop` takes the sink as an argument, and the script passes it `sink` from `iceberg_tables_catalog.py`. `shop` sets the batch size of the sink, `BATCH_SIZE` from the same file, in `batch_sizes`:
 
     ```python title="docs/snippets/guides/iceberg_tables_low_level.py:shop"
     def pack_order(env, packers, sampler, key, task_id):
@@ -185,7 +187,7 @@ Each form runs the shop for an hour of simulated time at `factor=0.0`. The run f
 
 `read_events` loads the table through the same catalog and reads every row:
 
-```python title="docs/snippets/guides/iceberg_tables.py:read"
+```python title="docs/snippets/guides/iceberg_tables_catalog.py:read"
 def read_events(catalog: dict, table: str = "shop.events"):
     """Every row of `table`, as one PyArrow table."""
     from pyiceberg.catalog import load_catalog
@@ -210,20 +212,121 @@ ICEBERG_CATALOG=rest python iceberg_tables.py
 
 writes through the REST catalog instead. In every form, `shop.events` gains one snapshot, with a row for each event: the `queued` and `started` events of each order, with `path_id` and `status`, and its finished event, with `order_id` and `amount`. A seeded run writes the same events in every form. Only `timestamp` differs, because it is the clock time at the start of the run plus the simulation time.
 
+To count the rows, run the catalog file with the same variables. Its last lines call `read_events` and print the count:
+
+```python title="docs/snippets/guides/iceberg_tables_catalog.py:check"
+if __name__ == "__main__":
+    events = read_events(catalog)
+    print(f"{events.num_rows} rows in shop.events")
+```
+
+```bash
+python iceberg_tables_catalog.py
+```
+
+```text
+5291 rows in shop.events
+```
+
+The count of one run is 5,291 rows. A second run appends its rows to the table, so the count is then the sum of both runs.
+
 ---
 
 ## Full Files
 
-Every form uses the catalog and the sink of `iceberg_tables.py`, so keep the files in one folder.
+Every form uses the catalog and the sink of `iceberg_tables_catalog.py`, which builds no shop, so keep the files in one folder.
 
 ??? example "Full files"
+
+    ```python title="docs/snippets/guides/iceberg_tables_catalog.py"
+    """The catalogs, sink and reader of the Write Iceberg Tables page.
+
+    Every form of the shop imports the catalog and the sink from this file: iceberg_tables.py
+    (builder), iceberg_tables.yaml and iceberg_tables_low_level.py. It builds no simulation.
+    ICEBERG_CATALOG picks the catalog: sqlite (the default), rest, postgres or glue.
+    """
+
+    # Each section carries its own imports, as the page shows it.
+    # ruff: noqa: E402
+
+    import os
+    from pathlib import Path
+
+    # The SQLite database and the local table files go in the folder iceberg/
+    FOLDER = Path("iceberg").resolve()
+    FOLDER.mkdir(exist_ok=True)
+
+    # One mapping of PyIceberg catalog properties for each catalog
+    CATALOGS = {
+        # A SQL catalog on SQLite, with no service, for a first run
+        "sqlite": {
+            "type": "sql",
+            "uri": f"sqlite:///{FOLDER}/catalog.db",
+            "warehouse": f"file://{FOLDER}/warehouse",
+        },
+        # The REST catalog of `odctl up catalog`, with the table files on its SeaweedFS
+        "rest": {
+            "type": "rest",
+            "uri": "http://127.0.0.1:8181",
+            "warehouse": "s3://warehouse/",
+            "s3.endpoint": "http://127.0.0.1:8333",
+            "s3.access-key-id": "user",
+            "s3.secret-access-key": "password",
+            "s3.region": "us-east-1",
+        },
+        # A SQL catalog on the PostgreSQL of `odctl up postgres`, with local table files
+        "postgres": {
+            "type": "sql",
+            "uri": "postgresql+psycopg2://user:password@127.0.0.1:5432/odctl",
+            "warehouse": f"file://{FOLDER}/warehouse",
+        },
+        # The AWS Glue Data Catalog, with the table files in S3 and the standard AWS settings
+        "glue": {
+            "type": "glue",
+            "glue.region": "us-east-1",
+            "s3.region": "us-east-1",
+            "warehouse": os.getenv("ICEBERG_WAREHOUSE", "s3://my-bucket/warehouse"),
+        },
+    }
+
+    name = os.getenv("ICEBERG_CATALOG", "sqlite")
+    catalog = {"name": name, **CATALOGS[name]}
+
+
+    from desflow import IcebergStorageEgress
+
+
+    def iceberg_sink(catalog: dict, table: str = "shop.events") -> IcebergStorageEgress:
+        """Every event as a row of `table`, which the sink creates from the first batch."""
+        return IcebergStorageEgress(catalog=catalog, default_table=table)
+
+
+    sink = iceberg_sink(catalog)
+    # One commit per flush, so the sink gets a large batch of its own
+    BATCH_SIZE = 200_000
+
+
+    def read_events(catalog: dict, table: str = "shop.events"):
+        """Every row of `table`, as one PyArrow table."""
+        from pyiceberg.catalog import load_catalog
+
+        properties = {key: value for key, value in catalog.items() if key != "name"}
+        return (
+            load_catalog(catalog["name"], **properties).load_table(table).scan().to_arrow()
+        )
+
+
+    if __name__ == "__main__":
+        events = read_events(catalog)
+        print(f"{events.num_rows} rows in shop.events")
+    ```
 
     === "YAML"
 
         ```yaml title="docs/snippets/yaml/iceberg_tables.yaml"
         # The Write to Iceberg Tables guide: the shop appends an hour of orders to the Iceberg
         # table shop.events, as fast as the machine allows. ICEBERG_CATALOG picks the catalog
-        # (sqlite, the default, rest, postgres or glue). Needs iceberg_tables.py and
+        # (sqlite, the default, rest, postgres or glue). Needs iceberg_tables_catalog.py and
         # iceberg_tables_logic.py beside it. Run it with: desflow run iceberg_tables.yaml
         simulation:
           sim_id: Shop
@@ -251,7 +354,7 @@ Every form uses the catalog and the sink of `iceberg_tables.py`, so keep the fil
           - type: Iceberg
             config:
               default_table: shop.events
-              catalog: !python iceberg_tables.catalog
+              catalog: !python iceberg_tables_catalog.catalog
             # One commit per flush, so the sink gets a large batch of its own
             batch_size: 200000
 
@@ -261,7 +364,7 @@ Every form uses the catalog and the sink of `iceberg_tables.py`, so keep the fil
 
         ```python title="docs/snippets/yaml/iceberg_tables_logic.py"
         """Python for iceberg_tables.yaml: the order record each packed order publishes. The catalog
-        is that of iceberg_tables.py, which must be beside the blueprint."""
+        is that of iceberg_tables_catalog.py, which must be beside the blueprint."""
 
 
         def order_record(task_id, context, entity):
@@ -272,79 +375,23 @@ Every form uses the catalog and the sink of `iceberg_tables.py`, so keep the fil
     === "Builder"
 
         ```python title="docs/snippets/guides/iceberg_tables.py"
-        """The catalogs, sink and shop of the Write to Iceberg Tables page.
+        """The shop of the Write Iceberg Tables page, built with the builder API.
 
         The shop appends an hour of orders to the Iceberg table shop.events, as fast as the
-        machine allows. ICEBERG_CATALOG picks the catalog: sqlite (the default), rest, postgres or
-        glue. Run it with `python iceberg_tables.py`; rest needs `odctl up catalog`, postgres
-        needs `odctl up postgres`, and glue needs AWS credentials and ICEBERG_WAREHOUSE.
+        machine allows. Run it with `python iceberg_tables.py`; rest needs `odctl up catalog`,
+        postgres needs `odctl up postgres`, and glue needs AWS credentials and ICEBERG_WAREHOUSE.
         iceberg_tables.yaml and iceberg_tables_low_level.py are the same shop in YAML and the
-        low-level API, and use the catalog and the sink of this file.
+        low-level API. All three import the catalog and the sink of iceberg_tables_catalog.py, which
+        must be beside them.
         """
 
-        # Each section carries its own imports, as the page shows it.
         # ruff: noqa: E402
-
-        import os
-        from pathlib import Path
-
-        # The SQLite database and the local table files go in the folder iceberg/
-        FOLDER = Path("iceberg").resolve()
-        FOLDER.mkdir(exist_ok=True)
-
-        # One mapping of PyIceberg catalog properties for each catalog
-        CATALOGS = {
-            # A SQL catalog on SQLite, with no service, for a first run
-            "sqlite": {
-                "type": "sql",
-                "uri": f"sqlite:///{FOLDER}/catalog.db",
-                "warehouse": f"file://{FOLDER}/warehouse",
-            },
-            # The REST catalog of `odctl up catalog`, with the table files on its SeaweedFS
-            "rest": {
-                "type": "rest",
-                "uri": "http://127.0.0.1:8181",
-                "warehouse": "s3://warehouse/",
-                "s3.endpoint": "http://127.0.0.1:8333",
-                "s3.access-key-id": "user",
-                "s3.secret-access-key": "password",
-                "s3.region": "us-east-1",
-            },
-            # A SQL catalog on the PostgreSQL of `odctl up postgres`, with local table files
-            "postgres": {
-                "type": "sql",
-                "uri": "postgresql+psycopg2://user:password@127.0.0.1:5432/odctl",
-                "warehouse": f"file://{FOLDER}/warehouse",
-            },
-            # The AWS Glue Data Catalog, with the table files in S3 and the standard AWS settings
-            "glue": {
-                "type": "glue",
-                "glue.region": "us-east-1",
-                "s3.region": "us-east-1",
-                "warehouse": os.getenv("ICEBERG_WAREHOUSE", "s3://my-bucket/warehouse"),
-            },
-        }
-
-        name = os.getenv("ICEBERG_CATALOG", "sqlite")
-        catalog = {"name": name, **CATALOGS[name]}
-
-
-        from desflow import IcebergStorageEgress
-
-
-        def iceberg_sink(catalog: dict, table: str = "shop.events") -> IcebergStorageEgress:
-            """Every event as a row of `table`, which the sink creates from the first batch."""
-            return IcebergStorageEgress(catalog=catalog, default_table=table)
-
-
-        sink = iceberg_sink(catalog)
-        # One commit per flush, so the sink gets a large batch of its own
-        BATCH_SIZE = 200_000
-
 
         import logging
 
-        from desflow import SimulationContext
+        from iceberg_tables_catalog import BATCH_SIZE, sink
+
+        from desflow import IcebergStorageEgress, SimulationContext
 
 
         def build_shop(sink: IcebergStorageEgress) -> SimulationContext:
@@ -378,18 +425,6 @@ Every form uses the catalog and the sink of `iceberg_tables.py`, so keep the fil
                 level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
             )
             app.run(until="1 hour")
-
-
-        def read_events(catalog: dict, table: str = "shop.events"):
-            """Every row of `table`, as one PyArrow table."""
-            from pyiceberg.catalog import load_catalog
-
-            properties = {key: value for key, value in catalog.items() if key != "name"}
-            return (
-                load_catalog(catalog["name"], **properties).load_table(table).scan().to_arrow()
-            )
-
-
         ```
 
     === "Low-level"
@@ -398,7 +433,7 @@ Every form uses the catalog and the sink of `iceberg_tables.py`, so keep the fil
         """The Write to Iceberg Tables guide, low-level API: the shop appends an hour of orders
         to the Iceberg table shop.events, as fast as the machine allows.
 
-        The catalog and the sink are those of iceberg_tables.py, which must be beside this
+        The catalog and the sink are those of iceberg_tables_catalog.py, which must be beside this
         script. ICEBERG_CATALOG picks the catalog: sqlite (the default), rest, postgres or glue.
         Run it with `python iceberg_tables_low_level.py`.
         """
@@ -406,7 +441,7 @@ Every form uses the catalog and the sink of `iceberg_tables.py`, so keep the fil
         import itertools
         import logging
 
-        from iceberg_tables import BATCH_SIZE, sink
+        from iceberg_tables_catalog import BATCH_SIZE, sink
 
         from desflow import (
             CapacityConfig,

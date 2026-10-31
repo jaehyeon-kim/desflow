@@ -6,9 +6,12 @@ script prints the mean wait without and with the warm-up, the mean wait of 5 run
 after each of three candidate warm-ups, then the mean and half-width of two outputs
 over 5, 10, 20 and 40 replications. To see only those lines, run:
 python trusting_results_low_level.py 2>/dev/null
+With the argument start, it runs the first 15 minutes without a warm-up, to plot:
+python trusting_results_low_level.py start 2>&1
 """
 
 import logging
+import sys
 
 from desflow import (
     CapacityConfig,
@@ -141,9 +144,20 @@ def precision(result) -> dict:
     }
 
 
-if __name__ == "__main__":
+WAIT = "Shop.stats.tasks.pack_order.wait_mean"
+PACKED = "Shop.stats.tasks.pack_order.finished"
+QUEUE = "Shop.stats.resources.packers.queue_length_avg"
+
+
+def report() -> None:
+    """Prints the mean waits, the Little's law figures and the precision."""
     print(f"without a warm-up: mean wait {mean_wait(None):.3f} s")
-    print(f"with a 2 min warm-up: mean wait {mean_wait(WARMUP):.3f} s")
+    warmed = run(WARMUP).stats.readings()
+    print(f"with a 2 min warm-up: mean wait {warmed[WAIT]:.3f} s")
+    print(
+        f"after the warm-up: {warmed[PACKED]} orders packed, "
+        f"queue_length_avg {warmed[QUEUE]:.2f}"
+    )
     for warmup, result in warmups().items():
         row = result.summary[0]
         print(
@@ -154,3 +168,11 @@ if __name__ == "__main__":
         print(
             f"{measure}, {n} runs: {result.mean:.2f} ± {result.half_width:.2f} ({share:.1%})"
         )
+
+
+if __name__ == "__main__":
+    if sys.argv[1:] == ["start"]:
+        # The statistics every 10 seconds of the first 15 minutes, without a warm-up
+        run(None, until=900)
+    else:
+        report()

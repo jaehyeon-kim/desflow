@@ -1,6 +1,6 @@
 # The JSON Schema and Protobuf guide: each packed order publishes an order record,
 # sent to orders-json as JSON Schema or to orders-protobuf as Protobuf; every other record
-# goes to its topic as JSON. Needs json_schema_and_protobuf.py,
+# goes to its topic as JSON. Needs json_schema_and_protobuf_serializers.py,
 # json_schema_and_protobuf_logic.py, shop_record.proto and shop_record_pb2.py beside it, and
 # a Kafka broker with a schema registry: odctl up kafka-lite. Run it with:
 # desflow run json_schema_and_protobuf.yaml
@@ -31,10 +31,10 @@ egress:
   - type: Kafka
     config:
       bootstrap_servers: 127.0.0.1:9092
-      topic_router: !python json_schema_and_protobuf.order_topic_router
+      topic_router: !python json_schema_and_protobuf_serializers.order_topic_router
       topic_serializers:
-        orders-json: !python json_schema_and_protobuf.json_serializer
-        orders-protobuf: !python json_schema_and_protobuf.protobuf_serializer
+        orders-json: !python json_schema_and_protobuf_serializers.json_serializer
+        orders-protobuf: !python json_schema_and_protobuf_serializers.protobuf_serializer
 # --8<-- [end:egress]
 
 run:

@@ -8,7 +8,7 @@ With `PostgresEgress` in place of the console egress, the simulation runs as a s
 
 ## Before You Start
 
-The example needs Docker and the odctl profile `postgres`, which each Quick Start below starts and stops. [Services for the Examples](index.md#services-for-the-examples) shows how to install odctl.
+The example needs Docker and the odctl profile `postgres`. Each Quick Start below starts the profile, and the Check the Result section stops it. [Services for the Examples](index.md#services-for-the-examples) shows how to install odctl.
 
 ---
 
@@ -39,9 +39,6 @@ The example needs Docker and the odctl profile `postgres`, which each Quick Star
 
         # 4. Run it (Ctrl + C to stop)
         desflow run postgres.yaml
-
-        # 5. Stop its service when finished
-        odctl down postgres --volumes
         ```
 
     === "pip"
@@ -59,9 +56,6 @@ The example needs Docker and the odctl profile `postgres`, which each Quick Star
 
         # 4. Run it (Ctrl + C to stop)
         desflow run postgres.yaml
-
-        # 5. Stop its service when finished
-        odctl down postgres --volumes
         ```
 
     **What It Does**
@@ -91,9 +85,6 @@ The example needs Docker and the odctl profile `postgres`, which each Quick Star
 
         # 4. Run it (Ctrl + C to stop)
         uv run --no-project --with "desflow[postgres]" postgres_example.py
-
-        # 5. Stop its service when finished
-        odctl down postgres --volumes
         ```
 
     === "pip"
@@ -111,9 +102,6 @@ The example needs Docker and the odctl profile `postgres`, which each Quick Star
 
         # 4. Run it (Ctrl + C to stop)
         python postgres_example.py
-
-        # 5. Stop its service when finished
-        odctl down postgres --volumes
         ```
 
     **Writing Rows**
@@ -181,9 +169,6 @@ The example needs Docker and the odctl profile `postgres`, which each Quick Star
 
         # 4. Run it (Ctrl + C to stop)
         uv run --no-project --with "desflow[postgres]" postgres_example.py
-
-        # 5. Stop its service when finished
-        odctl down postgres --volumes
         ```
 
     === "pip"
@@ -201,9 +186,6 @@ The example needs Docker and the odctl profile `postgres`, which each Quick Star
 
         # 4. Run it (Ctrl + C to stop)
         python postgres_example.py
-
-        # 5. Stop its service when finished
-        odctl down postgres --volumes
         ```
 
     **Writing Rows**
@@ -253,7 +235,19 @@ Within the poll interval, 2 seconds by default, the run logs `Ingested parameter
 
 ## Check the Result
 
-The three tabs write the same records, which [a test](https://github.com/jaehyeon-kim/desflow/blob/main/tests/docs/test_example_twins.py) checks by running each version unpaced. A real run writes each order as one row of the `orders` table. `desflow run postgres.yaml --sample 3 --stdout` prints the first three as JSON lines instead, with no database:
+The three tabs write the same records, which [a test](https://github.com/jaehyeon-kim/desflow/blob/main/tests/docs/test_example_twins.py) checks by running each version unpaced. A real run writes each order as one row of the `orders` table. Stop the run with Ctrl + C, leave the service up, and read the first three rows back:
+
+```bash
+docker exec postgres psql -U user -d odctl -c "SELECT order_id, customer_id, total_amount, status, timestamp FROM orders ORDER BY order_id LIMIT 3;"
+```
+
+It prints `(3 rows)` with `order_id` 0, 1 and 2, and `customer_id` 42, `total_amount` 59.97 and `status` `pending` in every row. The `timestamp` values are the wall-clock times of your run, the first gap 0.07 seconds and the second 0.52 seconds, because the first two orders are 0.072 simulation seconds apart and the next 0.521. `SELECT count(*) FROM orders` prints the number of orders the run wrote. When you have checked the result, stop the service:
+
+```bash
+odctl down postgres --volumes
+```
+
+In `postgres/yaml`, which `desflow examples get postgres --api yaml` creates, `desflow run postgres.yaml --sample 3 --stdout` needs no database. It prints the first three orders as JSON lines instead:
 
 <!-- records: postgres-sample -->
 ```text

@@ -1,8 +1,8 @@
 """Python for avro_and_pydantic.yaml: the prediction each packed order publishes, and
 the topics the run needs. The models, the router and the serializer are those of
-avro_and_pydantic.py, which must be beside the blueprint."""
+avro_and_pydantic_models.py, which must be beside the blueprint."""
 
-from avro_and_pydantic import MLPrediction
+from avro_and_pydantic_models import MLPrediction
 
 from desflow import KafkaAdminConnector
 

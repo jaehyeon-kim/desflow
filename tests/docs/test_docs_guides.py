@@ -10,8 +10,11 @@ import asyncio
 import importlib.util
 import json
 import logging
+import os
 import queue
+import re
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -98,6 +101,171 @@ def test_breakdowns_downtime_matches_the_events():
         "resumed": 8,
         "order_packed": 184,
     }
+
+
+def test_breakdowns_check_runs_from_the_downloaded_files(tmp_path, monkeypatch):
+    """The check finds the example where `desflow examples get breakdowns` writes it,
+    and prints the lines the page shows."""
+    for api, name in (
+        ("yaml", "breakdowns.yaml"),
+        ("builder", "breakdowns_example.py"),
+        ("low-level", "breakdowns_example.py"),
+    ):
+        (tmp_path / "breakdowns" / api).mkdir(parents=True)
+        shutil.copy(ROOT / "examples" / api / name, tmp_path / "breakdowns" / api)
+    monkeypatch.chdir(tmp_path)
+    module = _load("breakdowns")
+    forms = (module.yaml_form, module.builder_form, module.low_level_form)
+    printed = "\n".join(str(form()) for form in forms)
+    page = (ROOT / "docs/how-to/modelling/breakdowns.md").read_text(encoding="utf-8")
+    assert f"```text\n{printed}\n```" in page
+
+
+def _script_from_page(page, module, script, import_line, tmp_path, import_first=False):
+    """Writes `script` from the python blocks of docs/snippets/guides/<module>.py on
+    a docs page, in the order the page shows them, with the desflow import line the
+    page gives in its text, and returns the page text."""
+    text = (ROOT / "docs" / page).read_text(encoding="utf-8")
+    assert f"`{import_line}`" in text
+    found = re.findall(
+        rf'^( *)```python title="docs/snippets/guides/{module}\.py:[\w-]+"[^\n]*\n(.*?)\n\1```$',
+        text,
+        re.M | re.S,
+    )
+    parts = [
+        "\n".join(line[len(indent) :] for line in code.split("\n"))
+        for indent, code in found
+    ]
+    parts.insert(0 if import_first else 1, import_line)
+    (tmp_path / script).write_text("\n\n\n".join(parts) + "\n", encoding="utf-8")
+    return text
+
+
+def _saved_file_from_page(page, name, tmp_path):
+    """Writes `name` from the block of docs/snippets/yaml/<name> on a docs page, as a
+    reader saves it, so a part the page leaves out fails the run."""
+    text = (ROOT / "docs" / page).read_text(encoding="utf-8")
+    found = re.findall(
+        rf'^( *)```\w+ title="docs/snippets/yaml/{re.escape(name)}[:"][^\n]*\n(.*?)\n\1```$',
+        text,
+        re.M | re.S,
+    )
+    assert found, f"{page} shows no block of {name}"
+    parts = [
+        "\n".join(line[len(indent) :] for line in code.split("\n"))
+        for indent, code in found
+    ]
+    (tmp_path / name).write_text("\n".join(parts) + "\n", encoding="utf-8")
+
+
+def _printed_on_the_page(text, script):
+    """The text block that follows the page's bash block for `script`, and the
+    prefix its `grep "^..."` keeps ("" when the command does not filter). The block
+    gives the uv command and the pip command, and both must run the script."""
+    command, shown = re.search(
+        rf"```bash\n((?:(?!```).)*?{re.escape(script)}(?:(?!```).)*?)\n```\n\n```text\n(.*?)\n```",
+        text,
+        re.S,
+    ).groups()
+    assert f"uv run --no-project --with desflow {script}" in command
+    assert f"pip install desflow\npython {script}" in command
+    prefix = re.search(r'grep "\^([^"]*)"', command)
+    return (prefix.group(1) if prefix else ""), shown
+
+
+def _example_files(tmp_path, name, files):
+    """Where `desflow examples get <name>` writes the example's forms."""
+    for api, file in files:
+        (tmp_path / name / api).mkdir(parents=True, exist_ok=True)
+        shutil.copy(ROOT / "examples" / api / file, tmp_path / name / api)
+
+
+_BREAKDOWNS = (
+    "from desflow import DynamicRealtimeEnvironment, Sampler, SimulationContext"
+)
+_RENEGING = (
+    "from desflow import CapacityConfig, DynamicRealtimeEnvironment, "
+    "DynamicResource, Sampler, SimParameter, SimulationContext"
+)
+YAML_SNIPPETS = ROOT / "docs" / "snippets" / "yaml"
+
+
+@pytest.mark.parametrize(
+    "page,module,script,import_line,import_first",
+    [
+        (
+            "how-to/modelling/breakdowns.md",
+            "breakdowns",
+            "check_breakdowns.py",
+            _BREAKDOWNS,
+            False,
+        ),
+        (
+            "how-to/modelling/reneging-and-balking.md",
+            "reneging_and_balking",
+            "check_reneging.py",
+            _RENEGING,
+            False,
+        ),
+        (
+            "how-to/modelling/wait-for-one-or-all.md",
+            "wait_for_one_or_all",
+            "wait_for_one_or_all.py",
+            "from desflow import Entity, SimulationContext",
+            False,
+        ),
+        (
+            "how-to/modelling/wait-for-one-or-all.md",
+            "wait_for_one_or_all_low_level",
+            "wait_for_one_or_all_low_level.py",
+            "from desflow import DynamicRealtimeEnvironment, Signal, SignalFailed",
+            True,
+        ),
+    ],
+)
+def test_how_to_check_scripts_run_as_the_page_builds_them(
+    page, module, script, import_line, import_first, tmp_path
+):
+    """The script a reader builds from the page's blocks, in the page's order and
+    with the page's import line, runs in a folder of the saved files and prints the
+    lines the page shows. Importing the snippet file cannot show a function that
+    the page leaves out."""
+    _example_files(
+        tmp_path,
+        "breakdowns",
+        [
+            ("yaml", "breakdowns.yaml"),
+            ("builder", "breakdowns_example.py"),
+            ("low-level", "breakdowns_example.py"),
+        ],
+    ) if module == "breakdowns" else None
+    if module == "reneging_and_balking":
+        _saved_file_from_page(page, "reneging_tie.yaml", tmp_path)
+        _example_files(
+            tmp_path,
+            "patience",
+            [
+                ("yaml", "patience.yaml"),
+                ("builder", "patience_example.py"),
+                ("low-level", "patience_example.py"),
+            ],
+        )
+    if module == "wait_for_one_or_all":
+        for name in (
+            "wait_first.yaml",
+            "wait_tie.yaml",
+            "wait_all.yaml",
+            "wait_for_one_or_all_logic.py",
+        ):
+            _saved_file_from_page(page, name, tmp_path)
+    text = _script_from_page(page, module, script, import_line, tmp_path, import_first)
+    run = subprocess.run(
+        [sys.executable, script], cwd=tmp_path, capture_output=True, text=True
+    )
+    assert run.returncode == 0, run.stderr[-800:]
+    prefix, shown = _printed_on_the_page(text, script)
+    printed = [line for line in run.stdout.splitlines() if line.startswith(prefix)]
+    assert "\n".join(printed) == shown
 
 
 def test_time_varying_arrivals_boundaries():
@@ -282,16 +450,23 @@ def test_secure_egress_passes_its_settings_to_the_client(monkeypatch):
     three forms publish the same events."""
     from desflow import SimulationContext
 
-    for name in ("KAFKA_BOOTSTRAP_SERVERS", "KAFKA_API_KEY", "KAFKA_API_SECRET"):
-        monkeypatch.delenv(name, raising=False)
-    module = _load("kafka_security")
+    monkeypatch.setenv("KAFKA_BOOTSTRAP_SERVERS", "broker.example.com:9092")
+    monkeypatch.setenv("KAFKA_API_KEY", "test-key")
+    monkeypatch.setenv("KAFKA_API_SECRET", "test-secret")
+    sys.path.insert(0, str(GUIDES))  # the builder script imports the egress
+    try:
+        connections = _load("kafka_security_connections")
+        module = _load("kafka_security")
+    finally:
+        sys.path.remove(str(GUIDES))
     blueprint = SimulationContext.from_yaml(
         ROOT / "docs" / "snippets" / "yaml" / "kafka_security.yaml"
     )
+    assert connections.connection["sasl_plain_username"] == "test-key"
     for egress in (module.egress, blueprint._egress_providers[0]):
         config = egress.producer_config
         assert config["security_protocol"] == "SASL_SSL"
-        assert config["sasl_plain_username"] == "<YOUR_API_KEY>"
+        assert config["sasl_plain_username"] == "test-key"
         assert egress.topic_router is None  # so it creates its own topics
 
     records = _captured(module.app, until=30)
@@ -318,7 +493,7 @@ def test_predictions_fit_the_avro_schema(tmp_path, monkeypatch):
     fastavro = pytest.importorskip("fastavro")
     from desflow import SimulationContext
 
-    module = _load("avro_and_pydantic")
+    module = _load("avro_and_pydantic_models")
     schema = json.loads(module.schema_string)
     assert [f["name"] for f in schema["fields"]] == [
         "key",
@@ -333,6 +508,7 @@ def test_predictions_fit_the_avro_schema(tmp_path, monkeypatch):
     # from it, and here there is no broker to create the topics on
     for source in (
         GUIDES / "avro_and_pydantic.py",
+        GUIDES / "avro_and_pydantic_models.py",
         GUIDES / "avro_and_pydantic_low_level.py",
         ROOT / "docs" / "snippets" / "yaml" / "avro_and_pydantic.yaml",
         ROOT / "docs" / "snippets" / "yaml" / "avro_and_pydantic_logic.py",
@@ -352,7 +528,8 @@ def test_predictions_fit_the_avro_schema(tmp_path, monkeypatch):
 
     route = module.ml_topic_router
     parsed = fastavro.parse_schema(schema)
-    for records in (_captured(module.app, until=30), yaml_records, capture.records):
+    builder = _load_from(tmp_path, "avro_and_pydantic")
+    for records in (_captured(builder.app, until=30), yaml_records, capture.records):
         predictions = [r for r in records if route(r) == "ml-predictions"]
         assert predictions
         assert {"ml-predictions", "sim-events"} <= {route(r) for r in records}
@@ -371,7 +548,11 @@ def test_secured_registry_serializer_sends_its_credentials(registry_transport):
         return httpx.Response(200, json={"id": 1})
 
     registry_transport(registry)
-    module = _load("avro_and_pydantic")
+    sys.path.insert(0, str(GUIDES))  # the registry file imports the models
+    try:
+        module = _load("avro_and_pydantic_registry")
+    finally:
+        sys.path.remove(str(GUIDES))
 
     payload = module.secured_serializer.serialize(
         "ml-predictions",
@@ -408,6 +589,7 @@ class _Registry:
 
 _SHOP_MODULES = (
     "json_schema_and_protobuf",
+    "json_schema_and_protobuf_serializers",
     "json_schema_and_protobuf_logic",
     "json_schema_and_protobuf_low_level",
 )
@@ -424,6 +606,7 @@ def _run_shop_form(form, tmp_path, monkeypatch):
     # it, and here there is no broker to create the topics on
     for source in (
         GUIDES / "json_schema_and_protobuf.py",
+        GUIDES / "json_schema_and_protobuf_serializers.py",
         GUIDES / "json_schema_and_protobuf_low_level.py",
         GUIDES / "shop_record.proto",
         GUIDES / "shop_record_pb2.py",
@@ -476,7 +659,7 @@ def test_orders_round_trip_as_json_schema_and_protobuf(
     assert set(serializers) == {"orders-json", "orders-protobuf"}
 
     # The page's read_order decodes each message, as a consumer of the topics would
-    page = _load("json_schema_and_protobuf")
+    page = _load("json_schema_and_protobuf_serializers")
     route = page.order_topic_router
     assert {"sim-events", "orders-json", "orders-protobuf"} <= {
         route(r) for r in records
@@ -536,7 +719,7 @@ def test_glue_serializers_round_trip_the_order_record(monkeypatch):
 
     glue = _Glue()
     monkeypatch.setattr("boto3.client", lambda service, **kwargs: glue)
-    module = _load("json_schema_and_protobuf")
+    module = _load("json_schema_and_protobuf_serializers")
     glue_json, glue_protobuf = module.glue_serializers()
     record = {
         "key": "orders-1",
@@ -570,31 +753,38 @@ def test_shop_record_module_declares_the_fields_of_the_proto_file():
             assert f"{field.name} = {field.number};" in text
 
 
-def test_reneging_and_balking_ties_and_balance():
+def test_reneging_and_balking_ties_and_balance(tmp_path, monkeypatch):
     """At a tie, the order scheduled later is served and the one scheduled first
     reneges, as the page says, in every form; and every order of the patience
-    example is packed, reneged, balked or still in the shop, in every form."""
-    module = _load("reneging_and_balking")
-    blueprint = str(ROOT / "docs" / "snippets" / "yaml" / "reneging_tie.yaml")
-    for tie in (
-        module.tie,
-        lambda at, patience: module.tie_yaml(at, patience, blueprint),
-        module.tie_low_level,
+    example is packed, reneged, balked or still in the shop, in every form. The
+    script runs from the folder a reader works in: the saved blueprint beside it
+    and the files `desflow examples get patience` writes."""
+    shutil.copy(ROOT / "docs" / "snippets" / "yaml" / "reneging_tie.yaml", tmp_path)
+    for api, name in (
+        ("yaml", "patience.yaml"),
+        ("builder", "patience_example.py"),
+        ("low-level", "patience_example.py"),
     ):
+        (tmp_path / "patience" / api).mkdir(parents=True)
+        shutil.copy(ROOT / "examples" / api / name, tmp_path / "patience" / api)
+    monkeypatch.chdir(tmp_path)
+    module = _load("reneging_and_balking")
+    for tie in (module.tie, module.tie_yaml, module.tie_low_level):
         assert tie(3, 3) == "served"
         assert tie(0, 6) == "reneged"
-    examples = ROOT / "examples"
-    for outcome in (
-        module.yaml_form(str(examples / "yaml" / "patience.yaml")),
-        module.builder_form(str(examples / "builder" / "patience_example.py")),
-        module.low_level_form(str(examples / "low-level" / "patience_example.py")),
-    ):
-        assert outcome == {
-            "order_packed": 49,
-            "balked": 17,
-            "reneged": 7,
-            "started": 1,
-        }
+    forms = (module.yaml_form, module.builder_form, module.low_level_form)
+    for form in forms:
+        assert form() == {"order_packed": 49, "balked": 17, "reneged": 7, "started": 1}
+    printed = [
+        "check: arrives at 3, patience 3: " + module.tie(3, 3),
+        "check: arrives at 0, patience 6: " + module.tie(0, 6),
+        f"check: the same in YAML: {module.tie_yaml(3, 3)} {module.tie_yaml(0, 6)}",
+        f"check: the same, low-level: {module.tie_low_level(3, 3)} "
+        f"{module.tie_low_level(0, 6)}",
+        *(f"check: {dict(form())}" for form in forms),
+    ]
+    page = (ROOT / "docs/how-to/modelling/reneging-and-balking.md").read_text("utf-8")
+    assert "```text\n" + "\n".join(printed) + "\n```" in page
 
 
 def test_wait_for_one_or_all_first_ties_and_failure():
@@ -640,6 +830,49 @@ def test_wait_for_one_or_all_example_packs_and_refunds():
     assert _load("wait_for_one_or_all_example_low_level").outcome() == expected
 
 
+def test_wait_for_one_or_all_checks_run_from_saved_files(tmp_path, monkeypatch):
+    """The script runs in a folder with the saved blueprints and prints the lines the
+    page shows; `desflow run --stdout` gives the counts and restock times the page
+    reads from the YAML example."""
+    from typer.testing import CliRunner
+
+    from desflow.cli import app
+
+    yaml = ROOT / "docs" / "snippets" / "yaml"
+    for name in ("wait_first.yaml", "wait_tie.yaml", "wait_all.yaml"):
+        shutil.copy(yaml / name, tmp_path)
+    shutil.copy(yaml / "wait_for_one_or_all_logic.py", tmp_path)
+    monkeypatch.chdir(tmp_path)
+    module = _load("wait_for_one_or_all")
+    printed = [
+        f"check: restock after 10 s: {module.first(10)}",
+        f"check: restock after 50 s: {module.first(50)}",
+        f"check: two at once: {module.two_at_once()}",
+        f"check: all, with a failure: {module.all_with_a_failure()}",
+        f"check: the same in YAML: {module.first_yaml(10)} {module.first_yaml(50)}",
+        f"check: two at once in YAML: {module.two_at_once_yaml()}",
+        f"check: all, with a failure, in YAML: {module.all_with_a_failure_yaml()}",
+    ]
+    page = (ROOT / "docs/how-to/modelling/wait-for-one-or-all.md").read_text("utf-8")
+    assert "```text\n" + "\n".join(printed) + "\n```" in page
+
+    result = CliRunner().invoke(
+        app, ["run", str(yaml / "wait_for_one_or_all_example.yaml"), "--stdout"]
+    )
+    assert result.exit_code == 0, result.output
+    records = result.stdout
+    counts = re.findall(
+        r'"path_id":"Shop.stats.tasks.(?:pack|refund).finished","value":\d+', records
+    )[-2:]
+    restocks = [
+        re.search(r'"sim_ts":[0-9.]+', line).group()
+        for line in records.splitlines()
+        if '"event_type":"restocked"' in line
+    ]
+    shown = "\n".join("    " + line for line in counts + restocks)
+    assert f"```text\n{shown}\n    ```" in page
+
+
 def test_performance_tuning_counts_the_records():
     """An hour of the shop publishes 108,688 records at factor 0: no lag readings,
     which would add 3,600, and a rate above 0."""
@@ -657,6 +890,58 @@ def test_performance_tuning_counts_the_records():
     ):
         assert outcome["records"] == 108_688
         assert outcome["per_second"] > 0
+
+
+def test_performance_tuning_commands_print_the_page_count(tmp_path):
+    """Each command of the Check section, run from a folder that holds the saved
+    files, prints the record count the page shows."""
+    for source in (
+        GUIDES / "performance_tuning.py",
+        GUIDES / "performance_tuning_low_level.py",
+        ROOT / "docs" / "snippets" / "yaml" / "performance_tuning.yaml",
+    ):
+        shutil.copy(source, tmp_path)
+    page = (ROOT / "docs/how-to/tools/performance-tuning.md").read_text("utf-8")
+    assert "{'records': 108688, 'per_second': " in page
+    for command in (
+        ["performance_tuning.py", "yaml"],
+        ["performance_tuning.py"],
+        ["performance_tuning_low_level.py"],
+    ):
+        ran = subprocess.run(
+            [sys.executable, *command], cwd=tmp_path, capture_output=True, text=True
+        )
+        assert ran.returncode == 0, ran.stderr
+        assert ran.stdout.startswith("{'records': 108688, 'per_second': "), ran.stdout
+
+
+def test_repair_desk_runs_and_explain_names_no_bottleneck(tmp_path):
+    """The Use an AI Assistant check: `desflow run repair_desk.yaml` ends without an
+    error and logs the lines the page shows, and `desflow explain` names no
+    bottleneck."""
+    blueprint = ROOT / "docs" / "snippets" / "yaml" / "repair_desk.yaml"
+    page = (ROOT / "docs/how-to/tools/use-an-ai-assistant.md").read_text("utf-8")
+
+    def desflow(*args):
+        ran = subprocess.run(
+            [str(Path(sys.executable).parent / "desflow"), *args],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+        )
+        assert ran.returncode == 0, ran.stderr
+        return ran.stdout + ran.stderr
+
+    logged = desflow("run", str(blueprint))
+    shown = re.findall(r"^\[INFO\] (desflow\.[^\n]*)$", page, re.M)
+    assert len(shown) == 6
+    assert all(line in logged for line in shown)
+    bottleneck = next(
+        line
+        for line in desflow("explain", str(blueprint)).splitlines()
+        if line.startswith("Bottleneck")
+    )
+    assert f"```text\n{bottleneck}\n```" in page
 
 
 def test_fit_a_distribution_gaps(tmp_path, capsys):
@@ -683,6 +968,24 @@ def test_fit_a_distribution_gaps(tmp_path, capsys):
     written = module.write(result, tmp_path)
     blueprint = ROOT / "docs" / "snippets" / "yaml"
     assert written.read_text() == (blueprint / "fitted" / "orders.yaml").read_text()
+    # The command line route reads the column the script writes
+    from typer.testing import CliRunner
+
+    from desflow.cli import app as cli
+
+    column = module.write_gaps(tmp_path)
+    assert column.read_text().splitlines()[0] == "gap_seconds"
+    assert len(column.read_text().splitlines()) == 300
+    out = tmp_path / "fitted" / "cli.yaml"
+    ran = CliRunner().invoke(
+        cli,
+        ["fit", str(column), "--column", "gap_seconds", "--unit", "s", "--lower", "0"]
+        + ["--out", str(out)],
+    )
+    assert ran.exit_code == 0, ran.output
+    assert "exponential *" in ran.stdout and "rate=0.36388" in ran.stdout
+    shipped = (blueprint / "fitted" / "orders.yaml").read_text().splitlines()[1:]
+    assert out.read_text().splitlines()[1:] == shipped
     app = module.shop(result)
     app.run(until="1 h")
     yaml_app = SimulationContext.from_yaml(blueprint / "fit_a_distribution.yaml")
@@ -735,6 +1038,18 @@ def test_test_a_model_tests_pass_and_the_saved_results_are_current(
         form.test_results_match_the_saved_run()
         for packers, wait in ((1, 2.055375), (2, 0.110574), (3, 0.016206)):
             assert form.results(packers=packers)["wait_mean"] == wait
+    # The page shows "4 passed" for each form, and each file has four tests
+    page = (ROOT / "docs/how-to/analysis/test-a-model.md").read_text("utf-8")
+    assert page.count(" 4 passed in ") == 3
+    shutil.copy(GUIDES / "test_a_model.py", tmp_path)
+    for name in ("test_a_model", "test_a_model_yaml", "test_a_model_low_level"):
+        ran = subprocess.run(
+            [sys.executable, "-m", "pytest", f"{name}.py", "-p", "no:cacheprovider"],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+        )
+        assert " 4 passed in " in ran.stdout, ran.stdout
 
 
 def test_analyse_the_event_log_waits_and_throughput(tmp_path):
@@ -791,6 +1106,28 @@ def test_analyse_the_event_log_waits_and_throughput(tmp_path):
     builder = rows(tmp_path / "builder")
     assert len(builder) == 191
     assert rows(tmp_path / "yaml") == rows(tmp_path / "low_level") == builder
+
+
+def test_analyse_the_event_log_commands_print_the_page_counts(tmp_path):
+    """Each command of the Check section, run from a folder that holds the saved
+    files, prints the counts the page shows."""
+    for source in (
+        GUIDES / "analyse_the_event_log.py",
+        GUIDES / "analyse_the_event_log_low_level.py",
+        ROOT / "docs" / "snippets" / "yaml" / "analyse_the_event_log.yaml",
+    ):
+        shutil.copy(source, tmp_path)
+    page = (ROOT / "docs/how-to/analysis/analyse-the-event-log.md").read_text("utf-8")
+    for command in (
+        ["analyse_the_event_log.py", "yaml"],
+        ["analyse_the_event_log.py"],
+        ["analyse_the_event_log_low_level.py"],
+    ):
+        ran = subprocess.run(
+            [sys.executable, *command], cwd=tmp_path, capture_output=True, text=True
+        )
+        assert ran.returncode == 0, ran.stderr
+        assert f"```text\n{ran.stdout}```" in page
 
 
 def test_animate_a_run_frames_and_entities(tmp_path):
@@ -946,9 +1283,31 @@ def test_write_a_connector_applies_the_change_and_writes_the_events(
             ("19.0", "started"),
         ]
     assert written[0] == written[1] == written[2]
+    # The page's YAML check writes the same change with `echo`, and shows these rows
+    page = (ROOT / "docs/how-to/records-and-kafka/write-a-connector.md").read_text(
+        "utf-8"
+    )
+    assert f"echo '{json.dumps(module.CHANGE)}' > changes.jsonl" in page
+    shown = [
+        f"{form.__name__:15} packers: 2, rows in events.csv: {len(rows)}"
+        for form, rows in zip(
+            (module.yaml_form, module.builder_form, low_level.low_level_form), written
+        )
+    ]
+    assert all(line in page for line in shown)
+    first_rows = ["sim_ts,key,task,status,event_type"] + [
+        f"{r['sim_ts']},{r['key']},{r['task']},{r['status']},{r['event_type']}"
+        for r in written[0][:5]
+    ]
+    assert "\n".join(first_rows) in page
 
 
-_STORAGE_MODULES = ("cloud_storage", "cloud_storage_logic", "cloud_storage_low_level")
+_STORAGE_MODULES = (
+    "cloud_storage",
+    "cloud_storage_stores",
+    "cloud_storage_logic",
+    "cloud_storage_low_level",
+)
 
 
 def _run_storage_form(form, tmp_path, monkeypatch):
@@ -963,6 +1322,7 @@ def _run_storage_form(form, tmp_path, monkeypatch):
 
     for source in (
         GUIDES / "cloud_storage.py",
+        GUIDES / "cloud_storage_stores.py",
         GUIDES / "cloud_storage_low_level.py",
         ROOT / "docs" / "snippets" / "yaml" / "cloud_storage.yaml",
         ROOT / "docs" / "snippets" / "yaml" / "cloud_storage_logic.py",
@@ -978,15 +1338,16 @@ def _run_storage_form(form, tmp_path, monkeypatch):
         if form == "builder":
             module = _load_from(tmp_path, "cloud_storage")
             module.app.run(until=600)
+            module = sys.modules["cloud_storage_stores"]
         elif form == "yaml":
             SimulationContext.from_yaml(tmp_path / "cloud_storage.yaml").run(until=600)
-            module = sys.modules["cloud_storage"]
+            module = sys.modules["cloud_storage_stores"]
         else:
             low_level = _load_from(tmp_path, "cloud_storage_low_level")
             env = low_level.shop(low_level.sinks)
             env.run(until=600)
             env.teardown()
-            module = sys.modules["cloud_storage"]
+            module = sys.modules["cloud_storage_stores"]
         store = fs.LocalFileSystem()
         folder = str(tmp_path / "output")
         return (
@@ -1032,11 +1393,11 @@ def test_cloud_storage_stores_make_their_filesystems(monkeypatch):
     from desflow.connectors.egress.storage import _build_filesystem
 
     monkeypatch.setenv("AZURE_STORAGE_ACCOUNT", "myaccount")
-    sys.modules.pop("cloud_storage", None)
+    sys.modules.pop("cloud_storage_stores", None)
     try:
-        stores = _load("cloud_storage").STORES
+        stores = _load("cloud_storage_stores").STORES
     finally:
-        sys.modules.pop("cloud_storage", None)
+        sys.modules.pop("cloud_storage_stores", None)
     classes = {name: type(_build_filesystem(m, fs)) for name, m in stores.items()}
     assert classes == {
         "local": fs.LocalFileSystem,
@@ -1048,6 +1409,7 @@ def test_cloud_storage_stores_make_their_filesystems(monkeypatch):
 
 _ICEBERG_MODULES = (
     "iceberg_tables",
+    "iceberg_tables_catalog",
     "iceberg_tables_logic",
     "iceberg_tables_low_level",
 )
@@ -1061,6 +1423,7 @@ def _run_iceberg_form(form, tmp_path, monkeypatch):
 
     for source in (
         GUIDES / "iceberg_tables.py",
+        GUIDES / "iceberg_tables_catalog.py",
         GUIDES / "iceberg_tables_low_level.py",
         ROOT / "docs" / "snippets" / "yaml" / "iceberg_tables.yaml",
         ROOT / "docs" / "snippets" / "yaml" / "iceberg_tables_logic.py",
@@ -1075,15 +1438,16 @@ def _run_iceberg_form(form, tmp_path, monkeypatch):
         if form == "builder":
             module = _load_from(tmp_path, "iceberg_tables")
             module.app.run(until=600)
+            module = sys.modules["iceberg_tables_catalog"]
         elif form == "yaml":
             SimulationContext.from_yaml(tmp_path / "iceberg_tables.yaml").run(until=600)
-            module = sys.modules["iceberg_tables"]
+            module = sys.modules["iceberg_tables_catalog"]
         else:
             low_level = _load_from(tmp_path, "iceberg_tables_low_level")
             env = low_level.shop(low_level.sink)
             env.run(until=600)
             env.teardown()
-            module = sys.modules["iceberg_tables"]
+            module = sys.modules["iceberg_tables_catalog"]
         assert (
             module.catalog["uri"]
             == f"sqlite:///{tmp_path.resolve()}/iceberg/catalog.db"
@@ -1116,11 +1480,133 @@ def test_iceberg_catalogs_name_their_types(monkeypatch, tmp_path):
     ICEBERG_CATALOG picks one, with its name."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("ICEBERG_CATALOG", "glue")
-    sys.modules.pop("iceberg_tables", None)
+    sys.modules.pop("iceberg_tables_catalog", None)
     try:
-        module = _load("iceberg_tables")
+        module = _load("iceberg_tables_catalog")
     finally:
-        sys.modules.pop("iceberg_tables", None)
+        sys.modules.pop("iceberg_tables_catalog", None)
     types = {name: c["type"] for name, c in module.CATALOGS.items()}
     assert types == {"sqlite": "sql", "rest": "rest", "postgres": "sql", "glue": "glue"}
     assert module.catalog == {"name": "glue", **module.CATALOGS["glue"]}
+
+
+def test_storage_checks_print_the_row_counts_the_pages_show(tmp_path):
+    """After a full hour of the builder shop, the stores file and the catalog file
+    print the counts that the Check the Result sections show."""
+    for name in (
+        "cloud_storage",
+        "cloud_storage_stores",
+        "iceberg_tables",
+        "iceberg_tables_catalog",
+    ):
+        shutil.copy(GUIDES / f"{name}.py", tmp_path)
+
+    def python(script):
+        ran = subprocess.run(
+            [sys.executable, script],
+            cwd=tmp_path,
+            capture_output=True,
+            text=True,
+            env={k: v for k, v in os.environ.items() if k != "STORAGE"},
+        )
+        assert ran.returncode == 0, ran.stderr
+        return ran.stdout
+
+    python("cloud_storage.py")
+    cloud = python("cloud_storage_stores.py")
+    python("iceberg_tables.py")
+    iceberg = python("iceberg_tables_catalog.py")
+    docs = ROOT / "docs" / "how-to" / "storage-and-tables"
+    assert f"```text\n{cloud}```" in (docs / "cloud-storage.md").read_text("utf-8")
+    assert f"```text\n{iceberg}```" in (docs / "iceberg-tables.md").read_text("utf-8")
+
+
+class _FakeConsumer:
+    """Stands in for AIOKafkaConsumer: serves the messages given, as a broker would."""
+
+    messages: list = []
+    settings: dict = {}
+
+    def __init__(self, *topics, **settings):
+        type(self).settings = {"topics": topics, **settings}
+        self._messages = iter(type(self).messages)
+
+    async def start(self):
+        pass
+
+    async def stop(self):
+        pass
+
+    async def getone(self):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(value=next(self._messages))
+
+
+def test_kafka_checks_read_the_topics_with_the_connection_they_were_given(
+    monkeypatch, capsys, registry_transport
+):
+    """The read-back of the Check the Result sections consumes the topic of the page
+    with the settings of the egress, and prints what the page shows."""
+    import asyncio
+
+    monkeypatch.setenv("KAFKA_BOOTSTRAP_SERVERS", "broker.example.com:9092")
+    monkeypatch.setenv("KAFKA_API_KEY", "test-key")
+    monkeypatch.setenv("KAFKA_API_SECRET", "test-secret")
+    security = _load("kafka_security_connections")
+    monkeypatch.setattr(security, "AIOKafkaConsumer", _FakeConsumer)
+    events = [b'{"key":"orders-1"}', b'{"key":"orders-2"}', b'{"key":"orders-3"}']
+    _FakeConsumer.messages = events
+    asyncio.run(security.show_events())
+    assert capsys.readouterr().out.splitlines() == [e.decode() for e in events]
+    # The consumer gets the egress's own security settings
+    assert _FakeConsumer.settings["topics"] == ("sim-events",)
+    assert _FakeConsumer.settings["security_protocol"] == "SASL_SSL"
+    assert _FakeConsumer.settings["sasl_plain_username"] == "test-key"
+    assert _FakeConsumer.settings["bootstrap_servers"] == "broker.example.com:9092"
+
+    registry = _Registry()
+    registry_transport(registry)
+    serializers = _load("json_schema_and_protobuf_serializers")
+    monkeypatch.setattr(serializers, "AIOKafkaConsumer", _FakeConsumer)
+    record = {
+        "key": "orders-1",
+        "task": "pack_order",
+        "instance": 0,
+        "sim_ts": 1.5,
+        "timestamp": "2026-01-01T00:00:00Z",
+        "value": {"order_id": 0, "amount": 19.99},
+    }
+    pytest.importorskip("jsonschema")
+    payload = serializers.json_serializer.serialize("orders-json", record)
+    _FakeConsumer.messages = [payload]
+    asyncio.run(serializers.show_first_order("orders-json"))
+    assert capsys.readouterr().out == f"orders-json {record}\n"
+    assert _FakeConsumer.settings["topics"] == ("orders-json",)
+
+
+def test_avro_check_prints_the_prediction_it_reads(
+    monkeypatch, capsys, registry_transport
+):
+    """The read-back of the Avro page decodes a prediction with the schema the
+    registry holds for it."""
+    import asyncio
+
+    pytest.importorskip("fastavro")
+    registry_transport(_Registry())
+    models = _load("avro_and_pydantic_models")
+    monkeypatch.setattr(models, "AIOKafkaConsumer", _FakeConsumer)
+    record = {
+        "key": "orders-1",
+        "task": "pack_order",
+        "instance": 0,
+        "sim_ts": 4.052,
+        "timestamp": "2026-01-01T00:00:00Z",
+        "value": {"event_type": "prediction", "task_id": "orders-1", "confidence": 0.9},
+    }
+    _FakeConsumer.messages = [
+        models.generated_serializer.serialize("ml-predictions", record)
+    ]
+    asyncio.run(models.show_first_prediction())
+    assert capsys.readouterr().out == f"{record}\n"
+    assert _FakeConsumer.settings["topics"] == ("ml-predictions",)

@@ -229,7 +229,9 @@ def streaming_rows() -> List[str]:
     with tempfile.TemporaryDirectory() as tmp:
         folder = Path(tmp)
         source = ROOT / _YAML / "streaming_out.yaml"
-        (folder / source.name).write_text(source.read_text(encoding="utf-8"))
+        for name in (source.name, "streaming_out_logic.py"):
+            text = (ROOT / _YAML / name).read_text(encoding="utf-8")
+            (folder / name).write_text(text)
         in_folder(folder, "run", source.name)
         counts = sorted(
             len([line for line in path.read_text().splitlines() if line])

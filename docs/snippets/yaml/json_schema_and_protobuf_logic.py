@@ -1,6 +1,6 @@
 """Python for json_schema_and_protobuf.yaml: the order record each packed order publishes,
 and the topics the run needs. The serializers and the router are those of
-json_schema_and_protobuf.py, which must be beside the blueprint."""
+json_schema_and_protobuf_serializers.py, which must be beside the blueprint."""
 
 from desflow import KafkaAdminConnector
 

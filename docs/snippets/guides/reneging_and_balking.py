@@ -2,14 +2,19 @@
 
 `tie(waiter_at, patience)` runs one packer held from 0 to 6 seconds and one waiting
 order, and returns what the order did at 6; `tie_yaml` and `tie_low_level` do the
-same with docs/snippets/yaml/reneging_tie.yaml and the low-level API. `balance`
+same with reneging_tie.yaml (docs/snippets/yaml/) and the low-level API. `balance`
 checks that every order of the patience example that arrived is packed, reneged,
 balked or still waiting, and `yaml_form`, `builder_form` and `low_level_form` run
 the example in each form.
 
-python reneging_and_balking.py, from the root of a clone, prints each result.
+python reneging_and_balking.py prints each result on a line that starts with
+"check: ". Run it from a folder that holds reneging_tie.yaml and the folder that
+`desflow examples get patience` writes.
 """
 
+# ruff: noqa: E402
+
+# --8<-- [start:capture]
 import asyncio
 import importlib.util
 import queue
@@ -17,15 +22,6 @@ import shutil
 import tempfile
 from collections import Counter
 from pathlib import Path
-
-from desflow import (
-    CapacityConfig,
-    DynamicRealtimeEnvironment,
-    DynamicResource,
-    Sampler,
-    SimParameter,
-    SimulationContext,
-)
 
 
 class Capture:
@@ -43,6 +39,32 @@ class Capture:
                     await asyncio.sleep(0.005)
         except asyncio.CancelledError:
             pass
+
+
+# --8<-- [end:capture]
+
+from desflow import (
+    CapacityConfig,
+    DynamicRealtimeEnvironment,
+    DynamicResource,
+    Sampler,
+    SimParameter,
+    SimulationContext,
+)
+
+
+# --8<-- [start:outcome]
+def _outcome(records: list) -> str:
+    """What the order did: reneged if any record of its pack task says so."""
+    statuses = [
+        r["value"].get("status")
+        for r in records
+        if r["stream_type"] == "event" and r["task"] == "pack"
+    ]
+    return "reneged" if "reneged" in statuses else "served"
+
+
+# --8<-- [end:outcome]
 
 
 # --8<-- [start:tie]
@@ -72,31 +94,17 @@ def tie(waiter_at: float, patience: float) -> str:
 
     app.add_process(script)
     app.run(until=8)
-    statuses = [
-        r["value"].get("status")
-        for r in capture.records
-        if r["stream_type"] == "event" and r["task"] == "pack"
-    ]
-    return "reneged" if "reneged" in statuses else "served"
+    return _outcome(capture.records)
 
 
 # --8<-- [end:tie]
-
-
-def _outcome(records: list) -> str:
-    statuses = [
-        r["value"].get("status")
-        for r in records
-        if r["stream_type"] == "event" and r["task"] == "pack"
-    ]
-    return "reneged" if "reneged" in statuses else "served"
 
 
 # --8<-- [start:tie-yaml]
 def tie_yaml(
     waiter_at: float,
     patience: float,
-    blueprint: str = "docs/snippets/yaml/reneging_tie.yaml",
+    blueprint: str = "reneging_tie.yaml",
 ) -> str:
     """The same, with the blueprint and the two arrivals replayed from CSV files."""
     with tempfile.TemporaryDirectory() as tmp:
@@ -174,6 +182,7 @@ def balance(records: list, stats: dict) -> Counter:
 # --8<-- [end:balance]
 
 
+# --8<-- [start:loader]
 def _example(path: str):
     """Loads an example script as a module, without running it."""
     spec = importlib.util.spec_from_file_location("patience_example", path)
@@ -183,8 +192,11 @@ def _example(path: str):
     return module
 
 
+# --8<-- [end:loader]
+
+
 # --8<-- [start:yaml]
-def yaml_form(path: str = "examples/yaml/patience.yaml") -> Counter:
+def yaml_form(path: str = "patience/yaml/patience.yaml") -> Counter:
     app = SimulationContext.from_yaml(path)
     capture = Capture()
     app.add_egress(capture)
@@ -196,7 +208,7 @@ def yaml_form(path: str = "examples/yaml/patience.yaml") -> Counter:
 
 
 # --8<-- [start:builder]
-def builder_form(path: str = "examples/builder/patience_example.py") -> Counter:
+def builder_form(path: str = "patience/builder/patience_example.py") -> Counter:
     app = _example(path).app
     capture = Capture()
     app.add_egress(capture)
@@ -208,7 +220,7 @@ def builder_form(path: str = "examples/builder/patience_example.py") -> Counter:
 
 
 # --8<-- [start:low-level]
-def low_level_form(path: str = "examples/low-level/patience_example.py") -> Counter:
+def low_level_form(path: str = "patience/low-level/patience_example.py") -> Counter:
     example = _example(path)
     env = DynamicRealtimeEnvironment(factor=0)
     env.registry.register_sim_parameter(example.PARAMS)
@@ -225,10 +237,12 @@ def low_level_form(path: str = "examples/low-level/patience_example.py") -> Coun
 
 # --8<-- [end:low-level]
 
+# --8<-- [start:main]
 if __name__ == "__main__":
-    print("arrives at 3, patience 3:", tie(3, 3))
-    print("arrives at 0, patience 6:", tie(0, 6))
-    print("the same in YAML:", tie_yaml(3, 3), tie_yaml(0, 6))
-    print("the same, low-level:", tie_low_level(3, 3), tie_low_level(0, 6))
+    print("check: arrives at 3, patience 3:", tie(3, 3))
+    print("check: arrives at 0, patience 6:", tie(0, 6))
+    print("check: the same in YAML:", tie_yaml(3, 3), tie_yaml(0, 6))
+    print("check: the same, low-level:", tie_low_level(3, 3), tie_low_level(0, 6))
     for form in (yaml_form, builder_form, low_level_form):
-        print(dict(form()))
+        print("check:", dict(form()))
+# --8<-- [end:main]

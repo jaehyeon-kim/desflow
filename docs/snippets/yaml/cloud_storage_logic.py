@@ -1,5 +1,5 @@
 """Python for cloud_storage.yaml: the order record each packed order publishes. The store
-is that of cloud_storage.py, which must be beside the blueprint."""
+is that of cloud_storage_stores.py, which must be beside the blueprint."""
 
 
 def order_record(task_id, context, entity):

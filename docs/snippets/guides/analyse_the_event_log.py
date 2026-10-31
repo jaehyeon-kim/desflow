@@ -4,14 +4,16 @@ The shop runs for two minutes with one packer and writes its events to Parquet. 
 script reads the files with pyarrow, turns each order's three events into the rows of
 an event log (entity, event type, event, time, run), and computes each order's wait
 and time in the shop and the run's throughput. It uses pyarrow only, no pandas.
-python analyse_the_event_log.py writes the files to analyse_output/. `run_yaml`
-runs analyse_the_event_log.yaml instead, and analyse_the_event_log_low_level.py is
-the low-level API; each writes the same events.
+python analyse_the_event_log.py writes the files to analyse_output/. With the
+argument yaml, `run_yaml` runs analyse_the_event_log.yaml (beside the script) instead,
+and analyse_the_event_log_low_level.py is the low-level API; each writes the same
+events.
 """
 
 import logging
 import os
 import shutil
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -163,7 +165,7 @@ def throughput_per_minute(log: Table, seconds: float) -> float:
 
 if __name__ == "__main__":
     folder = Path("analyse_output")
-    run(folder)
+    run_yaml(folder) if sys.argv[1:] == ["yaml"] else run(folder)
     log = event_log(read_events(folder))
     per_order = waits_and_times(log)
     print(f"{log.num_rows} rows in the log, for {len(per_order)} orders")

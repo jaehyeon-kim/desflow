@@ -1,14 +1,16 @@
 """The Model Breakdowns guide: a station's down periods, and a check of its counts.
 
 python breakdowns.py prints the down periods and the counts of the breakdowns
-example in each of its three forms, run from the desflow repository root.
+example in each of its three forms, run from the folder where
+`desflow examples get breakdowns` ran.
 """
 
+# ruff: noqa: E402
+
+# --8<-- [start:capture]
 import asyncio
 import importlib.util
 import queue
-
-from desflow import DynamicRealtimeEnvironment, Sampler, SimulationContext
 
 
 class Capture:
@@ -26,6 +28,11 @@ class Capture:
                     await asyncio.sleep(0.005)
         except asyncio.CancelledError:
             pass
+
+
+# --8<-- [end:capture]
+
+from desflow import DynamicRealtimeEnvironment, Sampler, SimulationContext
 
 
 # --8<-- [start:check]
@@ -60,6 +67,7 @@ def availability(records: list, end: float, stats: dict) -> dict:
 # --8<-- [end:check]
 
 
+# --8<-- [start:loader]
 def _example(path: str):
     """Loads an example script as a module, without running it."""
     spec = importlib.util.spec_from_file_location("breakdowns_example", path)
@@ -69,8 +77,11 @@ def _example(path: str):
     return module
 
 
+# --8<-- [end:loader]
+
+
 # --8<-- [start:yaml]
-def yaml_form(path: str = "examples/yaml/breakdowns.yaml") -> dict:
+def yaml_form(path: str = "breakdowns/yaml/breakdowns.yaml") -> dict:
     app = SimulationContext.from_yaml(path)
     capture = Capture()
     app.add_egress(capture)
@@ -82,7 +93,7 @@ def yaml_form(path: str = "examples/yaml/breakdowns.yaml") -> dict:
 
 
 # --8<-- [start:builder]
-def builder_form(path: str = "examples/builder/breakdowns_example.py") -> dict:
+def builder_form(path: str = "breakdowns/builder/breakdowns_example.py") -> dict:
     app = _example(path).app
     capture = Capture()
     app.add_egress(capture)
@@ -94,7 +105,7 @@ def builder_form(path: str = "examples/builder/breakdowns_example.py") -> dict:
 
 
 # --8<-- [start:low-level]
-def low_level_form(path: str = "examples/low-level/breakdowns_example.py") -> dict:
+def low_level_form(path: str = "breakdowns/low-level/breakdowns_example.py") -> dict:
     example = _example(path)
     env = DynamicRealtimeEnvironment(factor=0)
     env.registry.register_sim_parameter(example.PARAMS)
@@ -111,6 +122,8 @@ def low_level_form(path: str = "examples/low-level/breakdowns_example.py") -> di
 
 # --8<-- [end:low-level]
 
+# --8<-- [start:main]
 if __name__ == "__main__":
     for form in (yaml_form, builder_form, low_level_form):
         print(form())
+# --8<-- [end:main]

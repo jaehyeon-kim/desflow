@@ -2,15 +2,15 @@
 prediction, sent to ml-predictions as Avro, and every other record goes to its topic
 as JSON.
 
-The model, the router and the serializer are those of avro_and_pydantic.py, which must
-be beside this script. It needs a Kafka broker and a schema registry: start both with
+The model, the router and the serializer are those of avro_and_pydantic_models.py, which
+must be beside this script. It needs a Kafka broker and a schema registry: start both with
 `odctl up kafka-lite`, then run `python avro_and_pydantic_low_level.py`.
 """
 
 import itertools
 import logging
 
-from avro_and_pydantic import MLPrediction, egress
+from avro_and_pydantic_models import MLPrediction, egress
 
 from desflow import (
     CapacityConfig,
@@ -30,7 +30,7 @@ PARAMS = SimParameter(
 )
 
 
-# --8<-- [start:shop]
+# --8<-- [start:model]
 def pack_order(env, packers, sampler, key, task_id):
     path_id = "Shop.service.packing"
     env.publish_event(
@@ -48,6 +48,10 @@ def pack_order(env, packers, sampler, key, task_id):
         env.publish_event(key, prediction, "pack_order", task_id)
 
 
+# --8<-- [end:model]
+
+
+# --8<-- [start:shop]
 def orders(env, packers, sampler):
     gap = env.registry.get_config("Shop.arrival.orders")
     for number in itertools.count(1):

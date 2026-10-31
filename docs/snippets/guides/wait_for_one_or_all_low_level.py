@@ -97,8 +97,10 @@ def all_with_a_failure() -> list:
 
 # --8<-- [end:all]
 
+# --8<-- [start:main]
 if __name__ == "__main__":
     print("restock after 10 s:", first(10))
     print("restock after 50 s:", first(50))
     print("two at once:", two_at_once())
     print("all, with a failure:", all_with_a_failure())
+# --8<-- [end:main]

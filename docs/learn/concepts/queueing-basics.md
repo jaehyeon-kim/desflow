@@ -42,7 +42,7 @@ Write the letters for the model before you use a formula: what the gaps are, wha
 
 ### What the Result Means
 
-A model with a letter `G`, or with several servers and a letter other than `M`, has no exact formula for its wait. The run of the shop is then the only measure of the wait, and a formula gives at best an approximation to check it against.
+One server with general gaps and general service times (G/G/1), and several servers with service times that are not exponential, have no closed formula for the wait. The run of the shop is then the only measure of the wait, and a formula gives at best an approximation to check it against. One server with exponential gaps and any service times (M/G/1) does have one, the [Pollaczek-Khinchine formula](#pollaczek-khinchine-formula).
 
 ---
 
@@ -71,7 +71,9 @@ Queues and Capacity runs the busy hour with 1 to 4 packers. One packer (utilisat
 
 ### How to Use It
 
-Work out utilisation for each resource before you run the model. `desflow explain` does it from the model, without running it:
+The commands on this page use the files of the tutorials they name. Save them from the Full Files of [Queues and Capacity](../first-model/queues-and-capacity.md), [Measuring a Run](../first-model/measuring-a-run.md) and [Choosing Inputs](../inputs/choosing-inputs.md).
+
+Work out utilisation for each resource before you run the model. `desflow explain` does it from the model, without running it. Its output includes these lines:
 
 === "YAML"
 
@@ -286,7 +288,7 @@ With several packers sharing one queue, an order waits only when every packer is
 
 ### How to Use It
 
-Compare designs at the same utilisation with the formulas. With a mean packing time of 1.5 seconds, one packer at utilisation 0.8 gives a mean wait of 6 seconds. Three packers at utilisation 0.8 give about 1.6 seconds:
+Compare three packers with a queue each against three packers sharing one queue, with the formulas. With a mean packing time of 1.5 seconds and utilisation 0.8, each of the three packers with its own queue is one packer at utilisation 0.8, and gives a mean wait of 6 seconds. Three packers sharing one queue give about 1.6 seconds:
 
 <!-- records: queueing-packers -->
 ```text
@@ -296,7 +298,7 @@ three packers at utilisation 0.8: mean wait 1.62 s
 
 ### What the Result Means
 
-Pooling packers into one queue shortens the wait at the same load. A design question such as "one fast packer or three slower ones" needs the wait, not only the utilisation. The formula covers exponential times only, so the shop's own runs answer it for other times.
+Pooling packers into one queue shortens the wait at the same load. A design question such as "one fast packer or three slower ones" depends on the measure, so utilisation alone cannot answer it. With one packer three times as fast, with a mean of 0.5 seconds at utilisation 0.8, an order waits 2.0 seconds in the queue and spends 2.5 seconds in the system. With three slower packers sharing a queue, it waits about 1.6 seconds and spends about 3.1 seconds in the system. The formula covers exponential times only, so the shop's own runs answer the question for other times.
 
 ---
 
@@ -316,9 +318,13 @@ Pooling packers into one queue shortens the wait at the same load. A design ques
 
 With exponential gaps (variation 1) and constant service (variation 0), the middle part is 0.5. The formula then gives half the M/M/1 wait, which is the M/D/1 result above. Variation in the gaps counts as much as variation in the packing times. When both variations are 0, the formula gives no wait at all.
 
+#### Pollaczek-Khinchine Formula
+
+For one server with exponential gaps and any service times (M/G/1), the **Pollaczek-Khinchine formula** gives the mean wait exactly: utilisation ÷ (1 − utilisation) × (1 + service variation²) ÷ 2 × the mean service time. It is Kingman's formula with an arrival variation of 1. With constant service it gives the M/D/1 wait, and with exponential service it gives the M/M/1 wait.
+
 ### How to Use It
 
-The `kingman_wait` function above computes it. Use it to judge how much the choice of an input distribution matters before you fit one. Choosing Inputs shows how to compare the candidates by running each.
+The `kingman_wait` function above computes Kingman's formula, and with an arrival variation of 1 it gives the Pollaczek-Khinchine wait. Use it to judge how much the choice of an input distribution matters before you fit one. Choosing Inputs shows how to compare the candidates by running each.
 
 ### What the Result Means
 
@@ -513,7 +519,7 @@ M/M/3 at utilisation 0.8: formula 1.62 s, mean of 10 runs 1.64 ± 0.06 s
 M/D/1 at utilisation 0.75, Kingman: formula 2.25 s, mean of 10 runs 2.23 ± 0.14 s
 ```
 
-The busy hour itself is M/D/3, which has no exact formula. For one packer, constant service halves the M/M/1 wait. This check compares the M/D/3 runs with half the M/M/3 wait, as an approximation:
+The busy hour itself is M/D/3, which has no closed formula. For one packer, constant service halves the M/M/1 wait. This check compares the M/D/3 runs with half the M/M/3 wait, as an approximation:
 
 ```python title="docs/snippets/pages/queueing_basics.py:kendall"
 # The busy hour is M/D/3: exponential gaps (M), constant service (D), three packers.
@@ -552,7 +558,7 @@ D/M/1 at utilisation 0.75: Kingman 2.25 s, mean of 10 runs 1.78 ± 0.09 s
 
 ### What the Result Means
 
-Where a formula is exact, as for M/M/1 and M/M/c, it lies within the interval of the runs. Half the M/M/3 wait is close for the M/D/3 busy hour. Kingman's formula lies outside the interval for D/M/1: it is accurate near full use and for the cases above, and a rough guide elsewhere. A check that fails on a case the formula covers points to a fault in the model. A check that fails outside the formula's cases says only that the formula does not apply.
+Where a formula is exact, as for M/M/1 and M/M/c, it lies within the interval of the runs. Half the M/M/3 wait is close for the M/D/3 busy hour. Kingman's formula lies outside the interval for D/M/1: it is exact with exponential gaps, accurate near full use, and a rough guide elsewhere. A check that fails on a case the formula covers points to a fault in the model. A check that fails outside the formula's cases says only that the formula does not apply.
 
 ---
 

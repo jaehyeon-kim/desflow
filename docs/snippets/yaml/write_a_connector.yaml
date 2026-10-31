@@ -1,7 +1,8 @@
 # The Write a Connector guide: a shop whose packers follow a file of changes and
 # whose events go to a CSV file, through two connectors of its own.
-# Run it with: python write_a_connector.py, which writes changes.jsonl first.
-# In a folder with no changes.jsonl, desflow run write_a_connector.yaml keeps one packer.
+# Write changes.jsonl first (the line is in the Check the Result section of the page),
+# then run it with: desflow run write_a_connector.yaml
+# In a folder with no changes.jsonl, it keeps one packer.
 simulation:
   sim_id: Shop
   factor: 0.05  # 20 simulation seconds a second, so the file is read during the run

@@ -1,6 +1,6 @@
 # The Write to Iceberg Tables guide: the shop appends an hour of orders to the Iceberg
 # table shop.events, as fast as the machine allows. ICEBERG_CATALOG picks the catalog
-# (sqlite, the default, rest, postgres or glue). Needs iceberg_tables.py and
+# (sqlite, the default, rest, postgres or glue). Needs iceberg_tables_catalog.py and
 # iceberg_tables_logic.py beside it. Run it with: desflow run iceberg_tables.yaml
 simulation:
   sim_id: Shop
@@ -29,7 +29,7 @@ egress:
   - type: Iceberg
     config:
       default_table: shop.events
-      catalog: !python iceberg_tables.catalog
+      catalog: !python iceberg_tables_catalog.catalog
     # One commit per flush, so the sink gets a large batch of its own
     batch_size: 200000
 # --8<-- [end:egress]

@@ -22,7 +22,7 @@ jobs:
   # Stages, each starting only when the one before it passes:
   # 1. checks, in parallel: lint, extras-isolation and core-install;
   # 2. tests, in parallel: unit-test, integration-test (five jobs, one per group),
-  #    service-examples (one job per example with a profile), blueprint, simpy-range,
+  #    service-examples (one job per example with a profile), parquet-s3-example, blueprint, simpy-range,
   #    docs-build, docs-strict-build and regression;
   # 3. docs, on main only, once every test job has passed.
   # The unit, conformance and docs tests run in parallel worker processes
@@ -378,6 +378,33 @@ jobs:
         if: always()
         run: uv run --python 3.11 --all-extras odctl down ${{ steps.profile.outputs.profile }} --volumes
 
+  # The Parquet example has no profile, because it needs a service only with its S3
+  # variables, so service-examples does not cover its S3 read-back command.
+  parquet-s3-example:
+    name: Run the Parquet example against the storage profile
+    needs: [lint, extras-isolation, core-install]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Fetch Python 3.11
+        run: uv python install 3.11
+
+      - name: Start the storage profile
+        run: uv run --python 3.11 --all-extras odctl up storage
+
+      - name: Run the Parquet example and its read-back command
+        run: uv run --python 3.11 --all-extras pytest tests/integration/test_service_examples.py -m examples -k parquet_page_s3
+
+      - name: Stop the profile
+        if: always()
+        run: uv run --python 3.11 --all-extras odctl down storage --volumes
+
   # A plain YAML blueprint runs with the core install alone, as a new user's first
   # command does.
   blueprint:
@@ -488,7 +515,7 @@ jobs:
         run: uv run --all-extras python scripts/regression.py compare "$RUNNER_TEMP/old.json" "$RUNNER_TEMP/new.json" --baseline "$BASELINE"
 
   docs:
-    needs: [unit-test, integration-test, service-examples, blueprint, simpy-range, docs-build, docs-strict-build, regression]
+    needs: [unit-test, integration-test, service-examples, parquet-s3-example, blueprint, simpy-range, docs-build, docs-strict-build, regression]
     permissions:
       contents: write
       pages: write

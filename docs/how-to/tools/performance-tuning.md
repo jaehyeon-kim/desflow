@@ -124,13 +124,19 @@ At `factor: 0` no `system.simulation.lag_seconds` is published, so the count hol
 
 ## Check the Result
 
-This function adds a counting sink to a model, runs it, and returns the number of records it published and the records published per second, counted from the start of `run()` to the end of its teardown. A blueprint loads as a context, so the YAML form uses the builder's function. The low-level form adds the sink to the environment and calls the teardown itself:
+Save the files of your form from [Full Files](#full-files) in a folder of their own, each under the last part of its title. The low-level file imports the counting sink from `performance_tuning.py`, so it needs that file beside it. The function below adds a counting sink to a model, runs it, and returns the number of records it published and the records published per second, counted from the start of `run()` to the end of its teardown. A blueprint loads as a context, so the YAML form uses the builder's function. The low-level form adds the sink to the environment and calls the teardown itself:
 
 === "YAML"
 
     ```python title="docs/snippets/guides/performance_tuning.py:blueprint"
     app = SimulationContext.from_yaml(path)  # a context, as the builder makes one
     return throughput(app, until=3600)
+    ```
+
+    The files are `performance_tuning.yaml` and `performance_tuning.py`. The argument `yaml` makes the script measure the blueprint beside it:
+
+    ```bash
+    python performance_tuning.py yaml
     ```
 
 === "Builder"
@@ -147,6 +153,12 @@ This function adds a counting sink to a model, runs it, and returns the number o
         seconds = time.perf_counter() - started
         gc.unfreeze()
         return {"records": count.records, "per_second": round(count.records / seconds)}
+    ```
+
+    The file is `performance_tuning.py`:
+
+    ```bash
+    python performance_tuning.py
     ```
 
 === "Low-level"
@@ -166,7 +178,17 @@ This function adds a counting sink to a model, runs it, and returns the number o
         return {"records": count.records, "per_second": round(count.records / seconds)}
     ```
 
-For one simulated hour, each form returns **108,688** records, at about 100,000 records a second of wall-clock time on the machine below.
+    The files are `performance_tuning_low_level.py` and `performance_tuning.py`:
+
+    ```bash
+    python performance_tuning_low_level.py
+    ```
+
+For one simulated hour, each form prints **108,688** records, at about 100,000 records a second of wall-clock time on the machine below. The rate differs from run to run and between machines:
+
+```text
+{'records': 108688, 'per_second': 98264}
+```
 
 ### Measurements
 
@@ -254,12 +276,14 @@ Run `uv run --all-extras python benchmarks/throughput.py configs` to measure you
         """The Tune Performance guide: records per second of a model, without its sinks.
 
         python performance_tuning.py prints the records a one-hour run of the shop below
-        published, and how many a second. `blueprint()` measures performance_tuning.yaml.
+        published, and how many a second. With the argument yaml, `blueprint()` measures
+        performance_tuning.yaml, which must be beside the script.
         """
 
         import asyncio
         import gc
         import queue
+        import sys
         import time
 
         from desflow import SimulationContext
@@ -327,7 +351,7 @@ Run `uv run --all-extras python benchmarks/throughput.py configs` to measure you
 
 
         if __name__ == "__main__":
-            print(throughput(shop(), until=3600))
+            print(blueprint() if sys.argv[1:] == ["yaml"] else throughput(shop(), until=3600))
         ```
 
     === "Low-level"

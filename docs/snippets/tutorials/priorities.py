@@ -5,9 +5,11 @@ average (rate 0.45), and an express order every 6.67 seconds (rate 0.15). Every 
 is printed to the terminal, and the script prints the mean wait of each kind of order
 under each queue order at the end. To see only those lines, run:
 python priorities.py 2>/dev/null
+To use other rates, give the two as arguments: python priorities.py 0.375 0.125
 """
 
 import logging
+import sys
 
 from desflow import ConsoleEgress, SimulationContext
 
@@ -16,8 +18,10 @@ logging.basicConfig(
 )
 
 
-def shop(queue: str = "priority") -> SimulationContext:
-    """The shop with the packer's queue in `queue` order."""
+def shop(
+    queue: str = "priority", orders_rate: float = 0.45, express_rate: float = 0.15
+) -> SimulationContext:
+    """The shop with the packer's queue in `queue` order and the two arrival rates."""
 
     def rank(value):
         # A priority counts only under the priority order, and the other orders
@@ -28,8 +32,8 @@ def shop(queue: str = "priority") -> SimulationContext:
         SimulationContext(sim_id="Shop", factor=0, random_seed=42)
         .add_service("packing", dist="constant", value=1.5)
         # An order every 1.67 s on average in all (0.6 a second), one in four express
-        .add_arrival("orders", dist="exponential", rate=0.45)
-        .add_arrival("express", dist="exponential", rate=0.15)
+        .add_arrival("orders", dist="exponential", rate=orders_rate)
+        .add_arrival("express", dist="exponential", rate=express_rate)
         .with_stats("typical", interval=3600)  # the mean wait of each task
         .add_egress(ConsoleEgress())
     )
@@ -65,9 +69,11 @@ def shop(queue: str = "priority") -> SimulationContext:
     return app
 
 
-def mean_waits(queue: str) -> dict:
+def mean_waits(
+    queue: str, orders_rate: float = 0.45, express_rate: float = 0.15
+) -> dict:
     """Runs one hour and returns the mean wait of each task."""
-    app = shop(queue)
+    app = shop(queue, orders_rate, express_rate)
     app.run(until="1 h")
     readings = app.env.stats.readings()
     return {
@@ -77,6 +83,7 @@ def mean_waits(queue: str) -> dict:
 
 
 if __name__ == "__main__":
+    rates = [float(rate) for rate in sys.argv[1:3]]
     for queue in ("fifo", "priority"):
-        for task, wait in mean_waits(queue).items():
+        for task, wait in mean_waits(queue, *rates).items():
             print(f"{queue:<8} {task:<12} mean wait {wait:5.2f} s")

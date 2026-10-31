@@ -1,7 +1,7 @@
 """The Write to Cloud Storage guide, low-level API: the shop writes an hour of orders as
 Parquet and JSON Lines files, as fast as the machine allows.
 
-The store and the sinks are those of cloud_storage.py, which must be beside this script.
+The store and the sinks are those of cloud_storage_stores.py, which must be beside this script.
 STORAGE picks the store (local, the default, s3, gcs or azure) and STORAGE_BUCKET the
 bucket, container or local folder. Run it with `python cloud_storage_low_level.py`.
 """
@@ -9,7 +9,7 @@ bucket, container or local folder. Run it with `python cloud_storage_low_level.p
 import itertools
 import logging
 
-from cloud_storage import sinks
+from cloud_storage_stores import sinks
 
 from desflow import (
     CapacityConfig,

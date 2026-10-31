@@ -93,7 +93,44 @@ A breakdown that lets work finish and then holds the resource for a fixed time e
 
 ## Check the Result
 
-With statistics at `minimal` or above, the station publishes `down`: 1 while it is down and 0 otherwise. From `basic` it also publishes `downtime`, the seconds it has been down, and `failures`, how many times it has failed. This function takes the records of a run, its end time and its statistics, finds the down periods from the events, and checks both counts against them. It is the same for every form:
+Download the example's three forms into the folder you work in with `desflow examples get breakdowns`. The check is a script, `check_breakdowns.py`, made of the blocks below in order. It reads the example from `breakdowns/yaml/`, `breakdowns/builder/` and `breakdowns/low-level/`, so run it from the folder where you ran the command.
+
+With statistics at `minimal` or above, the station publishes `down`: 1 while it is down and 0 otherwise. From `basic` it also publishes `downtime`, the seconds it has been down, and `failures`, how many times it has failed. The script starts with a class that keeps every record the example publishes, and a function that loads an example file without running it. The imports of desflow follow the class, in the line `from desflow import DynamicRealtimeEnvironment, Sampler, SimulationContext`:
+
+```python title="docs/snippets/guides/breakdowns.py:capture"
+import asyncio
+import importlib.util
+import queue
+
+
+class Capture:
+    """An egress that keeps every record it receives."""
+
+    def __init__(self):
+        self.records = []
+
+    async def run(self, egress_queue):
+        try:
+            while True:
+                try:
+                    self.records.extend(egress_queue.get_nowait())
+                except queue.Empty:
+                    await asyncio.sleep(0.005)
+        except asyncio.CancelledError:
+            pass
+```
+
+```python title="docs/snippets/guides/breakdowns.py:loader"
+def _example(path: str):
+    """Loads an example script as a module, without running it."""
+    spec = importlib.util.spec_from_file_location("breakdowns_example", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+```
+
+The next function takes the records of a run, its end time and its statistics, finds the down periods from the events, and checks both counts against them. It is the same for every form:
 
 ```python title="docs/snippets/guides/breakdowns.py:check"
 def availability(records: list, end: float, stats: dict) -> dict:
@@ -129,7 +166,7 @@ The YAML and builder forms add a capturing egress beside the example's own. The 
 === "YAML"
 
     ```python title="docs/snippets/guides/breakdowns.py:yaml"
-    def yaml_form(path: str = "examples/yaml/breakdowns.yaml") -> dict:
+    def yaml_form(path: str = "breakdowns/yaml/breakdowns.yaml") -> dict:
         app = SimulationContext.from_yaml(path)
         capture = Capture()
         app.add_egress(capture)
@@ -140,7 +177,7 @@ The YAML and builder forms add a capturing egress beside the example's own. The 
 === "Builder"
 
     ```python title="docs/snippets/guides/breakdowns.py:builder"
-    def builder_form(path: str = "examples/builder/breakdowns_example.py") -> dict:
+    def builder_form(path: str = "breakdowns/builder/breakdowns_example.py") -> dict:
         app = _example(path).app
         capture = Capture()
         app.add_egress(capture)
@@ -151,7 +188,7 @@ The YAML and builder forms add a capturing egress beside the example's own. The 
 === "Low-level"
 
     ```python title="docs/snippets/guides/breakdowns.py:low-level"
-    def low_level_form(path: str = "examples/low-level/breakdowns_example.py") -> dict:
+    def low_level_form(path: str = "breakdowns/low-level/breakdowns_example.py") -> dict:
         example = _example(path)
         env = DynamicRealtimeEnvironment(factor=0)
         env.registry.register_sim_parameter(example.PARAMS)
@@ -165,6 +202,28 @@ The YAML and builder forms add a capturing egress beside the example's own. The 
         env.teardown()  # publishes the last statistics and flushes the capture
         return availability(capture.records, env.now, env.stats.readings())
     ```
+
+Last, the script runs the three forms. Run it, and keep the lines that start with a brace, because the example also prints each of its events:
+
+```python title="docs/snippets/guides/breakdowns.py:main"
+if __name__ == "__main__":
+    for form in (yaml_form, builder_form, low_level_form):
+        print(form())
+```
+
+```bash
+# With uv
+uv run --no-project --with desflow check_breakdowns.py | grep "^{"
+# With pip
+pip install desflow
+python check_breakdowns.py | grep "^{"
+```
+
+```text
+{'periods': [(84.6, 98.5), (150.1, 157.3), (238.9, 253.5), (272.7, 282.6), (285.0, 291.8)], 'downtime': 52.5, 'share_down': 0.175, 'interrupted': 8, 'resumed': 8, 'order_packed': 184}
+{'periods': [(84.6, 98.5), (150.1, 157.3), (238.9, 253.5), (272.7, 282.6), (285.0, 291.8)], 'downtime': 52.5, 'share_down': 0.175, 'interrupted': 8, 'resumed': 8, 'order_packed': 184}
+{'periods': [(84.6, 98.5), (150.1, 157.3), (238.9, 253.5), (272.7, 282.6), (285.0, 291.8)], 'downtime': 52.5, 'share_down': 0.175, 'interrupted': 8, 'resumed': 8, 'order_packed': 184}
+```
 
 For one 300-second run of the example, every form returns five down periods. The first is from 84.6 to 98.5 seconds. Together they give **52.5** seconds of downtime in 300, or 17.5 percent. **8** orders are interrupted, and all 8 resume after a repair. Report the downtime beside the waits: a station that is down 17.5 percent of the time has that much less capacity, and its waits grow as on [Queues and Capacity](../../learn/first-model/queues-and-capacity.md).
 

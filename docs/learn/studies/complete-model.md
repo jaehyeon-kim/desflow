@@ -456,7 +456,7 @@ An interval for a mean is narrow, though, and one observed hour is not a mean. O
 - 0.515 seconds for the packing wait;
 - 1.615 percentage points for the packers' utilisation.
 
-Only 7, 9 and 9 of the 40 single runs fall inside the three intervals. A real observed hour can therefore fall outside an interval while the model is right. For this reason a study also compares the observed value with the spread of single runs. Here each observed value lies within one such standard deviation of the model's mean: 0.57 is 0.16 standard deviations from it, 1.9 is 0.03 and 88 is 0.03.
+Only 7, 9 and 9 of the 40 single runs fall inside the three intervals. A real observed hour can therefore fall outside an interval while the model is right. For this reason a study compares the observed value with the spread of single runs instead. Here each observed value lies within one such standard deviation of the model's mean: 0.57 is 0.16 standard deviations from it, 1.9 is 0.03 and 88 is 0.03.
 
 ---
 
@@ -831,7 +831,7 @@ Which shop design should be recommended? The fourth packer:
 
 - With it, the mean picking wait over 40 replications is **0.56 ± 0.02** seconds and the mean packing wait **0.15 ± 0.01** seconds. Both upper ends are under 1 second, and every check passes.
 - In today's shop the mean packing wait is **1.92 ± 0.16** seconds, and a second picker would lengthen it by 0.26 seconds.
-- The model agrees with the formulas where they apply, and each observed value lies inside the model's interval for its mean.
+- The model agrees with the formulas where they apply, and each observed value lies within one standard deviation of a single run from the model's mean.
 - Any warm-up from none to 10 minutes changes the mean waits by less than their half-widths.
 - With orders 10% faster, the fourth packer still keeps both waits under 1 second, but orders then sometimes wait for shipping boxes.
 

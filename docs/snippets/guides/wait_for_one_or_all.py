@@ -8,19 +8,20 @@ a child flow, and the signal fails while the child still runs. `first_yaml`,
 docs/snippets/yaml, and wait_for_one_or_all_low_level.py with the low-level API.
 `example_yaml` runs the example blueprint.
 
-python wait_for_one_or_all.py, from the root of a clone, prints each result.
+python wait_for_one_or_all.py prints each result on a line that starts with
+"check: ". Run it in a folder that holds the blueprints wait_first.yaml, wait_tie.yaml
+and wait_all.yaml (docs/snippets/yaml/) and wait_for_one_or_all_logic.py.
 """
 
+# ruff: noqa: E402
+
+# --8<-- [start:header]
 import asyncio
 import queue
 import shutil
 import sys
 import tempfile
 from pathlib import Path
-
-from desflow import Entity, SimulationContext
-
-BLUEPRINTS = Path("docs/snippets/yaml")  # from the root of a clone
 
 
 class Capture:
@@ -41,6 +42,16 @@ class Capture:
             pass
 
 
+def _events(task: str, capture: Capture) -> list:
+    return [e for e in capture.events if e["task"] == task]
+
+
+# --8<-- [end:header]
+
+from desflow import Entity, SimulationContext
+
+
+# --8<-- [start:first]
 def _shop():
     app = SimulationContext("Shop", factor=0)
     capture = Capture()
@@ -48,7 +59,6 @@ def _shop():
     return app, capture
 
 
-# --8<-- [start:first]
 def first(gap: float) -> dict:
     """Which branches were done when the order's wait ended."""
     app, capture = _shop()
@@ -158,10 +168,6 @@ def all_with_a_failure() -> list:
 # --8<-- [end:all]
 
 
-def _events(task: str, capture: Capture) -> list:
-    return [e for e in capture.events if e["task"] == task]
-
-
 # --8<-- [start:yaml]
 def run_blueprint(blueprint: Path, arrivals: dict) -> Capture:
     """Runs a blueprint with its arrivals replayed from CSV files beside it.
@@ -186,7 +192,7 @@ def run_blueprint(blueprint: Path, arrivals: dict) -> Capture:
     return capture
 
 
-def first_yaml(gap: float, blueprint=BLUEPRINTS / "wait_first.yaml") -> dict:
+def first_yaml(gap: float, blueprint="wait_first.yaml") -> dict:
     capture = run_blueprint(
         Path(blueprint),
         {"orders.csv": "time\n0\n", "restocks.csv": f"time\n{gap}\n"},
@@ -194,7 +200,7 @@ def first_yaml(gap: float, blueprint=BLUEPRINTS / "wait_first.yaml") -> dict:
     return _events("order", capture)[-1]["value"]["done"]
 
 
-def two_at_once_yaml(blueprint=BLUEPRINTS / "wait_tie.yaml") -> dict:
+def two_at_once_yaml(blueprint="wait_tie.yaml") -> dict:
     capture = run_blueprint(
         Path(blueprint),
         {
@@ -206,7 +212,7 @@ def two_at_once_yaml(blueprint=BLUEPRINTS / "wait_tie.yaml") -> dict:
     return _events("order", capture)[-1]["value"]["done"]
 
 
-def all_with_a_failure_yaml(blueprint=BLUEPRINTS / "wait_all.yaml") -> list:
+def all_with_a_failure_yaml(blueprint="wait_all.yaml") -> list:
     capture = run_blueprint(
         Path(blueprint),
         {"orders.csv": "time\n0\n", "restocks.csv": "time,broken\n2,1\n"},
@@ -221,7 +227,7 @@ def all_with_a_failure_yaml(blueprint=BLUEPRINTS / "wait_all.yaml") -> list:
 # --8<-- [end:yaml]
 
 
-def example_yaml(path: str = "docs/snippets/yaml/wait_for_one_or_all_example.yaml"):
+def example_yaml(path: str = "wait_for_one_or_all_example.yaml"):
     """The example blueprint: the orders packed and refunded, and the restock times."""
     app = SimulationContext.from_yaml(path)
     capture = Capture()
@@ -241,11 +247,13 @@ def example_yaml(path: str = "docs/snippets/yaml/wait_for_one_or_all_example.yam
     }
 
 
+# --8<-- [start:main]
 if __name__ == "__main__":
-    print("restock after 10 s:", first(10))
-    print("restock after 50 s:", first(50))
-    print("two at once:", two_at_once())
-    print("all, with a failure:", all_with_a_failure())
-    print("the same in YAML:", first_yaml(10), first_yaml(50))
-    print(two_at_once_yaml(), all_with_a_failure_yaml())
-    print("the example in YAML:", example_yaml())
+    print("check: restock after 10 s:", first(10))
+    print("check: restock after 50 s:", first(50))
+    print("check: two at once:", two_at_once())
+    print("check: all, with a failure:", all_with_a_failure())
+    print("check: the same in YAML:", first_yaml(10), first_yaml(50))
+    print("check: two at once in YAML:", two_at_once_yaml())
+    print("check: all, with a failure, in YAML:", all_with_a_failure_yaml())
+# --8<-- [end:main]

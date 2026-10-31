@@ -6,6 +6,7 @@ The Kafka connectors pass any keyword argument they do not use themselves to the
 
 ## Before You Start
 
+- Install the Kafka connectors: `pip install "desflow[kafka]"`.
 - [Egress](../../user-guide/live-runs-and-connectors/egress.md#kafka) and [Ingress](../../user-guide/live-runs-and-connectors/ingress.md#kafka) explain the Kafka connectors without security.
 - Every example here connects to a managed or secured cluster. No odctl profile runs a secured broker, so the shop at the end needs a cluster of your own that uses SASL PLAIN, such as Confluent Cloud. To try the connectors locally without security, start a broker with `odctl up kafka-lite` and see [Installation](../../installation.md).
 
@@ -17,15 +18,22 @@ The Kafka connectors pass any keyword argument they do not use themselves to the
 
 The connector setups below are the same for the builder and the low-level API. A blueprint gives the same keys in the connector's `config`. It names an object such as an SSL context with `!python`, as [Call Python from YAML](../tools/yaml-advanced.md#routers-serializers-and-connector-classes) shows for a serializer. For Confluent Cloud, or any cluster that uses SASL PLAIN or SCRAM, pass `security_protocol`, `sasl_mechanism` and the credentials:
 
-```python title="docs/snippets/guides/kafka_security.py:sasl"
-egress = KafkaEgress(
-    bootstrap_servers="pkc-xxxx.us-east-1.aws.confluent.cloud:9092",
+```python title="docs/snippets/guides/kafka_security_connections.py:sasl"
+import os
+from typing import Any, Dict
+
+from desflow import KafkaEgress
+
+# The address and the credentials come from the environment, so no secret is in the file
+connection: Dict[str, Any] = dict(
+    bootstrap_servers=os.environ["KAFKA_BOOTSTRAP_SERVERS"],
     # Passed as they are to the Kafka client
     security_protocol="SASL_SSL",
     sasl_mechanism="PLAIN",  # or SCRAM-SHA-512
-    sasl_plain_username="<YOUR_API_KEY>",
-    sasl_plain_password="<YOUR_API_SECRET>",
+    sasl_plain_username=os.environ["KAFKA_API_KEY"],
+    sasl_plain_password=os.environ["KAFKA_API_SECRET"],
 )
+egress = KafkaEgress(**connection)
 ```
 
 With no `topic_router`, `KafkaEgress` creates `sim-events` and `sim-telemetry` when it starts, and passes the security settings to the admin client that creates them.
@@ -34,7 +42,7 @@ With no `topic_router`, `KafkaEgress` creates `sim-events` and `sim-telemetry` w
 
 For a cluster that requires mutual TLS, build an SSL context from your certificate files. `aiokafka` takes only `ssl_context`, not the certificate paths, so one context serves every connector.
 
-```python title="docs/snippets/guides/kafka_security.py:mtls"
+```python title="docs/snippets/guides/kafka_security_connections.py:mtls"
 from aiokafka.helpers import create_ssl_context
 
 from desflow import KafkaIngress
@@ -59,7 +67,7 @@ Amazon MSK with IAM access control uses `sasl_mechanism="OAUTHBEARER"` with a to
 
 `aiokafka` requires a subclass of `aiokafka.abc.AbstractTokenProvider` with an `async` `token()`. One provider serves every connector.
 
-```python title="docs/snippets/guides/kafka_security.py:msk"
+```python title="docs/snippets/guides/kafka_security_connections.py:msk"
 from aiokafka.abc import AbstractTokenProvider
 from aws_msk_iam_sasl_signer import MSKAuthTokenProvider
 
@@ -78,9 +86,7 @@ msk = dict(
 )
 
 # KafkaIngress, KafkaEgress and KafkaAdminConnector all use aiokafka
-egress = KafkaEgress(
-    **msk, topic_router=my_router, sasl_oauth_token_provider=MSKTokenProvider()
-)
+egress = KafkaEgress(**msk, sasl_oauth_token_provider=MSKTokenProvider())
 
 admin = KafkaAdminConnector(**msk, sasl_oauth_token_provider=MSKTokenProvider())
 admin.create_topics([{"name": "sim-events", "partitions": 3}])
@@ -200,7 +206,7 @@ A connector with security settings is added like any other. This simulation publ
         logging.basicConfig(
             level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
         )
-        env = shop([egress])  # the SASL egress of kafka_security.py
+        env = shop([egress])  # the SASL egress of kafka_security_connections.py
         try:
             env.run(until=60)
         finally:
@@ -211,15 +217,156 @@ A connector with security settings is added like any other. This simulation publ
 
 ## Check the Result
 
-Put your broker address and credentials in `egress`, then run `python kafka_security.py` or `python kafka_security_low_level.py`. For the blueprint, set `KAFKA_BOOTSTRAP_SERVERS`, `KAFKA_API_KEY` and `KAFKA_API_SECRET`, then run `desflow run kafka_security.yaml`. Each runs for one minute and publishes the same events to `sim-events`.
+Set `KAFKA_BOOTSTRAP_SERVERS`, `KAFKA_API_KEY` and `KAFKA_API_SECRET`, then run `python kafka_security.py` or `python kafka_security_low_level.py`. For the blueprint, run `desflow run kafka_security.yaml` with the same variables. Each runs for one minute and publishes the same events to `sim-events`.
+
+To read them back, run the connections file with the same variables. Its last lines build a consumer from the same `connection` settings and print the first three events of `sim-events`:
+
+```python title="docs/snippets/guides/kafka_security_connections.py:check"
+import asyncio
+
+from aiokafka import AIOKafkaConsumer
+
+
+async def show_events(count: int = 3) -> None:
+    """Prints the first events of sim-events, read with the settings of the egress."""
+    consumer = AIOKafkaConsumer(
+        "sim-events", **connection, auto_offset_reset="earliest"
+    )
+    await consumer.start()
+    try:
+        for _ in range(count):
+            message = await asyncio.wait_for(consumer.getone(), timeout=10)
+            print(message.value.decode())
+    finally:
+        await consumer.stop()
+
+
+if __name__ == "__main__":
+    asyncio.run(show_events())
+```
+
+```bash
+python kafka_security_connections.py
+```
+
+```text
+{"sim_ts":2.552,"timestamp":"2026-10-31T00:51:55.440+00:00","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","status":"queued"}}
+{"sim_ts":2.552,"timestamp":"2026-10-31T00:51:55.440+00:00","key":"orders-1","task":"pack_order","instance":0,"value":{"path_id":"Shop.service.packing","status":"started"}}
+{"sim_ts":2.696,"timestamp":"2026-10-31T00:51:55.584+00:00","key":"orders-2","task":"pack_order","instance":1,"value":{"path_id":"Shop.service.packing","status":"queued"}}
+```
+
+Each line is one event as JSON. The `timestamp` is the clock time of your run. No odctl profile runs a secured cluster, so this output comes from the same code against a local `kafka-lite` broker with the security settings left out. It was not run against Confluent Cloud.
 
 ---
 
 ## Full Files
 
-The low-level script imports the egress of `kafka_security.py`, so keep the two in one folder.
+The Builder and Low-level scripts import the egress of `kafka_security_connections.py`, which builds no shop, so keep the files in one folder.
 
 ??? example "Full files"
+
+    ```python title="docs/snippets/guides/kafka_security_connections.py"
+    """The secured Kafka connections of the Connect to Secure Kafka page.
+
+    The Builder and Low-level forms of the shop import the SASL egress from this file:
+    kafka_security.py (builder) and kafka_security_low_level.py use it directly, and
+    kafka_security.yaml sets the same keys in its `config`. It builds no simulation. Set
+    KAFKA_BOOTSTRAP_SERVERS, KAFKA_API_KEY and KAFKA_API_SECRET before importing it. The mTLS
+    and MSK examples read certificate files or call AWS, so they sit in functions this file
+    defines and does not call.
+
+    After a shop has run, `python kafka_security_connections.py` prints the first events of
+    sim-events.
+    """
+
+    # Each section carries its own imports, as the page shows it.
+    # ruff: noqa: E402
+
+    import os
+    from typing import Any, Dict
+
+    from desflow import KafkaEgress
+
+    # The address and the credentials come from the environment, so no secret is in the file
+    connection: Dict[str, Any] = dict(
+        bootstrap_servers=os.environ["KAFKA_BOOTSTRAP_SERVERS"],
+        # Passed as they are to the Kafka client
+        security_protocol="SASL_SSL",
+        sasl_mechanism="PLAIN",  # or SCRAM-SHA-512
+        sasl_plain_username=os.environ["KAFKA_API_KEY"],
+        sasl_plain_password=os.environ["KAFKA_API_SECRET"],
+    )
+    egress = KafkaEgress(**connection)
+
+
+    def mtls_ingress():
+        from aiokafka.helpers import create_ssl_context
+
+        from desflow import KafkaIngress
+
+        ssl_context = create_ssl_context(
+            cafile="/path/to/ca.pem",
+            certfile="/path/to/service.cert",
+            keyfile="/path/to/service.key",
+        )
+
+        ingress = KafkaIngress(
+            topic="sim-commands",
+            bootstrap_servers="secure-broker.internal.company.com:9093",
+            security_protocol="SSL",
+            ssl_context=ssl_context,
+        )
+        return ingress
+
+
+    def msk_connectors():
+        from aiokafka.abc import AbstractTokenProvider
+        from aws_msk_iam_sasl_signer import MSKAuthTokenProvider
+
+        from desflow import KafkaAdminConnector, KafkaEgress
+
+        class MSKTokenProvider(AbstractTokenProvider):
+            async def token(self):
+                # Uses the AWS credentials of your environment, or the EC2 or EKS role
+                token, _ = MSKAuthTokenProvider.generate_auth_token("us-east-1")
+                return token
+
+        msk = dict(
+            bootstrap_servers="b-1.my-msk.amazonaws.com:9098",
+            security_protocol="SASL_SSL",
+            sasl_mechanism="OAUTHBEARER",
+        )
+
+        # KafkaIngress, KafkaEgress and KafkaAdminConnector all use aiokafka
+        egress = KafkaEgress(**msk, sasl_oauth_token_provider=MSKTokenProvider())
+
+        admin = KafkaAdminConnector(**msk, sasl_oauth_token_provider=MSKTokenProvider())
+        admin.create_topics([{"name": "sim-events", "partitions": 3}])
+        return egress, admin
+
+
+    import asyncio
+
+    from aiokafka import AIOKafkaConsumer
+
+
+    async def show_events(count: int = 3) -> None:
+        """Prints the first events of sim-events, read with the settings of the egress."""
+        consumer = AIOKafkaConsumer(
+            "sim-events", **connection, auto_offset_reset="earliest"
+        )
+        await consumer.start()
+        try:
+            for _ in range(count):
+                message = await asyncio.wait_for(consumer.getone(), timeout=10)
+                print(message.value.decode())
+        finally:
+            await consumer.stop()
+
+
+    if __name__ == "__main__":
+        asyncio.run(show_events())
+    ```
 
     === "YAML"
 
@@ -265,80 +412,21 @@ The low-level script imports the egress of `kafka_security.py`, so keep the two 
     === "Builder"
 
         ```python title="docs/snippets/guides/kafka_security.py"
-        """The secured Kafka connections of the Connect to Secure Kafka page, and a shop that uses one.
+        """The shop of the Connect to Secure Kafka page, built with the builder API.
 
-        The simulation publishes to a cluster that uses SASL PLAIN, such as Confluent Cloud: put your
-        broker address and credentials in the `egress` variable, then run `python
-        kafka_security.py`. The mTLS and MSK examples read certificate files or call AWS, so
-        they sit in functions this file defines and does not call.
+        The simulation publishes to a cluster that uses SASL PLAIN, such as Confluent Cloud: set
+        KAFKA_BOOTSTRAP_SERVERS, KAFKA_API_KEY and KAFKA_API_SECRET, then run
+        `python kafka_security.py`. kafka_security_connections.py, which holds the egress, must be
+        beside this file.
         """
+
+        # ruff: noqa: E402
 
         import logging
 
-        from desflow import KafkaEgress, SimulationContext
+        from kafka_security_connections import egress
 
-
-        def my_router(data: dict) -> str:
-            return "sim-telemetry" if data.get("stream_type") == "telemetry" else "sim-events"
-
-
-        egress = KafkaEgress(
-            bootstrap_servers="pkc-xxxx.us-east-1.aws.confluent.cloud:9092",
-            # Passed as they are to the Kafka client
-            security_protocol="SASL_SSL",
-            sasl_mechanism="PLAIN",  # or SCRAM-SHA-512
-            sasl_plain_username="<YOUR_API_KEY>",
-            sasl_plain_password="<YOUR_API_SECRET>",
-        )
-
-
-        def mtls_ingress():
-            from aiokafka.helpers import create_ssl_context
-
-            from desflow import KafkaIngress
-
-            ssl_context = create_ssl_context(
-                cafile="/path/to/ca.pem",
-                certfile="/path/to/service.cert",
-                keyfile="/path/to/service.key",
-            )
-
-            ingress = KafkaIngress(
-                topic="sim-commands",
-                bootstrap_servers="secure-broker.internal.company.com:9093",
-                security_protocol="SSL",
-                ssl_context=ssl_context,
-            )
-            return ingress
-
-
-        def msk_connectors():
-            from aiokafka.abc import AbstractTokenProvider
-            from aws_msk_iam_sasl_signer import MSKAuthTokenProvider
-
-            from desflow import KafkaAdminConnector, KafkaEgress
-
-            class MSKTokenProvider(AbstractTokenProvider):
-                async def token(self):
-                    # Uses the AWS credentials of your environment, or the EC2 or EKS role
-                    token, _ = MSKAuthTokenProvider.generate_auth_token("us-east-1")
-                    return token
-
-            msk = dict(
-                bootstrap_servers="b-1.my-msk.amazonaws.com:9098",
-                security_protocol="SASL_SSL",
-                sasl_mechanism="OAUTHBEARER",
-            )
-
-            # KafkaIngress, KafkaEgress and KafkaAdminConnector all use aiokafka
-            egress = KafkaEgress(
-                **msk, topic_router=my_router, sasl_oauth_token_provider=MSKTokenProvider()
-            )
-
-            admin = KafkaAdminConnector(**msk, sasl_oauth_token_provider=MSKTokenProvider())
-            admin.create_topics([{"name": "sim-events", "partitions": 3}])
-            return egress, admin
-
+        from desflow import SimulationContext
 
         app = (
             SimulationContext(sim_id="Shop", factor=1.0, random_seed=42)
@@ -372,16 +460,17 @@ The low-level script imports the egress of `kafka_security.py`, so keep the two 
 
         ```python title="docs/snippets/guides/kafka_security_low_level.py"
         """The Connect to Secure Kafka guide, low-level API: a shop that publishes its events
-        through the SASL egress of kafka_security.py, which must be beside this script.
+        through the SASL egress of kafka_security_connections.py, which must be beside this
+        script.
 
-        Put your broker address and credentials in the `egress` of kafka_security.py, then run
+        Set KAFKA_BOOTSTRAP_SERVERS, KAFKA_API_KEY and KAFKA_API_SECRET, then run
         `python kafka_security_low_level.py`. It runs for one minute.
         """
 
         import itertools
         import logging
 
-        from kafka_security import egress
+        from kafka_security_connections import egress
 
         from desflow import (
             CapacityConfig,
@@ -435,7 +524,7 @@ The low-level script imports the egress of `kafka_security.py`, so keep the two 
             logging.basicConfig(
                 level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
             )
-            env = shop([egress])  # the SASL egress of kafka_security.py
+            env = shop([egress])  # the SASL egress of kafka_security_connections.py
             try:
                 env.run(until=60)
             finally:

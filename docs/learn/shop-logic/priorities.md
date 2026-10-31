@@ -112,15 +112,45 @@ Both kinds of order use the same packer, so they share one queue. The built-in s
 
 Priority has a price. A regular order is served only when no express order is waiting, so every express order that arrives while it waits pushes it back. The price grows quickly as the shop gets busier.
 
-Run the hour once with the seed 42 at each of three total arrival rates, with a quarter of the orders express each time. In YAML, the variables `ORDERS_RATE` and `EXPRESS_RATE` set the two rates. When they are not set, a regular order arrives every 2.22 seconds (27 a minute, `0.45`) and an express order every 6.67 seconds (9 a minute, `0.15`). This command runs 30 orders a minute in all (0.5 a second):
+Run the hour once with the seed 42 at each of three total arrival rates, with a quarter of the orders express each time. When no rate is given, a regular order arrives every 2.22 seconds (27 a minute, `0.45`) and an express order every 6.67 seconds (9 a minute, `0.15`), 36 orders a minute in all (0.6 a second). The commands below run 30 orders a minute (0.5 a second) with the rates `0.375` and `0.125`, and print the mean wait of a regular order under `priority`:
 
-```bash
-ORDERS_RATE=0.375 EXPRESS_RATE=0.125 desflow run priorities.yaml 2>&1 | grep wait_mean
-```
+=== "YAML"
 
-`ORDERS_RATE=0.4125 EXPRESS_RATE=0.1375` runs 33 a minute (0.55). The mean wait of a regular order is 2.50 seconds at 30 orders a minute, 3.98 seconds at 33 a minute and 6.94 seconds at 36 a minute (0.6). Express orders wait less than a second on average at all three rates. If express orders alone kept the packer busy, regular orders would never be served at all: they would **starve**.
+    The variables `ORDERS_RATE` and `EXPRESS_RATE` set the two rates.
 
-`desflow explain` shows how busy the packer is at the default 36 orders a minute, without a run:
+    ```bash
+    ORDERS_RATE=0.375 EXPRESS_RATE=0.125 desflow run priorities.yaml --stdout | grep -E 'pack_order\.wait_mean"' | tail -1
+    ```
+
+    ```text
+    {"stream_type":"telemetry","sim_ts":3600.0,"timestamp":"...","path_id":"Shop.stats.tasks.pack_order.wait_mean","value":2.498057755878174}
+    ```
+
+=== "Builder"
+
+    The two rates are the arguments of the script.
+
+    ```bash
+    python priorities.py 0.375 0.125 2>/dev/null | grep -E '^priority +pack_order'
+    ```
+
+    ```text
+    priority pack_order   mean wait  2.50 s
+    ```
+
+=== "Low-level"
+
+    ```bash
+    python priorities_low_level.py 0.375 0.125 2>/dev/null | grep -E '^priority +pack_order'
+    ```
+
+    ```text
+    priority pack_order   mean wait  2.50 s
+    ```
+
+Use the rates `0.4125` and `0.1375`, as variables in YAML and as arguments in the scripts, for 33 a minute (0.55), and no rates for 36 a minute (0.6). The mean wait of a regular order is 2.50 seconds at 30 orders a minute, 3.98 seconds at 33 a minute and 6.94 seconds at 36 a minute. Express orders wait less than a second on average at all three rates. If express orders alone kept the packer busy, regular orders would never be served at all: they would **starve**.
+
+`desflow explain` shows how busy the packer is at the default 36 orders a minute, without a run. Its output includes these lines:
 
 ```bash
 desflow explain priorities.yaml
@@ -268,9 +298,11 @@ Items can be ranked too: a priority store returns the parcel with the lowest pri
         is printed to the terminal, and the script prints the mean wait of each kind of order
         under each queue order at the end. To see only those lines, run:
         python priorities.py 2>/dev/null
+        To use other rates, give the two as arguments: python priorities.py 0.375 0.125
         """
 
         import logging
+        import sys
 
         from desflow import ConsoleEgress, SimulationContext
 
@@ -279,8 +311,10 @@ Items can be ranked too: a priority store returns the parcel with the lowest pri
         )
 
 
-        def shop(queue: str = "priority") -> SimulationContext:
-            """The shop with the packer's queue in `queue` order."""
+        def shop(
+            queue: str = "priority", orders_rate: float = 0.45, express_rate: float = 0.15
+        ) -> SimulationContext:
+            """The shop with the packer's queue in `queue` order and the two arrival rates."""
 
             def rank(value):
                 # A priority counts only under the priority order, and the other orders
@@ -291,8 +325,8 @@ Items can be ranked too: a priority store returns the parcel with the lowest pri
                 SimulationContext(sim_id="Shop", factor=0, random_seed=42)
                 .add_service("packing", dist="constant", value=1.5)
                 # An order every 1.67 s on average in all (0.6 a second), one in four express
-                .add_arrival("orders", dist="exponential", rate=0.45)
-                .add_arrival("express", dist="exponential", rate=0.15)
+                .add_arrival("orders", dist="exponential", rate=orders_rate)
+                .add_arrival("express", dist="exponential", rate=express_rate)
                 .with_stats("typical", interval=3600)  # the mean wait of each task
                 .add_egress(ConsoleEgress())
             )
@@ -324,9 +358,11 @@ Items can be ranked too: a priority store returns the parcel with the lowest pri
             return app
 
 
-        def mean_waits(queue: str) -> dict:
+        def mean_waits(
+            queue: str, orders_rate: float = 0.45, express_rate: float = 0.15
+        ) -> dict:
             """Runs one hour and returns the mean wait of each task."""
-            app = shop(queue)
+            app = shop(queue, orders_rate, express_rate)
             app.run(until="1 h")
             readings = app.env.stats.readings()
             return {
@@ -336,8 +372,9 @@ Items can be ranked too: a priority store returns the parcel with the lowest pri
 
 
         if __name__ == "__main__":
+            rates = [float(rate) for rate in sys.argv[1:3]]
             for queue in ("fifo", "priority"):
-                for task, wait in mean_waits(queue).items():
+                for task, wait in mean_waits(queue, *rates).items():
                     print(f"{queue:<8} {task:<12} mean wait {wait:5.2f} s")
         ```
 
@@ -351,9 +388,12 @@ Items can be ranked too: a priority store returns the parcel with the lowest pri
         is printed to the terminal, and the script prints the mean wait of each kind of order
         under each queue order at the end. To see only those lines, run:
         python priorities_low_level.py 2>/dev/null
+        To use other rates, give the two as arguments: python priorities_low_level.py 0.375 0.125
         """
 
+        import copy
         import logging
+        import sys
 
         from desflow import (
             CapacityConfig,
@@ -413,9 +453,14 @@ Items can be ranked too: a priority store returns the parcel with the lowest pri
                 task_id += 1
 
 
-        def run(queue="priority", until=3600, factor=0.0):
+        def run(queue="priority", until=3600, factor=0.0, orders_rate=0.45, express_rate=0.15):
+            params = copy.deepcopy(PARAMS)
+            params.arrival["orders"] = DistributionConfig(dist="exponential", rate=orders_rate)
+            params.arrival["express"] = DistributionConfig(
+                dist="exponential", rate=express_rate
+            )
             env = DynamicRealtimeEnvironment(factor=factor)
-            env.registry.register_sim_parameter(PARAMS)
+            env.registry.register_sim_parameter(params)
             env.setup_egress([ConsoleEgress()])
             env.setup_stats("Shop", "typical", interval=3600)  # the mean wait of each task
             # The packer serves the lowest priority first, the oldest first among equals
@@ -430,9 +475,13 @@ Items can be ranked too: a priority store returns the parcel with the lowest pri
             return env
 
 
-        def mean_waits(queue: str) -> dict:
+        def mean_waits(
+            queue: str, orders_rate: float = 0.45, express_rate: float = 0.15
+        ) -> dict:
             """Runs one hour and returns the mean wait of each task."""
-            readings = run(queue).stats.readings()
+            readings = run(
+                queue, orders_rate=orders_rate, express_rate=express_rate
+            ).stats.readings()
             return {
                 task: readings[f"Shop.stats.tasks.{task}.wait_mean"]
                 for task in ("pack_express", "pack_order")
@@ -440,7 +489,8 @@ Items can be ranked too: a priority store returns the parcel with the lowest pri
 
 
         if __name__ == "__main__":
+            rates = [float(rate) for rate in sys.argv[1:3]]
             for queue in ("fifo", "priority"):
-                for task, wait in mean_waits(queue).items():
+                for task, wait in mean_waits(queue, *rates).items():
                     print(f"{queue:<8} {task:<12} mean wait {wait:5.2f} s")
         ```

@@ -2,7 +2,8 @@
 
 Two pickers, two packers and a shelf of boxes restocked every 100 seconds. An order
 picked while the shelf is empty goes to backorder for a minute and is picked again,
-and one parcel in 20 is packed again. Every record is printed to the terminal.
+and one parcel in 20 is packed again. Every record is printed to the terminal, and
+the finished count of each task is printed at the end.
 """
 
 import logging
@@ -109,3 +110,6 @@ app.arrival_loop("deliveries")(spawn("deliveries", restock, "restock"))
 
 if __name__ == "__main__":
     app.run(until="1 h")
+    readings = app.env.stats.readings()
+    for name in ("pick_order", "backorder", "pack_order", "ship_order"):
+        print(f"{name:<10}: {readings[f'Shop.stats.tasks.{name}.finished']} finished")

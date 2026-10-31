@@ -1,7 +1,7 @@
 # The Fit a Distribution guide: the shop with arrivals fitted to an order log.
-# Fit the gaps first: write() in docs/snippets/guides/fit_a_distribution.py, or
-# desflow fit on a column of the gaps with --out fitted/orders.yaml, writes
-# fitted/orders.yaml. Then run it with: desflow run fit_a_distribution.yaml
+# The fitted/ folder beside it holds the best fit, orders.yaml. write() in
+# docs/snippets/guides/fit_a_distribution.py, or desflow fit on gaps.csv with
+# --out fitted/orders.yaml, writes it again. Run it with: desflow run fit_a_distribution.yaml
 simulation:
   sim_id: Shop
   factor: 0

@@ -5,9 +5,12 @@ average (rate 0.45), and an express order every 6.67 seconds (rate 0.15). Every 
 is printed to the terminal, and the script prints the mean wait of each kind of order
 under each queue order at the end. To see only those lines, run:
 python priorities_low_level.py 2>/dev/null
+To use other rates, give the two as arguments: python priorities_low_level.py 0.375 0.125
 """
 
+import copy
 import logging
+import sys
 
 from desflow import (
     CapacityConfig,
@@ -71,9 +74,14 @@ def order_generator(env, sampler, packers, arrival):
         task_id += 1
 
 
-def run(queue="priority", until=3600, factor=0.0):
+def run(queue="priority", until=3600, factor=0.0, orders_rate=0.45, express_rate=0.15):
+    params = copy.deepcopy(PARAMS)
+    params.arrival["orders"] = DistributionConfig(dist="exponential", rate=orders_rate)
+    params.arrival["express"] = DistributionConfig(
+        dist="exponential", rate=express_rate
+    )
     env = DynamicRealtimeEnvironment(factor=factor)
-    env.registry.register_sim_parameter(PARAMS)
+    env.registry.register_sim_parameter(params)
     env.setup_egress([ConsoleEgress()])
     env.setup_stats("Shop", "typical", interval=3600)  # the mean wait of each task
     # --8<-- [start:queue]
@@ -90,9 +98,13 @@ def run(queue="priority", until=3600, factor=0.0):
     return env
 
 
-def mean_waits(queue: str) -> dict:
+def mean_waits(
+    queue: str, orders_rate: float = 0.45, express_rate: float = 0.15
+) -> dict:
     """Runs one hour and returns the mean wait of each task."""
-    readings = run(queue).stats.readings()
+    readings = run(
+        queue, orders_rate=orders_rate, express_rate=express_rate
+    ).stats.readings()
     return {
         task: readings[f"Shop.stats.tasks.{task}.wait_mean"]
         for task in ("pack_express", "pack_order")
@@ -100,6 +112,7 @@ def mean_waits(queue: str) -> dict:
 
 
 if __name__ == "__main__":
+    rates = [float(rate) for rate in sys.argv[1:3]]
     for queue in ("fifo", "priority"):
-        for task, wait in mean_waits(queue).items():
+        for task, wait in mean_waits(queue, *rates).items():
             print(f"{queue:<8} {task:<12} mean wait {wait:5.2f} s")

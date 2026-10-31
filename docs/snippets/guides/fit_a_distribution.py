@@ -3,7 +3,7 @@
 order_log.csv is an illustrative log of 300 orders placed one afternoon, with the
 time each was placed. The script turns the times into the gaps between orders,
 fits them, prints the table of candidates, and runs the shop for an hour with the
-fitted arrivals. `write` saves the settings for a blueprint's `!include`.
+fitted arrivals. `write_gaps` writes the gaps to gaps.csv, and `write` saves the settings for a blueprint's `!include`.
 """
 
 import csv
@@ -31,6 +31,15 @@ def gaps():
         (later - earlier).total_seconds() for earlier, later in zip(placed, placed[1:])
     ]
     # --8<-- [end:gaps]
+
+
+def write_gaps(folder):
+    """Writes the gaps to a CSV column, for `desflow fit`."""
+    # --8<-- [start:write-gaps]
+    path = Path(folder) / "gaps.csv"
+    path.write_text("gap_seconds\n" + "".join(f"{gap}\n" for gap in gaps()))
+    # --8<-- [end:write-gaps]
+    return path
 
 
 def fit():
@@ -89,6 +98,7 @@ def shop(result) -> SimulationContext:
 
 
 if __name__ == "__main__":
+    write_gaps(".")  # the column that `desflow fit` reads
     app = shop(fit())
     app.run(until="1 h")
     finished = app.env.stats.readings()["Shop.stats.flows.orders.finished"]

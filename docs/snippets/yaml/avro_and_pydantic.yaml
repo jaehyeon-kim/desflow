@@ -1,6 +1,6 @@
 # The Use Avro and Pydantic guide: each packed order publishes a prediction, sent to
 # ml-predictions as Avro; every other record goes to its topic as JSON. Needs
-# avro_and_pydantic.py and avro_and_pydantic_logic.py beside it, and a Kafka broker
+# avro_and_pydantic_models.py and avro_and_pydantic_logic.py beside it, and a Kafka broker
 # with a schema registry: odctl up kafka-lite. Run it with:
 # desflow run avro_and_pydantic.yaml
 # --8<-- [start:shop]
@@ -30,9 +30,9 @@ egress:
   - type: Kafka
     config:
       bootstrap_servers: 127.0.0.1:9092
-      topic_router: !python avro_and_pydantic.ml_topic_router
+      topic_router: !python avro_and_pydantic_models.ml_topic_router
       topic_serializers:
-        ml-predictions: !python avro_and_pydantic.generated_serializer
+        ml-predictions: !python avro_and_pydantic_models.generated_serializer
 
 run:
   until: 1 min

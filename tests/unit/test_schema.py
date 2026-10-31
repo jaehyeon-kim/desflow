@@ -35,6 +35,7 @@ NOT_BLUEPRINTS = {
     "docs/snippets/yaml/fitted/orders.yaml",
     "docs/snippets/yaml/fitted/packing.yaml",
     "docs/snippets/yaml/fitted/packing_gamma.yaml",
+    "docs/snippets/yaml/fitted/packing_times.yaml",
     "docs/snippets/yaml/fitted/complete_orders.yaml",
     "docs/snippets/yaml/fitted/complete_picking.yaml",
     "docs/snippets/yaml/fitted/complete_packing.yaml",

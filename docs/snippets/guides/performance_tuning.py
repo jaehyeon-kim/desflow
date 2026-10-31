@@ -1,12 +1,14 @@
 """The Tune Performance guide: records per second of a model, without its sinks.
 
 python performance_tuning.py prints the records a one-hour run of the shop below
-published, and how many a second. `blueprint()` measures performance_tuning.yaml.
+published, and how many a second. With the argument yaml, `blueprint()` measures
+performance_tuning.yaml, which must be beside the script.
 """
 
 import asyncio
 import gc
 import queue
+import sys
 import time
 
 from desflow import SimulationContext
@@ -84,4 +86,4 @@ def blueprint(path: str = "performance_tuning.yaml") -> dict:
 
 
 if __name__ == "__main__":
-    print(throughput(shop(), until=3600))
+    print(blueprint() if sys.argv[1:] == ["yaml"] else throughput(shop(), until=3600))

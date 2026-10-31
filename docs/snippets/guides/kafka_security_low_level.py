@@ -1,14 +1,15 @@
 """The Connect to Secure Kafka guide, low-level API: a shop that publishes its events
-through the SASL egress of kafka_security.py, which must be beside this script.
+through the SASL egress of kafka_security_connections.py, which must be beside this
+script.
 
-Put your broker address and credentials in the `egress` of kafka_security.py, then run
+Set KAFKA_BOOTSTRAP_SERVERS, KAFKA_API_KEY and KAFKA_API_SECRET, then run
 `python kafka_security_low_level.py`. It runs for one minute.
 """
 
 import itertools
 import logging
 
-from kafka_security import egress
+from kafka_security_connections import egress
 
 from desflow import (
     CapacityConfig,
@@ -63,7 +64,7 @@ if __name__ == "__main__":
     logging.basicConfig(
         level=logging.INFO, format="%(levelname)s [%(asctime)s] %(message)s"
     )
-    env = shop([egress])  # the SASL egress of kafka_security.py
+    env = shop([egress])  # the SASL egress of kafka_security_connections.py
     try:
         env.run(until=60)
     finally:

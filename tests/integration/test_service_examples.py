@@ -11,15 +11,20 @@ are enough here.
 The tests start nothing. The `service-examples` job in `pipeline.yml` starts the
 profile with `odctl up <profile>`, and a developer does the same before running one
 example: `pytest tests/integration/test_service_examples.py -m examples -k <example>`.
+
+The Parquet example has no profile, and one test runs it against `storage`, in the
+`parquet-s3-example` job.
 """
 
 import asyncio
 import json
 import os
+import re
 import shlex
 import shutil
 import subprocess
 import sys
+import textwrap
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, Optional, Tuple
@@ -324,3 +329,193 @@ def test_version_runs_and_its_records_are_in_the_service(
     )
 
     check(example, state)
+
+
+# ==========================================
+# The read-back commands of the pages
+# ==========================================
+READ_BACK_PAGES = {
+    "kafka": "kafka.md",
+    "backfill-live": "backfill-live.md",
+    "postgres": "postgres.md",
+    "related-records": "advanced-postgres-orders.md",
+    "redis": "redis.md",
+}
+
+
+def _read_back_commands(page: str) -> list:
+    """The `docker exec` commands of the page's Check the Result section, as the page
+    writes them, one list of words for each command."""
+    text = (EXAMPLES_FOLDER.parent / "docs" / "how-to" / "examples" / page).read_text(
+        encoding="utf-8"
+    )
+    section = text.split("## Check the Result", 1)[1].split("\n## ", 1)[0]
+    commands = []
+    for block in re.findall(r"^ *```bash\n(.*?)\n *```", section, re.S | re.M):
+        for line in block.replace("\\\n", " ").splitlines():
+            if line.startswith("docker exec"):
+                commands.append(shlex.split(line))
+    return commands
+
+
+def _python_read_back(page: str, marker: str) -> str:
+    """The `python -c` command of the page's Check the Result section that holds
+    `marker`, as the pip reader runs it."""
+    text = (EXAMPLES_FOLDER.parent / "docs" / "how-to" / "examples" / page).read_text(
+        encoding="utf-8"
+    )
+    section = text.split("## Check the Result", 1)[1].split("\n## ", 1)[0]
+    for block in re.findall(r"^ *```bash\n(.*?)\n *```", section, re.S | re.M):
+        command = textwrap.dedent(block)
+        if command.startswith("python -c") and marker in command:
+            return command
+    raise AssertionError(f"{page} gives no python read-back with {marker}")
+
+
+def _run_python_read_back(command: str) -> str:
+    path = f"{Path(sys.executable).parent}{os.pathsep}{os.environ['PATH']}"
+    output = subprocess.run(
+        ["bash", "-c", command],
+        env={**os.environ, "PATH": path},
+        capture_output=True,
+        text=True,
+        timeout=600,
+    )
+    assert output.returncode == 0, output.stderr[-400:]
+    return output.stdout.strip()
+
+
+def test_the_iceberg_page_read_back_prints_the_stated_answer(tmp_path, profile_running):
+    """After the YAML version has run, the page's command prints its row and snapshot
+    counts through the REST catalog."""
+    example, plan = SERVICE_EXAMPLES["iceberg"], PLANS["iceberg"]
+    profile_running(example.profile, PROFILE_PORTS[example.profile])
+    _iceberg_before(example)
+    run = subprocess.run(
+        _command(example, "yaml", plan),
+        cwd=_lay_out(example, "yaml", tmp_path),
+        capture_output=True,
+        text=True,
+        timeout=900,
+    )
+    assert run.returncode == 0, "\n".join(run.stderr.splitlines()[-15:])
+    command = _python_read_back("iceberg.md", "load_catalog")
+    assert _run_python_read_back(command) == "515786 3"
+
+
+def test_the_parquet_page_s3_read_back_prints_the_stated_answer(
+    tmp_path, profile_running
+):
+    """With the page's S3 variables the YAML version writes to the object store, and
+    the page's command counts the same rows there."""
+    from pyarrow import fs
+
+    example = EXAMPLES["parquet"]
+    profile_running("storage", 8333)
+    # The count covers the whole folder, so an earlier run must not be in it
+    fs.S3FileSystem(
+        endpoint_override="127.0.0.1:8333",
+        scheme="http",
+        access_key="user",
+        secret_key="password",
+    ).delete_dir_contents("odctl-dev/history", missing_dir_ok=True)
+    env = {
+        **os.environ,
+        "PARQUET_FILESYSTEM": "s3",
+        "DEST_PATH": "odctl-dev/history",
+        "S3_ENDPOINT": "http://127.0.0.1:8333",
+        "S3_ACCESS_KEY": "user",
+        "S3_SECRET_KEY": "password",
+    }
+    run = subprocess.run(
+        _command(example, "yaml", Plan()),
+        cwd=_lay_out(example, "yaml", tmp_path),
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=900,
+    )
+    assert run.returncode == 0, "\n".join(run.stderr.splitlines()[-15:])
+    command = _python_read_back("parquet.md", "S3FileSystem")
+    assert _run_python_read_back(command) == "3621530"
+
+
+@pytest.mark.parametrize("name", READ_BACK_PAGES)
+def test_the_page_read_back_commands_print_the_stated_answers(
+    name, tmp_path, profile_running
+):
+    """After the YAML version has run, each `docker exec` command that the page gives
+    prints what the page says about it."""
+    example, plan = SERVICE_EXAMPLES[name], PLANS[name]
+    profile_running(example.profile, PROFILE_PORTS[example.profile])
+    before_run, _ = READERS[name]
+    before_run(example)
+    # The page reads from the beginning of a topic that it expects only this run to fill
+    for topic in KAFKA_TOPICS.get(name, ()):
+        subprocess.run(
+            "docker exec kafka /opt/kafka/bin/kafka-topics.sh "
+            f"--bootstrap-server localhost:9092 --delete --if-exists --topic {topic}".split(),
+            check=True,
+            capture_output=True,
+        )
+    env = {**os.environ, **plan.env}
+    run = subprocess.run(
+        _command(example, "yaml", plan),
+        cwd=_lay_out(example, "yaml", tmp_path),
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=900,
+    )
+    assert run.returncode == 0, "\n".join(run.stderr.splitlines()[-15:])
+
+    page = READ_BACK_PAGES[name]
+    commands = _read_back_commands(page)
+    assert commands, f"{page} gives no docker exec command to read the result back"
+    text = (EXAMPLES_FOLDER.parent / "docs" / "how-to" / "examples" / page).read_text(
+        encoding="utf-8"
+    )
+    outputs = [
+        subprocess.run(command, capture_output=True, text=True, timeout=120)
+        for command in commands
+    ]
+    for command, output in zip(commands, outputs):
+        assert output.returncode == 0, (command, output.stderr[-400:])
+    printed = [o.stdout + o.stderr for o in outputs]
+
+    if name == "kafka":
+        assert "Processed a total of 3 messages" in text
+        assert "Processed a total of 3 messages" in printed[0]
+        records = [json.loads(x) for x in printed[0].splitlines() if x.startswith("{")]
+        assert [(r["key"], r["value"]["status"]) for r in records] == [
+            ("orders-1", "queued"),
+            ("orders-1", "started"),
+            ("orders-2", "queued"),
+        ]
+        assert records[0]["sim_ts"] == records[1]["sim_ts"] == 1.276
+    elif name == "backfill-live":
+        assert "Processed a total of 1 messages" in printed[0]
+        first = json.loads(
+            next(x for x in printed[0].splitlines() if x.startswith("{"))
+        )
+        assert (first["key"], first["sim_ts"]) == ("orders-320", 600.111)
+    elif name == "postgres":
+        assert "(3 rows)" in text and "(3 rows)" in printed[0]
+        rows = [x.split("|") for x in printed[0].splitlines() if "pending" in x]
+        assert [r[0].strip() for r in rows] == ["0", "1", "2"]
+        assert {(r[1].strip(), r[2].strip()) for r in rows} == {("42", "59.97")}
+    elif name == "related-records":
+        assert "(3 rows)" in text and "(3 rows)" in printed[0]
+        rows = [
+            [c.strip() for c in x.split("|")]
+            for x in printed[0].splitlines()
+            if x.strip()[:1].isdigit()
+        ]
+        assert rows[0] == ["1", "82.68", "1", "82.68"]
+        assert all(1 <= int(r[2]) <= 5 and r[1] == r[3] for r in rows[:2])
+        assert rows[2][1:4:2] == ["332.3", "332.30"]
+    elif name == "redis":
+        assert all("--no-auth-warning" in " ".join(c) for c in commands)
+        assert "Warning" not in "".join(o.stderr for o in outputs)
+        assert int(printed[0].strip()) > 0
+        assert "payload" in printed[1] and "orders-1" in printed[1]

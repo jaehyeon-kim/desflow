@@ -6,6 +6,9 @@ on average (rate 0.4). From 20 to 30 minutes a jammed label printer slows packin
 to labels/, and the script prints the mean waits with and without the jam.
 Run it with: python live_changes.py
 With the argument live, it sends the jam live: python live_changes.py live
+With compare and two folders, it reads two runs that are already written, such as the
+runs of live_changes.yaml with and without its scenario block:
+python live_changes.py compare jam baseline
 """
 
 import json
@@ -102,13 +105,18 @@ def mean_wait(by_time: dict, start: float, end: float) -> float:
 
 def outcomes(out: Path) -> dict:
     """Runs the hour with and without the jam; returns the labels and mean waits."""
-    result: dict = {}
-    by_run: dict = {}
     for jam in (True, False):
         folder = out / ("jam" if jam else "baseline")
         shutil.rmtree(folder, ignore_errors=True)  # a run adds files; start empty
         shop(folder, jam).run(until="1 h")
-        by_time = by_run[jam] = waits(folder)
+    return compare(out / "jam", out / "baseline")
+
+
+def compare(jam_folder: Path, baseline_folder: Path) -> dict:
+    """Reads the two runs' files; returns the labels and mean waits."""
+    result: dict = {}
+    by_run = {True: waits(jam_folder), False: waits(baseline_folder)}
+    for jam, by_time in by_run.items():
         result[jam] = {
             "jam": round(mean_wait(by_time, 1200, 1800), 2),
             "after": round(mean_wait(by_time, 1800, 2400), 2),
@@ -117,12 +125,26 @@ def outcomes(out: Path) -> dict:
     result["last_longer"] = max(
         at for at, wait in by_run[True].items() if wait > by_run[False][at] + 0.001
     )
-    labels = read_rows(out / "jam" / "labels")
+    labels = read_rows(jam_folder / "labels")
     result["labels"] = [
         (row["sim_ts"], row["label"]["intervention"], row["old"], row["new"])
         for row in sorted(labels, key=lambda row: row["sim_ts"])
     ]
     return result
+
+
+def report(result: dict) -> None:
+    """Prints the labels and the mean waits."""
+    for at, name, old, new in result["labels"]:
+        print(f"label at {at:6.1f} s: {name}, packing {old} s to {new} s")
+    for jam, label in ((True, "with the jam"), (False, "without it")):
+        print(
+            f"{label:>12}: mean wait {result[jam]['jam']:6.2f} s from 20 to 30 min, "
+            f"{result[jam]['after']:6.2f} s from 30 to 40 min"
+        )
+    print(
+        f"the last order that waits longer is queued at {result['last_longer']:.1f} s"
+    )
 
 
 def live(out: Path) -> SimulationContext:
@@ -149,13 +171,8 @@ if __name__ == "__main__":
         env = live(here / "live").env
         packing = env.registry.get_config("Shop.service.packing").value
         print(f"packing after the live change: {packing} s")
+    elif sys.argv[1:2] == ["compare"]:
+        # python live_changes.py compare jam baseline: two runs that are already written
+        report(compare(Path(sys.argv[2]), Path(sys.argv[3])))
     else:
-        r = outcomes(here)
-        for at, name, old, new in r["labels"]:
-            print(f"label at {at:6.1f} s: {name}, packing {old} s to {new} s")
-        for jam, label in ((True, "with the jam"), (False, "without it")):
-            print(
-                f"{label:>12}: mean wait {r[jam]['jam']:6.2f} s from 20 to 30 min, "
-                f"{r[jam]['after']:6.2f} s from 30 to 40 min"
-            )
-        print(f"the last order that waits longer is queued at {r['last_longer']:.1f} s")
+        report(outcomes(here))

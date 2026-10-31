@@ -1,5 +1,6 @@
 import json
 import runpy
+import sys
 import queue
 import uuid
 from pathlib import Path
@@ -177,7 +178,8 @@ def test_glue_avro_classes_round_trip_and_a_json_version_is_read(floci):
     assert deserializer.deserialize("json-events", json_framed) == {"value": 4}
 
 
-_PAGE = Path(__file__).resolve().parents[2] / "docs/snippets/guides/iceberg_tables.py"
+_GUIDES = Path(__file__).resolve().parents[2] / "docs/snippets/guides"
+_PAGE = _GUIDES / "iceberg_tables_catalog.py"
 
 
 def _page_writes_and_reads(catalog: dict, monkeypatch, tmp_path) -> None:
@@ -187,13 +189,17 @@ def _page_writes_and_reads(catalog: dict, monkeypatch, tmp_path) -> None:
     from pyiceberg.catalog import load_catalog
 
     monkeypatch.chdir(tmp_path)  # the page makes its folder iceberg/ here
+    # The shop imports the catalog and the sink from the catalog file beside it
+    monkeypatch.delitem(sys.modules, "iceberg_tables_catalog", raising=False)
+    monkeypatch.syspath_prepend(str(_GUIDES))
+    shop = runpy.run_path(str(_GUIDES / "iceberg_tables.py"))
     page = runpy.run_path(str(_PAGE))
     namespace = f"des_test_{uuid.uuid4().hex[:8]}"
     table = f"{namespace}.events"
     properties = {key: value for key, value in catalog.items() if key != "name"}
     store = load_catalog(catalog["name"], **properties)
     try:
-        page["build_shop"](page["iceberg_sink"](catalog, table)).run(until=600)
+        shop["build_shop"](page["iceberg_sink"](catalog, table)).run(until=600)
         rows = page["read_events"](catalog, table)
         assert rows.num_rows > 0
         assert {"key", "status", "order_id", "amount"} <= set(rows.column_names)

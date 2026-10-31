@@ -10,6 +10,7 @@ change to the code that changes the answer fails here until the page is updated.
 import ast
 import importlib.util
 import logging
+import os
 import runpy
 import statistics
 import sys
@@ -514,44 +515,38 @@ def test_patience_outcomes(api, monkeypatch):
         assert _patience_outcomes(api, patience, monkeypatch) == expected
 
 
+# Per size: started, filled, still waiting and cancelled orders, then the shirts left
 FILTERED_OUTCOMES = {
-    ("S", "filled"): 732,
-    ("M", "filled"): 1110,
-    ("M", "cancelled"): 315,
-    ("L", "filled"): 679,
+    "S": (732, 732, 0, 0),
+    "M": (1454, 1110, 29, 315),
+    "L": (679, 679, 0, 0),
+    "left": 248,
 }
 
 
 @pytest.mark.parametrize("api", APIS)
 def test_filtered_inventory_outcomes(api):
-    """315 medium orders are cancelled in 8 hours, and no small or large one."""
-    builder = _load("filtered_inventory")
+    """315 medium orders are cancelled in 8 hours, and no small or large one; the
+    page's sum is 1,454 started - 1,110 filled - 29 waiting, and 248 shirts are left.
+    Every tab reads them from the statistics."""
     if api == "yaml":
         app = SimulationContext.from_yaml(BLUEPRINTS / "filtered_inventory.yaml")
-        outcome = builder._Outcomes()
-        app.add_egress(outcome)
         app.run()
-        counts = outcome.counts
-        # The flow statistics give the same counts: cancelled is started minus
-        # finished minus the orders still waiting
         readings = app.env.stats.readings()
+        counts = {}
         for size in "SML":
             flow = f"Shop.stats.flows.orders_{size.lower()}"
+            started = readings[f"{flow}.started"]
             filled = readings[f"{flow}.finished"]
             waiting = readings[f"{flow}.in_system"]
-            assert filled == counts[(size, "filled")]
-            assert (
-                readings[f"{flow}.started"] - filled - waiting
-                == counts[(size, "cancelled")]
-            )
-        # The figures of the page's sum for the medium orders
-        assert readings["Shop.stats.flows.orders_m.started"] == 1454
-        assert readings["Shop.stats.flows.orders_m.in_system"] == 29
+            counts[size] = (started, filled, waiting, started - filled - waiting)
+        counts["left"] = readings["Shop.stats.stores.shelf.level"]
+        assert readings["Shop.stats.tasks.take_shirt.reneged"] == 315
     elif api == "builder":
-        counts = builder.outcomes()
+        counts = _load("filtered_inventory").outcomes()
     else:
         counts = _load("filtered_inventory_low_level").outcomes()
-    assert dict(counts) == FILTERED_OUTCOMES
+    assert counts == FILTERED_OUTCOMES
 
 
 COURIER_OUTCOMES = {
@@ -906,6 +901,33 @@ def test_checking_a_model_experiment(api, tmp_path, monkeypatch):
         wait: (2.6, 2.16, 2.8, True),
         use: (91.0, 89.7, 90.96, False),
     }
+    # One observed hour varies like one run, not like a mean of 20 runs
+    runs = {
+        m: [
+            r["value"]
+            for r in result.results
+            if r["design"] == "three" and r["statistic"] == m
+        ]
+        for m in (wait, use)
+    }
+    spread = {m: statistics.stdev(v) for m, v in runs.items()}
+    assert {m: round(s, 2) for m, s in spread.items()} == {wait: 0.69, use: 1.34}
+    inside = {
+        r["measure"]: sum(r["low"] <= v <= r["high"] for v in runs[r["measure"]])
+        for r in result.observed
+    }
+    assert inside == {wait: 8, use: 4}
+    current = {
+        r["statistic"]: r["mean"] for r in result.summary if r["design"] == "three"
+    }
+    away = {
+        r["measure"]: round(
+            abs(r["value"] - current[r["measure"]]) / spread[r["measure"]], 2
+        )
+        for r in result.observed
+    }
+    assert away == {wait: 0.18, use: 0.5}
+    assert round((95 - current[use]) / spread[use], 1) == 3.5
 
 
 LIVE_OUTCOMES = {
@@ -1106,6 +1128,8 @@ def test_fit_the_inputs(api, tmp_path, capsys, monkeypatch):
     the mean wait to 2.93 s while the gamma agrees with the 40 times. In YAML each
     fit is the file the page shows, and PACKING_FIT loads the gamma's."""
     pytest.importorskip("scipy")
+    import yaml
+
     from desflow import replicate
 
     if api == "yaml":
@@ -1143,6 +1167,25 @@ def test_fit_the_inputs(api, tmp_path, capsys, monkeypatch):
             ).summary
             waits[name] = (round(row["mean"], 2), round(row["half_width"], 2))
         assert waits == {k: FIT_WAITS[k] for k in waits}
+        # The 40 times as they are: the file the page shows holds the CSV's column
+        import csv
+
+        times = yaml.safe_load(
+            (BLUEPRINTS / "fitted" / "packing_times.yaml").read_text()
+        )
+        with open(data) as handle:
+            column = [float(r["packing_seconds"]) for r in csv.DictReader(handle)]
+        assert times == {"dist": "empirical", "values": column}
+        (tmp_path / "fitted" / "packing_times.yaml").write_text(
+            (BLUEPRINTS / "fitted" / "packing_times.yaml").read_text()
+        )
+        monkeypatch.setenv("PACKING_FIT", "fitted/packing_times.yaml")
+        [row] = replicate(
+            blueprint, 40, seed=42, until=None, measures=["tasks.pack_order.wait_mean"]
+        ).summary
+        assert (round(row["mean"], 2), round(row["half_width"], 2)) == FIT_WAITS[
+            "empirical"
+        ]
     else:
         module = _load("fit_the_inputs" + ("" if api == "builder" else "_low_level"))
         result = module.fitted()
@@ -1459,3 +1502,222 @@ def test_complete_model_recommends_a_design(api, tmp_path, monkeypatch):
     assert away == {pick: 0.16, pack: 0.03, use: 0.03}
     assert _load("complete_model").recommended(result) == ["fourth-packer"]
     assert "## Missing Inputs\n\nNone." in result.report
+
+
+def _script_output(name, argv, tmp_path, monkeypatch, capsys):
+    """What `python <name>.py <argv>` prints to the terminal, from an empty folder."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(sys, "argv", [f"{name}.py", *argv])
+    monkeypatch.syspath_prepend(str(TUTORIALS))
+    runpy.run_path(str(TUTORIALS / f"{name}.py"), run_name="__main__")
+    return capsys.readouterr().out
+
+
+@pytest.mark.parametrize("name", ["flow_of_tasks", "flow_of_tasks_low_level"])
+def test_flow_of_tasks_scripts_print_the_counts(name, tmp_path, monkeypatch, capsys):
+    """The page's command prints the four finished counts of the table."""
+    out = _script_output(name, [], tmp_path, monkeypatch, capsys)
+    assert out == (
+        "pick_order: 1857 finished\n"
+        "backorder : 80 finished\n"
+        "pack_order: 1849 finished\n"
+        "ship_order: 1775 finished\n"
+    )
+
+
+@pytest.mark.parametrize("name", ["priorities", "priorities_low_level"])
+def test_priorities_scripts_take_the_rates(name, tmp_path, monkeypatch, capsys):
+    """The page's commands give the starvation waits at 30 and 33 orders a minute,
+    and the default rates give 36 a minute (6.94 s)."""
+    for argv, regular in (
+        (["0.375", "0.125"], "2.50"),
+        (["0.4125", "0.1375"], "3.98"),
+        ([], "6.94"),
+    ):
+        out = _script_output(name, argv, tmp_path, monkeypatch, capsys)
+        assert f"priority pack_order   mean wait  {regular} s" in out.split("\n")
+
+
+def test_live_changes_compare_reads_two_yaml_runs(tmp_path, monkeypatch, capsys):
+    """The page's YAML commands (a baseline made with sed, one run in each folder,
+    then `compare`) print what the Builder and Low-level scripts print."""
+    import subprocess
+
+    text = (BLUEPRINTS / "live_changes.yaml").read_text()
+    text = "".join(line for line in text.splitlines(True) if "--8<--" not in line)
+    (tmp_path / "live_changes.yaml").write_text(text)
+    baseline = subprocess.run(
+        ["sed", "/^scenario:/,/^$/d", "live_changes.yaml"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    assert "\nscenario:" not in baseline and "egress:" in baseline
+    (tmp_path / "live_changes_baseline.yaml").write_text(baseline)
+    for folder, blueprint in (
+        ("jam", "live_changes.yaml"),
+        ("baseline", "live_changes_baseline.yaml"),
+    ):
+        (tmp_path / folder).mkdir()
+        monkeypatch.chdir(tmp_path / folder)
+        SimulationContext.from_yaml(tmp_path / blueprint).run()
+    monkeypatch.chdir(tmp_path)
+    compared = _script_output(
+        "live_changes", ["compare", "jam", "baseline"], tmp_path, monkeypatch, capsys
+    )
+    assert compared == (
+        "label at 1200.0 s: printer_jam, packing 1.5 s to 3.0 s\n"
+        "label at 1800.0 s: printer_fixed, packing 3.0 s to 1.5 s\n"
+        "with the jam: mean wait  80.85 s from 20 to 30 min,  11.93 s from 30 to 40 min\n"
+        "  without it: mean wait   1.50 s from 20 to 30 min,   1.04 s from 30 to 40 min\n"
+        "the last order that waits longer is queued at 1987.8 s\n"
+    )
+    (tmp_path / "scripts").mkdir()
+    for name in ("live_changes", "live_changes_low_level"):
+        out = _script_output(name, [], tmp_path / "scripts", monkeypatch, capsys)
+        assert out == compared
+
+
+# What the three tabs print for the agreement with the observed values
+AGREEMENT_LINES = [
+    "tasks.pack_order.wait_mean: mean 2.48, sd 0.69, distance 0.18 sd, 8 of 20 runs inside",
+    "resources.packers.utilization_avg: mean 90.33, sd 1.34, distance 0.50 sd, 4 of 20 runs inside",
+]
+
+
+def _page_command(page, marker):
+    """The bash block of a docs page whose text holds `marker`, as the page writes it."""
+    import re
+
+    text = (ROOT / "docs" / page).read_text(encoding="utf-8")
+    blocks = re.findall(r"^ *```bash\n(.*?)\n *```$", text, re.M | re.S)
+    (block,) = [b for b in blocks if marker in b]
+    return "\n".join(line.removeprefix("    ") for line in block.split("\n"))
+
+
+def test_checking_a_model_yaml_command_prints_the_agreement(tmp_path, monkeypatch):
+    """The YAML tab's awk command prints the standard deviations, distances and
+    counts that the page's answer rests on, as the scripts print them."""
+    import shutil
+    import subprocess
+
+    command = _page_command(
+        "learn/studies/checking-a-model.md", "checking_a_model_observed.csv"
+    )
+    shutil.copy(BLUEPRINTS / "checking_a_model_observed.csv", tmp_path)
+    _experiment(
+        "checking_a_model", "yaml", tmp_path / "results/checking-a-model", monkeypatch
+    )
+    printed = subprocess.run(
+        ["sh", "-c", command], cwd=tmp_path, capture_output=True, text=True, check=True
+    ).stdout
+    assert printed.split("\n") == AGREEMENT_LINES + [""]
+
+
+@pytest.mark.parametrize("name", ["checking_a_model", "checking_a_model_low_level"])
+def test_checking_a_model_scripts_print_the_extremes(
+    name, tmp_path, monkeypatch, capsys
+):
+    """The page's command prints the one-packer and ten-packer means and Little's law."""
+    out = _script_output(name, [], tmp_path, monkeypatch, capsys).split("\n")
+    assert out[1:5] == [
+        "one: 2318 finished, utilisation 100.00%, mean wait 1179.01 s",
+        "ten: 6287 finished, utilisation 27.08%, mean wait 0.00 s",
+        "three: queue 4.488, 1.8065 x 2.479 = 4.478",
+        "one: queue 2127.625, 1.8065 x 1179.013 = 2129.913",
+    ]
+    assert out[7:] == AGREEMENT_LINES + [""]
+
+
+def test_trusting_results_yaml_command_prints_the_two_final_counts(
+    tmp_path, monkeypatch
+):
+    """The page's command, with its `tail -2`, prints the last queue average and the
+    packed count of the hour (6,024 orders), not the 698 lines of every interval."""
+    import shutil
+    import subprocess
+
+    command = _page_command(
+        "learn/studies/trusting-results.md", 'pack_order\\.finished"|queue_length_avg'
+    )
+    assert command.endswith("| tail -2")
+    shutil.copy(BLUEPRINTS / "trusting_results.yaml", tmp_path)
+    printed = subprocess.run(
+        ["sh", "-c", command],
+        cwd=tmp_path,
+        env={
+            **os.environ,
+            "PATH": f"{Path(sys.executable).parent}{os.pathsep}{os.environ['PATH']}",
+        },
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.splitlines()
+    assert len(printed) == 2
+    assert printed[0].endswith('queue_length_avg","value":2.3953385163016563}')
+    assert printed[1].endswith('pack_order.finished","value":6024}')
+
+
+def test_checking_a_model_summary_columns(tmp_path, monkeypatch):
+    """The YAML tab's awk commands read these columns of summary.csv."""
+    import csv
+
+    _experiment("checking_a_model", "yaml", tmp_path, monkeypatch)
+    with (tmp_path / "summary.csv").open() as handle:
+        rows = list(csv.reader(handle))
+    header = rows[0]
+    assert (header[0], header[2], header[6]) == ("design", "statistic", "mean")
+    means = {(r[0], r[2]): round(float(r[6]), 3) for r in rows[1:]}
+    assert means["three", "flows.orders.started"] == 6286.7
+    assert means["three", "resources.packers.queue_length_avg"] == 4.488
+    assert means["one", "tasks.pack_order.wait_mean"] == 1179.013
+
+
+@pytest.mark.parametrize("name", ["trusting_results", "trusting_results_low_level"])
+def test_trusting_results_scripts_print_the_start_and_the_counts(
+    name, tmp_path, monkeypatch, capsys, caplog
+):
+    """After the 2-minute warm-up 6,024 orders are packed and queue_length_avg is
+    2.40; with `start` the script prints the first statistics, at 10 s, 20 s and so on."""
+    module = _load(name)
+    readings = (
+        module.busy_hour("2 min")
+        if name == "trusting_results"
+        else module.run(120.0).stats.readings()
+    )
+    assert readings[module.PACKED] == 6024
+    assert round(readings[module.QUEUE], 2) == 2.40
+    with caplog.at_level(logging.INFO):
+        _script_output(name, ["start"], tmp_path, monkeypatch, capsys)
+    lines = [
+        ast.literal_eval(line[6:])
+        for r in caplog.records
+        for line in r.getMessage().split("\n")
+        if line.startswith("[TEL] ")
+    ]
+    wait = [
+        (t["sim_ts"], round(t["value"], 4))
+        for t in lines
+        if t["path_id"].endswith("pack_order.wait_mean")
+    ]
+    assert wait[:2] == [(10.0, 0.457), (20.0, 0.5569)]
+    # The page's table of values at chosen times, and its 90 readings of each path
+    queue = {
+        t["sim_ts"]: t["value"]
+        for t in lines
+        if t["path_id"].endswith("packers.queue_length")
+    }
+    assert len(wait) == len(queue) == 90
+    at = {seconds: (queue[seconds], round(value, 2)) for seconds, value in wait}
+    assert [at[s] for s in (10, 30, 60, 90, 120, 300, 600, 900)] == [
+        (0, 0.46),
+        (5, 0.89),
+        (0, 1.12),
+        (4, 1.55),
+        (3, 1.41),
+        (4, 1.19),
+        (0, 1.40),
+        (0, 1.27),
+    ]
+    assert wait[-1][0] == 900.0

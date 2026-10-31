@@ -119,13 +119,6 @@ def quick_start(example: Example, api: str, tabs: bool = True) -> str:
                     watch,
                 ]
             )
-        if example.profile:
-            rest.append(
-                [
-                    "Stop its service when finished",
-                    f"odctl down {example.profile} --volumes",
-                ]
-            )
         for number, (title, *commands) in enumerate(rest, start=2):
             lines += ["", f"# {number}. {title}", *commands]
         return lines
@@ -207,3 +200,26 @@ def test_readme_runs_the_template_commands():
     ]
     expected = "```bash\n" + "\n".join(commands) + "\n```"
     assert expected in readme[readme.index("## Quick Start") :]
+
+
+@pytest.mark.parametrize(
+    "name",
+    [name for name, example in EXAMPLES.items() if example.profile and name in PAGES],
+)
+def test_the_service_is_stopped_after_the_check_of_the_result(name):
+    """No Quick Start stops its service, so the reader can read the result back first.
+
+    The page reads the result back from the running service under Check the Result and
+    stops the service there, after that command.
+    """
+    text = (ROOT / PAGES[name]).read_text(encoding="utf-8")
+    stop = f"odctl down {EXAMPLES[name].profile} --volumes"
+    check = text.index("\n## Check the Result")
+    assert stop in text[check:], f"{name}: Check the Result does not stop the service"
+    assert stop not in text[:check], f"{name}: a Quick Start stops the service"
+    section = text[check : text.index("\n## Full Files")]
+    read_back = [m for m in ("docker exec", "python -c") if m in section]
+    assert read_back, f"{name}: Check the Result has no read-back command"
+    assert section.index(read_back[0]) < section.index(stop), (
+        f"{name}: the read-back comes after the stop"
+    )

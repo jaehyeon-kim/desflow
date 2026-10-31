@@ -221,7 +221,7 @@ A task started by `next` receives what the task before it handed on, the `Upstre
 
 === "Low-level"
 
-    The low-level API has no `Upstream`: a process holds the order and its attributes itself, and decides the next step in Python.
+    A low-level process holds the order and its attributes itself. It can build an `Upstream` and call `Router.choose`, as in [Choose the Next Task](#choose-the-next-task), or decide the next step in plain Python.
 
 ---
 
@@ -261,7 +261,7 @@ A name carries its source, so adding a payload field cannot change what an attri
 
 === "Low-level"
 
-    The low-level API has no conditions: a process decides in Python.
+    A low-level `Router` takes these conditions, as in [Choose the Next Task](#choose-the-next-task), and a process can also decide in plain Python.
 
 <!-- records: refused-expressions -->
 ```text

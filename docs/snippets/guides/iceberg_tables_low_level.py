@@ -1,7 +1,7 @@
 """The Write to Iceberg Tables guide, low-level API: the shop appends an hour of orders
 to the Iceberg table shop.events, as fast as the machine allows.
 
-The catalog and the sink are those of iceberg_tables.py, which must be beside this
+The catalog and the sink are those of iceberg_tables_catalog.py, which must be beside this
 script. ICEBERG_CATALOG picks the catalog: sqlite (the default), rest, postgres or glue.
 Run it with `python iceberg_tables_low_level.py`.
 """
@@ -9,7 +9,7 @@ Run it with `python iceberg_tables_low_level.py`.
 import itertools
 import logging
 
-from iceberg_tables import BATCH_SIZE, sink
+from iceberg_tables_catalog import BATCH_SIZE, sink
 
 from desflow import (
     CapacityConfig,

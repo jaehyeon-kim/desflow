@@ -2,12 +2,12 @@
 
 Shirts of three sizes arrive on one shelf, and orders of three sizes take them.
 Every record is printed to the terminal. The script then prints, for each size, how
-many orders were filled and how many were cancelled. To see only those lines, run:
+many orders started, were filled, were still waiting and were cancelled, and the shirts left
+on the shelf. To see only those lines, run:
 python filtered_inventory.py 2>/dev/null
 """
 
 import logging
-from collections import Counter
 
 from desflow import ConsoleEgress, SimulationContext
 
@@ -26,6 +26,10 @@ def shop() -> SimulationContext:
     app = SimulationContext(sim_id="Shop", factor=0, random_seed=42).add_egress(
         ConsoleEgress()
     )
+    # --8<-- [start:stats]
+    # The counts of each arrival's orders, published once, at the end of the 8 hours
+    app.with_stats("basic", interval=8 * 3600)
+    # --8<-- [end:stats]
     # --8<-- [start:shelf]
     # Shirts of every size on one shelf, each item a mapping such as {"size": "M"}
     app.add_store("shelf", current_cap=1000, max_cap=1000)
@@ -39,10 +43,13 @@ def shop() -> SimulationContext:
         app.add_arrival(name, dist="exponential", rate=rate, attributes={"size": size})
     # --8<-- [end:arrivals]
 
+    # --8<-- [start:restock]
     # The shirt goes on the shelf, as a mapping with its size
     @app.task(put={"store": "shelf"})
     def restock(task_id: int, entity):
         return {"size": entity.attributes["size"]}
+
+    # --8<-- [end:restock]
 
     # --8<-- [start:take]
     @app.task(
@@ -72,52 +79,29 @@ def shop() -> SimulationContext:
     return app
 
 
-class _Outcomes:
-    """An egress that counts each order's outcome, by size, from its events."""
-
-    def __init__(self):
-        self.counts = Counter()
-
-    async def run(self, egress_queue):
-        import asyncio
-        import queue
-
-        try:
-            while True:
-                try:
-                    for record in egress_queue.get_nowait():
-                        count(self.counts, record)
-                except queue.Empty:
-                    await asyncio.sleep(0.01)
-        except asyncio.CancelledError:
-            pass
-
-
-def count(counts: Counter, record: dict) -> None:
-    """Counts a filled or cancelled order, by the size in its key."""
-    if record["stream_type"] != "event" or record["task"] != "take_shirt":
-        return
-    size = record["key"].split("-")[0][-1].upper()
-    value = record["value"]
-    if value.get("event_type") == "order_filled":
-        counts[(size, "filled")] += 1
-    elif value.get("status") == "reneged":
-        counts[(size, "cancelled")] += 1
-
-
-def outcomes() -> Counter:
-    """Runs eight hours and counts filled and cancelled orders by size."""
+def outcomes() -> dict:
+    """Runs eight hours; returns each size's order counts and the shirts left."""
     app = shop()
-    outcome = _Outcomes()
-    app.add_egress(outcome)
     app.run(until="8 h")
-    return outcome.counts
+    readings = app.env.stats.readings()
+    result: dict = {}
+    for size in ORDERS:
+        flow = f"Shop.stats.flows.orders_{size.lower()}"
+        started = readings[f"{flow}.started"]
+        filled = readings[f"{flow}.finished"]
+        waiting = readings[f"{flow}.in_system"]
+        # A cancelled order leaves its flow without finishing it
+        result[size] = (started, filled, waiting, started - filled - waiting)
+    result["left"] = readings["Shop.stats.stores.shelf.level"]
+    return result
 
 
 if __name__ == "__main__":
-    counts = outcomes()
+    result = outcomes()
     for size in ORDERS:
+        started, filled, waiting, cancelled = result[size]
         print(
-            f"size {size}: {counts[(size, 'filled')]:4} filled, "
-            f"{counts[(size, 'cancelled')]:4} cancelled"
+            f"size {size}: {started:4} started, {filled:4} filled, "
+            f"{waiting:2} waiting, {cancelled:3} cancelled"
         )
+    print(f"shirts left on the shelf: {result['left']}")
