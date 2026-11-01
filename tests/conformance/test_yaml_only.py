@@ -8,7 +8,8 @@ and the program starts its entities in that same order, so there is no reversed 
 to run.
 The blueprints are the smallest models of their documents, because the full documents
 use keys that a later batch ships: GD-E1, GD-E3 and ST-RT6 start their entity with
-`initial` (Batch 6), and ST-R11 and ST-R17 read through `{gen: expr}` (Batch 4).
+`initial`, and ST-R11 and ST-R17 also use `initial`, `held()`, `waiting()` and
+comprehensions (all Batch 6). V3 and V4 are the generated values of Batch 4.
 """
 
 from pathlib import Path
@@ -21,6 +22,8 @@ from tests.conformance.harness import run_yaml_text
 from tests.conformance.yaml_only.programs import (
     cv_032_034_steps,
     cv_040_segments,
+    v3_values,
+    v4_draws,
 )
 
 FOLDER = Path(__file__).parent / "yaml_only"
@@ -123,3 +126,63 @@ def test_cv_099_run_sync_calls_sync_where_it_is_asked(tmp_path, monkeypatch):
     )
     run_yaml_text(tmp_path, segments, {"a": [1]})
     assert calls == [1]
+
+
+def _kinds(records: List[Dict[str, Any]]) -> List[Tuple[Any, ...]]:
+    """The events of the V3 model as the program lists them: the finished payloads by
+    `event_type`, and an interrupted record with its cause. Statuses such as queued and
+    started are left out."""
+    found: List[Tuple[Any, ...]] = []
+    for record in records:
+        if record["stream_type"] != "event":
+            continue
+        value = record["value"]
+        time, key = round(record["sim_ts"], 3), record["key"]
+        if value.get("status") == "interrupted":
+            found.append((time, key, "interrupted", value["cause"]))
+        elif value.get("event_type") == "timed":
+            found.append((time, key, "timed", value["value"]))
+        elif value.get("event_type") == "report":
+            found.append((time, key, "report", value["total"]))
+        elif value.get("event_type") in ("written", "cut"):
+            found.append((time, key, value["event_type"]))
+    return found
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_v3_computed_values_in_a_write_a_cause_and_a_timeout_value(tmp_path, n):
+    """V3 a value computed where it is used: an `on:` write reads the registry and
+    changes it, an interrupt's cause is read before the state changes in the same
+    step, and a timeout's value is fixed when the wait starts."""
+    outcome = run_yaml_text(tmp_path, _blueprint("v3_values.yaml"), v3_values.times(n))
+    assert outcome.error is None
+    expected = v3_values.reference(n)
+    assert _kinds(outcome.records) == [
+        (round(float(item[0]), 3), *item[1:]) for item in expected
+    ]
+    assert ("reading-1", "report", 10 - 3 * n) in [item[1:] for item in expected]
+
+
+def _v4_events(records: List[Dict[str, Any]]) -> List[Tuple[Any, ...]]:
+    found: List[Tuple[Any, ...]] = []
+    for record in records:
+        if record["stream_type"] != "event":
+            continue
+        value = record["value"]
+        status = value.get("status") or "done"
+        found.append((round(record["sim_ts"], 3), record["key"], status))
+    return found
+
+
+@pytest.mark.parametrize("n", SIZES)
+def test_v4_a_value_drawn_for_each_entity_orders_a_priority_queue(tmp_path, n):
+    """V4 a value drawn once for each entity when it starts, in creation order, and
+    read by a priority: the jobs are served in the order of their draws."""
+    outcome = run_yaml_text(tmp_path, _blueprint("v4_draws.yaml"), {"a": [0.0] * n})
+    assert outcome.error is None
+    expected = [
+        (round(float(t), 3), key, status) for t, key, status in v4_draws.reference(n)
+    ]
+    assert _v4_events(outcome.records) == expected
+    served = [key for _, key, status in expected if status == "started"]
+    assert sorted(served) == sorted(f"a-{i}" for i in range(1, n + 1))

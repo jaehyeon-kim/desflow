@@ -395,7 +395,8 @@ def fit_column(
     Args:
         values: The data, as numbers or text; an empty cell or None is missing.
         unit: The data's unit: `ms`, `s`, `min` or `h`. Settings are in seconds.
-        candidates: The families to try; None tries every family. `empirical` is
+        candidates: The families to try; None tries every family of times (not `poisson`
+            or `geometric`, which count). `empirical` is
             always offered unless the list leaves it out.
         lower: The lowest plausible value, in the data's unit; a value below it is
             invalid, and a family that can draw below it is flagged.
@@ -417,7 +418,11 @@ def fit_column(
     """
     if unit not in _UNITS:
         raise ValueError(f"unit must be one of {', '.join(_UNITS)}, got {unit!r}")
-    names = list(candidates) if candidates is not None else list(DISTRIBUTIONS)
+    names = (
+        list(candidates)
+        if candidates is not None
+        else [n for n in DISTRIBUTIONS if n in _FITS or n == "empirical"]
+    )
     unknown = [n for n in names if n not in DISTRIBUTIONS]
     if unknown:
         raise ValueError(
@@ -462,6 +467,8 @@ def _skip(name: str, x: np.ndarray, min_count: int, low: Optional[float]) -> str
     """Why a family is not fitted to this data, or empty when it is."""
     if len(x) == 0:
         return "no values"
+    if name not in _FITS:
+        return f"{name} counts whole numbers, and fit tries families of times only"
     constant = bool(np.all(x == x[0]))
     if name == "constant":
         return "" if constant else "the values are not all equal"

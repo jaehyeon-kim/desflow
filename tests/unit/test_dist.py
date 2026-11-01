@@ -59,7 +59,14 @@ def test_a_pair_the_family_cannot_have_is_refused(family, mean, std, message):
 
 def test_only_the_families_with_a_formula_convert():
     without = {name for name, f in DISTRIBUTIONS.items() if f.from_moments is None}
-    assert without == {"truncated_normal", "triangular", "weibull", "empirical"}
+    assert without == {
+        "truncated_normal",
+        "triangular",
+        "weibull",
+        "empirical",
+        "poisson",
+        "geometric",
+    }
     assert all(DISTRIBUTIONS[name].no_formula for name in without)
 
 

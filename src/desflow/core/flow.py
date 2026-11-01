@@ -10,7 +10,7 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Set, Tuple, Uni
 
 import numpy as np
 
-from desflow.core.expressions import Expression, Scope
+from desflow.core.expressions import ANY_NAME, Expression, Scope
 from desflow.models.flow import Upstream, payload_of
 
 NextSpec = Union[None, str, Mapping[str, Any], Callable[[Upstream], Optional[str]]]
@@ -27,6 +27,7 @@ def make_scope(
     signals: Optional[Mapping[str, Any]] = None,
     process: Optional[Mapping[str, Any]] = None,
     resources: Optional[Mapping[str, Any]] = None,
+    names: Optional[Mapping[str, Any]] = None,
 ) -> Scope:
     """
     Builds what an expression's names read.
@@ -42,6 +43,7 @@ def make_scope(
         signals: Signals by name, for `signal`.
         process: The running task's `name`, `instance` and `target`, for `process`.
         resources: Resources by name, for `users` and `queue`.
+        names: The task's vars, for the bare names of an expression.
 
     Returns:
         Scope: The scope.
@@ -59,6 +61,7 @@ def make_scope(
         waits=waits or {},
         signals=signals or {},
         process=process or {},
+        names=names or {},
     )
 
 
@@ -135,7 +138,9 @@ class Router:
                 raise ValueError(
                     f"each when rule needs a condition and a task, got {rule!r}"
                 )
-            self._when.append((Expression(rule["condition"]), str(rule["task"])))
+            self._when.append(
+                (Expression(rule["condition"], names=ANY_NAME), str(rule["task"]))
+            )
         self._default = rules.get("default")
         if not self._when and self._default is None:
             raise ValueError("next needs when rules, a default or weights")
@@ -325,7 +330,7 @@ class Transfer:
         self.priority = priority
         self._expression: Optional[Expression] = None
         if isinstance(amount, str):
-            self._expression = Expression(amount)
+            self._expression = Expression(amount, names=ANY_NAME)
         elif not callable(amount) and (
             isinstance(amount, bool) or not isinstance(amount, (int, float))
         ):
@@ -345,7 +350,7 @@ class Transfer:
             self._filter_takes_entity = _names_entity(filter)
         self._priority_expression: Optional[Expression] = None
         if isinstance(priority, str):
-            self._priority_expression = Expression(priority)
+            self._priority_expression = Expression(priority, names=ANY_NAME)
 
     @classmethod
     def of(cls, spec: Union["Transfer", Mapping[str, Any]]) -> "Transfer":

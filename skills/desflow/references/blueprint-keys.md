@@ -75,14 +75,14 @@ Type: mapping of names to [Store](#stores). Optional.
 
 A `stores` entry: how many items it holds, whether it serves by priority, the items it holds when the run starts, and the class it is built from.
 
-`current_cap` defaults to `max_cap`, and with neither the store has no limit; `.inf` is no limit too. `max_cap` defaults to `current_cap`. A capacity is a whole number or `.inf`. `items` are returned in the order given; a priority store's items are `[priority, item]` pairs. `type` is a `!python` subclass of `StoreBase`, which sets its own order, so it cannot be given with `priority`.
+`current_cap` defaults to `max_cap`, and with neither the store has no limit; `.inf` is no limit too. `max_cap` defaults to `current_cap`. A capacity is a whole number or `.inf`. `items` are returned in the order given; a priority store's items are `[priority, item]` pairs. `type` is a `!python` subclass of `StoreBase`, which sets its own order, so it cannot be given with `priority`. An item is a constant or a `{gen: ...}` generator, drawn once when the run starts.
 
 | Key | Type | Default |
 |---|---|---|
 | `current_cap` | integer or number | none |
 | `max_cap` | integer or number | none |
 | `priority` | boolean | `false` |
-| `items` | list of any value |  |
+| `items` | list of Value |  |
 | `type` | !python reference | none |
 
 ## services
@@ -109,6 +109,7 @@ Time-valued parameters (`mean`, `std`, `low`, `mode`, `high`, `scale`, `value`, 
 | `weights` | list of number | none |
 | `edges` | list of number or Duration | none |
 | `counts` | list of number | none |
+| `p` | integer or number | none |
 
 ## arrivals
 
@@ -117,6 +118,8 @@ Type: mapping of names to [Arrival](#arrivals). Optional.
 An `arrivals` entry: a distribution, or a `replay` of recorded rows, the task it spawns, and the attributes each entity it starts carries.
 
 File order is creation order: arrivals are made in the order they are written, then the `processes`. Events due at one time run in the order they were scheduled, so this order decides only ties between first due times.
+
+An `attributes` value is a constant or a `{gen: ...}` generator, drawn once for each entity when it starts, in the order the entities are made. A mapping with a `gen` key is a generator; `{gen: literal, value: ...}` keeps a mapping as data.
 
 | Key | Type | Default |
 |---|---|---|
@@ -134,9 +137,10 @@ File order is creation order: arrivals are made in the order they are written, t
 | `weights` | list of number | none |
 | `edges` | list of number or Duration | none |
 | `counts` | list of number | none |
+| `p` | integer or number | none |
 | `replay` | [Replay](#replay) | none |
 | `spawn` | text | none |
-| `attributes` | mapping |  |
+| `attributes` | mapping of names to Value |  |
 
 ### Replay
 
@@ -171,7 +175,7 @@ A signal fires once, as SimPy's `Event` does, unless it says `once: false`, whic
 
 ### OnEntry
 
-One entry of an `on:` list: exactly one of a fire, spawn or interrupt action, or a `path` with a `value` as a scenario step sets a registry value.
+One entry of an `on:` list: exactly one of a fire, spawn or interrupt action, or a `path` with a `value` as a scenario step sets a registry value. A `value` is a constant or a `{gen: ...}` generator evaluated when the entry runs; a mapping with no `gen` key is data, and a generator nested in it is stored as written.
 
 | Key | Type | Default |
 |---|---|---|
@@ -179,16 +183,16 @@ One entry of an `on:` list: exactly one of a fire, spawn or interrupt action, or
 | `spawn` | [SpawnAction](#spawnaction) | none |
 | `interrupt` | [InterruptAction](#interruptaction) | none |
 | `path` | text | none |
-| `value` | None | none |
+| `value` | Value | none |
 
 ### FireAction
 
-An `on:` fire action: fire `signal` with a literal `value`, or with the outcome `from` copies from a signal or a task. `urgent` and `after` fire a one-shot signal ahead of the other events at its time, or later, as SimPy's `env.schedule(event, priority, delay)` does.
+An `on:` fire action: fire `signal` with a `value` (a constant, or a `{gen: ...}` generator evaluated when the action runs; a mapping with no `gen` key is data, and a generator nested in it is stored as written), or with the outcome `from` copies from a signal or a task. `urgent` and `after` fire a one-shot signal ahead of the other events at its time, or later, as SimPy's `env.schedule(event, priority, delay)` does.
 
 | Key | Type | Default |
 |---|---|---|
 | `signal` | text | required |
-| `value` | None | none |
+| `value` | Value | none |
 | `from` | text | none |
 | `urgent` | boolean | `false` |
 | `after` | integer or number or Duration | none |
@@ -204,13 +208,13 @@ A `spawn:` key or an `on:` spawn action: start `task` as a new entity, after an 
 
 ### InterruptAction
 
-An `interrupt` on a task or a scenario step: interrupt every running instance of `task` whose `where` condition holds, with `cause`.
+An `interrupt` on a task or a scenario step: interrupt every running instance of `task` whose `where` condition holds, with `cause`, a constant or a `{gen: ...}` generator evaluated at the moment of the interrupt.
 
 | Key | Type | Default |
 |---|---|---|
 | `task` | text | required |
 | `where` | text | none |
-| `cause` | None | none |
+| `cause` | Value | none |
 
 ## tasks
 
@@ -224,13 +228,15 @@ Text in a value place stays text. A time place reads a number as seconds, text `
 
 `priority` is a number or an expression such as `attr.priority`, for a resource whose `queue` is `priority`. `patience` is seconds, a duration such as `30 s` or an expression; `balk` is a condition checked before the task joins the queue. `resource` is one resource or a list, acquired in the order listed; `keep` hands units to the next task. `on_interrupt` is `resume`, `restart` or `abandon`, and `interrupt` interrupts the running instances of a task when this one finishes. `wait` is what the task waits for first: a signal, a child task, a timeout or a condition, or any or all of several. `signal` names a signal the task fires when it finishes. `fail` is a condition checked after the service: when it holds the task publishes `failed` with `fail_reason`, and goes to `on_fail`. `get` and `put` take from and add to a store or container. `next` is a task name, `when` rules or `weights`. `set` gives the entity attribute values when the task finishes.
 
-An expression uses Python's arithmetic: `/` gives a float, and `//` rounds down and gives an integer for two integers. `and` and `or` stop at the first operand that decides the result and do not absorb an error: an operand that cannot be evaluated fails the expression.
+A value place takes a constant, a list, a mapping or a `{gen: ...}` generator: a mapping with a `gen` key is a generator, and `{gen: literal, value: ...}` keeps a mapping as data. The kinds of `gen` are `uniform`, `integer`, `normal`, `sample`, `one_of`, `weighted`, `pick`, `switch` (key `on`), `when`, `boolean`, `uuid`, `sequence`, `now`, `format_time`, `format`, `lower`, `upper`, `fake`, `add`, `subtract`, `multiply`, `divide`, `min`, `max`, `expr`, `var`, `attr`, `param`, `repeat`, `literal`, `object`, `call` and `row`; `null_rate`, `unique`, `omit_rate` and `omit_when` go on any of them. `payload` may be such a mapping, or one generator that gives a mapping; `set` values and the `cause` of an interrupt are evaluated when the task finishes or interrupts. `vars_once` names are drawn once for each entity and task, at the first use, and may be read by a `wait` timeout `value`. `vars` are drawn in order, once for each instance of the task: when it starts if `on_start` is given, otherwise after the service, just before the payload. A var reads the vars above it with `{gen: var, name: ...}` or as a bare name in an `expr`. `on_start` values are published as one event record when the task starts. `finish_vars` are drawn after the service and may read the vars. A bare var name also reads in `put`, `fail` and `next.when`. A var name is an identifier, not a name an expression already uses, and is in one of the three groups only. Every generator node draws from its own stream of the run's seed, so adding a node does not change the draws of the others.
+
+An expression uses Python's arithmetic: `/` gives a float, and `//` rounds down and gives an integer for two integers. `and` and `or` stop at the first operand that decides the result and do not absorb an error: an operand that cannot be evaluated fails the expression. `**` raises to a power (an integer power above 10000 is refused), `abs`, `min`, `max`, `round`, `floor`, `ceil`, `sqrt`, `exp`, `log`, `log10`, `sin`, `cos` and `tan` are calls on numbers, and `has(attr.x)` is true when the entity has the attribute `x`.
 
 | Key | Type | Default |
 |---|---|---|
 | `service` | text | none |
 | `resource` | text or list of text | none |
-| `payload` | mapping or !python reference | required |
+| `payload` | Payload or !python reference | required |
 | `id_field` | text | none |
 | `key_field` | text | none |
 | `item_field` | text | none |
@@ -241,7 +247,11 @@ An expression uses Python's arithmetic: `/` gives a float, and `//` rounds down 
 | `get` | [TransferStep](#transferstep) | none |
 | `put` | [TransferStep](#transferstep) | none |
 | `next` | text or [Next](#next) | none |
-| `set` | mapping |  |
+| `set` | mapping of names to Value |  |
+| `vars` | mapping of names to Value |  |
+| `vars_once` | mapping of names to Value |  |
+| `on_start` | mapping of names to Value |  |
+| `finish_vars` | mapping of names to Value |  |
 | `wait` | [SignalWait](#signalwait) or [TaskWait](#taskwait) or [TimeoutWait](#timeoutwait) or [ConditionWait](#conditionwait) or [AnyWait](#anywait) or [AllWait](#allwait) or [AtLeastWait](#atleastwait) or [RequestWait](#requestwait) or [GetWait](#getwait) or [PutWait](#putwait) or [RunningWait](#runningwait) | none |
 | `signal` | text | none |
 | `fail` | text | none |
@@ -316,12 +326,12 @@ A `wait` branch of a number of seconds, a duration such as `30 s`, or `{after, v
 
 ### TimeoutAfter
 
-A `wait` timeout with a value: `{after: 40 s, value: ...}`, as SimPy's `env.timeout(delay, value)` carries a value the waiter receives.
+A `wait` timeout with a value: `{after: 40 s, value: ...}`, as SimPy's `env.timeout(delay, value)` carries a value the waiter receives. The value is a constant or a `{gen: ...}` generator evaluated when the wait starts, so it may read `vars_once` names but no `vars`.
 
 | Key | Type | Default |
 |---|---|---|
 | `after` | integer or number or text | required |
-| `value` | None | none |
+| `value` | Value | none |
 
 ### ConditionWait
 
@@ -429,14 +439,14 @@ Type: list of [ScenarioStep](#scenario). Optional.
 
 A `scenario` entry: at simulation time `at`, set `path` to `value`, publish a ground-truth record of `record`, or both.
 
-`at` is seconds from the start of the run, or a duration such as `"10 min"`. A step with a `record` publishes a ground-truth record, `stream_type: label`, with the path, the value before and after, and the `record` mapping, to the sinks with `when: labels` only. A step with an `interrupt` interrupts the running instances of a task, as a task's `interrupt` does.
+`at` is seconds from the start of the run, or a duration such as `"10 min"`. A step with a `record` publishes a ground-truth record, `stream_type: label`, with the path, the value before and after, and the `record` mapping, to the sinks with `when: labels` only. A step with an `interrupt` interrupts the running instances of a task, as a task's `interrupt` does. A `value` and each `record` value are constants or `{gen: ...}` generators: `value` is evaluated just before the change and `record` just after it.
 
 | Key | Type | Default |
 |---|---|---|
 | `at` | integer or number or Duration | required |
 | `path` | text | none |
-| `value` | None | none |
-| `record` | mapping | none |
+| `value` | Value | none |
+| `record` | mapping of names to Value | none |
 | `interrupt` | [InterruptAction](#interruptaction) | none |
 
 ## ingress
@@ -582,3 +592,507 @@ An `expect` value with a tolerance: the measured statistic passes when it is wit
 |---|---|---|
 | `value` | integer or number | required |
 | `within` | integer or number | required |
+
+## Generators
+
+A value place takes a constant or a generator: a mapping with a `gen` key that names its kind. The keys of each kind follow. `null_rate`, `unique`, `omit_rate` and `omit_when` go on any kind.
+
+### Add
+
+`add`: the sum of `args`. When the first is a time (the text `{gen: now}` gives), the rest are seconds and the result is a time.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `args` | list of Value | required |
+| `decimals` | integer | none |
+| `gen` | text | required |
+
+### Attr
+
+`attr`: the entity's attribute `name`, or the part of it at `path`.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `gen` | text | required |
+| `name` | text | required |
+| `path` | text | none |
+
+### Boolean
+
+`boolean`: true with probability `p` (0.5 when not given).
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `gen` | text | required |
+| `p` | Value | `0.5` |
+
+### Call
+
+`call`: what a `!python` function returns, called as `function(context, **kwargs)` with the kwargs evaluated first.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `gen` | text | required |
+| `function` | !python reference | required |
+| `kwargs` | mapping of names to Value |  |
+
+### Divide
+
+`divide`: the first of `args` divided by each of the others in turn (`/`).
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `args` | list of Value | required |
+| `decimals` | integer | none |
+| `gen` | text | required |
+
+### Expr
+
+`expr`: the value of an expression, with the names of the language, the vars of the task and the entries of `names` (evaluated first) as bare names, and `t` for the simulation time. It can give any type; a number is rounded to `decimals`.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `gen` | text | required |
+| `expr` | text | required |
+| `names` | mapping of names to Value |  |
+| `decimals` | integer | none |
+
+### Fake
+
+`fake`: `getattr(faker, method)(*args, **kwargs)` for a Faker of `locale` (`en_US` by default). It needs the `fake` extra. Each `fake` generator has a Faker of its own, seeded from the run's seed, so adding one changes no other. A date, a time or a decimal result is written as text or a float.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `gen` | text | required |
+| `method` | text | required |
+| `args` | list of Value |  |
+| `kwargs` | mapping of names to Value |  |
+| `locale` | text | `"en_US"` |
+
+### Format
+
+`format`: `template.format_map(...)` over `names`, then the vars of the task. A name in the template is a var, or an entry of `names`, which wins.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `gen` | text | required |
+| `template` | text | required |
+| `names` | mapping of names to Value |  |
+
+### FormatTime
+
+`format_time`: a time as text or a number. `time` is the text `{gen: now}` gives, or seconds of simulation time (default: now). `format` is a `strftime` pattern, `iso`, `iso_utc` (milliseconds and a `Z`), `epoch_s` or `epoch_ms` (integers). `tz` is an IANA name and defaults to the run's time zone.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `gen` | text | required |
+| `time` | Value | none |
+| `format` | text | `"iso"` |
+| `tz` | text | none |
+
+### Integer
+
+`integer`: a whole number between `bounds[0]` and `bounds[1]`, both included.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `gen` | text | required |
+| `bounds` | list of Value | required |
+
+### Literal_
+
+`literal`: `value` as written, not evaluated, so a mapping that has a `gen` key can be a payload field.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `gen` | text | required |
+| `value` | None | none |
+
+### Lower
+
+`lower`: the text of `value` in lower case.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `gen` | text | required |
+| `value` | Value | required |
+
+### Max
+
+`max`: the largest of `args`.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `args` | list of Value | required |
+| `decimals` | integer | none |
+| `gen` | text | required |
+
+### Min
+
+`min`: the smallest of `args`.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `args` | list of Value | required |
+| `decimals` | integer | none |
+| `gen` | text | required |
+
+### Multiply
+
+`multiply`: the product of `args`.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `args` | list of Value | required |
+| `decimals` | integer | none |
+| `gen` | text | required |
+
+### Normal
+
+`normal`: a float from a normal distribution with `mean` and `std`.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `gen` | text | required |
+| `mean` | Value | required |
+| `std` | Value | required |
+| `decimals` | integer | none |
+
+### Now
+
+`now`: the logical time plus `offset` (seconds or a duration, signed), as the ISO text a record's `timestamp` uses. It reads the simulation clock, never the wall clock.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `gen` | text | required |
+| `offset` | Value | `0` |
+
+### Object
+
+`object`: the mapping `fields`, each evaluated as a plain mapping is. It lets a modifier such as `null_rate` or `omit_rate` apply to the whole mapping.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `gen` | text | required |
+| `fields` | mapping of names to Value | required |
+
+### OneOf
+
+`one_of`: one of `choices`, each equally likely. Only the choice picked is evaluated.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `gen` | text | required |
+| `choices` | list of Value | required |
+
+### Param
+
+`param`: the live registry value at `path` (a full registry path, such as `Shop.variables.error_rate`) at the moment of the call, or the `field` key of a mapping value. A scenario step or an ingress update shows in the next call.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `gen` | text | required |
+| `path` | text | required |
+| `field` | Value | none |
+
+### Pick
+
+`pick`: a list of `count` different `choices`, drawn without replacement, in the order drawn. Only the choices picked are evaluated.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `gen` | text | required |
+| `choices` | list of Value | required |
+| `count` | Value | `1` |
+
+### Repeat
+
+`repeat`: a list of `times` values, each evaluated on its own.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `gen` | text | required |
+| `times` | Value | required |
+| `value` | Value | required |
+
+### Row
+
+`row`: one row of a CSV or Parquet file as a mapping, read once at load. A cell of digits is read as a number, so a postal code with leading zeros loses them; write them with `{gen: format, template: "{n:05d}"}`. `where` is an expression over the row's columns that keeps some rows; `weight` names a column of weights; `order` is `random` (the default), `sequential`, `shuffle` (every row once, in a random order) or `circular` (in file order, again from the first); `on_end` says what a `sequential` or `shuffle` order does when the rows run out: `error` (the default), `loop` or `stop`, which ends the run.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `gen` | text | required |
+| `file` | text | required |
+| `where` | text | none |
+| `weight` | text | none |
+| `order` | `random` or `sequential` or `shuffle` or `circular` | `"random"` |
+| `on_end` | `stop` or `loop` or `error` | `"error"` |
+
+### Sample
+
+`sample`: one draw from a distribution family with its parameters, or from the live distribution of a service.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `gen` | text | required |
+| `dist` | text | none |
+| `service` | text | none |
+| `rate` | Value | none |
+| `mean` | Value | none |
+| `std` | Value | none |
+| `low` | Value | none |
+| `value` | Value | none |
+| `high` | Value | none |
+| `mode` | Value | none |
+| `shape` | Value | none |
+| `scale` | Value | none |
+| `p` | Value | none |
+| `values` | list of integer or number or text | none |
+| `weights` | list of number | none |
+| `edges` | list of integer or number or text | none |
+| `counts` | list of number | none |
+| `decimals` | integer | none |
+
+### Sequence
+
+`sequence`: the next integer of a counter, `start` plus `step` times the count of calls so far, restarting after `loop_after` calls. With `format`, the text `format.format(n)`, such as `"sensor-{}"`. There is one counter for the run, shared by every entity, so ids stay unique.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `gen` | text | required |
+| `start` | integer | `0` |
+| `step` | integer | `1` |
+| `loop_after` | integer | none |
+| `format` | text | none |
+
+### Subtract
+
+`subtract`: the first of `args` less the others. When the first is a time, the rest are seconds and the result is a time.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `args` | list of Value | required |
+| `decimals` | integer | none |
+| `gen` | text | required |
+
+### Switch
+
+`switch`: the value of the first case that matches `on`, evaluated only when picked. `cases` is a mapping from a value to its result, or a list of ranges; `default` is used when none matches (null when it is left out).
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `gen` | text | required |
+| `on` | Value | required |
+| `cases` | mapping of names to Value or list of [SwitchRange](#switchrange) | required |
+| `default` | Value | none |
+
+### SwitchRange
+
+One range case of `switch`: the first case whose `min` is at or below `on` and whose `max`, when given, is above it.
+
+| Key | Type | Default |
+|---|---|---|
+| `min` | integer or number | none |
+| `max` | integer or number | none |
+| `value` | Value | required |
+
+### Uniform
+
+`uniform`: a float in [low, high), from `low + (high - low) * random()`; `decimals` rounds it, and 0 gives an integer.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `gen` | text | required |
+| `low` | Value | required |
+| `high` | Value | required |
+| `decimals` | integer | none |
+
+### Upper
+
+`upper`: the text of `value` in upper case.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `gen` | text | required |
+| `value` | Value | required |
+
+### Uuid
+
+`uuid`: a version 4 UUID from the generator's random sequence, so it repeats with the seed, or a version 7 UUID whose 48-bit millisecond field comes from the logical time.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `gen` | text | required |
+| `version` | `4` or `7` | `4` |
+
+### Var
+
+`var`: a var of the task, or the part of it at `path` (dotted; an integer part indexes a list). Every reference to a var in one event gives the same value.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `gen` | text | required |
+| `name` | text | required |
+| `path` | text | none |
+
+### Weighted
+
+`weighted`: one choice, by weight. `options` maps each value to its weight, or `choices` lists `{value, weight}` for values that are mappings or generators. Each weight is 0 or more and at least one is above 0; weights are divided by their sum. Only the value picked is evaluated.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `gen` | text | required |
+| `options` | mapping of names to Value | none |
+| `choices` | list of [WeightedChoice](#weightedchoice) | none |
+
+### WeightedChoice
+
+One entry of `weighted` `choices`: a value and its weight.
+
+| Key | Type | Default |
+|---|---|---|
+| `value` | Value | required |
+| `weight` | Value | required |
+
+### When
+
+`when`: `then` when the `condition` (an expression) holds, else `else`. Only the branch taken is evaluated.
+
+| Key | Type | Default |
+|---|---|---|
+| `null_rate` | number | none |
+| `unique` | boolean | `false` |
+| `omit_rate` | number | none |
+| `omit_when` | text | none |
+| `gen` | text | required |
+| `condition` | text | required |
+| `then` | Value | required |
+| `else` | Value | none |

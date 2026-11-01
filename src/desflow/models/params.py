@@ -32,10 +32,13 @@ class DistributionConfig:
 
     Attributes:
         dist (str): The family: exponential, normal, lognormal, truncated_normal,
-            constant, uniform, triangular, gamma, weibull or empirical.
+            poisson, geometric, constant, uniform, triangular, gamma, weibull or
+            empirical.
         rate (Optional[float]): Events per second, for exponential. Greater than 0.
-        mean (Optional[float]): The mean, for normal, lognormal and truncated_normal.
-            Greater than 0 for lognormal.
+        mean (Optional[float]): The mean, for normal, lognormal, truncated_normal and
+            poisson. Greater than 0 for lognormal; 0 or more for poisson.
+        p (Optional[float]): The chance of success on each try, for geometric. Above 0
+            and at most 1.
         std (Optional[float]): The standard deviation, 0 or more; 0 (or no value)
             gives the mean every time.
         low (Optional[float]): The lowest value: of a truncated normal (0 by
@@ -73,6 +76,7 @@ class DistributionConfig:
     weights: Optional[List[float]] = None
     edges: Optional[List[float]] = None
     counts: Optional[List[float]] = None
+    p: Optional[float] = None
     stream: Optional[str] = field(default=None, init=False, repr=False, compare=False)
 
     def __post_init__(self):

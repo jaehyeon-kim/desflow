@@ -8,6 +8,7 @@ fails when the file is loaded rather than during the run.
 """
 
 import inspect
+import keyword
 from datetime import datetime, timedelta
 from types import UnionType
 from typing import (
@@ -17,6 +18,7 @@ from typing import (
     Dict,
     List,
     Literal,
+    Mapping,
     Optional,
     Type,
     Union,
@@ -52,7 +54,7 @@ from desflow.core.distributions import (
     TIME_LIST_PARAMETERS,
     TIME_PARAMETERS,
 )
-from desflow.core.expressions import Expression
+from desflow.core.expressions import ANY_NAME, RESERVED_NAMES, Expression
 from desflow.core.environment import (
     DynamicRealtimeEnvironment,
     in_zone,
@@ -63,6 +65,7 @@ from desflow.models.params import DistributionConfig
 from desflow.resources.container import ContainerBase, check_container_type
 from desflow.resources.resource import ResourceBase, check_resource_type
 from desflow.resources.store import StoreBase, check_store_type
+from desflow.values.models import GENERATORS, Payload, Value, _Gen
 from desflow.utils import suggestion, time_to_seconds
 
 # The names an egress `when` takes instead of a `!python` function.
@@ -210,6 +213,7 @@ class Distribution(_Model):
     weights: Optional[List[float]] = None
     edges: Optional[List[float]] = None
     counts: Optional[List[float]] = None
+    p: Optional[Union[int, float]] = None
 
     @field_validator(*TIME_PARAMETERS, mode="before")
     @classmethod
@@ -266,12 +270,16 @@ class Arrival(Distribution):
     File order is creation order: arrivals are made in the order they are written,
     then the `processes`. Events due at one time run in the order they were
     scheduled, so this order decides only ties between first due times.
+
+    An `attributes` value is a constant or a `{gen: ...}` generator, drawn once for each
+    entity when it starts, in the order the entities are made. A mapping with a `gen`
+    key is a generator; `{gen: literal, value: ...}` keeps a mapping as data.
     """
 
     dist: Optional[str] = None  # type: ignore[assignment]
     replay: Optional[Replay] = None
     spawn: Optional[str] = None
-    attributes: Dict[str, Any] = Field(default_factory=dict)
+    attributes: Dict[str, Value] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def _distribution_in_range(self) -> "Arrival":
@@ -358,13 +366,14 @@ class Store(_Model):
     `.inf` is no limit too. `max_cap` defaults to `current_cap`. A capacity is a whole
     number or `.inf`. `items` are returned in the order given; a priority store's
     items are `[priority, item]` pairs. `type` is a `!python` subclass of `StoreBase`,
-    which sets its own order, so it cannot be given with `priority`.
+    which sets its own order, so it cannot be given with `priority`. An item is a
+    constant or a `{gen: ...}` generator, drawn once when the run starts.
     """
 
     current_cap: Optional[Union[int, float]] = None
     max_cap: Optional[Union[int, float]] = None
     priority: bool = False
-    items: List[Any] = Field(default_factory=list)
+    items: List[Value] = Field(default_factory=list)
     type: Optional[Type[StoreBase]] = None
 
     @model_validator(mode="after")
@@ -378,7 +387,8 @@ class Store(_Model):
                 f"items"
             )
         if self.priority and not all(
-            isinstance(item, list) and len(item) == 2 for item in self.items
+            (isinstance(item, list) and len(item) == 2) or isinstance(item, _Gen)
+            for item in self.items
         ):
             raise ValueError("a priority store starts with [priority, item] pairs")
         return self
@@ -458,7 +468,7 @@ class Rule(_Model):
     @field_validator("condition")
     @classmethod
     def _parses(cls, value: str) -> str:
-        Expression(value)
+        Expression(value, names=ANY_NAME)
         return value
 
 
@@ -493,13 +503,23 @@ def _next_form(value: Any) -> str:
     return "name" if isinstance(value, str) else "rules"
 
 
+def _generator_or_data(value: Any, handler: Any) -> Any:
+    """A validator for the `value` of an `on:` entry: a generator is parsed, and a
+    mapping with no `gen` key is data, kept as written even if a generator is nested in
+    it, so it is stored and not evaluated."""
+    if isinstance(value, Mapping) and "gen" not in value:
+        return value
+    return handler(value)
+
+
 class InterruptAction(_Model):
     """An `interrupt` on a task or a scenario step: interrupt every running instance
-    of `task` whose `where` condition holds, with `cause`."""
+    of `task` whose `where` condition holds, with `cause`, a constant or a
+    `{gen: ...}` generator evaluated at the moment of the interrupt."""
 
     task: str
     where: Optional[str] = None
-    cause: Any = None
+    cause: Value = None
 
     @field_validator("where")
     @classmethod
@@ -536,16 +556,20 @@ class SpawnAction(_Model):
 
 
 class FireAction(_Model):
-    """An `on:` fire action: fire `signal` with a literal `value`, or with the
+    """An `on:` fire action: fire `signal` with a `value` (a constant, or a
+    `{gen: ...}` generator evaluated when the action runs; a mapping with no `gen`
+    key is data, and a generator nested in it is stored as written), or with the
     outcome `from` copies from a signal or a task. `urgent` and `after` fire a
     one-shot signal ahead of the other events at its time, or later, as SimPy's
     `env.schedule(event, priority, delay)` does."""
 
     signal: str
-    value: Any = None
+    value: Value = None
     from_: Optional[str] = Field(default=None, alias="from")
     urgent: bool = False
     after: Optional[Union[int, float, str]] = None
+
+    _value_form = field_validator("value", mode="wrap")(_generator_or_data)
 
     @field_validator("after", mode="before")
     @classmethod
@@ -570,13 +594,17 @@ class FireAction(_Model):
 
 class OnEntry(_Model):
     """One entry of an `on:` list: exactly one of a fire, spawn or interrupt action,
-    or a `path` with a `value` as a scenario step sets a registry value."""
+    or a `path` with a `value` as a scenario step sets a registry value. A `value` is a
+    constant or a `{gen: ...}` generator evaluated when the entry runs; a mapping with no
+    `gen` key is data, and a generator nested in it is stored as written."""
 
     fire: Optional[FireAction] = None
     spawn: Optional[SpawnAction] = None
     interrupt: Optional[InterruptAction] = None
     path: Optional[str] = None
-    value: Any = None
+    value: Value = None
+
+    _value_form = field_validator("value", mode="wrap")(_generator_or_data)
 
     @model_validator(mode="after")
     def _one_action(self) -> "OnEntry":
@@ -647,10 +675,12 @@ class TaskWait(_Model):
 
 class TimeoutAfter(_Model):
     """A `wait` timeout with a value: `{after: 40 s, value: ...}`, as SimPy's
-    `env.timeout(delay, value)` carries a value the waiter receives."""
+    `env.timeout(delay, value)` carries a value the waiter receives. The value is a
+    constant or a `{gen: ...}` generator evaluated when the wait starts, so it may read
+    `vars_once` names but no `vars`."""
 
     after: Union[int, float, str]
-    value: Any = None
+    value: Value = None
 
 
 class TimeoutWait(_Model):
@@ -725,6 +755,47 @@ AllWait.model_rebuild()
 AtLeastWait.model_rebuild()
 
 
+def _with_typed_values(raw: Any, typed: Any) -> Any:
+    """`raw`, a wait branch as written, with each timeout `value` replaced by the
+    validated one, so a generator in it is a generator and not a mapping.
+
+    Args:
+        raw: The branch as written: a mapping of one key, or `at_least` and `of`.
+        typed: What the typed union made of it.
+    """
+    if not isinstance(raw, Mapping):
+        return raw
+    if "timeout" in raw and isinstance(raw["timeout"], Mapping):
+        if "value" not in raw["timeout"]:
+            return raw
+        return {"timeout": {**raw["timeout"], "value": typed.timeout.value}}
+    for key in ("any", "all"):
+        if key in raw and isinstance(raw[key], Mapping):
+            inner = getattr(typed, key)
+            return {
+                key: {
+                    name: _with_typed_values(branch, inner[name])
+                    for name, branch in raw[key].items()
+                }
+            }
+    if "of" in raw and isinstance(raw["of"], Mapping):
+        return {
+            **raw,
+            "of": {
+                name: _with_typed_values(branch, typed.of[name])
+                for name, branch in raw["of"].items()
+            },
+        }
+    return raw
+
+
+def _payload_form(value: Any) -> str:
+    """Which payload form a value is: `<python>` for a function, else a value."""
+    if callable(value) and not isinstance(value, (dict, list, _Gen)):
+        return "<python>"
+    return "<value>"
+
+
 class Task(_Model):
     """A `tasks` entry, built with `SimulationContext.task`.
 
@@ -753,15 +824,51 @@ class Task(_Model):
     container. `next` is a task name, `when` rules or `weights`. `set` gives the
     entity attribute values when the task finishes.
 
+    A value place takes a constant, a list, a mapping or a `{gen: ...}` generator: a
+    mapping with a `gen` key is a generator, and `{gen: literal, value: ...}` keeps a
+    mapping as data. The kinds of `gen` are `uniform`, `integer`, `normal`, `sample`,
+    `one_of`, `weighted`, `pick`, `switch` (key `on`), `when`, `boolean`, `uuid`,
+    `sequence`, `now`, `format_time`, `format`, `lower`, `upper`, `fake`, `add`,
+    `subtract`, `multiply`, `divide`, `min`, `max`, `expr`, `var`, `attr`, `param`,
+    `repeat`, `literal`, `object`, `call` and `row`; `null_rate`, `unique`, `omit_rate`
+    and `omit_when` go on any of them. `payload` may be such a mapping, or one generator that gives a
+    mapping; `set` values and the `cause` of an interrupt are evaluated when the task
+    finishes or interrupts. `vars_once` names are drawn once for each entity and task,
+    at the first use, and may be read by a `wait` timeout `value`. `vars` are drawn in
+    order, once for each instance of the task: when it starts if `on_start` is given,
+    otherwise after the service, just before the payload. A var reads the vars above it
+    with `{gen: var, name: ...}` or as a bare name in an `expr`. `on_start` values are
+    published as one event record when the task starts. `finish_vars` are drawn after
+    the service and may read the vars. A bare var name also reads in `put`, `fail` and
+    `next.when`. A var name is an identifier, not a name an expression already uses,
+    and is in one of the three groups only. Every generator node draws from its own
+    stream of the run's seed, so adding a node does not change the draws of the others.
+
     An expression uses Python's arithmetic: `/` gives a float, and `//` rounds down
     and gives an integer for two integers. `and` and `or` stop at the first operand
     that decides the result and do not absorb an error: an operand that cannot be
-    evaluated fails the expression.
+    evaluated fails the expression. `**` raises to a power (an integer power above
+    10000 is refused), `abs`, `min`, `max`, `round`, `floor`, `ceil`, `sqrt`, `exp`,
+    `log`, `log10`, `sin`, `cos` and `tan` are calls on numbers, and `has(attr.x)` is
+    true when the entity has the attribute `x`.
     """
 
     service: Optional[str] = None
     resource: Optional[Union[str, List[str]]] = None
-    payload: Union[Dict[str, Any], Callable[..., Any]]
+    payload: Annotated[
+        Union[
+            Annotated[Payload, Tag("<value>")],
+            Annotated[Callable[..., Any], Tag("<python>")],
+        ],
+        Discriminator(
+            _payload_form,
+            custom_error_type="payload_kind",
+            custom_error_message=(
+                "a payload is a mapping, a generator that gives a mapping, or a "
+                "!python function"
+            ),
+        ),
+    ]
     id_field: Optional[str] = None
     key_field: Optional[str] = None
     item_field: Optional[str] = None
@@ -777,7 +884,11 @@ class Task(_Model):
             Discriminator(_next_form),
         ]
     ] = None
-    set: Dict[str, Any] = Field(default_factory=dict)
+    set: Dict[str, Value] = Field(default_factory=dict)
+    vars: Dict[str, Value] = Field(default_factory=dict)
+    vars_once: Dict[str, Value] = Field(default_factory=dict)
+    on_start: Dict[str, Value] = Field(default_factory=dict)
+    finish_vars: Dict[str, Value] = Field(default_factory=dict)
     wait: Optional[WaitBranch] = None
     signal: Optional[str] = None
     fail: Optional[str] = None
@@ -849,14 +960,13 @@ class Task(_Model):
         if value is None:
             return None
         Wait(value)
-        handler(value)
-        return value
+        return _with_typed_values(value, handler(value))
 
     @field_validator("fail")
     @classmethod
     def _fail_parses(cls, value: Any) -> Any:
         if value is not None:
-            Expression(value)
+            Expression(value, names=ANY_NAME)
         return value
 
     @field_validator("patience", mode="before")
@@ -921,8 +1031,31 @@ class Task(_Model):
         return self
 
     @model_validator(mode="after")
+    def _var_names(self) -> "Task":
+        owner: Dict[str, str] = {}
+        for tier in ("vars_once", "vars", "finish_vars"):
+            for name in getattr(self, tier):
+                if not name.isidentifier() or keyword.iskeyword(name):
+                    raise ValueError(
+                        f"{tier}: '{name}' is not a name an expression can read; use "
+                        "letters, digits and _, not starting with a digit"
+                    )
+                if name in RESERVED_NAMES:
+                    raise ValueError(
+                        f"{tier}: '{name}' is a name an expression already uses; "
+                        "pick another"
+                    )
+                if name in owner:
+                    raise ValueError(
+                        f"'{name}' is in both {owner[name]} and {tier}; a name "
+                        "belongs to one"
+                    )
+                owner[name] = tier
+        return self
+
+    @model_validator(mode="after")
     def _attributes_need_a_mapping(self) -> "Task":
-        if self.attributes and not isinstance(self.payload, dict):
+        if self.attributes and not isinstance(self.payload, (dict, _Gen)):
             raise ValueError("attributes applies only to a mapping payload")
         return self
 
@@ -932,9 +1065,9 @@ class Task(_Model):
 
     @model_validator(mode="after")
     def _id_field_needs_a_mapping(self) -> "Task":
-        if self.id_field is not None and not isinstance(self.payload, dict):
+        if self.id_field is not None and not isinstance(self.payload, (dict, _Gen)):
             raise ValueError("id_field applies only to a mapping payload")
-        if self.item_field is not None and not isinstance(self.payload, dict):
+        if self.item_field is not None and not isinstance(self.payload, (dict, _Gen)):
             raise ValueError("item_field applies only to a mapping payload")
         return self
 
@@ -1079,13 +1212,15 @@ class ScenarioStep(_Model):
     step with a `record` publishes a ground-truth record, `stream_type: label`, with
     the path, the value before and after, and the `record` mapping, to the sinks
     with `when: labels` only. A step with an `interrupt` interrupts the running
-    instances of a task, as a task's `interrupt` does.
+    instances of a task, as a task's `interrupt` does. A `value` and each `record`
+    value are constants or `{gen: ...}` generators: `value` is evaluated just before
+    the change and `record` just after it.
     """
 
     at: Union[int, float]
     path: Optional[str] = None
-    value: Any = None
-    record: Optional[Dict[str, Any]] = None
+    value: Value = None
+    record: Optional[Dict[str, Value]] = None
     interrupt: Optional[InterruptAction] = None
 
     @field_validator("at", mode="before")
@@ -1374,7 +1509,17 @@ def unknown_key(model: Type[BaseModel], location: tuple) -> str:
             it takes when none is close.
     """
     types: List[Any] = [model]
+    kind_next = False
     for part in location[:-1]:
+        if isinstance(part, str) and part.startswith("<") and part.endswith(">"):
+            kind_next = part == "<gen>"
+            continue
+        if kind_next:
+            # The part after `<gen>` is the value of `gen`, which names the generator
+            kind_next = False
+            if part in GENERATORS:
+                types = [GENERATORS[part]]
+            continue
         inner = [found for kind in types for found in _inner(kind, part)]
         # A union's tag, such as `rules`, is in the location but not in the file
         types = inner or (types if isinstance(part, str) else [])

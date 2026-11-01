@@ -154,6 +154,105 @@
     }
   },
   "$defs": {
+    "Add": {
+      "additionalProperties": false,
+      "description": "`add`: the sum of `args`. When the first is a time (the text `{gen: now}`\ngives), the rest are seconds and the result is a time.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "args": {
+          "items": {
+            "$ref": "#/$defs/Value"
+          },
+          "minItems": 2,
+          "type": "array"
+        },
+        "decimals": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "add",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        }
+      },
+      "required": [
+        "args",
+        "gen"
+      ],
+      "title": "Add",
+      "type": "object"
+    },
     "AllWait": {
       "additionalProperties": false,
       "description": "A `wait` done when every one of its named branches is.",
@@ -258,7 +357,7 @@
     },
     "Arrival": {
       "additionalProperties": false,
-      "description": "An `arrivals` entry: a distribution, or a `replay` of recorded rows, the task\nit spawns, and the attributes each entity it starts carries.\n\nFile order is creation order: arrivals are made in the order they are written,\nthen the `processes`. Events due at one time run in the order they were\nscheduled, so this order decides only ties between first due times.",
+      "description": "An `arrivals` entry: a distribution, or a `replay` of recorded rows, the task\nit spawns, and the attributes each entity it starts carries.\n\nFile order is creation order: arrivals are made in the order they are written,\nthen the `processes`. Events due at one time run in the order they were\nscheduled, so this order decides only ties between first due times.\n\nAn `attributes` value is a constant or a `{gen: ...}` generator, drawn once for each\nentity when it starts, in the order the entities are made. A mapping with a `gen`\nkey is a generator; `{gen: literal, value: ...}` keeps a mapping as data.",
       "properties": {
         "dist": {
           "anyOf": [
@@ -538,6 +637,23 @@
           ],
           "default": null
         },
+        "p": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
         "replay": {
           "anyOf": [
             {
@@ -561,7 +677,9 @@
           "default": null
         },
         "attributes": {
-          "additionalProperties": true,
+          "additionalProperties": {
+            "$ref": "#/$defs/Value"
+          },
           "type": "object"
         }
       },
@@ -628,6 +746,97 @@
         "of"
       ],
       "title": "AtLeastWait",
+      "type": "object"
+    },
+    "Attr": {
+      "additionalProperties": false,
+      "description": "`attr`: the entity's attribute `name`, or the part of it at `path`.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "attr",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "gen",
+        "name"
+      ],
+      "title": "Attr",
       "type": "object"
     },
     "Batching": {
@@ -764,6 +973,86 @@
       "title": "BlueprintTest",
       "type": "object"
     },
+    "Boolean": {
+      "additionalProperties": false,
+      "description": "`boolean`: true with probability `p` (0.5 when not given).",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "boolean",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "p": {
+          "$ref": "#/$defs/Value",
+          "default": 0.5
+        }
+      },
+      "required": [
+        "gen"
+      ],
+      "title": "Boolean",
+      "type": "object"
+    },
     "Breakdown": {
       "additionalProperties": false,
       "description": "A resource's `breakdown`: the time to each failure, the repair time, and\nwhether the tasks being served are interrupted or finish.",
@@ -795,6 +1084,92 @@
         "repair"
       ],
       "title": "Breakdown",
+      "type": "object"
+    },
+    "Call": {
+      "additionalProperties": false,
+      "description": "`call`: what a `!python` function returns, called as `function(context,\n**kwargs)` with the kwargs evaluated first.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "call",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "function": {
+          "$ref": "#/$defs/PythonReference"
+        },
+        "kwargs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Value"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "gen",
+        "function"
+      ],
+      "title": "Call",
       "type": "object"
     },
     "ConditionWait": {
@@ -1186,12 +1561,128 @@
             }
           ],
           "default": null
+        },
+        "p": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
         "dist"
       ],
       "title": "Distribution",
+      "type": "object"
+    },
+    "Divide": {
+      "additionalProperties": false,
+      "description": "`divide`: the first of `args` divided by each of the others in turn (`/`).",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "args": {
+          "items": {
+            "$ref": "#/$defs/Value"
+          },
+          "minItems": 2,
+          "type": "array"
+        },
+        "decimals": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "divide",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        }
+      },
+      "required": [
+        "args",
+        "gen"
+      ],
+      "title": "Divide",
       "type": "object"
     },
     "Drain": {
@@ -1364,14 +1855,212 @@
       "title": "ExpectedWithin",
       "type": "object"
     },
+    "Expr": {
+      "additionalProperties": false,
+      "description": "`expr`: the value of an expression, with the names of the language, the vars of\nthe task and the entries of `names` (evaluated first) as bare names, and `t` for\nthe simulation time. It can give any type; a number is rounded to `decimals`.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "expr",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "expr": {
+          "type": "string"
+        },
+        "names": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Value"
+          },
+          "type": "object"
+        },
+        "decimals": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "gen",
+        "expr"
+      ],
+      "title": "Expr",
+      "type": "object"
+    },
+    "Fake": {
+      "additionalProperties": false,
+      "description": "`fake`: `getattr(faker, method)(*args, **kwargs)` for a Faker of `locale`\n(`en_US` by default). It needs the `fake` extra. Each `fake` generator has a Faker\nof its own, seeded from the run's seed, so adding one changes no other. A date,\na time or a decimal result is written as text or a float.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "fake",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "method": {
+          "type": "string"
+        },
+        "args": {
+          "items": {
+            "$ref": "#/$defs/Value"
+          },
+          "type": "array"
+        },
+        "kwargs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Value"
+          },
+          "type": "object"
+        },
+        "locale": {
+          "default": "en_US",
+          "type": "string"
+        }
+      },
+      "required": [
+        "gen",
+        "method"
+      ],
+      "title": "Fake",
+      "type": "object"
+    },
     "FireAction": {
       "additionalProperties": false,
-      "description": "An `on:` fire action: fire `signal` with a literal `value`, or with the\noutcome `from` copies from a signal or a task. `urgent` and `after` fire a\none-shot signal ahead of the other events at its time, or later, as SimPy's\n`env.schedule(event, priority, delay)` does.",
+      "description": "An `on:` fire action: fire `signal` with a `value` (a constant, or a\n`{gen: ...}` generator evaluated when the action runs; a mapping with no `gen`\nkey is data, and a generator nested in it is stored as written), or with the\noutcome `from` copies from a signal or a task. `urgent` and `after` fire a\none-shot signal ahead of the other events at its time, or later, as SimPy's\n`env.schedule(event, priority, delay)` does.",
       "properties": {
         "signal": {
           "type": "string"
         },
         "value": {
+          "$ref": "#/$defs/Value",
           "default": null
         },
         "from": {
@@ -1425,6 +2114,187 @@
       "title": "FireAction",
       "type": "object"
     },
+    "Format": {
+      "additionalProperties": false,
+      "description": "`format`: `template.format_map(...)` over `names`, then the vars of the task.\nA name in the template is a var, or an entry of `names`, which wins.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "format",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "template": {
+          "type": "string"
+        },
+        "names": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Value"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "gen",
+        "template"
+      ],
+      "title": "Format",
+      "type": "object"
+    },
+    "FormatTime": {
+      "additionalProperties": false,
+      "description": "`format_time`: a time as text or a number. `time` is the text `{gen: now}`\ngives, or seconds of simulation time (default: now). `format` is a `strftime`\npattern, `iso`, `iso_utc` (milliseconds and a `Z`), `epoch_s` or `epoch_ms`\n(integers). `tz` is an IANA name and defaults to the run's time zone.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "format_time",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "time": {
+          "$ref": "#/$defs/Value",
+          "default": null
+        },
+        "format": {
+          "default": "iso",
+          "type": "string"
+        },
+        "tz": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "gen"
+      ],
+      "title": "FormatTime",
+      "type": "object"
+    },
     "GetWait": {
       "additionalProperties": false,
       "description": "A `wait` branch for a store or container get.",
@@ -1439,9 +2309,94 @@
       "title": "GetWait",
       "type": "object"
     },
+    "Integer": {
+      "additionalProperties": false,
+      "description": "`integer`: a whole number between `bounds[0]` and `bounds[1]`, both included.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "integer",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "bounds": {
+          "items": {
+            "$ref": "#/$defs/Value"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        }
+      },
+      "required": [
+        "gen",
+        "bounds"
+      ],
+      "title": "Integer",
+      "type": "object"
+    },
     "InterruptAction": {
       "additionalProperties": false,
-      "description": "An `interrupt` on a task or a scenario step: interrupt every running instance\nof `task` whose `where` condition holds, with `cause`.",
+      "description": "An `interrupt` on a task or a scenario step: interrupt every running instance\nof `task` whose `where` condition holds, with `cause`, a constant or a\n`{gen: ...}` generator evaluated at the moment of the interrupt.",
       "properties": {
         "task": {
           "type": "string"
@@ -1458,6 +2413,7 @@
           "default": null
         },
         "cause": {
+          "$ref": "#/$defs/Value",
           "default": null
         }
       },
@@ -1465,6 +2421,462 @@
         "task"
       ],
       "title": "InterruptAction",
+      "type": "object"
+    },
+    "Literal_": {
+      "additionalProperties": false,
+      "description": "`literal`: `value` as written, not evaluated, so a mapping that has a `gen`\nkey can be a payload field.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "literal",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "value": {
+          "default": null
+        }
+      },
+      "required": [
+        "gen"
+      ],
+      "title": "Literal_",
+      "type": "object"
+    },
+    "Lower": {
+      "additionalProperties": false,
+      "description": "`lower`: the text of `value` in lower case.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "lower",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "value": {
+          "$ref": "#/$defs/Value"
+        }
+      },
+      "required": [
+        "gen",
+        "value"
+      ],
+      "title": "Lower",
+      "type": "object"
+    },
+    "Max": {
+      "additionalProperties": false,
+      "description": "`max`: the largest of `args`.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "args": {
+          "items": {
+            "$ref": "#/$defs/Value"
+          },
+          "minItems": 2,
+          "type": "array"
+        },
+        "decimals": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "max",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        }
+      },
+      "required": [
+        "args",
+        "gen"
+      ],
+      "title": "Max",
+      "type": "object"
+    },
+    "Min": {
+      "additionalProperties": false,
+      "description": "`min`: the smallest of `args`.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "args": {
+          "items": {
+            "$ref": "#/$defs/Value"
+          },
+          "minItems": 2,
+          "type": "array"
+        },
+        "decimals": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "min",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        }
+      },
+      "required": [
+        "args",
+        "gen"
+      ],
+      "title": "Min",
+      "type": "object"
+    },
+    "Multiply": {
+      "additionalProperties": false,
+      "description": "`multiply`: the product of `args`.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "args": {
+          "items": {
+            "$ref": "#/$defs/Value"
+          },
+          "minItems": 2,
+          "type": "array"
+        },
+        "decimals": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "multiply",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        }
+      },
+      "required": [
+        "args",
+        "gen"
+      ],
+      "title": "Multiply",
       "type": "object"
     },
     "Next": {
@@ -1513,9 +2925,271 @@
       "title": "Next",
       "type": "object"
     },
+    "Normal": {
+      "additionalProperties": false,
+      "description": "`normal`: a float from a normal distribution with `mean` and `std`.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "normal",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "mean": {
+          "$ref": "#/$defs/Value"
+        },
+        "std": {
+          "$ref": "#/$defs/Value"
+        },
+        "decimals": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "gen",
+        "mean",
+        "std"
+      ],
+      "title": "Normal",
+      "type": "object"
+    },
+    "Now": {
+      "additionalProperties": false,
+      "description": "`now`: the logical time plus `offset` (seconds or a duration, signed), as the\nISO text a record's `timestamp` uses. It reads the simulation clock, never the\nwall clock.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "now",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "offset": {
+          "$ref": "#/$defs/Value",
+          "default": 0
+        }
+      },
+      "required": [
+        "gen"
+      ],
+      "title": "Now",
+      "type": "object"
+    },
+    "Object": {
+      "additionalProperties": false,
+      "description": "`object`: the mapping `fields`, each evaluated as a plain mapping is. It lets\na modifier such as `null_rate` or `omit_rate` apply to the whole mapping.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "object",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "fields": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Value"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "gen",
+        "fields"
+      ],
+      "title": "Object",
+      "type": "object"
+    },
     "OnEntry": {
       "additionalProperties": false,
-      "description": "One entry of an `on:` list: exactly one of a fire, spawn or interrupt action,\nor a `path` with a `value` as a scenario step sets a registry value.",
+      "description": "One entry of an `on:` list: exactly one of a fire, spawn or interrupt action,\nor a `path` with a `value` as a scenario step sets a registry value. A `value` is a\nconstant or a `{gen: ...}` generator evaluated when the entry runs; a mapping with no\n`gen` key is data, and a generator nested in it is stored as written.",
       "properties": {
         "fire": {
           "anyOf": [
@@ -1562,10 +3236,285 @@
           "default": null
         },
         "value": {
+          "$ref": "#/$defs/Value",
           "default": null
         }
       },
       "title": "OnEntry",
+      "type": "object"
+    },
+    "OneOf": {
+      "additionalProperties": false,
+      "description": "`one_of`: one of `choices`, each equally likely. Only the choice picked is\nevaluated.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "one_of",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "choices": {
+          "items": {
+            "$ref": "#/$defs/Value"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "gen",
+        "choices"
+      ],
+      "title": "OneOf",
+      "type": "object"
+    },
+    "Param": {
+      "additionalProperties": false,
+      "description": "`param`: the live registry value at `path` (a full registry path, such as\n`Shop.variables.error_rate`) at the moment of the call, or the `field` key of a\nmapping value. A scenario step or an ingress update shows in the next call.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "param",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "field": {
+          "$ref": "#/$defs/Value",
+          "default": null
+        }
+      },
+      "required": [
+        "gen",
+        "path"
+      ],
+      "title": "Param",
+      "type": "object"
+    },
+    "Payload": {
+      "description": "A mapping of values, or one generator that gives a mapping.",
+      "if": {
+        "type": "object",
+        "required": [
+          "gen"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/Generator"
+      },
+      "else": {
+        "type": "object",
+        "additionalProperties": {
+          "$ref": "#/$defs/Value"
+        }
+      }
+    },
+    "Pick": {
+      "additionalProperties": false,
+      "description": "`pick`: a list of `count` different `choices`, drawn without replacement, in\nthe order drawn. Only the choices picked are evaluated.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "pick",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "choices": {
+          "items": {
+            "$ref": "#/$defs/Value"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "count": {
+          "$ref": "#/$defs/Value",
+          "default": 1
+        }
+      },
+      "required": [
+        "gen",
+        "choices"
+      ],
+      "title": "Pick",
       "type": "object"
     },
     "Process": {
@@ -1598,6 +3547,90 @@
         "put"
       ],
       "title": "PutWait",
+      "type": "object"
+    },
+    "Repeat": {
+      "additionalProperties": false,
+      "description": "`repeat`: a list of `times` values, each evaluated on its own.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "repeat",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "times": {
+          "$ref": "#/$defs/Value"
+        },
+        "value": {
+          "$ref": "#/$defs/Value"
+        }
+      },
+      "required": [
+        "gen",
+        "times",
+        "value"
+      ],
+      "title": "Repeat",
       "type": "object"
     },
     "Replay": {
@@ -1774,6 +3807,141 @@
         }
       },
       "title": "Resource",
+      "type": "object"
+    },
+    "Row": {
+      "additionalProperties": false,
+      "description": "`row`: one row of a CSV or Parquet file as a mapping, read once at load. A cell\nof digits is read as a number, so a postal code with leading zeros loses them;\nwrite them with `{gen: format, template: \"{n:05d}\"}`. `where` is an expression over\nthe row's columns that keeps some rows; `weight` names a column of weights; `order`\nis `random` (the default), `sequential`, `shuffle` (every row once, in a random\norder) or `circular` (in file order, again from the first); `on_end` says what a\n`sequential` or `shuffle` order does when the rows run out: `error` (the default),\n`loop` or `stop`, which ends the run.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "row",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "file": {
+          "type": "string"
+        },
+        "where": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "weight": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "order": {
+          "default": "random",
+          "anyOf": [
+            {
+              "enum": [
+                "random",
+                "sequential",
+                "shuffle",
+                "circular"
+              ],
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "on_end": {
+          "default": "error",
+          "anyOf": [
+            {
+              "enum": [
+                "stop",
+                "loop",
+                "error"
+              ],
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        }
+      },
+      "required": [
+        "gen",
+        "file"
+      ],
+      "title": "Row",
       "type": "object"
     },
     "Rule": {
@@ -2021,9 +4189,258 @@
       "title": "RunningWait",
       "type": "object"
     },
+    "Sample": {
+      "additionalProperties": false,
+      "description": "`sample`: one draw from a distribution family with its parameters, or from\nthe live distribution of a service.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "sample",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "dist": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "service": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rate": {
+          "$ref": "#/$defs/Value",
+          "default": null
+        },
+        "mean": {
+          "$ref": "#/$defs/Value",
+          "default": null
+        },
+        "std": {
+          "$ref": "#/$defs/Value",
+          "default": null
+        },
+        "low": {
+          "$ref": "#/$defs/Value",
+          "default": null
+        },
+        "value": {
+          "$ref": "#/$defs/Value",
+          "default": null
+        },
+        "high": {
+          "$ref": "#/$defs/Value",
+          "default": null
+        },
+        "mode": {
+          "$ref": "#/$defs/Value",
+          "default": null
+        },
+        "shape": {
+          "$ref": "#/$defs/Value",
+          "default": null
+        },
+        "scale": {
+          "$ref": "#/$defs/Value",
+          "default": null
+        },
+        "p": {
+          "$ref": "#/$defs/Value",
+          "default": null
+        },
+        "values": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "$ref": "#/$defs/Placeholder"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "weights": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "$ref": "#/$defs/Placeholder"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "edges": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "$ref": "#/$defs/Placeholder"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "counts": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "$ref": "#/$defs/Placeholder"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "decimals": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "gen"
+      ],
+      "title": "Sample",
+      "type": "object"
+    },
     "ScenarioStep": {
       "additionalProperties": false,
-      "description": "A `scenario` entry: at simulation time `at`, set `path` to `value`, publish a\nground-truth record of `record`, or both.\n\n`at` is seconds from the start of the run, or a duration such as `\"10 min\"`. A\nstep with a `record` publishes a ground-truth record, `stream_type: label`, with\nthe path, the value before and after, and the `record` mapping, to the sinks\nwith `when: labels` only. A step with an `interrupt` interrupts the running\ninstances of a task, as a task's `interrupt` does.",
+      "description": "A `scenario` entry: at simulation time `at`, set `path` to `value`, publish a\nground-truth record of `record`, or both.\n\n`at` is seconds from the start of the run, or a duration such as `\"10 min\"`. A\nstep with a `record` publishes a ground-truth record, `stream_type: label`, with\nthe path, the value before and after, and the `record` mapping, to the sinks\nwith `when: labels` only. A step with an `interrupt` interrupts the running\ninstances of a task, as a task's `interrupt` does. A `value` and each `record`\nvalue are constants or `{gen: ...}` generators: `value` is evaluated just before\nthe change and `record` just after it.",
       "properties": {
         "at": {
           "anyOf": [
@@ -2053,12 +4470,15 @@
           "default": null
         },
         "value": {
+          "$ref": "#/$defs/Value",
           "default": null
         },
         "record": {
           "anyOf": [
             {
-              "additionalProperties": true,
+              "additionalProperties": {
+                "$ref": "#/$defs/Value"
+              },
               "type": "object"
             },
             {
@@ -2113,6 +4533,130 @@
         "every"
       ],
       "title": "SegmentEvery",
+      "type": "object"
+    },
+    "Sequence": {
+      "additionalProperties": false,
+      "description": "`sequence`: the next integer of a counter, `start` plus `step` times the\ncount of calls so far, restarting after `loop_after` calls. With `format`, the\ntext `format.format(n)`, such as `\"sensor-{}\"`. There is one counter for the run,\nshared by every entity, so ids stay unique.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "sequence",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "start": {
+          "default": 0,
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "step": {
+          "default": 1,
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "loop_after": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "format": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "gen"
+      ],
+      "title": "Sequence",
       "type": "object"
     },
     "SignalSpec": {
@@ -2394,7 +4938,7 @@
     },
     "Store": {
       "additionalProperties": false,
-      "description": "A `stores` entry: how many items it holds, whether it serves by priority, the\nitems it holds when the run starts, and the class it is built from.\n\n`current_cap` defaults to `max_cap`, and with neither the store has no limit;\n`.inf` is no limit too. `max_cap` defaults to `current_cap`. A capacity is a whole\nnumber or `.inf`. `items` are returned in the order given; a priority store's\nitems are `[priority, item]` pairs. `type` is a `!python` subclass of `StoreBase`,\nwhich sets its own order, so it cannot be given with `priority`.",
+      "description": "A `stores` entry: how many items it holds, whether it serves by priority, the\nitems it holds when the run starts, and the class it is built from.\n\n`current_cap` defaults to `max_cap`, and with neither the store has no limit;\n`.inf` is no limit too. `max_cap` defaults to `current_cap`. A capacity is a whole\nnumber or `.inf`. `items` are returned in the order given; a priority store's\nitems are `[priority, item]` pairs. `type` is a `!python` subclass of `StoreBase`,\nwhich sets its own order, so it cannot be given with `priority`. An item is a\nconstant or a `{gen: ...}` generator, drawn once when the run starts.",
       "properties": {
         "current_cap": {
           "anyOf": [
@@ -2442,7 +4986,9 @@
           ]
         },
         "items": {
-          "items": {},
+          "items": {
+            "$ref": "#/$defs/Value"
+          },
           "type": "array"
         },
         "type": {
@@ -2460,9 +5006,257 @@
       "title": "Store",
       "type": "object"
     },
+    "Subtract": {
+      "additionalProperties": false,
+      "description": "`subtract`: the first of `args` less the others. When the first is a time,\nthe rest are seconds and the result is a time.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "args": {
+          "items": {
+            "$ref": "#/$defs/Value"
+          },
+          "minItems": 2,
+          "type": "array"
+        },
+        "decimals": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "subtract",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        }
+      },
+      "required": [
+        "args",
+        "gen"
+      ],
+      "title": "Subtract",
+      "type": "object"
+    },
+    "Switch": {
+      "additionalProperties": false,
+      "description": "`switch`: the value of the first case that matches `on`, evaluated only when\npicked. `cases` is a mapping from a value to its result, or a list of ranges;\n`default` is used when none matches (null when it is left out).",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "switch",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "on": {
+          "$ref": "#/$defs/Value"
+        },
+        "cases": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/Value"
+              },
+              "type": "object"
+            },
+            {
+              "items": {
+                "$ref": "#/$defs/SwitchRange"
+              },
+              "type": "array"
+            }
+          ]
+        },
+        "default": {
+          "$ref": "#/$defs/Value",
+          "default": null
+        }
+      },
+      "required": [
+        "gen",
+        "on",
+        "cases"
+      ],
+      "title": "Switch",
+      "type": "object"
+    },
+    "SwitchRange": {
+      "additionalProperties": false,
+      "description": "One range case of `switch`: the first case whose `min` is at or below `on`\nand whose `max`, when given, is above it.",
+      "properties": {
+        "min": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "max": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "value": {
+          "$ref": "#/$defs/Value"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "title": "SwitchRange",
+      "type": "object"
+    },
     "Task": {
       "additionalProperties": false,
-      "description": "A `tasks` entry, built with `SimulationContext.task`.\n\nText in a value place stays text. A time place reads a number as seconds, text\n`time_to_seconds` accepts as a duration, and other text as an expression.\n\n`payload` is the value of the `finished` event: a mapping, or a `!python`\nfunction called as `payload(task_id, context)`. `id_field` adds the task id to a\nmapping payload under that key, `key_field` names the payload field whose value\nbecomes the key of the finished event, and so the Kafka message key (the\n`queued` and `started` records keep the entity's key; a payload without the\nfield fails the run), `item_field` adds the item its store `get` took,\nand `attributes` adds the named entity attributes. A task with a `service` and no `resource` is a timed step; one with\nneither, and no `get`, emits its payload as soon as it is spawned.\n\n`priority` is a number or an expression such as `attr.priority`, for a resource\nwhose `queue` is `priority`. `patience` is seconds, a duration such as `30 s` or\nan expression; `balk` is a condition checked before the task joins the queue.\n`resource` is one resource or a list, acquired in the order listed; `keep` hands\nunits to the next task. `on_interrupt` is `resume`, `restart` or `abandon`, and\n`interrupt` interrupts the running instances of a task when this one finishes.\n`wait` is what the task waits for first: a signal, a child task, a timeout or a\ncondition, or any or all of several. `signal` names a signal the task fires\nwhen it finishes. `fail` is a condition checked after the service: when it holds\nthe task publishes `failed` with `fail_reason`, and goes to `on_fail`. `get` and `put` take from and add to a store or\ncontainer. `next` is a task name, `when` rules or `weights`. `set` gives the\nentity attribute values when the task finishes.\n\nAn expression uses Python's arithmetic: `/` gives a float, and `//` rounds down\nand gives an integer for two integers. `and` and `or` stop at the first operand\nthat decides the result and do not absorb an error: an operand that cannot be\nevaluated fails the expression.",
+      "description": "A `tasks` entry, built with `SimulationContext.task`.\n\nText in a value place stays text. A time place reads a number as seconds, text\n`time_to_seconds` accepts as a duration, and other text as an expression.\n\n`payload` is the value of the `finished` event: a mapping, or a `!python`\nfunction called as `payload(task_id, context)`. `id_field` adds the task id to a\nmapping payload under that key, `key_field` names the payload field whose value\nbecomes the key of the finished event, and so the Kafka message key (the\n`queued` and `started` records keep the entity's key; a payload without the\nfield fails the run), `item_field` adds the item its store `get` took,\nand `attributes` adds the named entity attributes. A task with a `service` and no `resource` is a timed step; one with\nneither, and no `get`, emits its payload as soon as it is spawned.\n\n`priority` is a number or an expression such as `attr.priority`, for a resource\nwhose `queue` is `priority`. `patience` is seconds, a duration such as `30 s` or\nan expression; `balk` is a condition checked before the task joins the queue.\n`resource` is one resource or a list, acquired in the order listed; `keep` hands\nunits to the next task. `on_interrupt` is `resume`, `restart` or `abandon`, and\n`interrupt` interrupts the running instances of a task when this one finishes.\n`wait` is what the task waits for first: a signal, a child task, a timeout or a\ncondition, or any or all of several. `signal` names a signal the task fires\nwhen it finishes. `fail` is a condition checked after the service: when it holds\nthe task publishes `failed` with `fail_reason`, and goes to `on_fail`. `get` and `put` take from and add to a store or\ncontainer. `next` is a task name, `when` rules or `weights`. `set` gives the\nentity attribute values when the task finishes.\n\nA value place takes a constant, a list, a mapping or a `{gen: ...}` generator: a\nmapping with a `gen` key is a generator, and `{gen: literal, value: ...}` keeps a\nmapping as data. The kinds of `gen` are `uniform`, `integer`, `normal`, `sample`,\n`one_of`, `weighted`, `pick`, `switch` (key `on`), `when`, `boolean`, `uuid`,\n`sequence`, `now`, `format_time`, `format`, `lower`, `upper`, `fake`, `add`,\n`subtract`, `multiply`, `divide`, `min`, `max`, `expr`, `var`, `attr`, `param`,\n`repeat`, `literal`, `object`, `call` and `row`; `null_rate`, `unique`, `omit_rate`\nand `omit_when` go on any of them. `payload` may be such a mapping, or one generator that gives a\nmapping; `set` values and the `cause` of an interrupt are evaluated when the task\nfinishes or interrupts. `vars_once` names are drawn once for each entity and task,\nat the first use, and may be read by a `wait` timeout `value`. `vars` are drawn in\norder, once for each instance of the task: when it starts if `on_start` is given,\notherwise after the service, just before the payload. A var reads the vars above it\nwith `{gen: var, name: ...}` or as a bare name in an `expr`. `on_start` values are\npublished as one event record when the task starts. `finish_vars` are drawn after\nthe service and may read the vars. A bare var name also reads in `put`, `fail` and\n`next.when`. A var name is an identifier, not a name an expression already uses,\nand is in one of the three groups only. Every generator node draws from its own\nstream of the run's seed, so adding a node does not change the draws of the others.\n\nAn expression uses Python's arithmetic: `/` gives a float, and `//` rounds down\nand gives an integer for two integers. `and` and `or` stop at the first operand\nthat decides the result and do not absorb an error: an operand that cannot be\nevaluated fails the expression. `**` raises to a power (an integer power above\n10000 is refused), `abs`, `min`, `max`, `round`, `floor`, `ceil`, `sqrt`, `exp`,\n`log`, `log10`, `sin`, `cos` and `tan` are calls on numbers, and `has(attr.x)` is\ntrue when the entity has the attribute `x`.",
       "properties": {
         "service": {
           "anyOf": [
@@ -2493,10 +5287,9 @@
           "default": null
         },
         "payload": {
-          "anyOf": [
+          "oneOf": [
             {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/$defs/Payload"
             },
             {
               "$ref": "#/$defs/PythonReference"
@@ -2639,7 +5432,33 @@
           "default": null
         },
         "set": {
-          "additionalProperties": true,
+          "additionalProperties": {
+            "$ref": "#/$defs/Value"
+          },
+          "type": "object"
+        },
+        "vars": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Value"
+          },
+          "type": "object"
+        },
+        "vars_once": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Value"
+          },
+          "type": "object"
+        },
+        "on_start": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Value"
+          },
+          "type": "object"
+        },
+        "finish_vars": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Value"
+          },
           "type": "object"
         },
         "wait": {
@@ -2859,7 +5678,7 @@
     },
     "TimeoutAfter": {
       "additionalProperties": false,
-      "description": "A `wait` timeout with a value: `{after: 40 s, value: ...}`, as SimPy's\n`env.timeout(delay, value)` carries a value the waiter receives.",
+      "description": "A `wait` timeout with a value: `{after: 40 s, value: ...}`, as SimPy's\n`env.timeout(delay, value)` carries a value the waiter receives. The value is a\nconstant or a `{gen: ...}` generator evaluated when the wait starts, so it may read\n`vars_once` names but no `vars`.",
       "properties": {
         "after": {
           "anyOf": [
@@ -2878,6 +5697,7 @@
           ]
         },
         "value": {
+          "$ref": "#/$defs/Value",
           "default": null
         }
       },
@@ -2989,6 +5809,612 @@
       "title": "TransferStep",
       "type": "object"
     },
+    "Uniform": {
+      "additionalProperties": false,
+      "description": "`uniform`: a float in [low, high), from `low + (high - low) * random()`;\n`decimals` rounds it, and 0 gives an integer.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "uniform",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "low": {
+          "$ref": "#/$defs/Value"
+        },
+        "high": {
+          "$ref": "#/$defs/Value"
+        },
+        "decimals": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "gen",
+        "low",
+        "high"
+      ],
+      "title": "Uniform",
+      "type": "object"
+    },
+    "Upper": {
+      "additionalProperties": false,
+      "description": "`upper`: the text of `value` in upper case.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "upper",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "value": {
+          "$ref": "#/$defs/Value"
+        }
+      },
+      "required": [
+        "gen",
+        "value"
+      ],
+      "title": "Upper",
+      "type": "object"
+    },
+    "Uuid": {
+      "additionalProperties": false,
+      "description": "`uuid`: a version 4 UUID from the generator's random sequence, so it repeats\nwith the seed, or a version 7 UUID whose 48-bit millisecond field comes from the\nlogical time.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "uuid",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "version": {
+          "default": 4,
+          "anyOf": [
+            {
+              "enum": [
+                4,
+                7
+              ],
+              "type": "integer"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        }
+      },
+      "required": [
+        "gen"
+      ],
+      "title": "Uuid",
+      "type": "object"
+    },
+    "Value": {
+      "description": "A value: a constant, a mapping or list of values, or a generator (a mapping with a `gen` key). `{gen: literal, value: ...}` writes a mapping that has a `gen` key as data.",
+      "if": {
+        "type": "object",
+        "required": [
+          "gen"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/Generator"
+      },
+      "else": {
+        "if": {
+          "type": "object"
+        },
+        "then": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/Value"
+          }
+        },
+        "else": {
+          "if": {
+            "type": "array"
+          },
+          "then": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/Value"
+            }
+          }
+        }
+      }
+    },
+    "Var": {
+      "additionalProperties": false,
+      "description": "`var`: a var of the task, or the part of it at `path` (dotted; an integer part\nindexes a list). Every reference to a var in one event gives the same value.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "var",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "gen",
+        "name"
+      ],
+      "title": "Var",
+      "type": "object"
+    },
+    "Weighted": {
+      "additionalProperties": false,
+      "description": "`weighted`: one choice, by weight. `options` maps each value to its weight, or\n`choices` lists `{value, weight}` for values that are mappings or generators. Each\nweight is 0 or more and at least one is above 0; weights are divided by their\nsum. Only the value picked is evaluated.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "weighted",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "options": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/Value"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "choices": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/WeightedChoice"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "gen"
+      ],
+      "title": "Weighted",
+      "type": "object"
+    },
+    "WeightedChoice": {
+      "additionalProperties": false,
+      "description": "One entry of `weighted` `choices`: a value and its weight.",
+      "properties": {
+        "value": {
+          "$ref": "#/$defs/Value"
+        },
+        "weight": {
+          "$ref": "#/$defs/Value"
+        }
+      },
+      "required": [
+        "value",
+        "weight"
+      ],
+      "title": "WeightedChoice",
+      "type": "object"
+    },
+    "When": {
+      "additionalProperties": false,
+      "description": "`when`: `then` when the `condition` (an expression) holds, else `else`.\nOnly the branch taken is evaluated.",
+      "properties": {
+        "null_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "unique": {
+          "default": false,
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "omit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ],
+          "default": null
+        },
+        "omit_when": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "gen": {
+          "anyOf": [
+            {
+              "const": "when",
+              "type": "string"
+            },
+            {
+              "$ref": "#/$defs/Placeholder"
+            }
+          ]
+        },
+        "condition": {
+          "type": "string"
+        },
+        "then": {
+          "$ref": "#/$defs/Value"
+        },
+        "else": {
+          "$ref": "#/$defs/Value",
+          "default": null
+        }
+      },
+      "required": [
+        "gen",
+        "condition",
+        "then"
+      ],
+      "title": "When",
+      "type": "object"
+    },
     "WhenExpr": {
       "additionalProperties": false,
       "description": "An egress `when` written as an expression: `when: {expr: <expression>}`.\n\nThe expression reads the record the sink is offered: `record.stream_type`\n(`event` or `telemetry`), `record.key`, `record.task` and `record.value.<field>`.\nA name the record lacks reads as None, so `record.value.event_type ==\n'order_packed'` is false for a telemetry record and for an event without that\nfield. The sink receives the record when the expression is true. An expression\nthat fails on a record, such as `record.value.amount > 100` on a record whose\nvalue has no `amount`, fails the run.",
@@ -3002,6 +6428,110 @@
       ],
       "title": "WhenExpr",
       "type": "object"
+    },
+    "Generator": {
+      "description": "A generator: a mapping whose `gen` key names its kind, and whose other keys are its arguments.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/Uniform"
+        },
+        {
+          "$ref": "#/$defs/Integer"
+        },
+        {
+          "$ref": "#/$defs/Normal"
+        },
+        {
+          "$ref": "#/$defs/Sample"
+        },
+        {
+          "$ref": "#/$defs/OneOf"
+        },
+        {
+          "$ref": "#/$defs/Weighted"
+        },
+        {
+          "$ref": "#/$defs/Pick"
+        },
+        {
+          "$ref": "#/$defs/Switch"
+        },
+        {
+          "$ref": "#/$defs/When"
+        },
+        {
+          "$ref": "#/$defs/Boolean"
+        },
+        {
+          "$ref": "#/$defs/Uuid"
+        },
+        {
+          "$ref": "#/$defs/Sequence"
+        },
+        {
+          "$ref": "#/$defs/Now"
+        },
+        {
+          "$ref": "#/$defs/FormatTime"
+        },
+        {
+          "$ref": "#/$defs/Format"
+        },
+        {
+          "$ref": "#/$defs/Lower"
+        },
+        {
+          "$ref": "#/$defs/Upper"
+        },
+        {
+          "$ref": "#/$defs/Fake"
+        },
+        {
+          "$ref": "#/$defs/Add"
+        },
+        {
+          "$ref": "#/$defs/Subtract"
+        },
+        {
+          "$ref": "#/$defs/Multiply"
+        },
+        {
+          "$ref": "#/$defs/Divide"
+        },
+        {
+          "$ref": "#/$defs/Min"
+        },
+        {
+          "$ref": "#/$defs/Max"
+        },
+        {
+          "$ref": "#/$defs/Expr"
+        },
+        {
+          "$ref": "#/$defs/Var"
+        },
+        {
+          "$ref": "#/$defs/Attr"
+        },
+        {
+          "$ref": "#/$defs/Param"
+        },
+        {
+          "$ref": "#/$defs/Repeat"
+        },
+        {
+          "$ref": "#/$defs/Literal_"
+        },
+        {
+          "$ref": "#/$defs/Object"
+        },
+        {
+          "$ref": "#/$defs/Call"
+        },
+        {
+          "$ref": "#/$defs/Row"
+        }
+      ]
     },
     "PythonReference": {
       "type": "string",

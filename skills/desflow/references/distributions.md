@@ -8,6 +8,8 @@ Every distribution family a `services` entry or an arrival can draw from. In a b
 | [`normal`](#normal) | `mean`, `std` | `.mean`, `.std` |
 | [`lognormal`](#lognormal) | `mean`, `std` | `.mean`, `.std` |
 | [`truncated_normal`](#truncated_normal) | `mean`, `std`, `low` | `.mean`, `.std`, `.low` |
+| [`poisson`](#poisson) | `mean` | `.mean` |
+| [`geometric`](#geometric) | `p` | `.p` |
 | [`constant`](#constant) | `value` | `.value` |
 | [`uniform`](#uniform) | `low`, `high` | `.low`, `.high` |
 | [`triangular`](#triangular) | `low`, `mode`, `high` | `.low`, `.mode`, `.high` |
@@ -74,6 +76,36 @@ A normal that draws again below low instead of clamping.
 | Uses a random number | yes |
 
 For the example `{dist: truncated_normal, mean: 1.0, std: 1.0, low: 0.0}`: mean 1.288, variance 0.6297, and with no random generator every draw is 1.
+
+## poisson
+
+A count of events: whole numbers from 0, with the given mean, such as the orders in a minute.
+
+| | |
+|---|---|
+| `dist` | `poisson` |
+| Parameters | `mean` |
+| Defaults | none |
+| Rules | mean >= 0; every draw is a whole number from 0 |
+| Registry paths | `<sim_id>.service.<name>.mean` (and `.arrival.` for an arrival) |
+| Uses a random number | yes |
+
+For the example `{dist: poisson, mean: 3.0}`: mean 3, variance 3, and with no random generator every draw is 3.
+
+## geometric
+
+The number of tries up to and including the first success, each with probability p: whole numbers from 1.
+
+| | |
+|---|---|
+| `dist` | `geometric` |
+| Parameters | `p` |
+| Defaults | none |
+| Rules | 0 < p <= 1; every draw is a whole number from 1 |
+| Registry paths | `<sim_id>.service.<name>.p` (and `.arrival.` for an arrival) |
+| Uses a random number | yes |
+
+For the example `{dist: geometric, p: 0.25}`: mean 4, variance 12, and with no random generator every draw is 4.
 
 ## constant
 

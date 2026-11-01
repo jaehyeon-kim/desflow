@@ -30,14 +30,19 @@ from feature_lists import (
 USED = used_pairs()
 
 
-@pytest.mark.parametrize(
-    "model,key", pairs(), ids=[f"{model}.{key}" for model, key in pairs()]
-)
-def test_every_blueprint_key_has_an_example_a_reference_and_a_skill_entry(model, key):
+KEY_IDS = [f"{model}.{key}" for model, key in pairs()]
+
+
+@pytest.mark.parametrize("model,key", pairs(), ids=KEY_IDS)
+def test_every_blueprint_key_has_an_example(model, key):
     assert (model, key) in USED, (
         f"{model}.{key}: no labelled YAML block on a Learn, How-To, User Guide or "
         "Examples page sets it"
     )
+
+
+@pytest.mark.parametrize("model,key", pairs(), ids=KEY_IDS)
+def test_every_blueprint_key_has_a_reference_and_a_skill_entry(model, key):
     page = gen_pages().yaml_keys_page()
     assert f"`{key}`" in page or f"## {key}\n" in page, f"{key}: not on YAML Keys"
     keys = (SKILL / "references" / "blueprint-keys.md").read_text(encoding="utf-8")

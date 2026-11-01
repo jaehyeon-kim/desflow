@@ -82,7 +82,10 @@ async def test_send_config_message_is_read_by_kafka_ingress(MockProducer, MockCo
     MockConsumer.return_value = FakeConsumer()
     ingress_queue = queue.Queue()
     task = asyncio.create_task(
-        KafkaIngress(topic, bootstrap_servers="localhost:9092").run(ingress_queue)
+        # `manual`: no broker here, and a refused connection is slow on Windows
+        KafkaIngress(
+            topic, bootstrap_servers="localhost:9092", topic_policy="manual"
+        ).run(ingress_queue)
     )
     await asyncio.sleep(0.1)
     task.cancel()

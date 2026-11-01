@@ -16,6 +16,7 @@ from typing import (
     Callable,
     Dict,
     Iterable,
+    Iterator,
     List,
     Mapping,
     NamedTuple,
@@ -38,13 +39,16 @@ from desflow.blueprint.models import (
 )
 from desflow.config import LABELS
 from desflow.connectors.egress.local import ConsoleEgress
-from desflow.core.expressions import Expression, Scope
+from desflow.core.expressions import ANY_NAME, Expression, Scope
 from desflow.core.flow import Wait
 from desflow.core.registry import ParamRejected
 from desflow.core.task import check_acquisition_order
 from desflow.core.context import SimulationContext
 from desflow.core.environment import in_zone, resolve_zone
 from desflow.utils import suggestion
+from desflow.values.check import check_value, task_value_problems
+from desflow.values.models import has_generator
+from desflow.values.template import BoundPayload, Template, bind as bind_values
 
 logger = logging.getLogger(__name__)
 
@@ -210,7 +214,9 @@ def load_blueprint(
         raise _validation_error(exc, source) from None
 
     _check_references(blueprint, source)
+    _bind_values(blueprint, source)
     context = _build_context(blueprint, source, preview)
+    _check_values(blueprint, context, source)
     _check_scenario(blueprint, context, source)
     _check_registry_reads(blueprint, context, source)
     _warn_on_paths(blueprint, context, source)
@@ -239,6 +245,22 @@ def read_tests_file(
         raise _validation_error(exc, source, TestsFile) from None
 
 
+def _file_location(loc: Tuple[Any, ...]) -> Tuple[Any, ...]:
+    """The keys of a Pydantic error location that the file has: the union tags
+    pydantic adds (`<gen>`, `<map>`, `name`, `rules`) and the kind after `<gen>` are
+    left out."""
+    kept = []
+    for index, part in enumerate(loc):
+        if isinstance(part, str) and part.startswith("<") and part.endswith(">"):
+            continue
+        if index and loc[index - 1] == "<gen>":
+            continue
+        if index and loc[index - 1] == "next" and part in ("name", "rules"):
+            continue
+        kept.append(part)
+    return tuple(kept)
+
+
 def _validation_error(
     exc: ValidationError, source: SourceMap, model: Any = Blueprint
 ) -> BlueprintError:
@@ -247,21 +269,27 @@ def _validation_error(
     for error in exc.errors():
         # A task's `next` is a name or rules, and pydantic adds which one to the
         # location; the file has no such key, so it is left out.
-        location = tuple(
-            part
-            for index, part in enumerate(error["loc"])
-            if not (
-                index
-                and error["loc"][index - 1] == "next"
-                and part in ("name", "rules")
-            )
-        )
+        location = _file_location(error["loc"])
         where = ".".join(str(part) for part in location) or "top level"
         text = error["msg"]
         if error["type"] == "extra_forbidden":
             text = unknown_key(model, tuple(error["loc"]))
-        messages.append(str(source.error(location, f"{where}: {text}")))
+        messages.append(
+            str(source.error(_without_classes(location), f"{where}: {text}"))
+        )
     return BlueprintError("\n".join(messages))
+
+
+def _without_classes(location: Tuple[Any, ...]) -> Tuple[Any, ...]:
+    """`location` without the class names a wait's union adds, which the file does not
+    have, so that the line found is the line of the key inside the wait."""
+    from typing import get_args
+
+    from desflow.blueprint.models import TimeoutAfter, WaitBranch
+
+    classes = {member.__name__ for member in get_args(WaitBranch)}
+    classes.add(TimeoutAfter.__name__)
+    return tuple(part for part in location if part not in classes)
 
 
 def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
@@ -369,7 +397,27 @@ def _check_references(blueprint: Blueprint, source: SourceMap) -> None:
                 )
         branches = set(wait.branches) if wait else set()
         takes_item = task.get is not None and task.get.store is not None
+        var_names = {*task.vars_once, *task.vars, *task.finish_vars}
         for expression, location in _expressions(name, task):
+            # A var gets its value after the service, so only put, fail and next
+            # (evaluated after it) read one as a bare name
+            after = location[2] in ("put", "fail", "next")
+            for bare in sorted(expression.references["name"]):
+                if bare in var_names and after:
+                    continue
+                raise source.error(
+                    location,
+                    f"'{expression.text}' uses the name '{bare}', "
+                    + (
+                        "which is not one of the task's vars"
+                        + (suggestion(bare, var_names) or "")
+                        if after or bare not in var_names
+                        else f"a var, which {location[2]} cannot read: vars get a "
+                        "value after the service"
+                    )
+                    + "; write payload.<field>, attr.<name>, level.<store> or "
+                    "another source for anything else",
+                )
             for signal in expression.references["signal"]:
                 if signal not in blueprint.signals:
                     raise source.error(
@@ -936,7 +984,7 @@ def _expressions(
     if task.balk is not None:
         found.append((Expression(task.balk), where + ("balk",)))
     if task.fail is not None:
-        found.append((Expression(task.fail), where + ("fail",)))
+        found.append((Expression(task.fail, names=ANY_NAME), where + ("fail",)))
     if task.interrupt is not None and task.interrupt.where is not None:
         found.append((Expression(task.interrupt.where), where + ("interrupt", "where")))
     if task.wait is not None:
@@ -948,16 +996,23 @@ def _expressions(
         if step is None:
             continue
         if isinstance(step.amount, str):
-            found.append((Expression(step.amount), where + (field, "amount")))
+            found.append(
+                (Expression(step.amount, names=ANY_NAME), where + (field, "amount"))
+            )
         if isinstance(step.priority, str):
-            found.append((Expression(step.priority), where + (field, "priority")))
+            found.append(
+                (
+                    Expression(step.priority, names=ANY_NAME),
+                    where + (field, "priority"),
+                )
+            )
         if step.filter is not None:
             found.append((Expression(step.filter), where + (field, "filter")))
     if task.next is not None and not isinstance(task.next, str):
         for index, rule in enumerate(task.next.when):
             found.append(
                 (
-                    Expression(rule.condition),
+                    Expression(rule.condition, names=ANY_NAME),
                     where + ("next", "when", index, "condition"),
                 )
             )
@@ -1102,6 +1157,10 @@ def _build_context(
             put=None if task.put is None else task.put.transfer(),
             next=task.next_rules(),
             set=task.set,
+            vars=task.vars,
+            vars_once=task.vars_once,
+            on_start=task.on_start,
+            finish_vars=task.finish_vars,
             wait=task.wait,
             signal=task.signal,
             fail=task.fail,
@@ -1115,7 +1174,7 @@ def _build_context(
             ),
             subscribe=task.subscribe,
             on=[entry.entry() for entry in task.on],
-        )(_payload(task.payload, task.id_field, task.attributes, task.item_field))
+        )(_payload(task.payload, task.id_field, task.attributes, task.item_field, name))
 
     for process in blueprint.processes:
         context.add_process(process.function, **process.kwargs)
@@ -1145,6 +1204,131 @@ def _build_context(
         )
 
     return context
+
+
+def _locator(source: SourceMap) -> Callable[[Tuple[Any, ...]], str]:
+    """Gives the "file:line: dotted path" a generator reports when it fails."""
+
+    def locate(path: Tuple[Any, ...]) -> str:
+        return f"{source.path}:{source.line(path)}: " + ".".join(
+            str(part) for part in path
+        )
+
+    return locate
+
+
+def _value_sites(blueprint: Blueprint) -> Iterator[Tuple[Tuple[Any, ...], Any]]:
+    """Every place in a blueprint that takes values, outside the task keys that
+    `task_value_problems` reads: with its location."""
+    for name, arrival in blueprint.arrivals.items():
+        yield ("arrivals", name, "attributes"), arrival.attributes
+    for name, store in blueprint.stores.items():
+        yield ("stores", name, "items"), store.items
+    for name, signal in blueprint.signals.items():
+        yield ("signals", name, "on"), signal.on
+    for index, step in enumerate(blueprint.scenario):
+        yield ("scenario", index, "value"), step.value
+        yield ("scenario", index, "record"), step.record
+        yield ("scenario", index, "interrupt"), step.interrupt
+
+
+def _bind_values(blueprint: Blueprint, source: SourceMap) -> None:
+    """Gives every generator its place in the file: the dotted path that names its
+    random sequence, and the file and line its failures name."""
+    locate = _locator(source)
+    for name, task in blueprint.tasks.items():
+        for key in (
+            "payload",
+            "set",
+            "vars",
+            "vars_once",
+            "on_start",
+            "finish_vars",
+            "interrupt",
+            "on",
+            "wait",
+        ):
+            bind_values(getattr(task, key), ("tasks", name, key), locate)
+    for location, value in _value_sites(blueprint):
+        bind_values(value, location, locate)
+
+
+def _check_values(
+    blueprint: Blueprint, context: SimulationContext, source: SourceMap
+) -> None:
+    """Checks the generators of the file: var names and their order, `expr` names,
+    `fake` methods, `sample` services, `param` paths, `row` files and where
+    `omit_rate` and `omit_when` stand."""
+    registry = context._scratch_registry(isolated=True)
+    services = set(blueprint.services)
+    base_dir = source.path.parent
+    problems: List[Tuple[Tuple[Any, ...], str]] = []
+    for name, task in blueprint.tasks.items():
+        found = task_value_problems(
+            vars_once=task.vars_once,
+            vars=task.vars,
+            on_start=task.on_start,
+            finish_vars=task.finish_vars,
+            others={
+                "payload": task.payload if not callable(task.payload) else {},
+                "set": task.set,
+                "interrupt": task.interrupt,
+                "on": task.on,
+            },
+            wait_values={
+                location: value
+                for location, value in _timeout_values(task.wait, ("wait",))
+            },
+            services=services,
+            base_dir=base_dir,
+            registry=registry,
+            early_end=(
+                task.patience is not None
+                or task.balk is not None
+                or task.wait is not None
+                or task.on_interrupt == "abandon"
+                or any(
+                    blueprint.resources[resource].queue_limit is not None
+                    for resource in task.resources()
+                    if resource in blueprint.resources
+                )
+            ),
+        )
+        problems += [(("tasks", name) + where, text) for where, text in found]
+    for location, value in _value_sites(blueprint):
+        for where, text in check_value(
+            value,
+            location,
+            [],
+            in_task=False,
+            services=services,
+            base_dir=base_dir,
+            registry=registry,
+        ):
+            problems.append((where, text))
+    if problems:
+        raise BlueprintError(
+            "\n".join(
+                str(source.error(where, f"{'.'.join(str(p) for p in where)}: {text}"))
+                for where, text in problems
+            )
+        )
+
+
+def _timeout_values(
+    wait: Any, path: Tuple[Any, ...]
+) -> Iterator[Tuple[Tuple[Any, ...], Any]]:
+    """The `value` of every timeout in a wait as written, with where it is written."""
+    if not isinstance(wait, Mapping):
+        return
+    timeout = wait.get("timeout")
+    if isinstance(timeout, Mapping) and "value" in timeout:
+        yield path + ("timeout", "value"), timeout["value"]
+    for key in ("any", "all", "of"):
+        branches = wait.get(key)
+        if isinstance(branches, Mapping):
+            for name, branch in branches.items():
+                yield from _timeout_values(branch, path + (key, name))
 
 
 def _check_scenario(
@@ -1179,6 +1363,9 @@ def _check_scenario(
                 f"{context.sim_id}.resources.<name>.current_cap or "
                 f"{context.sim_id}.arrival.<name>.rate",
             ) from None
+        if has_generator(step.value):
+            # The value is known when the step is due, and checked then
+            continue
         if current is not None and not isinstance(step.value, type(current)):
             try:
                 type(current)(step.value)
@@ -1227,7 +1414,11 @@ def _warn_on_paths(
                     ),
                 )
                 continue
-            if current is not None and not isinstance(entry.value, type(current)):
+            if (
+                current is not None
+                and not has_generator(entry.value)
+                and not isinstance(entry.value, type(current))
+            ):
                 try:
                     type(current)(entry.value)
                 except (TypeError, ValueError):
@@ -1416,22 +1607,33 @@ def _payload(
     id_field: Union[str, None],
     attributes: List[str],
     item_field: Union[str, None] = None,
+    task_name: str = "task",
 ) -> Callable:
     """The task body: a `!python` payload function, or a copy of a mapping payload.
 
     A mapping payload gains the task id under `id_field`, the item its store get
     took under `item_field`, and the entity attributes `attributes` names, each
-    under its own name.
+    under its own name. A mapping that holds a generator is a `Template` the task
+    renders after its service, and these fields are written over the result.
     """
     if callable(payload):
         return payload
 
-    def make(task_id: int, entity: Any, item: Any = None) -> Dict[str, Any]:
-        event = dict(payload)
+    template = (
+        Template(payload, name=task_name, check=False)
+        if has_generator(payload)
+        else None
+    )
+
+    def make(task_id: int, entity: Any, item: Any = None) -> Any:
+        event: Dict[str, Any] = {} if template is not None else dict(payload)
         if id_field is not None:
             event[id_field] = task_id
         if item_field is not None:
             event[item_field] = item
+        if template is not None:
+            # The attributes are read when the payload is built, after the service
+            return BoundPayload(template, entity, event, attributes=attributes)
         for name in attributes:
             event[name] = entity.attributes.get(name)
         return event

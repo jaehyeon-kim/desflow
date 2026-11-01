@@ -45,6 +45,17 @@ def test_every_family_is_tried_and_the_best_has_the_lowest_aic():
         assert 0 <= row["ks_p_value"] <= 1 and row["log_likelihood"] < 0
 
 
+def test_the_counting_families_are_not_tried_unless_named():
+    """`poisson` and `geometric` count events, so a fit of times leaves them out; named,
+    they are skipped with a reason and not reported as a failure to fit."""
+    families = [c.family for c in fit_column(PACKING, lower=0).candidates]
+    assert "poisson" not in families and "geometric" not in families
+    named = fit_column(PACKING, candidates=["poisson", "geometric", "normal"])
+    for family in ("poisson", "geometric"):
+        row = _row(named, family)
+        assert row["status"] == "skipped" and "counts whole numbers" in row["reason"]
+
+
 def test_parameters_are_desflow_s_and_match_the_data():
     """Each fitted family's mean is close to the data's, in desflow's parameters."""
     result = fit_column(PACKING)

@@ -355,6 +355,7 @@ Options:
   --mode X   The most likely value.
   --shape X  The shape.
   --scale X  The scale.
+  --p X      The chance of success on each try.
   --help     Show this message and exit.
 
   Examples:

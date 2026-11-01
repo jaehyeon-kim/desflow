@@ -9,6 +9,8 @@ EXAMPLES: Dict[str, Dict[str, object]] = {
     "normal": {"mean": 3.0, "std": 0.5},
     "lognormal": {"mean": 4.0, "std": 3.0},
     "truncated_normal": {"mean": 1.0, "std": 1.0, "low": 0.0},
+    "poisson": {"mean": 3.0},
+    "geometric": {"p": 0.25},
     "constant": {"value": 1.5},
     "uniform": {"low": 1.0, "high": 2.0},
     "triangular": {"low": 1.0, "mode": 1.25, "high": 2.25},

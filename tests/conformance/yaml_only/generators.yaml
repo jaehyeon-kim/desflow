@@ -1,0 +1,73 @@
+# Every generator kind of Batch 4, once, in the places a model writes them. The unit tests
+# in tests/unit/test_values.py load this file and check what each kind gives.
+simulation: {sim_id: G, factor: 0, random_seed: 7, logical_start_time: "2026-01-01T00:00:00+00:00", timezone: UTC}
+variables: {limit: 5}
+services: {work: {dist: constant, value: 1}}
+stores:
+  shelf:
+    items:
+      - {gen: sequence, start: 10, step: 10}
+      - {gen: sequence, start: 10, step: 10}
+arrivals:
+  orders:
+    dist: constant
+    value: 2
+    spawn: order
+    attributes:
+      region: {gen: weighted, options: {north: 3, south: 1}}
+      size: {gen: switch, on: 7, cases: [{max: 5, value: small}, {min: 5, value: large}], default: none}
+tasks:
+  order:
+    service: work
+    vars_once:
+      customer: {gen: uuid}
+    vars:
+      amount: {gen: uniform, low: 2, high: 200, decimals: 2}
+      qty: {gen: integer, bounds: [1, 6]}
+    finish_vars:
+      total: {gen: multiply, args: [{gen: var, name: amount}, {gen: var, name: qty}], decimals: 2}
+    payload:
+      id: {gen: sequence, format: "o-{}"}
+      customer: {gen: var, name: customer}
+      amount: {gen: var, name: amount}
+      total: {gen: var, name: total}
+      normal: {gen: normal, mean: 10, std: 2, decimals: 1}
+      sampled: {gen: sample, dist: exponential, rate: 2, decimals: 3}
+      sampled_service: {gen: sample, service: work}
+      poisson: {gen: sample, dist: poisson, mean: 4}
+      geometric: {gen: sample, dist: geometric, p: 0.3}
+      one: {gen: one_of, choices: [a, b, c]}
+      priority: {gen: weighted, choices: [{value: high, weight: 1}, {value: low, weight: 9}]}
+      several: {gen: pick, choices: [a, b, c, d], count: 2}
+      flag: {gen: boolean, p: 0.25}
+      band: {gen: when, condition: "amount > 100", then: big, else: small}
+      region: {gen: attr, name: region}
+      moment: {gen: now}
+      later: {gen: add, args: [{gen: now}, 60]}
+      earlier: {gen: subtract, args: [{gen: now}, 60]}
+      stamp: {gen: format_time, format: "%Y-%m-%d %H:%M", tz: Australia/Melbourne}
+      day: {gen: format_time, time: 86400, format: epoch_s}
+      label: {gen: format, template: "{who}-{amount}", names: {who: {gen: upper, value: abc}}}
+      lower: {gen: lower, value: ABC}
+      name: {gen: fake, method: name}
+      sum: {gen: add, args: [1, 2, 3]}
+      difference: {gen: subtract, args: [10, 3, 2]}
+      divided: {gen: divide, args: [10, 4], decimals: 1}
+      least: {gen: min, args: [4, 2, 9]}
+      most: {gen: max, args: [4, 2, 9]}
+      computed: {gen: expr, expr: "amount * 2 + base", names: {base: 1}, decimals: 2}
+      limit: {gen: param, path: G.variables.limit}
+      rows: {gen: repeat, times: 2, value: {gen: integer, bounds: [0, 9]}}
+      literal: {gen: literal, value: {gen: not_evaluated}}
+      object: {gen: object, fields: {a: 1, b: {gen: sequence, start: 100}}}
+      called: {gen: call, function: !python generator_helpers.double, kwargs: {x: 21}}
+      product: {gen: row, file: generators.csv, order: sequential, on_end: loop}
+      shuffled: {gen: row, file: generators.csv, order: shuffle, on_end: loop}
+      circular: {gen: row, file: generators.csv, order: circular}
+      weighted_row: {gen: row, file: generators.csv, weight: weight}
+      filtered: {gen: row, file: generators.csv, where: "price > 3"}
+      maybe_null: {gen: integer, bounds: [1, 9], null_rate: 0.5}
+      maybe_missing: {gen: integer, bounds: [1, 9], omit_rate: 0.5}
+      missing_when: {gen: integer, bounds: [1, 9], omit_when: "amount > 0"}
+      distinct: {gen: integer, bounds: [1, 1000], unique: true}
+run: {until: 7}

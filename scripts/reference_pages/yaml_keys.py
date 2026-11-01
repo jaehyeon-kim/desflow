@@ -84,6 +84,24 @@ def yaml_keys_body(level: int = 2) -> List[str]:
             for nested in models_in(prop, defs):
                 if nested not in taken:
                     lines += section(nested, f"{sub} {nested}")
+    # The generators are reached through `Value`, which the schema writes as a
+    # condition on `gen`, so no key above links them; each kind is listed here
+    kinds = [
+        name
+        for name, node in defs.items()
+        if name not in taken and "gen" in node.get("properties", {})
+    ]
+    if kinds:
+        lines += [
+            f"{hashes} Generators",
+            "",
+            "A value place takes a constant or a generator: a mapping with a `gen` key "
+            "that names its kind. The keys of each kind follow. `null_rate`, `unique`, "
+            "`omit_rate` and `omit_when` go on any kind.",
+            "",
+        ]
+        for name in kinds:
+            lines += section(name, f"{sub} {name}")
     return lines
 
 

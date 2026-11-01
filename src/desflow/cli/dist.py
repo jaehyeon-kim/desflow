@@ -8,7 +8,18 @@ import typer
 from desflow.cli._common import fail
 
 # The options that take a family's parameters, in the order the help lists them
-_OPTIONS = ("rate", "mean", "std", "low", "value", "high", "mode", "shape", "scale")
+_OPTIONS = (
+    "rate",
+    "mean",
+    "std",
+    "low",
+    "value",
+    "high",
+    "mode",
+    "shape",
+    "scale",
+    "p",
+)
 
 
 # The examples --help prints after the options, as odctl's help does
@@ -59,6 +70,7 @@ def _dist(
     mode: Annotated[Optional[float], _option("The most likely value.")] = None,
     shape: Annotated[Optional[float], _option("The shape.")] = None,
     scale: Annotated[Optional[float], _option("The scale.")] = None,
+    p: Annotated[Optional[float], _option("The chance of success on each try.")] = None,
 ) -> None:
     """List the distribution families, or convert parameters to a mean and std and back.
 
@@ -82,7 +94,7 @@ def _dist(
     given = {
         name: number
         for name, number in zip(
-            _OPTIONS, (rate, mean, std, low, value, high, mode, shape, scale)
+            _OPTIONS, (rate, mean, std, low, value, high, mode, shape, scale, p)
         )
         if number is not None
     }

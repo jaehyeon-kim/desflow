@@ -272,6 +272,7 @@
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_priority_resource_request
     - tests/conformance/test_c4_resources.py::test_c4_priority_request_with_mixed_preempt_flags
+    - tests/conformance/test_yaml_only.py::test_v4_a_value_drawn_for_each_entity_orders_a_priority_queue
   page: user-guide/resources/priority-and-preemption.md#task-priority
   differences: Equal priorities are served first in, first out, as in SimPy; desflow also offers `fifo` and `lifo` queues, under which a request's priority is ignored.
 
@@ -1166,6 +1167,7 @@
   low_level: "`env.timeout(delay, value)`"
   checks:
     - tests/conformance/test_c1_events.py::test_c1_timeout_value
+    - tests/conformance/test_yaml_only.py::test_v3_computed_values_in_a_write_a_cause_and_a_timeout_value
   page: user-guide/tasks-and-processes/signals-and-waiting.md#wait-signals-and-child-flows
 
 - id: C1

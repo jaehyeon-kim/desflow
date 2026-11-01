@@ -174,6 +174,19 @@ def _truncated_moments(c: Any) -> Tuple[float, float]:
     return mean, variance
 
 
+# --- poisson and geometric ---------------------------------------------------
+
+
+def _check_poisson(c: Any) -> None:
+    _not_negative(c, "mean")
+
+
+def _check_geometric(c: Any) -> None:
+    _require(c, "p")
+    if not 0 < c.p <= 1:
+        raise ValueError(f"geometric p must be above 0 and at most 1, got {c.p}")
+
+
 # --- constant ----------------------------------------------------------------
 
 
@@ -499,6 +512,34 @@ DISTRIBUTIONS: Dict[str, Distribution] = _distributions(
         mean=lambda c: _truncated_moments(c)[0],
         variance=lambda c: _truncated_moments(c)[1],
         fixed=lambda c: max(c.mean, c.low),
+        no_formula=_NO_FORMULA,
+    ),
+    Distribution(
+        name="poisson",
+        summary="A count of events: whole numbers from 0, with the given mean, such "
+        "as the orders in a minute.",
+        parameters=("mean",),
+        required=("mean",),
+        rules="mean >= 0; every draw is a whole number from 0",
+        check=_check_poisson,
+        draw=lambda c, rng: int(rng.poisson(c.mean)),
+        mean=_mean_of,
+        variance=_mean_of,
+        fixed=_mean_of,
+        no_formula=_NO_FORMULA,
+    ),
+    Distribution(
+        name="geometric",
+        summary="The number of tries up to and including the first success, each "
+        "with probability p: whole numbers from 1.",
+        parameters=("p",),
+        required=("p",),
+        rules="0 < p <= 1; every draw is a whole number from 1",
+        check=_check_geometric,
+        draw=lambda c, rng: int(rng.geometric(c.p)),
+        mean=lambda c: 1.0 / c.p,
+        variance=lambda c: (1.0 - c.p) / c.p**2,
+        fixed=lambda c: 1.0 / c.p,
         no_formula=_NO_FORMULA,
     ),
     Distribution(

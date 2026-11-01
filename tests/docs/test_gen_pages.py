@@ -237,11 +237,13 @@ def test_every_gap_is_used_defined_and_linked_to_a_form():
     for gap in ("S1", "S2", "S3", "S4", "S5"):
         assert gap not in data["gaps"]
     # The run and time rules (T1 to T8, T13 and T14) are removed by Batch 1 of 1.0.0;
-    # the T10 and V3 rows ship in 0.31.0
+    # the T10 row ships in 0.31.0
     for number in (*range(1, 9), 13, 14):
         assert f"T{number}" not in data["gaps"]
-    for gap in ("T10", "V3"):
-        assert data["gaps"][gap]["fixed"] == "0.31.0"
+    assert data["gaps"]["T10"]["fixed"] == "0.31.0"
+    # Batch 4 of 1.0.0 removes V3 and V4
+    for gap in ("V3", "V4"):
+        assert gap not in data["gaps"] and gap not in data["unattached"]
     # Batch 2 of 1.0.0 removes T9, T11, I5, I8, I9 and H3
     for gap in ("T9", "T11", "I5", "I8", "I9", "H3"):
         assert gap not in data["gaps"]
@@ -262,11 +264,11 @@ def test_every_gap_is_used_defined_and_linked_to_a_form():
 
 
 def test_gaps_that_belong_to_no_feature_are_named_on_the_page():
-    """V4, V10, B1 and B3 are written in plain Python by a SimPy program, so no
+    """V10, B1 and B3 are written in plain Python by a SimPy program, so no
     feature row holds them; a paragraph names each with its `!python` form."""
     data = gen_pages.constructs()
     page = gen_pages.compatibility_page()
-    assert list(data["unattached"]) == ["V4", "V10", "B1", "B3"]
+    assert list(data["unattached"]) == ["V10", "B1", "B3"]
     used = {g for c in data["constructs"] for g in c.get("gaps", [])}
     for gap, info in data["unattached"].items():
         assert gap not in used and gap not in data["gaps"]
@@ -283,7 +285,6 @@ def test_a_row_shown_native_has_no_gap_that_says_otherwise():
     rows = {c["id"]: c.get("gaps", []) for c in gen_pages.constructs()["constructs"]}
     for construct, gap in (
         ("SP-P10", "V7"),
-        ("SP-P10", "V3"),
         ("SP-S6", "V7"),
         ("SP-S11", "V7"),
         ("SP-S14", "I6"),

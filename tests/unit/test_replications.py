@@ -581,3 +581,41 @@ def test_a_low_level_stop_that_is_not_a_function_is_refused():
     for stop in ({"signal": "closing"}, "closing"):
         with pytest.raises(ValueError, match="a function of the environment"):
             replicate(LowLevelModel(low_level, "Shop"), 2, seed=1, until=50, stop=stop)
+
+
+def test_an_infinite_measure_has_an_infinite_mean_and_no_half_width():
+    """The capacity of an unbounded store is infinite, so its replications have no
+    spread; `statistics.stdev` raised an AttributeError on them."""
+    import math
+
+    result = interval([math.inf, math.inf, math.inf])
+    assert result.n == 3 and math.isinf(result.mean)
+    assert math.isnan(result.half_width) and math.isnan(result.std)
+    assert math.isnan(interval([1.0, math.nan]).half_width)
+
+
+def test_run_replications_summarises_an_unbounded_store(tmp_path):
+    path = tmp_path / "unbounded.yaml"
+    path.write_text(
+        "simulation: {sim_id: U, factor: 0, random_seed: 1}\n"
+        "stores: {shelf: {}}\n"
+        "arrivals: {a: {dist: constant, value: 1, spawn: t}}\n"
+        "tasks:\n  t: {payload: {e: 1}, put: {store: shelf}}\n"
+        "run: {until: 5}\n"
+    )
+    result = CliRunner().invoke(cli, ["run", str(path), "--replications", "3"])
+    assert result.exit_code == 0, result.output
+    assert "stores.shelf.level_avg" in result.output
+
+
+def test_run_replications_of_a_blueprint_with_no_statistics_rows(tmp_path):
+    """Issue 106: a blueprint with no arrival has no measure, and the summary table
+    raised a TypeError on its empty rows."""
+    path = tmp_path / "bare.yaml"
+    path.write_text(
+        "simulation: {sim_id: N, factor: 0, random_seed: 1}\n"
+        "tasks:\n  t: {payload: {e: 1}}\nrun: {until: 5}\n"
+    )
+    result = CliRunner().invoke(cli, ["run", str(path), "--replications", "2"])
+    assert result.exit_code == 0, result.output
+    assert "measure" in result.output and "Seed 1" in result.output

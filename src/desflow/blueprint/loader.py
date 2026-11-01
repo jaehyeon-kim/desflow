@@ -345,6 +345,36 @@ def _keep_on_keys(
                 item(member)
 
 
+def _keep_switch_on(node: yaml.Node) -> None:
+    """Keeps the key `on` a string in a `{gen: switch, on: ...}` mapping.
+
+    YAML 1.1 reads the bare word `on` as the boolean True, so the `on` of a `switch`
+    generator would be refused as a key that is not a string. Only a mapping whose
+    `gen` is `switch` changes; every other mapping keeps today's reading.
+    """
+    if isinstance(node, yaml.SequenceNode):
+        for member in node.value:
+            _keep_switch_on(member)
+    elif isinstance(node, yaml.MappingNode):
+        switch = any(
+            isinstance(key, yaml.ScalarNode)
+            and key.value == "gen"
+            and isinstance(value, yaml.ScalarNode)
+            and value.value == "switch"
+            for key, value in node.value
+        )
+        for key, value in node.value:
+            if (
+                switch
+                and isinstance(key, yaml.ScalarNode)
+                and key.tag == _BOOL_TAG
+                and key.value.lower() == "on"
+            ):
+                key.tag = _STR_TAG
+                key.value = "on"
+            _keep_switch_on(value)
+
+
 def read_document(
     path: Union[str, Path],
     including: Tuple[Path, ...] = (),
@@ -390,6 +420,7 @@ def read_document(
             raise BlueprintError(f"{path}:1: the file is empty")
         includes: Dict[yaml.Node, str] = {}
         _keep_on_keys(node, includes, at)
+        _keep_switch_on(node)
         loader.includes = includes  # type: ignore[attr-defined]
         _record_lines(node, (), lines)
         data = loader.construct_document(node)

@@ -577,3 +577,18 @@ The builder and YAML start these SimPy processes and readers for you. Low-level 
 ::: desflow.connectors.egress.kafka.SerializationError
     options:
       heading_level: 3
+
+<!-- prettier-ignore -->
+::: desflow.values.Template
+    options:
+      heading_level: 3
+
+<!-- prettier-ignore -->
+::: desflow.values.BoundPayload
+    options:
+      heading_level: 3
+
+<!-- prettier-ignore -->
+::: desflow.values.generator
+    options:
+      heading_level: 3

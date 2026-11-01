@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from desflow.core.environment import DynamicRealtimeEnvironment
-from desflow.core.expressions import Expression, Scope
+from desflow.core.expressions import ANY_NAME, Expression, Scope
 from desflow.models.params import DistributionConfig, SimParameter
 
 
@@ -58,7 +58,7 @@ def test_allowed_forms_evaluate(scope, text, expected):
         ("total > 100", "the name 'total'"),
         ("payload['total'] > 1", "an index other than"),
         ("registry[0]", "an index other than"),
-        ("payload.total ** 2", "Pow"),
+        ("payload.total @ 2", "MatMult"),
         ("attr.flags & 1", "BitAnd"),
         ("~attr.flags", "Invert"),
         ('payload.channel in "web"', "in or not in with anything but items("),
@@ -109,6 +109,8 @@ def test_references_name_each_source():
         "signal": {"restocked"},
         "process": set(),
         "registry": {"Shop.arrival.orders.rate"},
+        "name": set(),
+        "has": set(),
     }
 
 
@@ -216,7 +218,7 @@ def test_an_empty_store_counts_zero():
 @pytest.mark.parametrize(
     "text,fragment",
     [
-        ("sum(shelf)", "a Call other than count(<store>) or items(<store>)"),
+        ("sum(shelf)", "a Call other than count(<store>), items(<store>)"),
         ("count(shelf.x)", "of anything but a bare store name"),
         ("count(level.shelf)", "of anything but a bare store name"),
         ("count()", "count() with other arguments"),
@@ -297,3 +299,67 @@ def test_record_expressions_refuse_other_names(text, fragment):
 def test_record_is_refused_outside_an_egress_when():
     with pytest.raises(ValueError, match="only an egress when reads"):
         Expression("record.key == 'a'")
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("2 ** 10", 1024),
+        ("2 ** -1", 0.5),
+        ("payload.total ** 2", 14400.0),
+        ("-2 ** 2", -4),
+        ("abs(-3)", 3),
+        ("min(attr.priority, 4, 9)", 1),
+        ("max(1, 2.5)", 2.5),
+        ("round(2.567, 1)", 2.6),
+        ("round(2.5)", 2),
+        ("floor(2.7) + ceil(2.1)", 5),
+        ("sqrt(16)", 4.0),
+        ("exp(0)", 1.0),
+        ("log(8, 2)", 3.0),
+        ("log10(1000)", 3.0),
+        ("sin(0) + cos(0) + tan(0)", 1.0),
+        ("has(attr.priority)", True),
+        ("has(attr.missing)", False),
+        ("attr.priority if has(attr.priority) else 0", 1),
+    ],
+)
+def test_powers_math_calls_and_has(scope, text, expected):
+    assert Expression(text).evaluate(scope) == pytest.approx(expected)
+
+
+def test_bare_names_read_the_scope_names(scope):
+    scope.names = {"base": 3, "rate": 0.5}
+    expression = Expression("base * rate + 1", names=("base", "rate"))
+    assert expression.evaluate(scope) == 2.5
+    assert expression.references["name"] == {"base", "rate"}
+    assert Expression("base", names=ANY_NAME).references["name"] == {"base"}
+
+
+@pytest.mark.parametrize(
+    "text,fragment",
+    [
+        ("2 ** 10001", "too large"),
+        ("9 ** 9 ** 9", "too large"),
+        ("(10**5000) ** 5000", "too large"),
+        ("(10**200) ** 9000", "too large"),
+        ("sqrt()", "sqrt() with other arguments"),
+        ("min(1)", "min() with other arguments"),
+        ("round(1, 2, 3)", "round() with other arguments"),
+        ("abs(x=1)", "abs() with other arguments"),
+        ("has(payload.x)", "has() with anything but one attr.<name>"),
+        ("has(attr.a, attr.b)", "has() with anything but one attr.<name>"),
+        ("has(attr.__x)", "has() with anything but one attr.<name>"),
+    ],
+)
+def test_powers_calls_and_has_are_refused_or_fail_with_the_expression(
+    scope, text, fragment
+):
+    with pytest.raises(ValueError) as error:
+        Expression(text).evaluate(scope)
+    assert fragment in str(error.value)
+
+
+def test_a_math_error_fails_with_the_expression(scope):
+    with pytest.raises(ValueError, match="cannot evaluate 'sqrt\\(-1\\)'"):
+        Expression("sqrt(-1)").evaluate(scope)

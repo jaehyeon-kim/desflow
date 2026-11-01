@@ -11,13 +11,19 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, Iterator, Optional
+from typing import Any, Dict, Iterator, Optional, get_args
 
 import yaml
 from jsonschema import Draft202012Validator
 
 from desflow.blueprint import models
-from desflow.blueprint.loader import BlueprintLoader, _keep_on_keys, substitute
+from desflow.blueprint.build import _file_location
+from desflow.blueprint.loader import (
+    BlueprintLoader,
+    _keep_on_keys,
+    _keep_switch_on,
+    substitute,
+)
 from desflow.blueprint.schema import schema_text
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -101,6 +107,7 @@ def _read(path: Path, at: Optional[str] = None) -> Dict[str, Any]:
         assert node is not None
         includes: Dict[Any, str] = {}
         _keep_on_keys(node, includes, at)
+        _keep_switch_on(node)
         setattr(loader, "includes", includes)
         return loader.construct_document(node)
     finally:
@@ -180,15 +187,18 @@ def _at(data: Any, path: tuple) -> Any:
 
 def _untagged(loc: Any) -> tuple:
     """A model error's location without the names pydantic adds for the members of a
-    union, such as `list[RunSegment]` or `SegmentEvery` for `run.segments`."""
+    union, such as `list[RunSegment]` or `SegmentEvery` for `run.segments`, and the
+    tags of a value (`<gen>`, `<map>` and the kind after `<gen>`)."""
     return tuple(
         step
-        for step in loc
+        for step in _file_location(tuple(loc))
         if not (isinstance(step, str) and ("[" in step or step in UNION_MEMBERS))
     )
 
 
-UNION_MEMBERS = {"SegmentEvery"}
+UNION_MEMBERS = {"SegmentEvery", "TimeoutAfter"} | {
+    member.__name__ for member in get_args(models.WaitBranch)
+}
 
 
 def _model_errors(data: Any) -> set:
@@ -206,6 +216,26 @@ def _same_place(loc: tuple, here: tuple) -> bool:
     if loc[: len(here)] == here:
         return True
     return here[: len(loc)] == loc and loc[-1:] in (("wait",), ("subscribe",))
+
+
+def test_a_generator_nested_in_a_value_is_checked_by_the_schema():
+    """A mapping or list without `gen` is data, but a generator inside it is still a
+    generator, so an editor flags a kind that does not exist at any depth."""
+    validator = Draft202012Validator(SCHEMA)
+    base = {
+        "simulation": {"sim_id": "S", "factor": 0},
+        "arrivals": {"a": {"dist": "constant", "value": 1, "spawn": "t"}},
+        "tasks": {"t": {"payload": {}}},
+    }
+
+    def refused(payload: object) -> bool:
+        data = {**base, "tasks": {"t": {"payload": payload}}}
+        return bool(list(validator.iter_errors(data)))
+
+    assert not refused({"a": {"b": {"gen": "uniform", "low": 0, "high": 1}}})
+    assert not refused({"a": [1, {"gen": "uuid"}], "b": {"c": 2}})
+    assert refused({"a": {"b": {"gen": "nosuch"}}})
+    assert refused({"a": [1, {"gen": "nosuch"}]})
 
 
 def test_unknown_key_is_refused_at_every_level():

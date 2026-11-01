@@ -2,7 +2,8 @@
 
 An expression is parsed with Python's `ast` and every node is checked before it is
 ever evaluated; nothing goes through `eval`. It allows numbers, arithmetic (`+`, `-`,
-`*`, `/`, `//`, `%`), comparisons (`<`, `<=`, `>`, `>=`, `==`, `!=`), `and`, `or`,
+`*`, `/`, `//`, `%`, `**`), the calls `abs`, `min`, `max`, `round`, `floor`, `ceil`,
+`sqrt`, `exp`, `log`, `log10`, `sin`, `cos` and `tan`, comparisons (`<`, `<=`, `>`, `>=`, `==`, `!=`), `and`, `or`,
 `not`, the conditional form `a if c else b`, `True` and `False`, and string constants
 compared with `==`, `!=`, `in` or `not in`. The arithmetic is Python's: `/` gives a
 float, and `//` rounds down and gives an integer for two integers. `and` and `or`
@@ -25,12 +26,25 @@ operand that cannot be evaluated fails the expression. Each name carries its sou
 | `process.name`, `.instance`, `.target` | the running task's name, its instance id, and what it waits on now (`timeout`, `signal.<n>`, `task.<n>`, `condition`, `resource.<n>`, `get.<n>`, `put.<n>`, `service`), None once ended |
 | `registry["Shop.arrival.orders.rate"]` | a registry value, by path |
 | `t` | the simulation time in seconds |
+| `has(attr.risk)` | whether the entity has the attribute `risk` |
+| `total`, `price` | a var of the task, or a name of an `expr` generator, read bare; only in a place evaluated after the payload is built (`put`, `fail`, `next.when`) and in `expr` |
 | `record.stream_type`, `record.key`, `record.task`, `record.value.status` | in an egress `when` only: a field of the record the sink is offered, which is None when the record has none (a telemetry record has no key and no task); `record.value.<field>` is None when the value is not a mapping or lacks the field |
 """
 
 import ast
+import math
 from dataclasses import dataclass, field, replace
-from typing import Any, Callable, Dict, List, Mapping, Optional, Set, Tuple
+from typing import (
+    Any,
+    Callable,
+    Container,
+    Dict,
+    List,
+    Mapping,
+    Optional,
+    Set,
+    Tuple,
+)
 
 _PREFIXES = (
     "payload",
@@ -46,6 +60,33 @@ _PREFIXES = (
 _CALLS = ("count", "items")
 # A two-part source with a fixed set of attributes, unlike the open `_PREFIXES`.
 _PROCESS = ("name", "instance", "target")
+# An exponent above this with a base other than -1, 0 or 1 is refused, because
+# `9 ** 9 ** 9` would hold the run for hours
+_LARGEST_EXPONENT = 10_000
+# The most bits a whole-number power may have, estimated as the bits of the base times
+# the exponent, so a large base with a small exponent is refused too
+_LARGEST_POWER_BITS = 1_000_000
+
+
+def _power(base: Any, exponent: Any) -> Any:
+    """`base ** exponent`, refusing a whole-number power too large to compute."""
+    if (
+        isinstance(exponent, int)
+        and isinstance(base, int)
+        and exponent > _LARGEST_EXPONENT
+        and abs(base) > 1
+    ):
+        raise OverflowError(f"the power {base} ** {exponent} is too large")
+    if (
+        isinstance(exponent, int)
+        and isinstance(base, int)
+        and exponent > 0
+        and abs(base).bit_length() * exponent > _LARGEST_POWER_BITS
+    ):
+        raise OverflowError("the power is too large to compute")
+    return base**exponent
+
+
 _ARITHMETIC: Dict[type, Callable[[Any, Any], Any]] = {
     ast.Add: lambda a, b: a + b,
     ast.Sub: lambda a, b: a - b,
@@ -53,7 +94,67 @@ _ARITHMETIC: Dict[type, Callable[[Any, Any], Any]] = {
     ast.Div: lambda a, b: a / b,
     ast.FloorDiv: lambda a, b: a // b,
     ast.Mod: lambda a, b: a % b,
+    ast.Pow: _power,
 }
+# The calls on numbers, each with the fewest and most arguments it takes
+_FUNCTIONS: Dict[str, Tuple[Callable[..., Any], int, Optional[int]]] = {
+    "abs": (abs, 1, 1),
+    "min": (min, 2, None),
+    "max": (max, 2, None),
+    "round": (round, 1, 2),
+    "floor": (math.floor, 1, 1),
+    "ceil": (math.ceil, 1, 1),
+    "sqrt": (math.sqrt, 1, 1),
+    "exp": (math.exp, 1, 1),
+    "log": (math.log, 1, 2),
+    "log10": (math.log10, 1, 1),
+    "sin": (math.sin, 1, 1),
+    "cos": (math.cos, 1, 1),
+    "tan": (math.tan, 1, 1),
+}
+# Names an expression gives a meaning, so a var cannot take them. The words from `all`
+# to `waiting` are names that later batches give a meaning (the Y5 functions, the
+# `cause`, `upstream` and `arg` names and the resource names of the Facts table), so a
+# var that took one would break when they ship
+RESERVED_NAMES = frozenset(
+    _PREFIXES
+    + _CALLS
+    + ("wait", "signal", "process", "record", "registry", "t", "has")
+    + tuple(_FUNCTIONS)
+    + (
+        "all",
+        "any",
+        "arg",
+        "batch",
+        "bool",
+        "cause",
+        "done_count",
+        "drop_key",
+        "each",
+        "float",
+        "get_key",
+        "getting",
+        "handle",
+        "held",
+        "holder",
+        "int",
+        "item_priority",
+        "len",
+        "member",
+        "members",
+        "peek",
+        "putting",
+        "range",
+        "request",
+        "running",
+        "set_key",
+        "sorted",
+        "str",
+        "sum",
+        "upstream",
+        "waiting",
+    )  # fmt: skip
+)
 _COMPARISONS: Dict[type, Callable[[Any, Any], bool]] = {
     ast.Lt: lambda a, b: a < b,
     ast.LtE: lambda a, b: a <= b,
@@ -140,6 +241,7 @@ class Scope:
             `process.<part>`.
         record: The record an egress `when` is offered, read as `record.stream_type`,
             `record.key`, `record.task` and `record.value.<field>`.
+        names: The bare names: a task's vars, and the names of an `expr` generator.
     """
 
     payload: Mapping[str, Any] = field(default_factory=dict)
@@ -153,6 +255,18 @@ class Scope:
     signals: Mapping[str, Any] = field(default_factory=dict)
     process: Mapping[str, Any] = field(default_factory=dict)
     record: Optional[Mapping[str, Any]] = None
+    names: Mapping[str, Any] = field(default_factory=dict)
+
+
+class AnyName:
+    """The `names` of an `Expression` that accepts every bare name, so a loader can
+    check them later against the vars it finds (`Expression.references["name"]`)."""
+
+    def __contains__(self, name: object) -> bool:
+        return True
+
+
+ANY_NAME = AnyName()
 
 
 class Expression:
@@ -163,13 +277,20 @@ class Expression:
         text (str): The expression as written.
         references (Dict[str, Set[str]]): The names it reads, by source: `payload`,
             `attr`, `level`, `users`, `queue`, `putters`, `getters`, `item`, `wait`,
-            `signal`, `process` and `registry`, so a loader can check them in
-            advance. `count` and `items` hold the store names the two functions
-            read, and `store_item` the `item.<field>` names inside them, which
-            read each item the store holds and not the item of a get.
+            `signal`, `process`, `registry` and `name` (the bare names), so a loader
+            can check them in advance. `count` and `items` hold the store names the
+            two functions read, and `store_item` the `item.<field>` names inside
+            them, which read each item the store holds and not the item of a get.
+            `has` holds the attribute names `has(attr.<name>)` tests, which need not
+            exist.
     """
 
-    def __init__(self, text: str, records: bool = False):
+    def __init__(
+        self,
+        text: str,
+        records: bool = False,
+        names: Optional[Container[str]] = None,
+    ):
         """
         Parses and checks an expression.
 
@@ -178,6 +299,9 @@ class Expression:
             records: True for an egress `when`, whose expression reads the record
                 (`record.stream_type`, `record.key`, `record.task` and
                 `record.value.<field>`) and nothing else.
+            names: The bare names it may read, such as a task's vars. None refuses
+                every bare name but `t`; `ANY_NAME` accepts any, for a loader that
+                checks them against the vars afterwards.
 
         Raises:
             ValueError: If it is not valid Python or uses anything outside the
@@ -187,6 +311,7 @@ class Expression:
             raise ValueError(f"an expression must be text, got {text!r}")
         self.text = text
         self._records = records
+        self._names = names
         try:
             tree = ast.parse(text.strip(), mode="eval")
         except SyntaxError as exc:
@@ -207,6 +332,8 @@ class Expression:
             "signal": set(),
             "process": set(),
             "registry": set(),
+            "name": set(),
+            "has": set(),
         }
         # The record names an egress `when` reads, such as `value.event_type`
         self.record_names: Set[str] = set()
@@ -240,7 +367,7 @@ class Expression:
         """
         try:
             return self._value(self._tree, scope)
-        except (KeyError, ArithmeticError, TypeError) as exc:
+        except (KeyError, ArithmeticError, TypeError, ValueError) as exc:
             reason = exc.args[0] if isinstance(exc, KeyError) else exc
             raise ValueError(f"cannot evaluate '{self.text}': {reason}") from None
 
@@ -259,6 +386,9 @@ class Expression:
             raise self._refuse(f"the constant {node.value!r}")
         if isinstance(node, ast.Name):
             if node.id == "t" and not self._records:
+                return
+            if not self._records and self._names is not None and node.id in self._names:
+                self.references["name"].add(node.id)
                 return
             if self._records and node.id == "t":
                 raise self._refuse(
@@ -399,11 +529,54 @@ class Expression:
         )
 
     def _check_call(self, node: ast.Call) -> None:
+        """Checks a call: `count(<store>)` or `items(<store>)`, `has(attr.<name>)`, or
+        one of the functions on numbers."""
+        func = node.func
+        if isinstance(func, ast.Name) and func.id == "has":
+            self._check_has(node)
+            return
+        if isinstance(func, ast.Name) and func.id in _FUNCTIONS:
+            self._check_function(node, func.id)
+            return
+        self._check_store_call(node)
+
+    def _check_has(self, node: ast.Call) -> None:
+        """Checks `has(attr.<name>)`."""
+        argument = node.args[0] if len(node.args) == 1 else None
+        if node.keywords or not (
+            isinstance(argument, ast.Attribute)
+            and isinstance(argument.value, ast.Name)
+            and argument.value.id == "attr"
+            and not argument.attr.startswith("__")
+        ):
+            raise self._refuse("has() with anything but one attr.<name> (has(attr.x))")
+        self.references["has"].add(argument.attr)
+
+    def _check_function(self, node: ast.Call, name: str) -> None:
+        """Checks a call of a function on numbers: its arguments are expressions."""
+        _function, fewest, most = _FUNCTIONS[name]
+        count = len(node.args)
+        if node.keywords or count < fewest or (most is not None and count > most):
+            wanted = (
+                f"{fewest}"
+                if fewest == most
+                else f"{fewest} or more"
+                if most is None
+                else f"{fewest} to {most}"
+            )
+            raise self._refuse(f"{name}() with other arguments (it takes {wanted})")
+        for argument in node.args:
+            self._check(argument, False)
+
+    def _check_store_call(self, node: ast.Call) -> None:
         """Checks a `count(...)` or `items(...)` call: a bare store name, then an
         optional condition (`count`) or `item.<field>` (`items`)."""
         func = node.func
         if not (isinstance(func, ast.Name) and func.id in _CALLS):
-            raise self._refuse("a Call other than count(<store>) or items(<store>)")
+            raise self._refuse(
+                "a Call other than count(<store>), items(<store>), has(attr.<name>) "
+                f"or {', '.join(_FUNCTIONS)}"
+            )
         name = func.id
         if self._in_call:
             raise self._refuse(f"{name}() inside count() or items()")
@@ -435,8 +608,13 @@ class Expression:
             self._in_call = False
 
     def _call(self, node: ast.Call, scope: Scope) -> Any:
-        """The value of `count(...)` or `items(...)` for a scope."""
+        """The value of a call for a scope."""
         name = node.func.id  # type: ignore[attr-defined]
+        if name == "has":
+            return node.args[0].attr in scope.attributes  # type: ignore[attr-defined]
+        if name in _FUNCTIONS:
+            function = _FUNCTIONS[name][0]
+            return function(*(self._value(a, scope) for a in node.args))
         store = node.args[0].id  # type: ignore[attr-defined]
         holder = scope.levels.get(store)
         if holder is None or not hasattr(holder, "putters_waiting"):
@@ -460,7 +638,11 @@ class Expression:
         if isinstance(node, ast.Call):
             return self._call(node, scope)
         if isinstance(node, ast.Name):
-            return scope.now
+            if node.id == "t":
+                return scope.now
+            if node.id not in scope.names:
+                raise KeyError(f"'{node.id}' is not a var that has a value yet")
+            return scope.names[node.id]
         if isinstance(node, ast.Attribute):
             parts = _record_parts(node)
             if parts is not None:

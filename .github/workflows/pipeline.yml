@@ -184,15 +184,24 @@ jobs:
               accept = _BlueprintFilter(Path("shop.yaml"))
               assert accept(1, str(Path("shop.yaml").resolve()))
               assert not accept(1, str(Path("other.yaml").resolve()))
+          - extra: fake
+            check: |
+              from faker import Faker
+
+              from desflow.values import Template
+
+              # gen: fake imports Faker when it is first used
+              Template({"name": {"gen": "fake", "method": "name"}}, name="t")
+              assert Faker("en_US").name()
           - extra: all
             check: |
-              # all names every other extra, fit included
+              # all names every other extra, fit and fake included
               import importlib.util
 
               for module in (
                   "aiokafka", "fastavro", "fastjsonschema", "httpx", "boto3", "redis",
                   "asyncpg", "pyarrow", "pyiceberg", "scipy", "matplotlib",
-                  "jsonschema", "google.protobuf",
+                  "jsonschema", "google.protobuf", "faker",
               ):
                   assert importlib.util.find_spec(module), module
     steps:
@@ -259,7 +268,7 @@ jobs:
         # --python is what selects the interpreter. `uv python install` above only
         # downloads it, so without this every leg of the matrix would run the
         # version in .python-version and the other four would test nothing new.
-        run: uv run --python ${{ matrix.python-version }} --with pytest-cov --all-extras pytest tests/unit/ tests/conformance/ -n auto --cov=src/desflow --cov-report=xml
+        run: uv run --python ${{ matrix.python-version }} --with pytest-cov --all-extras pytest tests/unit/ tests/conformance/ tests/benchtop/ -n auto --cov=src/desflow --cov-report=xml
 
   # SimPy is what desflow is checked against, so the conformance tests run at both
   # ends of the `simpy` requirement: the floor in pyproject.toml and the newest

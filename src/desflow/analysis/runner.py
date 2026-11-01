@@ -150,7 +150,7 @@ class Replications:
     def summary_text(self) -> str:
         """The summary as a table: each measure's n, mean and half-width."""
         rows = self.summary
-        width = max(len("measure"), *(len(row["measure"]) for row in rows))
+        width = max([len("measure"), *(len(row["measure"]) for row in rows)])
         heading = f"half-width ({self.level * 100:g}%)"
         lines = [f"{'measure':<{width}}  {'n':>4}  {'mean':>12}  {heading:>18}"]
         for row in rows:

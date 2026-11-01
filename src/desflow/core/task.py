@@ -29,11 +29,14 @@ from simpy import Interrupt
 from simpy.events import Condition
 from simpy.resources.resource import Preempted
 
-from desflow.core.expressions import Expression, Scope
+from desflow.core.expressions import ANY_NAME, Expression, Scope
 from desflow.core.flow import Router, Transfer, Wait, as_given, make_scope
 from desflow.resources.resource import QueueFull
 from desflow.models.flow import Entity, Upstream
 from desflow.utils import suggestion
+from desflow.values.models import has_generator
+from desflow.values.runtime import RunStopped
+from desflow.values.template import BoundPayload, Template
 
 if TYPE_CHECKING:
     from desflow.core.context import SimulationContext
@@ -112,8 +115,18 @@ class TaskSpec:
         spawn: Optional[Dict[str, Any]] = None,
         subscribe: Optional[Wait] = None,
         on: Optional[List[Dict[str, Any]]] = None,
+        vars: Optional[Dict[str, Any]] = None,
+        vars_once: Optional[Dict[str, Any]] = None,
+        on_start: Optional[Dict[str, Any]] = None,
+        finish_vars: Optional[Dict[str, Any]] = None,
     ):
         self.name = name
+        # The named values and the started record, each a mapping of generators; the
+        # values may be validated `Value`s or plain data
+        self.vars: Dict[str, Any] = dict(vars or {})
+        self.vars_once: Dict[str, Any] = dict(vars_once or {})
+        self.on_start: Dict[str, Any] = dict(on_start or {})
+        self.finish_vars: Dict[str, Any] = dict(finish_vars or {})
         self.service_id = service_id
         self.key_field = key_field
         # Every resource it holds, acquired in this order; resource_id is the first
@@ -151,10 +164,18 @@ class TaskSpec:
         self.on_balk = on_balk
         self.service_time = service_time
         self.attribute_changes = dict(attribute_changes or {})
+        # Whether `set` and the cause of `interrupt` hold a generator, which is
+        # evaluated when it is used; a plain one is used as it is
+        self.set_generated = has_generator(self.attribute_changes)
+        self.cause_generated = interrupt is not None and has_generator(
+            interrupt.get("cause")
+        )
         self.rank_of = Expression(priority) if isinstance(priority, str) else None
         self.patience_of = Expression(patience) if isinstance(patience, str) else None
         self.balk_of = Expression(balk) if balk is not None else None
-        self.fail_of = Expression(fail) if isinstance(fail, str) else None
+        self.fail_of = (
+            Expression(fail, names=ANY_NAME) if isinstance(fail, str) else None
+        )
         self.service_time_of = (
             Expression(service_time) if isinstance(service_time, str) else None
         )
@@ -167,6 +188,11 @@ class TaskSpec:
         # Set when the function is decorated
         self.user_func: Callable[..., Any] = lambda *args, **kwargs: None
         self.declared: Any = {}
+
+    @property
+    def var_names(self) -> List[str]:
+        """Every var the task names, in the order they get a value."""
+        return [*self.vars_once, *self.vars, *self.finish_vars]
 
     @property
     def has_service(self) -> bool:
@@ -259,6 +285,11 @@ class TaskRun:
         # The running instances a `running` branch selected, by branch name, kept
         # so the branch's value reads their end events after the wait
         self._running_runs: Dict[str, List["TaskRun"]] = {}
+        # The values of `vars_once`, `vars` and `finish_vars`, once evaluated
+        self._once: Dict[str, Any] = {}
+        self._vars: Dict[str, Any] = {}
+        self._finish: Dict[str, Any] = {}
+        self._once_made = self._vars_made = False
         # An instance whose task needs an end event (for `running`, `subscribe`, a
         # `fire from`, or its own `on:` actions) gets one, defused so its failure
         # stops the run only through the task process.
@@ -358,7 +389,88 @@ class TaskRun:
                 "target": self._target,
             },
             resources=self.context._resources_map,
+            names=self._names(),
         )
+
+    # ----------------------------------------------------------- generated values
+
+    def _names(self) -> Dict[str, Any]:
+        """The bare names an expression reads now: the vars that have a value."""
+        if not (self._once or self._vars or self._finish):
+            return {}
+        return {**self._once, **self._vars, **self._finish}
+
+    def _ensure_once(self) -> None:
+        """Gives the entity its `vars_once`, at the first event of the entity that
+        needs them; later instances and tasks of the entity read the same values."""
+        spec = self.spec
+        if self._once_made:
+            return
+        self._once_made = True
+        if not spec.vars_once:
+            return
+        values = self.context.values
+        self._once = dict(
+            values.once(
+                spec.name,
+                self.entity.key,
+                lambda: values.evaluate_vars(spec.vars_once, self.scope()),
+            )
+        )
+
+    def _ensure_vars(self) -> None:
+        """Evaluates `vars`, each seeing the `vars_once` and the vars before it."""
+        if self._vars_made:
+            return
+        self._ensure_once()
+        self._vars_made = True
+        if self.spec.vars:
+            self._vars = self.context.values.evaluate_vars(
+                self.spec.vars, self.scope(), known=self._once
+            )
+
+    def _generated(self, value: Any) -> Any:
+        """A value of `set`, an `interrupt` cause or similar, evaluated now."""
+        return self.context.values.evaluate(value, self.scope())
+
+    def _start_values(self) -> None:
+        """With `on_start`: evaluates the vars and publishes the started record."""
+        spec = self.spec
+        if not spec.on_start:
+            return
+        self._ensure_vars()
+        self.publish(self.context.values.evaluate(spec.on_start, self.scope()))
+
+    def _finish_values(self, payload: Any) -> Any:
+        """At step 14, after the service: the vars not yet evaluated, the
+        `finish_vars`, then the payload if it is a template.
+
+        Returns:
+            Any: The payload; a `Template` or `BoundPayload` is rendered to a mapping.
+        """
+        spec = self.spec
+        self._ensure_vars()
+        if spec.finish_vars:
+            self._finish = self.context.values.evaluate_vars(
+                spec.finish_vars, self.scope(), known={**self._once, **self._vars}
+            )
+        values = self.context.values
+        if isinstance(payload, BoundPayload):
+            return values.render(
+                payload.template,
+                payload.entity or self.entity,
+                self.scope(),
+                payload.fields,
+                payload.attributes,
+            )
+        if isinstance(payload, Template):
+            return values.render(payload, self.entity, self.scope())
+        return payload
+
+    @property
+    def _has_values(self) -> bool:
+        spec = self.spec
+        return bool(spec.vars or spec.vars_once or spec.finish_vars or spec.on_start)
 
     # ----------------------------------------------------------- end event
 
@@ -442,7 +554,11 @@ class TaskRun:
     def _run_end_action(self, action: Dict[str, Any]) -> None:
         """Runs one of the task's `on:` actions."""
         self.context._run_on_action(
-            action, f"task '{self.spec.name}'", self.entity, self.outcome
+            action,
+            f"task '{self.spec.name}'",
+            self.entity,
+            self.outcome,
+            names=self._names(),
         )
 
     def _running_event(self, node: Any) -> Any:
@@ -545,6 +661,9 @@ class TaskRun:
             self.context._entity_entered(self.entity)
         try:
             result = yield from self._run()
+        except RunStopped:
+            # A `row` with on_end: stop ended the run; this instance ends quietly
+            return None
         except BaseException as error:
             # An error ends the instance: the end event fails with it, so a waiter
             # receives it. The run still raises. No `on:` action runs after it,
@@ -610,14 +729,23 @@ class TaskRun:
         # its wait, its resources or its get, and pauses while it is served, so a
         # preempted task that queues again goes on from the time it had used, as
         # SimPy's reneging pattern `req | env.timeout(patience_left)` does.
-        if spec.queues:
+        # The entity's `vars_once` are made at its first event, before anything waits
+        failure: Any = None
+        try:
+            self._ensure_once()
+        except Exception as error:  # noqa: BLE001: a task's failure
+            failure = f"{type(error).__name__}: {error}"
+            self._fail_error = error
+            self._raised = True
+            self.publish(self.status("failed", reason=failure))
+            stats.task_failed(spec.name, self.task_id)
+        if spec.queues and failure is None:
             self.publish(self.status("queued"), lifecycle=True)
             stats.task_queued(spec.name, self.task_id)
             if spec.patience is not None:
                 self._patience_left = self._patience()
 
-        failure: Any = None
-        while spec.wait is not None:
+        while spec.wait is not None and failure is None:
             try:
                 outcome = yield from self._wait(self._deadline())
                 self._waited()
@@ -643,6 +771,7 @@ class TaskRun:
         rank = self._rank() if self.spec.resources else None
         remaining: Optional[float] = None  # service still owed, when interrupted
         started = got_item = put_done = served = no_time_left = False
+        values_done = False
         # The requests the task holds, and the position in `spec.resources` each one
         # asked for. Kept across a resume, as a SimPy process keeps its request
         # across `except Interrupt`.
@@ -739,6 +868,13 @@ class TaskRun:
                         failure = f"{type(error).__name__}: {error}"
                         self._fail_error = error
                         self._raised = True
+                    if failure is None and spec.on_start:
+                        try:
+                            self._start_values()
+                        except Exception as error:  # noqa: BLE001: as above
+                            failure = f"{type(error).__name__}: {error}"
+                            self._fail_error = error
+                            self._raised = True
                 elif not no_time_left:
                     self.publish(self.status("resumed"))
                     stats.task_resumed(spec.name, self.task_id)
@@ -750,6 +886,18 @@ class TaskRun:
                         self._target = "service"
                         yield env.timeout(remaining)
                         remaining, service_from, served = 0.0, None, True
+                    if not values_done and (
+                        self._has_values
+                        or isinstance(payload, (Template, BoundPayload))
+                    ):
+                        try:
+                            payload = self._finish_values(payload)
+                        except Exception as error:  # noqa: BLE001: as above
+                            failure = f"{type(error).__name__}: {error}"
+                            self._fail_error = error
+                            self._raised = True
+                    values_done = True
+                if failure is None:
                     if spec.put is not None and not put_done:
                         if spec.put.wait:
                             self._target = f"put.{spec.put.target}"
@@ -846,10 +994,11 @@ class TaskRun:
         if spec.signal is not None:
             self.context._fire_signal(spec.signal, True, payload, self.entity)
         if spec.interrupt is not None:
+            cause = spec.interrupt.get("cause")
             self.context.interrupt(
                 spec.interrupt["task"],
                 where=spec.interrupt_where,
-                cause=spec.interrupt.get("cause"),
+                cause=self._generated(cause) if spec.cause_generated else cause,
             )
         if spec.spawn is not None:
             # Start a new entity on success, after the signal and interrupt actions
@@ -862,7 +1011,11 @@ class TaskRun:
                     self.task_id, self.entity.key, self.entity.attributes, payload
                 ),
             )
-        self.entity.attributes.update(spec.attribute_changes)
+        self.entity.attributes.update(
+            self._generated(spec.attribute_changes)
+            if spec.set_generated
+            else spec.attribute_changes
+        )
         handed = Upstream(
             self.task_id, self.entity.key, self.entity.attributes, payload
         )
@@ -1298,6 +1451,11 @@ class TaskRun:
                 event = child
             elif node.kind == "timeout":
                 seconds, timeout_value = node.target
+                if has_generator(timeout_value):
+                    # Read as the event is made, as SimPy reads a timeout's value;
+                    # only the vars_once exist before the task starts
+                    self._ensure_once()
+                    timeout_value = self._generated(timeout_value)
                 event = env.timeout(seconds, timeout_value)
             elif node.kind == "request":
                 # Kept across a resume, as a `task` branch's child flow is, so the

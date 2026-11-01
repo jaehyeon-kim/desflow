@@ -162,6 +162,8 @@ INPUT_FORMS: Dict[Tuple[str, str], Any] = {
     ("TransferStep", "_priority_is_a_literal"): None,
     ("Task", "_wait_parses"): None,
     ("EgressConnector", "_known_name"): None,
+    # An `on:` value that is a mapping with no `gen` is data, as the Value type says
+    ("_generator_or_data", "_value_form"): None,
 }
 
 _OUTSIDE = ("default", "description", "title")
@@ -286,6 +288,85 @@ def _tighten(schema: Dict[str, Any]) -> None:
     }
 
 
+def _integer_first(node: Any) -> None:
+    """Puts the `integer` form before the `number` form in every `anyOf`.
+
+    `Union[int, float]` and `Union[float, int]` are equal to `typing`, which keeps one
+    object for both, so the order Pydantic sees depends on which a module in the process
+    wrote first, and a plugin such as Faker's writes `Union[float, int]` before
+    desflow is imported. Without this the same models give two texts.
+    """
+    if isinstance(node, list):
+        for item in node:
+            _integer_first(item)
+    elif isinstance(node, dict):
+        options = node.get("anyOf")
+        if isinstance(options, list):
+            slots = [
+                at
+                for at, option in enumerate(options)
+                if isinstance(option, dict)
+                and option.get("type") in ("integer", "number")
+            ]
+            ordered = sorted(
+                (options[at] for at in slots), key=lambda o: o["type"] != "integer"
+            )
+            for at, option in zip(slots, ordered):
+                options[at] = option
+        for key, value in node.items():
+            if key not in ("default", "enum", "const"):
+                _integer_first(value)
+
+
+def _generators(schema: Dict[str, Any]) -> None:
+    """Writes `Value` and `Payload` as the file reads them: a mapping with a `gen`
+    key must be one of the generators, and anything else is data.
+
+    Pydantic writes both as a union of the generators, a mapping, a list and anything,
+    and a plain mapping then matches two members of the `oneOf`, so a valid file fails.
+    The generators are shared as `Generator`, a `oneOf` over the kinds.
+    """
+    defs = schema["$defs"]
+    union = dict(defs["Value"]["oneOf"][0])
+    union.pop("discriminator", None)
+    defs["Generator"] = {
+        "description": (
+            "A generator: a mapping whose `gen` key names its kind, and whose other "
+            "keys are its arguments."
+        ),
+        **union,
+    }
+    has_gen = {"type": "object", "required": ["gen"]}
+    defs["Value"] = {
+        "description": (
+            "A value: a constant, a mapping or list of values, or a generator (a "
+            "mapping with a `gen` key). `{gen: literal, value: ...}` writes a mapping "
+            "that has a `gen` key as data."
+        ),
+        "if": has_gen,
+        "then": {"$ref": "#/$defs/Generator"},
+        # A mapping or list without `gen` is data, but a generator inside it is still
+        # checked
+        "else": {
+            "if": {"type": "object"},
+            "then": {
+                "type": "object",
+                "additionalProperties": {"$ref": "#/$defs/Value"},
+            },
+            "else": {
+                "if": {"type": "array"},
+                "then": {"type": "array", "items": {"$ref": "#/$defs/Value"}},
+            },
+        },
+    }
+    defs["Payload"] = {
+        "description": "A mapping of values, or one generator that gives a mapping.",
+        "if": has_gen,
+        "then": {"$ref": "#/$defs/Generator"},
+        "else": {"type": "object", "additionalProperties": {"$ref": "#/$defs/Value"}},
+    }
+
+
 def _share(node: Any) -> Any:
     """Points every written-out !python reference at the shared definition."""
     if isinstance(node, list):
@@ -346,6 +427,8 @@ def schema() -> Dict[str, Any]:
     _apply_input_forms(raw)
     _connector_names(raw)
     _tighten(raw)
+    _generators(raw)
+    _integer_first(raw)
     body = _placeholders(_share(raw))
     body.pop("title", None)
     body.pop("description", None)

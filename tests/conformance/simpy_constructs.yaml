@@ -27,10 +27,6 @@ gaps:
   V2:
     text: "A `wait` timeout computed for each entity has no key."
     form: computed
-  V3:
-    text: "A computed value in `set`, `payload`, `on:`, an interrupt cause, a timeout value or a put item has no key; text is kept as text."
-    form: computed
-    fixed: 0.31.0
   V7:
     text: "An expression cannot read a name deeper than two parts, the upstream payload in `next`, an interrupt or preemption cause, which requests hold a resource, or the priority of an item taken."
     form: computed
@@ -111,9 +107,6 @@ gaps:
     form: whole-flow
 
 unattached:
-  V4:
-    text: "a random value drawn for each entity, such as an attribute or a priority"
-    python: "a payload function draws `x` and a priority from the stream the SimPy program shares, and the next task takes the resource with `priority: attr.p`"
   V10:
     text: "routing weights that come from an attribute or from the state of the model"
     python: "a payload function draws the route with weights from `attr.w`, and `next.when` reads it"
@@ -154,10 +147,10 @@ constructs:
   - {id: SP-V8, area: Events and Timeout, simpy: "`Event.triggered`, `processed`, `ok` and `value`"}
   - {id: SP-V9, area: Events and Timeout, simpy: "`a & b` and `a | b`", gaps: [V2, T10]}
   - {id: SP-V10, area: Events and Timeout, simpy: "`Timeout(delay)`", gaps: [V1]}
-  - {id: SP-V11, area: Events and Timeout, simpy: "`Timeout(delay, value)`", gaps: [V3]}
+  - {id: SP-V11, area: Events and Timeout, simpy: "`Timeout(delay, value)`"}
   # Processes
   - {id: SP-P1, area: Processes, simpy: "Start a process and wait for it", gaps: [V9]}
-  - {id: SP-P2, area: Processes, simpy: "A process's return value", gaps: [V3]}
+  - {id: SP-P2, area: Processes, simpy: "A process's return value"}
   - {id: SP-P3, area: Processes, simpy: "An exception in a process reaches the process that waits for it", gaps: [M3]}
   - {id: SP-P4, area: Processes, simpy: "`Process.is_alive`"}
   - {id: SP-P5, area: Processes, simpy: "`Process.target`"}
@@ -176,7 +169,7 @@ constructs:
   # Interrupts
   - {id: SP-P8, area: Interrupts, simpy: "`Process.interrupt(cause)` while the process waits"}
   - {id: SP-P9, area: Interrupts, simpy: "An interrupt during a timeout", gaps: [I3]}
-  - {id: SP-P10, area: Interrupts, simpy: "`Interrupt` and `Interrupt.cause`", gaps: [V7, V3]}
+  - {id: SP-P10, area: Interrupts, simpy: "`Interrupt` and `Interrupt.cause`", gaps: [V7]}
   - {id: SP-P11, area: Interrupts, simpy: "Several interrupts at one time arrive in order"}
   - {id: SP-P12, area: Interrupts, simpy: "A process waits again for the same event after an interrupt", gaps: [I10]}
   - {id: SP-U2, area: Interrupts, simpy: "`subscribe_at(event)`"}
@@ -211,7 +204,7 @@ constructs:
   - {id: SP-K4, area: Containers, simpy: "`Container.level`"}
   - {id: SP-K5, area: Containers, simpy: "Capacity defaults to infinity"}
   # Stores
-  - {id: SP-T1, area: Stores, simpy: "`Store.put(item)`", gaps: [V12, V3]}
+  - {id: SP-T1, area: Stores, simpy: "`Store.put(item)`", gaps: [V12]}
   - {id: SP-T2, area: Stores, simpy: "`Store.get()`"}
   - {id: SP-T3, area: Stores, simpy: "One waiting get is granted per put at one time"}
   - {id: SP-T4, area: Stores, simpy: "A store that starts with items"}

@@ -47,7 +47,7 @@ The integration tests and the examples that need a service get it from [odctl](h
 ## Tests
 
 ```bash
-uv run --all-extras pytest tests/unit tests/conformance -q -n auto  # unit and SimPy conformance tests, as CI runs them
+uv run --all-extras pytest tests/unit tests/conformance tests/benchtop -q -n auto  # unit and SimPy conformance tests, as CI runs them
 uv run --all-extras pytest tests/docs -q -n auto  # docs, snippet, example and script tests, run in the docs-build CI job in 8 groups
 DOCS_STORE_DURATIONS=1 uv run --all-extras pytest tests/docs -q -n auto  # record the test times that balance the groups, in tests/docs/durations.json
 uv run --all-extras pytest tests/integration -ra  # needs Docker; starts odctl profiles and emulators on demand, and also runs the service examples against the profiles the other tests started; -m <group> runs one group: services, storage, floci, azure, gcp or examples

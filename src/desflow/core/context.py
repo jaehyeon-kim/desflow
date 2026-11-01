@@ -47,6 +47,10 @@ from desflow.models.flow import Entity, Upstream
 from desflow.core.breakdowns import run_breakdowns
 from desflow.core.replay import UNITS, Row, read_trace
 from desflow.core.scenario import apply_step, check_step, run_scenario
+from desflow.values.models import _Gen, has_generator, values_adapter
+from desflow.values.runtime import ValueRuntime
+from desflow.values.check import task_value_problems
+from desflow.values.template import bind as bind_values
 from desflow.models.params import (
     BreakdownConfig,
     CapacityConfig,
@@ -308,6 +312,9 @@ class SimulationContext:
         # a value refused before the run from an error inside it
         self.started = False
         self.sampler: Optional[Sampler] = None
+        # The generators' state for the run, made when the run is built; nothing
+        # generates a value before that
+        self.values: ValueRuntime = None  # type: ignore[assignment]
         self._resources_map: Dict[str, ResourceBase] = {}
         self._stores_map: Dict[str, DynamicStore] = {}
         self._containers_map: Dict[str, DynamicContainer] = {}
@@ -341,6 +348,7 @@ class SimulationContext:
         self._until: Any = None
         self._end: Optional[simpy.Event] = None
         self._end_done = False
+        self._stopped = False
         # The internal event at `until` that advance() stops at, made on first use
         self._limit_event: Optional[simpy.Event] = None
         self._closed = True
@@ -772,12 +780,15 @@ class SimulationContext:
                 f"give fewer items"
             )
         if priority and not all(
-            isinstance(item, (tuple, list)) and len(item) == 2 for item in start
+            (isinstance(item, (tuple, list)) and len(item) == 2)
+            or isinstance(item, _Gen)
+            for item in start
         ):
             raise ValueError(
                 f"priority store '{name}' starts with (priority, item) pairs; give "
                 f"each item as a pair, such as (1, item)"
             )
+        bind_values(start, ("stores", name, "items"), overwrite=False)
         self._store_items[name] = start
         self._stores_config[name] = CapacityConfig(
             current_cap=_within_max("store", name, current_cap, max_cap),
@@ -810,6 +821,8 @@ class SimulationContext:
                 refused when the run starts.
         """
         checked = [check_step(step) for step in steps]
+        for index, step in enumerate(checked, len(self._scenario_steps)):
+            bind_values(step, ("scenario", index), overwrite=False)
         if not self._scenario_steps:
             self.add_process(self._run_scenario)
         self._scenario_steps.extend(checked)
@@ -852,7 +865,13 @@ class SimulationContext:
             self._scenario_steps,
             until=self._until,
             interrupt=self.interrupt,
+            evaluate=self._evaluate_free,
         )
+
+    def _evaluate_free(self, value: Any) -> Any:
+        """Evaluates a value outside a task, such as a scenario step's: it reads the
+        registry and the clock, and no entity."""
+        return self.values.evaluate(value, self.values.scope_of())
 
     def add_breakdown(
         self,
@@ -930,6 +949,7 @@ class SimulationContext:
         weights: Optional[List[float]] = None,
         edges: Optional[List[float]] = None,
         counts: Optional[List[float]] = None,
+        p: Optional[float] = None,
     ) -> "SimulationContext":
         """
         Registers a statistical distribution defining a process service duration.
@@ -941,10 +961,11 @@ class SimulationContext:
         Args:
             name: The internal identifier (e.g., 'packing').
             dist: The family: exponential, normal, lognormal, truncated_normal,
-                constant, uniform, triangular, gamma, weibull or empirical.
+                poisson, geometric, constant, uniform, triangular, gamma, weibull or
+                empirical.
             rate: Events per second, for exponential.
-            mean: The mean, for normal, lognormal and truncated_normal.
-            std: The standard deviation, for the same three (0 when not given).
+            mean: The mean, for normal, lognormal, truncated_normal and poisson.
+            std: The standard deviation, for the first three (0 when not given).
             low: The lowest value, for truncated_normal (0 when not given), uniform
                 and triangular.
             value: The time a constant distribution always gives.
@@ -956,6 +977,7 @@ class SimulationContext:
             weights: One weight per empirical value.
             edges: The bin edges of an empirical histogram.
             counts: One count per empirical histogram bin.
+            p: The chance of success on each try, for geometric.
 
         Returns:
             SimulationContext: The current instance for method chaining.
@@ -985,6 +1007,7 @@ class SimulationContext:
         weights: Optional[List[float]] = None,
         edges: Optional[List[float]] = None,
         counts: Optional[List[float]] = None,
+        p: Optional[float] = None,
         attributes: Optional[Mapping[str, Any]] = None,
         key: Optional[Callable[[int], str]] = None,
         spawn: Optional[str] = None,
@@ -1000,8 +1023,8 @@ class SimulationContext:
             name: The internal identifier (e.g., 'orders').
             dist: The family, as for `add_service`.
             rate: Events per second, for exponential.
-            mean: The mean, for normal, lognormal and truncated_normal.
-            std: The standard deviation, for the same three (0 when not given).
+            mean: The mean, for normal, lognormal, truncated_normal and poisson.
+            std: The standard deviation, for the first three (0 when not given).
             low: The lowest value, for truncated_normal, uniform and triangular.
             value: The time a constant distribution always gives.
             high: The highest value, for uniform and triangular.
@@ -1012,6 +1035,7 @@ class SimulationContext:
             weights: One weight per empirical value.
             edges: The bin edges of an empirical histogram.
             counts: One count per empirical histogram bin.
+            p: The chance of success on each try, for geometric.
             attributes: The attributes each entity starts with, read in conditions
                 as `attr.<name>`. Each entity gets its own copy.
             key: A function of the entity's counter, from 1, returning its key.
@@ -1031,6 +1055,7 @@ class SimulationContext:
             k: v for k, v in locals().items() if k not in ("attributes", "key", "spawn")
         }
         self._arrivals_config[name] = _distribution(dist, params)
+        bind_values(attributes or {}, ("arrivals", name, "attributes"), overwrite=False)
         self._arrival_entities[name] = (dict(attributes or {}), key)
         self._add_spawn(name, spawn)
         return self
@@ -1081,6 +1106,10 @@ class SimulationContext:
         spawn: Optional[Mapping[str, Any]] = None,
         subscribe: Optional[Mapping[str, Any]] = None,
         on: Optional[List[Mapping[str, Any]]] = None,
+        vars: Optional[Mapping[str, Any]] = None,
+        vars_once: Optional[Mapping[str, Any]] = None,
+        on_start: Optional[Mapping[str, Any]] = None,
+        finish_vars: Optional[Mapping[str, Any]] = None,
     ) -> Callable:
         """
         Transforms a standard Python function into an event-driven SimPy task.
@@ -1205,6 +1234,19 @@ class SimulationContext:
             interrupt: An action applied when the task finishes:
                 `{"task": name, "where": condition, "cause": value}` interrupts every
                 running instance of that task whose condition holds.
+            vars: Named values, each a generator mapping such as
+                `{"gen": "uniform", "low": 2, "high": 200}` or a constant, evaluated in
+                order after the service, before the payload. A later var and the
+                payload read an earlier one with `{"gen": "var", "name": ...}`, and an
+                expression after the service (`put`, `fail`, `next`) reads it as a
+                bare name. With `on_start` they are evaluated when the task starts.
+            vars_once: Named values made once for each entity, at its first event,
+                and the same in every later instance of this task for the entity. A wait
+                timeout value can read them.
+            on_start: A mapping of values published as a record when the task starts,
+                after `started`.
+            finish_vars: Named values evaluated after `vars` and before the payload,
+                which can read the vars.
 
         Raises:
             ValueError: If a resource is given without a service, a priority without
@@ -1346,6 +1388,18 @@ class SimulationContext:
             subscribe=None if subscribe is None else Wait(subscribe),
             on=[_parse_on_action(entry) for entry in on or []],
         )
+        generated = {
+            "vars": vars,
+            "vars_once": vars_once,
+            "on_start": on_start,
+            "finish_vars": finish_vars,
+        }
+        for key, mapping in generated.items():
+            # The values are generator mappings such as {"gen": "uuid"}; a mistake in
+            # one raises pydantic's ValidationError, with no file or line
+            spec_kwargs[key] = (
+                values_adapter().validate_python(dict(mapping)) if mapping else {}
+            )
         router = Router(next)
 
         def decorator(user_func):
@@ -1363,6 +1417,20 @@ class SimulationContext:
                 **spec_kwargs,
             )
             spec.user_func = user_func
+            for key in (*generated, "attribute_changes", "on", "interrupt"):
+                bind_values(
+                    getattr(spec, key),
+                    ("tasks", task_name, "set" if key == "attribute_changes" else key),
+                    overwrite=False,
+                )
+            if spec.wait is not None:
+                for node in spec.wait.branches.values():
+                    if node.kind == "timeout":
+                        bind_values(
+                            node.target[1],
+                            ("tasks", task_name, "wait", node.name),
+                            overwrite=False,
+                        )
             spec.declared = inspect.signature(user_func).parameters
             if "item" in spec.declared and take is not None and not take.wait:
                 raise ValueError(
@@ -1510,8 +1578,11 @@ class SimulationContext:
         if arrival_id in self._replays:
             return self._next_replayed(arrival_id)
         cfg = self._env.registry.get_config(f"{self.sim_id}.arrival.{arrival_id}")
-        entity = self._new_entity(arrival_id, self._arrival_entities.get(arrival_id))
-        return self._env.timeout(self.sampler.sample(cfg), value=entity)
+        options = self._arrival_entities.get(arrival_id)
+        entity = self._new_entity(arrival_id, options, generate=False)
+        event = self._env.timeout(self.sampler.sample(cfg), value=entity)
+        self._generate_when_due(event, entity, options)
+        return event
 
     def _next_replayed(self, arrival_id: str) -> simpy.Event:
         """The wait for the next row of a replayed arrival; it never ends after the
@@ -1530,12 +1601,14 @@ class SimulationContext:
             **self._arrival_entities.get(arrival_id, ({}, None))[0],
             **row.fields,
         }
-        entity = self._new_entity(
-            arrival_id, (attributes, self._arrival_entities[arrival_id][1])
-        )
+        options = (attributes, self._arrival_entities[arrival_id][1])
+        entity = self._new_entity(arrival_id, options, generate=False)
         if row.time <= self.env.now:
+            self._generate_attributes(entity, attributes)
             return self._next_replayed_tied(entity)
-        return self.env.timeout(row.time - self.env.now, value=entity)
+        event = self.env.timeout(row.time - self.env.now, value=entity)
+        self._generate_when_due(event, entity, options)
+        return event
 
     def _next_replayed_tied(self, entity: Entity) -> simpy.Event:
         """The wait for a row due at the step in progress: an event already processed,
@@ -1628,16 +1701,53 @@ class SimulationContext:
         self,
         arrival: str,
         options: Optional[Tuple[Dict[str, Any], Optional[Callable[[int], str]]]],
+        generate: bool = True,
     ) -> Entity:
-        """Starts an entity: the next counter of `arrival`, its key and attributes."""
+        """Starts an entity: the next counter of `arrival`, its key and attributes.
+
+        An attribute written as a generator is evaluated once, here, or with
+        `generate=False` by `_generate_attributes`, which the caller runs when the
+        entity's arrival is due. Until then the attribute is None."""
         counter = self._entity_counters.setdefault(arrival, itertools.count(1))
         number = next(counter)
         attributes, key = options if options is not None else ({}, None)
-        return Entity(
+        entity = Entity(
             key=f"{arrival}-{number}" if key is None else key(number),
             arrival=arrival,
-            attributes=dict(attributes),
+            attributes={
+                name: None if has_generator(value) else value
+                for name, value in attributes.items()
+            },
         )
+        if generate:
+            self._generate_attributes(entity, attributes)
+        return entity
+
+    def _generate_attributes(
+        self, entity: Entity, attributes: Mapping[str, Any]
+    ) -> None:
+        """Evaluates the generated attributes of an entity, in the order written, each
+        seeing the attributes before it as `attr`."""
+        for name, value in attributes.items():
+            if has_generator(value):
+                entity.attributes[name] = self.values.evaluate(
+                    value, self.values.scope_of(entity)
+                )
+
+    def _generate_when_due(
+        self,
+        event: simpy.Event,
+        entity: Entity,
+        options: Optional[Tuple[Dict[str, Any], Optional[Callable[[int], str]]]],
+    ) -> None:
+        """Has the arrival's generated attributes evaluated when the event is
+        processed, before the arrival loop resumes, so a generator reads the clock
+        and the registry as they are when the entity arrives."""
+        if options is not None and has_generator(options[0]):
+            attributes = options[0]
+            event.callbacks.append(
+                lambda _event: self._generate_attributes(entity, attributes)
+            )
 
     def _entity_key_of(self, process: Any) -> Optional[str]:
         """The key of the entity whose task runs in `process`, as text; None for a
@@ -1648,6 +1758,22 @@ class SimulationContext:
                     if run.process is process:
                         return str(run.entity.key)
         return None
+
+    def _starting_items(self, store_id: str) -> Optional[List[Any]]:
+        """The items a store starts with; a generator in `items` is evaluated now,
+        once for each item."""
+        items = self._store_items.get(store_id)
+        if not items or not has_generator(items):
+            return items
+        made = self.values.evaluate(items, self.values.scope_of())
+        if self._store_priority.get(store_id) and not all(
+            isinstance(item, (tuple, list)) and len(item) == 2 for item in made
+        ):
+            raise ValueError(
+                f"priority store '{store_id}' starts with (priority, item) pairs; "
+                f"a generator in its items gave {made!r}"
+            )
+        return made
 
     def _levels(self) -> Dict[str, Any]:
         """Stores and containers by name, which `level.<name>` reads."""
@@ -2012,11 +2138,29 @@ class SimulationContext:
         owner: str,
         entity: Optional[Entity],
         upstream: Optional[Upstream],
+        names: Optional[Mapping[str, Any]] = None,
     ) -> None:
         """Runs one `on:` action: fire a signal, spawn a new entity, interrupt a
         task, or set a registry value. `owner` labels the action for a warning,
         `entity` is the entity it runs for, and `upstream` is what a spawn hands on.
+        A value that holds a generator is evaluated first, over the entity's
+        attributes and, for a task's action, the task's `names` (its vars).
         """
+        if has_generator(action):
+            from desflow.core.flow import make_scope
+
+            action = self.values.evaluate(
+                action,
+                make_scope(
+                    upstream,
+                    {} if entity is None else entity.attributes,
+                    self._env,
+                    self._levels(),
+                    signals=self._signals,
+                    resources=self._resources_map,
+                    names=names,
+                ),
+            )
         if "fire" in action:
             spec = action["fire"]
             copied = self._copy_outcome(spec, entity)
@@ -2106,6 +2250,7 @@ class SimulationContext:
             self._signal_names.append(name)
         self._signal_once[name] = once
         self._signal_on[name] = [_parse_on_action(entry) for entry in on or []]
+        bind_values(self._signal_on[name], ("signals", name, "on"), overwrite=False)
         return self
 
     def signal(self, name: str) -> Signal:
@@ -2374,6 +2519,8 @@ class SimulationContext:
         try:
             if not self._moved:
                 self._run_plan()
+            if self._stopped:
+                return None
             if self._end is not None:
                 if self._end.callbacks is None and not self._end._ok:
                     # `env.run(until=...)` returns the value of a processed event,
@@ -2505,8 +2652,11 @@ class SimulationContext:
         """Runs a new entity of `task` to the end of its zero-time steps, before any
         other event at this instant, which SimPy's urgent start of a process ensures."""
         process = self._spawn_entity(task, None, None, None)
-        while not process.triggered:
-            self.env.step()
+        try:
+            while not process.triggered:
+                self.env.step()
+        except StopSimulation:
+            pass  # _stop_run() ended the run
 
     def _run_steps(self) -> None:
         """Processes the model's events one at a time up to `until`, as a loop of
@@ -2515,6 +2665,8 @@ class SimulationContext:
         count = 0
         while self.peek() < (math.inf if self._until is None else self._until):
             self.step()
+            if self._stopped:
+                break
             count += 1
             self._publish_reading("system.simulation.step", {"step": count})
 
@@ -2545,6 +2697,8 @@ class SimulationContext:
     def _run_ended(self) -> bool:
         """Whether the run has reached its own end: the end event of a `stop` or
         `drain` has been processed, else `until` has been reached."""
+        if self._stopped:
+            return True
         if self._end is not None:
             return self._end_done
         return (
@@ -2768,6 +2922,9 @@ class SimulationContext:
                 )
             )
         self.sampler = Sampler(seed=seed)
+        # Fresh counters, vars_once and unique history for every run; each generator
+        # draws from a sequence of its own, made from the seed, never the sampler's
+        self.values = ValueRuntime(seed, self._env, self.sampler, self)
         for task_name, spec in self._task_specs.items():
             if spec.router.weighted:
                 spec.router.rng = self.sampler.generator(f"route.{task_name}")
@@ -2852,7 +3009,7 @@ class SimulationContext:
                 self.sim_id,
                 store_id,
                 priority=self._store_priority.get(store_id, False),
-                items=self._store_items.get(store_id),
+                items=self._starting_items(store_id),
                 type=self._store_types.get(store_id),
             )
         for container_id in self._containers_config:
@@ -2888,6 +3045,7 @@ class SimulationContext:
 
         self._until = until
         self._end_done = False
+        self._stopped = False
         self._limit_event = None
         self._end = self._end_event(until, stop, drain)
         self._closed = False
@@ -2897,6 +3055,19 @@ class SimulationContext:
             self._env.sync()
         logger.info("Simulation engine started.")
         return self._env
+
+    def _stop_run(self) -> None:
+        """Ends the run at the current time: the events already due run no further,
+        `finish()` returns at once and a later `advance()` raises, as at the end of a
+        run. A `row` generator with `on_end: stop` calls it when its rows run out."""
+        env = self._env
+        if env is None or self._stopped:
+            return
+        self._stopped = True
+        event = env.internal_event()
+        event._ok, event._value = True, None
+        event.callbacks.append(StopSimulation.callback)
+        env.schedule(event, simpy.events.URGENT)
 
     def step(self) -> None:
         """
@@ -2909,7 +3080,10 @@ class SimulationContext:
             RuntimeError: If the run has not started.
             simpy.core.EmptySchedule: If no model event is left.
         """
-        self.env.step()
+        try:
+            self.env.step()
+        except StopSimulation:
+            pass  # _stop_run() ended the run
         self._moved = True
 
     def peek(self) -> float:
@@ -3075,6 +3249,7 @@ class SimulationContext:
         entity.instances = None
         entity.spawned_by = None
         entity.last_ended = None
+        self.values.forget(entity.key)
         if self._draining and self._in_system == 0 and self._finish_run is not None:
             self._finish_run()
 
@@ -3227,7 +3402,9 @@ class SimulationContext:
                             + suggestion(step["path"], known.paths())
                         ) from None
                     try:
-                        known.change(step["path"], step["value"])
+                        if not has_generator(step["value"]):
+                            # A generated value is known when the step is due
+                            known.change(step["path"], step["value"])
                     except ParamRejected as exc:
                         raise ValueError(
                             f"scenario step at {step['at']:g} s sets "
@@ -3405,6 +3582,62 @@ class SimulationContext:
                         f"task '{name}' reads item.<field> in '{expression.text}', "
                         f"but it has no store get before it"
                     )
+            for key, expression in spec.expressions:
+                # vars get a value at step 14, after the service: put, fail and
+                # next read them, and nothing evaluated earlier can
+                bare = expression.references["name"]
+                allowed = (
+                    set(spec.var_names) if key in ("put", "fail", "next") else set()
+                )
+                if bare - allowed:
+                    var = sorted(bare - allowed)[0]
+                    raise ValueError(
+                        f"task '{name}' reads the name '{var}' in "
+                        f"'{expression.text}', which is "
+                        + (
+                            "not one of its vars"
+                            if key in ("put", "fail", "next")
+                            else f"not available in {key}, which is evaluated before "
+                            "the vars have a value"
+                        )
+                    )
+            if registry is None:
+                # The paths the run will register, built by the same code
+                registry = self._scratch_registry()
+            problems = task_value_problems(
+                vars_once=spec.vars_once,
+                vars=spec.vars,
+                on_start=spec.on_start,
+                finish_vars=spec.finish_vars,
+                others={
+                    "set": spec.attribute_changes,
+                    "interrupt": spec.interrupt or {},
+                    "on": spec.on,
+                },
+                wait_values={
+                    ("wait", node.name): node.target[1]
+                    for node in (spec.wait.branches.values() if spec.wait else ())
+                    if node.kind == "timeout"
+                },
+                services=set(self._services_config),
+                base_dir=Path.cwd(),
+                registry=registry,
+                early_end=(
+                    spec.patience is not None
+                    or spec.balk is not None
+                    or spec.wait is not None
+                    or spec.on_interrupt == "abandon"
+                    or any(
+                        self._resource_queue_limits.get(resource) is not None
+                        for resource in spec.resources
+                    )
+                ),
+            )
+            if problems:
+                where, message = problems[0]
+                raise ValueError(
+                    f"task '{name}' {'.'.join(str(p) for p in where)}: {message}"
+                )
             for expression in expressions:
                 for level in expression.references["level"]:
                     if level not in holders:

@@ -12,6 +12,7 @@ from typing import Any, Callable, Iterable, List, Mapping, Optional
 from simpy.events import URGENT, Event
 
 from desflow.utils import suggestion, time_to_seconds
+from desflow.values.models import has_generator
 
 STEP_KEYS = ("at", "path", "value", "record", "interrupt")
 
@@ -60,6 +61,7 @@ def run_scenario(
     steps: Iterable[Mapping[str, Any]],
     until: Optional[float] = None,
     interrupt: Optional[Callable[..., Any]] = None,
+    evaluate: Optional[Callable[[Any], Any]] = None,
 ):
     """
     Applies each step at its time, in time order and, at equal times, in the order
@@ -78,6 +80,10 @@ def run_scenario(
         until: The run's end, a reading of the clock; steps due at or after it are
             dropped, as an event due at exactly `until` does not run.
         interrupt: What an `interrupt` step calls; such steps need it.
+        evaluate: Evaluates a value that holds a generator when its step is due;
+            the builder and YAML pass the run's value runtime. A `value` is
+            evaluated before the change, a `record` after it, so a `param` in the
+            record reads the new value.
 
     Raises:
         ParamRejected: When the run reaches a step whose value the registry refuses,
@@ -108,6 +114,7 @@ def run_scenario(
             action=step.get("interrupt"),
             source="scenario",
             refuse=True,
+            evaluate=evaluate,
         )
 
 
@@ -120,6 +127,7 @@ def apply_step(
     action: Optional[Mapping[str, Any]] = None,
     source: Optional[str] = None,
     refuse: bool = False,
+    evaluate: Optional[Callable[[Any], Any]] = None,
 ) -> None:
     """Applies one change: a registry `path` and `value`, a ground-truth `record`,
     and an `interrupt` action. Shared by `run_scenario` and an `on:` list's actions,
@@ -138,12 +146,16 @@ def apply_step(
         refuse: Raise `ParamRejected` for a value the registry refuses, instead of
             logging it and going on. `run_scenario` passes True, so a refused step
             stops the run at its time; an `on:` action keeps the default.
+        evaluate: Evaluates a `value`, `record` or `cause` that holds a generator,
+            or None when there is none to evaluate.
 
     Raises:
         ParamRejected: If `refuse` is True and the registry refuses the value.
     """
     old = new = None
     if path is not None:
+        if evaluate is not None and has_generator(value):
+            value = evaluate(value)
         old = env.registry.get(path).value
         if refuse:
             env.registry.change(path, value, source=source)
@@ -151,11 +163,16 @@ def apply_step(
             env.registry.update(path, value, source=source)
         new = env.registry.get(path).value
     if record is not None:
+        if evaluate is not None and has_generator(record):
+            record = evaluate(record)
         env.publish_label(record, path=path, old=old, new=new)
     if action is not None:
         if interrupt is None:
             raise ValueError("an interrupt step needs an interrupt function")
-        interrupt(action["task"], where=action.get("where"), cause=action.get("cause"))
+        cause = action.get("cause")
+        if evaluate is not None and has_generator(cause):
+            cause = evaluate(cause)
+        interrupt(action["task"], where=action.get("where"), cause=cause)
 
 
 def _urgent_timeout(env: Any, delay: float) -> Event:

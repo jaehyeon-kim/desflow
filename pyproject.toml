@@ -53,6 +53,9 @@ dependencies = [
     "pydantic>=2.6.1",
     "pyyaml>=6.0.1",
     "typer>=0.16.0",
+    # TypeAliasType, which the recursive Value type of the generators uses; Python
+    # 3.11 has none of its own. 4.6.0 added it; pydantic already requires 4.6.1
+    "typing-extensions>=4.6.1",
     # Windows has no time zone database of its own, so ZoneInfo needs this there
     "tzdata; sys_platform == 'win32'"
 ]
@@ -146,8 +149,13 @@ watch = [
     # 1.3.0 is the release whose source `desflow run --watch` was written against
     "watchfiles>=1.3.0",
 ]
+fake = [
+    # The `fake` generator calls a Faker method. 20.0.0 is the oldest release checked
+    # for Faker(locale), seed_instance and the providers the examples use.
+    "faker>=20.0.0",
+]
 all = [
-    "desflow[kafka,redis,postgres,confluent,glue,parquet,iceberg,fit]"
+    "desflow[kafka,redis,postgres,confluent,glue,parquet,iceberg,fit,fake]"
 ]
 [build-system]
 requires = ["uv_build>=0.9.16,<0.14.0"]
@@ -206,6 +214,9 @@ extend-exclude = ["*_pb2.py", "*_pb2.pyi"]
 [tool.pytest.ini_options]
 # docs/snippets holds a reader's test_a_model.py, which a run of the suite must not collect
 testpaths = ["tests"]
+# Faker's pytest plugin imports typing unions in an order that changes the order of
+# `int | float` in annotations the public API snapshot and the schema test read
+addopts = "-p no:faker"
 markers = [
     "integration: marks tests that require Docker infrastructure (deselect with '-m \"not integration\"')",
     "services: integration tests that use the odctl kafka-lite, postgres and valkey profiles",

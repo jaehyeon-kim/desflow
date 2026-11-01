@@ -113,7 +113,7 @@ def test_yaml_spawn_goes_through_add_arrival(tmp_path, monkeypatch):
     [
         ("  factor: 0\n", "  factor: 0\n  speed: 2\n", 4, "simulation.speed"),
         ("mean: 3.0, std: 0.5", "mean: 3.0, std: 0.5, shape: 2", 8, "shape"),
-        ("dist: exponential", "dist: poisson", 10, "Unsupported distribution"),
+        ("dist: exponential", "dist: beta", 10, "Unsupported distribution"),
         (
             "  packers: {current_cap: 2, max_cap: 5}",
             "  packers: {max_cap: 0.5}",
@@ -170,6 +170,134 @@ def test_schema_errors_name_the_line(tmp_path, old, new, line, fragment):
     message = str(error.value)
     assert message.startswith(f"{path}:{line}:"), message
     assert fragment in message
+
+
+_VALUE_HEAD = (
+    "simulation: {sim_id: Shop, factor: 0}\n"
+    "variables: {total: 1}\n"
+    "signals: {s: {}}\n"
+    "services: {work: {dist: constant, value: 1}}\n"
+)
+_ARRIVAL = "arrivals: {a: {dist: constant, value: 1, spawn: t%s}}\n"
+# Each of the ten places a value is written, with @@ where the value goes
+_VALUE_PLACES = {
+    "attributes": _ARRIVAL % ", attributes: {n: @@}"
+    + "tasks: {t: {payload: {e: 1}}}\n",
+    "items": "stores: {shelf: {items: [@@]}}\n",
+    "cause": _ARRIVAL % ""
+    + "tasks:\n  t: {payload: {e: 1}, interrupt: {task: t, cause: @@}}\n",
+    "fire": _ARRIVAL % ""
+    + "tasks:\n  t: {payload: {e: 1}, on: [{fire: {signal: s, value: @@}}]}\n",
+    "on": _ARRIVAL % ""
+    + "tasks:\n  t: {payload: {e: 1}, on: [{path: Shop.variables.total, value: @@}]}\n",
+    "timeout": _ARRIVAL % ""
+    + "tasks:\n  t: {wait: {timeout: {after: 1, value: @@}}, payload: {e: 1}}\n",
+    "nested wait": _ARRIVAL
+    % ""
+    + "tasks:\n  t:\n    payload: {e: 1}\n    wait:\n      any:\n"
+    "        late: {timeout: {after: 1, value: @@}}\n"
+    "        never: {timeout: 50}\n",
+    "payload": _ARRIVAL % "" + "tasks: {t: {payload: {e: @@}}}\n",
+    "set": _ARRIVAL % "" + "tasks: {t: {payload: {e: 1}, set: {n: @@}}}\n",
+    "scenario value": _ARRIVAL % "" + "tasks: {t: {payload: {e: 1}}}\n"
+    "scenario:\n  - {at: 1, path: Shop.variables.total, value: @@}\n",
+    "scenario record": _ARRIVAL % "" + "tasks: {t: {payload: {e: 1}}}\n"
+    "scenario:\n  - {at: 1, record: {k: @@}}\n",
+}
+
+
+def _with_value(place, value):
+    text = _VALUE_HEAD + _VALUE_PLACES[place]
+    line = next(i for i, row in enumerate(text.splitlines(), 1) if "@@" in row)
+    return text.replace("@@", value), line
+
+
+@pytest.mark.parametrize("place", sorted(_VALUE_PLACES))
+def test_a_mapping_with_gen_is_a_generator_in_every_place_a_value_is_written(
+    tmp_path, place
+):
+    """MF1: in each of the ten places a mapping with a `gen` key is a generator, so a
+    kind that does not exist is a load error with the line of the value, and
+    `{gen: literal, value: {gen: 5}}` keeps the mapping as data."""
+    text, line = _with_value(place, "{gen: nope}")
+    path = write(tmp_path, text)
+    with pytest.raises(BlueprintError) as error:
+        SimulationContext.from_yaml(path)
+    # A wait lists what each of its branch kinds found, so one line is the value's
+    assert any(
+        row.startswith(f"{path}:{line}:") and "nope" in row
+        for row in str(error.value).splitlines()
+    ), str(error.value)
+
+    text, _ = _with_value(place, "{gen: literal, value: {gen: 5}}")
+    SimulationContext.from_yaml(write(tmp_path, text, "kept.yaml"))
+
+
+# A scenario value sets a number, so a mapping there is refused by the type of the path
+@pytest.mark.parametrize("place", sorted(set(_VALUE_PLACES) - {"scenario value"}))
+def test_a_nested_mapping_with_a_key_that_is_not_text_still_loads_in_every_place(
+    tmp_path, place
+):
+    """YAML reads a bare `on` as true and `1` as a number, so a nested mapping in a
+    value place may have a key that is not text, as it could before generators."""
+    for value in ("{1: x}", "{a: {on: 1, 2026-01-01: 2}}"):
+        text, _ = _with_value(place, value)
+        SimulationContext.from_yaml(write(tmp_path, text))
+
+
+@pytest.mark.parametrize("place", ["set", "attributes", "scenario record"])
+def test_a_gen_key_directly_under_set_attributes_or_record_is_a_field_name(
+    tmp_path, place
+):
+    """These places are mappings of field names to values, so a `gen` key at their top
+    names a field and stays data; a value one level down is the mapping that is a
+    generator."""
+    top = {
+        "set": "tasks: {t: {payload: {e: 1}, set: {gen: 5}}}\n",
+        "attributes": "tasks: {t: {payload: {e: 1}}}\n",
+        "scenario record": "tasks: {t: {payload: {e: 1}}}\n"
+        "scenario:\n  - {at: 1, record: {gen: 5}}\n",
+    }[place]
+    text = _VALUE_HEAD + (
+        _ARRIVAL % (", attributes: {gen: 5}" if place == "attributes" else "")
+    )
+    SimulationContext.from_yaml(write(tmp_path, text + top))
+
+
+def test_a_mapping_with_gen_runs_as_a_generator_and_literal_keeps_it_as_data(tmp_path):
+    """The old meaning of a `gen` mapping, as data, is kept by `literal` in the payload,
+    a `set` value and a nested wait's timeout value, and a generator elsewhere gives
+    its drawn value."""
+    text, _ = _with_value("payload", "{gen: literal, value: {gen: 5}}")
+    assert _events_of(tmp_path, text, until=1.5) == [(1.0, {"e": {"gen": 5}})]
+    text, _ = _with_value("payload", "{gen: integer, bounds: [4, 4]}")
+    assert _events_of(tmp_path, text, until=1.5) == [(1.0, {"e": 4})]
+    text, _ = _with_value("nested wait", "{gen: literal, value: {gen: 5}}")
+    events = _events_of(tmp_path, text, until=3)
+    assert (2.0, {"e": 1}) in events
+
+
+def test_generator_errors_name_the_line(tmp_path):
+    """A generator that is wrong names the file and the line of the value, and the
+    location is the path of keys without the tags of the schema union."""
+    cases = [
+        ("{gen: uniform, low: 1}", "high"),
+        ("{gen: integer, bounds: [1, 2], zzz: 3}", "zzz"),
+        ("{gen: expr, expr: 'attr.n +'}", "expr"),
+        ("{gen: var, name: missing}", "missing"),
+        ("{gen: sample, service: nowhere}", "nowhere"),
+        ("{gen: param, path: Shop.nothing}", "registry path"),
+        ("{gen: row, file: absent.csv}", "absent.csv"),
+    ]
+    for value, fragment in cases:
+        text, line = _with_value("payload", value)
+        path = write(tmp_path, text)
+        with pytest.raises(BlueprintError) as error:
+            SimulationContext.from_yaml(path)
+        message = str(error.value)
+        assert message.startswith(f"{path}:{line}:"), message
+        assert fragment in message, message
+        assert "<gen>" not in message and "<map>" not in message, message
 
 
 def _events_of(tmp_path, text, until):
