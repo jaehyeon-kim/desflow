@@ -4,7 +4,10 @@ An expression is parsed with Python's `ast` and every node is checked before it 
 ever evaluated; nothing goes through `eval`. It allows numbers, arithmetic (`+`, `-`,
 `*`, `/`, `//`, `%`), comparisons (`<`, `<=`, `>`, `>=`, `==`, `!=`), `and`, `or`,
 `not`, the conditional form `a if c else b`, `True` and `False`, and string constants
-compared with `==`, `!=`, `in` or `not in`. Each name carries its source as a prefix:
+compared with `==`, `!=`, `in` or `not in`. The arithmetic is Python's: `/` gives a
+float, and `//` rounds down and gives an integer for two integers. `and` and `or`
+stop at the first operand that decides the result, and do not absorb an error: an
+operand that cannot be evaluated fails the expression. Each name carries its source as a prefix:
 
 | Name | Value |
 |---|---|

@@ -259,7 +259,12 @@ class Replay(_Model):
 
 class Arrival(Distribution):
     """An `arrivals` entry: a distribution, or a `replay` of recorded rows, the task
-    it spawns, and the attributes each entity it starts carries."""
+    it spawns, and the attributes each entity it starts carries.
+
+    File order is creation order: arrivals are made in the order they are written,
+    then the `processes`. Events due at one time run in the order they were
+    scheduled, so this order decides only ties between first due times.
+    """
 
     dist: Optional[str] = None  # type: ignore[assignment]
     replay: Optional[Replay] = None
@@ -721,6 +726,9 @@ AtLeastWait.model_rebuild()
 class Task(_Model):
     """A `tasks` entry, built with `SimulationContext.task`.
 
+    Text in a value place stays text. A time place reads a number as seconds, text
+    `time_to_seconds` accepts as a duration, and other text as an expression.
+
     `payload` is the value of the `finished` event: a mapping, or a `!python`
     function called as `payload(task_id, context)`. `id_field` adds the task id to a
     mapping payload under that key, `item_field` adds the item its store `get` took,
@@ -739,6 +747,11 @@ class Task(_Model):
     the task publishes `failed` with `fail_reason`, and goes to `on_fail`. `get` and `put` take from and add to a store or
     container. `next` is a task name, `when` rules or `weights`. `set` gives the
     entity attribute values when the task finishes.
+
+    An expression uses Python's arithmetic: `/` gives a float, and `//` rounds down
+    and gives an integer for two integers. `and` and `or` stop at the first operand
+    that decides the result and do not absorb an error: an operand that cannot be
+    evaluated fails the expression.
     """
 
     service: Optional[str] = None
@@ -923,7 +936,8 @@ class Task(_Model):
 class Process(_Model):
     """A `processes` entry: a generator function and extra keyword arguments.
 
-    The function is called as `function(context, **kwargs)` when the run starts.
+    The function is called as `function(context, **kwargs)` when the run starts. The
+    processes are made after the arrivals, in the order they are written.
     """
 
     function: Callable[..., Any]
@@ -1180,7 +1194,12 @@ class SignalSpec(_Model):
 
 
 class Blueprint(_Model):
-    """A whole blueprint file."""
+    """A whole blueprint file.
+
+    File order is creation order: the arrivals are made in the order they are
+    written, then the `processes`. Events due at one time run in the order they were
+    scheduled, so this order decides only ties between first due times.
+    """
 
     simulation: Simulation
     resources: Dict[str, Resource] = Field(default_factory=dict)

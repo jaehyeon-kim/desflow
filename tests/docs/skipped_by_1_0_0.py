@@ -11,6 +11,7 @@ T2 = "Batch 1 (T2): on_unhandled_failure defaults to stop, so this page's model 
 T3 = "Batch 1 (T3): signals are one-shot by default, so this page's model fires a signal twice; Batch 13 adds once: false to the page"
 T6 = "Batch 1 (T6): records keep sim_ts unrounded, so this page shows or asserts rounded times; Batch 13 handles the page"
 T7 = "Batch 1 (T7, MF2): numbers keep the type they are written in, so this page shows 38.0 where the code now gives 38; Batch 13 regenerates the block"
+I5 = "Batch 2 (I5): a patience that ends at the instant its unit is granted reneges, so this page's tie check reads reneged where it asserts served; Batch 13 rewrites the page and the check"
 NEW_KEY = "Batch 1: the key is new and no hand-written page shows it yet; Batch 13 adds the example"
 
 SKIPPED = {
@@ -18,6 +19,8 @@ SKIPPED = {
     "test_docs_example_answers.py::test_backfill_live_history_rows_and_first_live_event": T6,
     "test_docs_guides.py::test_analyse_the_event_log_waits_and_throughput": T6,
     "test_docs_guides.py::test_how_to_check_scripts_run_as_the_page_builds_them[how-to/modelling/wait-for-one-or-all.md-wait_for_one_or_all-wait_for_one_or_all.py-from desflow import Entity, SimulationContext-False]": T2,
+    "test_docs_guides.py::test_how_to_check_scripts_run_as_the_page_builds_them[how-to/modelling/reneging-and-balking.md-reneging_and_balking-check_reneging.py-import_line1-False]": I5,
+    "test_docs_guides.py::test_reneging_and_balking_ties_and_balance": I5,
     "test_docs_guides.py::test_wait_for_one_or_all_checks_run_from_saved_files": T2,
     "test_docs_guides.py::test_wait_for_one_or_all_example_packs_and_refunds": T3,
     "test_docs_guides.py::test_wait_for_one_or_all_first_ties_and_failure": T2,

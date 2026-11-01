@@ -671,8 +671,8 @@ ONE = "services: {one: {dist: constant, value: 1}, three: {dist: constant, value
 
 def _arrivals(names, n, order):
     """The arrivals block and the replay files for `names` in the creation order
-    `order` ("ab" or "ba"), `n` entities of each at time 0. The arrivals take turns,
-    so the entities start in the order a, b, a, b."""
+    `order` ("ab" or "ba"), `n` entities of each at time 0. Each arrival starts its
+    entities in one step, so they start in the order a, a, b, b."""
     names = names if order == "ab" else names[::-1]
     block = "".join(
         f"  {name}: {{replay: {{path: {name}.csv}}, spawn: {name}_start}}\n"
@@ -683,9 +683,9 @@ def _arrivals(names, n, order):
 
 def _spawn_all(context, n, entries):
     """A builder process that starts `n` entities of each `(letter, task function)`
-    in `entries`, taking turns in the order given, as the YAML arrivals do."""
-    for i in range(n):
-        for letter, task in entries:
+    in `entries`, all of one letter before the next, as the YAML arrivals do."""
+    for letter, task in entries:
+        for i in range(n):
             context.spawn(task(i, entity=Entity(f"{letter}-{i}", letter, {})))
     yield context.env.event()
 
@@ -703,8 +703,8 @@ def _flag_reference(n, order):
         yield env.timeout(1)
         seen.append("seen" if state["flag"] else "unseen")
 
-    for _ in range(n):
-        for letter in order:
+    for letter in order:
+        for _ in range(n):
             env.process(setter() if letter == "a" else reader())
     env.run(until=10)
     return seen
@@ -812,8 +812,8 @@ def _use_reference(n, order, spawner, user):
         yield env.timeout(1)
         yield from hold("use")
 
-    for _ in range(n):
-        for letter in order:
+    for letter in order:
+        for _ in range(n):
             env.process(spawns() if letter == spawner else uses())
     env.run(until=60)
     return grants

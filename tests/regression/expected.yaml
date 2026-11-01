@@ -293,3 +293,9 @@
 - run: scenario:task_flow:yaml
   since: 1.0.0
   changelog: "`sim_ts` is no longer rounded to three decimals (T6), so a record shows the clock as it is."
+- run: blueprint:c5_store_order.yaml
+  since: 1.0.0
+  changelog: "The rows of one time in a replay file now start in one step in file order. Before, each started in a separate step, so the second parcel is put before the first waiting order starts, not after."
+- run: blueprint:patience_tie_served.yaml
+  since: 1.0.0
+  changelog: "When a patience ends at the instant a unit is granted and the patience's event comes first, the task now reneges. Before, the task was served. The blueprint is removed with its test, which is replaced by test_patience_first_at_a_tie_reneges."

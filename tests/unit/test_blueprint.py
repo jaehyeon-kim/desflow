@@ -172,6 +172,57 @@ def test_schema_errors_name_the_line(tmp_path, old, new, line, fragment):
     assert fragment in message
 
 
+def _events_of(tmp_path, text, until):
+    app = SimulationContext.from_yaml(write(tmp_path, text))
+    capture = _Capture()
+    app.add_egress(capture)
+    app.run(until=until)
+    return [
+        (r["sim_ts"], r["value"])
+        for r in capture.records
+        if r["stream_type"] == "event"
+    ]
+
+
+def test_text_in_a_value_place_stays_text_and_a_time_place_reads_it(tmp_path):
+    """Text in a value place stays text: a payload value `attr.n + 1` is that text.
+    A time place reads a number as seconds and text `time_to_seconds` accepts as a
+    duration, so `timeout: 2 h` waits 7200 seconds."""
+    header = (
+        "simulation: {sim_id: Shop, factor: 0}\n"
+        "arrivals: {a: {dist: constant, value: 1, spawn: t}}\n"
+    )
+    events = _events_of(
+        tmp_path,
+        header + "tasks: {t: {payload: {e: 'attr.n + 1'}}}\n",
+        until=1.5,
+    )
+    assert events == [(1.0, {"e": "attr.n + 1"})]
+
+    for timeout, seconds in ((5, 5.0), ("'2 h'", 7200.0)):
+        events = _events_of(
+            tmp_path,
+            header
+            + f"tasks: {{t: {{wait: {{timeout: {timeout}}}, payload: {{e: 1}}}}}}\n",
+            until=seconds + 1.5,
+        )
+        assert [e for e in events if e[1] == {"e": 1}][0] == (1.0 + seconds, {"e": 1})
+
+    # In a place that reads an expression, text is one: a patience of `attr.n` is the
+    # attribute's value: the second order, asking at 2, gives up at 6
+    events = _events_of(
+        tmp_path,
+        "simulation: {sim_id: Shop, factor: 0}\n"
+        "resources: {m: {current_cap: 1, max_cap: 1}}\n"
+        "services: {long: {dist: constant, value: 9}}\n"
+        "arrivals: {a: {dist: constant, value: 1, spawn: t, attributes: {n: 4}}}\n"
+        "tasks: {t: {resource: m, service: long, patience: 'attr.n', "
+        "payload: {e: 1}}}\n",
+        until=8,
+    )
+    assert any(v.get("status") == "reneged" and t == 6.0 for t, v in events)
+
+
 @pytest.mark.parametrize(
     "old,new,line,fragment",
     [
@@ -411,6 +462,73 @@ def test_python_payload_is_called_with_the_task_id_and_context(tmp_path, logic):
     events = [r["value"] for r in capture.records if r["stream_type"] == "event"]
     finished = [value for value in events if "task" in value]
     assert finished and finished[0]["at"] > 0
+
+
+@pytest.mark.parametrize("first,second", [("a", "b"), ("b", "a")])
+def test_arrivals_start_in_file_order(tmp_path, first, second):
+    """File order is creation order: arrivals due at one time start their entities in
+    the order they are written."""
+    arrivals = (
+        f"arrivals: {{{first}: {{dist: constant, value: 3, spawn: t}}, "
+        f"{second}: {{dist: constant, value: 3, spawn: t}}}}\n"
+    )
+    text = (
+        "simulation: {sim_id: R, factor: 0}\n"
+        + arrivals
+        + "tasks: {t: {payload: {e: 1}}}\n"
+    )
+    app = SimulationContext.from_yaml(write(tmp_path, text))
+    capture = _Capture()
+    app.add_egress(capture)
+    app.run(until=4)
+    keys = [r["key"] for r in capture.records if r["stream_type"] == "event"]
+    assert keys[0].startswith(first) and keys[1].startswith(second), keys
+
+
+def test_file_order_decides_only_ties_between_first_due_times(tmp_path):
+    """Events due at one time run in the order they were scheduled. Arrival `a` (gap 1)
+    comes first in the file, but at 3 arrival `b` (gap 3) runs first, because its
+    timeout was scheduled at 0 and the one of `a` at 2."""
+    text = (
+        "simulation: {sim_id: R, factor: 0}\n"
+        "arrivals: {a: {dist: constant, value: 1, spawn: t}, "
+        "b: {dist: constant, value: 3, spawn: t}}\n"
+        "tasks: {t: {payload: {e: 1}}}\n"
+    )
+    app = SimulationContext.from_yaml(write(tmp_path, text))
+    capture = _Capture()
+    app.add_egress(capture)
+    app.run(until=3.5)
+    keys = [
+        (r["sim_ts"], r["key"]) for r in capture.records if r["stream_type"] == "event"
+    ]
+    assert keys == [(1.0, "a-1"), (2.0, "a-2"), (3.0, "b-1"), (3.0, "a-3")]
+
+
+def test_arrivals_start_before_a_process_due_at_the_same_time(tmp_path):
+    """Arrivals are created before `processes`, so an entity an arrival starts runs
+    before a `processes` entry due at the same time."""
+    (tmp_path / "order_logic_mf6.py").write_text(
+        "ORDER = []\n"
+        "def task_ran(task_id, context):\n"
+        "    ORDER.append('task')\n"
+        "    return {'e': 1}\n"
+        "def process(context):\n"
+        "    yield context.env.timeout(3)\n"
+        "    ORDER.append('process')\n",
+        encoding="utf-8",
+    )
+    text = (
+        "simulation: {sim_id: R, factor: 0}\n"
+        "arrivals: {a: {dist: constant, value: 3, spawn: t}}\n"
+        "tasks: {t: {payload: !python order_logic_mf6.task_ran}}\n"
+        "processes:\n  - !python order_logic_mf6.process\n"
+    )
+    app = SimulationContext.from_yaml(write(tmp_path, text))
+    app.run(until=4)
+    import order_logic_mf6
+
+    assert order_logic_mf6.ORDER == ["task", "process"]
 
 
 def test_processes_take_kwargs(tmp_path, logic):

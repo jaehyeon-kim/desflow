@@ -252,7 +252,7 @@
     },
     "Arrival": {
       "additionalProperties": false,
-      "description": "An `arrivals` entry: a distribution, or a `replay` of recorded rows, the task\nit spawns, and the attributes each entity it starts carries.",
+      "description": "An `arrivals` entry: a distribution, or a `replay` of recorded rows, the task\nit spawns, and the attributes each entity it starts carries.\n\nFile order is creation order: arrivals are made in the order they are written,\nthen the `processes`. Events due at one time run in the order they were\nscheduled, so this order decides only ties between first due times.",
       "properties": {
         "dist": {
           "anyOf": [
@@ -1439,7 +1439,7 @@
     },
     "Process": {
       "additionalProperties": false,
-      "description": "A `processes` entry: a generator function and extra keyword arguments.\n\nThe function is called as `function(context, **kwargs)` when the run starts.",
+      "description": "A `processes` entry: a generator function and extra keyword arguments.\n\nThe function is called as `function(context, **kwargs)` when the run starts. The\nprocesses are made after the arrivals, in the order they are written.",
       "properties": {
         "function": {
           "$ref": "#/$defs/PythonReference"
@@ -2331,7 +2331,7 @@
     },
     "Task": {
       "additionalProperties": false,
-      "description": "A `tasks` entry, built with `SimulationContext.task`.\n\n`payload` is the value of the `finished` event: a mapping, or a `!python`\nfunction called as `payload(task_id, context)`. `id_field` adds the task id to a\nmapping payload under that key, `item_field` adds the item its store `get` took,\nand `attributes` adds the named entity attributes. A task with a `service` and no `resource` is a timed step; one with\nneither, and no `get`, emits its payload as soon as it is spawned.\n\n`priority` is a number or an expression such as `attr.priority`, for a resource\nwhose `queue` is `priority`. `patience` is seconds, a duration such as `30 s` or\nan expression; `balk` is a condition checked before the task joins the queue.\n`resource` is one resource or a list, acquired in the order listed; `keep` hands\nunits to the next task. `on_interrupt` is `resume`, `restart` or `abandon`, and\n`interrupt` interrupts the running instances of a task when this one finishes.\n`wait` is what the task waits for first: a signal, a child task, a timeout or a\ncondition, or any or all of several. `signal` names a signal the task fires\nwhen it finishes. `fail` is a condition checked after the service: when it holds\nthe task publishes `failed` with `fail_reason`, and goes to `on_fail`. `get` and `put` take from and add to a store or\ncontainer. `next` is a task name, `when` rules or `weights`. `set` gives the\nentity attribute values when the task finishes.",
+      "description": "A `tasks` entry, built with `SimulationContext.task`.\n\nText in a value place stays text. A time place reads a number as seconds, text\n`time_to_seconds` accepts as a duration, and other text as an expression.\n\n`payload` is the value of the `finished` event: a mapping, or a `!python`\nfunction called as `payload(task_id, context)`. `id_field` adds the task id to a\nmapping payload under that key, `item_field` adds the item its store `get` took,\nand `attributes` adds the named entity attributes. A task with a `service` and no `resource` is a timed step; one with\nneither, and no `get`, emits its payload as soon as it is spawned.\n\n`priority` is a number or an expression such as `attr.priority`, for a resource\nwhose `queue` is `priority`. `patience` is seconds, a duration such as `30 s` or\nan expression; `balk` is a condition checked before the task joins the queue.\n`resource` is one resource or a list, acquired in the order listed; `keep` hands\nunits to the next task. `on_interrupt` is `resume`, `restart` or `abandon`, and\n`interrupt` interrupts the running instances of a task when this one finishes.\n`wait` is what the task waits for first: a signal, a child task, a timeout or a\ncondition, or any or all of several. `signal` names a signal the task fires\nwhen it finishes. `fail` is a condition checked after the service: when it holds\nthe task publishes `failed` with `fail_reason`, and goes to `on_fail`. `get` and `put` take from and add to a store or\ncontainer. `next` is a task name, `when` rules or `weights`. `set` gives the\nentity attribute values when the task finishes.\n\nAn expression uses Python's arithmetic: `/` gives a float, and `//` rounds down\nand gives an integer for two integers. `and` and `or` stop at the first operand\nthat decides the result and do not absorb an error: an operand that cannot be\nevaluated fails the expression.",
       "properties": {
         "service": {
           "anyOf": [

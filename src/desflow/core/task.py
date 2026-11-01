@@ -19,7 +19,6 @@ from typing import (
     Dict,
     List,
     Optional,
-    Set,
     Tuple,
     Union,
 )
@@ -63,6 +62,18 @@ class TaskFailed(Exception):
 
 # What a wait or a get returns when the task's patience ran out first
 _RENEGED = object()
+
+# The service still owed, in seconds, at or below which a resumed task has none left
+_NO_TIME_LEFT = 1e-9
+
+
+def _won(event: Any) -> bool:
+    """Whether a request, get or put counts as won against a patience or a wait that
+    ended at the same instant: only when the event was processed before the wait's
+    condition was, as SimPy's `req in results` is true only for such an event. One
+    that is granted but not yet processed has lost, and its unit or item is not kept.
+    """
+    return event.processed
 
 
 class TaskSpec:
@@ -194,6 +205,12 @@ class TaskRun:
         self.item: Any = None
         self.waits: Dict[str, Dict[str, Any]] = {}
         self.process: Any = None
+        # Whether the context lists this instance as running, which `reach` does from
+        # the step the instance is started in and `_run_one` does otherwise
+        self._listed = False
+        # Whether the failure the task ends in is a run failure: a wait that failed,
+        # or a task function that raised, as an uncaught exception ends a SimPy process
+        self._raised = False
         # The instance this one handed on to, which `run` runs next; None if none
         self._following: Optional["TaskRun"] = None
         # The put or get the task is waiting for, cancelled by an interrupt
@@ -205,6 +222,9 @@ class TaskRun:
         # Units won by a `request` wait branch, held through the service and given
         # back when the task ends, as a `resource:` unit is
         self._wait_held: List[Any] = []
+        # The requests a wait branch lost by being granted after the wait ended,
+        # whose units go back when the task ends
+        self._lost_requests: List[Any] = []
         # The live `request`, `get` and `put` branch events of the current wait, kept
         # so a resume reuses them and a renege or an abandon cancels them
         self._wait_events: Dict[str, Any] = {}
@@ -310,10 +330,17 @@ class TaskRun:
                 parent.instances = {}
             parent.instances.setdefault(self.spec.name, []).append(self)
 
-    def _set_ended(self, outcome: Optional[Upstream], ok: bool, result: Any) -> None:
+    def _set_ended(
+        self,
+        outcome: Optional[Upstream],
+        ok: bool,
+        result: Any,
+        actions: bool = True,
+    ) -> None:
         """Sets `outcome` and triggers the end event, if this instance has one and it
         has not been triggered. A success carries the finished payload or None; a
-        failure carries the exception a waiter receives."""
+        failure carries the exception a waiter receives. The `on:` actions run after
+        it unless `actions` is False."""
         if self.ended is None:
             return
         self.outcome = outcome
@@ -324,7 +351,8 @@ class TaskRun:
             self.ended.succeed(result)
         else:
             self.ended.fail(result)
-        self._run_end_actions()
+        if actions:
+            self._run_end_actions()
 
     def _record_last_ended(self) -> None:
         """Records this instance as the last-ended of its task on its entity, for a
@@ -441,6 +469,20 @@ class TaskRun:
             run = following
             self.env.active_process._generator.__name__ = run.spec.name  # type: ignore[attr-defined]
 
+    def reach(self, process: Any) -> None:
+        """Lists this instance as running, under its task, with the process that runs
+        it. A task that starts an instance calls this in the step it starts it in, so
+        an `interrupt` in that step finds the instance, as it finds a SimPy process
+        made one statement earlier. The interrupt then reaches the instance at its
+        first `yield`.
+
+        Args:
+            process: The SimPy process that runs this instance.
+        """
+        self.process = process
+        self.context._running.setdefault(self.spec.name, []).append(self)
+        self._listed = True
+
     def _run_one(self):
         """One instance: everything from the balk check to the next task.
 
@@ -448,8 +490,8 @@ class TaskRun:
         reach it.
         """
         self.process = self.env.active_process
-        running = self.context._running.setdefault(self.spec.name, [])
-        running.append(self)
+        if not self._listed:
+            self.reach(self.process)
         if not self.child and not self.entity.entered:
             self.entity.entered = True
             # A spawn without `after` has already counted the entity in; the first
@@ -459,11 +501,9 @@ class TaskRun:
             result = yield from self._run()
         except BaseException as error:
             # An error ends the instance: the end event fails with it, so a waiter
-            # receives it. The run still raises, as before. Closing the generator
-            # is not an end of the task, so no `on:` action runs for it.
-            self._end_default(
-                ok=False, error=error, actions=not isinstance(error, GeneratorExit)
-            )
+            # receives it. The run still raises. No `on:` action runs after it,
+            # as no statement runs after an uncaught exception in SimPy.
+            self._end_default(ok=False, error=error, actions=False)
             raise
         finally:
             self._target = None
@@ -496,7 +536,7 @@ class TaskRun:
     def _run(self):
         spec, env, stats = self.spec, self.env, self.env.stats
         if spec.balk_of is not None and spec.balk_of.evaluate(self.scope()):
-            self._release_kept()
+            self._release_kept(own=self.child)
             self.publish(self.status("balked"))
             stats.task_balked(spec.name, self.task_id)
             self.outcome = Upstream(
@@ -517,7 +557,7 @@ class TaskRun:
             first = self.context._resources_map[spec.resources[0]]
             limit = getattr(first.queue, "maxlen", None)
             if limit is not None and len(first.queue) >= limit:
-                self._release_kept()
+                self._release_kept(own=self.child)
                 self._balk_full(first)
                 return None
         # The patience counts waiting time only: it runs while the task waits for
@@ -548,6 +588,7 @@ class TaskRun:
                 return None
             failure = outcome
             if failure is not None:
+                self._raised = True
                 self.publish(self.status("failed", reason=failure))
                 stats.task_failed(spec.name, self.task_id)
             break
@@ -555,7 +596,7 @@ class TaskRun:
         payload: Any = None
         rank = self._rank() if self.spec.resources else None
         remaining: Optional[float] = None  # service still owed, when interrupted
-        started = got_item = put_done = served = False
+        started = got_item = put_done = served = no_time_left = False
         # The requests the task holds, and the position in `spec.resources` each one
         # asked for. Kept across a resume, as a SimPy process keeps its request
         # across `except Interrupt`.
@@ -568,7 +609,7 @@ class TaskRun:
                 # requested again on resume, as a `resource:` unit is (C8).
                 for index in range(len(self._wait_held)):
                     won = self._wait_held[index]
-                    if won not in won.resource.users:
+                    if won not in won.resource.users and not no_time_left:
                         self._target = f"resource.{won.resource.obj_id}"
                         try:
                             fresh = won.resource.request(
@@ -576,7 +617,7 @@ class TaskRun:
                             )
                         except QueueFull:
                             self._release(held)
-                            self._release_kept()
+                            self._release_kept(own=self.child)
                             self._balk_full(won.resource)
                             return None
                         self._wait_held[index] = fresh
@@ -588,13 +629,13 @@ class TaskRun:
                             self._waited()
                             # The patience ran out before the unit was free, as
                             # for a `resource:` unit.
-                            if not fresh.triggered:
+                            if not _won(fresh):
                                 fresh.cancel()
                                 self._release(held)
                                 self._renege()
                                 return None
                 for at, resource in enumerate(spec.resources):
-                    if at in slots:
+                    if at in slots or no_time_left:
                         continue
                     self._target = f"resource.{resource}"
                     try:
@@ -603,7 +644,7 @@ class TaskRun:
                         )
                     except QueueFull:
                         self._release(held)
-                        self._release_kept()
+                        self._release_kept(own=self.child)
                         self._balk_full(self.context._resources_map[resource])
                         return None
                     held.append(request)
@@ -616,7 +657,7 @@ class TaskRun:
                         self._waited()
                         # The patience ran out before a unit was free: leave the
                         # queue, give back the units held so far, and renege.
-                        if not request.triggered:
+                        if not _won(request):
                             self._release(held)
                             self._renege()
                             return None
@@ -640,8 +681,10 @@ class TaskRun:
                     if spec.timed:
                         self.publish(self.status("started"))
                         stats.task_started(spec.name, self.task_id)
-                    # Units the task before kept for this one go back once it starts
-                    self._release_kept()
+                    # Units the task before kept for this one go back once it starts.
+                    # A child flow gives back only its own: the units its parent
+                    # kept stay until the parent's next task starts.
+                    self._release_kept(own=self.child)
                     try:
                         payload = spec.user_func(
                             self.task_id, *self.args, **self._extra()
@@ -649,7 +692,8 @@ class TaskRun:
                     except Exception as error:  # noqa: BLE001: a task's failure
                         failure = f"{type(error).__name__}: {error}"
                         self._fail_error = error
-                else:
+                        self._raised = True
+                elif not no_time_left:
                     self.publish(self.status("resumed"))
                     stats.task_resumed(spec.name, self.task_id)
                 if failure is None:
@@ -699,6 +743,11 @@ class TaskRun:
                     # resume serves what is left; restart draws a new service time
                     if spec.on_interrupt == "resume":
                         remaining -= env.now - service_from
+                        if remaining <= _NO_TIME_LEFT:
+                            # The work ended at this instant: the task ends here and
+                            # asks for no unit again, as SimPy's `while left > 0:`
+                            # ends. `_NO_TIME_LEFT` allows for float error.
+                            remaining, served, no_time_left = 0.0, True, True
                     else:
                         remaining = None
                 if self._interrupted(interrupt):
@@ -727,8 +776,16 @@ class TaskRun:
                 self.status("failed", reason=failure),
             )
             # The end event fails whether or not on_fail handles the task, so a
-            # waiter and the `on:` actions see the failure.
-            self._set_ended(failed, ok=False, result=TaskFailed(spec.name, failure))
+            # waiter sees the failure. The `on:` actions see it too, unless a wait
+            # failed or the function raised and no `on_fail` handles that: then the
+            # task ends in a run failure, and no action runs (D3). The task's own
+            # `fail` is not a run failure.
+            self._set_ended(
+                failed,
+                ok=False,
+                result=TaskFailed(spec.name, failure),
+                actions=not self._raised or spec.on_fail is not None,
+            )
             if spec.on_fail is not None:
                 return self._follow(spec.on_fail, failed)
             # No task follows, so the units this flow keeps for it go back
@@ -845,6 +902,10 @@ class TaskRun:
             if request in request.resource.users:
                 request.resource.release(request)
         self._wait_held = []
+        for request in self._lost_requests:
+            if request in request.resource.users:
+                request.resource.release(request)
+        self._lost_requests = []
         self._cancel_wait_events()
 
     def _cancel_wait_events(self) -> None:
@@ -892,7 +953,10 @@ class TaskRun:
         took goes back.
         """
         spec, stats = self.spec, self.env.stats
-        self._release_kept(lost_only=spec.on_interrupt != "abandon")
+        abandon = spec.on_interrupt == "abandon"
+        # A child flow that abandons gives back only what its own tasks asked for:
+        # the units its parent kept stay until the parent's next task starts
+        self._release_kept(lost_only=not abandon, own=self.child and abandon)
         cause = interrupt.cause
         preempted = isinstance(cause, Preempted)
         if preempted:
@@ -1065,7 +1129,7 @@ class TaskRun:
             yield event
         else:
             yield event | deadline
-            if not event.triggered:
+            if not _won(event):
                 event.cancel()
                 self._pending = None
                 return _RENEGED
@@ -1169,21 +1233,14 @@ class TaskRun:
                 events[node.name] = event
             return event
 
-        # The leaves already processed when the patience runs out, recorded by a
-        # callback on the deadline, so a leaf processed after it at the same
-        # instant does not count, as in SimPy's `yield wait | patience`
-        before_patience: Set[int] = set()
-
         def done_at_tie(node: Any) -> bool:
             """Whether a node is done when the patience ends at the instant the wait
-            would: a leaf processed before the patience, or a request, get or put
-            granted at that instant, which counts as won (D-C1), as on the patience
-            paths outside a wait."""
+            would: a leaf processed by the time the task resumes is in the value of
+            SimPy's condition, which is built when the condition is processed. One
+            granted or triggered but not yet processed has lost."""
             event = built[id(node)]
             if not node.is_group:
-                if node.kind in ("request", "get", "put"):
-                    return event.triggered and event.ok
-                return id(event) in before_patience and event.ok
+                return _won(event) and event.ok
             won = sum(done_at_tie(child) for child in node.children)
             if node.kind == "any":
                 return won > 0 or not node.children
@@ -1204,12 +1261,6 @@ class TaskRun:
         # the task goes on in the step the event is processed; a group yields its
         # own condition.
         joined = root_event
-        if deadline is not None and deadline.callbacks is not None:
-            deadline.callbacks.append(
-                lambda _: before_patience.update(
-                    id(e) for e in built.values() if e.processed
-                )
-            )
         failure: Any = None
         try:
             yield joined if deadline is None else joined | deadline
@@ -1223,9 +1274,8 @@ class TaskRun:
             for stop in stop_watching:
                 stop()
         # When the patience ends first and the wait's event or condition is not yet
-        # processed, the wait has lost the tie. It still succeeds when its request,
-        # get and put branches granted at that instant satisfy it, so a granted item
-        # or unit is not lost.
+        # processed, the wait has lost the tie. It still succeeds when its leaves
+        # processed by then satisfy it.
         tie = failure is None and not joined.processed
         if tie and not done_at_tie(wait.root):
             return _RENEGED
@@ -1247,17 +1297,10 @@ class TaskRun:
                 done = event.processed
                 value = self._group_value(node) if done else None
             elif node.kind in ("request", "get", "put"):
-                # A branch granted at the instant the wait ended is triggered but not
-                # in the value yet: it counts as won, so its item or unit is kept
-                done = (
-                    (
-                        event.triggered and event.ok
-                        if event is joined
-                        else event in joined.value or (event.triggered and event.ok)
-                    )
-                    if joined.ok
-                    else event.processed
-                )
+                # A branch granted at the instant the wait ended, after the wait's
+                # condition was processed, is not in its value: the wait ignores it,
+                # so a get's item is lost and a request's unit is given back.
+                done = _won(event) and event.ok if joined.ok else event.processed
                 value = self._resolve_branch(node, event, done)
             elif node.kind == "running":
                 # The branch event is an `AllOf` condition, so the wait's value holds
@@ -1307,10 +1350,12 @@ class TaskRun:
             if node.kind == "get":
                 return self._transfer_value(node.target, "get", event)
             return None
-        # A losing branch leaves the queue or reservation behind nothing.
+        # A losing branch leaves the queue or reservation behind nothing. A request
+        # granted after the wait's condition was processed keeps its unit until the
+        # task ends, as a `with` block holds a granted request it did not use.
         event.cancel()
         if node.kind == "request" and event.triggered and event in event.resource.users:
-            event.resource.release(event)
+            self._lost_requests.append(event)
         return None
 
     def _condition(self, condition: Expression):

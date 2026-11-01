@@ -130,6 +130,35 @@ def test_a_missing_name_fails_with_the_expression(scope, text, fragment):
     assert fragment in str(error.value)
 
 
+def test_division_and_floor_division_follow_python(scope):
+    """The evaluator uses Python arithmetic: `/` gives a float and `//` an integer."""
+    assert Expression("7 / 2").evaluate(scope) == 3.5
+    assert type(Expression("7 / 2").evaluate(scope)) is float
+    assert Expression("7 // 2").evaluate(scope) == 3
+    assert type(Expression("7 // 2").evaluate(scope)) is int
+    # `//` rounds down, and keeps a float when one operand is a float
+    assert Expression("7.5 // 2").evaluate(scope) == 3.0
+    assert type(Expression("7.5 // 2").evaluate(scope)) is float
+
+
+@pytest.mark.parametrize(
+    "text",
+    ["attr.missing > 0 or True", "attr.missing > 0 and False", "not attr.missing or 1"],
+)
+def test_and_and_or_do_not_absorb_an_error(scope, text):
+    """An operand that cannot be evaluated fails the expression even when a later
+    operand would decide the result: `and` and `or` do not absorb an error."""
+    with pytest.raises(ValueError, match="cannot evaluate '") as error:
+        Expression(text).evaluate(scope)
+    assert "no attribute 'missing'" in str(error.value)
+
+
+def test_and_and_or_stop_at_the_first_operand_that_decides(scope):
+    """As in Python, an operand after one that decides the result is not evaluated."""
+    assert Expression("False and attr.missing > 0").evaluate(scope) is False
+    assert Expression("True or attr.missing > 0").evaluate(scope) is True
+
+
 class _Holder:
     """A store as the scope sees it: items, a priority flag and the two queue counts."""
 

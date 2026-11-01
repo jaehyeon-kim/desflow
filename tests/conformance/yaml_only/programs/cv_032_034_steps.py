@@ -1,5 +1,6 @@
 """The SimPy program of CV-032 and CV-034, written from `cv_032_034_steps.yaml`
-(independence class: written from the blueprint). A source starts n ticks at 1; each
+(independence class: written from the blueprint). A source starts n ticks at 1, in one
+step, as the rows of one time start; each
 publishes when it starts, waits 1, and publishes when it ends. A driver loop reads
 `env.peek()` and calls `env.step()` until `until`, as the SimPy documentation does."""
 
@@ -22,8 +23,8 @@ def reference(n: int) -> Tuple[List[Dict[str, Any]], List[Tuple[Any, str, str]]]
         published.append((env.now, f"a-{index}", "done"))
 
     def source():
+        yield env.timeout(1)
         for index in range(1, n + 1):
-            yield env.timeout(1 - env.now)
             env.process(tick(index))
         yield env.event()
 

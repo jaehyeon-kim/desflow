@@ -159,7 +159,7 @@
     - tests/conformance/test_c2_wait_for_one_or_all.py::test_c2_wait_for_one_event
     - tests/conformance/test_c2_wait_for_one_or_all.py::test_c2_wait_for_one_event_two_at_one_instant
   page: how-to/modelling/wait-for-one-or-all.md#wait-for-the-first
-  differences: Losing signal, timeout and condition branches are dropped when the wait ends; losing child flows keep running, as SimPy leaves processes running.
+  differences: "Losing signal, timeout and condition branches are dropped when the wait ends; losing child flows keep running, as SimPy leaves processes running. A request branch not yet granted when the wait ends is cancelled; a SimPy `with` block held over the rest of the task leaves it queued."
 
 - id: C2
   inventory: [SP-C2, SP-C4]
@@ -185,7 +185,9 @@
   checks:
     - tests/conformance/test_c3_interrupts.py::test_c3_interrupt_while_waiting
     - tests/conformance/test_c3_interrupts.py::test_c3_an_interrupt_in_a_queue_keeps_the_unit_already_granted
+    - tests/conformance/test_c3_interrupts.py::test_interrupt_reaches_an_instance_of_this_step
   page: learn/shop-logic/interruptions.md#interrupt-a-task
+  differences: "A task's own `spawn:` and `interrupt:` keys run in a fixed order, interrupt first, so one task cannot interrupt the instance it spawns with them. List a `spawn` and then an `interrupt` in `on:`, which run in the order written, or use `context.spawn` and `context.interrupt`."
 
 - id: C3
   inventory: [SP-P9, SP-P10, SP-P11]
@@ -203,7 +205,9 @@
     - tests/conformance/test_c3_interrupts.py::test_c3_a_unit_the_task_before_kept_goes_back_when_the_task_ends_without_starting
     - tests/conformance/test_c3_interrupts.py::test_c3_a_breakdown_takes_the_broken_unit_and_a_worker_keeps_its_other_unit
     - tests/conformance/test_c3_interrupts.py::test_c3_an_interrupt_during_a_get_keeps_the_unit_and_cancels_the_get
-    - tests/conformance/test_c3_interrupts.py::test_c3_an_interrupt_at_the_exact_end_of_service_goes_on_a_step_later
+    - tests/conformance/test_c3_interrupts.py::test_job_interrupted_at_its_end_ends
+    - tests/conformance/test_c3_interrupts.py::test_job_preempted_at_its_end_ends
+    - tests/conformance/test_c3_interrupts.py::test_interrupts_arrive_in_entry_order
     - tests/conformance/test_c3_interrupts.py::test_c3_an_interrupt_in_a_put_after_the_service_does_not_serve_again
     - tests/conformance/test_c3_interrupts.py::test_c3_a_kept_unit_goes_back_when_the_flow_ends_without_a_next_task
     - tests/conformance/test_c3_interrupts.py::test_c3_an_error_outside_the_function_gives_back_a_kept_unit_in_a_child_flow
@@ -303,6 +307,8 @@
   checks:
     - tests/conformance/test_c4_resources.py::test_c4_hold_several_resources
     - tests/conformance/test_c4_resources.py::test_c4_keep_hands_a_unit_to_the_next_task
+    - tests/conformance/test_c4_resources.py::test_keep_survives_a_child_flow
+    - tests/conformance/test_c4_resources.py::test_keep_survives_a_child_that_abandons_or_balks
     - tests/conformance/test_c1_process_interaction.py::test_c1_a_preempted_kept_unit_interrupts_the_next_task_while_it_queues
   page: user-guide/resources/several-resources.md#several-resources
   differences: A model whose tasks acquire two resources in opposite orders is refused when it is built, because those tasks could each wait for ever; SimPy runs it. Two requests under one `all` wait are made together, so another task that acquires the two one after the other, in either order, is refused too.
@@ -476,8 +482,8 @@
   low_level: "`DynamicStore(..., priority=True)` with `simpy.PriorityItem`"
   checks:
     - tests/conformance/test_c5_priority_store.py::test_c5_priority_item_storage
+    - tests/conformance/test_c5_priority_store.py::test_equal_priorities_follow_the_heap
   page: user-guide/model-parts/stores-and-containers.md#start-with-items-and-serve-by-priority
-  differences: Equal priorities come out in put order in the builder and YAML, which add a rising put order to the priority; a plain SimPy `PriorityStore` gives no order among equal priorities.
 
 - id: C5
   inventory: [SP-T9]
@@ -747,11 +753,15 @@
   simpy: "`simpy.events.AnyOf` of a request and a timeout"
   yaml: "`patience: 3 min` on a task"
   builder: "`@app.task(..., patience=180)`"
-  low_level: "`yield req | env.timeout(patience)`, then `req.triggered`"
+  low_level: "`yield req | env.timeout(patience)`, then `req not in result`"
   checks:
     - tests/conformance/test_c7_patience.py::test_c7_reneging
     - tests/conformance/test_c7_patience.py::test_c7_patience_that_evaluates_to_text_is_read_as_a_number
-    - tests/conformance/test_c7_patience.py::test_c7_reneging_tie_timeout_scheduled_after_the_grant
+    - tests/conformance/test_c7_patience.py::test_patience_first_at_a_tie_reneges
+    - tests/conformance/test_c7_patience.py::test_child_that_reneged_reports_simpy_value
+    - tests/conformance/test_c7_patience.py::test_patience_does_not_beat_a_timeout_branch_processed_first
+    - tests/conformance/test_c7_patience.py::test_patience_first_at_a_tie_reneges_a_get
+    - tests/conformance/test_c7_patience.py::test_patience_first_at_a_tie_reneges_a_request_asked_again
     - tests/conformance/test_c7_patience.py::test_c7_reneging_tie_timeout_scheduled_before_the_grant
     - tests/conformance/test_c7_patience.py::test_c7_reneged_request_leaves_the_queue
     - tests/conformance/test_c7_patience.py::test_c7_patience_pauses_during_service
@@ -905,7 +915,9 @@
   low_level: "`read_trace(source, ...)` and a SimPy loop over its rows"
   checks:
     - tests/conformance/test_s3_replay.py::test_s3_replay_equal_times_invalid_rows_and_the_horizon
+    - tests/conformance/test_s3_replay.py::test_tied_replay_rows_start_in_one_step
   page: learn/inputs/local-replay.md#replay-the-rows
+  differences: "The rows of one time start their entities in one step, in file order. A low-level loop that waits one timeout per row starts tied rows in separate steps; a loop that waits once for each distinct time starts them in one step, as here."
 
 # SimPy 4.1.2 features made native in 0.23.0 (roadmap step 14).
 
@@ -1110,6 +1122,8 @@
     - tests/conformance/test_c1_events.py::test_c1_an_on_fire_to_a_signals_on_runs_the_actions_one_step_later
     - tests/conformance/test_c1_events.py::test_c1_closing_a_task_that_is_still_serving_runs_no_on_action
     - tests/conformance/test_c1_events.py::test_c1_a_task_that_balks_or_reneges_runs_its_on_actions
+    - tests/conformance/test_c3_interrupts.py::test_on_actions_do_not_run_after_a_run_failure
+    - tests/conformance/test_c3_interrupts.py::test_on_actions_do_not_run_after_a_task_function_raises
     - tests/conformance/test_c1_events.py::test_c1_an_on_path_that_does_not_exist_in_a_child_flow_stops_the_run
     - tests/conformance/test_c1_events.py::test_c1_an_on_path_that_does_not_exist_in_a_root_task_stops_the_run
     - tests/conformance/test_c1_events.py::test_c1_losing_child_flow_fire_after_left_is_not_counted
@@ -1219,10 +1233,8 @@
     - tests/conformance/test_c2_conditions.py::test_c2_request_wait_branch_kept_across_a_resume_in_the_service
     - tests/conformance/test_c2_conditions.py::test_c2_abandon_during_a_wait_with_a_won_branch_is_clean
     - tests/conformance/test_c2_conditions.py::test_c2_request_wait_branch_reacquired_after_a_preemption
-    - tests/conformance/test_c2_conditions.py::test_c2_a_get_granted_as_the_wait_ends_counts_as_won
-    - tests/conformance/test_c2_conditions.py::test_c2_a_request_granted_as_the_wait_ends_counts_as_won
+    - tests/conformance/test_c2_wait_for_one_or_all.py::test_grant_at_the_wait_end_is_not_kept
   page: how-to/modelling/wait-for-one-or-all.md#wait-for-a-unit-an-item-or-room
-  differences: "A request, get or put branch that is granted at the instant its wait ends, after the condition was processed, counts as won, and the task keeps its unit or item, as SimPy's `if not event.triggered: event.cancel()` leaves a granted event. A SimPy waiter that ignores such an event, because it is not in the condition's value, keeps the unit held or loses the item."
 
 - id: C1
   inventory: [SP-U1]

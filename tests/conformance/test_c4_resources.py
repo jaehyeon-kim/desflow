@@ -7,6 +7,7 @@ started event) must match a plain SimPy `Resource`, in all three interfaces.
 
 from pathlib import Path
 
+import pytest
 import simpy
 
 from desflow import (
@@ -688,6 +689,101 @@ def test_c4_keep_hands_a_unit_to_the_next_task():
     assert _keep_starts(_low_level_keep()) == expected
     assert _keep_starts(_builder_keep()) == expected
     assert _keep_starts(run_yaml("c4_keep.yaml")[0]) == expected
+
+
+# Keep across a child flow: a car holds a unit of the carwash while its wash runs as a
+# child flow, and gives it back when its next task starts. In plain SimPy the unit is
+# held through `yield env.process(wash())`.
+
+
+def _reference_keep_through_a_child(n):
+    env = simpy.Environment()
+    machine = simpy.Resource(env, 2)
+    entered, washed = [], []
+
+    def wash():
+        yield env.timeout(5)
+
+    def car():
+        with machine.request() as req:
+            yield req
+            entered.append(env.now)
+            yield env.process(wash())
+        washed.append(env.now)
+
+    for _ in range(n):
+        env.process(car())
+    env.run(until=60)
+    return entered, washed
+
+
+KEEP_THROUGH_A_CHILD = """
+simulation: {sim_id: C4w, factor: 0}
+resources: {machine: {current_cap: 2, max_cap: 2}}
+services: {zero: {dist: constant, value: 0}, five: {dist: constant, value: 5}}
+arrivals: {cars: {replay: {path: cars.csv}, spawn: enter}}
+tasks:
+  enter:
+    resource: machine
+    service: zero
+    keep: [machine]
+    next: wash_all
+    payload: {event: in}
+  wash_all: {wait: {task: wash}, payload: {event: washed}}
+  wash: {service: five, payload: {event: wash}}
+run: {until: 60}
+"""
+
+
+@pytest.mark.parametrize("n", [1, 3, 10])
+def test_keep_survives_a_child_flow(tmp_path, n):
+    """A unit kept for the next task is not given back when a child flow of that task
+    starts: it stays until the next task starts, after the child ends, as SimPy's unit
+    stays held through `yield env.process(wash())`. Of 10 cars on 2 units, the pairs
+    enter at 0, 5, 10, 15 and 20 (register row H3)."""
+    entered, washed = _reference_keep_through_a_child(n)
+    if n == 10:
+        assert entered == [0, 0, 5, 5, 10, 10, 15, 15, 20, 20]
+
+    app = SimulationContext("C4w", factor=0.0)
+    app.add_resource("machine", current_cap=2, max_cap=2)
+    app.add_service("zero", dist="constant", value=0)
+    app.add_service("five", dist="constant", value=5)
+
+    @app.task(
+        service_id="zero",
+        resource_id="machine",
+        keep=["machine"],
+        next="wash_all",
+        name="enter",
+    )
+    def enter(task_id):
+        return {"event": "in"}
+
+    @app.task(wait={"task": "wash"}, name="wash_all")
+    def wash_all(task_id):
+        return {"event": "washed"}
+
+    @app.task(service_id="five", name="wash")
+    def wash(task_id):
+        return {"event": "wash"}
+
+    def script(context):
+        for i in range(n):
+            context.spawn(enter(0, entity=Entity(f"car-{i}", "car")))
+        yield context.env.timeout(0)
+
+    app.add_process(script)
+    records = run_builder(app, 60)
+    assert times(records, "enter", "started") == entered
+    assert times(records, "wash_all") == washed
+    assert app.get_resource("machine").count == 0
+
+    outcome = run_yaml_text(tmp_path, KEEP_THROUGH_A_CHILD, {"cars": [0] * n})
+    assert outcome.error is None
+    assert times(outcome.records, "enter", "started") == entered
+    assert times(outcome.records, "wash_all") == washed
+    assert outcome.app_or_env.get_resource("machine").count == 0
 
 
 # Mixed preempt flags on a priority resource: SimPy's PriorityResource ranks a
@@ -1394,3 +1490,104 @@ def test_c4_custom_resource_type(tmp_path):
     assert stock.trace != run_simpy(make, jobs, 20).trace
     spec, make, jobs, _kept = _custom_cases()["two waiting"]
     assert "balked" in [s for _t, _n, s in run_simpy(make, jobs, 20).trace]
+
+
+def _reference_rival_after_a_child(n, child):
+    """`n` cars on `n` units enter at 0 and keep their unit through a child process;
+    `n` rivals ask at 1. In `abandon` the child is interrupted at 2, ends its wash
+    and dries 5 more, so the cars leave at 7. In `balk` the child ends at once and
+    the car also waits for a timeout of 3. Either way the rivals start only when the
+    cars leave. In `full` the child balks because the line of its resource is full."""
+    env = simpy.Environment()
+    machine = simpy.Resource(env, n)
+    started, children = [], []
+
+    def wash():
+        try:
+            yield env.timeout(5)
+        except simpy.Interrupt:
+            yield env.timeout(5)
+
+    def balked():
+        yield env.timeout(0)
+
+    def car():
+        with machine.request() as req:
+            yield req
+            process = env.process(wash() if child == "abandon" else balked())
+            children.append(process)
+            if child == "abandon":
+                yield process
+            else:
+                yield process & env.timeout(3)
+
+    def rival():
+        yield env.timeout(1)
+        with machine.request() as req:
+            yield req
+            started.append(env.now)
+
+    def stop():
+        yield env.timeout(2)
+        for process in children:
+            process.interrupt("stop")
+
+    for _ in range(n):
+        env.process(car())
+        env.process(rival())
+    if child == "abandon":
+        env.process(stop())
+    env.run(until=40)
+    return started
+
+
+CHILD_SHARES_THE_KEPT_UNIT = """
+simulation: {{sim_id: C4a, factor: 0}}
+resources:
+  machine: {{current_cap: {n}, max_cap: {n}}}
+  other: {{current_cap: {n}, max_cap: {n}{limit}}}
+services: {{zero: {{dist: constant, value: 0}}, five: {{dist: constant, value: 5}}, one: {{dist: constant, value: 1}}}}
+arrivals:
+  cars: {{replay: {{path: cars.csv}}, spawn: enter}}
+  rivals: {{replay: {{path: rivals.csv}}, spawn: rival}}
+tasks:
+  enter: {{resource: machine, service: zero, keep: [machine], next: wash_all, payload: {{event: in}}}}
+  wash_all: {{wait: {{{parent_wait}}}, payload: {{event: washed}}}}
+  wash: {{{child_body}, payload: {{event: wash}}}}
+  dry: {{service: five, payload: {{event: dry}}}}
+  rival: {{resource: machine, service: one, payload: {{event: rival}}}}
+scenario: {scenario}
+run: {{until: 40}}
+"""
+
+
+@pytest.mark.parametrize("n", [1, 3, 10])
+@pytest.mark.parametrize("child", ["abandon", "balk", "full"])
+def test_keep_survives_a_child_that_abandons_or_balks(tmp_path, child, n):
+    """A child flow that is abandoned by an interrupt, or that balks, gives back only
+    what its own tasks asked for. The unit its parent kept stays, as a SimPy car's
+    `with` block holds it while its child process ends (register row H3)."""
+    expected = _reference_rival_after_a_child(n, child)
+    assert expected == [7 if child == "abandon" else 3] * n
+    if child == "abandon":
+        body = "service: five, on_interrupt: abandon, on_interrupt_next: dry"
+        wait, scenario = "task: wash", "[{at: 2, interrupt: {task: wash, cause: stop}}]"
+    elif child == "balk":
+        body = "resource: other, service: one, balk: 'True'"
+        wait = "all: {k: {task: wash}, t: {timeout: 3}}"
+        scenario = "[]"
+    else:
+        body = "resource: other, service: one"
+        wait = "all: {k: {task: wash}, t: {timeout: 3}}"
+        scenario = "[]"
+    text = CHILD_SHARES_THE_KEPT_UNIT.format(
+        n=n,
+        limit=", queue_limit: 0" if child == "full" else "",
+        child_body=body,
+        parent_wait=wait,
+        scenario=scenario,
+    )
+    outcome = run_yaml_text(tmp_path, text, {"cars": [0] * n, "rivals": [1] * n})
+    assert outcome.error is None
+    assert times(outcome.records, "rival", "started") == expected
+    assert outcome.app_or_env.get_resource("machine").count == 0

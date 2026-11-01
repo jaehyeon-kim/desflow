@@ -846,12 +846,14 @@ def _kept_reference(case, n, arrivals=False):
             picker.release(req)
 
     def arrive(make, at, found=None):
-        yield env.timeout(at)
+        # The rows of one time start in one step, before any entity takes a step
+        if at:
+            yield env.timeout(at)
         for i in range(1, n + 1):
             process = env.process(make(i))
             if found is not None:
                 found.append(process)
-            yield env.timeout(0)
+        yield from ()
 
     if arrivals:
         env.process(arrive(hog, 0))
@@ -1100,9 +1102,10 @@ def _breakdown_reference(policy, n, arrivals=False):
             machine.release(req)
 
     def arrive(make):
+        # The rows of one time start in one step, before any entity takes a step
         for i in range(1, n + 1):
-            yield env.timeout(0)
             env.process(make(i))
+        yield from ()
 
     if arrivals:
         env.process(arrive(worker))
@@ -1231,9 +1234,8 @@ def _get_reference(n, arrivals=False):
 
     def arrive():
         for i in range(1, n + 1):
-            if arrivals:
-                yield env.timeout(0)
             workers.append(env.process(worker(i)))
+        yield from ()
 
     def script():
         yield env.timeout(1)
@@ -1302,12 +1304,12 @@ def test_c3_an_interrupt_during_a_get_keeps_the_unit_and_cancels_the_get(tmp_pat
     assert outcome.app_or_env.get_resource("machine").count == 0
 
 
-def _end_reference(order, n, arrivals=False):
+def _end_reference(order, n):
     """`n` workers serve 5 on a machine; `n` other processes end a service at 5 too.
-    An interrupt at 5 reaches each worker as its timeout is triggered but not yet
-    processed, so the worker has no time left. It goes on with `yield env.timeout(0)`
-    and ends after the other processes, which `order` creates before (`ow`) or after
-    (`wo`) the workers."""
+    An interrupt at 5 reaches each worker with no time left, and the worker's loop
+    `while left > 0` ends at once, in the interrupt's step, after the other processes
+    whose timeouts were made before the interrupt. `order` creates the other processes
+    before (`ow`) or after (`wo`) the workers."""
     env = simpy.Environment()
     machine = simpy.Resource(env, capacity=n)
     trace, workers = [], []
@@ -1320,13 +1322,13 @@ def _end_reference(order, n, arrivals=False):
         req = machine.request()
         yield req
         left, started = 5.0, False
-        while True:
+        while left > 0:
             since = env.now
             note(name, "W", "resumed" if started else "started")
             started = True
             try:
                 yield env.timeout(left)
-                break
+                left = 0
             except simpy.Interrupt:
                 note(name, "W", "interrupted")
                 left -= env.now - since
@@ -1340,11 +1342,10 @@ def _end_reference(order, n, arrivals=False):
 
     def arrive(make, found=None):
         for i in range(1, n + 1):
-            if arrivals:
-                yield env.timeout(0)
             process = env.process(make(i))
             if found is not None:
                 found.append(process)
+        yield from ()
 
     def recall():
         yield env.timeout(5)
@@ -1361,19 +1362,58 @@ def _end_reference(order, n, arrivals=False):
     return trace
 
 
-@pytest.mark.parametrize("n", [1, 3])
+def _preempted_at_its_end_reference(n):
+    """`n` jobs of priority 1 serve 5 on a preemptive machine of `n` units, and `n` jobs
+    of priority 0 ask at 5 and serve 2. The loop `while left > 0` of a preempted job
+    that has no time left ends at once, as the `other_jobs` of SimPy's machine shop
+    do, and does not ask for a unit again."""
+    env = simpy.Environment()
+    machine = simpy.PreemptiveResource(env, capacity=n)
+    trace = []
+
+    def job(i):
+        left = 5.0
+        while left > 0:
+            with machine.request(priority=1) as req:
+                yield req
+                trace.append((env.now, "low", "started"))
+                since = env.now
+                try:
+                    yield env.timeout(left)
+                    left = 0
+                except simpy.Interrupt:
+                    trace.append((env.now, "low", "preempted"))
+                    left -= env.now - since
+        trace.append((env.now, "low", "worked"))
+
+    def urgent(i):
+        yield env.timeout(5)
+        with machine.request(priority=0) as req:
+            yield req
+            trace.append((env.now, "high", "started"))
+            yield env.timeout(2)
+        trace.append((env.now, "high", "worked"))
+
+    for i in range(1, n + 1):
+        env.process(urgent(i))
+    for i in range(1, n + 1):
+        env.process(job(i))
+    env.run(until=30)
+    return sorted(trace)
+
+
+@pytest.mark.parametrize("n", [1, 3, 10])
 @pytest.mark.parametrize("order", ["ow", "wo"])
-def test_c3_an_interrupt_at_the_exact_end_of_service_goes_on_a_step_later(
-    tmp_path, order, n
-):
-    """A worker interrupted at 5, when its service ends, has no time left. It goes on
-    one step later, after another process whose service also ends at 5, as a SimPy
-    process that yields `env.timeout(0)` does, whichever of the two timeouts was
-    made first."""
+def test_job_interrupted_at_its_end_ends(tmp_path, order, n):
+    """A worker interrupted at 5, when its service ends, has no time left and ends in
+    the interrupt's step, as SimPy's `while left > 0:` loop does. It asks for no unit
+    and publishes no `resumed`. A job preempted at the instant its work ends does the
+    same (register row I8)."""
     expected = _end_reference(order, n)
-    firsts = [(t, k, task, s) for t, k, task, s in expected if t == 5]
-    assert [s for _t, _k, task, s in firsts if task == "W"][-1] == "worked"
-    assert expected[-1][2] == "W"
+    assert [s for _t, _k, _task, s in expected if s == "resumed"] == []
+    assert [t for t, _k, task, s in expected if task == "W" and s == "worked"] == [
+        5
+    ] * n
 
     app = SimulationContext("C3", factor=0.0)
     app.add_resource("machine", current_cap=n, max_cap=n)
@@ -1420,7 +1460,78 @@ def test_c3_an_interrupt_at_the_exact_end_of_service_goes_on_a_step_later(
     )
     outcome = run_yaml_text(tmp_path, text, {"w": [0] * n, "o": [0] * n})
     assert outcome.error is None
-    assert _kept_events(outcome.records) == _end_reference(order, n, arrivals=True)
+    assert _kept_events(outcome.records) == expected
+    assert outcome.app_or_env.get_resource("machine").count == 0
+
+
+@pytest.mark.parametrize("kind", ["resource", "wait_branch"])
+@pytest.mark.parametrize("n", [1, 3, 10])
+def test_job_preempted_at_its_end_ends(tmp_path, n, kind):
+    """A job preempted at 5, when its work ends, ends there and does not ask for the
+    unit again, whether it took the unit as `resource` or with a `wait` request
+    branch: the preempting job takes it at 5 and the run ends with every unit free
+    (register row I8)."""
+    expected = _preempted_at_its_end_reference(n)
+    assert [e for e in expected if e[2] == "worked" and e[1] == "low"] == [
+        (5, "low", "worked")
+    ] * n
+
+    def shown(records):
+        return sorted(
+            (float(t), {"W": "low", "H": "high"}[task], s)
+            for t, _k, task, s in _kept_events(records)
+            if task in ("W", "H")
+        )
+
+    app = SimulationContext("C3", factor=0.0)
+    app.add_resource(
+        "machine", current_cap=n, max_cap=n, queue="priority", preempt=True
+    )
+    app.add_service("five", dist="constant", value=5)
+    app.add_service("two", dist="constant", value=2)
+
+    taking = (
+        {"resource_id": "machine"}
+        if kind == "resource"
+        else {"wait": {"request": "machine"}}
+    )
+
+    @app.task(service_id="five", priority=1, name="W", **taking)
+    def low(task_id):
+        return {"event": "x"}
+
+    @app.task(service_id="two", resource_id="machine", priority=0, name="H")
+    def high(task_id):
+        return {"event": "x"}
+
+    def script(context):
+        for i in range(1, n + 1):
+            context.spawn(low(0, entity=Entity(f"w-{i}", "w")))
+        yield context.env.timeout(5)
+        for i in range(1, n + 1):
+            context.spawn(high(0, entity=Entity(f"h-{i}", "h")))
+
+    app.add_process(script)
+    assert shown(run_builder(app, 30)) == expected
+    assert app.get_resource("machine").count == 0
+    assert app.get_resource("machine").queue == []
+
+    text = (
+        "simulation: {sim_id: C3, factor: 0}\n"
+        f"resources: {{machine: {{current_cap: {n}, max_cap: {n}, queue: priority, preempt: true}}}}\n"
+        "services: {five: {dist: constant, value: 5}, two: {dist: constant, value: 2}}\n"
+        "arrivals:\n"
+        "  h: {replay: {path: h.csv}, spawn: H}\n"
+        "  w: {replay: {path: w.csv}, spawn: W}\n"
+        "tasks:\n"
+        f"  W: {{service: five, {'resource: machine' if kind == 'resource' else 'wait: {request: machine}'}, "
+        "priority: 1, payload: {event: x}}\n"
+        "  H: {service: two, resource: machine, priority: 0, payload: {event: x}}\n"
+        "run: {until: 30}\n"
+    )
+    outcome = run_yaml_text(tmp_path, text, {"w": [0] * n, "h": [5] * n})
+    assert outcome.error is None
+    assert shown(outcome.records) == expected
     assert outcome.app_or_env.get_resource("machine").count == 0
 
 
@@ -1466,11 +1577,10 @@ def _put_reference(order, n, arrivals=False):
 
     def arrive(make, count, found=None):
         for i in range(count):
-            if arrivals:
-                yield env.timeout(0)
             process = env.process(make(i + 1 if make is not taker else i))
             if found is not None:
                 found.append(process)
+        yield from ()
 
     def recall():
         yield env.timeout(5)
@@ -1593,9 +1703,8 @@ def _end_of_flow_reference(case, n, arrivals=False):
 
     def arrive(make):
         for i in range(1, n + 1):
-            if arrivals:
-                yield env.timeout(0)
             env.process(make(i))
+        yield from ()
 
     env.process(arrive(holder))
     env.process(arrive(rival))
@@ -2204,3 +2313,315 @@ def test_c3_an_error_outside_the_function_gives_back_a_kept_unit_in_a_child_flow
     run_builder(app, 5, on_unhandled_failure="continue")
     assert started == [0.0]
     assert app.get_resource("picker").count == 0
+
+
+# ----------------------------------------- an instance is reachable from its spawn
+
+
+def _spawn_then_interrupt_reference(n, plain=False):
+    """`n` parents each start a child at 1 and interrupt the children alive at once.
+    The child runs to its first `yield` first, then the interrupt reaches it there
+    (SimPy's `Initialize` is scheduled before the `Interruption`). The child ends on
+    the interrupt, as `on_interrupt: abandon` does. With `plain` the child has no
+    `yield`, ends in its first step, and the interrupt finds nothing alive."""
+    env = simpy.Environment()
+    trace, alive = [], []
+
+    def child(name):
+        if plain:
+            trace.append((env.now, name, "C", "worked"))
+            return
+        trace.append((env.now, name, "C", "started"))
+        try:
+            yield env.timeout(5)
+            trace.append((env.now, name, "C", "worked"))
+        except simpy.Interrupt:
+            trace.append((env.now, name, "C", "interrupted"))
+
+    def parent(i):
+        yield env.timeout(1)
+        alive.append(env.process(child(f"p-{i}")))
+        for process in list(alive):
+            if process.is_alive:
+                process.interrupt("stop")
+
+    for i in range(1, n + 1):
+        env.process(parent(i))
+    env.run(until=30)
+    return trace
+
+
+def _interrupt_yaml(n, plain):
+    child = "{service: long, on_interrupt: abandon, on_interrupt_next: D, payload: {event: x}}"
+    if plain:
+        child = "{on_interrupt: abandon, on_interrupt_next: D, payload: {event: x}}"
+    actions = "on:\n      - spawn: {task: C}\n      - interrupt: {task: C, cause: stop}"
+    return (
+        "simulation: {sim_id: C3, factor: 0}\n"
+        "services: {one: {dist: constant, value: 1}, long: {dist: constant, value: 5}}\n"
+        "arrivals:\n"
+        "  p: {replay: {path: p.csv}, spawn: P}\n"
+        "tasks:\n"
+        "  P:\n"
+        "    service: one\n"
+        f"    {actions}\n"
+        "    payload: {event: x}\n"
+        f"  C: {child}\n"
+        "  D: {payload: {event: x}}\n"
+        "run: {until: 30}\n"
+    )
+
+
+def _interrupt_builder(n, form, plain):
+    app = SimulationContext("C3", factor=0.0)
+    app.add_service("long", dist="constant", value=5)
+
+    if plain:
+
+        @app.task(name="C", on_interrupt="abandon", on_interrupt_next="D")
+        def child(task_id):
+            return {"event": "x"}
+
+    else:
+
+        @app.task(
+            service_id="long", name="C", on_interrupt="abandon", on_interrupt_next="D"
+        )
+        def child(task_id):
+            return {"event": "x"}
+
+    @app.task(name="D")
+    def after(task_id):
+        return {"event": "x"}
+
+    def script(context):
+        yield context.env.timeout(1)
+        for i in range(1, n + 1):
+            entity = Entity(f"p-{i}", "p")
+            if form == "builder_spawn":
+                context.spawn(child(0, entity=entity))
+            else:
+                context.call("C", entity=entity)
+            context.interrupt("C", cause="stop")
+
+    app.add_process(script)
+    return app
+
+
+@pytest.mark.parametrize("plain", [False, True])
+@pytest.mark.parametrize("n", [1, 3, 10])
+@pytest.mark.parametrize("form", ["on", "builder_spawn", "builder_call"])
+def test_interrupt_reaches_an_instance_of_this_step(tmp_path, form, n, plain):
+    """A task instance can be interrupted in the step it starts in: it runs up to its
+    first `yield`, and the interrupt reaches it there, as SimPy's process does. This
+    holds for a `spawn` and an `interrupt` listed one after the other in `on:`, for
+    `context.spawn` and for `context.call` (register row I9). A task's own `spawn:`
+    and `interrupt:` keys run in a fixed order, interrupt first, so they cannot do it. A child with no `yield` ends in its
+    first step, and the interrupt does nothing."""
+    expected = _spawn_then_interrupt_reference(n, plain)
+    if form.startswith("builder"):
+        app = _interrupt_builder(n, form, plain)
+        got = [e for e in _kept_events(run_builder(app, 30)) if e[2] == "C"]
+    else:
+        outcome = run_yaml_text(tmp_path, _interrupt_yaml(n, plain), {"p": [0] * n})
+        assert outcome.error is None
+        got = [e for e in _kept_events(outcome.records) if e[2] == "C"]
+
+    def shape(rows):
+        return sorted((t, task, s) for t, _k, task, s in rows)
+
+    assert shape(got) == shape(expected)
+
+
+# ------------------------------------------- a run failure runs no `on:` action
+
+D3_TEXT = (
+    "simulation: {{sim_id: D3, factor: 0}}\n"
+    "services: {{one: {{dist: constant, value: 1}}}}\n"
+    "arrivals:\n"
+    "  a: {{replay: {{path: a.csv}}, spawn: {start}}}\n"
+    "tasks:\n"
+    "  W:\n"
+    "    wait: {{task: A}}\n"
+    "    on:\n"
+    "      - spawn: {{task: N}}\n"
+    "    payload: {{event: x}}\n"
+    "  A:\n"
+    "    service: one\n"
+    '    next: {{when: [{{condition: "{condition}", task: B}}], default: B}}\n'
+    "    on:\n"
+    "      - spawn: {{task: M}}\n"
+    "    payload: {{event: x}}\n"
+    "  B: {{payload: {{event: x}}}}\n"
+    "  M: {{payload: {{event: x}}}}\n"
+    "  N: {{payload: {{event: x}}}}\n"
+    "run: {{until: 30}}\n"
+)
+
+
+def _no_statement_after_a_raise_reference(n, fails, waits):
+    """`n` processes run a child that raises when `fails`. The child, or a parent that
+    yields the child, starts a marker process in the statement after the raise, which
+    only runs when nothing raised. Returns the markers that ran and the error."""
+    env = simpy.Environment()
+    ran = []
+
+    def child():
+        yield env.timeout(1)
+        if fails:
+            raise ZeroDivisionError("division by zero")
+        ran.append("child marker")
+
+    def parent():
+        yield env.process(child())
+        ran.append("parent marker")
+
+    for _ in range(n):
+        env.process(parent() if waits else child())
+    error = None
+    try:
+        env.run(until=30)
+    except ZeroDivisionError as exc:
+        error = exc
+    return sorted(set(ran)), error
+
+
+@pytest.mark.parametrize("n", [1, 3, 10])
+@pytest.mark.parametrize("start", ["A", "W"])
+@pytest.mark.parametrize("fails", [True, False])
+def test_on_actions_do_not_run_after_a_run_failure(tmp_path, fails, start, n):
+    """A task that ends in a run failure (here a `next` condition that cannot be
+    evaluated), and a parent whose wait fails because its child did, run none of
+    their `on:` actions: like a SimPy process that raises, they do not reach the
+    statements after the error. The same tasks without a failure run them
+    (register row D3)."""
+    waits = start == "W"
+    ran, error = _no_statement_after_a_raise_reference(n, fails, waits)
+    assert (error is not None) is fails
+    condition = "1 / 0 > 1" if fails else "1 / 1 > 1"
+    text = D3_TEXT.format(start=start, condition=condition)
+    outcome = run_yaml_text(tmp_path, text, {"a": [0] * n})
+    tasks = {r["task"] for r in outcome.records if r["stream_type"] == "event"}
+    markers = {"M": "child marker", "N": "parent marker"}
+    assert sorted(markers[t] for t in tasks & set(markers)) == ran
+    if fails:
+        assert "division by zero" in str(outcome.error)
+    else:
+        assert outcome.error is None
+
+
+@pytest.mark.parametrize("n", [1, 3, 10])
+@pytest.mark.parametrize("form", ["root", "child", "handled"])
+def test_on_actions_do_not_run_after_a_task_function_raises(form, n):
+    """A task function that raises ends its task in a run failure, so its `on:`
+    actions do not run, as the statement after a raise does not in SimPy. When the
+    task has an `on_fail` that handles the failure, the actions run (register row
+    D3)."""
+    app = SimulationContext("D3", factor=0.0)
+    app.add_service("one", dist="constant", value=1)
+
+    @app.task(service_id="one", name="M")
+    def marker(task_id):
+        return {"event": "m"}
+
+    @app.task(name="H")
+    def handler(task_id):
+        return {"event": "h"}
+
+    options = {"fail": "False", "on_fail": "H"} if form == "handled" else {}
+
+    @app.task(name="B", on=[{"spawn": {"task": "M"}}], **options)
+    def boom(task_id):
+        raise ValueError("boom")
+
+    @app.task(wait={"task": "B"}, name="P")
+    def parent(task_id):
+        return {"event": "p"}
+
+    def script(context):
+        for i in range(n):
+            if form == "child":
+                context.spawn(parent(0, entity=Entity(f"p-{i}", "p")))
+            else:
+                context.spawn(boom(0, entity=Entity(f"p-{i}", "p")))
+        yield context.env.timeout(0)
+
+    app.add_process(script)
+    outcome = run_builder(app, 30, raises=True, on_unhandled_failure="continue")
+    ran = {r["task"] for r in outcome.records if r["stream_type"] == "event"}
+    if form == "handled":
+        assert "M" in ran
+    else:
+        assert "M" not in ran
+
+
+# ------------------------------------------------------ interrupts in entry order
+
+
+def _entry_order_reference(entries):
+    """Workers enter at the given times and one interrupt at 20 reaches them in the
+    order they entered, as a loop over their processes does."""
+    env = simpy.Environment()
+    order, workers = [], []
+
+    def worker(name):
+        try:
+            yield env.timeout(30)
+        except simpy.Interrupt:
+            order.append(name)
+
+    def enter(name, at):
+        yield env.timeout(at)
+        workers.append(env.process(worker(name)))
+
+    def recall():
+        yield env.timeout(20)
+        for process in workers:
+            process.interrupt("recall")
+
+    for i, at in enumerate(entries, start=1):
+        env.process(enter(f"w-{i}", at))
+    env.process(recall())
+    env.run(until=40)
+    return order
+
+
+@pytest.mark.parametrize("n", [1, 3, 10])
+def test_interrupts_arrive_in_entry_order(tmp_path, n):
+    """Instances reached by one `interrupt` receive it in the order they entered the
+    task, tied entries in file order. Half of the workers enter at 0 and the rest at
+    5 (SimPy: a loop over the processes in the order they were made)."""
+    entries = [0 if i <= n // 2 else 5 for i in range(1, n + 1)]
+    expected = _entry_order_reference(entries)
+    assert len(expected) == n
+
+    text = (
+        "simulation: {sim_id: C3, factor: 0}\n"
+        "services: {long: {dist: constant, value: 30}}\n"
+        "arrivals:\n"
+        "  w: {replay: {path: w.csv}, spawn: W}\n"
+        "tasks:\n"
+        "  W: {service: long, on_interrupt: abandon, on_interrupt_next: D, "
+        "payload: {event: x}}\n"
+        "  D: {payload: {event: x}}\n"
+        "scenario: [{at: 20, interrupt: {task: W, cause: recall}}]\n"
+        "run: {until: 40}\n"
+    )
+    outcome = run_yaml_text(tmp_path, text, {"w": entries})
+    assert outcome.error is None
+    started = [
+        r["key"]
+        for r in outcome.records
+        if r["stream_type"] == "event"
+        and r["task"] == "W"
+        and r["value"].get("status") == "started"
+    ]
+    got = [
+        r["key"]
+        for r in outcome.records
+        if r["stream_type"] == "event"
+        and r["task"] == "W"
+        and r["value"].get("status") == "interrupted"
+    ]
+    assert got == started
+    assert got == expected

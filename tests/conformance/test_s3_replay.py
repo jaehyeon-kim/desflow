@@ -6,11 +6,18 @@ in file order; a row with no valid time is refused or skipped; rows at or after
 `until` never arrive; and after the last row the arrival stops with one log line.
 """
 
+import pytest
 import simpy
 
 from desflow import read_trace
 from desflow.core.context import SimulationContext
-from tests.conformance.harness import BLUEPRINTS, run_builder, run_low_level, run_yaml
+from tests.conformance.harness import (
+    BLUEPRINTS,
+    run_builder,
+    run_low_level,
+    run_yaml,
+    run_yaml_text,
+)
 
 ORDERS = BLUEPRINTS / "s3_orders.csv"
 EXPECTED = [
@@ -94,3 +101,57 @@ def test_s3_replay_equal_times_invalid_rows_and_the_horizon():
     assert _reference() == EXPECTED
     for records in (_low_level(), _builder(), run_yaml("s3_replay.yaml")[0]):
         assert _arrived(records) == EXPECTED
+
+
+def _tied_reference(n):
+    """Replay `a` has `n` rows at 5 and replay `b` has one row at 5. Each is a process
+    made in this order. At 5 the process of `a` starts all its workers in its step,
+    and then the process of `b` starts its worker."""
+    env = simpy.Environment()
+    seen = []
+
+    def worker(name):
+        seen.append((env.now, name, "started"))
+        yield env.timeout(1)
+
+    def replay(prefix, rows):
+        yield env.timeout(5)
+        for i in range(1, rows + 1):
+            env.process(worker(f"{prefix}-{i}"))
+
+    env.process(replay("a", n))
+    env.process(replay("b", 1))
+    env.run(until=30)
+    return seen
+
+
+@pytest.mark.parametrize("n", [1, 3, 10])
+def test_tied_replay_rows_start_in_one_step(tmp_path, n):
+    """The rows of one time of a replay arrival start their entities in one step, in
+    file order, as a SimPy loop that starts them one after another does. Another
+    replay arrival due at that time starts its entities after all of them, not
+    between two of them (GD-RS6 and P40 shape)."""
+    expected = _tied_reference(n)
+    assert [k for _t, k, _s in expected] == [f"a-{i}" for i in range(1, n + 1)] + [
+        "b-1"
+    ]
+
+    text = (
+        "simulation: {sim_id: S3, factor: 0}\n"
+        "services: {one: {dist: constant, value: 1}}\n"
+        "arrivals:\n"
+        "  a: {replay: {path: a.csv}, spawn: A}\n"
+        "  b: {replay: {path: b.csv}, spawn: B}\n"
+        "tasks:\n"
+        "  A: {service: one, payload: {event: x}}\n"
+        "  B: {service: one, payload: {event: x}}\n"
+        "run: {until: 30}\n"
+    )
+    outcome = run_yaml_text(tmp_path, text, {"a": [5] * n, "b": [5]})
+    assert outcome.error is None
+    got = [
+        r["key"]
+        for r in outcome.records
+        if r["stream_type"] == "event" and r["value"].get("status") == "started"
+    ]
+    assert got == [k for _t, k, _s in expected]

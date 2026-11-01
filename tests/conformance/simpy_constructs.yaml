@@ -64,10 +64,6 @@ gaps:
   H1:
     text: "A priority or preemptive unit cannot be held across a drawn or computed step, or across several later steps, by keys alone."
     form: held
-  H3:
-    text: "With `keep`, a child flow started by `wait: {task: ...}` makes the task give the kept unit back when the child starts."
-    form: held
-    fixed: 0.31.0
   H5:
     text: "Two tasks that take the same resources in opposite orders are refused at build, even with spare capacity."
     form: held
@@ -86,34 +82,14 @@ gaps:
   I4:
     text: "A process cannot suspend until another process resumes it."
     form: computed
-  I5:
-    text: "Patience that runs out at the instant the unit is released serves the customer; SimPy's `req in results` reneges."
-    form: computed
-    fixed: 0.31.0
   I6:
-    text: "Going on after a renege or a balk has no direct form; a child flow that does it reports `ok: true` with no value."
+    text: "Going on after a renege or a balk has no direct form; a child flow that does it reports `ok: true` and no value, as a SimPy child that returns without a value does."
     form: computed
-  I8:
-    text: "A job preempted at the instant its work ends resumes with no time left; SimPy completes it at that instant."
-    form: computed
-    fixed: 0.31.0
-  I9:
-    text: "A task cannot interrupt a task that starts in the same step."
-    form: computed
-    fixed: 0.31.0
   I10:
     text: "After an interrupt, a task under `on_interrupt: resume` asks again: a `wait: {timeout: 5}` interrupted at 2 starts again and ends at 7, a timeout inside `any` starts again, and a queued request or a `get` goes to the back of its queue, so another waiter takes the unit or the item first. A SimPy process that yields the same event again keeps the first end of the timeout and its place in the queue."
     form: wait-again
-  T9:
-    text: "Equal priorities in a priority store come out first in, first out; SimPy gives heap order."
-    form: computed
-    fixed: 0.31.0
   T10:
     text: "A losing timeout branch is dropped when an `any` wait ends; SimPy can yield the same `Timeout` again."
-    form: computed
-    fixed: 0.31.0
-  T11:
-    text: "A request, get or put branch granted at the instant its wait ends counts as won; a SimPy waiter can ignore it."
     form: computed
     fixed: 0.31.0
   L1:
@@ -200,14 +176,14 @@ constructs:
   # Conditions
   - {id: SP-C1, area: Conditions, simpy: "`AnyOf` and `env.any_of`"}
   - {id: SP-C2, area: Conditions, simpy: "`AllOf` and `env.all_of`"}
-  - {id: SP-C3, area: Conditions, simpy: "`ConditionValue`", gaps: [I5]}
+  - {id: SP-C3, area: Conditions, simpy: "`ConditionValue`"}
   - {id: SP-C4, area: Conditions, simpy: "A member that fails fails the condition"}
   - {id: SP-C5, area: Conditions, simpy: "Nested and mixed conditions"}
   - {id: SP-C6, area: Conditions, simpy: "`Condition(env, evaluate, events)` with a rule of your own", gaps: [V11]}
   - {id: SP-C7, area: Conditions, simpy: "A condition over no events"}
-  - {id: SP-C8, area: Conditions, simpy: "A request, get or put as a member of a condition", gaps: [T11]}
+  - {id: SP-C8, area: Conditions, simpy: "A request, get or put as a member of a condition"}
   # Interrupts
-  - {id: SP-P8, area: Interrupts, simpy: "`Process.interrupt(cause)` while the process waits", gaps: [I9]}
+  - {id: SP-P8, area: Interrupts, simpy: "`Process.interrupt(cause)` while the process waits"}
   - {id: SP-P9, area: Interrupts, simpy: "An interrupt during a timeout", gaps: [I3]}
   - {id: SP-P10, area: Interrupts, simpy: "`Interrupt` and `Interrupt.cause`", gaps: [V7, V3]}
   - {id: SP-P11, area: Interrupts, simpy: "Several interrupts at one time arrive in order"}
@@ -226,13 +202,13 @@ constructs:
   - {id: SP-S9, area: Resources, simpy: "`cancel()` after the grant", gaps: [H9]}
   - {id: SP-S10, area: Resources, simpy: "`Release` and `Release.request`"}
   - {id: SP-S11, area: Resources, simpy: "`Request.usage_since`", gaps: [V7]}
-  - {id: SP-S12, area: Resources, simpy: "Hold several resources at once", gaps: [H1, H3, H5]}
-  - {id: SP-S13, area: Resources, simpy: "Reneging: `req | env.timeout(patience)`", gaps: [I5, I6]}
+  - {id: SP-S12, area: Resources, simpy: "Hold several resources at once", gaps: [H1, H5]}
+  - {id: SP-S13, area: Resources, simpy: "Reneging: `req | env.timeout(patience)`", gaps: [I6]}
   - {id: SP-S14, area: Resources, simpy: "Balking: a check before `request()`", gaps: [I6]}
   - {id: SP-Q1, area: Resources, simpy: "`PriorityResource.request(priority)`"}
   - {id: SP-Q2, area: Resources, simpy: "Default request priority 0"}
   - {id: SP-Q3, area: Resources, simpy: "Queue key `(priority, time, not preempt)`"}
-  - {id: SP-Q4, area: Resources, simpy: "`PreemptiveResource` and `request(preempt=False)`", gaps: [H1, I8]}
+  - {id: SP-Q4, area: Resources, simpy: "`PreemptiveResource` and `request(preempt=False)`", gaps: [H1]}
   - {id: SP-Q5, area: Resources, simpy: "The user to preempt is picked with `max`"}
   - {id: SP-Q6, area: Resources, simpy: "`Preempted` cause: `by`, `usage_since`, `resource`", gaps: [V7]}
   - {id: SP-Q7, area: Resources, simpy: "`SortedQueue(maxlen)`, a waiting line with a limit", gaps: [H8]}
@@ -250,7 +226,7 @@ constructs:
   - {id: SP-T4, area: Stores, simpy: "A store that starts with items", gaps: [L2]}
   - {id: SP-T5, area: Stores, simpy: "`Store.items`"}
   - {id: SP-T6, area: Stores, simpy: "Capacity defaults to infinity"}
-  - {id: SP-T7, area: Stores, simpy: "`PriorityStore` and `PriorityItem`", gaps: [T9, V7]}
+  - {id: SP-T7, area: Stores, simpy: "`PriorityStore` and `PriorityItem`", gaps: [V7]}
   - {id: SP-T8, area: Stores, simpy: "Priorities of any orderable type"}
   - {id: SP-T9, area: Stores, simpy: "`FilterStore.get(filter)`", gaps: [V6, V12]}
   - {id: SP-B2, area: Stores, simpy: "`put_queue` and `get_queue`", gaps: [L1]}

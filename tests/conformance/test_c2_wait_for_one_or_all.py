@@ -19,6 +19,7 @@ from tests.conformance.harness import (
     run_builder,
     run_low_level,
     run_yaml,
+    run_yaml_text,
     times,
 )
 
@@ -681,3 +682,235 @@ def test_c2_target_during_a_single_branch_wait_is_the_event_waited_on():
     app.add_process(script)
     run_builder(app, 3)
     assert got == seen
+
+
+# ------------------------------------------- a branch granted as the wait ends (T11)
+
+
+def _reference_unit_granted_at_the_wait_end(n):
+    """`n` holders free `n` units at 5, the instant the limits of `n` waiters that asked
+    at 1 end. The holders' timeouts were made first, so the release is processed and the
+    request granted before the waiter resumes, but after its condition was processed.
+    Each waiter asks inside a `with` block that holds its 3 seconds of service, so the
+    unit is not in the result but is held until the block ends at 8. The `n`
+    contenders who ask at 6 are served at 8."""
+    env = simpy.Environment()
+    machine = simpy.Resource(env, n)
+    won, served, held = [], [], []
+
+    def holder():
+        with machine.request() as req:
+            yield req
+            yield env.timeout(5)
+
+    def waiter():
+        yield env.timeout(1)
+        with machine.request() as req:
+            result = yield req | env.timeout(4)
+            won.append(req in result)
+            held.append(req.triggered)
+            yield env.timeout(3)
+
+    def contender():
+        yield env.timeout(6)
+        with machine.request() as req:
+            yield req
+            served.append(env.now)
+
+    for make in (holder, waiter, contender):
+        for _ in range(n):
+            env.process(make())
+    env.run(until=20)
+    assert held == [True] * n
+    return won, served
+
+
+def _reference_item_granted_at_the_wait_end(n):
+    """`n` puts at 5, the instant `n` waiters' limits end. A get granted after its
+    condition was processed is not in the result, and its item is lost."""
+    env = simpy.Environment()
+    store = simpy.Store(env, n)
+    won = []
+
+    def putter(i):
+        yield env.timeout(5)
+        yield store.put(f"item-{i}")
+
+    def waiter():
+        got = store.get()
+        result = yield got | env.timeout(5)
+        won.append(got in result)
+
+    for i in range(n):
+        env.process(putter(i))
+    for _ in range(n):
+        env.process(waiter())
+    env.run(until=20)
+    return won, list(store.items)
+
+
+def _builder_unit_granted_at_the_wait_end(n):
+    app = SimulationContext("C2", factor=0.0)
+    app.add_resource("m", current_cap=n, max_cap=n)
+    app.add_service("five", dist="constant", value=5)
+    app.add_service("three", dist="constant", value=3)
+    app.add_service("one", dist="constant", value=1)
+
+    @app.task(service_id="five", resource_id="m", name="holder")
+    def holder(task_id):
+        return {"event": "held"}
+
+    @app.task(
+        wait={"any": {"req": {"request": "m"}, "limit": {"timeout": 4}}},
+        service_id="three",
+        next={"when": [{"condition": "wait.req.done", "task": "won"}]},
+        name="waiter",
+    )
+    def waiter(task_id):
+        return {"event": "waited"}
+
+    @app.task(name="won")
+    def won(task_id):
+        return {"event": "won"}
+
+    @app.task(service_id="one", resource_id="m", name="contender")
+    def contender(task_id):
+        return {"event": "served"}
+
+    def script(context):
+        for i in range(n):
+            context.spawn(holder(0, entity=Entity(f"h-{i}", "h", {})))
+        yield context.env.timeout(1)
+        for i in range(n):
+            context.spawn(waiter(0, entity=Entity(f"w-{i}", "w", {})))
+        yield context.env.timeout(5)
+        for i in range(n):
+            context.spawn(contender(0, entity=Entity(f"c-{i}", "c", {})))
+
+    app.add_process(script)
+    return run_builder(app, 20), app
+
+
+UNIT_GRANTED_AT_THE_WAIT_END = """
+simulation: {sim_id: C2, factor: 0}
+resources:
+  m: {current_cap: %(n)d, max_cap: %(n)d}
+services:
+  five: {dist: constant, value: 5}
+  three: {dist: constant, value: 3}
+  one: {dist: constant, value: 1}
+arrivals:
+  holders: {replay: {path: holders.csv}, spawn: holder}
+  waiters: {replay: {path: waiters.csv}, spawn: waiter}
+  contenders: {replay: {path: contenders.csv}, spawn: contender}
+tasks:
+  holder:
+    resource: m
+    service: five
+    payload: {event: held}
+  waiter:
+    wait: {any: {req: {request: m}, limit: {timeout: 4}}}
+    service: three
+    payload: {event: waited}
+    next: {when: [{condition: wait.req.done, task: won}]}
+  won:
+    payload: {event: won}
+  contender:
+    resource: m
+    service: one
+    payload: {event: served}
+run: {until: 20}
+"""
+
+
+def _builder_item_granted_at_the_wait_end(n):
+    app = SimulationContext("C2", factor=0.0)
+    app.add_store("s", current_cap=n, max_cap=n)
+
+    @app.task(
+        wait={"any": {"g": {"get": {"store": "s"}}, "limit": {"timeout": 5}}},
+        next={"when": [{"condition": "wait.g.done", "task": "won"}]},
+        name="waiter",
+    )
+    def waiter(task_id):
+        return {"event": "waited"}
+
+    @app.task(name="won")
+    def won(task_id):
+        return {"event": "won"}
+
+    @app.task(put={"store": "s"}, name="putter")
+    def putter(task_id):
+        return {"sku": "box"}
+
+    def script(context):
+        for i in range(n):
+            context.spawn(waiter(0, entity=Entity(f"w-{i}", "w", {})))
+        yield context.env.timeout(5)
+        for i in range(n):
+            context.spawn(putter(0, entity=Entity(f"p-{i}", "p", {})))
+
+    app.add_process(script)
+    return run_builder(app, 20), app
+
+
+ITEM_GRANTED_AT_THE_WAIT_END = """
+simulation: {sim_id: C2, factor: 0}
+stores:
+  s: {current_cap: %(n)d, max_cap: %(n)d}
+arrivals:
+  waiters: {replay: {path: waiters.csv}, spawn: waiter}
+  putters: {replay: {path: putters.csv}, spawn: putter}
+tasks:
+  waiter:
+    wait: {any: {g: {get: {store: s}}, limit: {timeout: 5}}}
+    payload: {event: waited}
+    next: {when: [{condition: wait.g.done, task: won}]}
+  won:
+    payload: {event: won}
+  putter:
+    put: {store: s}
+    payload: {sku: box}
+run: {until: 20}
+"""
+
+
+@pytest.mark.parametrize("n", [1, 3, 10])
+def test_grant_at_the_wait_end_is_not_kept(tmp_path, n):
+    """A unit or an item granted at the instant a wait ends, after the wait's condition
+    was processed, is not in the condition's value, so the wait ignores it, as a SimPy
+    waiter does that reads `req in result`. A request's unit stays with the
+    task until it ends, as the `with` block holds it, so later contenders are served at 8;
+    a get's item is lost. The branch is not done."""
+    won, served = _reference_unit_granted_at_the_wait_end(n)
+    assert won == [False] * n
+    assert served == [8] * n
+    records, app = _builder_unit_granted_at_the_wait_end(n)
+    assert times(records, "won") == []
+    assert times(records, "contender", "started") == [8.0] * n
+    assert app.get_resource("m").in_use == 0
+    (tmp_path / "unit").mkdir()
+    outcome = run_yaml_text(
+        tmp_path / "unit",
+        UNIT_GRANTED_AT_THE_WAIT_END % {"n": n},
+        {"holders": [0] * n, "waiters": [1] * n, "contenders": [6] * n},
+    )
+    assert outcome.error is None
+    assert times(outcome.records, "won") == []
+    assert times(outcome.records, "contender", "started") == [8.0] * n
+
+    won, items = _reference_item_granted_at_the_wait_end(n)
+    assert won == [False] * n
+    assert items == []
+    records, app = _builder_item_granted_at_the_wait_end(n)
+    assert times(records, "won") == []
+    assert list(app.get_store("s").items) == []
+    (tmp_path / "item").mkdir()
+    outcome = run_yaml_text(
+        tmp_path / "item",
+        ITEM_GRANTED_AT_THE_WAIT_END % {"n": n},
+        {"waiters": [0] * n, "putters": [5] * n},
+    )
+    assert outcome.error is None
+    assert times(outcome.records, "won") == []
+    assert list(outcome.app_or_env.get_store("s").items) == []

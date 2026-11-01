@@ -1,5 +1,4 @@
 import heapq
-import itertools
 import math
 from typing import Any, Iterable, Optional, Type, Union
 
@@ -166,7 +165,7 @@ class DynamicStore(BaseDynamicResource):
             items (Iterable, optional): The items it holds when the run starts, in
                 the order a get returns them. A priority store takes `(priority,
                 item)` pairs and holds each as a `PriorityItem`, lowest priority
-                first and in the order given among equal priorities.
+                first. Equal priorities leave in the order SimPy's heap gives them.
             type (Type[StoreBase], optional): A subclass of `StoreBase` to build the
                 store from, in place of the default; it is built as
                 `type(env, capacity=...)`. Defaults to None, the default store.
@@ -185,9 +184,6 @@ class DynamicStore(BaseDynamicResource):
 
         # Dynamically select the underlying SimPy storage engine
         self.priority = priority
-        # A rising number for every priority item, so equal priorities keep the
-        # order they were added in and their items are never compared
-        self._order = itertools.count()
         kind = type or (_PriorityStore if priority else _Store)
         # SimPy refuses a capacity of 0, which desflow accepts because a capacity
         # changes during a run; the store is built with 1 and held at 0, as a
@@ -215,19 +211,20 @@ class DynamicStore(BaseDynamicResource):
 
     def wrap(self, item: Any, priority: float) -> PriorityItem:
         """
-        Wraps an item for a priority store, ranked by `priority` and then by order.
+        Wraps an item for a priority store, ranked by `priority`.
 
-        The builder and YAML put every item through this, so equal priorities come
-        out first in, first out, which a plain `PriorityItem` does not promise.
+        The builder and YAML put every item through this. Items of equal priority
+        leave in the order SimPy's heap gives them, as a `PriorityItem` put into a
+        `simpy.PriorityStore` does.
 
         Args:
             item: The item.
             priority: Its priority, lowest returned first.
 
         Returns:
-            PriorityItem: The item, ranked by `(priority, order)`; `.item` is the item.
+            PriorityItem: The item, ranked by `priority`; `.item` is the item.
         """
-        return PriorityItem((priority, next(self._order)), item)
+        return PriorityItem(priority, item)
 
     @property
     def capacity(self) -> int:

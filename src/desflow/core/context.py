@@ -5,6 +5,7 @@ import itertools
 import logging
 import math
 import secrets
+import weakref
 from datetime import datetime
 from pathlib import Path
 from typing import (
@@ -288,6 +289,10 @@ class SimulationContext:
         self._ended: set = set()
         # Task instances running now, by task, which interrupt() reaches
         self._running: Dict[str, List[TaskRun]] = {}
+        # The instance a task function's generator runs, until `spawn` starts it
+        self._runs_of: "weakref.WeakKeyDictionary[Any, TaskRun]" = (
+            weakref.WeakKeyDictionary()
+        )
         # The positional arguments a YAML task's function takes after its id
         self._task_args: Tuple[Any, ...] = ()
 
@@ -1299,11 +1304,11 @@ class SimulationContext:
                     raise RuntimeError("Simulation has not been built yet.")
                 if entity is None:
                     entity = self._new_entity(task_name, None)
-                generator = TaskRun(
-                    self, spec, task_id, entity, upstream, args, kwargs
-                ).run()
+                run = TaskRun(self, spec, task_id, entity, upstream, args, kwargs)
+                generator = run.run()
                 # A process is named after its generator; name it after the task (P6)
                 generator.__name__ = task_name  # type: ignore[attr-defined]
+                self._runs_of[generator] = run
                 return generator
 
             self._tasks[task_name] = wrapper
@@ -1451,7 +1456,19 @@ class SimulationContext:
         entity = self._new_entity(
             arrival_id, (attributes, self._arrival_entities[arrival_id][1])
         )
-        return self.env.timeout(max(0.0, row.time - self.env.now), value=entity)
+        if row.time <= self.env.now:
+            return self._next_replayed_tied(entity)
+        return self.env.timeout(row.time - self.env.now, value=entity)
+
+    def _next_replayed_tied(self, entity: Entity) -> simpy.Event:
+        """The wait for a row due at the step in progress: an event already processed,
+        so the arrival loop goes on in the same step. The rows of one time then start
+        their entities in one step, in file order, as a SimPy loop that starts them
+        one after another does, before any of them takes its first step."""
+        event = self.env.event()
+        event._ok, event._value = True, entity
+        event.callbacks = None  # type: ignore[assignment]
+        return event
 
     def add_arrival_replay(
         self,
@@ -1648,7 +1665,12 @@ class SimulationContext:
         if not self._env:
             raise RuntimeError("Cannot spawn processes before context is run.")
         if delay is None:
-            return self._env.process(process)
+            started = self._env.process(process)
+            run = self._runs_of.pop(process, None)
+            if run is not None:
+                # A task instance is reachable by `interrupt` from the step it starts in
+                run.reach(started)
+            return started
         import simpy.util
 
         return simpy.util.start_delayed(self._env, process, delay)
@@ -1769,6 +1791,7 @@ class SimulationContext:
         # task, not `run`, so `active_process.name` and records read the task (P6).
         generator.__name__ = spec.name  # type: ignore[attr-defined]
         process = self.env.process(generator)
+        run.reach(process)
         if child and self._on_unhandled_failure == "continue":
             # Under `continue`, a child flow that fails with no task waiting for it
             # ends that flow, not the run; under `stop` the failure stops the run.
@@ -1808,13 +1831,16 @@ class SimulationContext:
             )
             gen = run.run()
             gen.__name__ = task  # type: ignore[attr-defined]
-            return gen
+            return run, gen
 
         if after is None:
-            return self.env.process(make())
+            run, gen = make()
+            process = self.env.process(gen)
+            run.reach(process)
+            return process
 
         def wrapper() -> Any:
-            return (yield from make())
+            return (yield from make()[1])
 
         delayed = wrapper()
         delayed.__name__ = task  # type: ignore[attr-defined]

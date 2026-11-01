@@ -116,6 +116,8 @@ Type: mapping of names to [Arrival](#arrivals). Optional.
 
 An `arrivals` entry: a distribution, or a `replay` of recorded rows, the task it spawns, and the attributes each entity it starts carries.
 
+File order is creation order: arrivals are made in the order they are written, then the `processes`. Events due at one time run in the order they were scheduled, so this order decides only ties between first due times.
+
 | Key | Type | Default |
 |---|---|---|
 | `dist` | text | none |
@@ -216,9 +218,13 @@ Type: mapping of names to [Task](#tasks). Optional.
 
 A `tasks` entry, built with `SimulationContext.task`.
 
+Text in a value place stays text. A time place reads a number as seconds, text `time_to_seconds` accepts as a duration, and other text as an expression.
+
 `payload` is the value of the `finished` event: a mapping, or a `!python` function called as `payload(task_id, context)`. `id_field` adds the task id to a mapping payload under that key, `item_field` adds the item its store `get` took, and `attributes` adds the named entity attributes. A task with a `service` and no `resource` is a timed step; one with neither, and no `get`, emits its payload as soon as it is spawned.
 
 `priority` is a number or an expression such as `attr.priority`, for a resource whose `queue` is `priority`. `patience` is seconds, a duration such as `30 s` or an expression; `balk` is a condition checked before the task joins the queue. `resource` is one resource or a list, acquired in the order listed; `keep` hands units to the next task. `on_interrupt` is `resume`, `restart` or `abandon`, and `interrupt` interrupts the running instances of a task when this one finishes. `wait` is what the task waits for first: a signal, a child task, a timeout or a condition, or any or all of several. `signal` names a signal the task fires when it finishes. `fail` is a condition checked after the service: when it holds the task publishes `failed` with `fail_reason`, and goes to `on_fail`. `get` and `put` take from and add to a store or container. `next` is a task name, `when` rules or `weights`. `set` gives the entity attribute values when the task finishes.
+
+An expression uses Python's arithmetic: `/` gives a float, and `//` rounds down and gives an integer for two integers. `and` and `or` stop at the first operand that decides the result and do not absorb an error: an operand that cannot be evaluated fails the expression.
 
 | Key | Type | Default |
 |---|---|---|
@@ -409,7 +415,7 @@ Type: list of [Process](#processes) or !python reference. Optional.
 
 A `processes` entry: a generator function and extra keyword arguments.
 
-The function is called as `function(context, **kwargs)` when the run starts.
+The function is called as `function(context, **kwargs)` when the run starts. The processes are made after the arrivals, in the order they are written.
 
 | Key | Type | Default |
 |---|---|---|

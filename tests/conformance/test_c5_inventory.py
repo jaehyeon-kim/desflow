@@ -385,9 +385,10 @@ def _reference_put_then_desk(kind, order, n):
             trace.append((env.now, name, "worked"))
 
     def arrivals(arrival, make):
+        # The rows of one time start in one step, before any entity takes a step
         for i in range(1, n + 1):
-            yield env.timeout(0)  # a replay arrival waits its gap before each spawn
             env.process(make(f"{arrival}-{i}"))
+        yield from ()
 
     for arrival in order:
         env.process(arrivals(arrival, source))

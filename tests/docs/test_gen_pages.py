@@ -237,12 +237,15 @@ def test_every_gap_is_used_defined_and_linked_to_a_form():
     for gap in ("S1", "S2", "S3", "S4", "S5"):
         assert gap not in data["gaps"]
     # The run and time rules (T1 to T8, T13 and T14) are removed by Batch 1 of 1.0.0;
-    # the resource, wait and interrupt rows ship in 0.31.0; the additive Low-level
-    # and filter rows in 0.32.0
+    # the T10 and V3 rows ship in 0.31.0; the additive Low-level and filter rows in
+    # 0.32.0
     for number in (*range(1, 9), 13, 14):
         assert f"T{number}" not in data["gaps"]
-    for gap in ("T9", "T10", "T11", "I5", "I8", "I9", "H3", "V3"):
+    for gap in ("T10", "V3"):
         assert data["gaps"][gap]["fixed"] == "0.31.0"
+    # Batch 2 of 1.0.0 removes T9, T11, I5, I8, I9 and H3
+    for gap in ("T9", "T11", "I5", "I8", "I9", "H3"):
+        assert gap not in data["gaps"]
     for gap in ("L1", "L2", "V6"):
         assert data["gaps"][gap]["fixed"] == "0.32.0"
     # A gap with only part of its row planned names no release
