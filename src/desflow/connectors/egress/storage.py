@@ -33,11 +33,13 @@ def _generate_chunk_filename(base_path: str) -> str:
         base_path (str): The target file path (e.g., 'data/events.parquet').
 
     Returns:
-        str: The chunked file path (e.g., 'data/events_a1b2c3d4.parquet').
+        str: The chunked file path (e.g., 'data/events_a1b2c3d4.parquet'), always
+            with forward slashes, which PyArrow filesystems and `_ensure_folder` expect.
     """
     path_obj = Path(base_path)
     chunk_id = uuid.uuid4().hex[:8]
-    return f"{path_obj.parent / path_obj.stem}_{chunk_id}{path_obj.suffix}"
+    stem_path = (path_obj.parent / path_obj.stem).as_posix()
+    return f"{stem_path}_{chunk_id}{path_obj.suffix}"
 
 
 # The `type` values a filesystem mapping can name, and the PyArrow class each builds.

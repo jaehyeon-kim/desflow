@@ -22,7 +22,7 @@ import sys
 import textwrap
 import types
 import typing
-from pathlib import Path
+from pathlib import Path, PurePath
 from typing import Any, Dict, Iterator, List
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -149,6 +149,9 @@ def _annotation(value: Any) -> str:
 
 
 def _default(value: Any) -> str:
+    if isinstance(value, PurePath):
+        # `repr` names the class of the running platform, PosixPath or WindowsPath
+        return f"PosixPath({value.as_posix()!r})"
     return _ADDRESS.sub("", repr(value))
 
 

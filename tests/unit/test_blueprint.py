@@ -1,6 +1,7 @@
 """YAML blueprints: validation, error lines and the builder calls they make."""
 
 import json
+import re
 import textwrap
 import time
 from datetime import datetime
@@ -256,20 +257,24 @@ def test_cross_reference_errors_name_the_line(tmp_path, old, new, line, fragment
 def test_unknown_connector_type_names_the_line(tmp_path):
     text = MINIMAL + "egress:\n  - type: Carrier\n"
     path = write(tmp_path, text)
-    with pytest.raises(BlueprintError, match=rf"{path}:20: unknown connector type"):
+    with pytest.raises(
+        BlueprintError, match=rf"{re.escape(str(path))}:20: unknown connector type"
+    ):
         SimulationContext.from_yaml(path)
 
 
 def test_bad_connector_config_names_the_line(tmp_path):
     text = MINIMAL + "egress:\n  - type: Console\n    config: {colour: red}\n"
     path = write(tmp_path, text)
-    with pytest.raises(BlueprintError, match=rf"{path}:21: ConsoleEgress rejected"):
+    with pytest.raises(
+        BlueprintError, match=rf"{re.escape(str(path))}:21: ConsoleEgress rejected"
+    ):
         SimulationContext.from_yaml(path)
 
 
 def test_yaml_syntax_error_names_the_line(tmp_path):
     path = write(tmp_path, "simulation:\n  sim_id: [Shop\n")
-    with pytest.raises(BlueprintError, match=rf"{path}:\d+:"):
+    with pytest.raises(BlueprintError, match=rf"{re.escape(str(path))}:\d+:"):
         SimulationContext.from_yaml(path)
 
 
@@ -518,14 +523,18 @@ def test_python_reference_reports_an_import_failure_inside_the_module(tmp_path):
 
 def test_python_tag_on_a_mapping_is_rejected(tmp_path):
     path = write(tmp_path, MINIMAL + "processes:\n  - !python {a: b}\n")
-    with pytest.raises(BlueprintError, match=rf"{path}:20: !python takes a dotted"):
+    with pytest.raises(
+        BlueprintError, match=rf"{re.escape(str(path))}:20: !python takes a dotted"
+    ):
         SimulationContext.from_yaml(path)
 
 
 def test_a_process_must_be_a_generator_function(tmp_path, logic):
     text = MINIMAL + f"processes:\n  - !python {logic}.not_a_generator\n"
     path = write(tmp_path, text)
-    with pytest.raises(BlueprintError, match=rf"{path}:20: .*generator function"):
+    with pytest.raises(
+        BlueprintError, match=rf"{re.escape(str(path))}:20: .*generator function"
+    ):
         SimulationContext.from_yaml(path)
 
 
@@ -698,7 +707,9 @@ def test_scenario_at_must_be_a_time(tmp_path):
         tmp_path,
         MINIMAL + "scenario:\n  - {at: later, path: Shop.variables.x, value: 1}\n",
     )
-    with pytest.raises(BlueprintError, match=rf"{path}:20: scenario.0.at"):
+    with pytest.raises(
+        BlueprintError, match=rf"{re.escape(str(path))}:20: scenario.0.at"
+    ):
         SimulationContext.from_yaml(path)
 
 
@@ -763,7 +774,8 @@ def test_an_unset_variable_without_a_default_names_the_line(tmp_path, monkeypatc
     monkeypatch.delenv("SIM_ID", raising=False)
     path = write(tmp_path, ENV_BLUEPRINT)
     with pytest.raises(
-        BlueprintError, match=rf"{path}:2: environment variable SIM_ID is not set"
+        BlueprintError,
+        match=rf"{re.escape(str(path))}:2: environment variable SIM_ID is not set",
     ):
         SimulationContext.from_yaml(path)
 
@@ -838,7 +850,8 @@ def test_times_take_python_objects(tmp_path, logic):
 def test_a_bad_time_names_the_line(tmp_path, value, fragment):
     path = write(tmp_path, _with_times(value, "now"))
     with pytest.raises(
-        BlueprintError, match=rf"{path}:5: simulation.logical_start_time: .*{fragment}"
+        BlueprintError,
+        match=rf"{re.escape(str(path))}:5: simulation.logical_start_time: .*{fragment}",
     ):
         SimulationContext.from_yaml(path)
 
@@ -885,7 +898,8 @@ def test_live_is_compared_in_the_zone_of_the_start_time(tmp_path):
 def test_history_needs_go_live_at(tmp_path):
     path = write(tmp_path, MINIMAL + "egress:\n  - type: Console\n    when: history\n")
     with pytest.raises(
-        BlueprintError, match=rf"{path}:21: when: history needs simulation.go_live_at"
+        BlueprintError,
+        match=rf"{re.escape(str(path))}:21: when: history needs simulation.go_live_at",
     ):
         SimulationContext.from_yaml(path)
 
@@ -894,7 +908,7 @@ def test_an_unknown_when_names_the_line(tmp_path):
     path = write(tmp_path, MINIMAL + "egress:\n  - type: Console\n    when: later\n")
     with pytest.raises(
         BlueprintError,
-        match=rf"{path}:21: egress.0.when: .*'later' is not a when. Use history, live",
+        match=rf"{re.escape(str(path))}:21: egress.0.when: .*'later' is not a when. Use history, live",
     ):
         SimulationContext.from_yaml(path)
 
@@ -919,7 +933,8 @@ def test_a_task_without_service_or_resource_emits_at_once(tmp_path):
 def test_a_resource_needs_a_service(tmp_path):
     path = write(tmp_path, MINIMAL.replace("    service: packing\n", ""))
     with pytest.raises(
-        BlueprintError, match=rf"{path}:12: tasks.part: .*a resource needs a service"
+        BlueprintError,
+        match=rf"{re.escape(str(path))}:12: tasks.part: .*a resource needs a service",
     ):
         SimulationContext.from_yaml(path)
 
@@ -985,7 +1000,9 @@ def test_zero_intervals_and_sizes_are_rejected(tmp_path, extra, line, fragment):
 
 def test_zero_until_is_rejected(tmp_path):
     path = write(tmp_path, MINIMAL.replace("until: 30", "until: 0"))
-    with pytest.raises(BlueprintError, match=rf"{path}:18: .*run.until"):
+    with pytest.raises(
+        BlueprintError, match=rf"{re.escape(str(path))}:18: .*run.until"
+    ):
         SimulationContext.from_yaml(path)
 
 

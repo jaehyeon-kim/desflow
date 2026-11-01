@@ -51,7 +51,9 @@ dependencies = [
     # 2.4 have no Discriminator, and 2.5 no inf_nan_mode in to_jsonable_python
     "pydantic>=2.6.0",
     "pyyaml>=6.0.1",
-    "typer>=0.16.0"
+    "typer>=0.16.0",
+    # Windows has no time zone database of its own, so ZoneInfo needs this there
+    "tzdata; sys_platform == 'win32'"
 ]
 
 [project.scripts]

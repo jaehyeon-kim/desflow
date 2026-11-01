@@ -1189,6 +1189,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "simpy" },
     { name = "typer" },
+    { name = "tzdata", marker = "sys_platform == 'win32'" },
 ]
 
 [package.optional-dependencies]
@@ -1297,6 +1298,7 @@ requires-dist = [
     { name = "scipy", marker = "extra == 'fit'", specifier = ">=1.17.1" },
     { name = "simpy", specifier = ">=4.1.2" },
     { name = "typer", specifier = ">=0.16.0" },
+    { name = "tzdata", marker = "sys_platform == 'win32'" },
 ]
 provides-extras = ["kafka", "redis", "postgres", "confluent", "glue", "parquet", "iceberg", "fit", "all"]
 
